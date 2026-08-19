@@ -1,0 +1,161 @@
+{
+  "name": "@sia/desktop",
+  "version": "0.1.0-alpha.1",
+  "private": true,
+  "description": "A local-first personal computer assistant for macOS.",
+  "author": "Lawrence Jang",
+  "type": "module",
+  "main": "out/main/index.js",
+  "scripts": {
+    "build": "electron-vite build",
+    "cloud-config:prepare": "node scripts/prepare-cloud-config.mjs --allow-disabled",
+    "cloud-config:prepare:release": "node scripts/prepare-cloud-config.mjs --require-enabled",
+    "clean": "rimraf out release coverage test-results playwright-report",
+    "dev": "electron-vite dev",
+    "icon:build": "node scripts/build-icon.mjs",
+    "licenses:build": "node scripts/build-third-party-licenses.mjs",
+    "package:mac": "rimraf release && node scripts/verify-release-environment.mjs && pnpm cloud-config:prepare:release && pnpm icon:build && pnpm -w build && electron-builder --mac --universal && node scripts/finalize-release-artifacts.mjs --arch=universal && node scripts/verify-packaged-app.mjs --arch=universal --signing=release",
+    "package:mac:arm64:dir": "rimraf release && pnpm cloud-config:prepare && pnpm icon:build && pnpm -w build && electron-builder --mac --arm64 --dir --config.mac.identity=null --config.mac.notarize=false && node scripts/verify-packaged-app.mjs --arch=arm64 --signing=unsigned",
+    "package:mac:dir": "rimraf release && pnpm cloud-config:prepare && pnpm icon:build && pnpm -w build && electron-builder --mac --universal --dir --config.mac.identity=null --config.mac.notarize=false && node scripts/verify-packaged-app.mjs --arch=universal --signing=unsigned",
+    "preview": "electron-vite preview",
+    "prebuild": "pnpm licenses:build",
+    "test": "vitest run",
+    "test:e2e": "pnpm -w build && playwright test",
+    "test:e2e:parity": "pnpm -w build && playwright test parity/parity.spec.ts",
+    "test:e2e:parity:strict": "SIA_PARITY_REQUIRE_COMPLETE=1 pnpm test:e2e:parity",
+    "test:e2e:parity:incomplete": "SIA_PARITY_ALLOW_INCOMPLETE=1 pnpm test:e2e:parity",
+    "test:e2e:real:no-turn": "pnpm -w build && playwright test e2e/real-no-turn.spec.ts",
+    "test:e2e:real:capabilities": "pnpm -w build && playwright test e2e/real-capabilities.spec.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@trycua/cua-driver": "0.19.3",
+    "ws": "^8.21.3",
+    "zod": "^4.4.3"
+  },
+  "optionalDependencies": {
+    "@trycua/cua-driver-darwin-arm64": "0.19.3",
+    "@trycua/cua-driver-darwin-x64": "0.19.3",
+    "@ubjs/node-darwin-arm64": "0.31.0-3",
+    "@ubjs/node-darwin-x64": "0.31.0-3"
+  },
+  "devDependencies": {
+    "@phosphor-icons/react": "^2.1.10",
+    "@playwright/test": "^1.62.1",
+    "@radix-ui/react-alert-dialog": "^1.1.15",
+    "@radix-ui/react-dialog": "^1.1.23",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "@sia/action-gateway": "workspace:*",
+    "@sia/protocol": "workspace:*",
+    "@sia/runtime": "workspace:*",
+    "@sia/tool-bridge": "workspace:*",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "43.4.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "jsdom": "^28.1.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "rimraf": "^6.1.2",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6",
+    "vitest": "^4.1.10"
+  },
+  "build": {
+    "appId": "ai.sia.desktop",
+    "productName": "Sia",
+    "artifactName": "Sia-${version}-${arch}.${ext}",
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/@trycua/cua-driver/**",
+      "node_modules/@trycua/cua-driver-*/**",
+      "node_modules/@ubjs/node-darwin-*/**"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../../THIRD_PARTY_NOTICES.md",
+        "to": "THIRD_PARTY_NOTICES.md"
+      },
+      {
+        "from": "build/THIRD_PARTY_LICENSES.txt",
+        "to": "THIRD_PARTY_LICENSES.txt"
+      },
+      {
+        "from": "build/ELECTRON_LICENSE.txt",
+        "to": "ELECTRON_LICENSE.txt"
+      },
+      {
+        "from": "build/CHROMIUM_LICENSES.html",
+        "to": "CHROMIUM_LICENSES.html"
+      },
+      {
+        "from": "../../patches/@ubjs__node@0.31.0-3.patch",
+        "to": "patches/@ubjs__node@0.31.0-3.patch"
+      },
+      {
+        "from": "build/sia-cloud.json",
+        "to": "sia-cloud.json"
+      }
+    ],
+    "extraMetadata": {
+      "main": "out/main/index.js"
+    },
+    "afterPack": "build/after-pack.cjs",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.icns",
+      "minimumSystemVersion": "14.0",
+      "hardenedRuntime": true,
+      "notarize": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "x64ArchFiles": "Contents/Resources/app.asar.unpacked/node_modules/{@trycua,@ubjs}/**/*",
+      "extendInfo": {
+        "NSAccessibilityUsageDescription": "Sia uses Accessibility only for computer actions you explicitly grant.",
+        "NSScreenCaptureDescription": "Sia uses Screen Recording to observe only the windows you explicitly grant.",
+        "NSMicrophoneUsageDescription": "Sia uses the microphone only while you record a message for transcription.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSAllowsLocalNetworking": false
+        }
+      },
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "dmg": {
+      "sign": true,
+      "window": {
+        "width": 600,
+        "height": 390
+      },
+      "contents": [
+        {
+          "x": 175,
+          "y": 190
+        },
+        {
+          "x": 425,
+          "y": 190,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    }
+  }
+}

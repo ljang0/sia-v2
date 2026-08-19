@@ -1,0 +1,838 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Sia v2 US research-alpha control plane (no client AWS credentials)
+
+Parameters:
+  StageName:
+    Type: String
+    Default: alpha
+    AllowedPattern: '^[a-z][a-z0-9-]{1,20}$'
+  ResearchConsentVersion:
+    Type: String
+    Default: alpha-research-v2
+    AllowedPattern: '^[A-Za-z0-9._-]{1,64}$'
+  ResearchRetentionDays:
+    Type: Number
+    Default: 90
+    MinValue: 1
+    MaxValue: 365
+  InviteLimit:
+    Type: Number
+    Default: 20
+    MinValue: 1
+    MaxValue: 20
+  ControlReservedConcurrency:
+    Type: Number
+    Default: 20
+    MinValue: 1
+    MaxValue: 500
+  MetaReservedConcurrency:
+    Type: Number
+    Default: 10
+    MinValue: 1
+    MaxValue: 500
+  DeletionReservedConcurrency:
+    Type: Number
+    Default: 2
+    MinValue: 1
+    MaxValue: 100
+  BootstrapAdminEmail:
+    Type: String
+    Default: ''
+    Description: Optional first Admins-group user. Leave empty only if an administrator already exists.
+  EmailSendingAccount:
+    Type: String
+    Default: COGNITO_DEFAULT
+    AllowedValues: [COGNITO_DEFAULT, DEVELOPER]
+  SesSourceArn:
+    Type: String
+    Default: ''
+    Description: Required when EmailSendingAccount is DEVELOPER.
+  FromEmail:
+    Type: String
+    Default: ''
+    Description: Branded From address used with SES in production alpha.
+  AlarmNotificationTopicArn:
+    Type: String
+    MinLength: 1
+    Description: Required operator-monitored SNS topic notified when a deletion reaches the dead-letter queue.
+
+Conditions:
+  HasBootstrapAdmin: !Not [!Equals [!Ref BootstrapAdminEmail, '']]
+  UseSes: !Equals [!Ref EmailSendingAccount, DEVELOPER]
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Architectures: [arm64]
+    MemorySize: 512
+    Tracing: Active
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref ControlTable
+        RESEARCH_BUCKET: !Ref ResearchBucket
+        KMS_KEY_ARN: !GetAtt DataKey.Arn
+        DELETION_QUEUE_URL: !Ref DeletionQueue
+        USER_POOL_ID: !Ref UserPool
+        META_SECRET_ARN: !Ref MetaSecret
+        COMPOSIO_SECRET_ARN: !Ref ComposioSecret
+        RESEARCH_CONSENT_VERSION: !Ref ResearchConsentVersion
+        ACTION_TTL_SECONDS: '600'
+        INVITE_LIMIT: !Ref InviteLimit
+        META_CONCURRENCY: '2'
+
+Resources:
+  DataKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: Sia alpha data, queue, and secret encryption
+      EnableKeyRotation: true
+      PendingWindowInDays: 30
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AccountIAMAdministration
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+            Action: kms:*
+            Resource: '*'
+
+  DataKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/sia-${StageName}-data
+      TargetKeyId: !Ref DataKey
+
+  ControlTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      SSESpecification:
+        SSEEnabled: true
+        SSEType: KMS
+        KMSMasterKeyId: !GetAtt DataKey.Arn
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+        RecoveryPeriodInDays: 30
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      DeletionProtectionEnabled: true
+
+  ResearchBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !GetAtt DataKey.Arn
+            BucketKeyEnabled: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireResearchCaptures
+            Status: Enabled
+            ExpirationInDays: !Ref ResearchRetentionDays
+          - Id: ExpireNoncurrentAndIncompleteData
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+
+  ResearchBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ResearchBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !GetAtt ResearchBucket.Arn
+              - !Sub ${ResearchBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
+  MetaSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: Replace with Meta private API configuration after deployment
+      KmsKeyId: !GetAtt DataKey.Arn
+      SecretString: >-
+        {"enabled":false,"apiKey":"REPLACE_AFTER_DEPLOYMENT","endpoint":"https://invalid.local/v1","model":"not-configured","sessionHeader":"x-session-id","allowedModels":[]}
+
+  ComposioSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: Replace with a least-privilege Composio project key and pinned auth/tool configuration
+      KmsKeyId: !GetAtt DataKey.Arn
+      SecretString: >-
+        {"apiKey":"REPLACE_AFTER_DEPLOYMENT","baseUrl":"https://backend.composio.dev","toolVersion":"20260721_00","authConfigIds":{"gmail":"REPLACE","google_drive":"REPLACE","slack":"REPLACE"},"toolSlugs":{"mail.search":"GMAIL_FETCH_EMAILS","mail.read_thread":"GMAIL_FETCH_MESSAGE_BY_THREAD_ID","mail.create_draft":"GMAIL_CREATE_EMAIL_DRAFT","mail.send":"GMAIL_SEND_EMAIL","drive.search":"GOOGLEDRIVE_FIND_FILE","drive.read":"GOOGLEDRIVE_GET_FILE_METADATA","drive.upload":"GOOGLEDRIVE_UPLOAD_FILE","drive.share":"GOOGLEDRIVE_CREATE_PERMISSION","slack.search":"SLACK_SEARCH_MESSAGES","slack.read_thread":"SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION","slack.post":"SLACK_SEND_MESSAGE"}}
+
+  DeletionDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      KmsMasterKeyId: !GetAtt DataKey.Arn
+      MessageRetentionPeriod: 1209600
+
+  DeletionQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      KmsMasterKeyId: !GetAtt DataKey.Arn
+      VisibilityTimeout: 360
+      MessageRetentionPeriod: 1209600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DeletionDeadLetterQueue.Arn
+        maxReceiveCount: 5
+
+  DeletionDeadLetterQueueAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: A Sia privacy-deletion job reached the dead-letter queue.
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt DeletionDeadLetterQueue.QueueName
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmNotificationTopicArn]
+
+  DeletionQueueAgeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: A Sia privacy-deletion job has remained queued for more than ten minutes.
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt DeletionQueue.QueueName
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+      Threshold: 600
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmNotificationTopicArn]
+
+  ControlFunctionErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: The Sia control API is returning Lambda errors.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ControlFunction
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmNotificationTopicArn]
+
+  ControlFunctionThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: The Sia control API exhausted its configured concurrency.
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ControlFunction
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmNotificationTopicArn]
+
+  MetaFunctionErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: The Sia Meta relay is returning Lambda errors.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref MetaFunction
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmNotificationTopicArn]
+
+  MetaFunctionThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: The Sia Meta relay exhausted its configured concurrency.
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref MetaFunction
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmNotificationTopicArn]
+
+  DeletionFunctionErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: The Sia privacy-deletion worker is returning Lambda errors.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref DeletionFunction
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmNotificationTopicArn]
+
+  DeletionFunctionThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: The Sia privacy-deletion worker exhausted its configured concurrency.
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref DeletionFunction
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmNotificationTopicArn]
+
+  ControlTableThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: The Sia control table is throttling user requests.
+      Namespace: AWS/DynamoDB
+      MetricName: ThrottledRequests
+      Dimensions:
+        - Name: TableName
+          Value: !Ref ControlTable
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmNotificationTopicArn]
+
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub sia-${StageName}
+      UserPoolTier: ESSENTIALS
+      DeletionProtection: ACTIVE
+      UsernameAttributes: [email]
+      UsernameConfiguration:
+        CaseSensitive: false
+      AutoVerifiedAttributes: [email]
+      MfaConfiguration: 'OFF'
+      Policies:
+        SignInPolicy:
+          # Cognito currently requires PASSWORD to remain enabled when a choice-based
+          # sign-in policy is configured. The desktop still explicitly prefers EMAIL_OTP.
+          AllowedFirstAuthFactors: [PASSWORD, EMAIL_OTP]
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+        InviteMessageTemplate:
+          EmailSubject: You are invited to the Sia alpha
+          EmailMessage: You are invited to Sia. Sign in with {username} and request a one-time email code.
+      EmailConfiguration:
+        EmailSendingAccount: !Ref EmailSendingAccount
+        SourceArn: !If [UseSes, !Ref SesSourceArn, !Ref AWS::NoValue]
+        From: !If [UseSes, !Ref FromEmail, !Ref AWS::NoValue]
+      EmailAuthenticationSubject: Your Sia sign-in code
+      EmailAuthenticationMessage: Your Sia sign-in code is {####}.
+
+  DesktopClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: sia-macos
+      GenerateSecret: false
+      EnableTokenRevocation: true
+      PreventUserExistenceErrors: ENABLED
+      ExplicitAuthFlows:
+        - ALLOW_USER_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+
+  AdminsGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: Admins
+      Description: May create and list alpha invitations
+      Precedence: 0
+
+  BootstrapAdmin:
+    Type: AWS::Cognito::UserPoolUser
+    Condition: HasBootstrapAdmin
+    Properties:
+      UserPoolId: !Ref UserPool
+      Username: !Ref BootstrapAdminEmail
+      DesiredDeliveryMediums: [EMAIL]
+      UserAttributes:
+        - Name: email
+          Value: !Ref BootstrapAdminEmail
+        - Name: email_verified
+          Value: 'true'
+
+  BootstrapAdminGroupAttachment:
+    Type: AWS::Cognito::UserPoolUserToGroupAttachment
+    Condition: HasBootstrapAdmin
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: !Ref AdminsGroup
+      Username: !Ref BootstrapAdminEmail
+
+  ApiExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: SiaControlApi
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:BatchWriteItem
+                Resource: !GetAtt ControlTable.Arn
+              - Effect: Allow
+                Action: [s3:ListBucket, s3:ListBucketVersions]
+                Resource: !GetAtt ResearchBucket.Arn
+              - Effect: Allow
+                Action:
+                  [
+                    s3:GetObject,
+                    s3:GetObjectVersion,
+                    s3:PutObject,
+                    s3:DeleteObject,
+                    s3:DeleteObjectVersion,
+                  ]
+                Resource: !Sub ${ResearchBucket.Arn}/*
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref ComposioSecret
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt DeletionQueue.Arn
+              - Effect: Allow
+                Action: cognito-idp:AdminCreateUser
+                Resource: !GetAtt UserPool.Arn
+              - Effect: Allow
+                Action: [kms:Decrypt, kms:Encrypt, kms:GenerateDataKey]
+                Resource: !GetAtt DataKey.Arn
+
+  MetaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: SiaMetaRelay
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:UpdateItem]
+                Resource: !GetAtt ControlTable.Arn
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref MetaSecret
+              - Effect: Allow
+                Action: kms:Decrypt
+                Resource: !GetAtt DataKey.Arn
+
+  DeletionExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: SiaDeletionWorker
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:BatchWriteItem
+                Resource: !GetAtt ControlTable.Arn
+              - Effect: Allow
+                Action: [s3:ListBucket, s3:ListBucketVersions]
+                Resource: !GetAtt ResearchBucket.Arn
+              - Effect: Allow
+                Action: [s3:DeleteObject, s3:DeleteObjectVersion]
+                Resource: !Sub ${ResearchBucket.Arn}/*
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref ComposioSecret
+              - Effect: Allow
+                Action: [cognito-idp:ListUsers, cognito-idp:AdminDeleteUser]
+                Resource: !GetAtt UserPool.Arn
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:ChangeMessageVisibility
+                  - sqs:GetQueueAttributes
+                Resource: !GetAtt DeletionQueue.Arn
+              - Effect: Allow
+                Action: [kms:Decrypt, kms:GenerateDataKey]
+                Resource: !GetAtt DataKey.Arn
+
+  ControlFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../apps/cloud/lambda/control/
+      Handler: index.handler
+      Role: !GetAtt ApiExecutionRole.Arn
+      Timeout: 30
+      ReservedConcurrentExecutions: !Ref ControlReservedConcurrency
+
+  MetaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../apps/cloud/lambda/meta/
+      Handler: index.handler
+      Role: !GetAtt MetaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 1024
+      ReservedConcurrentExecutions: !Ref MetaReservedConcurrency
+
+  DeletionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../apps/cloud/lambda/deletion/
+      Handler: index.handler
+      Role: !GetAtt DeletionExecutionRole.Arn
+      Timeout: 300
+      ReservedConcurrentExecutions: !Ref DeletionReservedConcurrency
+      Events:
+        DeletionMessages:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt DeletionQueue.Arn
+            BatchSize: 5
+            FunctionResponseTypes: [ReportBatchItemFailures]
+
+  ApiGatewayInvokeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeOnlySiaFunctions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource:
+                  - !GetAtt ControlFunction.Arn
+                  - !GetAtt MetaFunction.Arn
+
+  ApiGatewayCloudWatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: WriteApiGatewayLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:PutLogEvents
+                  - logs:GetLogEvents
+                  - logs:FilterLogEvents
+                Resource: '*'
+
+  ApiGatewayAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchRole.Arn
+
+  ApiAccessLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 30
+
+  RestApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref StageName
+      EndpointConfiguration: REGIONAL
+      TracingEnabled: true
+      AccessLogSetting:
+        DestinationArn: !GetAtt ApiAccessLogs.Arn
+        Format: >-
+          {"requestId":"$context.requestId","route":"$context.resourcePath","method":"$context.httpMethod","status":"$context.status","latency":"$context.responseLatency","stream":"$context.integration.responseTransferMode"}
+      MethodSettings:
+        - ResourcePath: /*
+          HttpMethod: '*'
+          LoggingLevel: ERROR
+          DataTraceEnabled: false
+          MetricsEnabled: true
+      DefinitionBody:
+        openapi: '3.0.1'
+        info:
+          title: Sia control plane
+          version: '1.0'
+        components:
+          securitySchemes:
+            SiaCognito:
+              type: apiKey
+              name: Authorization
+              in: header
+              x-amazon-apigateway-authtype: cognito_user_pools
+              x-amazon-apigateway-authorizer:
+                type: cognito_user_pools
+                providerARNs:
+                  - !GetAtt UserPool.Arn
+        security:
+          - SiaCognito: []
+        paths:
+          /v1/meta/turns:
+            post:
+              responses:
+                '200': { description: SSE stream }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2021-11-15/functions/${MetaFunction.Arn}/response-streaming-invocations
+                timeoutInMillis: 300000
+                responseTransferMode: STREAM
+          /v1/connections/{app}:
+            parameters:
+              - name: app
+                in: path
+                required: true
+                schema: { type: string }
+            x-amazon-apigateway-any-method:
+              responses:
+                '200': { description: Connection result }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
+          /v1/actions/prepare:
+            post:
+              responses:
+                '200': { description: Result }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
+          /v1/actions/commit:
+            post:
+              responses:
+                '200': { description: Result }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
+          /v1/connector-files/upload-request:
+            post:
+              responses:
+                '201': { description: Presigned connector file upload }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
+          /v1/research/batches:
+            post:
+              responses:
+                '200': { description: Result }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
+          /v1/research/export:
+            post:
+              responses:
+                '200': { description: Result }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
+          /v1/research/delete:
+            x-amazon-apigateway-any-method:
+              responses:
+                '200': { description: Deletion result }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
+          /v1/admin/invites:
+            x-amazon-apigateway-any-method:
+              responses:
+                '200': { description: Invite result }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
+
+Outputs:
+  ApiBaseUrl:
+    Value: !Sub https://${RestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${StageName}
+  UserPoolId:
+    Value: !Ref UserPool
+  DesktopClientId:
+    Value: !Ref DesktopClient
+  CognitoRegion:
+    Value: !Ref AWS::Region
+  MetaSecretArn:
+    Value: !Ref MetaSecret
+  ComposioSecretArn:
+    Value: !Ref ComposioSecret
+  DeletionDeadLetterQueueUrl:
+    Value: !Ref DeletionDeadLetterQueue
+  DeletionDeadLetterQueueAlarmName:
+    Value: !Ref DeletionDeadLetterQueueAlarm
+  OperationalAlarmNames:
+    Value: !Join
+      - ','
+      - - !Ref DeletionQueueAgeAlarm
+        - !Ref ControlFunctionErrorAlarm
+        - !Ref ControlFunctionThrottleAlarm
+        - !Ref MetaFunctionErrorAlarm
+        - !Ref MetaFunctionThrottleAlarm
+        - !Ref DeletionFunctionErrorAlarm
+        - !Ref DeletionFunctionThrottleAlarm
+        - !Ref ControlTableThrottleAlarm

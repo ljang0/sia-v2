@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sia local browser acceptance fixture</title>
+    <style>
+      body {
+        max-width: 44rem;
+        margin: 4rem auto;
+        padding: 0 2rem;
+        font:
+          18px/1.5 system-ui,
+          sans-serif;
+      }
+      label,
+      input,
+      button,
+      a,
+      output {
+        display: block;
+        margin: 1rem 0;
+      }
+      input[type='text'] {
+        width: 100%;
+        padding: 0.75rem;
+      }
+      output {
+        min-height: 2rem;
+        padding: 0.75rem;
+        border: 1px solid #999;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Sia local browser acceptance fixture</h1>
+    <p>This page is served from this Mac and contains no account or personal data.</p>
+
+    <label for="message">Acceptance text</label>
+    <input id="message" type="text" autocomplete="off" />
+    <button id="apply" type="button">Apply acceptance text</button>
+    <output id="result" aria-live="polite">No text applied.</output>
+
+    <label for="upload">Benign local file</label>
+    <input id="upload" type="file" />
+    <output id="upload-result" aria-live="polite">No file selected.</output>
+
+    <a id="download" href="./local-browser-download.txt" download>Download benign fixture</a>
+
+    <script>
+      const message = document.querySelector('#message');
+      const result = document.querySelector('#result');
+      document.querySelector('#apply').addEventListener('click', () => {
+        result.value = message.value;
+        result.textContent = message.value;
+      });
+      document.querySelector('#upload').addEventListener('change', (event) => {
+        const [file] = event.target.files;
+        const label = file ? `${file.name} (${file.size} bytes)` : 'No file selected.';
+        const target = document.querySelector('#upload-result');
+        target.value = label;
+        target.textContent = label;
+      });
+    </script>
+  </body>
+</html>

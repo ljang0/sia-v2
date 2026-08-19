@@ -1,0 +1,27 @@
+diff --git a/typescript/dist/resolve-lib.js b/typescript/dist/resolve-lib.js
+index e8837bb2337c42eaffe15942923b8af39fca2b1a..190b2404011f558c9040ca153d9df5b8235ca735 100644
+--- a/typescript/dist/resolve-lib.js
++++ b/typescript/dist/resolve-lib.js
+@@ -88,6 +88,13 @@ function libFileName(crateName, platform) {
+     const ext = platform === "darwin" ? "dylib" : "so";
+     return `lib${crateName}.${ext}`;
+ }
++function resolveAsarUnpackedPath(path) {
++    const marker = `${node_path_1.sep}app.asar${node_path_1.sep}`;
++    if (!path.includes(marker))
++        return path;
++    const unpacked = path.replace(marker, `${node_path_1.sep}app.asar.unpacked${node_path_1.sep}`);
++    return (0, node_fs_1.existsSync)(unpacked) ? unpacked : path;
++}
+ function resolveLibPath(opts) {
+     if ("override" in opts && opts.override !== undefined) {
+         return resolveOverride(opts.crateName, opts.override);
+@@ -156,7 +163,7 @@ function resolveNpmPackage(crateName, callerUrl, npmPackageBase, tripleStyle) {
+             cause,
+         });
+     }
+-    const binaryPath = (0, node_path_1.join)((0, node_path_1.dirname)(pkgJsonPath), libFileName(crateName, process.platform));
++    const binaryPath = resolveAsarUnpackedPath((0, node_path_1.join)((0, node_path_1.dirname)(pkgJsonPath), libFileName(crateName, process.platform)));
+     if (!(0, node_fs_1.existsSync)(binaryPath)) {
+         throw new ResolveLibPathError({
+             message: `Platform package "${pkgName}" is installed but does not contain ` +

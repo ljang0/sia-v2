@@ -1,0 +1,29 @@
+{
+  "name": "@sia/cloud",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && pnpm bundle",
+    "bundle": "node scripts/build-lambdas.mjs",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test test/**/*.test.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.850.0",
+    "@aws-sdk/client-dynamodb": "^3.850.0",
+    "@aws-sdk/client-s3": "^3.850.0",
+    "@aws-sdk/client-secrets-manager": "^3.850.0",
+    "@aws-sdk/client-sqs": "^3.850.0",
+    "@aws-sdk/lib-dynamodb": "^3.850.0",
+    "@aws-sdk/s3-request-presigner": "^3.850.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.152",
+    "@types/node": "^24.0.0",
+    "esbuild": "0.25.12",
+    "tsx": "^4.20.0",
+    "typescript": "^5.8.0"
+  }
+}

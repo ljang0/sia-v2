@@ -1,0 +1,264 @@
+/*
+ * Sia's visual system: "an agent is a room". A deep green shell holds the agents; the selected
+ * agent's room sits inside it, and that agent's own hue tints the room (its avatar, its threads,
+ * its approvals, its presence). Ink-black pills are the person's controls. Bricolage Grotesque
+ * (SIL OFL 1.1, bundled variable latin subset) is the display face for names and headings; the
+ * system sans carries the interface. The production CSP is font-src 'self', so nothing loads
+ * from the network.
+ */
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 200 800;
+  font-stretch: 75% 100%;
+  font-display: swap;
+  src: url('./fonts/BricolageGrotesque-latin.woff2') format('woff2');
+}
+
+:root {
+  color-scheme: light dark;
+  font-family:
+    'SF Pro Text',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+
+  --font-sans: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display:
+    'Bricolage Grotesque', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+
+  /* Type scale. Interface text uses --text-*; names and headings use --display-*. */
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-base: 14px;
+  --text-lg: 15px;
+  --text-xl: 17px;
+  --text-2xl: 21px;
+  --display-sm: 18px;
+  --display-md: 22px;
+  --display-lg: 28px;
+  --display-xl: 36px;
+  --weight-regular: 450;
+  --weight-medium: 560;
+  --weight-semibold: 620;
+  --weight-display: 700;
+  --tracking-display: -0.02em;
+  --display-settings: 'opsz' 40;
+
+  /* Room surfaces (light). */
+  --bg-app: #edf0ee;
+  --bg-sidebar: #e6eae8;
+  --bg-canvas: #f3f5f4;
+  --bg-subtle: #e6eae8;
+  --bg-raised: #ffffff;
+  --bg-hover: #e0e5e2;
+  --bg-selected: #dce6e1;
+
+  /* The person's controls: ink. */
+  --bg-accent: #14211c;
+  --bg-accent-hover: #2b3b34;
+  --bg-danger: #b3402a;
+  --bg-danger-hover: #99351f;
+
+  --text-primary: #14211c;
+  --text-secondary: #4c5b54;
+  --text-tertiary: #55645d;
+  --text-on-accent: #f3f5f4;
+  --text-on-danger: #fff5f2;
+  --text-link: #1e5c49;
+  --text-danger: #9c3320;
+  --text-warning: #7a5a12;
+  --text-success: #1e5c49;
+
+  --border-subtle: #d3dbd7;
+  --border-strong: #66746d;
+  --border-accent: #14211c;
+  --border-danger: #e0a698;
+  --focus-ring: #1e5c49;
+
+  --surface-warning: #f6ecd2;
+  --surface-danger: #f9e6e1;
+  --surface-success: #dff0e7;
+  --surface-info: #dde9e4;
+  --overlay: rgb(15 59 46 / 46%);
+
+  /* The shell around the rooms. Same in both appearances. */
+  --shell-bg: #0f3b2e;
+  --shell-bg-deep: #0b2c22;
+  --shell-text: #e9f1ec;
+  --shell-dim: #b7cfc4;
+  --shell-muted: #8fb4a4;
+  --shell-hover: rgb(233 241 236 / 8%);
+  --shell-selected: rgb(233 241 236 / 12%);
+  --shell-line: rgb(233 241 236 / 14%);
+
+  /* Agent hues. Identity 0-3 map to these; --agent-color is the room's current hue. */
+  --hue-0: #e9b44c;
+  --hue-1: #e97c4c;
+  --hue-2: #7fb6e9;
+  --hue-3: #8fd9a9;
+  --agent-color: var(--hue-0);
+  --agent-ink: #14211c;
+  --agent-soft: color-mix(in srgb, var(--agent-color) 22%, transparent);
+  --agent-line: color-mix(in srgb, var(--agent-color) 70%, transparent);
+
+  --shadow-raised: 0 1px 2px rgb(20 33 28 / 6%), 0 4px 14px rgb(20 33 28 / 5%);
+  --shadow-dialog: 0 28px 80px rgb(15 59 46 / 26%), 0 3px 12px rgb(20 33 28 / 8%);
+  --shadow-menu: 0 14px 36px rgb(20 33 28 / 14%), 0 2px 7px rgb(20 33 28 / 6%);
+  --shadow-composer: 0 18px 48px rgb(20 33 28 / 8%), 0 2px 8px rgb(20 33 28 / 5%);
+
+  --radius-tight: 6px;
+  --radius-control: 10px;
+  --radius-surface: 14px;
+  --radius-dialog: 18px;
+  --radius-room: 16px;
+  --radius-round: 999px;
+  --ink-line: 1.5px;
+
+  --motion-fast: 140ms;
+  --motion-standard: 210ms;
+  --motion-surface: 280ms;
+  --ease-standard: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
+
+  --sidebar-width: 264px;
+  --inspector-width: 360px;
+  --titlebar-height: 52px;
+  --composer-max: 840px;
+  --layer-base: 0;
+  --layer-sticky: 10;
+  --layer-drawer: 20;
+  --layer-overlay: 30;
+  --layer-dialog: 40;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-app: #1a201d;
+    --bg-sidebar: #1f2723;
+    --bg-canvas: #171c1a;
+    --bg-subtle: #222927;
+    --bg-raised: #262e2a;
+    --bg-hover: #2c3531;
+    --bg-selected: #2f3b35;
+    --bg-accent: #ecf1ee;
+    --bg-accent-hover: #ffffff;
+    --bg-danger: #d9654e;
+    --bg-danger-hover: #e67760;
+
+    --text-primary: #ecf1ee;
+    --text-secondary: #b9c6bf;
+    --text-tertiary: #a6b4ac;
+    --text-on-accent: #14211c;
+    --text-on-danger: #1f120e;
+    --text-link: #8fd9a9;
+    --text-danger: #ff9f8c;
+    --text-warning: #e8c76b;
+    --text-success: #8fd9a9;
+
+    --border-subtle: #34403a;
+    --border-strong: #8a988f;
+    --border-accent: #ecf1ee;
+    --border-danger: #7a4437;
+    --focus-ring: #8fd9a9;
+
+    --surface-warning: #37301c;
+    --surface-danger: #3b2521;
+    --surface-success: #1f3a2d;
+    --surface-info: #23342d;
+    --overlay: rgb(4 10 8 / 64%);
+
+    --shell-bg: #0b2c22;
+    --shell-bg-deep: #08211a;
+
+    --shadow-raised: 0 1px 2px rgb(0 0 0 / 30%), 0 4px 14px rgb(0 0 0 / 22%);
+    --shadow-dialog: 0 28px 80px rgb(0 0 0 / 50%), 0 3px 12px rgb(0 0 0 / 24%);
+    --shadow-menu: 0 14px 36px rgb(0 0 0 / 36%), 0 2px 7px rgb(0 0 0 / 22%);
+    --shadow-composer: 0 18px 48px rgb(0 0 0 / 26%), 0 2px 8px rgb(0 0 0 / 18%);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  min-width: 0;
+  background: var(--shell-bg);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  font-feature-settings:
+    'kern' 1,
+    'liga' 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea,
+select {
+  color: inherit;
+  font: inherit;
+}
+
+button {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+button,
+a,
+input,
+textarea,
+select,
+[tabindex]:not([tabindex='-1']) {
+  outline: none;
+}
+
+:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+::selection {
+  background: var(--bg-selected);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: var(--radius-round);
+  background: color-mix(in srgb, var(--text-tertiary) 42%, transparent);
+  background-clip: padding-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 1ms;
+    --motion-standard: 1ms;
+    --motion-surface: 1ms;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+}

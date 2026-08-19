@@ -1,0 +1,368 @@
+import {
+  CalendarDots,
+  CheckCircle,
+  Clock,
+  Flag,
+  Pause,
+  Play,
+  Plus,
+  Trash,
+} from '@phosphor-icons/react';
+import { useId, useState, type FormEvent } from 'react';
+import type { ThreadGoal } from '../../types';
+import styles from '../../ui.module.css';
+
+interface SelectOption {
+  id: string;
+  label: string;
+  detail?: string | undefined;
+}
+
+interface ThreadModelControlsProps {
+  modelId: string;
+  reasoningId: string;
+  models: readonly SelectOption[];
+  reasoningOptions: readonly SelectOption[];
+  disabled?: boolean | undefined;
+  onChangeModel(modelId: string): Promise<void> | void;
+  onChangeReasoning(reasoningId: string): Promise<void> | void;
+}
+
+export function ThreadModelControls({
+  modelId,
+  reasoningId,
+  models,
+  reasoningOptions,
+  disabled,
+  onChangeModel,
+  onChangeReasoning,
+}: ThreadModelControlsProps) {
+  return (
+    <section className={styles.threadControls} aria-label="Thread model settings">
+      <label>
+        <span className={styles.visuallyHidden}>Model</span>
+        <select
+          aria-label="Model"
+          data-testid="thread-model-select"
+          value={modelId}
+          disabled={disabled}
+          onChange={(event) => void onChangeModel(event.target.value)}
+        >
+          {models.map((model) => (
+            <option key={model.id} value={model.id} title={model.detail}>
+              {model.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <span className={styles.threadControlDivider} aria-hidden="true">
+        ·
+      </span>
+      <label>
+        <span className={styles.visuallyHidden}>Reasoning</span>
+        <select
+          aria-label="Reasoning"
+          data-testid="thread-reasoning-select"
+          value={reasoningId}
+          disabled={disabled}
+          onChange={(event) => void onChangeReasoning(event.target.value)}
+        >
+          {reasoningOptions.map((option) => (
+            <option key={option.id} value={option.id} title={option.detail}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    </section>
+  );
+}
+
+interface GoalControlsProps {
+  goal?: ThreadGoal | undefined;
+  busy?: boolean | undefined;
+  onSetGoal(text: string): Promise<void> | void;
+  onPauseGoal(): Promise<void> | void;
+  onResumeGoal(): Promise<void> | void;
+  onClearGoal(): Promise<void> | void;
+}
+
+export function GoalControls({
+  goal,
+  busy,
+  onSetGoal,
+  onPauseGoal,
+  onResumeGoal,
+  onClearGoal,
+}: GoalControlsProps) {
+  const [draft, setDraft] = useState('');
+  const inputId = useId();
+
+  if (goal) {
+    return (
+      <section className={styles.goalControl} aria-labelledby={`${inputId}-title`}>
+        <div className={styles.localSurfaceHeader}>
+          <div>
+            <span className={styles.sectionLabel}>Thread goal</span>
+            <h2 id={`${inputId}-title`}>{goal.text}</h2>
+          </div>
+          <span className={styles.goalStatus} data-status={goal.status}>
+            {goal.status === 'running' ? (
+              <CheckCircle size={15} aria-hidden="true" />
+            ) : (
+              <Pause size={15} aria-hidden="true" />
+            )}
+            {goal.status}
+          </span>
+        </div>
+        <div className={styles.localActionRow}>
+          {goal.status === 'running' ? (
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              disabled={busy}
+              onClick={() => void onPauseGoal()}
+            >
+              <Pause size={14} aria-hidden="true" />
+              Pause
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              disabled={busy}
+              onClick={() => void onResumeGoal()}
+            >
+              <Play size={14} aria-hidden="true" />
+              Resume
+            </button>
+          )}
+          <button
+            type="button"
+            className={styles.textButtonDanger}
+            disabled={busy}
+            onClick={() => void onClearGoal()}
+          >
+            Clear goal
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    const value = draft.trim();
+    if (!value || busy) return;
+    void Promise.resolve(onSetGoal(value)).then(() => setDraft(''));
+  };
+
+  return (
+    <form className={styles.goalControl} onSubmit={submit} aria-labelledby={`${inputId}-title`}>
+      <div className={styles.localSurfaceHeader}>
+        <div>
+          <span className={styles.sectionLabel}>Thread goal</span>
+          <h2 id={`${inputId}-title`}>Keep a long task on course</h2>
+        </div>
+        <Flag size={18} aria-hidden="true" />
+      </div>
+      <label className={styles.localField} htmlFor={inputId}>
+        <span>Goal</span>
+        <input
+          data-testid="goal-title-input"
+          id={inputId}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder="Ship the release checklist"
+          disabled={busy}
+        />
+      </label>
+      <button
+        className={styles.primaryButton}
+        type="submit"
+        disabled={busy || !draft.trim()}
+        data-testid="goal-save"
+      >
+        Set goal
+      </button>
+    </form>
+  );
+}
+
+interface ThreadSchedule {
+  id: string;
+  label: string;
+  prompt: string;
+  cadence: 'once' | 'hourly' | 'daily' | 'weekly';
+  nextRunAt: string;
+  enabled: boolean;
+}
+
+interface ScheduleDraft {
+  prompt: string;
+  cadence: ThreadSchedule['cadence'];
+  runAt: string;
+}
+
+interface ScheduleControlsProps {
+  schedules: readonly ThreadSchedule[];
+  busy?: boolean | undefined;
+  onCreate(draft: ScheduleDraft): Promise<void> | void;
+  onSetEnabled(scheduleId: string, enabled: boolean): Promise<void> | void;
+  onRunNow?: ((scheduleId: string) => Promise<void> | void) | undefined;
+  onDelete(scheduleId: string): Promise<void> | void;
+}
+
+export function ScheduleControls({
+  schedules,
+  busy,
+  onCreate,
+  onSetEnabled,
+  onRunNow,
+  onDelete,
+}: ScheduleControlsProps) {
+  const [expanded, setExpanded] = useState(false);
+  const [prompt, setPrompt] = useState('');
+  const [cadence, setCadence] = useState<ScheduleDraft['cadence']>('once');
+  const [runAt, setRunAt] = useState('');
+  const titleId = useId();
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (!prompt.trim() || !runAt || busy) return;
+    void Promise.resolve(onCreate({ prompt: prompt.trim(), cadence, runAt })).then(() => {
+      setPrompt('');
+      setRunAt('');
+      setExpanded(false);
+    });
+  };
+
+  return (
+    <section className={styles.scheduleControl} aria-labelledby={titleId}>
+      <div className={styles.localSurfaceHeader}>
+        <div>
+          <span className={styles.sectionLabel}>Background work</span>
+          <h2 id={titleId}>Schedules</h2>
+        </div>
+        <button
+          type="button"
+          className={styles.secondaryButton}
+          onClick={() => setExpanded((value) => !value)}
+          aria-expanded={expanded}
+          data-testid="schedule-create"
+        >
+          <Plus size={14} aria-hidden="true" />
+          New schedule
+        </button>
+      </div>
+
+      {expanded ? (
+        <form className={styles.scheduleForm} onSubmit={submit}>
+          <label className={styles.localField}>
+            <span>Task</span>
+            <input
+              data-testid="schedule-prompt-input"
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              placeholder="Summarize new project updates"
+              disabled={busy}
+            />
+          </label>
+          <div className={styles.scheduleFields}>
+            <label className={styles.localField}>
+              <span>Repeat</span>
+              <select
+                data-testid="schedule-cadence-select"
+                value={cadence}
+                onChange={(event) => setCadence(event.target.value as ScheduleDraft['cadence'])}
+                disabled={busy}
+              >
+                <option value="once">Once</option>
+                <option value="hourly">Hourly</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+              </select>
+            </label>
+            <label className={styles.localField}>
+              <span>First run</span>
+              <input
+                data-testid="schedule-first-run-input"
+                type="datetime-local"
+                value={runAt}
+                onChange={(event) => setRunAt(event.target.value)}
+                disabled={busy}
+              />
+            </label>
+          </div>
+          <button
+            type="submit"
+            className={styles.primaryButton}
+            disabled={busy || !prompt.trim() || !runAt}
+            data-testid="schedule-save"
+          >
+            Create schedule
+          </button>
+        </form>
+      ) : null}
+
+      <div className={styles.scheduleList}>
+        {schedules.length ? (
+          schedules.map((schedule) => (
+            <article className={styles.scheduleRow} key={schedule.id}>
+              <CalendarDots size={17} aria-hidden="true" />
+              <div>
+                <strong>{schedule.label}</strong>
+                <span>
+                  <Clock size={12} aria-hidden="true" />
+                  <span data-testid="schedule-next-run">
+                    {schedule.enabled
+                      ? `Next run ${formatScheduleTime(schedule.nextRunAt)}`
+                      : 'Paused'}
+                  </span>
+                </span>
+              </div>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                disabled={busy}
+                onClick={() => void onSetEnabled(schedule.id, !schedule.enabled)}
+              >
+                {schedule.enabled ? 'Pause' : 'Resume'}
+              </button>
+              {onRunNow ? (
+                <button
+                  type="button"
+                  className={styles.secondaryButton}
+                  disabled={busy}
+                  onClick={() => void onRunNow(schedule.id)}
+                >
+                  Run now
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className={styles.iconButtonSmall}
+                disabled={busy}
+                onClick={() => void onDelete(schedule.id)}
+                aria-label={`Delete ${schedule.label}`}
+              >
+                <Trash size={14} aria-hidden="true" />
+              </button>
+            </article>
+          ))
+        ) : (
+          <p className={styles.localEmpty}>No scheduled work for this thread.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function formatScheduleTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(value));
+}

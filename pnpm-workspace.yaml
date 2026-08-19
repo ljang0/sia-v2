@@ -1,0 +1,22 @@
+packages:
+  - apps/*
+  - packages/*
+
+allowBuilds:
+  '@trycua/cua-driver': true
+  electron: true
+  electron-winstaller: false
+  esbuild: true
+
+minimumReleaseAgeExclude:
+  - electron@43.4.0
+
+supportedArchitectures:
+  os:
+    - darwin
+  cpu:
+    - arm64
+    - x64
+
+patchedDependencies:
+  '@ubjs/node@0.31.0-3': patches/@ubjs__node@0.31.0-3.patch

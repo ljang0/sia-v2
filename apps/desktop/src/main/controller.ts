@@ -1,0 +1,4459 @@
+import { createHash, randomUUID } from 'node:crypto';
+import { stat } from 'node:fs/promises';
+import { basename, extname, isAbsolute, normalize, resolve } from 'node:path';
+
+import { LocalLeaseCoordinator, type TurnLease } from '@sia/action-gateway';
+import type {
+  ActionInvocationObserver,
+  ActionResultObserver,
+  ApprovalBroker,
+  ApprovalRequest as GatewayApprovalRequest,
+} from '@sia/action-gateway';
+import type { ProviderAttachment, ThreadEventEnvelope } from '@sia/protocol';
+
+import type { CloudClient } from './cloud-client.js';
+import type {
+  ActivityPresentationView,
+  AgentView,
+  AttachmentView,
+  BackgroundTerminalView,
+  ApprovalView,
+  BridgeMethod,
+  BridgeRequestMap,
+  BridgeResultMap,
+  BrowserView,
+  BrowserWindowView,
+  CaptureView,
+  ComputerView,
+  ConnectionView,
+  DesktopPushEvent,
+  DesktopSnapshot,
+  ProviderId,
+  ProviderView,
+  ScheduleView,
+  ThreadView,
+  TimelineItemView,
+  VoiceView,
+  WorkspaceDiffView,
+  WorkspaceSnapshotView,
+  TerminalResultView,
+} from '../shared/bridge.js';
+import type { RecordRepository } from './persistence.js';
+import { probeProviders } from './provider-probe.js';
+import type { RuntimeCoordinator } from './runtime-coordinator.js';
+import type { CloudIdentityStatus } from './identity.js';
+import type { CuaAuthorizationContext } from './cua-service.js';
+import type { VoiceOperations } from './voice-service.js';
+
+interface ComputerAutomation {
+  permissions(): Promise<ComputerView>;
+  requestPermissions(): Promise<ComputerView>;
+  call(
+    tool: string,
+    args: Record<string, unknown>,
+    context: CuaAuthorizationContext,
+    signal?: AbortSignal,
+  ): Promise<unknown>;
+  shutdown(): Promise<void>;
+}
+
+interface BrowserCapabilitySink {
+  acceptBrowserState(value: unknown, sessionId?: string): void;
+  resetBrowserCapabilities(): void;
+  trustedApprovalTarget(
+    toolName: string,
+    argumentsValue: Readonly<Record<string, unknown>>,
+  ): string | undefined;
+}
+
+interface ControllerOptions {
+  repository: RecordRepository;
+  cloud: CloudClient;
+  computer: ComputerAutomation;
+  identity: {
+    initialize(): Promise<CloudIdentityStatus>;
+    status(): CloudIdentityStatus;
+    startEmailSignIn(email: string): Promise<CloudIdentityStatus>;
+    completeEmailSignIn(code: string): Promise<CloudIdentityStatus>;
+    signOut(): Promise<CloudIdentityStatus>;
+  };
+  fakeServices: boolean;
+  fakeTurnDelayMs?: number;
+  openExternal(url: string): Promise<void>;
+  openMessages?(): Promise<void>;
+  chooseDirectory(): Promise<string | null>;
+  chooseFiles?(): Promise<string[]>;
+  exportJson(value: unknown): Promise<string | null>;
+  notify?(title: string, body: string): void;
+  workspaceOperations?: {
+    readDiff(workspace: string): Promise<WorkspaceDiffView>;
+    stage(workspace: string, paths: readonly string[]): Promise<WorkspaceDiffView>;
+    restore(workspace: string, paths: readonly string[]): Promise<WorkspaceDiffView>;
+    listSnapshots?(workspace: string): Promise<WorkspaceSnapshotView[]>;
+    createSnapshot?(workspace: string): Promise<WorkspaceSnapshotView[]>;
+    restoreSnapshot?(workspace: string, snapshotId: string): Promise<WorkspaceDiffView>;
+    deleteSnapshot?(workspace: string, snapshotId: string): Promise<WorkspaceSnapshotView[]>;
+    runTerminal(workspace: string, command: string): Promise<TerminalResultView>;
+    startBackgroundTerminal?(
+      workspace: string,
+      command: string,
+    ): Promise<BackgroundTerminalView>;
+    listBackgroundTerminals?(workspace: string): Promise<BackgroundTerminalView[]>;
+    writeBackgroundTerminal?(
+      workspace: string,
+      id: string,
+      input: string,
+    ): Promise<BackgroundTerminalView>;
+    stopBackgroundTerminal?(workspace: string, id: string): Promise<BackgroundTerminalView>;
+    dispose?(): void;
+    createWorktree(
+      sourceWorkspace: string,
+      threadId: string,
+    ): Promise<{ path: string; branch?: string }>;
+    removeWorktree?(workspace: string): Promise<void>;
+  };
+  voice?: VoiceOperations;
+  startupNotice?: {
+    title: string;
+    detail: string;
+  };
+}
+
+interface PersistedState {
+  agents: AgentView[];
+  threads: ThreadView[];
+  timeline: TimelineItemView[];
+  approvals: ApprovalView[];
+  connections: ConnectionView[];
+  capture: CaptureView;
+  browser: BrowserView;
+  /** Consent and pending batches are valid only for this normalized cloud identity. */
+  researchIdentity?: string;
+  /** Opaque connector grants remain locked to the identity that created them. */
+  connectionOwners: Partial<Record<ConnectionView['id'], string>>;
+  activeAgentId?: string;
+  activeThreadId?: string;
+  schedules: ScheduleView[];
+  preferences: {
+    completionSound: boolean;
+  };
+}
+
+interface QueuedTurn {
+  id: string;
+  threadId: string;
+  text: string;
+  attachments?: readonly ProviderAttachment[];
+  source?: 'manual' | 'schedule' | 'goal' | 'review';
+  reviewTarget?: BridgeRequestMap['reviews.start']['target'];
+  fakeDelayMs?: number;
+}
+
+interface AttachmentGrant {
+  readonly threadId: string;
+  readonly attachment: ProviderAttachment;
+  readonly view: AttachmentView;
+  readonly expiresAt: number;
+}
+
+interface ResearchEventBase {
+  id: string;
+  occurredAt: string;
+  classification: 'research_allowed';
+  taints: [];
+  sourceEventIds: string[];
+}
+
+type ResearchEventRecord = ResearchEventBase &
+  (
+    | {
+        kind: 'conversation.text';
+        payload: { role: 'user' | 'assistant'; text: string; provider: ProviderId };
+      }
+    | {
+        kind: 'trajectory.step';
+        payload: {
+          source: 'provider' | 'sia_action';
+          type: 'tool' | 'plan' | 'subagent' | 'usage' | 'action_result';
+          name?: string;
+          phase?: string;
+          presentation?: string;
+          outcome?: string;
+          counts?: Record<string, number>;
+        };
+      }
+    | {
+        kind: 'trajectory.screenshot';
+        payload: {
+          source: 'sia_action';
+          tool: 'computer_snapshot';
+          mimeType: 'image/png' | 'image/jpeg' | 'image/webp';
+          dataBase64: string;
+        };
+      }
+  );
+
+interface ResearchBatchRecord {
+  batchId: string;
+  /** False for captures created before cloud was configured; never retroactively upload them. */
+  syncEligible?: boolean;
+  consent: {
+    version: string;
+    acceptedAt: string;
+    purpose: 'research_evaluation_debugging';
+  };
+  events: ResearchEventRecord[];
+}
+
+interface ResearchSyncRecord {
+  batchId: string;
+  synced: boolean;
+}
+
+interface StagedResearchTurn {
+  tainted: boolean;
+  events: ResearchEventRecord[];
+  eventByMessageId: Map<string, string>;
+  safeActionNames: string[];
+}
+
+const SAFE_RESEARCH_ACTIONS = new Set(['computer_list', 'computer_snapshot']);
+const MAX_LOCAL_RESEARCH_BATCH_BYTES = 3 * 1024 * 1024;
+const MAX_RESEARCH_SCREENSHOT_BASE64_BYTES = 1_500_000;
+const MAX_LOCAL_RESEARCH_BYTES = 128 * 1024 * 1024;
+const MAX_LOCAL_RESEARCH_BATCHES = 500;
+const LOCAL_RESEARCH_RETENTION_MS = 90 * 24 * 60 * 60_000;
+const LOCAL_RESEARCH_IDENTITY = '__local__';
+
+interface PendingApproval {
+  resolve(decision: 'allow' | 'deny' | 'cancel'): void;
+  timeout: NodeJS.Timeout;
+  kind: 'computer' | 'gateway' | 'provider';
+  threadId: string;
+  turnId: string;
+  requestId?: string;
+}
+
+interface ApprovedConnectorBinding {
+  readonly approvalId: string;
+  readonly threadId: string;
+  readonly turnId: string;
+  readonly app: ConnectionView['id'];
+  readonly selector: string;
+  readonly connectionId: string;
+  readonly generation: number;
+  readonly account?: string;
+}
+
+const EMPTY_CONNECTIONS: ConnectionView[] = [
+  { id: 'gmail', label: 'Gmail', status: 'disconnected' },
+  { id: 'drive', label: 'Google Drive', status: 'disconnected' },
+  { id: 'slack', label: 'Slack', status: 'disconnected' },
+];
+
+const INITIAL_STATE: PersistedState = {
+  agents: [],
+  threads: [],
+  timeline: [],
+  approvals: [],
+  connections: EMPTY_CONNECTIONS,
+  capture: { status: 'not_consented', pendingCount: 0 },
+  browser: { status: 'detached', grantedOrigins: [] },
+  connectionOwners: {},
+  schedules: [],
+  preferences: { completionSound: false },
+};
+
+export class DesktopController {
+  readonly #repository: RecordRepository;
+  readonly #cloud: CloudClient;
+  readonly #computer: ComputerAutomation;
+  readonly #identity: ControllerOptions['identity'];
+  readonly #fakeServices: boolean;
+  readonly #fakeTurnDelayMs: number;
+  readonly #openExternal: (url: string) => Promise<void>;
+  readonly #openMessages: (() => Promise<void>) | undefined;
+  readonly #chooseDirectory: () => Promise<string | null>;
+  readonly #chooseFiles: (() => Promise<string[]>) | undefined;
+  readonly #exportJson: (value: unknown) => Promise<string | null>;
+  readonly #notify: ((title: string, body: string) => void) | undefined;
+  readonly #workspaceOperations: ControllerOptions['workspaceOperations'];
+  readonly #voice: VoiceOperations | undefined;
+  readonly #startupNotice: ControllerOptions['startupNotice'];
+  readonly #listeners = new Set<(event: DesktopPushEvent) => void>();
+  readonly #runningTurns = new Map<string, AbortController>();
+  readonly #turnTasks = new Map<string, Promise<void>>();
+  readonly #workspaceLeases = new Map<string, string>();
+  readonly #pendingApprovals = new Map<string, PendingApproval>();
+  readonly #approvedConnectorBindings = new Map<string, ApprovedConnectorBinding>();
+  readonly #connectorGenerations = new Map<ConnectionView['id'], number>();
+  readonly #pendingQuestions = new Map<string, { requestId: string; turnId: string }>();
+  readonly #researchStaging = new Map<string, StagedResearchTurn>();
+  readonly #workspaceGrants = new Set<string>();
+  readonly #attachmentGrants = new Map<string, AttachmentGrant>();
+  readonly #failedTurnAttachments = new Map<string, readonly ProviderAttachment[]>();
+  readonly #actionLeases = new LocalLeaseCoordinator(4);
+  #queuedTurns: QueuedTurn[] = [];
+  #researchSync: Promise<void> | undefined;
+  #connectionSetup: { controller: AbortController; task: Promise<void> } | undefined;
+  #researchRetryTimer: NodeJS.Timeout | undefined;
+  #streamCommitTimer: NodeJS.Timeout | undefined;
+  #scheduleTimer: NodeJS.Timeout | undefined;
+  #scheduleRunInFlight = false;
+  #researchRetryDelayMs = 15_000;
+  #researchGeneration = 0;
+  #runtime: RuntimeCoordinator | undefined;
+  #browserCapabilitySink: BrowserCapabilitySink | undefined;
+  #browserTarget: { targetId: string; tabId: string } | undefined;
+  #browserSessionId: string | undefined;
+  #state: PersistedState = structuredClone(INITIAL_STATE);
+  #providers: ProviderView[] = [];
+  #computerState: ComputerView = {
+    status: 'unavailable',
+    accessibility: false,
+    screenRecording: false,
+  };
+  #revision = 0;
+  #accountDeletionInProgress = false;
+
+  constructor(options: ControllerOptions) {
+    this.#repository = options.repository;
+    this.#cloud = options.cloud;
+    this.#computer = options.computer;
+    this.#identity = options.identity;
+    this.#fakeServices = options.fakeServices;
+    this.#fakeTurnDelayMs = options.fakeTurnDelayMs ?? 160;
+    this.#openExternal = options.openExternal;
+    this.#openMessages = options.openMessages;
+    this.#chooseDirectory = options.chooseDirectory;
+    this.#chooseFiles = options.chooseFiles;
+    this.#exportJson = options.exportJson;
+    this.#notify = options.notify;
+    this.#workspaceOperations = options.workspaceOperations;
+    this.#voice = options.voice;
+    this.#startupNotice = options.startupNotice;
+  }
+
+  attachRuntime(runtime: RuntimeCoordinator): void {
+    if (this.#runtime) throw new Error('The provider runtime is already attached.');
+    this.#runtime = runtime;
+  }
+
+  attachBrowserCapabilitySink(sink: BrowserCapabilitySink): void {
+    if (this.#browserCapabilitySink)
+      throw new Error('The browser action backend is already attached.');
+    this.#browserCapabilitySink = sink;
+  }
+
+  approvalBroker(): ApprovalBroker {
+    return {
+      requestApproval: (request, signal) => this.#authorizeGatewayAction(request, signal),
+    };
+  }
+
+  actionInvocationObserver(): ActionInvocationObserver {
+    return (invocation) => {
+      if (SAFE_RESEARCH_ACTIONS.has(invocation.name)) {
+        this.#markSafeResearchAction(invocation.context.turnId, invocation.name);
+      } else {
+        this.#taintResearchTurn(invocation.context.turnId);
+      }
+    };
+  }
+
+  actionResultObserver(): ActionResultObserver {
+    return (notice) => this.#stageResearchActionResult(notice);
+  }
+
+  async #grantChosenDirectory(): Promise<string | null> {
+    const chosen = await this.#chooseDirectory();
+    if (!chosen) return null;
+    if (!isAbsolute(chosen))
+      throw new Error('The native picker returned an invalid workspace.');
+    const workspace = normalizeWorkspace(chosen);
+    this.#workspaceGrants.add(workspace);
+    return workspace;
+  }
+
+  async initialize(): Promise<void> {
+    const stored = this.#repository.get<PersistedState>('desktop', 'state');
+    this.#state = stored ? this.#recover(stored) : structuredClone(INITIAL_STATE);
+    this.#pruneExpiredResearchBatches();
+    for (const workspace of [
+      ...this.#state.agents.map((agent) => agent.workspace),
+      ...this.#state.threads.map((thread) => thread.workspace),
+    ]) {
+      if (isAbsolute(workspace)) this.#workspaceGrants.add(normalizeWorkspace(workspace));
+    }
+    const [providers, computer] = await Promise.all([
+      // Fake-services mode must not inspect or depend on host CLI installs or
+      // authentication. An empty PATH produces deterministic placeholder views;
+      // Codex is replaced with the explicit fake runtime below.
+      this.#fakeServices ? probeProviders(undefined, { PATH: '' }) : probeProviders(),
+      this.#computer.permissions(),
+      this.#identity.initialize(),
+    ]);
+    this.#providers = providers;
+    if (this.#fakeServices) {
+      const codexIndex = this.#providers.findIndex(({ id }) => id === 'codex');
+      const fakeCodex: ProviderView = {
+        id: 'codex',
+        label: 'Codex',
+        status: 'ready',
+        model: 'gpt-5.6-sol',
+        version: '0.147.0',
+        account: 'Deterministic test runtime',
+        detail: 'Deterministic local development runtime.',
+        billing: 'No provider account is used in fake-services mode.',
+        models: [
+          {
+            id: 'gpt-5.6-sol',
+            label: 'GPT-5.6 Sol',
+            description: 'Deterministic test model.',
+            reasoningEfforts: ['low', 'medium', 'high', 'xhigh'],
+            defaultReasoningEffort: 'high',
+          },
+          {
+            id: 'gpt-5.6-terra',
+            label: 'GPT-5.6 Terra',
+            description: 'Deterministic alternate test model.',
+            reasoningEfforts: ['low', 'medium', 'high'],
+            defaultReasoningEffort: 'medium',
+          },
+        ],
+      };
+      if (codexIndex >= 0) this.#providers[codexIndex] = fakeCodex;
+      else this.#providers.push(fakeCodex);
+    }
+    this.#refreshMetaProviderState();
+    await this.#refreshProviderModels();
+    await this.#reconcileIdentityBoundState();
+    this.#computerState = computer;
+    this.#refreshResearchPendingCount();
+    this.#persist();
+    this.#scheduleResearchSync();
+    this.#scheduleTimer = setInterval(() => void this.#runDueSchedules(), 30_000);
+    this.#scheduleTimer.unref();
+    void this.#runDueSchedules();
+  }
+
+  snapshot(): DesktopSnapshot {
+    return {
+      revision: this.#revision,
+      agents: structuredClone(this.#state.agents),
+      threads: structuredClone(this.#state.threads),
+      timeline: structuredClone(this.#state.timeline),
+      approvals: structuredClone(this.#state.approvals),
+      providers: structuredClone(this.#providers),
+      connections: structuredClone(this.#state.connections),
+      capture: structuredClone(this.#state.capture),
+      computer: structuredClone(this.#computerState),
+      browser: structuredClone(this.#state.browser),
+      voice: structuredClone(
+        this.#voice?.view() ?? ({ status: 'disconnected', voices: [] } satisfies VoiceView),
+      ),
+      preferences: structuredClone(this.#state.preferences),
+      schedules: structuredClone(this.#state.schedules),
+      ...(this.#state.activeAgentId ? { activeAgentId: this.#state.activeAgentId } : {}),
+      ...(this.#state.activeThreadId ? { activeThreadId: this.#state.activeThreadId } : {}),
+      cloud: {
+        status:
+          this.#cloud.configured && this.#identity.status().state === 'signed_in'
+            ? 'online'
+            : 'offline',
+        auth: this.#cloud.configured ? this.#identity.status().state : 'unconfigured',
+        ...(this.#identity.status().email ? { account: this.#identity.status().email } : {}),
+      },
+      ...(this.#startupNotice ? { startupNotice: structuredClone(this.#startupNotice) } : {}),
+    };
+  }
+
+  subscribe(listener: (event: DesktopPushEvent) => void): () => void {
+    this.#listeners.add(listener);
+    return () => this.#listeners.delete(listener);
+  }
+
+  /** Keeps opaque cloud connection ids out of model arguments and renderer-controlled routing. */
+  connectionIdForAction(
+    app: ConnectionView['id'],
+    selector: string,
+    approvalId?: string,
+  ): string | undefined {
+    const connection = this.#state.connections.find((candidate) => candidate.id === app);
+    if (
+      !connection?.connectionId ||
+      connection.status !== 'connected' ||
+      (selector !== app && selector !== connection.account)
+    ) {
+      return undefined;
+    }
+    if (approvalId) {
+      const approved = this.#approvedConnectorBindings.get(approvalId);
+      this.#approvedConnectorBindings.delete(approvalId);
+      if (
+        !approved ||
+        approved.app !== app ||
+        approved.selector !== selector ||
+        approved.connectionId !== connection.connectionId ||
+        approved.generation !== (this.#connectorGenerations.get(app) ?? 0) ||
+        approved.account !== connection.account ||
+        this.#activeTurnId(approved.threadId) !== approved.turnId
+      ) {
+        return undefined;
+      }
+    }
+    return connection.connectionId;
+  }
+
+  async invoke<M extends BridgeMethod>(
+    method: M,
+    input: BridgeRequestMap[M],
+  ): Promise<BridgeResultMap[M]> {
+    if (this.#accountDeletionInProgress && method !== 'bootstrap') {
+      throw new Error('Sia account deletion is in progress. Wait for it to finish.');
+    }
+    switch (method) {
+      case 'bootstrap':
+        return this.snapshot() as BridgeResultMap[M];
+      case 'agents.save':
+        return this.#saveAgent(input as BridgeRequestMap['agents.save']) as BridgeResultMap[M];
+      case 'agents.delete':
+        return this.#deleteAgent(
+          (input as BridgeRequestMap['agents.delete']).agentId,
+        ) as BridgeResultMap[M];
+      case 'threads.create':
+        return this.#createThread(
+          input as BridgeRequestMap['threads.create'],
+        ) as BridgeResultMap[M];
+      case 'threads.select':
+        return this.#selectThread(
+          (input as BridgeRequestMap['threads.select']).threadId,
+        ) as BridgeResultMap[M];
+      case 'threads.rename':
+        return this.#renameThread(
+          input as BridgeRequestMap['threads.rename'],
+        ) as BridgeResultMap[M];
+      case 'threads.config':
+        return this.#configureThread(
+          input as BridgeRequestMap['threads.config'],
+        ) as BridgeResultMap[M];
+      case 'threads.archive':
+        return this.#archiveThread(
+          (input as BridgeRequestMap['threads.archive']).threadId,
+        ) as BridgeResultMap[M];
+      case 'threads.unarchive':
+        return this.#unarchiveThread(
+          (input as BridgeRequestMap['threads.unarchive']).threadId,
+        ) as BridgeResultMap[M];
+      case 'threads.fork':
+        return (await this.#forkThread(
+          input as BridgeRequestMap['threads.fork'],
+        )) as BridgeResultMap[M];
+      case 'threads.handoff':
+        return (await this.#handoffThread(
+          input as BridgeRequestMap['threads.handoff'],
+        )) as BridgeResultMap[M];
+      case 'worktrees.cleanup':
+        return (await this.#cleanupWorktree(
+          input as BridgeRequestMap['worktrees.cleanup'],
+        )) as BridgeResultMap[M];
+      case 'threads.search':
+        return this.#searchThreads(
+          (input as BridgeRequestMap['threads.search']).query,
+        ) as BridgeResultMap[M];
+      case 'threads.goal.set':
+        return this.#setGoal(
+          input as BridgeRequestMap['threads.goal.set'],
+        ) as BridgeResultMap[M];
+      case 'threads.goal.pause':
+        return this.#pauseGoal(
+          (input as BridgeRequestMap['threads.goal.pause']).threadId,
+        ) as BridgeResultMap[M];
+      case 'threads.goal.resume':
+        return this.#resumeGoal(
+          (input as BridgeRequestMap['threads.goal.resume']).threadId,
+        ) as BridgeResultMap[M];
+      case 'threads.goal.clear':
+        return this.#clearGoal(
+          (input as BridgeRequestMap['threads.goal.clear']).threadId,
+        ) as BridgeResultMap[M];
+      case 'threads.delete':
+        return this.#deleteThread(
+          (input as BridgeRequestMap['threads.delete']).threadId,
+        ) as BridgeResultMap[M];
+      case 'threads.send':
+        return this.#sendTurn(input as BridgeRequestMap['threads.send']) as BridgeResultMap[M];
+      case 'threads.retry':
+        return this.#retryTurn(
+          (input as BridgeRequestMap['threads.retry']).threadId,
+        ) as BridgeResultMap[M];
+      case 'threads.cancel':
+        return (await this.#cancelTurn(
+          (input as BridgeRequestMap['threads.cancel']).threadId,
+        )) as BridgeResultMap[M];
+      case 'attachments.pick':
+        return (await this.#pickAttachments(
+          (input as BridgeRequestMap['attachments.pick']).threadId,
+        )) as BridgeResultMap[M];
+      case 'changes.read':
+        return (await this.#readChanges(
+          (input as BridgeRequestMap['changes.read']).threadId,
+        )) as BridgeResultMap[M];
+      case 'changes.stage':
+        return (await this.#stageChanges(
+          input as BridgeRequestMap['changes.stage'],
+        )) as BridgeResultMap[M];
+      case 'changes.restore':
+        return (await this.#restoreChanges(
+          input as BridgeRequestMap['changes.restore'],
+        )) as BridgeResultMap[M];
+      case 'changes.snapshots.list':
+        return (await this.#listWorkspaceSnapshots(
+          (input as BridgeRequestMap['changes.snapshots.list']).threadId,
+        )) as BridgeResultMap[M];
+      case 'changes.snapshots.create':
+        return (await this.#createWorkspaceSnapshot(
+          (input as BridgeRequestMap['changes.snapshots.create']).threadId,
+        )) as BridgeResultMap[M];
+      case 'changes.snapshots.restore':
+        return (await this.#restoreWorkspaceSnapshot(
+          input as BridgeRequestMap['changes.snapshots.restore'],
+        )) as BridgeResultMap[M];
+      case 'changes.snapshots.delete':
+        return (await this.#deleteWorkspaceSnapshot(
+          input as BridgeRequestMap['changes.snapshots.delete'],
+        )) as BridgeResultMap[M];
+      case 'terminal.run':
+        return (await this.#runTerminal(
+          input as BridgeRequestMap['terminal.run'],
+        )) as BridgeResultMap[M];
+      case 'terminal.start':
+        return (await this.#startBackgroundTerminal(
+          input as BridgeRequestMap['terminal.start'],
+        )) as BridgeResultMap[M];
+      case 'terminal.list':
+        return (await this.#listBackgroundTerminals(
+          (input as BridgeRequestMap['terminal.list']).threadId,
+        )) as BridgeResultMap[M];
+      case 'terminal.write':
+        return (await this.#writeBackgroundTerminal(
+          input as BridgeRequestMap['terminal.write'],
+        )) as BridgeResultMap[M];
+      case 'terminal.stop':
+        return (await this.#stopBackgroundTerminal(
+          input as BridgeRequestMap['terminal.stop'],
+        )) as BridgeResultMap[M];
+      case 'reviews.start':
+        return this.#startReview(
+          input as BridgeRequestMap['reviews.start'],
+        ) as BridgeResultMap[M];
+      case 'schedules.create':
+        return this.#createSchedule(
+          input as BridgeRequestMap['schedules.create'],
+        ) as BridgeResultMap[M];
+      case 'schedules.setEnabled':
+        return this.#setScheduleEnabled(
+          input as BridgeRequestMap['schedules.setEnabled'],
+        ) as BridgeResultMap[M];
+      case 'schedules.delete':
+        return this.#deleteSchedule(
+          (input as BridgeRequestMap['schedules.delete']).scheduleId,
+        ) as BridgeResultMap[M];
+      case 'schedules.runNow':
+        return this.#runScheduleNow(
+          (input as BridgeRequestMap['schedules.runNow']).scheduleId,
+        ) as BridgeResultMap[M];
+      case 'approvals.resolve':
+        return this.#resolveApproval(
+          input as BridgeRequestMap['approvals.resolve'],
+        ) as BridgeResultMap[M];
+      case 'providers.probe':
+        return (await this.#probeProviders(
+          (input as BridgeRequestMap['providers.probe']).providerId,
+        )) as unknown as BridgeResultMap[M];
+      case 'providers.login':
+        return (await this.#providerLogin(
+          (input as BridgeRequestMap['providers.login']).providerId,
+        )) as unknown as BridgeResultMap[M];
+      case 'settings.openDirectory':
+        return { path: await this.#grantChosenDirectory() } as unknown as BridgeResultMap[M];
+      case 'settings.setCompletionSound':
+        this.#state.preferences.completionSound = (
+          input as BridgeRequestMap['settings.setCompletionSound']
+        ).enabled;
+        this.#commit();
+        return this.snapshot() as BridgeResultMap[M];
+      case 'computer.permissions':
+        return (await this.#refreshComputer(false)) as unknown as BridgeResultMap[M];
+      case 'computer.requestPermissions':
+        return (await this.#refreshComputer(true)) as unknown as BridgeResultMap[M];
+      case 'computer.openMessages':
+        return (await this.#openMessagesApp()) as unknown as BridgeResultMap[M];
+      case 'browser.attach':
+        return (await this.#attachBrowser(
+          input as BridgeRequestMap['browser.attach'],
+        )) as unknown as BridgeResultMap[M];
+      case 'browser.open':
+        return (await this.#openBrowserUrl(
+          (input as BridgeRequestMap['browser.open']).url,
+        )) as unknown as BridgeResultMap[M];
+      case 'browser.detach':
+        return (await this.#detachBrowser()) as unknown as BridgeResultMap[M];
+      case 'voice.configure':
+        return (await this.#configureVoice(
+          (input as BridgeRequestMap['voice.configure']).apiKey,
+        )) as unknown as BridgeResultMap[M];
+      case 'voice.refresh':
+        return (await this.#refreshVoice()) as unknown as BridgeResultMap[M];
+      case 'voice.select':
+        return (await this.#selectVoice(
+          (input as BridgeRequestMap['voice.select']).voiceId,
+        )) as unknown as BridgeResultMap[M];
+      case 'voice.disconnect':
+        return this.#disconnectVoice() as unknown as BridgeResultMap[M];
+      case 'voice.transcribe': {
+        const value = input as BridgeRequestMap['voice.transcribe'];
+        return {
+          text: await this.#requireVoice().transcribe(value.audioBase64, value.mimeType),
+        } as unknown as BridgeResultMap[M];
+      }
+      case 'voice.realtime.start':
+        return (await this.#requireVoice().startRealtime()) as unknown as BridgeResultMap[M];
+      case 'voice.realtime.append': {
+        const value = input as BridgeRequestMap['voice.realtime.append'];
+        this.#requireVoice().appendRealtime(value.sessionId, value.audioBase64);
+        return undefined as BridgeResultMap[M];
+      }
+      case 'voice.realtime.stop': {
+        const value = input as BridgeRequestMap['voice.realtime.stop'];
+        return {
+          text: await this.#requireVoice().stopRealtime(value.sessionId, value.commit),
+        } as unknown as BridgeResultMap[M];
+      }
+      case 'voice.speak': {
+        const value = input as BridgeRequestMap['voice.speak'];
+        return (await this.#requireVoice().speak(
+          value.text,
+          value.voiceId,
+        )) as unknown as BridgeResultMap[M];
+      }
+      case 'connections.startAll':
+        return (await this.#startAllConnections()) as unknown as BridgeResultMap[M];
+      case 'connections.start':
+        return (await this.#startConnection(
+          (input as BridgeRequestMap['connections.start']).connectionId,
+        )) as unknown as BridgeResultMap[M];
+      case 'connections.disconnect':
+        return (await this.#disconnectConnection(
+          (input as BridgeRequestMap['connections.disconnect']).connectionId,
+        )) as unknown as BridgeResultMap[M];
+      case 'auth.start':
+        return (await this.#startSignIn(
+          (input as BridgeRequestMap['auth.start']).email,
+        )) as unknown as BridgeResultMap[M];
+      case 'auth.complete':
+        return (await this.#completeSignIn(
+          (input as BridgeRequestMap['auth.complete']).code,
+        )) as unknown as BridgeResultMap[M];
+      case 'auth.signOut':
+        return (await this.#signOut()) as unknown as BridgeResultMap[M];
+      case 'auth.deleteAccount':
+        return (await this.#deleteCloudAccount(
+          (input as BridgeRequestMap['auth.deleteAccount']).confirmation,
+        )) as unknown as BridgeResultMap[M];
+      case 'research.setCapture':
+        return this.#setCapture(
+          input as BridgeRequestMap['research.setCapture'],
+        ) as BridgeResultMap[M];
+      case 'research.export':
+        return (await this.#exportResearch()) as unknown as BridgeResultMap[M];
+      case 'research.delete':
+        return (await this.#deleteResearch(
+          (input as BridgeRequestMap['research.delete']).confirmation,
+        )) as unknown as BridgeResultMap[M];
+    }
+    throw new Error(`Unknown desktop method: ${String(method)}`);
+  }
+
+  async authorizeComputer(
+    request: {
+      adapterId: string;
+      riskClass: string;
+      permissionMode: string;
+      publicSession: string;
+      requestDigest: string;
+      humanSummary: string;
+      resourceJson: string;
+      expiresUnixMs: bigint;
+    },
+    context: CuaAuthorizationContext,
+  ): Promise<'allow' | 'deny' | 'cancel'> {
+    if (context.kind === 'direct_user') return 'allow';
+    const active = this.#activeTurnId(context.threadId);
+    if (active !== context.turnId) return 'cancel';
+    const approvalId = randomUUID();
+    const expiresAt = new Date(Number(request.expiresUnixMs)).toISOString();
+    const presentation = computerApprovalPresentation(request.adapterId, request.humanSummary);
+    const resource = safeResourceLabel(request.resourceJson, presentation.kind);
+    this.#state.approvals.push({
+      id: approvalId,
+      threadId: context.threadId,
+      callId: request.requestDigest,
+      kind: presentation.kind,
+      title: presentation.title,
+      summary: `${request.humanSummary} (${request.riskClass}, ${request.permissionMode})`,
+      target: resource,
+      reversible: false,
+      expiresAt,
+      status: 'pending',
+    });
+    this.#commit();
+
+    return new Promise((resolve) => {
+      const remaining = Math.max(0, Number(request.expiresUnixMs) - Date.now());
+      const timeout = setTimeout(
+        () => {
+          this.#pendingApprovals.delete(approvalId);
+          this.#setApprovalStatus(approvalId, 'expired');
+          resolve('cancel');
+        },
+        Math.min(remaining, 120_000),
+      );
+      this.#pendingApprovals.set(approvalId, {
+        resolve,
+        timeout,
+        kind: 'computer',
+        threadId: context.threadId,
+        turnId: context.turnId,
+      });
+    });
+  }
+
+  async shutdown(): Promise<void> {
+    if (this.#researchRetryTimer) clearTimeout(this.#researchRetryTimer);
+    if (this.#scheduleTimer) clearInterval(this.#scheduleTimer);
+    for (const controller of this.#runningTurns.values()) controller.abort();
+    for (const pending of this.#pendingApprovals.values()) {
+      clearTimeout(pending.timeout);
+      pending.resolve('cancel');
+    }
+    this.#pendingApprovals.clear();
+    this.#approvedConnectorBindings.clear();
+    this.#connectionSetup?.controller.abort();
+    this.#browserCapabilitySink?.resetBrowserCapabilities();
+    await Promise.allSettled([...this.#turnTasks.values()]);
+    await this.#connectionSetup?.task.catch(() => undefined);
+    await this.#researchSync?.catch(() => undefined);
+    await this.#runtime?.dispose();
+    this.#workspaceOperations?.dispose?.();
+    this.#voice?.dispose?.();
+    await this.#computer.shutdown();
+    this.#cancelStreamCommit();
+    this.#persist();
+    this.#repository.close();
+  }
+
+  #saveAgent(input: BridgeRequestMap['agents.save']): BridgeResultMap['agents.save'] {
+    if (!isAbsolute(input.workspace))
+      throw new Error('Choose an absolute workspace directory.');
+    const workspace = normalizeWorkspace(input.workspace);
+    if (!this.#workspaceGrants.has(workspace)) {
+      throw new Error('Choose this workspace with the native folder picker before saving.');
+    }
+    this.#requireReadyProvider(input.provider, input.model.trim());
+    const now = new Date().toISOString();
+    const existing = input.id
+      ? this.#state.agents.find((candidate) => candidate.id === input.id)
+      : undefined;
+    const agentId = existing?.id ?? randomUUID();
+    const agent: AgentView = {
+      id: agentId,
+      name: input.name.trim(),
+      instructions: input.instructions.trim(),
+      provider: input.provider,
+      model: input.model.trim(),
+      workspace,
+      ...(input.voiceId ? { voiceId: input.voiceId.trim() } : {}),
+      ...(input.hue !== undefined ? { hue: input.hue } : {}),
+      threadIds: existing?.threadIds ?? [],
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+    const index = this.#state.agents.findIndex(({ id }) => id === agentId);
+    if (index >= 0) this.#state.agents[index] = agent;
+    else this.#state.agents.push(agent);
+    this.#state.activeAgentId = agentId;
+    this.#commit();
+    return { agentId, snapshot: this.snapshot() };
+  }
+
+  #deleteAgent(agentId: string): DesktopSnapshot {
+    const agent = this.#requireAgent(agentId);
+    const active = this.#state.threads.some(
+      (thread) =>
+        thread.agentId === agent.id &&
+        (thread.status === 'running' ||
+          thread.status === 'queued' ||
+          thread.status === 'waiting' ||
+          this.#runningTurns.has(thread.id) ||
+          this.#queuedTurns.some((turn) => turn.threadId === thread.id) ||
+          this.#pendingQuestions.has(thread.id)),
+    );
+    if (active) throw new Error('Cancel the active or queued task before deleting this agent.');
+    const threadIds = new Set(agent.threadIds);
+    this.#state.agents = this.#state.agents.filter(({ id }) => id !== agentId);
+    this.#state.threads = this.#state.threads.filter(({ agentId: id }) => id !== agentId);
+    this.#state.timeline = this.#state.timeline.filter(
+      ({ threadId }) => !threadIds.has(threadId),
+    );
+    this.#state.schedules = this.#state.schedules.filter(
+      ({ threadId }) => !threadIds.has(threadId),
+    );
+    const nextAgentId = this.#state.agents[0]?.id;
+    if (nextAgentId) this.#state.activeAgentId = nextAgentId;
+    else delete this.#state.activeAgentId;
+    delete this.#state.activeThreadId;
+    this.#commit();
+    return this.snapshot();
+  }
+
+  #createThread(input: BridgeRequestMap['threads.create']): BridgeResultMap['threads.create'] {
+    const agent = this.#requireAgent(input.agentId);
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const revision = createHash('sha256')
+      .update(
+        JSON.stringify({
+          instructions: agent.instructions,
+          provider: agent.provider,
+          model: agent.model,
+          workspace: agent.workspace,
+          updatedAt: agent.updatedAt,
+        }),
+      )
+      .digest('hex');
+    const reasoningEffort = this.#defaultReasoningEffort(agent.provider, agent.model);
+    this.#state.threads.push({
+      id,
+      agentId: agent.id,
+      title: input.title?.trim() || 'New thread',
+      provider: agent.provider,
+      model: agent.model,
+      ...(reasoningEffort ? { reasoningEffort } : {}),
+      workspace: agent.workspace,
+      agentRevision: revision,
+      instructionsSnapshot: agent.instructions,
+      agentNameSnapshot: agent.name,
+      status: 'idle',
+      unread: false,
+      worktree: { kind: 'primary', sourceWorkspace: agent.workspace },
+      createdAt: now,
+      updatedAt: now,
+    });
+    agent.threadIds.push(id);
+    this.#state.activeAgentId = agent.id;
+    this.#state.activeThreadId = id;
+    this.#commit();
+    return { threadId: id, snapshot: this.snapshot() };
+  }
+
+  #selectThread(threadId: string): DesktopSnapshot {
+    const thread = this.#requireThread(threadId);
+    thread.unread = false;
+    this.#state.activeThreadId = thread.id;
+    this.#state.activeAgentId = thread.agentId;
+    this.#commit();
+    return this.snapshot();
+  }
+
+  #renameThread(input: BridgeRequestMap['threads.rename']): DesktopSnapshot {
+    const thread = this.#requireThread(input.threadId);
+    const title = input.title.trim();
+    if (!title) throw new Error('Enter a thread name.');
+    thread.title = title;
+    thread.updatedAt = new Date().toISOString();
+    this.#commit();
+    return this.snapshot();
+  }
+
+  #configureThread(input: BridgeRequestMap['threads.config']): DesktopSnapshot {
+    const thread = this.#requireIdleThread(input.threadId, 'change model settings');
+    const provider = this.#requireReadyProvider(thread.provider, input.model.trim());
+    const model = provider.models?.find((candidate) => candidate.id === input.model.trim());
+    if (provider.models?.length && !model) {
+      throw new Error(`${provider.label} does not currently offer that model.`);
+    }
+    const reasoningEffort = input.reasoningEffort?.trim();
+    if (
+      reasoningEffort &&
+      model?.reasoningEfforts.length &&
+      !model.reasoningEfforts.includes(reasoningEffort)
+    ) {
+      throw new Error(`${model.label} does not support that reasoning level.`);
+    }
+    thread.model = input.model.trim();
+    if (reasoningEffort) thread.reasoningEffort = reasoningEffort;
+    else delete thread.reasoningEffort;
+    thread.updatedAt = new Date().toISOString();
+    this.#commit();
+    return this.snapshot();
+  }
+
+  #archiveThread(threadId: string): DesktopSnapshot {
+    const thread = this.#requireIdleThread(threadId, 'archive this thread');
+    thread.archivedAt = new Date().toISOString();
+    thread.unread = false;
+    if (this.#state.activeThreadId === thread.id) delete this.#state.activeThreadId;
+    this.#commit();
+    return this.snapshot();
+  }
+
+  #unarchiveThread(threadId: string): DesktopSnapshot {
+    const thread = this.#requireThread(threadId);
+    delete thread.archivedAt;
+    thread.updatedAt = new Date().toISOString();
+    this.#commit();
+    return this.snapshot();
+  }
+
+  async #forkThread(
+    input: BridgeRequestMap['threads.fork'],
+    primary = false,
+  ): Promise<BridgeResultMap['threads.fork']> {
+    const source = this.#requireThread(input.threadId);
+    const id = randomUUID();
+    let workspace = primary
+      ? normalizeWorkspace(source.worktree?.sourceWorkspace ?? source.workspace)
+      : source.workspace;
+    let worktree = primary
+      ? { kind: 'primary' as const, sourceWorkspace: workspace }
+      : structuredClone(
+          source.worktree ?? { kind: 'primary' as const, sourceWorkspace: source.workspace },
+        );
+    if (input.isolated) {
+      const service = this.#requireWorkspaceOperations();
+      const created = await service.createWorktree(
+        source.workspace,
+        worktreeLabel(input.title?.trim() || `${source.title}-fork`, id),
+      );
+      workspace = normalizeWorkspace(created.path);
+      this.#workspaceGrants.add(workspace);
+      worktree = {
+        kind: 'linked',
+        sourceWorkspace: source.worktree?.sourceWorkspace ?? source.workspace,
+        ...(created.branch ? { branch: created.branch } : {}),
+      };
+    }
+    const now = new Date().toISOString();
+    const forked: ThreadView = {
+      ...structuredClone(source),
+      id,
+      title: input.title?.trim() || `${source.title} (fork)`,
+      workspace,
+      worktree,
+      status: 'idle',
+      sourceThreadId: source.id,
+      unread: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    delete forked.archivedAt;
+    delete forked.queueReason;
+    delete forked.interruptedTurnId;
+    this.#state.threads.push(forked);
+    this.#state.timeline.push(
+      ...this.#state.timeline
+        .filter((item) => item.threadId === source.id)
+        .map((item) => ({ ...structuredClone(item), id: randomUUID(), threadId: id })),
+    );
+    const agent = this.#requireAgent(source.agentId);
+    agent.threadIds.push(id);
+    agent.updatedAt = now;
+    this.#state.activeAgentId = source.agentId;
+    this.#state.activeThreadId = id;
+    this.#commit();
+    return { threadId: id, snapshot: this.snapshot() };
+  }
+
+  async #handoffThread(
+    input: BridgeRequestMap['threads.handoff'],
+  ): Promise<BridgeResultMap['threads.handoff']> {
+    const source = this.#requireIdleThread(input.threadId, 'handoff this thread');
+    if (input.destination === 'primary' && source.worktree?.kind !== 'linked') {
+      throw new Error('This thread is already using the primary workspace.');
+    }
+    return await this.#forkThread(
+      {
+        threadId: source.id,
+        isolated: input.destination === 'new_worktree',
+        title:
+          input.title?.trim() ||
+          `${source.title}${input.destination === 'primary' ? ' (main)' : ' (worktree)'}`,
+      },
+      input.destination === 'primary',
+    );
+  }
+
+  async #cleanupWorktree(
+    input: BridgeRequestMap['worktrees.cleanup'],
+  ): Promise<DesktopSnapshot> {
+    if (input.confirmation !== 'REMOVE WORKTREE') {
+      throw new Error('Worktree removal confirmation is required.');
+    }
+    const thread = this.#requireIdleThread(input.threadId, 'remove this worktree');
+    if (thread.worktree?.kind !== 'linked') {
+      throw new Error('This thread does not own a linked worktree.');
+    }
+    if (
+      this.#state.threads.some(
+        (candidate) => candidate.id !== thread.id && candidate.workspace === thread.workspace,
+      )
+    ) {
+      throw new Error('Another thread still uses this worktree.');
+    }
+    const service = this.#requireWorkspaceOperations();
+    if (!service.removeWorktree)
+      throw new Error('Worktree cleanup is unavailable in this build.');
+    await service.removeWorktree(thread.workspace);
+    this.#workspaceGrants.delete(thread.workspace);
+    return this.#deleteThread(thread.id);
+  }
+
+  #searchThreads(query: string): BridgeResultMap['threads.search'] {
+    const needle = query.trim().toLocaleLowerCase();
+    if (!needle) return { results: [] };
+    const results = this.#state.threads
+      .map((thread) => {
+        const matches = this.#state.timeline
+          .filter((item) => item.threadId === thread.id)
+          .filter((item) =>
+            [item.title, item.text, item.detail]
+              .filter(Boolean)
+              .some((value) => value!.toLocaleLowerCase().includes(needle)),
+          )
+          .slice(-10)
+          .map((item) => ({
+            itemId: item.id,
+            excerpt: searchExcerpt(item.text ?? item.detail ?? item.title ?? '', needle),
+            timestamp: item.timestamp,
+          }));
+        if (thread.title.toLocaleLowerCase().includes(needle) && matches.length === 0) {
+          matches.push({
+            itemId: thread.id,
+            excerpt: thread.title,
+            timestamp: thread.updatedAt,
+          });
+        }
+        return {
+          threadId: thread.id,
+          threadTitle: thread.title,
+          archived: Boolean(thread.archivedAt),
+          matches,
+        };
+      })
+      .filter((result) => result.matches.length > 0)
+      .sort((left, right) =>
+        right.matches[0]!.timestamp.localeCompare(left.matches[0]!.timestamp),
+      );
+    return { results };
+  }
+
+  #setGoal(input: BridgeRequestMap['threads.goal.set']): DesktopSnapshot {
+    const thread = this.#requireIdleThread(input.threadId, 'set a goal');
+    const now = new Date().toISOString();
+    thread.goal = {
+      text: input.text.trim(),
+      status: 'paused',
+      createdAt: thread.goal?.createdAt ?? now,
+      updatedAt: now,
+    };
+    this.#commit();
+    return this.snapshot();
+  }
+
+  #pauseGoal(threadId: string): DesktopSnapshot {
+    const thread = this.#requireThread(threadId);
+    if (!thread.goal) throw new Error('This thread does not have a goal.');
+    thread.goal.status = 'paused';
+    thread.goal.updatedAt = new Date().toISOString();
+    this.#commit();
+    return this.snapshot();
+  }
+
+  #resumeGoal(threadId: string): DesktopSnapshot {
+    const thread = this.#requireIdleThread(threadId, 'resume this goal');
+    if (!thread.goal) throw new Error('This thread does not have a goal.');
+    thread.goal.status = 'running';
+    thread.goal.updatedAt = new Date().toISOString();
+    const result = this.#sendTurn(
+      {
+        threadId,
+        text: `Continue working toward this long-running goal:\n\n${thread.goal.text}`,
+      },
+      'goal',
+    );
+    return result.snapshot;
+  }
+
+  #clearGoal(threadId: string): DesktopSnapshot {
+    const thread = this.#requireIdleThread(threadId, 'clear this goal');
+    delete thread.goal;
+    this.#commit();
+    return this.snapshot();
+  }
+
+  #deleteThread(threadId: string): DesktopSnapshot {
+    const thread = this.#requireThread(threadId);
+    if (
+      this.#runningTurns.has(thread.id) ||
+      this.#queuedTurns.some((turn) => turn.threadId === thread.id) ||
+      this.#pendingQuestions.has(thread.id) ||
+      thread.status === 'running' ||
+      thread.status === 'queued' ||
+      thread.status === 'waiting'
+    ) {
+      throw new Error('Stop the active turn before deleting this thread.');
+    }
+    const agent = this.#requireAgent(thread.agentId);
+    agent.threadIds = agent.threadIds.filter((id) => id !== thread.id);
+    agent.updatedAt = new Date().toISOString();
+    this.#state.threads = this.#state.threads.filter((candidate) => candidate.id !== thread.id);
+    this.#state.timeline = this.#state.timeline.filter((item) => item.threadId !== thread.id);
+    this.#state.approvals = this.#state.approvals.filter(
+      (approval) => approval.threadId !== thread.id,
+    );
+    this.#state.schedules = this.#state.schedules.filter(
+      (schedule) => schedule.threadId !== thread.id,
+    );
+    if (this.#state.activeThreadId === thread.id) delete this.#state.activeThreadId;
+    this.#commit();
+    return this.snapshot();
+  }
+
+  #sendTurn(
+    input: BridgeRequestMap['threads.send'],
+    source: QueuedTurn['source'] = 'manual',
+    reviewTarget?: QueuedTurn['reviewTarget'],
+  ): BridgeResultMap['threads.send'] {
+    const thread = this.#requireThread(input.threadId);
+    if (thread.archivedAt) throw new Error('Unarchive this thread before sending a message.');
+    const attachmentGrants = (input.attachmentIds ?? []).map((id) => {
+      const grant = this.#attachmentGrants.get(id);
+      if (!grant || grant.threadId !== thread.id || grant.expiresAt <= Date.now()) {
+        throw new Error('An attachment expired. Choose it again before sending.');
+      }
+      return grant;
+    });
+    const messageText =
+      input.text.trim() ||
+      `Review the attached ${attachmentGrants.length === 1 ? 'file' : 'files'}.`;
+    const pendingQuestion = this.#pendingQuestions.get(thread.id);
+    if (pendingQuestion) {
+      if (attachmentGrants.length) {
+        throw new Error('Answer the pending question with text before attaching files.');
+      }
+      this.#pendingQuestions.delete(thread.id);
+      const questionItem = this.#state.timeline.findLast(
+        (item) =>
+          item.threadId === thread.id &&
+          item.turnId === pendingQuestion.turnId &&
+          item.kind === 'question' &&
+          item.status === 'pending',
+      );
+      if (questionItem) questionItem.status = 'complete';
+      const eventId = randomUUID();
+      const timestamp = new Date().toISOString();
+      this.#appendTimeline(thread.id, {
+        id: eventId,
+        turnId: pendingQuestion.turnId,
+        kind: 'user',
+        text: messageText,
+        status: 'complete',
+        timestamp,
+      });
+      this.#stageResearchText({
+        turnId: pendingQuestion.turnId,
+        eventId,
+        occurredAt: timestamp,
+        role: 'user',
+        text: messageText,
+        provider: thread.provider,
+      });
+      thread.status = 'running';
+      void this.#runtime
+        ?.respondToRequest(thread.id, {
+          requestId: pendingQuestion.requestId,
+          text: messageText,
+        })
+        .catch((error: unknown) => {
+          thread.status = 'failed';
+          this.#appendTimeline(thread.id, {
+            id: randomUUID(),
+            turnId: pendingQuestion.turnId,
+            kind: 'error',
+            title: 'Answer could not be delivered',
+            text: error instanceof Error ? error.message : 'The provider session ended.',
+            status: 'failed',
+            timestamp: new Date().toISOString(),
+          });
+          this.#commit();
+        });
+      this.#commit();
+      return { turnId: pendingQuestion.turnId, snapshot: this.snapshot() };
+    }
+    // Provider state can change after an agent or immutable thread was created.
+    // Revalidate every new turn instead of trusting persisted configuration.
+    this.#requireReadyProvider(thread.provider, thread.model);
+    if (
+      this.#runningTurns.has(thread.id) ||
+      this.#queuedTurns.some(({ threadId }) => threadId === thread.id)
+    ) {
+      throw new Error('This thread already has an active turn.');
+    }
+    const turnId = randomUUID();
+    const eventId = randomUUID();
+    const timestamp = new Date().toISOString();
+    this.#appendTimeline(thread.id, {
+      id: eventId,
+      turnId,
+      kind: 'user',
+      text: messageText,
+      ...(attachmentGrants.length
+        ? { attachments: attachmentGrants.map(({ view }) => structuredClone(view)) }
+        : {}),
+      status: 'complete',
+      timestamp,
+    });
+    this.#stageResearchText({
+      turnId,
+      eventId,
+      occurredAt: timestamp,
+      role: 'user',
+      text: messageText,
+      provider: thread.provider,
+    });
+    if (thread.title === 'New thread') {
+      thread.title = summarizeTitle(
+        input.text || attachmentGrants[0]?.view.name || 'Attached files',
+      );
+    }
+    const queued: QueuedTurn = {
+      id: turnId,
+      threadId: thread.id,
+      text: messageText,
+      source,
+      ...(reviewTarget ? { reviewTarget } : {}),
+      ...(attachmentGrants.length
+        ? { attachments: attachmentGrants.map(({ attachment }) => attachment) }
+        : {}),
+    };
+    for (const id of input.attachmentIds ?? []) this.#attachmentGrants.delete(id);
+    if (this.#runningTurns.size >= 4) {
+      thread.status = 'queued';
+      thread.queueReason = 'Four local tasks are already running.';
+      this.#queuedTurns.push(queued);
+    } else if (this.#workspaceLeases.has(thread.workspace)) {
+      thread.status = 'queued';
+      thread.queueReason = 'Waiting for another task to release this workspace.';
+      this.#queuedTurns.push(queued);
+    } else {
+      this.#startTurn(queued);
+    }
+    thread.updatedAt = new Date().toISOString();
+    this.#commit();
+    return { turnId, snapshot: this.snapshot() };
+  }
+
+  #retryTurn(threadId: string): BridgeResultMap['threads.retry'] {
+    const thread = this.#requireThread(threadId);
+    if (thread.status !== 'failed') throw new Error('Only a failed turn can be retried.');
+    this.#requireReadyProvider(thread.provider, thread.model);
+    if (
+      this.#runningTurns.has(thread.id) ||
+      this.#queuedTurns.some((turn) => turn.threadId === thread.id)
+    ) {
+      throw new Error('This thread already has an active turn.');
+    }
+    const failed = this.#state.timeline.findLast(
+      (item) => item.threadId === thread.id && item.kind === 'error' && Boolean(item.turnId),
+    );
+    const userMessage = failed?.turnId
+      ? this.#state.timeline.find(
+          (item) =>
+            item.threadId === thread.id &&
+            item.turnId === failed.turnId &&
+            item.kind === 'user' &&
+            Boolean(item.text?.trim()),
+        )
+      : undefined;
+    if (!failed?.turnId || !userMessage?.text) {
+      throw new Error('There is no failed user turn to retry in this thread.');
+    }
+
+    this.#stageResearchText({
+      turnId: failed.turnId,
+      eventId: userMessage.id,
+      occurredAt: userMessage.timestamp,
+      role: 'user',
+      text: userMessage.text,
+      provider: thread.provider,
+    });
+    const failedAttachments = this.#failedTurnAttachments.get(failed.turnId);
+    const retry: QueuedTurn = {
+      id: failed.turnId,
+      threadId: thread.id,
+      text: userMessage.text,
+      source: 'manual',
+      fakeDelayMs: 160,
+      ...(failedAttachments?.length ? { attachments: failedAttachments } : {}),
+    };
+    if (this.#runningTurns.size >= 4) {
+      thread.status = 'queued';
+      thread.queueReason = 'Four local tasks are already running.';
+      this.#queuedTurns.push(retry);
+    } else if (this.#workspaceLeases.has(thread.workspace)) {
+      thread.status = 'queued';
+      thread.queueReason = 'Waiting for another task to release this workspace.';
+      this.#queuedTurns.push(retry);
+    } else {
+      this.#startTurn(retry);
+    }
+    thread.updatedAt = new Date().toISOString();
+    this.#commit();
+    return { turnId: failed.turnId, snapshot: this.snapshot() };
+  }
+
+  async #cancelTurn(threadId: string): Promise<DesktopSnapshot> {
+    const thread = this.#requireThread(threadId);
+    const running = this.#runningTurns.get(threadId);
+    const activeTurnId = running ? this.#workspaceLeases.get(thread.workspace) : undefined;
+    if (running) {
+      running.abort();
+      if (activeTurnId) {
+        this.#revokeApprovalsForTurn(threadId, activeTurnId);
+        await this.#runtime?.cancel(threadId, activeTurnId).catch(() => undefined);
+      }
+    }
+    const queuedTurnIds = this.#queuedTurns
+      .filter((turn) => turn.threadId === threadId)
+      .map((turn) => turn.id);
+    this.#queuedTurns = this.#queuedTurns.filter((turn) => turn.threadId !== threadId);
+    if (activeTurnId) this.#discardResearchTurn(activeTurnId);
+    for (const turnId of queuedTurnIds) this.#discardResearchTurn(turnId);
+    const question = this.#pendingQuestions.get(threadId);
+    this.#pendingQuestions.delete(threadId);
+    if (question) {
+      void this.#runtime
+        ?.respondToRequest(threadId, { requestId: question.requestId })
+        .catch(() => undefined);
+    }
+    thread.status = 'idle';
+    delete thread.queueReason;
+    this.#appendTimeline(threadId, {
+      id: randomUUID(),
+      kind: 'notice',
+      title: 'Task cancelled',
+      text: 'Completed work remains in this thread.',
+      status: 'complete',
+      timestamp: new Date().toISOString(),
+    });
+    this.#commit();
+    return this.snapshot();
+  }
+
+  async #pickAttachments(threadId: string): Promise<BridgeResultMap['attachments.pick']> {
+    const thread = this.#requireIdleThread(threadId, 'attach files');
+    if (!this.#chooseFiles) throw new Error('File attachments are unavailable in this build.');
+    const selected = await this.#chooseFiles();
+    if (selected.length > 20) throw new Error('Choose at most 20 files at a time.');
+    const grants: AttachmentView[] = [];
+    let totalBytes = 0;
+    for (const path of selected) {
+      if (!isAbsolute(path)) throw new Error('The native picker returned an invalid file.');
+      const info = await stat(path);
+      if (!info.isFile()) throw new Error('Attachments must be regular files.');
+      if (info.size > 25 * 1024 * 1024) {
+        throw new Error(`${basename(path)} is larger than the 25 MB attachment limit.`);
+      }
+      totalBytes += info.size;
+      if (totalBytes > 100 * 1024 * 1024) {
+        throw new Error('The selected attachments exceed the 100 MB combined limit.');
+      }
+      const kind = attachmentKind(path);
+      const id = randomUUID();
+      const view: AttachmentView = { id, name: basename(path), kind, bytes: info.size };
+      this.#attachmentGrants.set(id, {
+        threadId: thread.id,
+        attachment: { kind, path: normalize(path), name: view.name },
+        view,
+        expiresAt: Date.now() + 60 * 60_000,
+      });
+      grants.push(view);
+    }
+    this.#pruneAttachmentGrants();
+    return { attachments: grants };
+  }
+
+  async #readChanges(threadId: string): Promise<WorkspaceDiffView> {
+    const thread = this.#requireThread(threadId);
+    return await this.#requireWorkspaceOperations().readDiff(thread.workspace);
+  }
+
+  async #stageChanges(input: BridgeRequestMap['changes.stage']): Promise<WorkspaceDiffView> {
+    const thread = this.#requireIdleThread(input.threadId, 'stage changes');
+    return await this.#requireWorkspaceOperations().stage(thread.workspace, input.paths);
+  }
+
+  async #restoreChanges(
+    input: BridgeRequestMap['changes.restore'],
+  ): Promise<WorkspaceDiffView> {
+    if (input.confirmation !== 'RESTORE') throw new Error('Restore confirmation is required.');
+    const thread = this.#requireIdleThread(input.threadId, 'restore changes');
+    return await this.#requireWorkspaceOperations().restore(thread.workspace, input.paths);
+  }
+
+  async #listWorkspaceSnapshots(
+    threadId: string,
+  ): Promise<BridgeResultMap['changes.snapshots.list']> {
+    const thread = this.#requireThread(threadId);
+    const operations = this.#requireWorkspaceOperations();
+    if (!operations.listSnapshots) {
+      throw new Error('Workspace snapshots are unavailable in this build.');
+    }
+    return { snapshots: await operations.listSnapshots(thread.workspace) };
+  }
+
+  async #createWorkspaceSnapshot(
+    threadId: string,
+  ): Promise<BridgeResultMap['changes.snapshots.create']> {
+    const thread = this.#requireIdleThread(threadId, 'create a workspace snapshot');
+    const operations = this.#requireWorkspaceOperations();
+    if (!operations.createSnapshot) {
+      throw new Error('Workspace snapshots are unavailable in this build.');
+    }
+    return { snapshots: await operations.createSnapshot(thread.workspace) };
+  }
+
+  async #restoreWorkspaceSnapshot(
+    input: BridgeRequestMap['changes.snapshots.restore'],
+  ): Promise<BridgeResultMap['changes.snapshots.restore']> {
+    const thread = this.#requireIdleThread(input.threadId, 'restore a workspace snapshot');
+    const operations = this.#requireWorkspaceOperations();
+    if (!operations.restoreSnapshot || !operations.listSnapshots) {
+      throw new Error('Workspace snapshots are unavailable in this build.');
+    }
+    const diff = await operations.restoreSnapshot(thread.workspace, input.snapshotId);
+    return { snapshots: await operations.listSnapshots(thread.workspace), diff };
+  }
+
+  async #deleteWorkspaceSnapshot(
+    input: BridgeRequestMap['changes.snapshots.delete'],
+  ): Promise<BridgeResultMap['changes.snapshots.delete']> {
+    if (input.confirmation !== 'DELETE SNAPSHOT') {
+      throw new Error('Snapshot deletion confirmation is required.');
+    }
+    const thread = this.#requireIdleThread(input.threadId, 'delete a workspace snapshot');
+    const operations = this.#requireWorkspaceOperations();
+    if (!operations.deleteSnapshot) {
+      throw new Error('Workspace snapshots are unavailable in this build.');
+    }
+    return { snapshots: await operations.deleteSnapshot(thread.workspace, input.snapshotId) };
+  }
+
+  async #runTerminal(input: BridgeRequestMap['terminal.run']): Promise<TerminalResultView> {
+    const thread = this.#requireIdleThread(input.threadId, 'run a terminal command');
+    return await this.#requireWorkspaceOperations().runTerminal(
+      thread.workspace,
+      input.command.trim(),
+    );
+  }
+
+  async #startBackgroundTerminal(
+    input: BridgeRequestMap['terminal.start'],
+  ): Promise<BackgroundTerminalView> {
+    const thread = this.#requireIdleThread(input.threadId, 'start a background process');
+    const service = this.#requireWorkspaceOperations();
+    if (!service.startBackgroundTerminal) {
+      throw new Error('Background processes are unavailable in this build.');
+    }
+    return await service.startBackgroundTerminal(thread.workspace, input.command.trim());
+  }
+
+  async #listBackgroundTerminals(threadId: string): Promise<BridgeResultMap['terminal.list']> {
+    const thread = this.#requireThread(threadId);
+    const service = this.#requireWorkspaceOperations();
+    if (!service.listBackgroundTerminals) {
+      throw new Error('Background processes are unavailable in this build.');
+    }
+    return { sessions: await service.listBackgroundTerminals(thread.workspace) };
+  }
+
+  async #writeBackgroundTerminal(
+    input: BridgeRequestMap['terminal.write'],
+  ): Promise<BackgroundTerminalView> {
+    const thread = this.#requireThread(input.threadId);
+    const service = this.#requireWorkspaceOperations();
+    if (!service.writeBackgroundTerminal) {
+      throw new Error('Background processes are unavailable in this build.');
+    }
+    return await service.writeBackgroundTerminal(
+      thread.workspace,
+      input.terminalId,
+      input.input,
+    );
+  }
+
+  async #stopBackgroundTerminal(
+    input: BridgeRequestMap['terminal.stop'],
+  ): Promise<BackgroundTerminalView> {
+    const thread = this.#requireThread(input.threadId);
+    const service = this.#requireWorkspaceOperations();
+    if (!service.stopBackgroundTerminal) {
+      throw new Error('Background processes are unavailable in this build.');
+    }
+    return await service.stopBackgroundTerminal(thread.workspace, input.terminalId);
+  }
+
+  #startReview(input: BridgeRequestMap['reviews.start']): BridgeResultMap['reviews.start'] {
+    const thread = this.#requireIdleThread(input.threadId, 'start a code review');
+    if (thread.provider !== 'codex') {
+      throw new Error('Dedicated code review currently requires the Codex provider.');
+    }
+    const text =
+      input.target.type === 'uncommitted_changes'
+        ? 'Review uncommitted changes'
+        : input.target.type === 'base_branch'
+          ? `Review changes against ${input.target.branch}`
+          : `Review: ${input.target.instructions}`;
+    return this.#sendTurn({ threadId: thread.id, text }, 'review', input.target);
+  }
+
+  #createSchedule(input: BridgeRequestMap['schedules.create']): DesktopSnapshot {
+    const thread = this.#requireThread(input.threadId);
+    if (thread.archivedAt) throw new Error('Unarchive this thread before scheduling work.');
+    const nextRunAt = new Date(input.nextRunAt);
+    if (!Number.isFinite(nextRunAt.getTime())) throw new Error('Choose a valid schedule time.');
+    this.#state.schedules.push({
+      id: randomUUID(),
+      threadId: thread.id,
+      prompt: input.prompt.trim(),
+      cadence: input.cadence,
+      nextRunAt: nextRunAt.toISOString(),
+      enabled: true,
+      createdAt: new Date().toISOString(),
+    });
+    this.#commit();
+    void this.#runDueSchedules();
+    return this.snapshot();
+  }
+
+  #setScheduleEnabled(input: BridgeRequestMap['schedules.setEnabled']): DesktopSnapshot {
+    const schedule = this.#requireSchedule(input.scheduleId);
+    schedule.enabled = input.enabled;
+    this.#commit();
+    if (input.enabled) void this.#runDueSchedules();
+    return this.snapshot();
+  }
+
+  #deleteSchedule(scheduleId: string): DesktopSnapshot {
+    this.#requireSchedule(scheduleId);
+    this.#state.schedules = this.#state.schedules.filter(({ id }) => id !== scheduleId);
+    this.#commit();
+    return this.snapshot();
+  }
+
+  #runScheduleNow(scheduleId: string): BridgeResultMap['schedules.runNow'] {
+    const schedule = this.#requireSchedule(scheduleId);
+    const result = this.#sendTurn(
+      { threadId: schedule.threadId, text: schedule.prompt },
+      'schedule',
+    );
+    this.#advanceSchedule(schedule, new Date());
+    this.#commit();
+    return result;
+  }
+
+  async #runDueSchedules(): Promise<void> {
+    if (this.#scheduleRunInFlight || this.#accountDeletionInProgress) return;
+    this.#scheduleRunInFlight = true;
+    try {
+      const now = new Date();
+      const due = this.#state.schedules.filter(
+        (schedule) => schedule.enabled && Date.parse(schedule.nextRunAt) <= now.getTime(),
+      );
+      for (const schedule of due) {
+        const thread = this.#state.threads.find(({ id }) => id === schedule.threadId);
+        if (!thread || thread.archivedAt) {
+          schedule.enabled = false;
+          continue;
+        }
+        if (
+          thread.status === 'running' ||
+          thread.status === 'queued' ||
+          thread.status === 'waiting'
+        ) {
+          continue;
+        }
+        try {
+          this.#sendTurn({ threadId: thread.id, text: schedule.prompt }, 'schedule');
+          this.#advanceSchedule(schedule, now);
+        } catch (error) {
+          schedule.enabled = false;
+          this.#appendTimeline(thread.id, {
+            id: randomUUID(),
+            kind: 'notice',
+            title: 'Scheduled task paused',
+            text:
+              error instanceof Error ? error.message : 'The scheduled task could not start.',
+            status: 'failed',
+            timestamp: now.toISOString(),
+          });
+        }
+      }
+      if (due.length) this.#commit();
+    } finally {
+      this.#scheduleRunInFlight = false;
+    }
+  }
+
+  #advanceSchedule(schedule: ScheduleView, now: Date): void {
+    schedule.lastRunAt = now.toISOString();
+    if (schedule.cadence === 'once') {
+      schedule.enabled = false;
+      return;
+    }
+    const interval =
+      schedule.cadence === 'hourly'
+        ? 60 * 60_000
+        : schedule.cadence === 'daily'
+          ? 24 * 60 * 60_000
+          : 7 * 24 * 60 * 60_000;
+    let next = Date.parse(schedule.nextRunAt);
+    do next += interval;
+    while (next <= now.getTime());
+    schedule.nextRunAt = new Date(next).toISOString();
+  }
+
+  #resolveApproval(input: BridgeRequestMap['approvals.resolve']): DesktopSnapshot {
+    const pending = this.#pendingApprovals.get(input.approvalId);
+    if (!pending) throw new Error('This approval expired or was already resolved.');
+    if (this.#activeTurnId(pending.threadId) !== pending.turnId) {
+      this.#revokeApproval(input.approvalId, pending);
+      this.#commit();
+      throw new Error('This approval belongs to a turn that is no longer active.');
+    }
+    clearTimeout(pending.timeout);
+    this.#pendingApprovals.delete(input.approvalId);
+    this.#setApprovalStatus(
+      input.approvalId,
+      input.decision === 'approve' ? 'approved' : 'denied',
+    );
+    if (pending.kind === 'provider' && pending.threadId && pending.requestId) {
+      void this.#runtime
+        ?.respondToRequest(pending.threadId, {
+          requestId: pending.requestId,
+          choiceId: input.decision === 'approve' ? 'allow_once' : 'deny',
+        })
+        .catch(() => undefined);
+    }
+    pending.resolve(input.decision === 'approve' ? 'allow' : 'deny');
+    return this.snapshot();
+  }
+
+  async #probeProviders(providerId?: ProviderId): Promise<DesktopSnapshot> {
+    const updated = await probeProviders(providerId);
+    if (providerId) {
+      const value = updated[0];
+      if (value) {
+        const index = this.#providers.findIndex(({ id }) => id === providerId);
+        if (index >= 0) this.#providers[index] = value;
+        else this.#providers.push(value);
+      }
+    } else this.#providers = updated;
+    this.#refreshMetaProviderState();
+    await this.#refreshProviderModels(providerId);
+    this.#emit();
+    return this.snapshot();
+  }
+
+  async #refreshProviderModels(providerId?: ProviderId): Promise<void> {
+    if (this.#fakeServices || !this.#runtime || (providerId && providerId !== 'codex')) return;
+    const codex = this.#providers.find(({ id }) => id === 'codex');
+    if (!codex || codex.status !== 'ready') return;
+    try {
+      const models = await this.#runtime.listModels('codex');
+      if (models.length) {
+        codex.models = models.map((model) => ({
+          ...model,
+          reasoningEfforts: [...model.reasoningEfforts],
+        }));
+      }
+    } catch {
+      // The provider probe remains authoritative. Catalog failure leaves the
+      // verified release model available instead of making Codex unusable.
+    }
+  }
+
+  async #providerLogin(providerId: ProviderId): Promise<BridgeResultMap['providers.login']> {
+    const provider = this.#providers.find(({ id }) => id === providerId);
+    if (!provider) throw new Error('Provider status is unavailable. Check again first.');
+    if (provider.status === 'disabled') {
+      throw new Error(
+        provider.restriction ?? 'This provider is disabled in the current release.',
+      );
+    }
+    if (providerId === 'meta') {
+      if (provider.status === 'unavailable') {
+        throw new Error('Meta requires a configured Sia cloud deployment.');
+      }
+      if (provider.status === 'needs_login') {
+        throw new Error('Sign in to Sia under Connected apps to use Meta.');
+      }
+      throw new Error('Meta is already available through your Sia account.');
+    }
+    const installation =
+      provider.status === 'needs_install' || provider.status === 'incompatible';
+    const urls: Partial<Record<ProviderId, string>> = {
+      codex: installation
+        ? 'https://learn.chatgpt.com/docs/codex/cli'
+        : 'https://learn.chatgpt.com/docs/codex/auth',
+      gemini: installation
+        ? 'https://geminicli.com/docs/get-started/installation/'
+        : 'https://geminicli.com/docs/get-started/authentication/',
+    };
+    const url = urls[providerId];
+    if (!url) throw new Error('This provider has no supported sign-in flow in the alpha.');
+    await this.#openExternal(url);
+    return { opened: true, snapshot: this.snapshot() };
+  }
+
+  async #refreshComputer(request: boolean): Promise<DesktopSnapshot> {
+    this.#computerState = request
+      ? await this.#computer.requestPermissions()
+      : await this.#computer.permissions();
+    this.#emit();
+    return this.snapshot();
+  }
+
+  async #openMessagesApp(): Promise<DesktopSnapshot> {
+    if (!this.#openMessages) throw new Error('Messages is unavailable on this Mac.');
+    await this.#openMessages();
+    return this.snapshot();
+  }
+
+  async #attachBrowser(input: BridgeRequestMap['browser.attach']): Promise<DesktopSnapshot> {
+    this.#browserTarget = undefined;
+    this.#browserSessionId = undefined;
+    this.#browserCapabilitySink?.resetBrowserCapabilities();
+    let availableWindows = this.#state.browser.availableWindows ?? [];
+    this.#state.browser = {
+      status: 'attaching',
+      grantedOrigins: [],
+      ...(availableWindows.length ? { availableWindows } : {}),
+    };
+    this.#commit();
+    try {
+      const directContext = { kind: 'direct_user', operation: 'browser_attach' } as const;
+      const apps = await this.#computer.call('list_apps', {}, directContext);
+      const chrome = findChrome(apps);
+      if (!chrome) throw new Error('Open Chrome, then try attaching again.');
+      const windows = await this.#computer.call(
+        'list_windows',
+        { pid: chrome.pid },
+        directContext,
+      );
+      availableWindows = preferredChromeWindows(windows);
+      if (!availableWindows.length) {
+        throw new Error('Open a visible Chrome window before attaching.');
+      }
+      const selectedWindow =
+        input.windowId === undefined
+          ? availableWindows.length === 1
+            ? availableWindows[0]
+            : undefined
+          : availableWindows.find(({ id }) => id === input.windowId);
+      if (!selectedWindow) {
+        this.#state.browser = {
+          status: input.windowId === undefined ? 'detached' : 'error',
+          grantedOrigins: [],
+          availableWindows,
+          detail:
+            input.windowId === undefined
+              ? 'Choose the signed-in Chrome window you want Sia to use.'
+              : 'That Chrome window changed or closed. Choose one of the current windows.',
+        };
+        this.#commit();
+        return this.snapshot();
+      }
+      // CUA sessions are terminal after end_session. Minting a new opaque id for
+      // every attachment lets a user detach and reattach without restarting Sia,
+      // while resetBrowserCapabilities still revokes every prior model-visible ref.
+      const browserSessionId = `sia-browser-${randomUUID()}`;
+      const prepared = await this.#computer.call(
+        'browser_prepare',
+        {
+          pid: chrome.pid,
+          window_id: selectedWindow.id,
+          session: browserSessionId,
+          strategy: { kind: 'existing_profile' },
+        },
+        directContext,
+      );
+      const state = await this.#computer.call(
+        'get_browser_state',
+        {
+          session: browserSessionId,
+          pid: chrome.pid,
+          window_id: selectedWindow.id,
+        },
+        directContext,
+      );
+      // browser_prepare can include transitional target ids while Chrome enables
+      // and reconnects its existing-profile route. Only the follow-up live state
+      // is safe to mint into model-visible browser capabilities.
+      this.#browserCapabilitySink?.acceptBrowserState(state, browserSessionId);
+      this.#browserTarget = findBrowserTarget([state, prepared]);
+      this.#browserSessionId = browserSessionId;
+      const grantedOrigins = collectHttpOrigins([prepared, state]);
+      this.#state.browser = {
+        status: 'attached',
+        browser: 'Chrome',
+        profileLabel: selectedWindow.label,
+        grantedOrigins,
+        ...(grantedOrigins.length === 0
+          ? { detail: 'Attached, but no HTTP or HTTPS tab is currently granted.' }
+          : {}),
+      };
+    } catch (error) {
+      this.#browserTarget = undefined;
+      this.#browserSessionId = undefined;
+      const detail = browserAttachmentError(error);
+      this.#state.browser = {
+        status: 'error',
+        grantedOrigins: [],
+        ...(availableWindows.length ? { availableWindows } : {}),
+        detail,
+      };
+    }
+    this.#commit();
+    return this.snapshot();
+  }
+
+  async #openBrowserUrl(urlValue: string): Promise<DesktopSnapshot> {
+    if (
+      this.#state.browser.status !== 'attached' ||
+      !this.#browserTarget ||
+      !this.#browserSessionId
+    ) {
+      throw new Error('Attach a Chrome window before opening a site.');
+    }
+    const url = directBrowserUrl(urlValue);
+    const context = { kind: 'direct_user', operation: 'browser_navigate' } as const;
+    const target = this.#browserTarget;
+    const browserSessionId = this.#browserSessionId;
+    await this.#computer.call(
+      'browser_navigate',
+      {
+        session: browserSessionId,
+        target_id: target.targetId,
+        tab_id: target.tabId,
+        url: url.toString(),
+      },
+      context,
+    );
+    const state = await this.#computer.call(
+      'get_browser_state',
+      {
+        session: browserSessionId,
+        target_id: target.targetId,
+        tab_id: target.tabId,
+      },
+      context,
+    );
+    this.#browserCapabilitySink?.acceptBrowserState(state, browserSessionId);
+    this.#browserTarget = findBrowserTarget(state) ?? target;
+    const grantedOrigins = collectHttpOrigins(state);
+    if (!grantedOrigins.length) {
+      throw new Error('Chrome opened the site, but did not return a usable web tab.');
+    }
+    this.#state.browser = {
+      status: 'attached',
+      browser: this.#state.browser.browser ?? 'Chrome',
+      ...(this.#state.browser.profileLabel
+        ? { profileLabel: this.#state.browser.profileLabel }
+        : {}),
+      grantedOrigins,
+    };
+    this.#commit();
+    return this.snapshot();
+  }
+
+  async #detachBrowser(): Promise<DesktopSnapshot> {
+    try {
+      if (this.#browserSessionId) {
+        await this.#computer.call(
+          'end_session',
+          { session: this.#browserSessionId },
+          { kind: 'direct_user', operation: 'browser_detach' },
+        );
+      }
+    } catch {
+      // A missing or already-ended CUA session is safely detached locally.
+    }
+    this.#browserCapabilitySink?.resetBrowserCapabilities();
+    this.#browserTarget = undefined;
+    this.#browserSessionId = undefined;
+    this.#state.browser = { status: 'detached', grantedOrigins: [] };
+    this.#commit();
+    return this.snapshot();
+  }
+
+  async #configureVoice(apiKey: string): Promise<DesktopSnapshot> {
+    await this.#requireVoice().configure(apiKey);
+    this.#emit();
+    return this.snapshot();
+  }
+
+  async #refreshVoice(): Promise<DesktopSnapshot> {
+    await this.#requireVoice().refresh();
+    this.#emit();
+    return this.snapshot();
+  }
+
+  async #selectVoice(voiceId: string): Promise<DesktopSnapshot> {
+    await this.#requireVoice().select(voiceId);
+    this.#emit();
+    return this.snapshot();
+  }
+
+  #disconnectVoice(): DesktopSnapshot {
+    this.#requireVoice().disconnect();
+    this.#emit();
+    return this.snapshot();
+  }
+
+  #requireVoice(): VoiceOperations {
+    if (!this.#voice) throw new Error('Voice is unavailable in this build.');
+    return this.#voice;
+  }
+
+  async #startAllConnections(): Promise<BridgeResultMap['connections.startAll']> {
+    if (this.#connectionSetup) {
+      throw new Error('Work-app setup is already waiting for provider approval.');
+    }
+    const interrupted = this.#state.connections.find(
+      (connection) => connection.status === 'error' && connection.connectionId,
+    );
+    if (interrupted) {
+      throw new Error(
+        `Disconnect ${interrupted.label}'s saved grant before connecting all apps.`,
+      );
+    }
+    if (this.#state.connections.some((connection) => connection.status === 'connecting')) {
+      throw new Error('Finish the current app approval before connecting all apps.');
+    }
+    const pending = this.#state.connections
+      .filter((connection) => connection.status !== 'connected')
+      .map((connection) => connection.id);
+    if (pending.length === 0) return { opened: false, snapshot: this.snapshot() };
+
+    if (this.#fakeServices) {
+      for (const connectionId of pending) {
+        await this.#startConnection(connectionId, { partOfBundle: true });
+      }
+      return { opened: false, snapshot: this.snapshot() };
+    }
+
+    const firstId = pending[0]!;
+    const started = await this.#startConnection(firstId, {
+      poll: false,
+      partOfBundle: true,
+    });
+    const expectedId = this.#state.connections.find(({ id }) => id === firstId)?.connectionId;
+    if (!expectedId) throw new Error('The connected-app provider did not return a grant id.');
+
+    const controller = new AbortController();
+    const task = this.#continueConnectionSetup(pending, firstId, expectedId, controller.signal);
+    this.#connectionSetup = { controller, task };
+    const finish = (): void => {
+      if (this.#connectionSetup?.task === task) this.#connectionSetup = undefined;
+    };
+    void task.then(finish, finish);
+    return { opened: started.opened, snapshot: this.snapshot() };
+  }
+
+  async #continueConnectionSetup(
+    ordered: readonly ConnectionView['id'][],
+    firstId: ConnectionView['id'],
+    firstExpectedId: string,
+    signal: AbortSignal,
+  ): Promise<void> {
+    let index = ordered.indexOf(firstId);
+    let expectedId = firstExpectedId;
+    while (index >= 0 && index < ordered.length && !signal.aborted) {
+      const currentId = ordered[index]!;
+      if (!(await this.#pollConnection(currentId, expectedId, signal))) return;
+      index += 1;
+      const nextId = ordered[index];
+      if (!nextId || signal.aborted) return;
+      try {
+        await this.#startConnection(nextId, {
+          poll: false,
+          partOfBundle: true,
+        });
+      } catch {
+        return;
+      }
+      const nextExpectedId = this.#state.connections.find(
+        ({ id }) => id === nextId,
+      )?.connectionId;
+      if (!nextExpectedId) return;
+      expectedId = nextExpectedId;
+    }
+  }
+
+  async #startConnection(
+    connectionId: BridgeRequestMap['connections.start']['connectionId'],
+    options: { poll?: boolean; partOfBundle?: boolean } = {},
+  ): Promise<BridgeResultMap['connections.start']> {
+    if (this.#connectionSetup && !options.partOfBundle) {
+      throw new Error('Finish or cancel the guided work-app setup first.');
+    }
+    const existing = this.#state.connections.find(({ id }) => id === connectionId);
+    if (existing?.connectionId) {
+      throw new Error('Disconnect the existing or pending grant before connecting again.');
+    }
+    const owner = this.#currentIdentityKey();
+    if (!this.#fakeServices && !owner) {
+      throw new Error('Sign in to Sia cloud before connecting an app.');
+    }
+    this.#connectorGenerations.set(
+      connectionId,
+      (this.#connectorGenerations.get(connectionId) ?? 0) + 1,
+    );
+    this.#updateConnection(connectionId, { status: 'connecting' });
+    this.#commit();
+    if (this.#fakeServices) {
+      this.#updateConnection(connectionId, {
+        status: 'connected',
+        account: `demo@${connectionId}.test`,
+        connectionId: `fake-${connectionId}-${randomUUID()}`,
+      });
+      this.#commit();
+      return { opened: false, snapshot: this.snapshot() };
+    }
+    try {
+      const started = await this.#cloud.startConnection(connectionId);
+      this.#state.connectionOwners[connectionId] = owner!;
+      this.#updateConnection(connectionId, {
+        status: 'connecting',
+        connectionId: started.connectionId,
+      });
+      this.#commit();
+      const url = new URL(started.redirectUrl);
+      if (url.protocol !== 'https:') throw new Error('Connector authorization must use HTTPS.');
+      await this.#openExternal(url.toString());
+      if (options.poll !== false) void this.#pollConnection(connectionId, started.connectionId);
+      return { opened: true, snapshot: this.snapshot() };
+    } catch (error) {
+      this.#updateConnection(connectionId, {
+        status: 'error',
+        detail: error instanceof Error ? error.message : 'Connection setup failed.',
+      });
+      this.#commit();
+      throw error;
+    }
+  }
+
+  async #startSignIn(email: string): Promise<DesktopSnapshot> {
+    await this.#identity.startEmailSignIn(email);
+    this.#emit();
+    return this.snapshot();
+  }
+
+  async #completeSignIn(code: string): Promise<DesktopSnapshot> {
+    await this.#identity.completeEmailSignIn(code);
+    this.#refreshMetaProviderState();
+    await this.#reconcileIdentityBoundState();
+    this.#scheduleResearchSync();
+    this.#commit();
+    return this.snapshot();
+  }
+
+  async #signOut(): Promise<DesktopSnapshot> {
+    this.#connectionSetup?.controller.abort();
+    await this.#clearResearchForIdentityBoundary();
+    await this.#identity.signOut();
+    this.#refreshMetaProviderState();
+    this.#lockConnections('Sign in with the account that created this grant to manage it.');
+    this.#commit();
+    return this.snapshot();
+  }
+
+  async #deleteCloudAccount(confirmation: 'DELETE ACCOUNT'): Promise<DesktopSnapshot> {
+    if (confirmation !== 'DELETE ACCOUNT') {
+      throw new Error('Enter DELETE ACCOUNT exactly to confirm account deletion.');
+    }
+    if (!this.#cloud.configured) {
+      throw new Error('Sia cloud account deletion is not configured in this build.');
+    }
+    if (this.#identity.status().state !== 'signed_in') {
+      throw new Error('Sign in to the Sia cloud account you want to delete.');
+    }
+
+    const previousCapture = structuredClone(this.#state.capture);
+    this.#connectionSetup?.controller.abort();
+    const inFlightResearchSync = this.#researchSync;
+    let cloudCompleted = false;
+    this.#accountDeletionInProgress = true;
+    this.#state.capture.status = 'deleting';
+    this.#commit();
+
+    try {
+      this.#researchGeneration += 1;
+      if (this.#researchRetryTimer) {
+        clearTimeout(this.#researchRetryTimer);
+        this.#researchRetryTimer = undefined;
+      }
+
+      const queuedTurnIds = this.#queuedTurns.map(({ id }) => id);
+      const affectedThreadIds = new Set(this.#queuedTurns.map(({ threadId }) => threadId));
+      this.#queuedTurns = [];
+      for (const turnId of queuedTurnIds) this.#discardResearchTurn(turnId);
+
+      for (const [threadId, running] of this.#runningTurns) {
+        affectedThreadIds.add(threadId);
+        const thread = this.#state.threads.find(({ id }) => id === threadId);
+        const turnId = thread ? this.#workspaceLeases.get(thread.workspace) : undefined;
+        running.abort(new Error('Sia account deletion was requested.'));
+        if (turnId) {
+          this.#revokeApprovalsForTurn(threadId, turnId);
+          void this.#runtime?.cancel(threadId, turnId).catch(() => undefined);
+        }
+      }
+      for (const [threadId, question] of this.#pendingQuestions) {
+        affectedThreadIds.add(threadId);
+        void this.#runtime
+          ?.respondToRequest(threadId, { requestId: question.requestId })
+          .catch(() => undefined);
+      }
+      this.#pendingQuestions.clear();
+      for (const [approvalId, pending] of [...this.#pendingApprovals]) {
+        this.#revokeApproval(approvalId, pending);
+      }
+      for (const threadId of affectedThreadIds) {
+        const thread = this.#state.threads.find(({ id }) => id === threadId);
+        if (thread) {
+          thread.status = 'idle';
+          delete thread.queueReason;
+        }
+      }
+
+      await Promise.allSettled([...this.#turnTasks.values()]);
+      await inFlightResearchSync?.catch(() => undefined);
+
+      const deletion = await this.#cloud.deleteAccountData();
+      if (
+        deletion.scope !== 'account' ||
+        deletion.state !== 'completed' ||
+        deletion.id.length === 0
+      ) {
+        throw new Error('Sia cloud did not confirm the accepted account deletion job.');
+      }
+      cloudCompleted = true;
+
+      // The concrete identity manager clears encrypted local tokens before its
+      // best-effort Cognito revocation call. The cloud identity is already gone.
+      await this.#identity.signOut().catch(() => undefined);
+      if (this.#browserSessionId) {
+        await this.#computer
+          .call(
+            'end_session',
+            { session: this.#browserSessionId },
+            { kind: 'direct_user', operation: 'browser_detach' },
+          )
+          .catch(() => undefined);
+      }
+      this.#browserCapabilitySink?.resetBrowserCapabilities();
+      this.#browserTarget = undefined;
+      this.#browserSessionId = undefined;
+      await this.#runtime?.resetSessions();
+
+      this.#researchStaging.clear();
+      this.#workspaceGrants.clear();
+      this.#approvedConnectorBindings.clear();
+      this.#runningTurns.clear();
+      this.#turnTasks.clear();
+      this.#workspaceLeases.clear();
+      this.#pendingApprovals.clear();
+      this.#repository.clearAll();
+      this.#state = structuredClone(INITIAL_STATE);
+      this.#researchSync = undefined;
+      this.#researchRetryDelayMs = 15_000;
+      this.#refreshMetaProviderState();
+      this.#revision += 1;
+      this.#emit();
+      return this.snapshot();
+    } catch (error) {
+      if (cloudCompleted) {
+        throw new Error(
+          'Your Sia cloud account was deleted, but this Mac could not finish clearing local Sia data. Quit Sia and contact the maintainer before using it again.',
+        );
+      }
+      this.#state.capture = previousCapture;
+      this.#commit();
+      this.#scheduleResearchSync();
+      throw error;
+    } finally {
+      this.#accountDeletionInProgress = false;
+    }
+  }
+
+  #refreshMetaProviderState(): void {
+    const index = this.#providers.findIndex(({ id }) => id === 'meta');
+    if (index < 0) return;
+    const current = this.#providers[index]!;
+    if (!this.#cloud.configured) {
+      this.#providers[index] = {
+        ...current,
+        status: 'unavailable',
+        detail: 'Meta requires a release build configured for Sia cloud.',
+      };
+      return;
+    }
+    if (this.#identity.status().state !== 'signed_in') {
+      this.#providers[index] = {
+        ...current,
+        status: 'needs_login',
+        detail: 'Sign in to Sia cloud before using Meta.',
+      };
+      return;
+    }
+    this.#providers[index] = {
+      ...current,
+      status: 'unavailable',
+      detail:
+        'Meta stays unavailable in this alpha until Sia can verify the authenticated relay live.',
+    };
+  }
+
+  async #disconnectConnection(
+    connectionId: BridgeRequestMap['connections.disconnect']['connectionId'],
+  ): Promise<DesktopSnapshot> {
+    this.#connectionSetup?.controller.abort();
+    this.#connectorGenerations.set(
+      connectionId,
+      (this.#connectorGenerations.get(connectionId) ?? 0) + 1,
+    );
+    const current = this.#state.connections.find(({ id }) => id === connectionId);
+    const owner = this.#state.connectionOwners[connectionId];
+    if (!this.#fakeServices && owner && owner !== this.#currentIdentityKey()) {
+      throw new Error('Sign in with the account that created this grant before revoking it.');
+    }
+    if (!this.#fakeServices && current?.connectionId) {
+      if (!this.#cloud.configured || this.#identity.status().state !== 'signed_in') {
+        throw new Error('Sign in to Sia cloud before revoking this connected app.');
+      }
+    }
+    if (!this.#fakeServices && this.#cloud.configured && current?.connectionId) {
+      await this.#cloud.disconnect(connectionId, current.connectionId);
+    }
+    this.#updateConnection(connectionId, { status: 'disconnected' });
+    const disconnected = this.#state.connections.find(({ id }) => id === connectionId);
+    if (disconnected) {
+      delete disconnected.account;
+      delete disconnected.detail;
+      delete disconnected.connectionId;
+    }
+    delete this.#state.connectionOwners[connectionId];
+    this.#commit();
+    return this.snapshot();
+  }
+
+  async #pollConnection(
+    connectionId: ConnectionView['id'],
+    expectedId: string,
+    signal?: AbortSignal,
+  ): Promise<boolean> {
+    const deadline = Date.now() + 2 * 60_000;
+    while (Date.now() < deadline) {
+      await abortableDelay(2_000, signal);
+      const current = this.#state.connections.find(({ id }) => id === connectionId);
+      if (!current || current.connectionId !== expectedId || current.status !== 'connecting')
+        return false;
+      try {
+        const status = await this.#cloud.connectionStatus(connectionId);
+        const pending = this.#state.connections.find(({ id }) => id === connectionId);
+        if (
+          signal?.aborted ||
+          !pending ||
+          pending.connectionId !== expectedId ||
+          pending.status !== 'connecting'
+        ) {
+          return false;
+        }
+        const remote = status.connections.find(({ id }) => id === expectedId);
+        if (remote?.status === 'connected') {
+          this.#updateConnection(connectionId, {
+            status: 'connected',
+            connectionId: expectedId,
+            ...(remote.accountLabel ? { account: remote.accountLabel } : {}),
+          });
+          this.#commit();
+          return true;
+        }
+        if (remote?.status === 'failed')
+          throw new Error('The connected-app provider declined setup.');
+      } catch (error) {
+        const pending = this.#state.connections.find(({ id }) => id === connectionId);
+        if (
+          signal?.aborted ||
+          !pending ||
+          pending.connectionId !== expectedId ||
+          pending.status !== 'connecting'
+        ) {
+          return false;
+        }
+        this.#updateConnection(connectionId, {
+          status: 'error',
+          detail: error instanceof Error ? error.message : 'Connection setup failed.',
+        });
+        this.#commit();
+        return false;
+      }
+    }
+    this.#updateConnection(connectionId, {
+      status: 'error',
+      detail: 'Connection setup timed out. You can safely try again.',
+    });
+    this.#commit();
+    return false;
+  }
+
+  #setCapture(input: BridgeRequestMap['research.setCapture']): DesktopSnapshot {
+    if (input.enabled && this.#state.capture.status === 'deleting') {
+      throw new Error('Finish or retry research deletion before enabling capture.');
+    }
+    const consentVersion = input.consentVersion ?? this.#state.capture.consentVersion;
+    if (
+      input.enabled &&
+      (!consentVersion || (!this.#state.capture.consentAcceptedAt && !input.consentVersion))
+    ) {
+      throw new Error('Review and accept the research consent before enabling capture.');
+    }
+    if (input.enabled) {
+      const identity = this.#currentIdentityKey();
+      if (!this.#fakeServices && this.#cloud.configured && !identity) {
+        throw new Error('Sign in to Sia cloud before consenting to research capture.');
+      }
+      this.#state.researchIdentity = identity ?? LOCAL_RESEARCH_IDENTITY;
+      const acceptedAt =
+        input.consentVersion &&
+        (input.consentVersion !== this.#state.capture.consentVersion ||
+          !this.#state.capture.consentAcceptedAt)
+          ? new Date().toISOString()
+          : this.#state.capture.consentAcceptedAt;
+      this.#state.capture = {
+        status: 'recording',
+        pendingCount: this.#state.capture.pendingCount,
+        consentVersion: consentVersion!,
+        promptReviewedVersion: consentVersion!,
+        ...(acceptedAt ? { consentAcceptedAt: acceptedAt } : {}),
+      };
+    } else if (input.consentVersion) {
+      this.#state.capture = {
+        status: 'not_consented',
+        pendingCount: this.#state.capture.pendingCount,
+        promptReviewedVersion: input.consentVersion,
+      };
+      for (const staged of this.#researchStaging.values()) {
+        staged.tainted = true;
+        staged.events = [];
+        staged.eventByMessageId.clear();
+      }
+    } else {
+      this.#state.capture.status = 'paused';
+      for (const staged of this.#researchStaging.values()) {
+        staged.tainted = true;
+        staged.events = [];
+        staged.eventByMessageId.clear();
+      }
+    }
+    this.#commit();
+    if (input.enabled) this.#scheduleResearchSync();
+    return this.snapshot();
+  }
+
+  async #exportResearch(): Promise<BridgeResultMap['research.export']> {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      consentVersion: this.#state.capture.consentVersion,
+      batches: this.#researchBatches(),
+    };
+    return { path: await this.#exportJson(payload) };
+  }
+
+  async #deleteResearch(confirmation: 'DELETE'): Promise<DesktopSnapshot> {
+    if (confirmation !== 'DELETE') throw new Error('Deletion confirmation was not supplied.');
+    const previousCapture = structuredClone(this.#state.capture);
+    this.#state.capture.status = 'deleting';
+    this.#commit();
+    try {
+      const inFlightResearchSync = this.#researchSync;
+      for (const staged of this.#researchStaging.values()) {
+        staged.tainted = true;
+        staged.events = [];
+        staged.eventByMessageId.clear();
+      }
+      this.#researchGeneration += 1;
+      if (this.#researchRetryTimer) {
+        clearTimeout(this.#researchRetryTimer);
+        this.#researchRetryTimer = undefined;
+      }
+      await inFlightResearchSync?.catch(() => undefined);
+      if (
+        !this.#fakeServices &&
+        this.#cloud.configured &&
+        this.#identity.status().state === 'signed_in'
+      ) {
+        try {
+          await this.#cloud.deleteResearchData();
+        } catch {
+          throw new Error(
+            'Sia could not confirm cloud deletion. Local research batches remain available so you can retry safely.',
+          );
+        }
+      } else if (!this.#fakeServices && this.#cloud.configured) {
+        throw new Error(
+          'Sign in to Sia cloud to delete local research batches and any previously synced copy.',
+        );
+      }
+      this.#researchStaging.clear();
+      for (const record of this.#repository.list<Record<string, unknown>>('research')) {
+        const id =
+          typeof record.batchId === 'string'
+            ? record.batchId
+            : typeof record.id === 'string'
+              ? record.id
+              : undefined;
+        if (id) this.#repository.remove('research', id);
+      }
+      for (const record of this.#repository.list<ResearchSyncRecord>('research_sync')) {
+        if (record.batchId) this.#repository.remove('research_sync', record.batchId);
+      }
+      const promptReviewedVersion =
+        this.#state.capture.consentVersion ?? this.#state.capture.promptReviewedVersion;
+      this.#state.capture = {
+        status: 'not_consented',
+        pendingCount: 0,
+        ...(promptReviewedVersion ? { promptReviewedVersion } : {}),
+      };
+      this.#commit();
+      return this.snapshot();
+    } catch (error) {
+      this.#state.capture = previousCapture;
+      this.#refreshResearchPendingCount();
+      this.#commit();
+      this.#scheduleResearchSync();
+      throw error;
+    }
+  }
+
+  #stageResearchText(input: {
+    turnId: string;
+    eventId: string;
+    occurredAt: string;
+    role: 'user' | 'assistant';
+    text: string;
+    provider: ProviderId;
+    messageId?: string;
+    append?: boolean;
+  }): void {
+    if (!this.#researchCaptureActive() || !input.text) return;
+    let staged = this.#researchStaging.get(input.turnId);
+    if (!staged && input.role === 'assistant') return;
+    if (!staged) {
+      staged = {
+        tainted: false,
+        events: [],
+        eventByMessageId: new Map(),
+        safeActionNames: [],
+      };
+      this.#researchStaging.set(input.turnId, staged);
+    }
+    if (staged.tainted) return;
+    if (containsSecretShapedText(input.text)) {
+      staged.tainted = true;
+      staged.events = [];
+      staged.eventByMessageId.clear();
+      return;
+    }
+    const existingId = input.messageId
+      ? staged.eventByMessageId.get(input.messageId)
+      : undefined;
+    const existing = existingId
+      ? staged.events.find((event) => event.id === existingId)
+      : undefined;
+    if (existing?.kind === 'conversation.text') {
+      existing.payload.text = input.append
+        ? `${existing.payload.text}${input.text}`
+        : input.text;
+      if (!existing.sourceEventIds.includes(input.eventId)) {
+        existing.sourceEventIds.push(input.eventId);
+      }
+      if (containsSecretShapedText(existing.payload.text)) {
+        staged.tainted = true;
+        staged.events = [];
+        staged.eventByMessageId.clear();
+      }
+      return;
+    }
+    const event: ResearchEventRecord = {
+      id: randomUUID(),
+      occurredAt: input.occurredAt,
+      classification: 'research_allowed',
+      taints: [],
+      kind: 'conversation.text',
+      payload: { role: input.role, text: input.text, provider: input.provider },
+      sourceEventIds: [input.eventId],
+    };
+    staged.events.push(event);
+    if (input.messageId) staged.eventByMessageId.set(input.messageId, event.id);
+  }
+
+  #taintResearchTurn(turnId: string): void {
+    const staged = this.#researchStaging.get(turnId) ?? {
+      tainted: false,
+      events: [],
+      eventByMessageId: new Map<string, string>(),
+      safeActionNames: [],
+    };
+    staged.tainted = true;
+    staged.events = [];
+    staged.eventByMessageId.clear();
+    this.#researchStaging.set(turnId, staged);
+  }
+
+  #discardResearchTurn(turnId: string): void {
+    this.#researchStaging.delete(turnId);
+  }
+
+  #markSafeResearchAction(turnId: string, name: string): void {
+    if (!this.#researchCaptureActive()) return;
+    const staged = this.#researchStaging.get(turnId);
+    if (!staged || staged.tainted) return;
+    staged.safeActionNames.push(name);
+  }
+
+  #consumeSafeResearchAction(turnId: string, name: string): boolean {
+    const staged = this.#researchStaging.get(turnId);
+    if (!staged || staged.tainted) return false;
+    const index = staged.safeActionNames.indexOf(name);
+    if (index < 0) return false;
+    staged.safeActionNames.splice(index, 1);
+    return true;
+  }
+
+  #stageResearchTrajectory(input: {
+    turnId: string;
+    eventId: string;
+    occurredAt: string;
+    payload: Extract<ResearchEventRecord['payload'], { source: string; type: string }>;
+  }): void {
+    if (!this.#researchCaptureActive()) return;
+    const staged = this.#researchStaging.get(input.turnId);
+    if (!staged || staged.tainted) return;
+    staged.events.push({
+      id: randomUUID(),
+      occurredAt: input.occurredAt,
+      classification: 'research_allowed',
+      taints: [],
+      kind: 'trajectory.step',
+      payload: input.payload,
+      sourceEventIds: [input.eventId],
+    });
+  }
+
+  #stageResearchActionResult(notice: Parameters<ActionResultObserver>[0]): void {
+    if (!SAFE_RESEARCH_ACTIONS.has(notice.name) || !this.#researchCaptureActive()) return;
+    const staged = this.#researchStaging.get(notice.context.turnId);
+    if (!staged || staged.tainted) return;
+    const occurredAt = new Date().toISOString();
+    this.#stageResearchTrajectory({
+      turnId: notice.context.turnId,
+      eventId: randomUUID(),
+      occurredAt,
+      payload: {
+        source: 'sia_action',
+        type: 'action_result',
+        name: notice.name,
+        outcome: notice.result.outcome,
+      },
+    });
+    if (
+      notice.name !== 'computer_snapshot' ||
+      notice.result.outcome !== 'verified' ||
+      staged.events.some(({ kind }) => kind === 'trajectory.screenshot')
+    ) {
+      return;
+    }
+    const image = notice.result.images?.find(
+      (candidate) =>
+        /^(?:image\/png|image\/jpeg|image\/webp)$/.test(candidate.mimeType) &&
+        Buffer.byteLength(candidate.dataBase64, 'utf8') <= MAX_RESEARCH_SCREENSHOT_BASE64_BYTES,
+    );
+    if (!image) return;
+    staged.events.push({
+      id: randomUUID(),
+      occurredAt,
+      classification: 'research_allowed',
+      taints: [],
+      kind: 'trajectory.screenshot',
+      payload: {
+        source: 'sia_action',
+        tool: 'computer_snapshot',
+        mimeType: image.mimeType as 'image/png' | 'image/jpeg' | 'image/webp',
+        dataBase64: image.dataBase64,
+      },
+      sourceEventIds: [],
+    });
+  }
+
+  #completeResearchTurn(turnId: string): void {
+    const staged = this.#researchStaging.get(turnId);
+    this.#researchStaging.delete(turnId);
+    if (!staged || staged.tainted || staged.events.length === 0) return;
+    const version = this.#state.capture.consentVersion;
+    const acceptedAt = this.#state.capture.consentAcceptedAt;
+    if (!version || !acceptedAt) return;
+    const batch: ResearchBatchRecord = {
+      batchId: randomUUID(),
+      syncEligible: this.#state.researchIdentity !== LOCAL_RESEARCH_IDENTITY,
+      consent: {
+        version,
+        acceptedAt,
+        purpose: 'research_evaluation_debugging',
+      },
+      events: staged.events,
+    };
+    const batchBytes = Buffer.byteLength(JSON.stringify(batch), 'utf8');
+    if (
+      batchBytes > MAX_LOCAL_RESEARCH_BATCH_BYTES ||
+      !this.#prepareLocalResearchStorage(batchBytes)
+    ) {
+      return;
+    }
+    this.#repository.put('research', batch.batchId, batch);
+    this.#repository.put<ResearchSyncRecord>('research_sync', batch.batchId, {
+      batchId: batch.batchId,
+      synced: false,
+    });
+    this.#refreshResearchPendingCount();
+    this.#scheduleResearchSync();
+  }
+
+  #researchCaptureActive(): boolean {
+    return (
+      this.#state.capture.status === 'recording' ||
+      this.#state.capture.status === 'sync_pending'
+    );
+  }
+
+  #researchBatches(): ResearchBatchRecord[] {
+    return this.#repository
+      .list<unknown>('research')
+      .filter((value): value is ResearchBatchRecord => isResearchBatchRecord(value));
+  }
+
+  #pruneExpiredResearchBatches(): void {
+    const cutoff = Date.now() - LOCAL_RESEARCH_RETENTION_MS;
+    for (const batch of this.#researchBatches()) {
+      const occurredAt = Date.parse(batch.events[0]?.occurredAt ?? '');
+      if (
+        Number.isFinite(occurredAt) &&
+        occurredAt < cutoff &&
+        this.#researchBatchSynced(batch.batchId)
+      ) {
+        this.#repository.remove('research', batch.batchId);
+        this.#repository.remove('research_sync', batch.batchId);
+      }
+    }
+  }
+
+  #prepareLocalResearchStorage(incomingBytes: number): boolean {
+    const batches = this.#researchBatches();
+    let storedBytes = batches.reduce(
+      (total, batch) => total + Buffer.byteLength(JSON.stringify(batch), 'utf8'),
+      0,
+    );
+    let storedBatches = batches.length;
+    const removable = batches
+      .filter(({ batchId }) => this.#researchBatchSynced(batchId))
+      .sort(
+        (left, right) =>
+          Date.parse(left.events[0]?.occurredAt ?? '') -
+          Date.parse(right.events[0]?.occurredAt ?? ''),
+      );
+    while (
+      storedBytes + incomingBytes > MAX_LOCAL_RESEARCH_BYTES ||
+      storedBatches >= MAX_LOCAL_RESEARCH_BATCHES
+    ) {
+      const oldest = removable.shift();
+      if (!oldest) return false;
+      storedBytes -= Buffer.byteLength(JSON.stringify(oldest), 'utf8');
+      storedBatches -= 1;
+      this.#repository.remove('research', oldest.batchId);
+      this.#repository.remove('research_sync', oldest.batchId);
+    }
+    return true;
+  }
+
+  #refreshResearchPendingCount(): void {
+    this.#state.capture.pendingCount = this.#researchBatches()
+      .filter(
+        (batch) => batch.syncEligible !== false && !this.#researchBatchSynced(batch.batchId),
+      )
+      .reduce((count, batch) => count + batch.events.length, 0);
+  }
+
+  #scheduleResearchSync(): void {
+    if (
+      this.#state.capture.status === 'deleting' ||
+      this.#state.capture.pendingCount === 0 ||
+      this.#researchSync
+    )
+      return;
+    if (
+      this.#fakeServices ||
+      !this.#cloud.configured ||
+      this.#identity.status().state !== 'signed_in' ||
+      this.#state.researchIdentity !== this.#currentIdentityKey()
+    ) {
+      if (this.#state.capture.status === 'recording') {
+        this.#state.capture.status = 'sync_pending';
+        this.#commit();
+      }
+      return;
+    }
+    const generation = this.#researchGeneration;
+    this.#researchSync = this.#syncResearchBatches(generation).finally(() => {
+      this.#researchSync = undefined;
+      if (this.#state.capture.pendingCount > 0 && !this.#researchRetryTimer) {
+        this.#scheduleResearchSync();
+      }
+    });
+  }
+
+  async #syncResearchBatches(generation: number): Promise<void> {
+    try {
+      for (const batch of this.#researchBatches().filter(
+        ({ batchId, syncEligible }) =>
+          syncEligible !== false && !this.#researchBatchSynced(batchId),
+      )) {
+        await this.#cloud.uploadResearchBatch(batch);
+        if (generation !== this.#researchGeneration) return;
+        const current = this.#repository.get<ResearchBatchRecord>('research', batch.batchId);
+        if (!current) continue;
+        this.#repository.put<ResearchSyncRecord>('research_sync', batch.batchId, {
+          batchId: batch.batchId,
+          synced: true,
+        });
+      }
+      if (generation !== this.#researchGeneration) return;
+      this.#researchRetryDelayMs = 15_000;
+      this.#refreshResearchPendingCount();
+      if (
+        this.#state.capture.pendingCount === 0 &&
+        this.#state.capture.status === 'sync_pending'
+      ) {
+        this.#state.capture.status = 'recording';
+      }
+      this.#commit();
+    } catch {
+      if (generation !== this.#researchGeneration) return;
+      this.#refreshResearchPendingCount();
+      if (this.#state.capture.status === 'recording') {
+        this.#state.capture.status = 'sync_pending';
+      }
+      this.#commit();
+      this.#scheduleResearchRetry();
+    }
+  }
+
+  #scheduleResearchRetry(): void {
+    if (
+      this.#state.capture.status === 'deleting' ||
+      this.#researchRetryTimer ||
+      this.#state.capture.pendingCount === 0
+    )
+      return;
+    const delay = this.#researchRetryDelayMs;
+    this.#researchRetryDelayMs = Math.min(this.#researchRetryDelayMs * 2, 5 * 60_000);
+    this.#researchRetryTimer = setTimeout(() => {
+      this.#researchRetryTimer = undefined;
+      this.#scheduleResearchSync();
+    }, delay);
+    this.#researchRetryTimer.unref();
+  }
+
+  #researchBatchSynced(batchId: string): boolean {
+    return this.#repository.get<ResearchSyncRecord>('research_sync', batchId)?.synced ?? false;
+  }
+
+  #startTurn(turn: QueuedTurn): void {
+    const thread = this.#requireThread(turn.threadId);
+    const unavailable = this.#providerReadinessError(thread.provider, thread.model);
+    if (unavailable) {
+      thread.status = 'failed';
+      delete thread.queueReason;
+      this.#discardResearchTurn(turn.id);
+      this.#appendTimeline(thread.id, {
+        id: randomUUID(),
+        turnId: turn.id,
+        kind: 'error',
+        title: 'Provider is not ready',
+        text: unavailable,
+        status: 'failed',
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+    const controller = new AbortController();
+    this.#runningTurns.set(thread.id, controller);
+    this.#workspaceLeases.set(thread.workspace, turn.id);
+    thread.status = 'running';
+    delete thread.queueReason;
+    this.#appendTimeline(thread.id, {
+      id: randomUUID(),
+      turnId: turn.id,
+      kind: 'activity',
+      title: this.#fakeServices ? 'Preparing local tools' : `Starting ${thread.provider}`,
+      detail: thread.workspace,
+      status: 'running',
+      toolName: 'runtime.start',
+      timestamp: new Date().toISOString(),
+    });
+    const task = this.#runTurn(turn, controller.signal).finally(() => {
+      if (this.#turnTasks.get(thread.id) === task) this.#turnTasks.delete(thread.id);
+    });
+    this.#turnTasks.set(thread.id, task);
+  }
+
+  async #runTurn(turn: QueuedTurn, signal: AbortSignal): Promise<void> {
+    let lease: TurnLease | undefined;
+    try {
+      const leasedThread = this.#requireThread(turn.threadId);
+      lease = await this.#actionLeases.startTurn({
+        turnId: turn.id,
+        threadId: turn.threadId,
+        signal,
+      });
+      await lease.acquire({ kind: 'workspace_writer', id: leasedThread.workspace }, signal);
+      if (this.#fakeServices) {
+        await abortableDelay(turn.fakeDelayMs ?? this.#fakeTurnDelayMs, signal);
+        this.#completeRunningActivities(turn.threadId, turn.id);
+        const assistantEventId = randomUUID();
+        const assistantTimestamp = new Date().toISOString();
+        const assistantText =
+          'I am ready. This development turn used the deterministic local runtime, so no provider account or connected-app data was accessed.';
+        this.#appendTimeline(turn.threadId, {
+          id: assistantEventId,
+          turnId: turn.id,
+          kind: 'assistant',
+          text: assistantText,
+          status: 'complete',
+          timestamp: assistantTimestamp,
+        });
+        const thread = this.#requireThread(turn.threadId);
+        this.#stageResearchText({
+          turnId: turn.id,
+          eventId: assistantEventId,
+          occurredAt: assistantTimestamp,
+          role: 'assistant',
+          text: assistantText,
+          provider: thread.provider,
+        });
+        this.#completeResearchTurn(turn.id);
+        thread.status = 'idle';
+        delete thread.interruptedTurnId;
+        this.#markTurnFinished(thread, turn, 'complete');
+        thread.updatedAt = new Date().toISOString();
+      } else {
+        const runtime = this.#runtime;
+        if (!runtime) throw new Error('The provider runtime did not initialize.');
+        const thread = this.#requireThread(turn.threadId);
+        const runtimeThread = {
+          id: thread.id,
+          provider: thread.provider,
+          model: thread.model,
+          workspace: thread.workspace,
+          instructions: thread.instructionsSnapshot,
+          priorMessages: this.#state.timeline
+            .filter(
+              (item) =>
+                item.threadId === thread.id &&
+                item.turnId !== turn.id &&
+                item.status === 'complete' &&
+                (item.kind === 'user' || item.kind === 'assistant') &&
+                Boolean(item.text),
+            )
+            .sort((left, right) => left.sequence - right.sequence)
+            .map((item) => ({
+              id: item.id,
+              role: item.kind as 'user' | 'assistant',
+              text: item.text!,
+            })),
+        };
+        const events = turn.reviewTarget
+          ? runtime.runReview(
+              { thread: runtimeThread, turnId: turn.id, target: turn.reviewTarget, lease },
+              signal,
+            )
+          : runtime.runTurn(
+              {
+                thread: runtimeThread,
+                turnId: turn.id,
+                text: turn.text,
+                ...(turn.attachments?.length ? { attachments: turn.attachments } : {}),
+                ...(thread.reasoningEffort ? { reasoningEffort: thread.reasoningEffort } : {}),
+                lease,
+              },
+              signal,
+            );
+        for await (const event of events) {
+          this.#applyRuntimeEvent(event);
+          this.#commit(isStreamingDelta(event));
+        }
+        this.#completeRunningActivities(turn.threadId, turn.id);
+        if (thread.status === 'running' || thread.status === 'waiting') {
+          thread.status = 'idle';
+          this.#completeResearchTurn(turn.id);
+        }
+        delete thread.interruptedTurnId;
+        this.#markTurnFinished(thread, turn, 'complete');
+        thread.updatedAt = new Date().toISOString();
+      }
+    } catch (error) {
+      this.#discardResearchTurn(turn.id);
+      if (!signal.aborted) {
+        const thread = this.#requireThread(turn.threadId);
+        thread.status = 'failed';
+        thread.interruptedTurnId = turn.id;
+        if (turn.attachments?.length)
+          this.#failedTurnAttachments.set(turn.id, turn.attachments);
+        this.#appendTimeline(turn.threadId, {
+          id: randomUUID(),
+          turnId: turn.id,
+          kind: 'error',
+          title: 'Task could not start',
+          text: error instanceof Error ? error.message : 'The provider failed unexpectedly.',
+          status: 'failed',
+          timestamp: new Date().toISOString(),
+        });
+        this.#markTurnFinished(thread, turn, 'failed');
+      }
+    } finally {
+      if (signal.aborted) this.#discardResearchTurn(turn.id);
+      this.#revokeApprovalsForTurn(turn.threadId, turn.id);
+      lease?.release();
+      this.#releaseTurn(turn.threadId);
+      this.#commit();
+    }
+  }
+
+  #markTurnFinished(
+    thread: ThreadView,
+    turn: QueuedTurn,
+    outcome: 'complete' | 'failed',
+  ): void {
+    if (outcome === 'complete') this.#failedTurnAttachments.delete(turn.id);
+    if (turn.source === 'goal' && thread.goal && outcome === 'failed') {
+      thread.goal.status = 'paused';
+      thread.goal.updatedAt = new Date().toISOString();
+    }
+    thread.unread = true;
+    this.#notify?.(
+      outcome === 'complete' ? `${thread.title} finished` : `${thread.title} needs attention`,
+      outcome === 'complete'
+        ? 'Background work is ready to review.'
+        : 'The task stopped before it could finish.',
+    );
+  }
+
+  #applyRuntimeEvent(event: ThreadEventEnvelope): void {
+    const thread = this.#requireThread(event.threadId);
+    if (event.type === 'approval' || event.type === 'question') {
+      this.#taintResearchTurn(event.turnId);
+    }
+    if (event.type === 'message') {
+      const text = event.payload.parts
+        .filter((part) => part.kind === 'text')
+        .map((part) => part.text)
+        .join('');
+      if (!text) return;
+      if (event.payload.role === 'assistant') {
+        this.#stageResearchText({
+          turnId: event.turnId,
+          eventId: event.id,
+          occurredAt: event.timestamp,
+          role: 'assistant',
+          text,
+          provider: event.provider,
+          messageId: event.payload.messageId,
+          append: event.payload.delta,
+        });
+      }
+      const existing = this.#state.timeline.findLast(
+        (item) =>
+          item.threadId === event.threadId &&
+          item.turnId === event.turnId &&
+          item.kind === 'assistant' &&
+          item.detail === event.payload.messageId,
+      );
+      if (existing && event.payload.delta) existing.text = `${existing.text ?? ''}${text}`;
+      else {
+        this.#appendTimeline(event.threadId, {
+          id: event.id,
+          turnId: event.turnId,
+          kind: event.payload.role === 'assistant' ? 'assistant' : 'notice',
+          text,
+          detail: event.payload.messageId,
+          status: event.payload.delta ? 'running' : 'complete',
+          timestamp: event.timestamp,
+        });
+      }
+      return;
+    }
+    if (event.type === 'reasoning') {
+      const existing = this.#state.timeline.findLast(
+        (item) =>
+          item.threadId === event.threadId &&
+          item.turnId === event.turnId &&
+          item.kind === 'reasoning' &&
+          item.detail === event.payload.reasoningId,
+      );
+      if (existing && event.payload.delta)
+        existing.text = `${existing.text ?? ''}${event.payload.text}`;
+      else {
+        this.#appendTimeline(event.threadId, {
+          id: event.id,
+          turnId: event.turnId,
+          kind: 'reasoning',
+          title: 'Reasoning',
+          text: event.payload.text,
+          detail: event.payload.reasoningId,
+          status: event.payload.delta ? 'running' : 'complete',
+          timestamp: event.timestamp,
+        });
+      }
+      return;
+    }
+    if (event.type === 'tool') {
+      if (event.payload.native) {
+        this.#stageResearchTrajectory({
+          turnId: event.turnId,
+          eventId: event.id,
+          occurredAt: event.timestamp,
+          payload: {
+            source: 'provider',
+            type: 'tool',
+            name: event.payload.name,
+            phase: event.payload.phase,
+            ...(event.payload.presentation
+              ? { presentation: event.payload.presentation.kind }
+              : {}),
+          },
+        });
+      } else if (!this.#consumeSafeResearchAction(event.turnId, event.payload.name)) {
+        this.#taintResearchTurn(event.turnId);
+      }
+      const activity = mapRuntimePresentation(event.payload.presentation);
+      const running = this.#state.timeline.findLast(
+        (item) =>
+          item.threadId === event.threadId &&
+          item.turnId === event.turnId &&
+          item.toolCallId === event.payload.callId,
+      );
+      if (running) {
+        running.status =
+          event.payload.phase === 'failed'
+            ? 'failed'
+            : event.payload.phase === 'completed'
+              ? 'complete'
+              : 'running';
+        running.title = runtimeToolTitle(event.payload.name, activity);
+        if (event.payload.error) running.detail = event.payload.error;
+        if (activity) running.activity = activity;
+      } else {
+        this.#appendTimeline(event.threadId, {
+          id: event.id,
+          turnId: event.turnId,
+          kind: 'activity',
+          title: runtimeToolTitle(event.payload.name, activity),
+          detail: event.payload.native ? 'Provider-native tool' : 'Sia action gateway',
+          status:
+            event.payload.phase === 'failed'
+              ? 'failed'
+              : event.payload.phase === 'completed'
+                ? 'complete'
+                : 'running',
+          toolName: event.payload.name,
+          toolCallId: event.payload.callId,
+          ...(activity ? { activity } : {}),
+          timestamp: event.timestamp,
+        });
+      }
+      return;
+    }
+    if (event.type === 'approval' && event.payload.phase === 'requested') {
+      this.#taintResearchTurn(event.turnId);
+      void this.#authorizeProviderRequest(event);
+      thread.status = 'waiting';
+      return;
+    }
+    if (event.type === 'question' && event.payload.phase === 'requested') {
+      this.#pendingQuestions.set(event.threadId, {
+        requestId: event.payload.requestId,
+        turnId: event.turnId,
+      });
+      this.#appendTimeline(event.threadId, {
+        id: event.id,
+        turnId: event.turnId,
+        kind: 'question',
+        title: 'Provider needs input',
+        text: event.payload.prompt,
+        status: 'pending',
+        timestamp: event.timestamp,
+      });
+      thread.status = 'waiting';
+      return;
+    }
+    if (event.type === 'plan') {
+      this.#stageResearchTrajectory({
+        turnId: event.turnId,
+        eventId: event.id,
+        occurredAt: event.timestamp,
+        payload: {
+          source: 'provider',
+          type: 'plan',
+          phase: event.payload.steps.every(({ status }) => status === 'completed')
+            ? 'completed'
+            : 'active',
+          counts: {
+            steps: event.payload.steps.length,
+            completed: event.payload.steps.filter(({ status }) => status === 'completed')
+              .length,
+          },
+        },
+      });
+      const existing = this.#state.timeline.findLast(
+        (item) =>
+          item.threadId === event.threadId &&
+          item.turnId === event.turnId &&
+          item.toolCallId === event.payload.planId,
+      );
+      const activity = { kind: 'plan' as const, steps: structuredClone(event.payload.steps) };
+      if (existing) {
+        existing.title = event.payload.title ?? 'Plan';
+        existing.activity = activity;
+        existing.status = event.payload.steps.every((step) => step.status === 'completed')
+          ? 'complete'
+          : 'running';
+      } else {
+        this.#appendTimeline(event.threadId, {
+          id: event.id,
+          turnId: event.turnId,
+          kind: 'activity',
+          title: event.payload.title ?? 'Plan',
+          status: event.payload.steps.every((step) => step.status === 'completed')
+            ? 'complete'
+            : 'running',
+          toolName: 'plan.update',
+          toolCallId: event.payload.planId,
+          activity,
+          timestamp: event.timestamp,
+        });
+      }
+      return;
+    }
+    if (event.type === 'subagent') {
+      this.#stageResearchTrajectory({
+        turnId: event.turnId,
+        eventId: event.id,
+        occurredAt: event.timestamp,
+        payload: {
+          source: 'provider',
+          type: 'subagent',
+          phase: event.payload.phase,
+          ...(event.payload.operation ? { name: event.payload.operation } : {}),
+        },
+      });
+      const existing = this.#state.timeline.findLast(
+        (item) =>
+          item.threadId === event.threadId &&
+          item.turnId === event.turnId &&
+          item.toolCallId === event.payload.subagentId,
+      );
+      const activity: ActivityPresentationView = {
+        kind: 'subagent',
+        subagentId: event.payload.subagentId,
+        name: event.payload.name,
+        phase: event.payload.phase,
+        ...(event.payload.text ? { text: event.payload.text } : {}),
+        ...(event.payload.agentPath ? { agentPath: event.payload.agentPath } : {}),
+        ...(event.payload.operation ? { operation: event.payload.operation } : {}),
+        ...(event.payload.model ? { model: event.payload.model } : {}),
+        ...(event.payload.reasoningEffort
+          ? { reasoningEffort: event.payload.reasoningEffort }
+          : {}),
+      };
+      const status =
+        event.payload.phase === 'failed'
+          ? 'failed'
+          : event.payload.phase === 'completed'
+            ? 'complete'
+            : 'running';
+      if (existing) {
+        existing.title = event.payload.name;
+        existing.status = status;
+        existing.activity = activity;
+        if (event.payload.text) existing.detail = event.payload.text;
+      } else {
+        this.#appendTimeline(event.threadId, {
+          id: event.id,
+          turnId: event.turnId,
+          kind: 'activity',
+          title: event.payload.name,
+          ...(event.payload.text ? { detail: event.payload.text } : {}),
+          status,
+          toolName: 'provider.subagent',
+          toolCallId: event.payload.subagentId,
+          activity,
+          timestamp: event.timestamp,
+        });
+      }
+      return;
+    }
+    if (event.type === 'usage') {
+      this.#stageResearchTrajectory({
+        turnId: event.turnId,
+        eventId: event.id,
+        occurredAt: event.timestamp,
+        payload: {
+          source: 'provider',
+          type: 'usage',
+          counts: Object.fromEntries(
+            Object.entries({
+              inputTokens: event.payload.inputTokens,
+              outputTokens: event.payload.outputTokens,
+              cachedInputTokens: event.payload.cachedInputTokens,
+            }).filter((entry): entry is [string, number] => typeof entry[1] === 'number'),
+          ),
+        },
+      });
+      return;
+    }
+    if (event.type === 'error') {
+      this.#discardResearchTurn(event.turnId);
+      thread.status = 'failed';
+      this.#appendTimeline(event.threadId, {
+        id: event.id,
+        turnId: event.turnId,
+        kind: 'error',
+        title: 'Provider error',
+        text: event.payload.message,
+        status: 'failed',
+        timestamp: event.timestamp,
+      });
+      return;
+    }
+    if (event.type === 'completion') {
+      this.#pendingQuestions.delete(event.threadId);
+      this.#completeRunningActivities(event.threadId, event.turnId);
+      thread.status = event.payload.status === 'failed' ? 'failed' : 'idle';
+      if (event.payload.status === 'completed') this.#completeResearchTurn(event.turnId);
+      else this.#discardResearchTurn(event.turnId);
+    }
+  }
+
+  async #authorizeProviderRequest(
+    event: Extract<ThreadEventEnvelope, { type: 'approval' }>,
+  ): Promise<void> {
+    this.#taintResearchTurn(event.turnId);
+    const approvalId = randomUUID();
+    const expiresAt = new Date(Date.now() + 2 * 60_000).toISOString();
+    this.#state.approvals.push({
+      id: approvalId,
+      threadId: event.threadId,
+      callId: event.payload.requestId,
+      kind: 'native_tool',
+      title: event.payload.title,
+      summary: event.payload.description,
+      target: event.provider,
+      reversible: false,
+      expiresAt,
+      status: 'pending',
+    });
+    this.#appendTimeline(event.threadId, {
+      id: event.id,
+      turnId: event.turnId,
+      kind: 'approval',
+      title: event.payload.title,
+      text: event.payload.description,
+      detail: event.provider,
+      status: 'pending',
+      approvalId,
+      toolName: 'provider.native',
+      timestamp: event.timestamp,
+    });
+    const timeout = setTimeout(() => {
+      this.#pendingApprovals.delete(approvalId);
+      this.#setApprovalStatus(approvalId, 'expired');
+      void this.#runtime
+        ?.respondToRequest(event.threadId, {
+          requestId: event.payload.requestId,
+          choiceId: 'deny',
+        })
+        .catch(() => undefined);
+    }, 120_000);
+    this.#pendingApprovals.set(approvalId, {
+      resolve: () => undefined,
+      timeout,
+      kind: 'provider',
+      threadId: event.threadId,
+      turnId: event.turnId,
+      requestId: event.payload.requestId,
+    });
+    this.#commit();
+  }
+
+  async #authorizeGatewayAction(
+    request: GatewayApprovalRequest,
+    signal?: AbortSignal,
+  ): Promise<{ approved: boolean }> {
+    this.#taintResearchTurn(request.turnId);
+    const approvalId = randomUUID();
+    const expiresAt = new Date(Date.now() + 2 * 60_000).toISOString();
+    const connector = /^(mail|drive|slack)_/.test(request.tool.name);
+    const upload = /upload/.test(request.tool.name);
+    const dataLeaving = summarizeDataLeaving(request.arguments, request.tool.name);
+    const dataLabel =
+      dataLeaving && request.tool.name === 'computer_action'
+        ? 'Text or keys used in this action'
+        : undefined;
+    const capabilityBound = ['computer_action', 'browser_action', 'browser_upload'].includes(
+      request.tool.name,
+    );
+    const trustedTarget = capabilityBound
+      ? this.#browserCapabilitySink?.trustedApprovalTarget(request.tool.name, request.arguments)
+      : undefined;
+    if (capabilityBound && !trustedTarget) return { approved: false };
+    const connectorApp = connector ? connectorAppForTool(request.tool.name) : undefined;
+    const connectorSelector =
+      connector && typeof request.arguments.account_id === 'string'
+        ? request.arguments.account_id
+        : undefined;
+    const pinnedConnectionId =
+      connectorApp && connectorSelector
+        ? this.connectionIdForAction(connectorApp, connectorSelector)
+        : undefined;
+    const pinnedGeneration = connectorApp
+      ? (this.#connectorGenerations.get(connectorApp) ?? 0)
+      : undefined;
+    if (connector && (!connectorApp || !connectorSelector || !pinnedConnectionId)) {
+      return { approved: false };
+    }
+    const account = connector
+      ? this.#connectorAccountLabel(request.arguments.account_id)
+      : undefined;
+    this.#state.approvals.push({
+      id: approvalId,
+      threadId: request.threadId,
+      callId: request.id,
+      kind: connector ? 'connector_write' : upload ? 'file_upload' : 'native_tool',
+      title: `Approve ${humanizeToolName(request.tool.name)}`,
+      summary: request.reason,
+      target: trustedTarget ?? summarizeActionTarget(request.arguments, request.tool.name),
+      ...(account ? { account } : {}),
+      ...(dataLeaving ? { dataLeaving } : {}),
+      ...(dataLabel ? { dataLabel } : {}),
+      reversible: false,
+      expiresAt,
+      status: 'pending',
+    });
+    this.#appendTimeline(request.threadId, {
+      id: randomUUID(),
+      turnId: request.turnId,
+      kind: 'approval',
+      title: `Approve ${humanizeToolName(request.tool.name)}`,
+      text: request.reason,
+      detail: trustedTarget ?? summarizeActionTarget(request.arguments, request.tool.name),
+      status: 'pending',
+      approvalId,
+      toolName: request.tool.name,
+      timestamp: new Date().toISOString(),
+    });
+    this.#commit();
+    return await new Promise((resolve) => {
+      const finish = (decision: 'allow' | 'deny' | 'cancel'): void => {
+        signal?.removeEventListener('abort', abort);
+        const connectionUnchanged =
+          connectorApp &&
+          connectorSelector &&
+          pinnedConnectionId &&
+          pinnedGeneration !== undefined
+            ? this.connectionIdForAction(connectorApp, connectorSelector) ===
+                pinnedConnectionId &&
+              (this.#connectorGenerations.get(connectorApp) ?? 0) === pinnedGeneration
+            : true;
+        if (
+          decision === 'allow' &&
+          connectionUnchanged &&
+          connectorApp &&
+          connectorSelector &&
+          pinnedConnectionId
+        ) {
+          this.#approvedConnectorBindings.set(request.id, {
+            approvalId: request.id,
+            threadId: request.threadId,
+            turnId: request.turnId,
+            app: connectorApp,
+            selector: connectorSelector,
+            connectionId: pinnedConnectionId,
+            generation: pinnedGeneration!,
+            ...(account ? { account } : {}),
+          });
+        } else {
+          this.#approvedConnectorBindings.delete(request.id);
+        }
+        resolve({ approved: decision === 'allow' && connectionUnchanged });
+      };
+      const abort = (): void => {
+        this.#pendingApprovals.delete(approvalId);
+        this.#setApprovalStatus(approvalId, 'expired');
+        finish('cancel');
+      };
+      const timeout = setTimeout(abort, 120_000);
+      this.#pendingApprovals.set(approvalId, {
+        resolve: finish,
+        timeout,
+        kind: 'gateway',
+        threadId: request.threadId,
+        turnId: request.turnId,
+        requestId: request.id,
+      });
+      if (signal?.aborted) abort();
+      else signal?.addEventListener('abort', abort, { once: true });
+    });
+  }
+
+  #activeTurnId(threadId: string): string | undefined {
+    if (!this.#runningTurns.has(threadId)) return undefined;
+    const thread = this.#state.threads.find(({ id }) => id === threadId);
+    return thread ? this.#workspaceLeases.get(thread.workspace) : undefined;
+  }
+
+  #revokeApprovalsForTurn(threadId: string, turnId: string): void {
+    for (const [approvalId, pending] of [...this.#pendingApprovals]) {
+      if (pending.threadId === threadId && pending.turnId === turnId) {
+        this.#revokeApproval(approvalId, pending);
+      }
+    }
+    for (const [approvalId, binding] of this.#approvedConnectorBindings) {
+      if (binding.threadId === threadId && binding.turnId === turnId) {
+        this.#approvedConnectorBindings.delete(approvalId);
+      }
+    }
+  }
+
+  #revokeApproval(approvalId: string, pending: PendingApproval): void {
+    clearTimeout(pending.timeout);
+    this.#pendingApprovals.delete(approvalId);
+    if (pending.requestId) this.#approvedConnectorBindings.delete(pending.requestId);
+    const approval = this.#state.approvals.find(({ id }) => id === approvalId);
+    if (approval?.status === 'pending') approval.status = 'expired';
+    if (pending.kind === 'provider' && pending.requestId) {
+      void this.#runtime
+        ?.respondToRequest(pending.threadId, {
+          requestId: pending.requestId,
+          choiceId: 'deny',
+        })
+        .catch(() => undefined);
+    }
+    pending.resolve('cancel');
+  }
+
+  #releaseTurn(threadId: string): void {
+    const thread = this.#state.threads.find(({ id }) => id === threadId);
+    this.#runningTurns.delete(threadId);
+    if (thread) this.#workspaceLeases.delete(thread.workspace);
+    this.#drainQueue();
+  }
+
+  #drainQueue(): void {
+    if (this.#runningTurns.size >= 4) return;
+    const nextIndex = this.#queuedTurns.findIndex((turn) => {
+      const thread = this.#state.threads.find(({ id }) => id === turn.threadId);
+      return thread && !this.#workspaceLeases.has(thread.workspace);
+    });
+    if (nextIndex < 0) return;
+    const [next] = this.#queuedTurns.splice(nextIndex, 1);
+    if (next) this.#startTurn(next);
+    if (this.#runningTurns.size < 4) this.#drainQueue();
+  }
+
+  #completeRunningActivities(threadId: string, turnId: string): void {
+    for (const item of this.#state.timeline) {
+      if (item.threadId === threadId && item.turnId === turnId && item.status === 'running') {
+        item.status = 'complete';
+      }
+    }
+  }
+
+  #appendTimeline(
+    threadId: string,
+    item: Omit<TimelineItemView, 'threadId' | 'sequence'>,
+  ): void {
+    const sequence =
+      this.#state.timeline.reduce(
+        (highest, candidate) =>
+          candidate.threadId === threadId ? Math.max(highest, candidate.sequence) : highest,
+        0,
+      ) + 1;
+    this.#state.timeline.push({ ...item, threadId, sequence });
+  }
+
+  #setApprovalStatus(id: string, status: ApprovalView['status']): void {
+    const approval = this.#state.approvals.find((candidate) => candidate.id === id);
+    if (approval) approval.status = status;
+    this.#commit();
+  }
+
+  #updateConnection(
+    id: ConnectionView['id'],
+    patch: Partial<Omit<ConnectionView, 'id' | 'label'>>,
+  ): void {
+    const connection = this.#state.connections.find((candidate) => candidate.id === id);
+    if (!connection) throw new Error(`Unknown connection ${id}.`);
+    Object.assign(connection, patch);
+  }
+
+  #currentIdentityKey(): string | undefined {
+    const status = this.#identity.status();
+    return status.state === 'signed_in' && status.email
+      ? status.email.trim().toLowerCase()
+      : undefined;
+  }
+
+  async #clearResearchForIdentityBoundary(): Promise<void> {
+    const inFlight = this.#researchSync;
+    this.#researchGeneration += 1;
+    if (this.#researchRetryTimer) {
+      clearTimeout(this.#researchRetryTimer);
+      this.#researchRetryTimer = undefined;
+    }
+    for (const staged of this.#researchStaging.values()) {
+      staged.tainted = true;
+      staged.events = [];
+      staged.eventByMessageId.clear();
+    }
+    await inFlight?.catch(() => undefined);
+    this.#researchStaging.clear();
+    for (const batch of this.#repository.list<ResearchBatchRecord>('research')) {
+      if (batch.batchId) this.#repository.remove('research', batch.batchId);
+    }
+    for (const sync of this.#repository.list<ResearchSyncRecord>('research_sync')) {
+      if (sync.batchId) this.#repository.remove('research_sync', sync.batchId);
+    }
+    delete this.#state.researchIdentity;
+    this.#state.capture = { status: 'not_consented', pendingCount: 0 };
+  }
+
+  #lockConnections(detail: string): void {
+    for (const connection of this.#state.connections) {
+      if (!connection.connectionId) continue;
+      connection.status = 'error';
+      connection.detail = detail;
+      delete connection.account;
+    }
+  }
+
+  async #reconcileIdentityBoundState(): Promise<void> {
+    if (this.#fakeServices) return;
+    const storedBatches = this.#researchBatches();
+    if (!this.#state.researchIdentity && storedBatches.length > 0) {
+      // Old local-only builds predate the ownership marker. Fail private: retain those
+      // batches locally and mark them ineligible for any future cloud sync.
+      this.#state.researchIdentity = LOCAL_RESEARCH_IDENTITY;
+      for (const batch of storedBatches) {
+        if (batch.syncEligible === false) continue;
+        this.#repository.put('research', batch.batchId, { ...batch, syncEligible: false });
+      }
+    }
+    const identity = this.#currentIdentityKey();
+    if (!identity) {
+      if (
+        this.#cloud.configured &&
+        this.#state.researchIdentity !== LOCAL_RESEARCH_IDENTITY &&
+        (this.#state.researchIdentity || storedBatches.length)
+      ) {
+        await this.#clearResearchForIdentityBoundary();
+      }
+      this.#lockConnections('Sign in with the account that created this grant to manage it.');
+      return;
+    }
+    if (this.#state.researchIdentity === LOCAL_RESEARCH_IDENTITY) {
+      // Existing local captures stay local-only. New captures can sync under the
+      // explicitly signed-in identity covered by the same reviewed consent.
+      this.#state.researchIdentity = identity;
+    } else if (this.#state.researchIdentity && this.#state.researchIdentity !== identity) {
+      await this.#clearResearchForIdentityBoundary();
+    }
+    for (const connection of this.#state.connections) {
+      if (!connection.connectionId) continue;
+      const owner = this.#state.connectionOwners[connection.id];
+      if (owner !== identity) {
+        connection.status = 'error';
+        delete connection.account;
+        connection.detail = owner
+          ? 'This grant belongs to another Sia cloud account.'
+          : 'This legacy grant has no verifiable account owner; reconnect is blocked.';
+        continue;
+      }
+      try {
+        const result = await this.#cloud.connectionStatus(connection.id);
+        const remote = result.connections.find(({ id }) => id === connection.connectionId);
+        if (remote?.status === 'connected') {
+          connection.status = 'connected';
+          if (remote.accountLabel) connection.account = remote.accountLabel;
+          delete connection.detail;
+        } else {
+          connection.status = 'error';
+          connection.detail =
+            'This saved grant is not connected. Disconnect it before starting a new grant.';
+        }
+      } catch {
+        connection.status = 'error';
+        connection.detail = 'Sia could not verify this saved grant. Try again when online.';
+      }
+    }
+  }
+
+  #connectorAccountLabel(accountId: unknown): string | undefined {
+    if (typeof accountId !== 'string') return undefined;
+    const connection = this.#state.connections.find(
+      (candidate) => candidate.connectionId === accountId || candidate.id === accountId,
+    );
+    return connection?.account;
+  }
+
+  #requireAgent(id: string): AgentView {
+    const agent = this.#state.agents.find((candidate) => candidate.id === id);
+    if (!agent) throw new Error('Agent not found.');
+    return agent;
+  }
+
+  #providerReadinessError(providerId: ProviderId, model?: string): string | undefined {
+    const provider = this.#providers.find(({ id }) => id === providerId);
+    if (!provider) return 'Provider status is unavailable. Check again before starting.';
+    if (
+      provider.status === 'ready' &&
+      model !== undefined &&
+      provider.models?.length &&
+      !provider.models.some(({ id }) => id === model)
+    ) {
+      return provider.models.length === 1
+        ? `${provider.label} model must be ${provider.models[0]!.id} in this release.`
+        : `${provider.label} does not currently offer model ${model}.`;
+    }
+    if (
+      provider.status === 'ready' &&
+      model !== undefined &&
+      !provider.models?.length &&
+      model !== provider.model
+    ) {
+      return `${provider.label} model must be ${provider.model} in this release.`;
+    }
+    if (provider.status === 'ready') return undefined;
+    return `${provider.label} is not ready (${provider.status}). ${provider.detail}`;
+  }
+
+  #requireReadyProvider(providerId: ProviderId, model?: string): ProviderView {
+    const error = this.#providerReadinessError(providerId, model);
+    if (error) throw new Error(error);
+    return this.#providers.find(({ id }) => id === providerId)!;
+  }
+
+  #requireThread(id: string): ThreadView {
+    const thread = this.#state.threads.find((candidate) => candidate.id === id);
+    if (!thread) throw new Error('Thread not found.');
+    return thread;
+  }
+
+  #requireIdleThread(id: string, action: string): ThreadView {
+    const thread = this.#requireThread(id);
+    if (
+      thread.status === 'running' ||
+      thread.status === 'queued' ||
+      thread.status === 'waiting' ||
+      this.#runningTurns.has(id) ||
+      this.#queuedTurns.some(({ threadId }) => threadId === id)
+    ) {
+      throw new Error(`Stop the active task before you ${action}.`);
+    }
+    return thread;
+  }
+
+  #requireSchedule(id: string): ScheduleView {
+    const schedule = this.#state.schedules.find((candidate) => candidate.id === id);
+    if (!schedule) throw new Error('Scheduled task not found.');
+    return schedule;
+  }
+
+  #requireWorkspaceOperations(): NonNullable<ControllerOptions['workspaceOperations']> {
+    if (!this.#workspaceOperations) {
+      throw new Error('Local workspace operations are unavailable in this build.');
+    }
+    return this.#workspaceOperations;
+  }
+
+  #defaultReasoningEffort(providerId: ProviderId, modelId: string): string | undefined {
+    return this.#providers
+      .find(({ id }) => id === providerId)
+      ?.models?.find(({ id }) => id === modelId)?.defaultReasoningEffort;
+  }
+
+  #pruneAttachmentGrants(): void {
+    const now = Date.now();
+    for (const [id, grant] of this.#attachmentGrants) {
+      if (grant.expiresAt <= now) this.#attachmentGrants.delete(id);
+    }
+  }
+
+  #recover(state: PersistedState): PersistedState {
+    const recovered = structuredClone(state);
+    recovered.connectionOwners = recovered.connectionOwners ?? {};
+    recovered.schedules = recovered.schedules ?? [];
+    recovered.preferences = recovered.preferences ?? { completionSound: false };
+    // A CUA browser attachment is process-local. Never revive its UI grant without
+    // preparing a fresh native session and rebuilding host-only tab capabilities.
+    recovered.browser = { status: 'detached', grantedOrigins: [] };
+    recovered.approvals = recovered.approvals.map((approval) =>
+      approval.status === 'pending' ? { ...approval, status: 'expired' } : approval,
+    );
+    recovered.connections = recovered.connections.map((connection) =>
+      connection.status === 'connecting'
+        ? {
+            ...connection,
+            status: 'error',
+            detail: 'Connection setup was interrupted. Verify or disconnect this saved grant.',
+          }
+        : connection,
+    );
+    recovered.threads = recovered.threads.map((thread) => {
+      const agent = recovered.agents.find(({ id }) => id === thread.agentId);
+      const restored: ThreadView = {
+        ...thread,
+        instructionsSnapshot: thread.instructionsSnapshot ?? agent?.instructions ?? '',
+        agentNameSnapshot: thread.agentNameSnapshot ?? agent?.name ?? 'Agent',
+        unread: thread.unread ?? false,
+        worktree:
+          thread.worktree ?? ({ kind: 'primary', sourceWorkspace: thread.workspace } as const),
+      };
+      if (
+        restored.status !== 'running' &&
+        restored.status !== 'queued' &&
+        restored.status !== 'waiting'
+      )
+        return restored;
+      const lastUser = recovered.timeline.findLast(
+        (item) => item.threadId === restored.id && item.kind === 'user' && Boolean(item.turnId),
+      );
+      if (!lastUser?.turnId) {
+        const value: ThreadView = { ...restored, status: 'idle' };
+        delete value.queueReason;
+        return value;
+      }
+      const sequence = recovered.timeline
+        .filter((item) => item.threadId === restored.id)
+        .reduce((maximum, item) => Math.max(maximum, item.sequence), 0);
+      recovered.timeline.push({
+        id: randomUUID(),
+        threadId: restored.id,
+        turnId: lastUser.turnId,
+        sequence: sequence + 1,
+        kind: 'error',
+        title: 'Task was interrupted',
+        text: 'The task was interrupted when Sia closed. Completed work is preserved, and it is safe to retry.',
+        status: 'failed',
+        timestamp: new Date().toISOString(),
+      });
+      const value: ThreadView = {
+        ...restored,
+        status: 'failed',
+        interruptedTurnId: lastUser.turnId,
+        unread: true,
+      };
+      delete value.queueReason;
+      return value;
+    });
+    if (
+      recovered.activeThreadId &&
+      recovered.threads.find(({ id }) => id === recovered.activeThreadId)?.archivedAt
+    ) {
+      delete recovered.activeThreadId;
+    }
+    return recovered;
+  }
+
+  #commit(deferStreamDelta = false): void {
+    this.#revision += 1;
+    if (deferStreamDelta) {
+      if (!this.#streamCommitTimer) {
+        this.#streamCommitTimer = setTimeout(() => {
+          this.#streamCommitTimer = undefined;
+          this.#persist();
+          this.#emit();
+        }, 50);
+        this.#streamCommitTimer.unref();
+      }
+      return;
+    }
+    this.#cancelStreamCommit();
+    this.#persist();
+    this.#emit();
+  }
+
+  #cancelStreamCommit(): void {
+    if (!this.#streamCommitTimer) return;
+    clearTimeout(this.#streamCommitTimer);
+    this.#streamCommitTimer = undefined;
+  }
+
+  #persist(): void {
+    const browser = { ...this.#state.browser };
+    // Chrome window titles and native ids are process-local chooser data. Keep them out of
+    // durable storage even though the rest of the application state is encrypted at rest.
+    delete browser.availableWindows;
+    this.#repository.put('desktop', 'state', { ...this.#state, browser });
+  }
+
+  #emit(): void {
+    const event: DesktopPushEvent = { type: 'snapshot', snapshot: this.snapshot() };
+    for (const listener of this.#listeners) listener(event);
+  }
+}
+
+function summarizeTitle(value: string): string {
+  const words = value.trim().replace(/\s+/g, ' ').split(' ').slice(0, 7).join(' ');
+  return words.length > 52 ? `${words.slice(0, 49)}...` : words || 'New thread';
+}
+
+function isStreamingDelta(event: ThreadEventEnvelope): boolean {
+  return (
+    (event.type === 'message' || event.type === 'reasoning') && event.payload.delta === true
+  );
+}
+
+function normalizeWorkspace(value: string): string {
+  return normalize(resolve(value));
+}
+
+function abortableDelay(milliseconds: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('Aborted', 'AbortError'));
+      return;
+    }
+    const onAbort = (): void => {
+      clearTimeout(timeout);
+      reject(new DOMException('Aborted', 'AbortError'));
+    };
+    const timeout = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, milliseconds);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+function safeResourceLabel(resourceJson: string, kind: ApprovalView['kind']): string {
+  try {
+    const value = JSON.parse(resourceJson) as Record<string, unknown>;
+    const window = typeof value.window_title === 'string' ? value.window_title : undefined;
+    if (kind === 'browser_attach') {
+      const browser = typeof value.browser === 'string' ? value.browser : 'selected browser';
+      return window ? `${browser}, ${window}` : `${browser} profile`;
+    }
+    const app =
+      typeof value.app_name === 'string'
+        ? value.app_name
+        : typeof value.application === 'string'
+          ? value.application
+          : undefined;
+    if (app && window) return `${app}, ${window}`;
+    if (app) return app;
+    if (window) return window;
+    return kind === 'foreground_takeover'
+      ? 'Selected application window'
+      : 'Protected computer resource';
+  } catch {
+    return kind === 'browser_attach'
+      ? 'Selected browser profile'
+      : 'Protected computer resource';
+  }
+}
+
+function computerApprovalPresentation(
+  adapterId: string,
+  summary: string,
+): { kind: ApprovalView['kind']; title: string } {
+  const identity = `${adapterId} ${summary}`.toLowerCase();
+  if (identity.includes('existing_profile') || identity.includes('browser_prepare')) {
+    return { kind: 'browser_attach', title: 'Attach to signed-in browser' };
+  }
+  if (identity.includes('foreground') || identity.includes('bring_to_front')) {
+    return { kind: 'foreground_takeover', title: 'Allow foreground control' };
+  }
+  if (
+    identity.includes('upload') ||
+    identity.includes('download') ||
+    identity.includes('file')
+  ) {
+    return { kind: 'file_upload', title: 'Allow local file access' };
+  }
+  return { kind: 'native_tool', title: 'Allow computer access' };
+}
+
+function findChrome(value: unknown): { pid: number } | undefined {
+  const candidates = collectRecords(value)
+    .map((candidate) => {
+      const name = stringField(candidate, ['name', 'application_name', 'applicationName']);
+      const bundleId = stringField(candidate, [
+        'bundle_id',
+        'bundleId',
+        'bundle_identifier',
+        'bundleIdentifier',
+      ]);
+      const pid = Number(candidate.pid);
+      const normalizedName = name?.trim().toLowerCase() ?? '';
+      const normalizedBundleId = bundleId?.trim().toLowerCase() ?? '';
+      const helper = /\b(helper|crashpad)\b/.test(normalizedName);
+      const score =
+        normalizedBundleId === 'com.google.chrome'
+          ? 4
+          : normalizedName === 'google chrome'
+            ? 3
+            : normalizedBundleId.startsWith('com.google.chrome.') && !helper
+              ? 2
+              : normalizedName.includes('chrome') && !helper
+                ? 1
+                : 0;
+      return { candidate, pid, score };
+    })
+    .filter(({ pid, score }) => Number.isSafeInteger(pid) && pid > 0 && score > 0)
+    .sort((left, right) => right.score - left.score);
+  const record = candidates[0]?.candidate;
+  return record ? { pid: Number(record.pid) } : undefined;
+}
+
+function preferredChromeWindows(value: unknown): BrowserWindowView[] {
+  const windows = collectRecords(value)
+    .map((record) => ({
+      id: Number(record.window_id ?? record.id),
+      minimized: record.minimized === true || record.is_minimized === true,
+      title: typeof record.title === 'string' ? record.title : '',
+      visible: record.is_on_screen !== false,
+      bounds: isRecord(record.bounds)
+        ? {
+            width: Number(record.bounds.width),
+            height: Number(record.bounds.height),
+          }
+        : undefined,
+      zIndex: Number(record.z_index ?? record.zIndex ?? 0),
+    }))
+    .filter(({ id, title, visible, bounds }) => {
+      const hasUsableBounds =
+        !bounds ||
+        (!Number.isFinite(bounds.width) && !Number.isFinite(bounds.height)) ||
+        (bounds.width >= 500 && bounds.height >= 300);
+      return (
+        Number.isSafeInteger(id) &&
+        id > 0 &&
+        visible &&
+        hasUsableBounds &&
+        !/^allow remote debugging\?$/i.test(title.trim())
+      );
+    })
+    .sort((left, right) => {
+      if (left.minimized !== right.minimized) return left.minimized ? 1 : -1;
+      if (Boolean(left.title) !== Boolean(right.title)) return left.title ? -1 : 1;
+      return right.zIndex - left.zIndex || left.id - right.id;
+    });
+  return windows.map(({ id, minimized, title }, index) => {
+    const safeTitle = sanitizeChromeWindowTitle(title);
+    const detail = [safeTitle, minimized ? 'Minimized' : undefined]
+      .filter((part): part is string => Boolean(part))
+      .join(' · ');
+    return {
+      id,
+      label: `Chrome window ${index + 1}`,
+      ...(detail ? { detail } : {}),
+    };
+  });
+}
+
+function sanitizeChromeWindowTitle(value: string): string | undefined {
+  const sanitized = value
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!sanitized) return undefined;
+  return sanitized.slice(0, 160);
+}
+
+function browserAttachmentError(error: unknown): string {
+  const message = error instanceof Error ? error.message : 'Chrome attachment failed.';
+  if (message.includes('browser_binding_ambiguous')) {
+    return 'Chrome could not distinguish that window from another open window. Choose a window showing a unique page, or close the duplicate and retry.';
+  }
+  if (message.includes('browser_wrong_target_refused')) {
+    return 'Chrome refused this window. If Chrome shows “Allow remote debugging?”, approve it in the intended profile, then retry.';
+  }
+  return message;
+}
+
+function collectRecords(value: unknown): Record<string, unknown>[] {
+  if (Array.isArray(value)) return value.filter(isRecord);
+  if (!isRecord(value)) return [];
+  for (const key of ['apps', 'windows', 'elements', 'structuredContent', 'data']) {
+    const nested = value[key];
+    if (Array.isArray(nested)) return nested.filter(isRecord);
+    if (isRecord(nested)) {
+      const records = collectRecords(nested);
+      if (records.length) return records;
+    }
+  }
+  return [value];
+}
+
+function collectHttpOrigins(value: unknown): string[] {
+  const origins = new Set<string>();
+  const visit = (current: unknown, inheritedTarget?: string, depth = 0): void => {
+    if (depth > 7) return;
+    if (Array.isArray(current)) {
+      for (const item of current) visit(item, inheritedTarget, depth + 1);
+      return;
+    }
+    if (!isRecord(current)) return;
+    const targetId =
+      stringField(current, ['target_id', 'targetId', 'target', 'page_id', 'pageId']) ??
+      inheritedTarget;
+    const tabId =
+      stringField(current, ['tab_id', 'tabId', 'tab', 'id']) ??
+      (targetId ? stringField(current, ['page_id', 'pageId']) : undefined);
+    if (tabId || targetId) {
+      const candidate =
+        stringField(current, ['url', 'origin', 'page_url', 'pageUrl', 'location']) ?? undefined;
+      if (candidate) {
+        try {
+          const url = new URL(candidate);
+          if (url.protocol === 'https:' || url.protocol === 'http:') origins.add(url.origin);
+        } catch {
+          // Ignore non-web and malformed tab locations.
+        }
+      }
+    }
+    for (const [key, nested] of Object.entries(current)) {
+      if (
+        depth < 2 ||
+        [
+          'tabs',
+          'targets',
+          'pages',
+          'data',
+          'structuredContent',
+          'structured_content',
+        ].includes(key)
+      ) {
+        visit(nested, targetId, depth + 1);
+      }
+    }
+  };
+  visit(value);
+  return [...origins].sort();
+}
+
+function findBrowserTarget(value: unknown): { targetId: string; tabId: string } | undefined {
+  let found: { targetId: string; tabId: string } | undefined;
+  const visit = (current: unknown, inheritedTarget?: string, depth = 0): void => {
+    if (found || depth > 7) return;
+    if (Array.isArray(current)) {
+      for (const item of current) visit(item, inheritedTarget, depth + 1);
+      return;
+    }
+    if (!isRecord(current)) return;
+    const targetId =
+      stringField(current, ['target_id', 'targetId', 'target', 'page_id', 'pageId']) ??
+      inheritedTarget;
+    const tabId = stringField(current, ['tab_id', 'tabId', 'tab']);
+    if (targetId && tabId) {
+      found = { targetId, tabId };
+      return;
+    }
+    for (const nested of Object.values(current)) visit(nested, targetId, depth + 1);
+  };
+  visit(value);
+  return found;
+}
+
+function directBrowserUrl(value: string): URL {
+  const input = value.trim();
+  const normalized = /^[a-z][a-z0-9+.-]*:\/\//i.test(input) ? input : `https://${input}`;
+  let url: URL;
+  try {
+    url = new URL(normalized);
+  } catch {
+    throw new Error('Enter a valid website address.');
+  }
+  if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.username || url.password) {
+    throw new Error('Use an HTTP or HTTPS website without credentials in the address.');
+  }
+  return url;
+}
+
+function stringField(
+  record: Record<string, unknown>,
+  keys: readonly string[],
+): string | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value) return value;
+  }
+  return undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isResearchBatchRecord(value: unknown): value is ResearchBatchRecord {
+  if (!isRecord(value) || typeof value.batchId !== 'string') return false;
+  if (!Array.isArray(value.events) || !isRecord(value.consent)) return false;
+  return (
+    typeof value.consent.version === 'string' &&
+    typeof value.consent.acceptedAt === 'string' &&
+    value.consent.purpose === 'research_evaluation_debugging'
+  );
+}
+
+const SECRET_SHAPED_TEXT = [
+  /\bBearer\s+[A-Za-z0-9._~+/=-]{12,}\b/i,
+  /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
+  /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/,
+  /\b(?:sk|xai|meta|composio)[-_][A-Za-z0-9_-]{16,}\b/i,
+];
+
+function containsSecretShapedText(value: string): boolean {
+  return SECRET_SHAPED_TEXT.some((pattern) => pattern.test(value));
+}
+
+function humanizeToolName(value: string): string {
+  return value.replace(/[._-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function runtimeToolTitle(name: string, presentation?: ActivityPresentationView): string {
+  if (!presentation) return humanizeToolName(name);
+  if (presentation.kind === 'command') return presentation.command;
+  if (presentation.kind === 'file_change') {
+    const count = presentation.files.length;
+    return count === 1 ? `Changed ${presentation.files[0]!.path}` : `Changed ${count} files`;
+  }
+  if (presentation.kind === 'web_search') {
+    return presentation.query ? `Searched for ${presentation.query}` : 'Searched the web';
+  }
+  if (presentation.kind === 'image') return `Viewed ${basename(presentation.path)}`;
+  if (presentation.kind === 'review') return presentation.review || 'Code review';
+  if (presentation.kind === 'compaction') return 'Compacted context';
+  return humanizeToolName(name);
+}
+
+function mapRuntimePresentation(
+  presentation: Extract<ThreadEventEnvelope, { type: 'tool' }>['payload']['presentation'],
+): ActivityPresentationView | undefined {
+  if (!presentation) return undefined;
+  if (presentation.kind === 'command') {
+    return {
+      kind: 'command',
+      command: presentation.command,
+      ...(presentation.cwd ? { cwd: presentation.cwd } : {}),
+      ...(presentation.output ? { output: presentation.output } : {}),
+      ...(presentation.exitCode !== undefined ? { exitCode: presentation.exitCode } : {}),
+      ...(presentation.durationMs !== undefined ? { durationMs: presentation.durationMs } : {}),
+      ...(presentation.processId !== undefined ? { processId: presentation.processId } : {}),
+    };
+  }
+  if (presentation.kind === 'file_change') {
+    return {
+      kind: 'file_change',
+      files: presentation.files.map((file) => ({
+        path: file.path,
+        change: file.change,
+        ...(file.diff ? { diff: file.diff } : {}),
+      })),
+    };
+  }
+  if (presentation.kind === 'web_search') {
+    return {
+      kind: 'web_search',
+      ...(presentation.query ? { query: presentation.query } : {}),
+      sources: presentation.sources.map((source) => ({
+        url: source.url,
+        ...(source.title ? { title: source.title } : {}),
+      })),
+    };
+  }
+  return structuredClone(presentation);
+}
+
+function connectorAppForTool(value: string): ConnectionView['id'] | undefined {
+  if (value.startsWith('mail_')) return 'gmail';
+  if (value.startsWith('drive_')) return 'drive';
+  if (value.startsWith('slack_')) return 'slack';
+  return undefined;
+}
+
+function summarizeActionTarget(
+  argumentsValue: Readonly<Record<string, unknown>>,
+  toolName?: string,
+): string {
+  if (toolName === 'browser_upload') {
+    return `${String(argumentsValue.origin)}, file input ${String(argumentsValue.element_ref)}`;
+  }
+  if (toolName === 'browser_action') {
+    return `${String(argumentsValue.origin)}, ${String(argumentsValue.action)}${argumentsValue.element_ref ? ` element ${String(argumentsValue.element_ref)}` : ''}`;
+  }
+  if (toolName === 'browser_navigate') return `navigate to ${String(argumentsValue.url)}`;
+  if (toolName === 'drive_share') {
+    return `Drive resource ${String(argumentsValue.resource_id)} with ${String(argumentsValue.recipient)} as ${String(argumentsValue.role)}`;
+  }
+  if (toolName === 'computer_action') {
+    return `${String(argumentsValue.app_name)}, window ${String(argumentsValue.window_id)}: ${String(argumentsValue.action)}${argumentsValue.element_ref ? ` element ${String(argumentsValue.element_ref)}` : ''}`;
+  }
+  const to = stringArray(argumentsValue.to);
+  if (to.length > 0) return `email recipients: ${to.join(', ')}`;
+  const appName = argumentsValue.app_name;
+  const windowId = argumentsValue.window_id;
+  if (typeof appName === 'string' && typeof windowId === 'string') {
+    return `${appName}, window ${windowId}`;
+  }
+  for (const key of [
+    'url',
+    'origin',
+    'recipient',
+    'channel_id',
+    'resource_id',
+    'parent_id',
+    'tab_id',
+    'window_id',
+    'account_id',
+  ]) {
+    const value = argumentsValue[key];
+    if (typeof value === 'string' && value.length > 0)
+      return `${key.replaceAll('_', ' ')}: ${value}`;
+  }
+  return 'Exact action shown above';
+}
+
+function summarizeDataLeaving(
+  argumentsValue: Readonly<Record<string, unknown>>,
+  toolName: string,
+): string | undefined {
+  const lines: string[] = [];
+  const to = stringArray(argumentsValue.to);
+  const cc = stringArray(argumentsValue.cc);
+  if (to.length > 0) lines.push(`To: ${to.join(', ')}`);
+  if (cc.length > 0) lines.push(`Cc: ${cc.join(', ')}`);
+  if (typeof argumentsValue.subject === 'string') {
+    lines.push(`Subject: ${argumentsValue.subject}`);
+  }
+  if (typeof argumentsValue.body === 'string') {
+    lines.push(`Body:\n${argumentsValue.body}`);
+  }
+  if (typeof argumentsValue.text === 'string') {
+    const action = argumentsValue.action;
+    const label =
+      toolName === 'slack_post'
+        ? 'Slack message'
+        : toolName === 'computer_action' && action === 'set'
+          ? 'Exact replacement text'
+          : 'Text to type';
+    lines.push(`${label}:\n${argumentsValue.text}`);
+  }
+  if (typeof argumentsValue.value === 'string') {
+    lines.push(`Value to enter:\n${argumentsValue.value}`);
+  }
+  if (typeof argumentsValue.recipient === 'string') {
+    lines.push(`Recipient: ${argumentsValue.recipient}`);
+  }
+  if (typeof argumentsValue.role === 'string') lines.push(`Role: ${argumentsValue.role}`);
+  if (typeof argumentsValue.resource_id === 'string') {
+    lines.push(`Resource: ${argumentsValue.resource_id}`);
+  }
+  if (typeof argumentsValue.thread_id === 'string') {
+    lines.push(`Thread: ${argumentsValue.thread_id}`);
+  }
+  if (typeof argumentsValue.parent_id === 'string') {
+    lines.push(`Destination folder: ${argumentsValue.parent_id}`);
+  }
+  if (typeof argumentsValue.name === 'string') {
+    lines.push(`Remote name: ${argumentsValue.name}`);
+  }
+  for (const key of ['file_path', 'file_paths']) {
+    const value = argumentsValue[key];
+    if (typeof value === 'string' && value.length > 0) lines.push(`File: ${value}`);
+    if (Array.isArray(value) && value.length > 0) {
+      lines.push(`Files:\n${value.map(String).join('\n')}`);
+    }
+  }
+  return lines.length > 0 ? lines.join('\n\n') : undefined;
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
+}
+
+function attachmentKind(path: string): AttachmentView['kind'] {
+  const extension = extname(path).toLocaleLowerCase();
+  if (
+    ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.heic', '.heif', '.bmp', '.tiff'].includes(
+      extension,
+    )
+  ) {
+    return 'image';
+  }
+  if (['.mp3', '.wav', '.m4a', '.aac', '.flac', '.ogg', '.opus'].includes(extension)) {
+    return 'audio';
+  }
+  return 'file';
+}
+
+function searchExcerpt(value: string, needle: string): string {
+  const compact = value.replace(/\s+/g, ' ').trim();
+  const index = compact.toLocaleLowerCase().indexOf(needle);
+  if (index < 0) return compact.slice(0, 180);
+  const start = Math.max(0, index - 60);
+  const end = Math.min(compact.length, index + needle.length + 100);
+  return `${start > 0 ? '…' : ''}${compact.slice(start, end)}${end < compact.length ? '…' : ''}`;
+}
+
+function worktreeLabel(title: string, id: string): string {
+  const slug = title
+    .normalize('NFKD')
+    .replace(/[^a-zA-Z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+  return `${slug || 'thread'}-${id}`;
+}
