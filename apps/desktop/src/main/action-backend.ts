@@ -40,6 +40,8 @@ export interface DesktopActionBackendOptions {
   readonly browserSessionId?: string;
   /** Optional host policy layered on top of the CUA attachment grant. */
   readonly isBrowserOriginAllowed?: (origin: string) => boolean;
+  /** Lets the trusted host attach Chrome on demand before the first browser tool runs. */
+  readonly ensureBrowserAttached?: () => Promise<void>;
   /** Resolves a stable model-visible app/account selector to a trusted cloud connection. */
   readonly resolveConnectionId?: (
     app: 'gmail' | 'drive' | 'slack',
@@ -215,6 +217,7 @@ export class DesktopActionBackend implements ActionBackend {
   readonly #cloud: CloudActionClient | undefined;
   #browserSessionId: string;
   readonly #isBrowserOriginAllowed: ((origin: string) => boolean) | undefined;
+  readonly #ensureBrowserAttached: (() => Promise<void>) | undefined;
   readonly #resolveConnectionId:
     | ((
         app: 'gmail' | 'drive' | 'slack',
@@ -238,6 +241,7 @@ export class DesktopActionBackend implements ActionBackend {
     this.#cloud = options.cloud;
     this.#browserSessionId = options.browserSessionId ?? 'sia-browser';
     this.#isBrowserOriginAllowed = options.isBrowserOriginAllowed;
+    this.#ensureBrowserAttached = options.ensureBrowserAttached;
     this.#resolveConnectionId = options.resolveConnectionId;
     this.#hostPid = options.hostPid ?? process.pid;
     void sweepStaleBrowserVaults();
@@ -349,14 +353,19 @@ export class DesktopActionBackend implements ActionBackend {
         case 'computer_action':
           return await this.#computerAction(request);
         case 'browser_tabs':
+          await this.#attachOnDemand();
           return await this.#browserTabs(request);
         case 'browser_snapshot':
+          await this.#attachOnDemand();
           return await this.#browserSnapshot(request);
         case 'browser_navigate':
+          await this.#attachOnDemand();
           return await this.#browserNavigate(request);
         case 'browser_action':
+          await this.#attachOnDemand();
           return await this.#browserAction(request);
         case 'browser_upload':
+          await this.#attachOnDemand();
           return await this.#browserUpload(request);
         case 'mail_search':
         case 'mail_read_thread':
@@ -374,6 +383,11 @@ export class DesktopActionBackend implements ActionBackend {
     } catch (error) {
       return classifyFailure(error);
     }
+  }
+
+  async #attachOnDemand(): Promise<void> {
+    if (this.#browserAttached || !this.#ensureBrowserAttached) return;
+    await this.#ensureBrowserAttached();
   }
 
   async #computerList(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {

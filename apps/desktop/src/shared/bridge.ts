@@ -257,11 +257,22 @@ export interface CaptureView {
 
 export const RESEARCH_CONSENT_VERSION = 'alpha-research-v2' as const;
 
-export interface ComputerView {
+export interface ComputerPermissionsView {
   status: 'unavailable' | 'needs_permission' | 'ready' | 'error';
   accessibility: boolean;
   screenRecording: boolean;
   detail?: string;
+}
+
+export interface ComputerView extends ComputerPermissionsView {
+  /**
+   * 'auto' (default): computer and browser actions run without per-action approval and Chrome
+   * attaches to the frontmost window on demand. 'ask' restores interactive approvals.
+   */
+  trust: 'auto' | 'ask';
+  /** Whether the always-on local trajectory log (requests, replies, actions, screenshots) is kept. */
+  trajectoryLog: boolean;
+  trajectoryDirectory?: string;
 }
 
 export interface BrowserWindowView {
@@ -420,6 +431,9 @@ export interface BridgeRequestMap {
   'computer.permissions': undefined;
   'computer.requestPermissions': undefined;
   'computer.openMessages': undefined;
+  'computer.setTrust': { trust: 'auto' | 'ask' };
+  'computer.setTrajectoryLog': { enabled: boolean };
+  'computer.revealTrajectories': undefined;
   'browser.attach': { windowId?: number };
   'browser.open': { url: string };
   'browser.detach': undefined;
@@ -495,6 +509,9 @@ export interface BridgeResultMap {
   'computer.permissions': DesktopSnapshot;
   'computer.requestPermissions': DesktopSnapshot;
   'computer.openMessages': DesktopSnapshot;
+  'computer.setTrust': DesktopSnapshot;
+  'computer.setTrajectoryLog': DesktopSnapshot;
+  'computer.revealTrajectories': DesktopSnapshot;
   'browser.attach': DesktopSnapshot;
   'browser.open': DesktopSnapshot;
   'browser.detach': DesktopSnapshot;
@@ -620,6 +637,9 @@ export interface DesktopBridgeApi {
     permissions(): Promise<DesktopSnapshot>;
     requestPermissions(): Promise<DesktopSnapshot>;
     openMessages(): Promise<DesktopSnapshot>;
+    setTrust(trust: 'auto' | 'ask'): Promise<DesktopSnapshot>;
+    setTrajectoryLog(enabled: boolean): Promise<DesktopSnapshot>;
+    revealTrajectories(): Promise<DesktopSnapshot>;
   };
   browser: {
     attach(windowId?: number): Promise<DesktopSnapshot>;

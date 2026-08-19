@@ -231,6 +231,9 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onOpenBrowserSite={(url) => api.openBrowserSite(url)}
               onDetachBrowser={() => api.detachBrowser()}
               onRequestPermissions={() => api.requestComputerPermissions()}
+              onSetComputerTrust={(trust) => api.setComputerTrust(trust)}
+              onSetTrajectoryLog={(enabled) => api.setTrajectoryLog(enabled)}
+              onRevealTrajectories={() => api.revealTrajectories()}
               onOpenMessages={() => api.openMessages()}
               onConfigureVoice={(apiKey) => api.configureVoice(apiKey)}
               onRefreshVoices={() => api.refreshVoices()}

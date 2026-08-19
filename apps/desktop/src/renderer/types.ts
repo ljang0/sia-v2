@@ -290,6 +290,10 @@ export interface ComputerInspectorState {
   accessibility: 'allowed' | 'denied' | 'not-requested';
   screenRecording: 'allowed' | 'denied' | 'not-requested';
   windows: ComputerWindow[];
+  /** 'auto' runs computer/browser actions without per-action approval. */
+  trust: 'auto' | 'ask';
+  trajectoryLog: boolean;
+  trajectoryDirectory?: string | undefined;
 }
 
 export interface ProviderSetup {
@@ -458,6 +462,9 @@ export interface RendererApi {
   openBrowserSite(url: string): Promise<void>;
   detachBrowser(): Promise<void>;
   requestComputerPermissions(): Promise<void>;
+  setComputerTrust(trust: 'auto' | 'ask'): Promise<void>;
+  setTrajectoryLog(enabled: boolean): Promise<void>;
+  revealTrajectories(): Promise<void>;
   openMessages(): Promise<void>;
   configureVoice(apiKey: string): Promise<void>;
   refreshVoices(): Promise<void>;

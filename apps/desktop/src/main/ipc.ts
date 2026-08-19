@@ -159,6 +159,9 @@ const inputSchemas = {
   'computer.permissions': z.undefined(),
   'computer.requestPermissions': z.undefined(),
   'computer.openMessages': z.undefined(),
+  'computer.setTrust': z.object({ trust: z.enum(['auto', 'ask']) }).strict(),
+  'computer.setTrajectoryLog': z.object({ enabled: z.boolean() }).strict(),
+  'computer.revealTrajectories': z.undefined(),
   'browser.attach': z
     .object({ windowId: z.number().int().positive().safe().optional() })
     .strict(),

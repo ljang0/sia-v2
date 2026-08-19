@@ -19,7 +19,7 @@ This repository is the clean v2 implementation. It intentionally does not contai
 - The cloud control plane handles sign-in, connected apps, the implemented-but-not-yet-live-verified Meta relay, and consented research sync. Meta stays unavailable in the alpha client until an authenticated capability check exists. The cloud does not yet provide a persistent remote computer, remote browser profile, or offline scheduled agent turns.
 - Codex is the default provider through its official app-server protocol. The alpha pins Codex CLI `>=0.147.0 <0.148.0`; inherited extensions are disabled and verified before a thread starts.
 - The Meta adapter targets the Sia cloud relay but remains production-disabled until an authenticated live check is implemented. Gemini, Grok, and Claude also remain production-disabled until their compatibility, isolation, and product-policy gates are satisfied.
-- Connected-app writes and every Sia-hosted browser/computer change require an exact, expiring approval. Read-only inspection stays background-capable and never steals focus.
+- Connected-app writes require an exact, expiring approval. Sia-hosted browser/computer changes run without per-action approval in the default trusted local mode (every action is bound to a live window/tab/snapshot and written to the local trajectory log); `Settings → Computer → Ask before every action` restores approvals. Read-only inspection stays background-capable and never steals focus.
 - Gmail, Drive, and Slack each have an individual connection button as well as one guided sequence.
   Provider-owned OAuth consent remains separate: Google and Slack are never represented as one
   blanket permission.
@@ -51,8 +51,8 @@ worktrees for parallel forks. Terminal access is a user-operated UI capability; 
 Sia's model-visible action gateway.
 
 The terminal is deliberately scoped rather than a persistent interactive PTY. Browser attachment
-reuses an explicitly approved Chrome window and grants only observed HTTP(S) origins for the current
-process. Neither browser grants nor local schedules become a cloud or login-time background service.
+reuses a signed-in Chrome window — the frontmost one automatically in trusted mode, or one you pick
+in ask mode — for the current process; ask mode also limits actions to observed HTTP(S) origins. Neither browser grants nor local schedules become a cloud or login-time background service.
 
 ## Development
 

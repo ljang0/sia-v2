@@ -24,7 +24,7 @@ Electron main -------------- Sia cloud API
                          `-- Meta streaming tool loop (production-gated)
 ```
 
-The provider runtime can propose a Sia action, but only the main-process ActionGateway can authorize it. The renderer renders approval requests and returns a decision tied to the request digest. Provider-native shell, files, public web, and subagents retain their provider protocol and approvals.
+The provider runtime can propose a Sia action, but only the main-process ActionGateway can authorize it. Its `DefaultActionAuthorizationPolicy` skips the interactive approval for computer/browser actions while the controller reports trusted local mode (`computer.trust === 'auto'`, the default) and keeps it for connector writes; in ask mode the renderer renders approval requests and returns a decision tied to the request digest. Every action result, timeline item, and automatic authorization is appended to the always-on local `TrajectoryRecorder` (`<userData>/trajectories/<threadId>/events.jsonl` plus image files). Provider-native shell, files, public web, and subagents retain their provider protocol and approvals.
 
 There is no generic renderer IPC, generic connector catalog, raw CUA server, arbitrary CDP/JavaScript route, cookie API, visualization tool, or cross-provider subagent abstraction.
 

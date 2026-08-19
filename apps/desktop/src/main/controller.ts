@@ -24,6 +24,7 @@ import type {
   BrowserView,
   BrowserWindowView,
   CaptureView,
+  ComputerPermissionsView,
   ComputerView,
   ConnectionView,
   DesktopPushEvent,
@@ -44,10 +45,11 @@ import type { RuntimeCoordinator } from './runtime-coordinator.js';
 import type { CloudIdentityStatus } from './identity.js';
 import type { CuaAuthorizationContext } from './cua-service.js';
 import type { VoiceOperations } from './voice-service.js';
+import type { TrajectoryRecorder } from './trajectory-recorder.js';
 
 interface ComputerAutomation {
-  permissions(): Promise<ComputerView>;
-  requestPermissions(): Promise<ComputerView>;
+  permissions(): Promise<ComputerPermissionsView>;
+  requestPermissions(): Promise<ComputerPermissionsView>;
   call(
     tool: string,
     args: Record<string, unknown>,
@@ -81,6 +83,10 @@ interface ControllerOptions {
   fakeTurnDelayMs?: number;
   openExternal(url: string): Promise<void>;
   openMessages?(): Promise<void>;
+  /** Always-on local trajectory log; absent in unit tests that do not care about it. */
+  trajectory?: TrajectoryRecorder;
+  /** Reveals a directory in Finder; used for the trajectory log. */
+  revealDirectory?(path: string): Promise<void>;
   chooseDirectory(): Promise<string | null>;
   chooseFiles?(): Promise<string[]>;
   exportJson(value: unknown): Promise<string | null>;
@@ -136,6 +142,12 @@ interface PersistedState {
   schedules: ScheduleView[];
   preferences: {
     completionSound: boolean;
+    /** Computer/browser actions run without per-action approval when 'auto' (default). */
+    computerTrust?: 'auto' | 'ask';
+    /** Full local trajectory log (requests, replies, actions, screenshots); default on. */
+    trajectoryLog?: boolean;
+    /** Set once the automatic macOS permission prompt has been shown for this profile. */
+    permissionsPromptedAt?: string;
   };
 }
 
@@ -308,11 +320,14 @@ export class DesktopController {
   #browserSessionId: string | undefined;
   #state: PersistedState = structuredClone(INITIAL_STATE);
   #providers: ProviderView[] = [];
-  #computerState: ComputerView = {
+  #computerState: ComputerPermissionsView = {
     status: 'unavailable',
     accessibility: false,
     screenRecording: false,
   };
+  readonly #trajectory: TrajectoryRecorder | undefined;
+  readonly #revealDirectory: ((path: string) => Promise<void>) | undefined;
+  #browserAutoAttach: Promise<void> | undefined;
   #revision = 0;
   #accountDeletionInProgress = false;
 
@@ -324,6 +339,8 @@ export class DesktopController {
     this.#fakeServices = options.fakeServices;
     this.#fakeTurnDelayMs = options.fakeTurnDelayMs ?? 160;
     this.#openExternal = options.openExternal;
+    this.#trajectory = options.trajectory;
+    this.#revealDirectory = options.revealDirectory;
     this.#openMessages = options.openMessages;
     this.#chooseDirectory = options.chooseDirectory;
     this.#chooseFiles = options.chooseFiles;
@@ -362,7 +379,65 @@ export class DesktopController {
   }
 
   actionResultObserver(): ActionResultObserver {
-    return (notice) => this.#stageResearchActionResult(notice);
+    return (notice) => {
+      this.#recordActionResult(notice);
+      this.#stageResearchActionResult(notice);
+    };
+  }
+
+  /** 'auto' runs computer/browser actions without per-action approval. */
+  computerTrust(): 'auto' | 'ask' {
+    return this.#state.preferences.computerTrust ?? 'auto';
+  }
+
+  trajectoryLogEnabled(): boolean {
+    return this.#state.preferences.trajectoryLog ?? true;
+  }
+
+  /** Any HTTP(S) origin is allowed while trusted; otherwise only origins granted at attach. */
+  isBrowserOriginAllowed(origin: string): boolean {
+    if (this.#state.browser.grantedOrigins.includes(origin)) return true;
+    return this.computerTrust() === 'auto' && /^https?:$/.test(new URL(origin).protocol);
+  }
+
+  /**
+   * In trusted mode the model does not need the person to pick a Chrome window first: the
+   * frontmost visible window is attached on demand the first time a browser tool runs.
+   */
+  async ensureBrowserAttachedForActions(): Promise<void> {
+    if (this.computerTrust() !== 'auto') return;
+    if (this.#state.browser.status === 'attached' && this.#browserSessionId) return;
+    if (!this.#browserAutoAttach) {
+      this.#browserAutoAttach = this.#attachBrowser({}, { auto: true })
+        .then(() => undefined)
+        .catch(() => undefined)
+        .finally(() => {
+          this.#browserAutoAttach = undefined;
+        });
+    }
+    await this.#browserAutoAttach;
+  }
+
+  #recordActionResult(notice: Parameters<ActionResultObserver>[0]): void {
+    if (!this.#trajectory) return;
+    const images = (notice.result.images ?? []).map((image) => ({
+      mimeType: image.mimeType,
+      dataBase64: image.dataBase64,
+    }));
+    this.#trajectory.record(
+      {
+        type: 'action_result',
+        threadId: notice.context.threadId,
+        turnId: notice.context.turnId,
+        name: notice.name,
+        arguments: notice.arguments ?? {},
+        outcome: notice.result.outcome,
+        summary: notice.result.summary,
+        ...(notice.result.reason ? { reason: notice.result.reason } : {}),
+        ...(notice.result.data !== undefined ? { data: notice.result.data } : {}),
+      },
+      images,
+    );
   }
 
   async #grantChosenDirectory(): Promise<string | null> {
@@ -394,6 +469,24 @@ export class DesktopController {
       this.#identity.initialize(),
     ]);
     this.#providers = providers;
+    if (
+      !this.#fakeServices &&
+      computer.status === 'needs_permission' &&
+      this.computerTrust() === 'auto' &&
+      !this.#state.preferences.permissionsPromptedAt
+    ) {
+      // Ask macOS for Accessibility and Screen Recording once per profile so computer use is
+      // ready without a trip through Settings; the person can still deny at the OS prompt.
+      this.#state.preferences.permissionsPromptedAt = new Date().toISOString();
+      this.#commit();
+      void this.#computer
+        .requestPermissions()
+        .then((view) => {
+          this.#computerState = view;
+          this.#emit();
+        })
+        .catch(() => undefined);
+    }
     if (this.#fakeServices) {
       const codexIndex = this.#providers.findIndex(({ id }) => id === 'codex');
       const fakeCodex: ProviderView = {
@@ -447,7 +540,12 @@ export class DesktopController {
       providers: structuredClone(this.#providers),
       connections: structuredClone(this.#state.connections),
       capture: structuredClone(this.#state.capture),
-      computer: structuredClone(this.#computerState),
+      computer: {
+        ...structuredClone(this.#computerState),
+        trust: this.computerTrust(),
+        trajectoryLog: this.trajectoryLogEnabled(),
+        ...(this.#trajectory ? { trajectoryDirectory: this.#trajectory.rootDirectory } : {}),
+      },
       browser: structuredClone(this.#state.browser),
       voice: structuredClone(
         this.#voice?.view() ?? ({ status: 'disconnected', voices: [] } satisfies VoiceView),
@@ -689,6 +787,23 @@ export class DesktopController {
         return (await this.#refreshComputer(true)) as unknown as BridgeResultMap[M];
       case 'computer.openMessages':
         return (await this.#openMessagesApp()) as unknown as BridgeResultMap[M];
+      case 'computer.setTrust':
+        this.#state.preferences.computerTrust = (
+          input as BridgeRequestMap['computer.setTrust']
+        ).trust;
+        this.#commit();
+        return this.snapshot() as BridgeResultMap[M];
+      case 'computer.setTrajectoryLog':
+        this.#state.preferences.trajectoryLog = (
+          input as BridgeRequestMap['computer.setTrajectoryLog']
+        ).enabled;
+        this.#commit();
+        return this.snapshot() as BridgeResultMap[M];
+      case 'computer.revealTrajectories':
+        if (this.#trajectory && this.#revealDirectory) {
+          await this.#revealDirectory(this.#trajectory.rootDirectory);
+        }
+        return this.snapshot() as BridgeResultMap[M];
       case 'browser.attach':
         return (await this.#attachBrowser(
           input as BridgeRequestMap['browser.attach'],
@@ -791,6 +906,21 @@ export class DesktopController {
     if (context.kind === 'direct_user') return 'allow';
     const active = this.#activeTurnId(context.threadId);
     if (active !== context.turnId) return 'cancel';
+    if (this.computerTrust() === 'auto') {
+      // Trusted local mode: the driver's own risk prompt is answered for the person, but the
+      // decision is written to the trajectory log so every action stays reviewable afterwards.
+      this.#trajectory?.record({
+        type: 'computer_authorization',
+        threadId: context.threadId,
+        turnId: context.turnId,
+        decision: 'allow',
+        automatic: true,
+        adapterId: request.adapterId,
+        riskClass: request.riskClass,
+        summary: request.humanSummary,
+      });
+      return 'allow';
+    }
     const approvalId = randomUUID();
     const expiresAt = new Date(Number(request.expiresUnixMs)).toISOString();
     const presentation = computerApprovalPresentation(request.adapterId, request.humanSummary);
@@ -1841,7 +1971,10 @@ export class DesktopController {
     return this.snapshot();
   }
 
-  async #attachBrowser(input: BridgeRequestMap['browser.attach']): Promise<DesktopSnapshot> {
+  async #attachBrowser(
+    input: BridgeRequestMap['browser.attach'],
+    options: { auto?: boolean } = {},
+  ): Promise<DesktopSnapshot> {
     this.#browserTarget = undefined;
     this.#browserSessionId = undefined;
     this.#browserCapabilitySink?.resetBrowserCapabilities();
@@ -1868,7 +2001,7 @@ export class DesktopController {
       }
       const selectedWindow =
         input.windowId === undefined
-          ? availableWindows.length === 1
+          ? availableWindows.length === 1 || options.auto
             ? availableWindows[0]
             : undefined
           : availableWindows.find(({ id }) => id === input.windowId);
@@ -1924,6 +2057,13 @@ export class DesktopController {
           ? { detail: 'Attached, but no HTTP or HTTPS tab is currently granted.' }
           : {}),
       };
+      this.#trajectory?.record({
+        type: 'browser_attached',
+        threadId: this.#state.activeThreadId ?? 'app',
+        window: selectedWindow.label,
+        automatic: Boolean(options.auto),
+        grantedOrigins,
+      });
     } catch (error) {
       this.#browserTarget = undefined;
       this.#browserSessionId = undefined;
@@ -3067,6 +3207,20 @@ export class DesktopController {
     outcome: 'complete' | 'failed',
   ): void {
     if (outcome === 'complete') this.#failedTurnAttachments.delete(turn.id);
+    // Streamed items are appended early and mutated as text arrives; the finished turn is
+    // written once more so the log always ends with the final transcript for that turn.
+    this.#trajectory?.record({
+      type: 'turn_finished',
+      threadId: thread.id,
+      turnId: turn.id,
+      outcome,
+      source: turn.source ?? 'manual',
+      items: structuredClone(
+        this.#state.timeline.filter(
+          (item) => item.threadId === thread.id && item.turnId === turn.id,
+        ),
+      ),
+    });
     if (turn.source === 'goal' && thread.goal && outcome === 'failed') {
       thread.goal.status = 'paused';
       thread.goal.updatedAt = new Date().toISOString();
@@ -3621,6 +3775,12 @@ export class DesktopController {
         0,
       ) + 1;
     this.#state.timeline.push({ ...item, threadId, sequence });
+    this.#trajectory?.record({
+      type: `timeline_${item.kind}`,
+      threadId,
+      turnId: item.turnId,
+      item: structuredClone(item),
+    });
   }
 
   #setApprovalStatus(id: string, status: ApprovalView['status']): void {

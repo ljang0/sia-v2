@@ -19,18 +19,31 @@ Provider prompts and responses are sent to the provider selected for the thread 
 provider's account, terms, and billing. Sia does not copy provider credential files or silently log a
 provider in or out.
 
+### Local trajectory log
+
+By default Sia keeps a complete local log of each thread — every request, reply, notice, action it
+took (tool name, arguments, outcome), every approval or automatic authorization decision, and every
+screenshot or image an action returned — as plain files under the app's `trajectories/` folder
+(`Settings → Computer → Keep a full local log → Show in Finder`). The log exists so a run can be
+reviewed afterwards. It never leaves the Mac, is not part of research capture or cloud sync, and can
+be turned off in Settings or deleted from disk at any time.
+
 ## Browser and computer access
 
-Chrome attachment is explicit and limited to observed top-level HTTP(S) origins in one approved
-ordinary window. Sia does not copy cookies or attach to incognito, authentication, password, or
-secure browser surfaces. Computer access requires macOS Accessibility and Screen Recording and an
-explicitly granted non-sensitive window. Browsers, terminals, password managers, Sia itself,
-Keychain, and security settings are excluded from generic computer targets.
+By default Sia runs in **trusted local mode**: computer and browser actions execute without a
+per-action approval, and Chrome is attached to the frontmost signed-in window automatically the
+first time the browser is needed. Every action is still bound to a live window, tab, and fresh
+snapshot, still refuses incognito, authentication, password, and secure surfaces, and is written to
+the local trajectory log. `Settings → Computer → Ask before every action` restores per-action
+approvals and explicit window selection. Sia does not copy cookies. Computer access requires macOS
+Accessibility and Screen Recording, which Sia requests once at first launch. Browsers, terminals,
+password managers, Sia itself, Keychain, and security settings are excluded from generic computer
+targets.
 
 The Apple Messages entry point only asks macOS to open Messages. Sia does not read the private
 Messages database or copy an account credential. If the user later grants a visible Messages window
 to computer use, its contents are processed only for that task under the computer-access boundary;
-an outgoing action still requires explicit approval.
+in ask mode an outgoing action still requires explicit approval, and in trusted mode it is logged.
 
 ## Optional cloud data
 

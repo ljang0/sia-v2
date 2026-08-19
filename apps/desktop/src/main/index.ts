@@ -13,7 +13,8 @@ import {
   shell,
 } from 'electron';
 
-import { ActionGateway } from '@sia/action-gateway';
+import { ActionGateway, DefaultActionAuthorizationPolicy } from '@sia/action-gateway';
+import { TrajectoryRecorder } from './trajectory-recorder.js';
 
 import { CloudClient } from './cloud-client.js';
 import { loadCloudConfiguration } from './cloud-config.js';
@@ -157,6 +158,10 @@ async function performApplicationCreation(): Promise<void> {
     const fakeTurnDelayMs = fakeServices
       ? testFakeTurnDelay(process.env.SIA_TEST_FAKE_TURN_DELAY_MS)
       : undefined;
+    const trajectory = new TrajectoryRecorder({
+      rootDirectory: join(app.getPath('userData'), 'trajectories'),
+      enabled: () => activeController?.trajectoryLogEnabled() ?? true,
+    });
     activeController = new DesktopController({
       repository,
       cloud,
@@ -164,6 +169,10 @@ async function performApplicationCreation(): Promise<void> {
       identity,
       fakeServices,
       ...(fakeTurnDelayMs ? { fakeTurnDelayMs } : {}),
+      trajectory,
+      revealDirectory: async (path) => {
+        shell.showItemInFolder(path);
+      },
       openExternal: openSafeExternal,
       openMessages: () => shell.openExternal('sms:', { activate: true }),
       chooseDirectory,
@@ -185,14 +194,17 @@ async function performApplicationCreation(): Promise<void> {
     const actionBackend = new DesktopActionBackend({
       cua: computer,
       cloud,
-      isBrowserOriginAllowed: (origin) =>
-        activeController.snapshot().browser.grantedOrigins.includes(origin),
+      isBrowserOriginAllowed: (origin) => activeController.isBrowserOriginAllowed(origin),
+      ensureBrowserAttached: () => activeController.ensureBrowserAttachedForActions(),
       resolveConnectionId: (app, selector, approvalId) =>
         activeController.connectionIdForAction(app, selector, approvalId),
     });
     activeController.attachBrowserCapabilitySink(actionBackend);
     const gateway = new ActionGateway({
       backend: actionBackend,
+      policy: new DefaultActionAuthorizationPolicy({
+        trustLocalActions: () => activeController.computerTrust() === 'auto',
+      }),
       approvals: activeController.approvalBroker(),
       onInvocation: activeController.actionInvocationObserver(),
       onResult: activeController.actionResultObserver(),

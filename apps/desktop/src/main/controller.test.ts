@@ -1291,8 +1291,40 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('answers driver-level computer authorization automatically in trusted mode', async () => {
+    const controller = await createController();
+    const agent = await controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
+    const started = await controller.invoke('threads.send', { threadId, text: 'Use Notes' });
+    expect(controller.snapshot().computer.trust).toBe('auto');
+    await expect(
+      controller.authorizeComputer(
+        {
+          adapterId: 'desktop_input',
+          riskClass: 'r2',
+          permissionMode: 'standard',
+          publicSession: started.turnId,
+          requestDigest: 'digest-auto',
+          humanSummary: 'Control the selected Notes window',
+          resourceJson: JSON.stringify({ app_name: 'Notes', window_title: 'Draft' }),
+          expiresUnixMs: BigInt(Date.now() + 30_000),
+        },
+        { kind: 'turn', threadId, turnId: started.turnId },
+      ),
+    ).resolves.toBe('allow');
+    expect(controller.snapshot().approvals).toHaveLength(0);
+    await controller.shutdown();
+  });
+
   it('shows content-bounded, correctly classified computer approvals', async () => {
     const controller = await createController();
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
     const agent = await controller.invoke('agents.save', {
       name: 'Personal',
       instructions: '',
@@ -1655,6 +1687,7 @@ describe('DesktopController', () => {
       respondToRequest: vi.fn(async () => undefined),
     };
     const { controller } = await createHarness({ fakeServices: false, runtime });
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
     const agent = await controller.invoke('agents.save', {
       name: 'Personal',
       instructions: '',

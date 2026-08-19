@@ -1,27 +1,85 @@
-# Sia release handoff
+# Sia handoff
 
 _Updated: 2026-08-19 KST_
 
 ## Read this first
 
-Sia is functionally mature, the local desktop harness is implemented, the connector lifecycle fix is
-deployed, a newly signed/notarized artifact exists, and the exposed Composio and ElevenLabs
-credentials have been rotated. The operator has narrowed this release to local mode: Codex,
-workspaces, Git, terminal, app-open schedules, signed-in Chrome, and explicitly granted macOS
-computer use. Gmail/Drive/Slack OAuth, research sync, and cloud-account deletion remain implemented
-but are deferred cloud features and are not local-mode alpha blockers. The packaged Chrome and
-native-computer acceptance is complete. The remaining local release blockers are human
-microphone/audible voice checks, the intended prior-v2 upgrade account, and the intended alpha
-recipient list. Do not restart the project from first principles or redo completed hardening work.
+Sia is a local-first macOS desktop assistant (Electron + pnpm monorepo). The source of truth is
+now Git: **https://github.com/ljang0/sia-v2** (private, `main`). `ljang0/sia` is the older v1
+canvas app and is unrelated; do not push there. This working tree (`~/sia_new`) is that clone.
 
-This directory is **not a Git checkout**. Preserve existing files carefully; there is no local Git
-history to recover from.
+State on 2026-08-19:
+
+- **Product**: Codex app-server harness (threads, workspaces, file edits, review, subagents,
+  compaction, recovery, per-thread model/reasoning, goals, schedules, Git review, terminals,
+  worktrees), macOS computer use, signed-in Chrome, optional ElevenLabs voice, optional cloud
+  (Gmail/Drive/Slack connectors, research sync, account deletion — deferred, see below).
+- **UI**: the "an agent is a room" identity (`docs/ui-quality.md`) — deep green shell, each agent
+  has a persisted hue that tints its room, ink pill controls, bundled Bricolage Grotesque display
+  face, message avatars, tool popovers, hover motion. Every screen was reviewed light/dark at
+  1280×820 and 960×640 with an automated horizontal-bleed check; transitions were frame-captured.
+- **Trust mode (new)**: computer and browser actions run **without per-action approval by
+  default** and Chrome **auto-attaches to the frontmost window** the first time the browser is
+  needed; macOS Accessibility/Screen Recording are requested once at first launch. Every action
+  is still ref/snapshot-bound and hard safety denials still apply (sensitive apps, secure fields,
+  private windows, non-http navigation, sensitive upload paths). `Settings → Computer → Ask
+before every action` restores approvals + explicit window choice. Connector writes (Gmail/
+  Drive/Slack) always keep their approval. Implementation: `DefaultActionAuthorizationPolicy`
+  `trustLocalActions` (`packages/action-gateway/src/gateway.ts`), `DesktopController.computerTrust`
+  / `ensureBrowserAttachedForActions` / `isBrowserOriginAllowed` / auto `authorizeComputer`
+  (`apps/desktop/src/main/controller.ts`), `DesktopActionBackend.ensureBrowserAttached`.
+- **Local trajectory log (new, default on)**: `TrajectoryRecorder`
+  (`apps/desktop/src/main/trajectory-recorder.ts`) appends every timeline item, the finished turn
+  transcript, every action result with arguments/outcome/data, every automatic authorization,
+  browser attachments, and every returned image (screenshots/snapshots as files) to
+  `<userData>/trajectories/<threadId>/events.jsonl`. Local only; not part of research capture or
+  cloud sync. Toggle + "Show in Finder" in `Settings → Computer`. `PRIVACY.md`, `README.md`,
+  `SECURITY.md`, `docs/architecture.md` describe both new defaults.
+- **Gates on this source**: `pnpm check` (build, prettier, quality guard, typecheck, 219 desktop
+  unit tests + package suites incl. a trusted-mode gateway test and recorder tests) passes;
+  `pnpm test:e2e` 23/23 (parity is strict by default now); real Codex auth probe and real CUA
+  permission probe pass on the release Mac (`SIA_REAL_CODEX_E2E=1 SIA_REAL_CUA_E2E=1
+npx playwright test tests/e2e/real-no-turn.spec.ts`).
+- **Artifact**: the notarized DMG in `apps/desktop/release/` predates all of the above and is
+  **stale**. Rebuild + notarize (`pnpm package:mac` with the env below), then re-run the compact
+  Light/Dark, first-run, presence reduced-motion checks and refresh the hashes in this file.
+- Fourteen superseded builds live under `apps/desktop/_old-builds/` (README inside); nothing in
+  the repo references them; they are gitignored.
 
 Never copy credentials from conversation history into this file, source code, logs, shell history,
-or test fixtures. Several earlier Composio and ElevenLabs keys were exposed during setup; all exposed
-Sia keys have been revoked or disabled and direct API checks now reject them. Their replacements were
-created with least-privilege scopes and were not written to this repository. Secret pointers are
-documented below; secret values are not.
+or test fixtures. Secret pointers are documented below; secret values are not.
+
+## How to work on it
+
+```sh
+pnpm install
+pnpm dev                       # electron-vite dev (renderer HMR)
+pnpm check                     # build + prettier + quality guard + typecheck + unit tests
+pnpm test:e2e                  # Electron Playwright, fake services, strict parity
+SIA_REAL_CODEX_E2E=1 SIA_REAL_CUA_E2E=1 SIA_REAL_BROWSER_ATTACH_E2E=1 \
+  SIA_REAL_BROWSER_WINDOW_MATCH="<chrome window title fragment>" \
+  npx playwright test tests/e2e/real-no-turn.spec.ts   # real probes, no model turn
+```
+
+Design/UI rules: `docs/ui-quality.md` (enforced in part by `src/renderer/uiPolicy.test.ts` —
+contrast math, no gradients/`!important`, display face only on names/headings, hue slots).
+Tokens live in `src/renderer/tokens.css`; all styling in `src/renderer/ui.module.css`. Approval,
+capture and trust code paths are mapped in `docs/architecture.md`.
+
+## Known gaps / suggested next work
+
+1. **Auto Chrome attach visibility**: `list_windows` only returns windows on the current Space;
+   from an automated session it reported no visible window even with one open. If the model's
+   first browser call lands while Chrome is on another Space, attach fails with "Open a visible
+   Chrome window" — surface _why_ (Space/minimized) and offer a one-click retry.
+2. Clicking an agent's **name** toggles its disclosure; only clicking a thread enters the room.
+   Make name = enter, chevron = collapse.
+3. Approvals (ask mode) have no visual preview of the target; a small screenshot crop with the
+   ref highlighted would help.
+4. No inline artifact/diff viewer for files the agent produces.
+5. Shipping DMG is cloud-enabled (`build/sia-cloud.json`), so recipients see "Sign in to Sia"
+   first; a cloud-disabled build removes that instruction dependency for a local alpha.
+6. Trajectory log has no size cap or retention; add one before a long-running alpha.
 
 ## Credential pointers
 
@@ -51,42 +109,11 @@ The ElevenLabs secret has no resource-based policy, so access remains controlled
 deny plus explicitly granted operator permissions. Do not add it to the Lambda template or broaden
 the existing exact-secret IAM resources.
 
-## 2026-08-19 UI identity pass (artifact now stale)
-
-The renderer received a deliberate visual-identity pass on 2026-08-19. Source changed, so the
-notarized artifact below is **stale**: rebuild with `pnpm package:mac`, notarize, re-run the
-compact 960x640 Light/Dark, first-run, and presence reduced-motion checks, and refresh the hashes
-below before distributing.
-
-What changed (see `docs/ui-quality.md` for the rule set):
-
-- "An agent is a room." A deep green shell (`--shell-*`) holds the agents; the room of the agent
-  whose thread is open sits inside it with a rounded corner, and that agent's hue (`--hue-0..3`,
-  persisted as `AgentView.hue` and picked in the agent dialog; new agents default via
-  `src/renderer/agentIdentity.ts`) tints its avatar, thread dot, topbar dot, presence chip,
-  streaming caret, empty-state badge, and approval header band. The collapsed sidebar shows the
-  same hue avatars.
-- Fixed a pre-existing bug also present in the shipped alpha: the Goal / Changes / Schedules
-  thread-tool panel was absolutely positioned inside the 44px tool bar and rendered as a clipped
-  20px sliver; it now opens as a popover above the bar. Also fixed activity rows / approval cards
-  overflowing the thread column at 960px, doubled focus rings on inputs, and the stray identity
-  dot when no agent is selected. Controls are
-  ink pills with 1.5px outlines. Bricolage Grotesque (OFL; `apps/desktop/src/renderer/fonts/`,
-  license in `THIRD_PARTY_LICENSES.txt`) is the bundled display face for names and headings.
-- Token consolidation in `tokens.css` (`--text-*`, `--display-*`, `--weight-*`, `--radius-*`,
-  `--shell-*`, `--hue-*`, `--agent-*`); no literal sizes/weights/radii remain in `ui.module.css`.
-- Messages carry avatars (person: ink circle; agent: hue square with initials); the composer
-  placeholder names the agent; hover transitions on all interactive rows/buttons; Activity page
-  flattened (no nested cards, 4-up display metrics); research-consent facts restructured into a
-  labeled list (all copy kept).
-- Parity e2e is now strict by default (`SIA_PARITY_ALLOW_INCOMPLETE=1` opts out); plain
-  `pnpm test:e2e` can no longer silently skip contract checks.
-- Fourteen superseded build directories were moved to `apps/desktop/_old-builds/` (see its README);
-  `apps/desktop/release/` and `apps/desktop/release-signed-current-20260816-final/` are untouched.
-- Gates on the changed source: `pnpm check` (build, prettier, quality guard, typecheck, 215 desktop
-  unit tests + package suites) passed; `pnpm test:e2e` 23/23; parity strict 13/13.
-
 ## Current release state
+
+_Recorded 2026-08-17. Where this conflicts with **Read this first** (per-action approvals, explicit
+Chrome window selection), the newer section above is authoritative; the cloud, credential,
+Composio, and ElevenLabs details below are unchanged._
 
 ### Desktop and local harness
 

@@ -327,14 +327,51 @@ describe('computer access settings', () => {
         onOpenBrowserSite={vi.fn()}
         onDetachBrowser={vi.fn()}
         onRequestPermissions={vi.fn()}
+        onSetComputerTrust={vi.fn()}
+        onSetTrajectoryLog={vi.fn()}
+        onRevealTrajectories={vi.fn()}
       />,
     );
 
+    expect(screen.getByText(/keeps a full local log of everything it did/)).toBeTruthy();
     expect(
-      screen.getByText(/origins granted through the current Chrome attachment/),
-    ).toBeTruthy();
-    expect(screen.getByText(/does not show a complete window inventory/)).toBeTruthy();
+      screen
+        .getByRole('switch', { name: 'Ask before every action' })
+        .getAttribute('aria-checked'),
+    ).toBe('false');
+    expect(
+      screen
+        .getByRole('switch', { name: 'Keep a full local log' })
+        .getAttribute('aria-checked'),
+    ).toBe('true');
     expect(screen.queryByText(/Every grant is narrow, visible, and revocable/)).toBeNull();
+  });
+
+  it('flips trust and the local log through the switches', async () => {
+    const onSetComputerTrust = vi.fn(async () => undefined);
+    const onSetTrajectoryLog = vi.fn(async () => undefined);
+    render(
+      <ComputerSettings
+        snapshot={structuredClone(demoSnapshot)}
+        onAttachBrowser={vi.fn()}
+        onOpenBrowserSite={vi.fn()}
+        onDetachBrowser={vi.fn()}
+        onRequestPermissions={vi.fn()}
+        onSetComputerTrust={onSetComputerTrust}
+        onSetTrajectoryLog={onSetTrajectoryLog}
+        onRevealTrajectories={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('switch', { name: 'Ask before every action' }));
+    await waitFor(() => expect(onSetComputerTrust).toHaveBeenCalledWith('ask'));
+    await waitFor(() =>
+      expect(
+        (screen.getByRole('switch', { name: 'Keep a full local log' }) as HTMLButtonElement)
+          .disabled,
+      ).toBe(false),
+    );
+    fireEvent.click(screen.getByRole('switch', { name: 'Keep a full local log' }));
+    await waitFor(() => expect(onSetTrajectoryLog).toHaveBeenCalledWith(false));
   });
 });
 

@@ -1,4 +1,4 @@
-import { Browser, Desktop } from '@phosphor-icons/react';
+import { Browser, Desktop, Notebook, ShieldCheck } from '@phosphor-icons/react';
 import { useState, type FormEvent } from 'react';
 import type { RendererSnapshot } from '../../types';
 import styles from '../../ui.module.css';
@@ -11,21 +11,31 @@ export function ComputerSettings({
   onOpenBrowserSite,
   onDetachBrowser,
   onRequestPermissions,
+  onSetComputerTrust,
+  onSetTrajectoryLog,
+  onRevealTrajectories,
 }: {
   snapshot: RendererSnapshot;
   onAttachBrowser(windowId?: number): Promise<void>;
   onOpenBrowserSite(url: string): Promise<void>;
   onDetachBrowser(): Promise<void>;
   onRequestPermissions(): Promise<void>;
+  onSetComputerTrust(trust: 'auto' | 'ask'): Promise<void>;
+  onSetTrajectoryLog(enabled: boolean): Promise<void>;
+  onRevealTrajectories(): Promise<void>;
 }) {
-  const [pending, setPending] = useState<'computer' | 'browser' | 'site'>();
+  const [pending, setPending] = useState<'computer' | 'browser' | 'site' | 'trust' | 'log'>();
+  const trusted = snapshot.computer.trust === 'auto';
   const [error, setError] = useState<string>();
   const [site, setSite] = useState('');
   const computerReady =
     snapshot.computer.accessibility === 'allowed' &&
     snapshot.computer.screenRecording === 'allowed';
 
-  const run = async (kind: 'computer' | 'browser' | 'site', action: () => Promise<void>) => {
+  const run = async (
+    kind: 'computer' | 'browser' | 'site' | 'trust' | 'log',
+    action: () => Promise<void>,
+  ) => {
     setPending(kind);
     setError(undefined);
     try {
@@ -50,7 +60,7 @@ export function ComputerSettings({
   return (
     <SettingsSectionHeader
       title="Computer access"
-      description="Access lists origins granted through the current Chrome attachment, which you can revoke by detaching. macOS permissions remain managed in System Settings; this alpha does not show a complete window inventory."
+      description="Sia can operate your Mac and your signed-in Chrome directly. By default it acts without stopping for approval and keeps a full local log of everything it did, so you can review any run afterwards."
     >
       <InlineSettingsError message={error} />
       {!snapshot.browser.attached &&
@@ -83,8 +93,10 @@ export function ComputerSettings({
             <strong>Authenticated Chrome</strong>
             <p>
               {snapshot.browser.attached
-                ? `Attached to ${snapshot.browser.profileName}. Only granted origins are available.`
-                : 'Open the signed-in Chrome window you want. If several are open, Sia lets you choose one.'}
+                ? `Attached to ${snapshot.browser.profileName}.${trusted ? ' Any site in this window is available.' : ' Only granted origins are available.'}`
+                : trusted
+                  ? 'Sia attaches to your frontmost Chrome window on its own the first time it needs the browser. Choose a window here to pin a specific one.'
+                  : 'Open the signed-in Chrome window you want. If several are open, Sia lets you choose one.'}
             </p>
           </div>
           <button
@@ -151,9 +163,77 @@ export function ComputerSettings({
           </form>
         ) : null}
       </div>
+      <div className={styles.accessGroup}>
+        <div className={styles.accessRow}>
+          <ShieldCheck size={20} aria-hidden="true" />
+          <div>
+            <strong>Ask before every action</strong>
+            <p>
+              {trusted
+                ? 'Off — computer and browser actions run immediately and are written to the log.'
+                : 'On — each computer or browser action pauses for your approval first.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={!trusted}
+            aria-label="Ask before every action"
+            className={styles.secondaryButton}
+            disabled={Boolean(pending)}
+            onClick={() =>
+              void run('trust', () => onSetComputerTrust(trusted ? 'ask' : 'auto'))
+            }
+            data-testid="computer-trust-toggle"
+          >
+            {pending === 'trust' ? 'Saving…' : trusted ? 'Turn on' : 'Turn off'}
+          </button>
+        </div>
+        <div className={styles.accessRow}>
+          <Notebook size={20} aria-hidden="true" />
+          <div>
+            <strong>Keep a full local log</strong>
+            <p>
+              {snapshot.computer.trajectoryLog
+                ? 'Every request, reply, action, approval, and screenshot is saved on this Mac, per thread.'
+                : 'Off — nothing beyond the thread transcript is kept.'}
+              {snapshot.computer.trajectoryDirectory ? (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    className={styles.textButton}
+                    onClick={() => void onRevealTrajectories()}
+                  >
+                    Show in Finder
+                  </button>
+                </>
+              ) : null}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={snapshot.computer.trajectoryLog}
+            aria-label="Keep a full local log"
+            className={styles.secondaryButton}
+            disabled={Boolean(pending)}
+            onClick={() =>
+              void run('log', () => onSetTrajectoryLog(!snapshot.computer.trajectoryLog))
+            }
+            data-testid="trajectory-log-toggle"
+          >
+            {pending === 'log'
+              ? 'Saving…'
+              : snapshot.computer.trajectoryLog
+                ? 'Turn off'
+                : 'Turn on'}
+          </button>
+        </div>
+      </div>
       <div className={styles.settingsNote}>
-        Foreground input always pauses for approval. Sia restores your previous app after the
-        action.
+        Sia restores your previous app after each action. Sensitive surfaces (password fields,
+        private windows, security prompts) are always off-limits, whichever mode is on.
       </div>
     </SettingsSectionHeader>
   );

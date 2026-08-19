@@ -291,6 +291,15 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async detachBrowser() {
       publish(await bridge.browser.detach());
     },
+    async setComputerTrust(trust) {
+      publish(await bridge.computer.setTrust(trust));
+    },
+    async setTrajectoryLog(enabled) {
+      publish(await bridge.computer.setTrajectoryLog(enabled));
+    },
+    async revealTrajectories() {
+      publish(await bridge.computer.revealTrajectories());
+    },
     async requestComputerPermissions() {
       publish(await bridge.computer.requestPermissions());
     },
@@ -477,6 +486,9 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
       accessibility: source.computer.accessibility ? 'allowed' : 'not-requested',
       screenRecording: source.computer.screenRecording ? 'allowed' : 'not-requested',
       windows: [],
+      trust: source.computer.trust,
+      trajectoryLog: source.computer.trajectoryLog,
+      trajectoryDirectory: source.computer.trajectoryDirectory,
     },
     voice: {
       status: source.voice.status,

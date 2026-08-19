@@ -1,4 +1,4 @@
-import type { ComputerView } from '../shared/bridge.js';
+import type { ComputerPermissionsView as ComputerView } from '../shared/bridge.js';
 
 const CUA_TOOLS = new Set([
   'list_apps',

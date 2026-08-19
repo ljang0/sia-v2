@@ -77,6 +77,8 @@ export type ActionInvocationObserver = (
 
 export interface ActionResultNotice extends ActionInvocationNotice {
   readonly result: ActionExecutionResult;
+  /** Validated arguments of the executed action, for host-side trajectory logging. */
+  readonly arguments?: Readonly<Record<string, unknown>>;
 }
 
 export type ActionResultObserver = (notice: ActionResultNotice) => void | Promise<void>;
@@ -178,13 +180,33 @@ function defaultSafetyDecision(
   return undefined;
 }
 
+export interface DefaultActionAuthorizationPolicyOptions {
+  /**
+   * When it returns true, computer_* and browser_* actions run without an interactive
+   * approval (hard safety denials still apply). Connector writes keep requiring approval.
+   */
+  readonly trustLocalActions?: () => boolean;
+}
+
+export function isLocalActionToolName(name: string): boolean {
+  return name.startsWith('computer_') || name.startsWith('browser_');
+}
+
 export class DefaultActionAuthorizationPolicy implements ActionAuthorizationPolicy {
+  readonly #trustLocalActions: () => boolean;
+
+  constructor(options: DefaultActionAuthorizationPolicyOptions = {}) {
+    this.#trustLocalActions = options.trustLocalActions ?? (() => false);
+  }
+
   evaluate(request: ValidatedActionInvocation): AuthorizationDecision {
     const safety = defaultSafetyDecision(request);
     if (safety) return safety;
-    return request.descriptor.annotations.requiresApproval
-      ? { decision: 'approval', reason: 'This operation changes external or local state' }
-      : { decision: 'allow' };
+    if (!request.descriptor.annotations.requiresApproval) return { decision: 'allow' };
+    if (isLocalActionToolName(request.name) && this.#trustLocalActions()) {
+      return { decision: 'allow' };
+    }
+    return { decision: 'approval', reason: 'This operation changes external or local state' };
   }
 }
 
@@ -329,7 +351,12 @@ export class ActionGateway {
         }),
       );
       try {
-        await this.#onResult?.({ name: request.name, context: request.context, result });
+        await this.#onResult?.({
+          name: request.name,
+          context: request.context,
+          arguments: request.arguments,
+          result,
+        });
       } catch {
         // Research/telemetry is downstream of an already executed action and
         // must never rewrite its verified result or trigger a duplicate retry.

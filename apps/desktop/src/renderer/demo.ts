@@ -273,6 +273,8 @@ export const demoSnapshot: RendererSnapshot = {
   computer: {
     accessibility: 'allowed',
     screenRecording: 'allowed',
+    trust: 'auto',
+    trajectoryLog: true,
     windows: [
       {
         id: 'window-notes',
@@ -814,6 +816,17 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         current.browser.tabs = current.browser.tabs.map((tab) => ({ ...tab, granted: false }));
       });
     },
+    async setComputerTrust(trust) {
+      mutate((current) => {
+        current.computer.trust = trust;
+      });
+    },
+    async setTrajectoryLog(enabled) {
+      mutate((current) => {
+        current.computer.trajectoryLog = enabled;
+      });
+    },
+    async revealTrajectories() {},
     async requestComputerPermissions() {
       mutate((current) => {
         current.computer.accessibility = 'allowed';

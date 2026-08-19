@@ -111,6 +111,9 @@ const api: DesktopBridgeApi = {
     permissions: () => invoke('computer.permissions', undefined),
     requestPermissions: () => invoke('computer.requestPermissions', undefined),
     openMessages: () => invoke('computer.openMessages', undefined),
+    setTrust: (trust) => invoke('computer.setTrust', { trust }),
+    setTrajectoryLog: (enabled) => invoke('computer.setTrajectoryLog', { enabled }),
+    revealTrajectories: () => invoke('computer.revealTrajectories', undefined),
   },
   browser: {
     attach: (windowId) => invoke('browser.attach', windowId === undefined ? {} : { windowId }),

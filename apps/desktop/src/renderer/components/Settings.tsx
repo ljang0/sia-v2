@@ -33,6 +33,9 @@ interface SettingsProps {
   onOpenBrowserSite(url: string): Promise<void>;
   onDetachBrowser(): Promise<void>;
   onRequestPermissions(): Promise<void>;
+  onSetComputerTrust(trust: 'auto' | 'ask'): Promise<void>;
+  onSetTrajectoryLog(enabled: boolean): Promise<void>;
+  onRevealTrajectories(): Promise<void>;
   onOpenMessages(): Promise<void>;
   onConfigureVoice(apiKey: string): Promise<void>;
   onRefreshVoices(): Promise<void>;
@@ -60,6 +63,9 @@ export function Settings({
   onOpenBrowserSite,
   onDetachBrowser,
   onRequestPermissions,
+  onSetComputerTrust,
+  onSetTrajectoryLog,
+  onRevealTrajectories,
   onOpenMessages,
   onConfigureVoice,
   onRefreshVoices,
@@ -154,6 +160,9 @@ export function Settings({
               onOpenBrowserSite={onOpenBrowserSite}
               onDetachBrowser={onDetachBrowser}
               onRequestPermissions={onRequestPermissions}
+              onSetComputerTrust={onSetComputerTrust}
+              onSetTrajectoryLog={onSetTrajectoryLog}
+              onRevealTrajectories={onRevealTrajectories}
             />
           ) : null}
           {section === 'voice' ? (

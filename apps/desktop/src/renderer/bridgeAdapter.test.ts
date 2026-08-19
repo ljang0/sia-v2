@@ -44,6 +44,8 @@ function snapshot(timeline: DesktopSnapshot['timeline']): DesktopSnapshot {
       status: 'needs_permission',
       accessibility: false,
       screenRecording: false,
+      trust: 'auto',
+      trajectoryLog: true,
     },
     browser: { status: 'detached', grantedOrigins: [] },
     voice: { status: 'disconnected', voices: [] },

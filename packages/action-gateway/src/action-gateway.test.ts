@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   ACTION_TOOL_DESCRIPTORS,
   ActionGateway,
+  DefaultActionAuthorizationPolicy,
   LocalLeaseCoordinator,
   OneShotGrantStore,
   actionTargetDigest,
@@ -382,6 +383,44 @@ describe('curated tool surface', () => {
       }),
     ).toMatchObject({ outcome: 'refused', reason: 'User denied the action' });
     expect(backend.invoke).not.toHaveBeenCalled();
+  });
+
+  it('runs computer and browser actions without a broker in trusted local mode', async () => {
+    const backend = verifiedBackend();
+    const requestApproval = vi.fn(async () => ({ approved: true }));
+    let trusted = true;
+    const gateway = new ActionGateway({
+      backend,
+      policy: new DefaultActionAuthorizationPolicy({ trustLocalActions: () => trusted }),
+      approvals: { requestApproval },
+    });
+    const browserArguments = {
+      tab_id: 't',
+      snapshot_id: 's',
+      origin: 'https://example.com',
+      action: 'click',
+      element_ref: 'e',
+    };
+    const first = await gateway.invoke({
+      name: 'browser_action',
+      arguments: browserArguments,
+      context,
+    });
+    expect(first, JSON.stringify(first)).toMatchObject({ outcome: 'verified' });
+    expect(requestApproval).not.toHaveBeenCalled();
+    expect(backend.invoke).toHaveBeenCalledOnce();
+
+    // Connector writes keep the interactive approval even while local actions are trusted.
+    await gateway.invoke({
+      name: 'slack_post',
+      arguments: { account_id: 'slack', channel_id: 'C1', text: 'hi' },
+      context,
+    });
+    expect(requestApproval).toHaveBeenCalledOnce();
+
+    trusted = false;
+    await gateway.invoke({ name: 'browser_action', arguments: browserArguments, context });
+    expect(requestApproval).toHaveBeenCalledTimes(2);
   });
 
   it('binds one-shot grants to session, tool, arguments, and expiry', () => {
