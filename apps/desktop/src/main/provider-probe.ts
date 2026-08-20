@@ -29,7 +29,7 @@ const PROVIDERS: Record<ProviderId, ProviderCommand> = {
     billing: 'Uses your ChatGPT plan or OpenAI API account.',
     detail: 'Official app-server with native tools, approvals, and subagents.',
     minimumVersion: '0.147.0',
-    maximumExclusiveVersion: '0.148.0',
+    maximumExclusiveVersion: '0.149.0',
   },
   meta: {
     executable: '',

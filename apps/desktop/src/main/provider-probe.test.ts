@@ -91,14 +91,14 @@ describe('probeProviders', () => {
     const runner = {
       run: vi.fn(async (executable: string) => ({
         code: 0,
-        stdout: executable.endsWith('codex') ? 'codex-cli 0.148.0' : 'gemini 1.2.3',
+        stdout: executable.endsWith('codex') ? 'codex-cli 0.149.0' : 'gemini 1.2.3',
         stderr: '',
       })),
     };
     try {
       const [codex] = await probeProviders('codex', { PATH: directory }, runner);
       const [gemini] = await probeProviders('gemini', { PATH: directory }, runner);
-      expect(codex).toMatchObject({ status: 'incompatible', version: '0.148.0' });
+      expect(codex).toMatchObject({ status: 'incompatible', version: '0.149.0' });
       expect(gemini).toMatchObject({
         status: 'incompatible',
         detail: expect.stringContaining('standard ACP'),

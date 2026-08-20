@@ -565,7 +565,12 @@ function EventView({
         className={`${styles.messageContent} ${streaming ? styles.streamingContent : ''}`}
         data-streaming={streaming ? 'true' : undefined}
       >
-        <SafeMarkdown content={event.content} />
+        {event.role === 'user' ? (
+          // What the person typed is shown verbatim; snake_case must not become italics.
+          <p>{event.content}</p>
+        ) : (
+          <SafeMarkdown content={event.content} />
+        )}
         {event.attachments?.length ? (
           <div className={styles.messageAttachments} aria-label="Message attachments">
             {event.attachments.map((attachment) => (

@@ -149,7 +149,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       command: this.#options.command ?? 'codex',
       range: this.#options.supportedVersions ?? {
         minimum: '0.147.0',
-        maximumExclusive: '0.148.0',
+        maximumExclusive: '0.149.0',
       },
       ...(this.#options.commandRunner ? { runner: this.#options.commandRunner } : {}),
       ...(signal ? { signal } : {}),
