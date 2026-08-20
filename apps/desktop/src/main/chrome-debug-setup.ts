@@ -66,3 +66,25 @@ async function defaultIsChromeRunning(): Promise<boolean> {
     return false;
   }
 }
+
+/** Whether Chrome's persistent remote-debugging toggle is already on for the default profile. */
+export async function chromeRemoteDebuggingStatus(
+  options: ChromeDebugSetupOptions = {},
+): Promise<'enabled' | 'off' | 'unavailable'> {
+  const platform = options.platform ?? process.platform;
+  if (platform !== 'darwin') return 'unavailable';
+  const userData =
+    options.userDataDirectory ??
+    join(homedir(), 'Library', 'Application Support', 'Google', 'Chrome');
+  try {
+    const parsed = JSON.parse(await readFile(join(userData, 'Local State'), 'utf8')) as Record<
+      string,
+      unknown
+    >;
+    const devtools = parsed.devtools as Record<string, unknown> | undefined;
+    const remote = devtools?.remote_debugging as Record<string, unknown> | undefined;
+    return remote?.['user-enabled'] === true ? 'enabled' : 'off';
+  } catch {
+    return 'unavailable';
+  }
+}

@@ -265,6 +265,10 @@ export interface ComputerPermissionsView {
 }
 
 export interface ComputerView extends ComputerPermissionsView {
+  /** Local Apple Messages readability; sends additionally prompt for Automation once. */
+  messagesAccess?: 'ready' | 'needs_full_disk_access' | 'unavailable';
+  /** Chrome's persistent remote-debugging toggle for silent attachment. */
+  chromeConnection?: 'enabled' | 'off' | 'unavailable';
   /**
    * 'auto' (default): computer and browser actions run without per-action approval and Chrome
    * attaches to the frontmost window on demand. 'ask' restores interactive approvals.
@@ -431,6 +435,7 @@ export interface BridgeRequestMap {
   'computer.permissions': undefined;
   'computer.requestPermissions': undefined;
   'computer.openMessages': undefined;
+  'computer.unlock': undefined;
   'computer.setTrust': { trust: 'auto' | 'ask' };
   'computer.setTrajectoryLog': { enabled: boolean };
   'computer.revealTrajectories': undefined;
@@ -509,6 +514,7 @@ export interface BridgeResultMap {
   'computer.permissions': DesktopSnapshot;
   'computer.requestPermissions': DesktopSnapshot;
   'computer.openMessages': DesktopSnapshot;
+  'computer.unlock': DesktopSnapshot;
   'computer.setTrust': DesktopSnapshot;
   'computer.setTrajectoryLog': DesktopSnapshot;
   'computer.revealTrajectories': DesktopSnapshot;
@@ -637,6 +643,7 @@ export interface DesktopBridgeApi {
     permissions(): Promise<DesktopSnapshot>;
     requestPermissions(): Promise<DesktopSnapshot>;
     openMessages(): Promise<DesktopSnapshot>;
+    unlock(): Promise<DesktopSnapshot>;
     setTrust(trust: 'auto' | 'ask'): Promise<DesktopSnapshot>;
     setTrajectoryLog(enabled: boolean): Promise<DesktopSnapshot>;
     revealTrajectories(): Promise<DesktopSnapshot>;

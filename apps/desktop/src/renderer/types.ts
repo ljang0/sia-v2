@@ -292,6 +292,8 @@ export interface ComputerInspectorState {
   windows: ComputerWindow[];
   /** 'auto' runs computer/browser actions without per-action approval. */
   trust: 'auto' | 'ask';
+  messagesAccess?: 'ready' | 'needs_full_disk_access' | 'unavailable' | undefined;
+  chromeConnection?: 'enabled' | 'off' | 'unavailable' | undefined;
   trajectoryLog: boolean;
   trajectoryDirectory?: string | undefined;
 }
@@ -463,6 +465,7 @@ export interface RendererApi {
   detachBrowser(): Promise<void>;
   requestComputerPermissions(): Promise<void>;
   setComputerTrust(trust: 'auto' | 'ask'): Promise<void>;
+  unlockComputer(): Promise<void>;
   setTrajectoryLog(enabled: boolean): Promise<void>;
   revealTrajectories(): Promise<void>;
   openMessages(): Promise<void>;

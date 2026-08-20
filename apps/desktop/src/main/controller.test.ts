@@ -49,6 +49,7 @@ async function createHarness(
     openExternal?: (url: string) => Promise<void>;
     openMessages?: () => Promise<void>;
     repository?: RecordRepository;
+    capabilitySetup?: ConstructorParameters<typeof DesktopController>[0]['capabilitySetup'];
   } = {},
 ): Promise<{
   controller: DesktopController;
@@ -72,6 +73,7 @@ async function createHarness(
     openMessages: options.openMessages ?? (async () => undefined),
     chooseDirectory: async () => '/tmp/sia-workspace',
     exportJson: async () => '/tmp/export.json',
+    ...(options.capabilitySetup ? { capabilitySetup: options.capabilitySetup } : {}),
   });
   await controller.initialize();
   await controller.invoke('settings.openDirectory', undefined);
@@ -1288,6 +1290,33 @@ describe('DesktopController', () => {
         .snapshot()
         .timeline.some((event) => event.turnId && event.toolName === 'browser_tabs'),
     ).toBe(false);
+    await controller.shutdown();
+  });
+
+  it('unlocks every grantable capability with one call and opens the user-only panes', async () => {
+    const openFullDiskAccess = vi.fn(async () => undefined);
+    const enableChromeDebug = vi.fn(async () => 'enabled');
+    const prewarmMessagesAutomation = vi.fn(async () => undefined);
+    let messagesReady = false;
+    const { controller } = await createHarness({
+      capabilitySetup: {
+        messagesStatus: () => (messagesReady ? 'ready' : 'needs_full_disk_access'),
+        chromeDebugStatus: async () => 'enabled',
+        enableChromeDebug,
+        openFullDiskAccess,
+        prewarmMessagesAutomation,
+      },
+    });
+    const snapshot = await controller.invoke('computer.unlock', undefined);
+    expect(enableChromeDebug).toHaveBeenCalledOnce();
+    expect(prewarmMessagesAutomation).toHaveBeenCalledOnce();
+    expect(openFullDiskAccess).toHaveBeenCalledOnce();
+    expect(snapshot.computer.chromeConnection).toBe('enabled');
+    expect(snapshot.computer.messagesAccess).toBe('needs_full_disk_access');
+    messagesReady = true;
+    const again = await controller.invoke('computer.unlock', undefined);
+    expect(openFullDiskAccess).toHaveBeenCalledOnce();
+    expect(again.computer.messagesAccess).toBe('ready');
     await controller.shutdown();
   });
 

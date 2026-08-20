@@ -274,6 +274,8 @@ export const demoSnapshot: RendererSnapshot = {
     accessibility: 'allowed',
     screenRecording: 'allowed',
     trust: 'auto',
+    messagesAccess: 'ready',
+    chromeConnection: 'enabled',
     trajectoryLog: true,
     windows: [
       {
@@ -816,6 +818,7 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         current.browser.tabs = current.browser.tabs.map((tab) => ({ ...tab, granted: false }));
       });
     },
+    async unlockComputer() {},
     async setComputerTrust(trust) {
       mutate((current) => {
         current.computer.trust = trust;

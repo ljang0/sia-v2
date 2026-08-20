@@ -15,7 +15,14 @@ import {
 
 import { ActionGateway, DefaultActionAuthorizationPolicy } from '@sia/action-gateway';
 import { TrajectoryRecorder } from './trajectory-recorder.js';
-import { ensureChromeRemoteDebuggingEnabled } from './chrome-debug-setup.js';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import {
+  chromeRemoteDebuggingStatus,
+  ensureChromeRemoteDebuggingEnabled,
+} from './chrome-debug-setup.js';
+
+const execFileAsync = promisify(execFile);
 import { MessagesService } from './messages-service.js';
 
 import { CloudClient } from './cloud-client.js';
@@ -164,6 +171,7 @@ async function performApplicationCreation(): Promise<void> {
       rootDirectory: join(app.getPath('userData'), 'trajectories'),
       enabled: () => activeController?.trajectoryLogEnabled() ?? true,
     });
+    const messagesService = new MessagesService();
     activeController = new DesktopController({
       repository,
       cloud,
@@ -172,6 +180,24 @@ async function performApplicationCreation(): Promise<void> {
       fakeServices,
       ...(fakeTurnDelayMs ? { fakeTurnDelayMs } : {}),
       trajectory,
+      capabilitySetup: {
+        messagesStatus: () => messagesService.status(),
+        chromeDebugStatus: () => chromeRemoteDebuggingStatus(),
+        enableChromeDebug: () => ensureChromeRemoteDebuggingEnabled(),
+        openFullDiskAccess: async () => {
+          await shell.openExternal(
+            'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles',
+          );
+        },
+        prewarmMessagesAutomation: async () => {
+          // A read-only Apple event makes macOS raise the Automation consent right now,
+          // during setup, instead of mid-task on the first send.
+          await execFileAsync('osascript', [
+            '-e',
+            'tell application "Messages" to count of accounts',
+          ]);
+        },
+      },
       revealDirectory: async (path) => {
         shell.showItemInFolder(path);
       },
@@ -196,7 +222,7 @@ async function performApplicationCreation(): Promise<void> {
     const actionBackend = new DesktopActionBackend({
       cua: computer,
       cloud,
-      messages: new MessagesService(),
+      messages: messagesService,
       openFullDiskAccessSettings: async () => {
         await shell.openExternal(
           'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles',

@@ -11,6 +11,7 @@ export function ComputerSettings({
   onOpenBrowserSite,
   onDetachBrowser,
   onRequestPermissions,
+  onUnlockComputer,
   onSetComputerTrust,
   onSetTrajectoryLog,
   onRevealTrajectories,
@@ -20,12 +21,44 @@ export function ComputerSettings({
   onOpenBrowserSite(url: string): Promise<void>;
   onDetachBrowser(): Promise<void>;
   onRequestPermissions(): Promise<void>;
+  onUnlockComputer(): Promise<void>;
   onSetComputerTrust(trust: 'auto' | 'ask'): Promise<void>;
   onSetTrajectoryLog(enabled: boolean): Promise<void>;
   onRevealTrajectories(): Promise<void>;
 }) {
-  const [pending, setPending] = useState<'computer' | 'browser' | 'site' | 'trust' | 'log'>();
+  const [pending, setPending] = useState<
+    'computer' | 'browser' | 'site' | 'trust' | 'log' | 'unlock'
+  >();
   const trusted = snapshot.computer.trust === 'auto';
+  const capabilities = [
+    {
+      key: 'control',
+      label: 'See and control this Mac',
+      done:
+        snapshot.computer.accessibility === 'allowed' &&
+        snapshot.computer.screenRecording === 'allowed',
+      hint: 'Accessibility + Screen Recording',
+    },
+    {
+      key: 'chrome',
+      label: 'Use your signed-in Chrome silently',
+      done: snapshot.computer.chromeConnection === 'enabled',
+      hint:
+        snapshot.computer.chromeConnection === 'unavailable'
+          ? 'Chrome not found'
+          : 'Turned on while Chrome is closed',
+    },
+    {
+      key: 'messages',
+      label: 'Read your Messages',
+      done: snapshot.computer.messagesAccess === 'ready',
+      hint:
+        snapshot.computer.messagesAccess === 'unavailable'
+          ? 'Messages not found'
+          : 'Full Disk Access — flip the switch in the pane that opens',
+    },
+  ];
+  const locked = capabilities.filter((capability) => !capability.done).length;
   const [error, setError] = useState<string>();
   const [site, setSite] = useState('');
   const computerReady =
@@ -33,7 +66,7 @@ export function ComputerSettings({
     snapshot.computer.screenRecording === 'allowed';
 
   const run = async (
-    kind: 'computer' | 'browser' | 'site' | 'trust' | 'log',
+    kind: 'computer' | 'browser' | 'site' | 'trust' | 'log' | 'unlock',
     action: () => Promise<void>,
   ) => {
     setPending(kind);
@@ -63,6 +96,42 @@ export function ComputerSettings({
       description="Sia can operate your Mac and your signed-in Chrome directly. By default it acts without stopping for approval and keeps a full local log of everything it did, so you can review any run afterwards."
     >
       <InlineSettingsError message={error} />
+      <div className={styles.unlockCard} data-testid="unlock-card">
+        <div className={styles.unlockHeader}>
+          <div>
+            <strong>
+              {locked === 0
+                ? 'Everything is unlocked'
+                : `${locked} of ${capabilities.length} still locked`}
+            </strong>
+            <p>
+              {locked === 0
+                ? 'Sia can see the screen, use Chrome, and read Messages on this Mac.'
+                : 'One click requests every permission and opens the panes macOS keeps manual.'}
+            </p>
+          </div>
+          {locked > 0 ? (
+            <button
+              type="button"
+              className={styles.primaryButton}
+              disabled={Boolean(pending)}
+              onClick={() => void run('unlock', onUnlockComputer)}
+              data-testid="unlock-everything"
+            >
+              {pending === 'unlock' ? 'Unlocking…' : 'Unlock everything'}
+            </button>
+          ) : null}
+        </div>
+        <ul className={styles.unlockList}>
+          {capabilities.map((capability) => (
+            <li key={capability.key} data-done={capability.done}>
+              <span className={styles.unlockDot} aria-hidden="true" />
+              <span>{capability.label}</span>
+              <small>{capability.done ? 'Ready' : capability.hint}</small>
+            </li>
+          ))}
+        </ul>
+      </div>
       {!snapshot.browser.attached &&
       snapshot.browser.status === 'error' &&
       snapshot.browser.snapshotLabel ? (

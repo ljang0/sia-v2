@@ -85,6 +85,15 @@ interface ControllerOptions {
   openMessages?(): Promise<void>;
   /** Always-on local trajectory log; absent in unit tests that do not care about it. */
   trajectory?: TrajectoryRecorder;
+  /** One-click capability unlock helpers; absent in unit tests that do not use them. */
+  capabilitySetup?: {
+    messagesStatus(): 'ready' | 'needs_full_disk_access' | 'unavailable';
+    chromeDebugStatus(): Promise<'enabled' | 'off' | 'unavailable'>;
+    enableChromeDebug(): Promise<unknown>;
+    openFullDiskAccess(): Promise<void>;
+    /** Fires one benign Apple event at Messages so macOS shows the Automation consent now. */
+    prewarmMessagesAutomation(): Promise<void>;
+  };
   /** Reveals a directory in Finder; used for the trajectory log. */
   revealDirectory?(path: string): Promise<void>;
   chooseDirectory(): Promise<string | null>;
@@ -326,6 +335,9 @@ export class DesktopController {
     screenRecording: false,
   };
   readonly #trajectory: TrajectoryRecorder | undefined;
+  readonly #capabilitySetup: ControllerOptions['capabilitySetup'];
+  #messagesAccess: 'ready' | 'needs_full_disk_access' | 'unavailable' | undefined;
+  #chromeConnection: 'enabled' | 'off' | 'unavailable' | undefined;
   readonly #revealDirectory: ((path: string) => Promise<void>) | undefined;
   #browserAutoAttach: Promise<void> | undefined;
   #revision = 0;
@@ -340,6 +352,7 @@ export class DesktopController {
     this.#fakeTurnDelayMs = options.fakeTurnDelayMs ?? 160;
     this.#openExternal = options.openExternal;
     this.#trajectory = options.trajectory;
+    this.#capabilitySetup = options.capabilitySetup;
     this.#revealDirectory = options.revealDirectory;
     this.#openMessages = options.openMessages;
     this.#chooseDirectory = options.chooseDirectory;
@@ -471,6 +484,7 @@ export class DesktopController {
       this.#identity.initialize(),
     ]);
     this.#providers = providers;
+    await this.#refreshCapabilityStatuses().catch(() => undefined);
     if (
       !this.#fakeServices &&
       computer.status === 'needs_permission' &&
@@ -544,6 +558,8 @@ export class DesktopController {
       capture: structuredClone(this.#state.capture),
       computer: {
         ...structuredClone(this.#computerState),
+        ...(this.#messagesAccess ? { messagesAccess: this.#messagesAccess } : {}),
+        ...(this.#chromeConnection ? { chromeConnection: this.#chromeConnection } : {}),
         trust: this.computerTrust(),
         trajectoryLog: this.trajectoryLogEnabled(),
         ...(this.#trajectory ? { trajectoryDirectory: this.#trajectory.rootDirectory } : {}),
@@ -789,6 +805,8 @@ export class DesktopController {
         return (await this.#refreshComputer(true)) as unknown as BridgeResultMap[M];
       case 'computer.openMessages':
         return (await this.#openMessagesApp()) as unknown as BridgeResultMap[M];
+      case 'computer.unlock':
+        return (await this.#unlockComputerCapabilities()) as unknown as BridgeResultMap[M];
       case 'computer.setTrust':
         this.#state.preferences.computerTrust = (
           input as BridgeRequestMap['computer.setTrust']
@@ -1957,6 +1975,36 @@ export class DesktopController {
     if (!url) throw new Error('This provider has no supported sign-in flow in the alpha.');
     await this.#openExternal(url);
     return { opened: true, snapshot: this.snapshot() };
+  }
+
+  async #refreshCapabilityStatuses(): Promise<void> {
+    if (!this.#capabilitySetup) return;
+    this.#messagesAccess = this.#capabilitySetup.messagesStatus();
+    this.#chromeConnection = await this.#capabilitySetup.chromeDebugStatus();
+  }
+
+  /** One click grants everything grantable and opens the panes for the user-only rest. */
+  async #unlockComputerCapabilities(): Promise<DesktopSnapshot> {
+    this.#computerState = await this.#computer.requestPermissions();
+    const setup = this.#capabilitySetup;
+    if (setup) {
+      await setup.enableChromeDebug().catch(() => undefined);
+      await setup.prewarmMessagesAutomation().catch(() => undefined);
+      if (setup.messagesStatus() === 'needs_full_disk_access') {
+        await setup.openFullDiskAccess().catch(() => undefined);
+      }
+      await this.#refreshCapabilityStatuses();
+    }
+    this.#trajectory?.record({
+      type: 'capability_unlock',
+      threadId: 'app',
+      accessibility: this.#computerState.accessibility,
+      screenRecording: this.#computerState.screenRecording,
+      messagesAccess: this.#messagesAccess,
+      chromeConnection: this.#chromeConnection,
+    });
+    this.#emit();
+    return this.snapshot();
   }
 
   async #refreshComputer(request: boolean): Promise<DesktopSnapshot> {
