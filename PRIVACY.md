@@ -47,7 +47,9 @@ Apple Messages support is local: with Full Disk Access granted to Sia, the `mess
 `messages_read_thread` tools read recent rows directly from this Mac's own Messages database
 (nothing is copied elsewhere or synced), and `messages_send` delivers through the signed-in
 Messages app after an interactive approval showing the exact recipient and text — sends are never
-auto-approved, in any mode. Without Full Disk Access, Sia cannot read the database and says so. If the user later grants a visible Messages window
+auto-approved, in any mode. Without Full Disk Access, Sia cannot read the database; it opens System Settings at the Full Disk
+Access pane so the one-time grant is a single switch flip (macOS does not allow apps to grant it
+for themselves, and Sia will not use computer control to change its own permissions). If the user later grants a visible Messages window
 to computer use, its contents are processed only for that task under the computer-access boundary;
 in ask mode an outgoing action still requires explicit approval, and in trusted mode it is logged.
 

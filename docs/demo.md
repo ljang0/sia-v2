@@ -39,8 +39,9 @@ Create **Scout** (sky) live — name, color, repo; the room takes its hue.
 
 - "What's my most recent WhatsApp message? Just read, don't reply." → reads the actual WhatsApp
   window via computer use. (Verified live; Slack desktop works the same way.)
-- "What were my last few iMessages?" → the local `messages_search` tool reads chat.db directly
-  (needs Full Disk Access once; without it, Sia explains exactly how to grant it — verified).
+- "What were my last few iMessages?" → the local `messages_search` tool reads chat.db directly.
+  First use auto-opens System Settings at the Full Disk Access pane — flip the Sia switch once
+  and ask again (verified).
   Sending an iMessage always shows an approval card with the exact recipient and text.
 
 ## Act III — It keeps going

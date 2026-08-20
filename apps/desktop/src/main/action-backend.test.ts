@@ -585,6 +585,50 @@ describe('DesktopActionBackend computer boundary', () => {
 });
 
 describe('DesktopActionBackend browser boundary', () => {
+  it('opens the Full Disk Access pane once when local Messages reads are blocked', async () => {
+    const cua = fakeCua(async (tool) => {
+      throw new Error(`Unexpected ${tool}`);
+    });
+    const openFullDiskAccessSettings = vi.fn(async () => undefined);
+    const backend = new DesktopActionBackend({
+      cua,
+      openFullDiskAccessSettings,
+      messages: {
+        search: () => {
+          throw new Error(
+            'Reading Messages needs Full Disk Access for Sia: System Settings → Privacy & Security → Full Disk Access, add Sia, then retry.',
+          );
+        },
+        readThread: () => [],
+        send: async () => undefined,
+      },
+    });
+    const first = await backend.invoke(request('messages_search', {}));
+    expect(first.outcome).toBe('refused');
+    expect(first.reason).toContain('System Settings has been opened');
+    await backend.invoke(request('messages_search', {}));
+    expect(openFullDiskAccessSettings).toHaveBeenCalledOnce();
+  });
+
+  it('refuses a message send that skipped the interactive approval', async () => {
+    const cua = fakeCua(async (tool) => {
+      throw new Error(`Unexpected ${tool}`);
+    });
+    const send = vi.fn(async () => undefined);
+    const backend = new DesktopActionBackend({
+      cua,
+      messages: { search: () => [], readThread: () => [], send },
+    });
+    const { approvalId: _approvalId, ...unapproved } = request('messages_send', {
+      recipient: '+15551234567',
+      text: 'hi',
+    });
+    const result = await backend.invoke(unapproved);
+    expect(result.outcome).toBe('refused');
+    expect(result.reason).toContain('interactive approval');
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it('reports zero granted tabs after the trusted host revokes the attachment', async () => {
     const cua = fakeCua(async (tool) => {
       throw new Error(`Unexpected ${tool}`);

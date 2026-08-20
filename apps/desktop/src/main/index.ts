@@ -197,6 +197,11 @@ async function performApplicationCreation(): Promise<void> {
       cua: computer,
       cloud,
       messages: new MessagesService(),
+      openFullDiskAccessSettings: async () => {
+        await shell.openExternal(
+          'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles',
+        );
+      },
       isBrowserOriginAllowed: (origin) => activeController.isBrowserOriginAllowed(origin),
       ensureBrowserAttached: () => activeController.ensureBrowserAttachedForActions(),
       resolveConnectionId: (app, selector, approvalId) =>
