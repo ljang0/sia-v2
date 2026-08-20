@@ -15,6 +15,7 @@ import {
 
 import { ActionGateway, DefaultActionAuthorizationPolicy } from '@sia/action-gateway';
 import { TrajectoryRecorder } from './trajectory-recorder.js';
+import { ensureChromeRemoteDebuggingEnabled } from './chrome-debug-setup.js';
 
 import { CloudClient } from './cloud-client.js';
 import { loadCloudConfiguration } from './cloud-config.js';
@@ -238,6 +239,21 @@ async function performApplicationCreation(): Promise<void> {
     });
     activeController.attachRuntime(activeRuntime);
     await activeController.initialize();
+    if (!fakeServices && activeController.computerTrust() === 'auto') {
+      // Trusted local mode also makes the signed-in Chrome reachable by default: Chrome's own
+      // persistent remote-debugging toggle is enabled whenever Chrome is closed at launch, so
+      // attachment needs no per-session consent prompt. Visible and revocable at
+      // chrome://inspect/#remote-debugging.
+      void ensureChromeRemoteDebuggingEnabled().then((result) => {
+        if (result === 'enabled') {
+          trajectory.record({
+            type: 'chrome_debug_setup',
+            threadId: 'app',
+            result,
+          });
+        }
+      });
+    }
     controller = activeController;
   }
   const activeController = controller;

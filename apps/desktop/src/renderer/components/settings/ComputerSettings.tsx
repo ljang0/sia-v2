@@ -95,7 +95,7 @@ export function ComputerSettings({
               {snapshot.browser.attached
                 ? `Attached to ${snapshot.browser.profileName}.${trusted ? ' Any site in this window is available.' : ' Only granted origins are available.'}`
                 : trusted
-                  ? 'Sia attaches to your frontmost Chrome window on its own the first time it needs the browser. Choose a window here to pin a specific one.'
+                  ? 'Sia attaches to your frontmost Chrome window on its own the first time it needs the browser, and enables Chrome\u2019s remote-debugging toggle (chrome://inspect) when Chrome is closed so no prompt appears. Choose a window here to pin a specific one.'
                   : 'Open the signed-in Chrome window you want. If several are open, Sia lets you choose one.'}
             </p>
           </div>
