@@ -19,6 +19,9 @@ This repository is the clean v2 implementation. It intentionally does not contai
 - The cloud control plane handles sign-in, connected apps, the implemented-but-not-yet-live-verified Meta relay, and consented research sync. Meta stays unavailable in the alpha client until an authenticated capability check exists. The cloud does not yet provide a persistent remote computer, remote browser profile, or offline scheduled agent turns.
 - Codex is the default provider through its official app-server protocol. The alpha pins Codex CLI `>=0.147.0 <0.149.0`; inherited extensions are disabled and verified before a thread starts.
 - The Meta adapter targets the Sia cloud relay but remains production-disabled until an authenticated live check is implemented. Gemini, Grok, and Claude also remain production-disabled until their compatibility, isolation, and product-policy gates are satisfied.
+- Apple Messages works locally: reading recent iMessages needs Full Disk Access; sending always
+  passes an exact-recipient approval. WhatsApp and Slack desktop apps are readable and operable
+  through granted computer use.
 - Connected-app writes require an exact, expiring approval. Sia-hosted browser/computer changes run without per-action approval in the default trusted local mode (every action is bound to a live window/tab/snapshot and written to the local trajectory log); `Settings → Computer → Ask before every action` restores approvals. Read-only inspection stays background-capable and never steals focus.
 - Gmail, Drive, and Slack each have an individual connection button as well as one guided sequence.
   Provider-owned OAuth consent remains separate: Google and Slack are never represented as one

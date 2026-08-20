@@ -35,6 +35,14 @@ Create **Scout** (sky) live — name, color, repo; the room takes its hue.
 - "What's the latest stable version of Node.js right now? Give me your source." (Verified:
   v26.7.0 + nodejs.org link, 3 s; transcript shows the real queries.)
 
+### Messaging (personal)
+
+- "What's my most recent WhatsApp message? Just read, don't reply." → reads the actual WhatsApp
+  window via computer use. (Verified live; Slack desktop works the same way.)
+- "What were my last few iMessages?" → the local `messages_search` tool reads chat.db directly
+  (needs Full Disk Access once; without it, Sia explains exactly how to grant it — verified).
+  Sending an iMessage always shows an approval card with the exact recipient and text.
+
 ## Act III — It keeps going
 
 - **Goal** tool: "Keep me posted on what changes on this machine." (Pause/resume; failed goal

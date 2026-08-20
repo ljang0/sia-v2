@@ -50,6 +50,12 @@ export interface DesktopActionBackendOptions {
   ) => string | undefined;
   /** Main-process pid, injectable only so the host-self exclusion can be tested. */
   readonly hostPid?: number;
+  /** Local Apple Messages integration; absent off macOS or in tests that do not use it. */
+  readonly messages?: {
+    search(query: string | undefined, limit: number): unknown[];
+    readThread(chatId: string, limit: number): unknown[];
+    send(recipient: string, text: string): Promise<void>;
+  };
 }
 
 interface NativeElementAddress {
@@ -218,6 +224,7 @@ export class DesktopActionBackend implements ActionBackend {
   #browserSessionId: string;
   readonly #isBrowserOriginAllowed: ((origin: string) => boolean) | undefined;
   readonly #ensureBrowserAttached: (() => Promise<string | undefined>) | undefined;
+  readonly #messages: DesktopActionBackendOptions['messages'];
   #lastAttachDetail: string | undefined;
   readonly #resolveConnectionId:
     | ((
@@ -243,6 +250,7 @@ export class DesktopActionBackend implements ActionBackend {
     this.#browserSessionId = options.browserSessionId ?? 'sia-browser';
     this.#isBrowserOriginAllowed = options.isBrowserOriginAllowed;
     this.#ensureBrowserAttached = options.ensureBrowserAttached;
+    this.#messages = options.messages;
     this.#resolveConnectionId = options.resolveConnectionId;
     this.#hostPid = options.hostPid ?? process.pid;
     void sweepStaleBrowserVaults();
@@ -380,10 +388,49 @@ export class DesktopActionBackend implements ActionBackend {
         case 'slack_read_thread':
         case 'slack_post':
           return await this.#connectorAction(request, request.name);
+        case 'messages_search':
+        case 'messages_read_thread':
+        case 'messages_send':
+          return await this.#messagesAction(request);
       }
     } catch (error) {
       return classifyFailure(error);
     }
+  }
+
+  async #messagesAction(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
+    const messages = this.#messages;
+    if (!messages) return refused('Apple Messages is unavailable on this Mac.');
+    const args = request.arguments;
+    if (request.name === 'messages_send') {
+      // Same fail-closed contract as connector mutations: the exact send must have crossed
+      // the interactive approval boundary, whatever mode the local actions run in.
+      if (!request.approvalId) {
+        return refused('This message send is missing its exact interactive approval.');
+      }
+      await messages.send(String(args.recipient), String(args.text));
+      return {
+        outcome: 'verified',
+        summary: `Sent the approved iMessage to ${String(args.recipient)}.`,
+        verification: {
+          evidence: 'The signed-in Messages app accepted the send via Apple events.',
+        },
+      };
+    }
+    const limit = Math.min(
+      Number(args.limit) || (request.name === 'messages_search' ? 20 : 30),
+      100,
+    );
+    const rows =
+      request.name === 'messages_search'
+        ? messages.search(typeof args.query === 'string' ? args.query : undefined, limit)
+        : messages.readThread(String(args.chat_id), limit);
+    return {
+      outcome: 'verified',
+      summary: `Read ${rows.length} local message${rows.length === 1 ? '' : 's'} from the Messages transcript.`,
+      data: { messages: rows },
+      verification: { evidence: 'Read directly from the local Messages database.' },
+    };
   }
 
   async #attachOnDemand(): Promise<void> {

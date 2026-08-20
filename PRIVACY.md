@@ -43,8 +43,11 @@ Accessibility and Screen Recording, which Sia requests once at first launch. Bro
 password managers, Sia itself, Keychain, and security settings are excluded from generic computer
 targets.
 
-The Apple Messages entry point only asks macOS to open Messages. Sia does not read the private
-Messages database or copy an account credential. If the user later grants a visible Messages window
+Apple Messages support is local: with Full Disk Access granted to Sia, the `messages_search` and
+`messages_read_thread` tools read recent rows directly from this Mac's own Messages database
+(nothing is copied elsewhere or synced), and `messages_send` delivers through the signed-in
+Messages app after an interactive approval showing the exact recipient and text — sends are never
+auto-approved, in any mode. Without Full Disk Access, Sia cannot read the database and says so. If the user later grants a visible Messages window
 to computer use, its contents are processed only for that task under the computer-access boundary;
 in ask mode an outgoing action still requires explicit approval, and in trusted mode it is logged.
 

@@ -28,6 +28,9 @@ const expectedActionTools = [
   'slack_search',
   'slack_read_thread',
   'slack_post',
+  'messages_search',
+  'messages_read_thread',
+  'messages_send',
 ].sort();
 
 const failures = [];

@@ -16,6 +16,7 @@ import {
 import { ActionGateway, DefaultActionAuthorizationPolicy } from '@sia/action-gateway';
 import { TrajectoryRecorder } from './trajectory-recorder.js';
 import { ensureChromeRemoteDebuggingEnabled } from './chrome-debug-setup.js';
+import { MessagesService } from './messages-service.js';
 
 import { CloudClient } from './cloud-client.js';
 import { loadCloudConfiguration } from './cloud-config.js';
@@ -195,6 +196,7 @@ async function performApplicationCreation(): Promise<void> {
     const actionBackend = new DesktopActionBackend({
       cua: computer,
       cloud,
+      messages: new MessagesService(),
       isBrowserOriginAllowed: (origin) => activeController.isBrowserOriginAllowed(origin),
       ensureBrowserAttached: () => activeController.ensureBrowserAttachedForActions(),
       resolveConnectionId: (app, selector, approvalId) =>

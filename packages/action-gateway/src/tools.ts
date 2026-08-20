@@ -127,6 +127,24 @@ const slackPost = z
     thread_id: optionalId,
   })
   .strict();
+const messagesSearch = z
+  .object({
+    query: z.string().max(512).optional(),
+    limit: z.number().int().min(1).max(50).optional(),
+  })
+  .strict();
+const messagesReadThread = z
+  .object({
+    chat_id: z.string().min(1).max(512),
+    limit: z.number().int().min(1).max(100).optional(),
+  })
+  .strict();
+const messagesSend = z
+  .object({
+    recipient: z.string().min(3).max(256),
+    text: z.string().min(1).max(10_000),
+  })
+  .strict();
 
 export const actionInputSchemas = {
   computer_list: computerList,
@@ -148,6 +166,9 @@ export const actionInputSchemas = {
   slack_search: accountQuery('slack'),
   slack_read_thread: accountResource('slack'),
   slack_post: slackPost,
+  messages_search: messagesSearch,
+  messages_read_thread: messagesReadThread,
+  messages_send: messagesSend,
 } as const;
 
 export type ActionToolName = keyof typeof actionInputSchemas;
@@ -418,6 +439,44 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
         thread_id: string('Optional thread id'),
       },
       ['account_id', 'channel_id', 'text'],
+    ),
+    annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
+  },
+  messages_search: {
+    name: 'messages_search',
+    description:
+      "Read recent Apple Messages (iMessage/SMS) from this Mac's local transcript, newest first, optionally filtered by text or sender. Local only; requires Full Disk Access.",
+    inputSchema: object(
+      {
+        query: string('Optional text or sender filter'),
+        limit: string('Maximum rows (default 20)'),
+      },
+      [],
+    ),
+    annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
+  },
+  messages_read_thread: {
+    name: 'messages_read_thread',
+    description: 'Read one Apple Messages conversation by chat id, oldest first.',
+    inputSchema: object(
+      {
+        chat_id: string('Chat id from messages_search'),
+        limit: string('Maximum rows (default 30)'),
+      },
+      ['chat_id'],
+    ),
+    annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
+  },
+  messages_send: {
+    name: 'messages_send',
+    description:
+      'Send an iMessage through the signed-in Messages app. The exact recipient and text always pass an interactive approval first.',
+    inputSchema: object(
+      {
+        recipient: string('Phone number, email, or exact contact handle'),
+        text: string('Message text'),
+      },
+      ['recipient', 'text'],
     ),
     annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
   },
