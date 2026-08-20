@@ -1023,6 +1023,7 @@ button.agentAvatar {
   display: flex;
   flex-direction: column;
   gap: 22px;
+  padding-bottom: 24px;
 }
 
 .message {

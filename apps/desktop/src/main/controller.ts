@@ -3080,7 +3080,9 @@ export class DesktopController {
       id: randomUUID(),
       turnId: turn.id,
       kind: 'activity',
-      title: this.#fakeServices ? 'Preparing local tools' : `Starting ${thread.provider}`,
+      title: this.#fakeServices
+        ? 'Preparing local tools'
+        : `Starting ${thread.provider === 'codex' ? 'Codex' : thread.provider}`,
       detail: thread.workspace,
       status: 'running',
       toolName: 'runtime.start',
@@ -3352,6 +3354,17 @@ export class DesktopController {
         if (event.payload.error) running.detail = event.payload.error;
         if (activity) running.activity = activity;
       } else {
+        // Message and reasoning items already render as transcript content; an extra
+        // "UserMessage"/"AgentMessage"/"Reasoning" activity row is pure noise.
+        const normalizedTool = event.payload.name.replace(/[._-]/g, '').toLowerCase();
+        if (
+          event.payload.native &&
+          (normalizedTool === 'usermessage' ||
+            normalizedTool === 'agentmessage' ||
+            normalizedTool === 'reasoning')
+        ) {
+          return;
+        }
         this.#appendTimeline(event.threadId, {
           id: event.id,
           turnId: event.turnId,
@@ -4464,11 +4477,27 @@ function humanizeToolName(value: string): string {
   return value.replace(/[._-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+const RUNTIME_TOOL_LABELS: Record<string, string> = {
+  websearch: 'Searching the web',
+  browser_tabs: 'Checking browser tabs',
+  browser_snapshot: 'Reading the page',
+  browser_navigate: 'Opening a page',
+  browser_action: 'Acting in the browser',
+  browser_upload: 'Uploading a file',
+  computer_list: 'Checking open apps',
+  computer_snapshot: 'Looking at a window',
+  computer_action: 'Acting on the Mac',
+};
+
 function runtimeToolTitle(name: string, presentation?: ActivityPresentationView): string {
-  if (!presentation) return humanizeToolName(name);
+  if (!presentation) {
+    const label = RUNTIME_TOOL_LABELS[name.replace(/[.-]/g, '_').toLowerCase()];
+    return label ?? humanizeToolName(name);
+  }
   if (presentation.kind === 'command') return presentation.command;
   if (presentation.kind === 'file_change') {
     const count = presentation.files.length;
+    if (count === 0) return 'Reviewing changes';
     return count === 1 ? `Changed ${presentation.files[0]!.path}` : `Changed ${count} files`;
   }
   if (presentation.kind === 'web_search') {
