@@ -602,11 +602,9 @@ describe('DesktopActionBackend browser boundary', () => {
     backend.resetBrowserCapabilities();
     const result = await backend.invoke(request('browser_tabs', {}));
 
-    expect(result).toMatchObject({
-      outcome: 'verified',
-      summary: 'Found 0 granted browser tabs.',
-      data: { tabs: [] },
-    });
+    expect(result).toMatchObject({ outcome: 'verified', data: { tabs: [] } });
+    expect(result.summary).toContain('Found 0 granted browser tabs.');
+    expect(result.summary).toContain('rather than concluding Chrome is closed');
     expect(cua.call).not.toHaveBeenCalled();
   });
 

@@ -158,7 +158,8 @@ export type ActionArguments<N extends ActionToolName = ActionToolName> = z.infer
 const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_list: {
     name: 'computer_list',
-    description: 'List permitted applications and windows without changing them.',
+    description:
+      'List permitted applications and windows without changing them. Browsers (Chrome) are intentionally excluded here; use the browser_* tools to see or read the browser.',
     inputSchema: object({}),
     annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
   },
@@ -205,7 +206,8 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   },
   browser_tabs: {
     name: 'browser_tabs',
-    description: 'List browser tabs covered by the current browser grant.',
+    description:
+      "List the signed-in browser's granted tabs. In trusted mode the host attaches Chrome automatically on first use; call this first for anything about Chrome or a web page the person is viewing.",
     inputSchema: object({}),
     annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
   },

@@ -404,9 +404,10 @@ export class DesktopController {
    * In trusted mode the model does not need the person to pick a Chrome window first: the
    * frontmost visible window is attached on demand the first time a browser tool runs.
    */
-  async ensureBrowserAttachedForActions(): Promise<void> {
-    if (this.computerTrust() !== 'auto') return;
-    if (this.#state.browser.status === 'attached' && this.#browserSessionId) return;
+  async ensureBrowserAttachedForActions(): Promise<string | undefined> {
+    if (this.computerTrust() !== 'auto')
+      return 'Trusted auto-attach is off; attach a Chrome window in Settings.';
+    if (this.#state.browser.status === 'attached' && this.#browserSessionId) return undefined;
     if (!this.#browserAutoAttach) {
       this.#browserAutoAttach = this.#attachBrowser({}, { auto: true })
         .then(() => undefined)
@@ -416,6 +417,7 @@ export class DesktopController {
         });
     }
     await this.#browserAutoAttach;
+    return this.#state.browser.status === 'attached' ? undefined : this.#state.browser.detail;
   }
 
   #recordActionResult(notice: Parameters<ActionResultObserver>[0]): void {
@@ -2012,13 +2014,20 @@ export class DesktopController {
           'No visible Chrome window was found. Bring a Chrome window onto this Space (not minimized), then try again.',
         );
       }
-      const selectedWindow =
+      const explicitWindow =
         input.windowId === undefined
-          ? availableWindows.length === 1 || options.auto
+          ? availableWindows.length === 1
             ? availableWindows[0]
             : undefined
           : availableWindows.find(({ id }) => id === input.windowId);
-      if (!selectedWindow) {
+      // In trusted auto mode any candidate will do; a window the driver cannot
+      // disambiguate is skipped in favour of the next one.
+      const windowsToTry = explicitWindow
+        ? [explicitWindow]
+        : options.auto
+          ? availableWindows.slice(0, 3)
+          : [];
+      if (!windowsToTry.length) {
         this.#state.browser = {
           status: input.windowId === undefined ? 'detached' : 'error',
           grantedOrigins: [],
@@ -2031,52 +2040,64 @@ export class DesktopController {
         this.#commit();
         return this.snapshot();
       }
-      // CUA sessions are terminal after end_session. Minting a new opaque id for
-      // every attachment lets a user detach and reattach without restarting Sia,
-      // while resetBrowserCapabilities still revokes every prior model-visible ref.
-      const browserSessionId = `sia-browser-${randomUUID()}`;
-      const prepared = await this.#computer.call(
-        'browser_prepare',
-        {
-          pid: chrome.pid,
-          window_id: selectedWindow.id,
-          session: browserSessionId,
-          strategy: { kind: 'existing_profile' },
-        },
-        directContext,
-      );
-      const state = await this.#computer.call(
-        'get_browser_state',
-        {
-          session: browserSessionId,
-          pid: chrome.pid,
-          window_id: selectedWindow.id,
-        },
-        directContext,
-      );
-      // browser_prepare can include transitional target ids while Chrome enables
-      // and reconnects its existing-profile route. Only the follow-up live state
-      // is safe to mint into model-visible browser capabilities.
-      this.#browserCapabilitySink?.acceptBrowserState(state, browserSessionId);
-      this.#browserTarget = findBrowserTarget([state, prepared]);
-      this.#browserSessionId = browserSessionId;
-      const grantedOrigins = collectHttpOrigins([prepared, state]);
-      this.#state.browser = {
-        status: 'attached',
-        browser: 'Chrome',
-        profileLabel: selectedWindow.label,
-        grantedOrigins,
-        ...(grantedOrigins.length === 0
-          ? { detail: 'Attached, but no HTTP or HTTPS tab is currently granted.' }
-          : {}),
-      };
-      this.#trajectory?.record({
-        type: 'browser_attached',
-        threadId: this.#state.activeThreadId ?? 'app',
-        window: selectedWindow.label,
-        automatic: Boolean(options.auto),
-        grantedOrigins,
-      });
+      let lastFailure: unknown;
+      let attachedWindow: BrowserWindowView | undefined;
+      for (const candidate of windowsToTry) {
+        try {
+          // CUA sessions are terminal after end_session. Minting a new opaque id for
+          // every attachment lets a user detach and reattach without restarting Sia,
+          // while resetBrowserCapabilities still revokes every prior model-visible ref.
+          const browserSessionId = `sia-browser-${randomUUID()}`;
+          const prepared = await this.#computer.call(
+            'browser_prepare',
+            {
+              pid: chrome.pid,
+              window_id: candidate.id,
+              session: browserSessionId,
+              strategy: { kind: 'existing_profile' },
+            },
+            directContext,
+          );
+          const state = await this.#computer.call(
+            'get_browser_state',
+            {
+              session: browserSessionId,
+              pid: chrome.pid,
+              window_id: candidate.id,
+            },
+            directContext,
+          );
+          // browser_prepare can include transitional target ids while Chrome enables
+          // and reconnects its existing-profile route. Only the follow-up live state
+          // is safe to mint into model-visible browser capabilities.
+          this.#browserCapabilitySink?.acceptBrowserState(state, browserSessionId);
+          this.#browserTarget = findBrowserTarget([state, prepared]);
+          this.#browserSessionId = browserSessionId;
+          const grantedOrigins = collectHttpOrigins([prepared, state]);
+          this.#state.browser = {
+            status: 'attached',
+            browser: 'Chrome',
+            profileLabel: candidate.label,
+            grantedOrigins,
+            ...(grantedOrigins.length === 0
+              ? { detail: 'Attached, but no HTTP or HTTPS tab is currently granted.' }
+              : {}),
+          };
+          this.#trajectory?.record({
+            type: 'browser_attached',
+            threadId: this.#state.activeThreadId ?? 'app',
+            window: candidate.label,
+            automatic: Boolean(options.auto),
+            grantedOrigins,
+          });
+          attachedWindow = candidate;
+          break;
+        } catch (candidateError) {
+          lastFailure = candidateError;
+        }
+      }
+      if (!attachedWindow)
+        throw lastFailure ?? new Error('No Chrome window could be attached.');
     } catch (error) {
       this.#browserTarget = undefined;
       this.#browserSessionId = undefined;
@@ -4287,21 +4308,24 @@ function preferredChromeWindows(value: unknown): BrowserWindowView[] {
         : undefined,
       zIndex: Number(record.z_index ?? record.zIndex ?? 0),
     }))
-    .filter(({ id, title, visible, bounds }) => {
+    .filter(({ id, title, minimized, bounds }) => {
       const hasUsableBounds =
         !bounds ||
         (!Number.isFinite(bounds.width) && !Number.isFinite(bounds.height)) ||
         (bounds.width >= 500 && bounds.height >= 300);
+      // The driver's is_on_screen flag is unreliable for windows on other Spaces and can
+      // briefly read false for real visible windows, so it only affects ordering below;
+      // background window operations address windows by id and do not need visibility.
       return (
         Number.isSafeInteger(id) &&
         id > 0 &&
-        visible &&
+        !minimized &&
         hasUsableBounds &&
         !/^allow remote debugging\?$/i.test(title.trim())
       );
     })
     .sort((left, right) => {
-      if (left.minimized !== right.minimized) return left.minimized ? 1 : -1;
+      if (left.visible !== right.visible) return left.visible ? -1 : 1;
       if (Boolean(left.title) !== Boolean(right.title)) return left.title ? -1 : 1;
       return right.zIndex - left.zIndex || left.id - right.id;
     });

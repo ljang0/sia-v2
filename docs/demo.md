@@ -10,6 +10,8 @@ is the "Sia Demo Runbook" artifact.
 - `cd ~/sia_new && pnpm dev` (don't demo the stale notarized DMG).
 - `codex --version` signed in; accepted range `>=0.147.0 <0.149.0`; no auto-updates demo morning.
 - One signed-in Chrome window on the presenting Space (auto-attach picks the frontmost visible).
+- Attach Chrome once by hand (Settings → Computer → Choose window) and click **Allow** on
+  Chrome's "Allow remote debugging?" prompt so the consent is out of the way before the demo.
 - Accept macOS Accessibility + Screen Recording prompts on first launch, then relaunch.
 - Workspace: a small real repo. One dry run first.
 
@@ -50,12 +52,13 @@ actions captured. "Nothing asked permission, and everything is on the record."
 
 ## Troubleshooting
 
-| Symptom                                             | Fix                                                                                              |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| "No visible Chrome window" / "Chrome isn't visible" | Bring a Chrome window onto the current Space, re-send. #1 live failure (hit twice in rehearsal). |
-| "Codex (incompatible)"                              | CLI auto-updated past the pin; widen `provider-probe.ts` + `providers/codex.ts`.                 |
-| Red "Provider error" card                           | Card shows the real reason (sign-in, usage limits). Fix account, Retry.                          |
-| Turn hangs                                          | Stop, re-send. First turn after launch is slowest.                                               |
+| Symptom                                                | Fix                                                                                                                    |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| "Bring a Chrome window onto this Space"                | Drag a Chrome window onto the current Space (not minimized), re-send.                                                  |
+| "Chrome refused this window / Allow remote debugging?" | One-time consent: Settings → Computer → Choose window, then click **Allow** on Chrome's prompt. Do this in pre-flight. |
+| "Codex (incompatible)"                                 | CLI auto-updated past the pin; widen `provider-probe.ts` + `providers/codex.ts`.                                       |
+| Red "Provider error" card                              | Card shows the real reason (sign-in, usage limits). Fix account, Retry.                                                |
+| Turn hangs                                             | Stop, re-send. First turn after launch is slowest.                                                                     |
 
 Sia must stay open and the Mac awake; Gmail/Drive/Slack connectors stay untouched in the local
 alpha.

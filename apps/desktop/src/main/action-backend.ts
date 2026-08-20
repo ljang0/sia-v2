@@ -40,8 +40,8 @@ export interface DesktopActionBackendOptions {
   readonly browserSessionId?: string;
   /** Optional host policy layered on top of the CUA attachment grant. */
   readonly isBrowserOriginAllowed?: (origin: string) => boolean;
-  /** Lets the trusted host attach Chrome on demand before the first browser tool runs. */
-  readonly ensureBrowserAttached?: () => Promise<void>;
+  /** Lets the trusted host attach Chrome on demand; resolves an error detail when it cannot. */
+  readonly ensureBrowserAttached?: () => Promise<string | undefined>;
   /** Resolves a stable model-visible app/account selector to a trusted cloud connection. */
   readonly resolveConnectionId?: (
     app: 'gmail' | 'drive' | 'slack',
@@ -217,7 +217,8 @@ export class DesktopActionBackend implements ActionBackend {
   readonly #cloud: CloudActionClient | undefined;
   #browserSessionId: string;
   readonly #isBrowserOriginAllowed: ((origin: string) => boolean) | undefined;
-  readonly #ensureBrowserAttached: (() => Promise<void>) | undefined;
+  readonly #ensureBrowserAttached: (() => Promise<string | undefined>) | undefined;
+  #lastAttachDetail: string | undefined;
   readonly #resolveConnectionId:
     | ((
         app: 'gmail' | 'drive' | 'slack',
@@ -387,7 +388,7 @@ export class DesktopActionBackend implements ActionBackend {
 
   async #attachOnDemand(): Promise<void> {
     if (this.#browserAttached || !this.#ensureBrowserAttached) return;
-    await this.#ensureBrowserAttached();
+    this.#lastAttachDetail = await this.#ensureBrowserAttached();
   }
 
   async #computerList(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
@@ -652,10 +653,13 @@ export class DesktopActionBackend implements ActionBackend {
 
   async #browserTabs(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
     if (!this.#browserAttached) {
+      const detail =
+        this.#lastAttachDetail ??
+        'No browser attachment is active in the trusted desktop host.';
       return {
         outcome: 'verified',
-        summary: 'Found 0 granted browser tabs.',
-        data: { tabs: [] },
+        summary: `Found 0 granted browser tabs. ${detail} Chrome may still be running; report the attachment problem rather than concluding Chrome is closed.`,
+        data: { tabs: [], attachment_problem: detail },
         verification: {
           evidence: 'No browser attachment is active in the trusted desktop host.',
         },
