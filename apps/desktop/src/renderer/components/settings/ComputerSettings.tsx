@@ -46,7 +46,7 @@ export function ComputerSettings({
       hint:
         snapshot.computer.chromeConnection === 'unavailable'
           ? 'Chrome not found'
-          : 'Turned on while Chrome is closed',
+          : 'Enabled — approve Chrome\u2019s one-time prompt on first use',
     },
     {
       key: 'messages',
@@ -164,7 +164,7 @@ export function ComputerSettings({
               {snapshot.browser.attached
                 ? `Attached to ${snapshot.browser.profileName}.${trusted ? ' Any site in this window is available.' : ' Only granted origins are available.'}`
                 : trusted
-                  ? 'Sia attaches to your frontmost Chrome window on its own the first time it needs the browser, and enables Chrome\u2019s remote-debugging toggle (chrome://inspect) when Chrome is closed so no prompt appears. Choose a window here to pin a specific one.'
+                  ? 'Sia attaches to your frontmost Chrome window the first time it needs the browser. Chrome asks for its own one-time \u201CAllow remote debugging?\u201D consent \u2014 click Allow (Sia never clicks Chrome\u2019s security prompts for you). Choose a window here to pin a specific one.'
                   : 'Open the signed-in Chrome window you want. If several are open, Sia lets you choose one.'}
             </p>
           </div>
