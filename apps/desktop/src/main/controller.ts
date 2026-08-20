@@ -85,6 +85,8 @@ interface ControllerOptions {
   openMessages?(): Promise<void>;
   /** Always-on local trajectory log; absent in unit tests that do not care about it. */
   trajectory?: TrajectoryRecorder;
+  /** Runs a read-only shell command (lsof); injectable for tests. */
+  runCommand?: (file: string, args: readonly string[]) => Promise<string>;
   /** One-click capability unlock helpers; absent in unit tests that do not use them. */
   capabilitySetup?: {
     messagesStatus(): 'ready' | 'needs_full_disk_access' | 'unavailable';
@@ -336,6 +338,7 @@ export class DesktopController {
   };
   readonly #trajectory: TrajectoryRecorder | undefined;
   readonly #capabilitySetup: ControllerOptions['capabilitySetup'];
+  readonly #runCommand: (file: string, args: readonly string[]) => Promise<string>;
   #messagesAccess: 'ready' | 'needs_full_disk_access' | 'unavailable' | undefined;
   #chromeConnection: 'enabled' | 'off' | 'unavailable' | undefined;
   readonly #revealDirectory: ((path: string) => Promise<void>) | undefined;
@@ -353,6 +356,7 @@ export class DesktopController {
     this.#openExternal = options.openExternal;
     this.#trajectory = options.trajectory;
     this.#capabilitySetup = options.capabilitySetup;
+    this.#runCommand = options.runCommand ?? defaultRunCommand;
     this.#revealDirectory = options.revealDirectory;
     this.#openMessages = options.openMessages;
     this.#chooseDirectory = options.chooseDirectory;
@@ -417,6 +421,10 @@ export class DesktopController {
    * In trusted mode the model does not need the person to pick a Chrome window first: the
    * frontmost visible window is attached on demand the first time a browser tool runs.
    */
+  async #chromeDebugOwnerPid(): Promise<number | undefined> {
+    return chromeDebugPortOwnerPid(this.#runCommand);
+  }
+
   async ensureBrowserAttachedForActions(): Promise<string | undefined> {
     if (this.computerTrust() !== 'auto')
       return 'Trusted auto-attach is off; attach a Chrome window in Settings.';
@@ -2040,10 +2048,17 @@ export class DesktopController {
       const apps = await this.#computer.call('list_apps', {}, directContext);
       const candidates = findChromeCandidates(apps);
       if (!candidates.length) throw new Error('Open Chrome, then try attaching again.');
-      // Several Chrome processes can coexist (profiles, dev instances) and only one of them
-      // may accept a connection, so windows from every process stay in play.
+      // Several Chrome processes can coexist (a leftover instance, a helper). Only the one that
+      // owns the remote-debugging port can attach, so its windows are tried first and are the
+      // only ones offered the silent cdp_port route.
+      const debugOwnerPid = await this.#chromeDebugOwnerPid();
+      const orderedCandidates = [...candidates].sort((left, right) => {
+        const leftOwns = left.pid === debugOwnerPid ? 0 : 1;
+        const rightOwns = right.pid === debugOwnerPid ? 0 : 1;
+        return leftOwns - rightOwns;
+      });
       const windowPairs: { pid: number; window: BrowserWindowView }[] = [];
-      for (const candidate of candidates.slice(0, 3)) {
+      for (const candidate of orderedCandidates.slice(0, 3)) {
         const windows = await this.#computer.call(
           'list_windows',
           { pid: candidate.pid },
@@ -2091,10 +2106,13 @@ export class DesktopController {
       let lastFailure: unknown;
       let attachedWindow: BrowserWindowView | undefined;
       candidates: for (const { pid: chromePid, window: candidate } of pairsToTry) {
-        // Chrome's persistent remote-debugging toggle (chrome://inspect, port 9222) connects
-        // without the per-session "Allow remote debugging?" prompt, so try it first; the
-        // prompt-based route stays as the fallback.
-        for (const prepareArguments of [{ cdp_port: 9222 }, {}]) {
+        // The silent cdp_port route only works against the process that owns the debugging
+        // port; offering it to another process's window just fails, so it is scoped here.
+        const attempts =
+          debugOwnerPid === undefined || chromePid === debugOwnerPid
+            ? [{ cdp_port: 9222 }, {}]
+            : [{}];
+        for (const prepareArguments of attempts) {
           try {
             // CUA sessions are terminal after end_session. Minting a new opaque id for
             // every attachment lets a user detach and reattach without restarting Sia,
@@ -4403,6 +4421,26 @@ function sanitizeChromeWindowTitle(value: string): string | undefined {
     .trim();
   if (!sanitized) return undefined;
   return sanitized.slice(0, 160);
+}
+
+async function defaultRunCommand(file: string, args: readonly string[]): Promise<string> {
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const { stdout } = await promisify(execFile)(file, [...args]);
+  return stdout;
+}
+
+async function chromeDebugPortOwnerPid(
+  runCommand: (file: string, args: readonly string[]) => Promise<string>,
+): Promise<number | undefined> {
+  try {
+    const stdout = await runCommand('lsof', ['-nP', '-iTCP:9222', '-sTCP:LISTEN', '-Fp']);
+    const match = stdout.split('\n').find((line) => line.startsWith('p'));
+    const pid = match ? Number(match.slice(1)) : Number.NaN;
+    return Number.isSafeInteger(pid) && pid > 0 ? pid : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function browserAttachmentError(error: unknown): string {

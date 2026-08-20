@@ -46,6 +46,7 @@ async function createHarness(
     cloud?: CloudClient;
     identity?: ConstructorParameters<typeof DesktopController>[0]['identity'];
     computer?: ConstructorParameters<typeof DesktopController>[0]['computer'];
+    runCommand?: (file: string, args: readonly string[]) => Promise<string>;
     openExternal?: (url: string) => Promise<void>;
     openMessages?: () => Promise<void>;
     repository?: RecordRepository;
@@ -74,6 +75,7 @@ async function createHarness(
     chooseDirectory: async () => '/tmp/sia-workspace',
     exportJson: async () => '/tmp/export.json',
     ...(options.capabilitySetup ? { capabilitySetup: options.capabilitySetup } : {}),
+    ...(options.runCommand ? { runCommand: options.runCommand } : {}),
   });
   await controller.initialize();
   await controller.invoke('settings.openDirectory', undefined);
@@ -1290,6 +1292,75 @@ describe('DesktopController', () => {
         .snapshot()
         .timeline.some((event) => event.turnId && event.toolName === 'browser_tabs'),
     ).toBe(false);
+    await controller.shutdown();
+  });
+
+  it('prioritizes the Chrome process that owns the remote-debugging port when attaching', async () => {
+    const listWindows = new Map<number, unknown>();
+    const attachedPids: number[] = [];
+    const computer = {
+      permissions: async () => ({
+        status: 'ready' as const,
+        accessibility: true,
+        screenRecording: true,
+      }),
+      requestPermissions: async () => ({
+        status: 'ready' as const,
+        accessibility: true,
+        screenRecording: true,
+      }),
+      call: async (tool: string, args: Record<string, unknown>) => {
+        if (tool === 'list_apps') {
+          return {
+            apps: [
+              { pid: 111, name: 'Google Chrome', bundle_id: 'com.google.Chrome', active: true },
+              {
+                pid: 222,
+                name: 'Google Chrome',
+                bundle_id: 'com.google.Chrome',
+                active: false,
+              },
+            ],
+          };
+        }
+        if (tool === 'list_windows') {
+          const pid = Number(args.pid);
+          return {
+            windows: [
+              {
+                window_id: pid + 1,
+                pid,
+                title: `w${pid}`,
+                is_on_screen: true,
+                minimized: false,
+                bounds: { width: 800, height: 600 },
+                z_index: 1,
+              },
+            ],
+          };
+        }
+        if (tool === 'browser_prepare') {
+          attachedPids.push(Number(args.pid));
+          // Only the port owner (222) accepts the cdp_port route.
+          if (Number(args.pid) !== 222)
+            throw new Error('CUA refused: browser_route_unavailable');
+          return { targets: [{ target_id: 't', tab_id: 'tab', url: 'https://example.test/' }] };
+        }
+        if (tool === 'get_browser_state') {
+          return { target_id: 't', tab_id: 'tab', url: 'https://example.test/' };
+        }
+        return {};
+      },
+      shutdown: async () => undefined,
+    };
+    const { controller } = await createHarness({
+      computer: computer as never,
+      runCommand: async () => 'p222\nf5\n',
+    });
+    // Auto-attach (trusted default) tries the port owner first and needs no window pick.
+    await controller.ensureBrowserAttachedForActions();
+    expect(controller.snapshot().browser.status).toBe('attached');
+    expect(attachedPids[0]).toBe(222);
     await controller.shutdown();
   });
 

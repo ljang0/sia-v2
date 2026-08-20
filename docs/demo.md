@@ -12,9 +12,9 @@ is the "Sia Demo Runbook" artifact.
 - **Settings → Computer → Unlock everything**: one card shows every capability (Mac control,
   silent Chrome, Messages) with live status; one click requests all the grantable permissions
   and opens the panes macOS keeps manual (flip the Full Disk Access switch when it appears).
-- One signed-in Chrome window on the presenting Space. On first attach Chrome shows its own
-  "Allow remote debugging?" consent — click **Allow** once (Sia won't click Chrome's security
-  prompts for you). Recent Chrome versions require this; after it, the session stays attached.
+- One signed-in Chrome window on the presenting Space. Attach is silent — Sia enables Chrome's
+  debugging toggle and connects to the process that owns it. If Chrome has never restarted since
+  Sia first enabled the toggle, restart it once so the port serves; that's the only manual step.
 - Workspace: a small real repo. One dry run first.
 
 ## Act I — It can see

@@ -33,10 +33,10 @@ be turned off in Settings or deleted from disk at any time.
 By default Sia runs in **trusted local mode**: computer and browser actions execute without a
 per-action approval, and Chrome is attached to the frontmost signed-in window automatically the
 first time the browser is needed. Sia enables Chrome's own persistent remote-debugging toggle (visible and revocable at
-`chrome://inspect/#remote-debugging`) when Chrome is closed at launch; recent Chrome versions
-still show a one-time "Allow remote debugging?" consent that the person clicks (Sia never clicks
-Chrome's own security prompts). The debugging endpoint is local-only, and turning trusted mode
-off stops Sia from using it. Every action is still bound to a live window, tab, and fresh
+`chrome://inspect/#remote-debugging`) when Chrome is closed at launch, then attaches to the
+Chrome process that owns that local-only endpoint. Chrome must have restarted at least once since
+the toggle was enabled for the endpoint to serve; turning trusted mode off stops Sia from using
+it. Every action is still bound to a live window, tab, and fresh
 snapshot, still refuses incognito, authentication, password, and secure surfaces, and is written to
 the local trajectory log. `Settings → Computer → Ask before every action` restores per-action
 approvals and explicit window selection. Sia does not copy cookies. Computer access requires macOS
