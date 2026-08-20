@@ -1,49 +1,61 @@
 # Sia demo runbook
 
-A ~7-minute live demo showing coding, web search, and computer use on a real Mac — no approval
-prompts, full local trajectory log. Every beat was executed live with real Codex on 2026-08-21;
-the illustrated version of this script (screenshots, timings) is the "Sia Demo Runbook" artifact.
+A ~10-minute live demo in three acts: Sia sees your Mac, does real work, and keeps going —
+goals, schedules, background agents. No approval prompts; everything on the record. Every beat
+was executed live with real Codex on 2026-08-21; the illustrated version (screenshots, timings)
+is the "Sia Demo Runbook" artifact.
 
-## Pre-flight (5 min, before anyone watches)
+## Pre-flight (5 min)
 
 - `cd ~/sia_new && pnpm dev` (don't demo the stale notarized DMG).
-- `codex --version` works and is signed in; accepted range `>=0.147.0 <0.149.0`. Don't let the
-  CLI auto-update the morning of.
-- One signed-in Chrome window on the presenting Space (frontmost visible window is what
-  auto-attach picks).
-- Accept the macOS Accessibility + Screen Recording prompts on first launch, then relaunch.
-- Workspace: a small real repo where "fix a TODO" is plausible.
-- One dry run; the first turn after launch is slowest.
+- `codex --version` signed in; accepted range `>=0.147.0 <0.149.0`; no auto-updates demo morning.
+- One signed-in Chrome window on the presenting Space (auto-attach picks the frontmost visible).
+- Accept macOS Accessibility + Screen Recording prompts on first launch, then relaunch.
+- Workspace: a small real repo. One dry run first.
 
-## Script
+## Act I — It can see
 
-1. **Empty room (30 s).** Create an agent live — name, color, repo. Say: "Every agent is a room;
-   its color follows everything it does."
-2. **Coding (2 min).** "Fix the TODO in todo.py: greet should return 'Hello, stranger' when name
-   is empty or None. Keep the change minimal, do not run anything." Then open the **Changes**
-   tool → show the diff, stage/restore. (Verified: file edited on disk in 12–21 s.)
-3. **Web search (1 min).** "Search the web: what is the latest stable version of Node.js right
-   now? Reply with the version and your source." The transcript shows the real query; the reply
-   links its source. (Verified: v26.7.0 + nodejs.org link, 3 s.)
-4. **Computer use (2 min).** "Call browser_tabs, then browser_snapshot on the granted tab and
-   tell me the page heading. Also call computer_list. Do not click, type, or modify anything."
-   Say, while it works: "No approval popup — it attached to my Chrome itself, read the page in
-   the background, and my focus never moved." (Verified: auto-attach + heading + 12 apps/15
-   windows, zero prompts.)
-5. **Receipts (1 min).** Settings → Computer → Show in Finder → the thread folder:
-   `events.jsonl` plus the screenshots the actions captured. "Nothing asks permission,
-   everything is on the record."
-6. **Optional:** second agent in another color (room hue follows), Activity view, voice
-   read-aloud.
+Create **Scout** (sky) live — name, color, repo; the room takes its hue.
+
+- "What's open on my Mac right now? Just look, don't touch anything." → it lists the real
+  desktop: apps, window titles, visible vs. merely running. (Verified: 9 s, zero prompts.)
+- "What am I looking at in Chrome right now?" → auto-attaches to the frontmost Chrome window
+  and reads the page. Say: "my focus never moved." (If Chrome is on another Space it says so —
+  drag a window over, re-send.)
+
+## Act II — It does real work
+
+- "Fix the TODO in todo.py: greet should return 'Hello, stranger' when name is empty or None.
+  Keep the change minimal, do not run anything." Then open **Changes** → the diff,
+  stage/restore. (Verified: file edited in 12–21 s.)
+- "What's the latest stable version of Node.js right now? Give me your source." (Verified:
+  v26.7.0 + nodejs.org link, 3 s; transcript shows the real queries.)
+
+## Act III — It keeps going
+
+- **Goal** tool: "Keep me posted on what changes on this machine." (Pause/resume; failed goal
+  turns pause safely.)
+- **Schedules** tool → New schedule: "Check the Node.js blog for a new release and summarize
+  anything new in two sentences", repeat daily → **Run now** so it fires on stage. (Verified:
+  searched nodejs.org, two-sentence 26.7.0 summary with link, 15 s.)
+- Create **Janitor** (mint): "Add a short docstring to every function in todo.py." Switch back
+  to Scout's room and keep talking; then open **Activity** → finished work across agents, 2
+  unread. Say: "These agents are permanent. The schedule runs every day this app is open, and
+  everything they did while I wasn't looking is in the log."
+
+## Closer — The receipts
+
+Settings → Computer → Show in Finder → the thread folder: `events.jsonl` plus the screenshots
+actions captured. "Nothing asked permission, and everything is on the record."
 
 ## Troubleshooting
 
-| Symptom                                    | Fix                                                                                              |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| "No visible Chrome window was found"       | Bring a Chrome window onto the current Space (not minimized) and re-send. #1 live-demo failure.  |
-| "Codex (incompatible)" in the agent dialog | CLI auto-updated past the pin; widen `provider-probe.ts` + `providers/codex.ts` (one line each). |
-| Red "Provider error" card                  | The card shows the real reason (sign-in, usage limits). Fix the account, hit Retry.              |
-| Turn hangs                                 | Stop, re-send. First turn after launch is slowest.                                               |
+| Symptom                                             | Fix                                                                                              |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| "No visible Chrome window" / "Chrome isn't visible" | Bring a Chrome window onto the current Space, re-send. #1 live failure (hit twice in rehearsal). |
+| "Codex (incompatible)"                              | CLI auto-updated past the pin; widen `provider-probe.ts` + `providers/codex.ts`.                 |
+| Red "Provider error" card                           | Card shows the real reason (sign-in, usage limits). Fix account, Retry.                          |
+| Turn hangs                                          | Stop, re-send. First turn after launch is slowest.                                               |
 
-Sia must stay open and the Mac awake; Gmail/Drive/Slack connector buttons stay untouched in the
-local alpha.
+Sia must stay open and the Mac awake; Gmail/Drive/Slack connectors stay untouched in the local
+alpha.
