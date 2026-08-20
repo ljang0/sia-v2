@@ -1988,16 +1988,29 @@ export class DesktopController {
     try {
       const directContext = { kind: 'direct_user', operation: 'browser_attach' } as const;
       const apps = await this.#computer.call('list_apps', {}, directContext);
-      const chrome = findChrome(apps);
-      if (!chrome) throw new Error('Open Chrome, then try attaching again.');
-      const windows = await this.#computer.call(
-        'list_windows',
-        { pid: chrome.pid },
-        directContext,
-      );
-      availableWindows = preferredChromeWindows(windows);
-      if (!availableWindows.length) {
-        throw new Error('Open a visible Chrome window before attaching.');
+      const candidates = findChromeCandidates(apps);
+      if (!candidates.length) throw new Error('Open Chrome, then try attaching again.');
+      // Several Chrome processes can coexist (profiles, dev instances); the one that scored
+      // highest may own no visible window, so keep probing until one does.
+      let chrome: { pid: number } | undefined;
+      availableWindows = [];
+      for (const candidate of candidates) {
+        const windows = await this.#computer.call(
+          'list_windows',
+          { pid: candidate.pid },
+          directContext,
+        );
+        const preferred = preferredChromeWindows(windows);
+        if (preferred.length) {
+          chrome = candidate;
+          availableWindows = preferred;
+          break;
+        }
+      }
+      if (!chrome || !availableWindows.length) {
+        throw new Error(
+          'No visible Chrome window was found. Bring a Chrome window onto this Space (not minimized), then try again.',
+        );
       }
       const selectedWindow =
         input.windowId === undefined
@@ -3510,6 +3523,11 @@ export class DesktopController {
     if (event.type === 'error') {
       this.#discardResearchTurn(event.turnId);
       thread.status = 'failed';
+      const previous = this.#state.timeline.findLast(
+        (item) => item.threadId === event.threadId && item.kind === 'error',
+      );
+      // Providers can repeat the same failure notice; one card per distinct message is enough.
+      if (previous?.turnId === event.turnId && previous.text === event.payload.message) return;
       this.#appendTimeline(event.threadId, {
         id: event.id,
         turnId: event.turnId,
@@ -3525,6 +3543,23 @@ export class DesktopController {
       this.#pendingQuestions.delete(event.threadId);
       this.#completeRunningActivities(event.threadId, event.turnId);
       thread.status = event.payload.status === 'failed' ? 'failed' : 'idle';
+      if (
+        event.payload.status === 'failed' &&
+        !this.#state.timeline.some(
+          (item) => item.turnId === event.turnId && item.kind === 'error',
+        )
+      ) {
+        // A failed turn must never end silently: if the provider gave no reason, say so.
+        this.#appendTimeline(event.threadId, {
+          id: randomUUID(),
+          turnId: event.turnId,
+          kind: 'error',
+          title: 'Turn did not complete',
+          text: 'The provider ended this turn without completing it. Check the provider account (sign-in, usage limits) and try again.',
+          status: 'failed',
+          timestamp: event.timestamp,
+        });
+      }
       if (event.payload.status === 'completed') this.#completeResearchTurn(event.turnId);
       else this.#discardResearchTurn(event.turnId);
     }
@@ -4185,7 +4220,8 @@ function computerApprovalPresentation(
   return { kind: 'native_tool', title: 'Allow computer access' };
 }
 
-function findChrome(value: unknown): { pid: number } | undefined {
+/** Every Chrome process, best-scored first; several can run at once (profiles, dev instances). */
+function findChromeCandidates(value: unknown): { pid: number }[] {
   const candidates = collectRecords(value)
     .map((candidate) => {
       const name = stringField(candidate, ['name', 'application_name', 'applicationName']);
@@ -4209,12 +4245,18 @@ function findChrome(value: unknown): { pid: number } | undefined {
               : normalizedName.includes('chrome') && !helper
                 ? 1
                 : 0;
-      return { candidate, pid, score };
+      const active = candidate.active === true;
+      return { candidate, pid, score, active };
     })
     .filter(({ pid, score }) => Number.isSafeInteger(pid) && pid > 0 && score > 0)
-    .sort((left, right) => right.score - left.score);
-  const record = candidates[0]?.candidate;
-  return record ? { pid: Number(record.pid) } : undefined;
+    .sort((left, right) => {
+      if (left.active !== right.active) return left.active ? -1 : 1;
+      return right.score - left.score;
+    });
+  const seen = new Set<number>();
+  return candidates
+    .filter(({ pid }) => (seen.has(pid) ? false : (seen.add(pid), true)))
+    .map(({ pid }) => ({ pid }));
 }
 
 function preferredChromeWindows(value: unknown): BrowserWindowView[] {

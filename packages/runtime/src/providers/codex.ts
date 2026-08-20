@@ -749,6 +749,17 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       );
       return;
     }
+    if (method === 'error' || method === 'turn/error' || method === 'thread/error') {
+      // The app-server reports why a turn is about to fail (auth, usage limits, transport)
+      // through an error notification; surface it so a failed turn is never silent.
+      const message =
+        stringAt(value, ['error', 'message'], ['message'], ['detail'], ['reason']) ??
+        'The provider reported an error for this turn.';
+      active.queue.push(
+        active.events.create('error', { code: 'provider_error', message, recoverable: true }),
+      );
+      return;
+    }
     if (method === 'turn/completed') {
       const rawStatus = stringAt(value, ['turn', 'status'], ['status']);
       const status =
@@ -757,6 +768,24 @@ export class CodexAppServerAdapter implements ProviderAdapter {
           : rawStatus === 'cancelled' || rawStatus === 'interrupted'
             ? 'cancelled'
             : 'completed';
+      if (status === 'failed') {
+        const failureMessage = stringAt(
+          value,
+          ['turn', 'error', 'message'],
+          ['error', 'message'],
+          ['turn', 'failureReason'],
+          ['message'],
+        );
+        if (failureMessage) {
+          active.queue.push(
+            active.events.create('error', {
+              code: 'provider_error',
+              message: failureMessage,
+              recoverable: true,
+            }),
+          );
+        }
+      }
       active.queue.push(
         active.events.create('completion', {
           status,
