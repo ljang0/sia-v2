@@ -10,8 +10,10 @@ is the "Sia Demo Runbook" artifact.
 - `cd ~/sia_new && pnpm dev` (don't demo the stale notarized DMG).
 - `codex --version` signed in; accepted range `>=0.147.0 <0.149.0`; no auto-updates demo morning.
 - One signed-in Chrome window on the presenting Space (auto-attach picks the frontmost visible).
-- Attach Chrome once by hand (Settings → Computer → Choose window) and click **Allow** on
-  Chrome's "Allow remote debugging?" prompt so the consent is out of the way before the demo.
+- One-time forever setup: in Chrome open `chrome://inspect`, tick **Allow remote debugging**
+  (port 9222), restart Chrome. After that Sia connects to Chrome silently — no prompts, ever.
+  (Without the toggle, Chrome shows its one-time "Allow remote debugging?" prompt on first
+  attach each Chrome session — click Allow.)
 - Accept macOS Accessibility + Screen Recording prompts on first launch, then relaunch.
 - Workspace: a small real repo. One dry run first.
 

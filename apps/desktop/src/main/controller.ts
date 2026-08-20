@@ -1992,42 +1992,42 @@ export class DesktopController {
       const apps = await this.#computer.call('list_apps', {}, directContext);
       const candidates = findChromeCandidates(apps);
       if (!candidates.length) throw new Error('Open Chrome, then try attaching again.');
-      // Several Chrome processes can coexist (profiles, dev instances); the one that scored
-      // highest may own no visible window, so keep probing until one does.
-      let chrome: { pid: number } | undefined;
-      availableWindows = [];
-      for (const candidate of candidates) {
+      // Several Chrome processes can coexist (profiles, dev instances) and only one of them
+      // may accept a connection, so windows from every process stay in play.
+      const windowPairs: { pid: number; window: BrowserWindowView }[] = [];
+      for (const candidate of candidates.slice(0, 3)) {
         const windows = await this.#computer.call(
           'list_windows',
           { pid: candidate.pid },
           directContext,
         );
-        const preferred = preferredChromeWindows(windows);
-        if (preferred.length) {
-          chrome = candidate;
-          availableWindows = preferred;
-          break;
+        for (const window of preferredChromeWindows(windows)) {
+          windowPairs.push({ pid: candidate.pid, window });
         }
       }
-      if (!chrome || !availableWindows.length) {
+      windowPairs.forEach((pair, index) => {
+        pair.window = { ...pair.window, label: `Chrome window ${index + 1}` };
+      });
+      availableWindows = windowPairs.map(({ window }) => window);
+      if (!windowPairs.length) {
         throw new Error(
           'No visible Chrome window was found. Bring a Chrome window onto this Space (not minimized), then try again.',
         );
       }
-      const explicitWindow =
+      const explicitPair =
         input.windowId === undefined
-          ? availableWindows.length === 1
-            ? availableWindows[0]
+          ? windowPairs.length === 1
+            ? windowPairs[0]
             : undefined
-          : availableWindows.find(({ id }) => id === input.windowId);
+          : windowPairs.find(({ window }) => window.id === input.windowId);
       // In trusted auto mode any candidate will do; a window the driver cannot
       // disambiguate is skipped in favour of the next one.
-      const windowsToTry = explicitWindow
-        ? [explicitWindow]
+      const pairsToTry = explicitPair
+        ? [explicitPair]
         : options.auto
-          ? availableWindows.slice(0, 3)
+          ? windowPairs.slice(0, 3)
           : [];
-      if (!windowsToTry.length) {
+      if (!pairsToTry.length) {
         this.#state.browser = {
           status: input.windowId === undefined ? 'detached' : 'error',
           grantedOrigins: [],
@@ -2042,58 +2042,64 @@ export class DesktopController {
       }
       let lastFailure: unknown;
       let attachedWindow: BrowserWindowView | undefined;
-      for (const candidate of windowsToTry) {
-        try {
-          // CUA sessions are terminal after end_session. Minting a new opaque id for
-          // every attachment lets a user detach and reattach without restarting Sia,
-          // while resetBrowserCapabilities still revokes every prior model-visible ref.
-          const browserSessionId = `sia-browser-${randomUUID()}`;
-          const prepared = await this.#computer.call(
-            'browser_prepare',
-            {
-              pid: chrome.pid,
-              window_id: candidate.id,
-              session: browserSessionId,
-              strategy: { kind: 'existing_profile' },
-            },
-            directContext,
-          );
-          const state = await this.#computer.call(
-            'get_browser_state',
-            {
-              session: browserSessionId,
-              pid: chrome.pid,
-              window_id: candidate.id,
-            },
-            directContext,
-          );
-          // browser_prepare can include transitional target ids while Chrome enables
-          // and reconnects its existing-profile route. Only the follow-up live state
-          // is safe to mint into model-visible browser capabilities.
-          this.#browserCapabilitySink?.acceptBrowserState(state, browserSessionId);
-          this.#browserTarget = findBrowserTarget([state, prepared]);
-          this.#browserSessionId = browserSessionId;
-          const grantedOrigins = collectHttpOrigins([prepared, state]);
-          this.#state.browser = {
-            status: 'attached',
-            browser: 'Chrome',
-            profileLabel: candidate.label,
-            grantedOrigins,
-            ...(grantedOrigins.length === 0
-              ? { detail: 'Attached, but no HTTP or HTTPS tab is currently granted.' }
-              : {}),
-          };
-          this.#trajectory?.record({
-            type: 'browser_attached',
-            threadId: this.#state.activeThreadId ?? 'app',
-            window: candidate.label,
-            automatic: Boolean(options.auto),
-            grantedOrigins,
-          });
-          attachedWindow = candidate;
-          break;
-        } catch (candidateError) {
-          lastFailure = candidateError;
+      candidates: for (const { pid: chromePid, window: candidate } of pairsToTry) {
+        // Chrome's persistent remote-debugging toggle (chrome://inspect, port 9222) connects
+        // without the per-session "Allow remote debugging?" prompt, so try it first; the
+        // prompt-based route stays as the fallback.
+        for (const prepareArguments of [{ cdp_port: 9222 }, {}]) {
+          try {
+            // CUA sessions are terminal after end_session. Minting a new opaque id for
+            // every attachment lets a user detach and reattach without restarting Sia,
+            // while resetBrowserCapabilities still revokes every prior model-visible ref.
+            const browserSessionId = `sia-browser-${randomUUID()}`;
+            const prepared = await this.#computer.call(
+              'browser_prepare',
+              {
+                pid: chromePid,
+                window_id: candidate.id,
+                session: browserSessionId,
+                strategy: { kind: 'existing_profile' },
+                ...prepareArguments,
+              },
+              directContext,
+            );
+            const state = await this.#computer.call(
+              'get_browser_state',
+              {
+                session: browserSessionId,
+                pid: chromePid,
+                window_id: candidate.id,
+              },
+              directContext,
+            );
+            // browser_prepare can include transitional target ids while Chrome enables
+            // and reconnects its existing-profile route. Only the follow-up live state
+            // is safe to mint into model-visible browser capabilities.
+            this.#browserCapabilitySink?.acceptBrowserState(state, browserSessionId);
+            this.#browserTarget = findBrowserTarget([state, prepared]);
+            this.#browserSessionId = browserSessionId;
+            const grantedOrigins = collectHttpOrigins([prepared, state]);
+            this.#state.browser = {
+              status: 'attached',
+              browser: 'Chrome',
+              profileLabel: candidate.label,
+              grantedOrigins,
+              ...(grantedOrigins.length === 0
+                ? { detail: 'Attached, but no HTTP or HTTPS tab is currently granted.' }
+                : {}),
+            };
+            this.#trajectory?.record({
+              type: 'browser_attached',
+              threadId: this.#state.activeThreadId ?? 'app',
+              window: candidate.label,
+              automatic: Boolean(options.auto),
+              grantedOrigins,
+            });
+            attachedWindow = candidate;
+            break candidates;
+          } catch (candidateError) {
+            lastFailure = candidateError;
+          }
         }
       }
       if (!attachedWindow)
@@ -4357,7 +4363,7 @@ function browserAttachmentError(error: unknown): string {
     return 'Chrome could not distinguish that window from another open window. Choose a window showing a unique page, or close the duplicate and retry.';
   }
   if (message.includes('browser_wrong_target_refused')) {
-    return 'Chrome refused this window. If Chrome shows “Allow remote debugging?”, approve it in the intended profile, then retry.';
+    return 'Chrome refused the connection. One-time fix: open chrome://inspect in Chrome, tick “Allow remote debugging” (port 9222), restart Chrome — after that Sia connects automatically. Or click Allow on Chrome’s prompt when it appears.';
   }
   return message;
 }

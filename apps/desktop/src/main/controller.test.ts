@@ -1911,7 +1911,7 @@ describe('DesktopController', () => {
 
     expect(snapshot.browser).toMatchObject({
       status: 'error',
-      detail: expect.stringMatching(/Allow remote debugging.*approve.*retry/i),
+      detail: expect.stringMatching(/chrome:\/\/inspect.*Allow remote debugging/i),
     });
     await controller.shutdown();
   });
