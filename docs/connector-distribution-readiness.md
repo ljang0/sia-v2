@@ -42,10 +42,12 @@ working out of the box for arbitrary users.
 - [ ] Confirm `drive.file` cannot browse pre-existing Drive files unless the user explicitly opens
       or shares them with Sia.
 
-Current console audit (2026-08-22): `ljang@andrew.cmu.edu` is now an approved test user and the
-reviewed scopes are configured, but publishing is still **Testing**. Homepage, privacy-policy, and
-terms fields are blank, verification has not started, and the superseded OAuth client secret remains
-enabled beside the replacement. Do not describe Google as public or out of the box yet.
+Current console audit (2026-08-23): `ljang@andrew.cmu.edu` is an approved test user and the reviewed
+scopes are configured, but publishing is still **Testing** with one test user. Homepage,
+privacy-policy, and terms fields are blank and verification has not started. The superseded August
+17 OAuth client secret was disabled, a new Docs grant and read proved the August 22 replacement, and
+the old secret was then permanently deleted. Docs, Sheets, and Slides each retain one connected test
+grant and passed a read-only live action. Do not describe Google as public or out of the box yet.
 
 ## Slack production gate
 
@@ -60,9 +62,10 @@ enabled beside the replacement. Do not describe Google as public or out of the b
 - [ ] Test in two unrelated workspaces: connect, find a person by name, open/reuse the exact DM,
       review the resolved recipient and text, send, search, read a thread, revoke, and reconnect.
 
-Current console audit (2026-08-22): public distribution is active and the share URL contains exactly
-the eight reviewed user scopes. The prior Russ Lab acceptance grant was revoked, so the console
-correctly reports zero active workspace installs; a second unrelated-workspace acceptance remains.
+Current console audit (2026-08-23): public distribution is active and the share URL contains exactly
+the eight reviewed user scopes. Russ Lab now retains one acceptance grant and `slack.find_users`
+passed without opening a DM or posting. The console's daily installation counter still reports zero;
+a second unrelated-workspace acceptance, write-preview/send pass, revocation, and reconnect remain.
 
 ## Cross-account and failure acceptance
 

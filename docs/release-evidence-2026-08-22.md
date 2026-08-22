@@ -201,15 +201,42 @@ The signed resource points to the deployed `sia-alpha` API stage and Cognito des
   full-template deployment, preserving the manually managed secrets. All four deployed bundles then
   matched their local `index.cjs` byte-for-byte; all alarms remained `OK`.
 - Composio lists enabled Sia-owned custom OAuth configs for Gmail, Drive, Docs, Sheets, Slides, and
-  Slack. The cloud state table contains one Gmail and one Drive grant for the isolated acceptance
-  identity; no Slack/editor grant is retained.
+  Slack. The post-freeze acceptance subject retains one Docs, Sheets, Slides, and Slack grant; it
+  lists no Gmail or Drive connection. Pre-existing Gmail/Drive Composio counts belong to earlier
+  isolated acceptance identities and are not presented as cross-subject connections in Sia.
 - The Google Auth Platform project has the reviewed scopes and `ljang@andrew.cmu.edu` is an approved
   test user. Publishing remains `Testing`; the homepage, privacy-policy, and terms links are blank;
-  verification has not started; and the superseded OAuth client secret remains enabled beside its
-  replacement. Google is internal-test-only until these are resolved.
+  verification has not started. The superseded August 17 OAuth client secret was disabled, the
+  August 22 replacement completed a fresh Docs token exchange and read, and only then was the old
+  secret permanently deleted. The replacement remains enabled. Google is internal-test-only until
+  the publishing and verification gates are resolved.
 - Slack's Manage Distribution page confirms public distribution is active with the exact eight
-  reviewed user scopes. Its console reports zero currently active workspace installs after the
-  disposable acceptance grant was revoked.
+  reviewed user scopes. A Russ Lab grant is retained for acceptance; the installation counter still
+  reports zero because Slack documents that counter as updating daily.
+
+## Post-freeze connector acceptance (2026-08-23 KST)
+
+- Provider consent used the deployed control Lambda, the production Composio auth configs, and the
+  existing Sia acceptance subject. Google consent selected `ljang@andrew.cmu.edu`; the Sia cloud
+  identity remained separate. This exercised the same provider and cloud-control path as the signed
+  desktop without exposing OAuth URLs, codes, tokens, connection IDs, or provider response bodies in
+  the evidence log.
+- Google Docs connected after the superseded client secret was disabled. Cloud reconciliation
+  returned `connected`, then `docs.read` succeeded against an existing test document. That fresh
+  code exchange and API read were the deletion gate for the old secret.
+- Google Sheets and Slides each completed their own consent and reconciled to `connected`.
+  `sheets.read` and `slides.read` then succeeded against Google's public API sample artifacts; no
+  spreadsheet, presentation, or document mutation ran.
+- Slack connected to Russ Lab and reconciled to `connected`. The only Slack tool execution was
+  `slack.find_users`; no DM was opened or created and no message was drafted or posted.
+- The immutable audit bucket contains four corresponding `connector.read` records—Docs, Sheets,
+  Slides, and Slack—with `allowed` outcomes. No `connector.write` object was created during the
+  acceptance window. Composio reports one active connection on each of the four custom auth configs.
+- This operator-assisted acceptance does not replace the remaining signed-desktop, second-profile,
+  second-Google-domain, and second-Slack-workspace matrix. Automated desktop coverage still proves
+  that normal in-app connection lifecycle events enter both the local trajectory and encrypted
+  `raw_v1` upload queue; this direct control-plane run produced immutable cloud audit metadata, not a
+  fabricated desktop trajectory.
 
 ## Human-only, provider, or still-open gates
 
@@ -226,6 +253,6 @@ Do not distribute the artifact until these are completed and recorded:
   are verified independently, but entering live OTP/TOTP values into the UI requires the release
   operator's direct participation.
 - Confirm the external support path and rollback owner.
-- Disable and delete the superseded Google OAuth client secret, add a public homepage/privacy/terms
-  surface, complete Google publishing/verification, and run the remaining fresh-account/workspace
-  connector matrix before describing Google or Slack as generally available.
+- Add a public homepage/privacy/terms surface, complete Google publishing/verification, and run the
+  remaining fresh-account/workspace connector matrix before describing Google or Slack as generally
+  available.
