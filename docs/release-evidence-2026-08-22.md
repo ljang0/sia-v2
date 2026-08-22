@@ -272,10 +272,13 @@ Do not distribute the artifact until these are completed and recorded:
   content, clean URL rewriting, and console. The final Lighthouse run scored 99 performance and 100
   for accessibility, best practices, and SEO, with 2.0 s LCP, zero CLS, zero blocking time, and no
   console errors.
-- ACM certificate `c49d6024-56b4-4d0c-99b0-f4643cedf266` covers the apex and `www` names and is
-  pending the two exact Namecheap validation records in `public-site-launch.md`. Existing Namecheap
-  email-forwarding MX/SPF records remain untouched; the domain still has no public apex or `www` web
-  record.
+- ACM certificate `c49d6024-56b4-4d0c-99b0-f4643cedf266` covers the apex and `www` names, is issued,
+  and is attached to CloudFront distribution `E3MFZH4OWO2B9C`. Namecheap serves both validation
+  CNAMEs, an apex ALIAS, and the `www` CNAME; Cloudflare and Google public DNS resolved the production
+  names after cutover. Direct SNI/TLS checks returned HTTP 200 with valid certificate verification
+  and the expected security headers. Existing Namecheap MX/SPF/DKIM/DMARC records remain untouched.
+  The `hello`, `support`, `privacy`, and `security` aliases are configured to forward to the operator
+  mailbox, but delivery from an unrelated sender is not yet verified.
 - Google Auth Platform project `sia-production-connectors` was re-audited under
   `superintelligentagents@gmail.com`. It remains External, Testing, one of 100 users consumed, with
   blank public URLs and `composio.dev` as its only current authorized domain. The exact non-sensitive,
