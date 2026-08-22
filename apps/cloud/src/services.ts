@@ -19,6 +19,7 @@ import {
   assertResearchEvent,
   canonicalJson,
   constantTimeEqual,
+  isRecord,
   makeActionPreview,
   requireString,
 } from './domain.js';
@@ -42,6 +43,8 @@ import type {
   InviteRepository,
   QuotaGate,
   ResearchBatchMetadata,
+  ResearchExportQueue,
+  ResearchExportRepository,
   ResearchObjectStore,
   ResearchRepository,
   SecretProvider,
@@ -87,6 +90,8 @@ export interface ServiceDependencies {
   connectorUploads: ConnectorUploadRepository;
   actions: ActionRepository;
   research: ResearchRepository;
+  researchExports: ResearchExportRepository;
+  researchExportQueue: ResearchExportQueue;
   researchObjects: ResearchObjectStore;
   invites: InviteRepository;
   identity: IdentityProvider;
@@ -100,13 +105,31 @@ export interface ServiceDependencies {
     actionTtlSeconds: number;
     consentVersion: string;
     inviteLimit: number;
+    features: {
+      researchUploads: boolean;
+      researchArchive: boolean;
+      connectors: boolean;
+      schedules: boolean;
+    };
   };
+}
+
+export class SessionService {
+  constructor(private readonly deps: ServiceDependencies) {}
+
+  status(user: AuthContext) {
+    return {
+      admin: user.groups.includes('Admins'),
+      features: { ...this.deps.config.features },
+    };
+  }
 }
 
 export class ConnectorFilesService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async requestUpload(user: AuthContext, request: ConnectorUploadRequest) {
+    requireFeature(this.deps.config.features.connectors, 'connectors_disabled');
     const connection = await this.deps.connections.getConnection(
       user.subject,
       request.connectionId,
@@ -176,6 +199,7 @@ export class ConnectionsService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async start(user: AuthContext, app: AppId, callbackUrl?: string) {
+    requireFeature(this.deps.config.features.connectors, 'connectors_disabled');
     if (callbackUrl !== undefined) validateCallback(callbackUrl);
     const link = await this.deps.connector.beginConnection(user.subject, app, callbackUrl);
     const now = this.deps.clock.now().toISOString();
@@ -231,7 +255,15 @@ export class ConnectionsService {
 
   async disconnect(user: AuthContext, app: AppId, connectionId: string) {
     const record = await this.deps.connections.getConnection(user.subject, connectionId);
-    if (!record || record.app !== app)
+    if (!record) {
+      // Disconnect is intentionally idempotent. The upstream grant may already have
+      // been removed (for example, after an OAuth window is cancelled or a retry
+      // races with status reconciliation) while the desktop still holds its opaque
+      // connection id. Returning success lets the client discard that stale local
+      // reference without attempting to revoke an unowned grant.
+      return { disconnected: true };
+    }
+    if (record.app !== app)
       throw new CloudError(404, 'connection_not_found', 'Connection not found');
     await this.deps.connector.disconnect(connectionId);
     await this.deps.connections.deleteConnection(user.subject, connectionId);
@@ -251,6 +283,7 @@ export class ActionsService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async prepare(user: AuthContext, request: PrepareActionRequest) {
+    requireFeature(this.deps.config.features.connectors, 'connectors_disabled');
     const policy = TOOL_POLICIES[request.tool];
     const connection = await this.deps.connections.getConnection(
       user.subject,
@@ -336,6 +369,7 @@ export class ActionsService {
   }
 
   async commit(user: AuthContext, request: CommitActionRequest) {
+    requireFeature(this.deps.config.features.connectors, 'connectors_disabled');
     const record = await this.deps.actions.getAction(user.subject, request.actionId);
     if (!record) throw new CloudError(404, 'action_not_found', 'Prepared action not found');
     const supplied = actionDigest(
@@ -432,6 +466,7 @@ export class ResearchService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async upload(user: AuthContext, request: ResearchBatchRequest) {
+    requireFeature(this.deps.config.features.researchUploads, 'research_uploads_disabled');
     requireString(request.batchId, 'batchId', { max: 128 });
     if (request.consent.version !== this.deps.config.consentVersion) {
       throw new CloudError(
@@ -457,12 +492,17 @@ export class ResearchService {
         `A batch must contain 1-${MAX_RESEARCH_EVENTS} events`,
       );
     }
-    const events = request.events.map(assertResearchEvent);
+    if (request.format === 'raw_v1') validateRawResearchBatch(request);
+    const events = request.events.map((event) =>
+      assertResearchEvent(event, request.format === 'raw_v1'),
+    );
     const stored = {
       schemaVersion: 1,
       batchId: request.batchId,
       subject: user.subject,
       consentVersion: request.consent.version,
+      ...(request.format ? { format: request.format } : {}),
+      ...(request.scope ? { scope: request.scope } : {}),
       events,
     };
     const body = Buffer.from(canonicalJson(stored));
@@ -496,6 +536,8 @@ export class ResearchService {
       sha256,
       byteLength: body.byteLength,
       createdAt: now,
+      ...(request.format ? { format: request.format } : {}),
+      ...(request.scope ? { scope: request.scope } : {}),
     };
     let persisted;
     try {
@@ -529,13 +571,56 @@ export class ResearchService {
 
   async export(user: AuthContext) {
     const exportId = this.deps.ids.next();
-    const batches = await this.deps.research.listBatches(user.subject);
-    const result = await this.deps.researchObjects.createExport(
-      user.subject,
-      exportId,
-      batches.map(({ objectKey }) => objectKey),
-    );
-    return { exportId, status: 'complete' as const, downloadUrl: result.downloadUrl };
+    const requestedAt = this.deps.clock.now().toISOString();
+    await this.deps.researchExports.putResearchExport({
+      id: exportId,
+      userId: user.subject,
+      state: 'requested',
+      requestedAt,
+      updatedAt: requestedAt,
+      expiresAt: Math.floor(this.deps.clock.now().getTime() / 1_000) + 24 * 60 * 60,
+    });
+    try {
+      await this.deps.researchExportQueue.enqueue({ id: exportId, userId: user.subject });
+    } catch {
+      await this.deps.researchExports.transitionResearchExport(
+        user.subject,
+        exportId,
+        ['requested'],
+        'failed',
+        this.deps.clock.now().toISOString(),
+        { failureCode: 'research_export_queue_failed' },
+      );
+      throw new CloudError(
+        503,
+        'research_export_queue_failed',
+        'Research export is temporarily unavailable',
+        true,
+      );
+    }
+    return { exportId, status: 'requested' as const };
+  }
+
+  async exportStatus(user: AuthContext, exportId: string) {
+    requireString(exportId, 'exportId', { max: 128 });
+    const job = await this.deps.researchExports.getResearchExport(user.subject, exportId);
+    if (!job)
+      throw new CloudError(404, 'research_export_not_found', 'Research export not found');
+    if (job.state === 'completed' && job.objectKey) {
+      return {
+        exportId: job.id,
+        status: job.state,
+        downloadUrl: await this.deps.researchObjects.createExportDownloadUrl(
+          user.subject,
+          job.objectKey,
+        ),
+      };
+    }
+    return {
+      exportId: job.id,
+      status: job.state,
+      ...(job.failureCode ? { failureCode: job.failureCode } : {}),
+    };
   }
 
   async requestDeletion(user: AuthContext, scope: DeletionScope) {
@@ -557,6 +642,156 @@ export class ResearchService {
 
   status(user: AuthContext) {
     return this.deps.deletions.latestDeletion(user.subject);
+  }
+}
+
+export class ResearchAdminService {
+  constructor(private readonly deps: ServiceDependencies) {}
+
+  async participants(user: AuthContext) {
+    await this.#requireAdmin(user, 'research.admin.participants', []);
+    return await this.#audited(user, 'research.admin.participants', [], async () => {
+      const [batches, invites] = await Promise.all([
+        this.deps.research.listAllBatches(),
+        this.deps.invites.listInvites(),
+      ]);
+      const emailBySubject = new Map(
+        invites
+          .filter((invite): invite is typeof invite & { subject: string } =>
+            Boolean(invite.subject),
+          )
+          .map((invite) => [invite.subject, invite.email]),
+      );
+      const grouped = new Map<
+        string,
+        {
+          subject: string;
+          email?: string;
+          batchCount: number;
+          byteLength: number;
+          lastCreatedAt: string;
+        }
+      >();
+      for (const batch of batches) {
+        const existing = grouped.get(batch.userId);
+        if (existing) {
+          existing.batchCount += 1;
+          existing.byteLength += batch.byteLength;
+          if (batch.createdAt > existing.lastCreatedAt)
+            existing.lastCreatedAt = batch.createdAt;
+        } else {
+          const email = emailBySubject.get(batch.userId);
+          grouped.set(batch.userId, {
+            subject: batch.userId,
+            ...(email ? { email } : {}),
+            batchCount: 1,
+            byteLength: batch.byteLength,
+            lastCreatedAt: batch.createdAt,
+          });
+        }
+      }
+      return {
+        participants: [...grouped.values()].sort((left, right) =>
+          right.lastCreatedAt.localeCompare(left.lastCreatedAt),
+        ),
+      };
+    });
+  }
+
+  async batches(user: AuthContext, subject: string) {
+    requireString(subject, 'subject', { max: 256 });
+    await this.#requireAdmin(user, 'research.admin.batches', [subject]);
+    return await this.#audited(user, 'research.admin.batches', [subject], async () => {
+      const batches = await this.deps.research.listBatches(subject);
+      return {
+        batches: batches
+          .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+          .map(({ objectKey: _objectKey, userId: _userId, ...batch }) => batch),
+      };
+    });
+  }
+
+  async batch(user: AuthContext, subject: string, batchId: string) {
+    requireString(subject, 'subject', { max: 256 });
+    requireString(batchId, 'batchId', { max: 128 });
+    await this.#requireAdmin(user, 'research.admin.batch.read', [subject, batchId]);
+    return await this.#audited(
+      user,
+      'research.admin.batch.read',
+      [subject, batchId],
+      async () => {
+        const metadata = await this.deps.research.getBatch(subject, batchId);
+        if (!metadata)
+          throw new CloudError(404, 'research_batch_not_found', 'Research batch not found');
+        const object = await this.deps.researchObjects.readBatchObject(metadata.objectKey);
+        if (object.sha256 !== metadata.sha256 || object.byteLength !== metadata.byteLength) {
+          throw new CloudError(
+            500,
+            'research_batch_integrity_failed',
+            'The archived research batch failed its integrity check',
+          );
+        }
+        return { batch: object.document };
+      },
+    );
+  }
+
+  async #audited<T>(
+    user: AuthContext,
+    action: string,
+    opaqueResourceIds: string[],
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      const result = await operation();
+      await this.#audit(user, action, opaqueResourceIds);
+      return result;
+    } catch (error) {
+      await this.#audit(
+        user,
+        action,
+        opaqueResourceIds,
+        'failed',
+        error instanceof CloudError ? error.code : 'internal_error',
+      );
+      throw error;
+    }
+  }
+
+  async #requireAdmin(
+    user: AuthContext,
+    action: string,
+    opaqueResourceIds: string[],
+  ): Promise<void> {
+    requireFeature(this.deps.config.features.researchArchive, 'research_archive_disabled');
+    if (user.groups.includes('Admins')) {
+      if (user.email && (await this.deps.identity.hasMfa(user.email))) return;
+      await this.#audit(user, action, opaqueResourceIds, 'denied', 'admin_mfa_required');
+      throw new CloudError(
+        403,
+        'admin_mfa_required',
+        'Set up an authenticator before opening the research archive',
+      );
+    }
+    await this.#audit(user, action, opaqueResourceIds, 'denied', 'admin_required');
+    throw new CloudError(403, 'admin_required', 'Admin access is required');
+  }
+
+  async #audit(
+    user: AuthContext,
+    action: string,
+    opaqueResourceIds: string[],
+    outcome: 'allowed' | 'denied' | 'failed' = 'allowed',
+    errorCode?: string,
+  ): Promise<void> {
+    await this.deps.audit.write({
+      userId: user.subject,
+      action,
+      outcome,
+      occurredAt: this.deps.clock.now().toISOString(),
+      ...(opaqueResourceIds.length ? { opaqueResourceIds } : {}),
+      ...(errorCode ? { errorCode } : {}),
+    });
   }
 }
 
@@ -617,6 +852,61 @@ export class MetaService {
   }
 }
 
+export class ResearchExportWorker {
+  constructor(private readonly deps: ServiceDependencies) {}
+
+  async process(userId: string, exportId: string): Promise<void> {
+    const now = () => this.deps.clock.now().toISOString();
+    const claimed = await this.deps.researchExports.transitionResearchExport(
+      userId,
+      exportId,
+      ['requested', 'processing', 'failed'],
+      'processing',
+      now(),
+    );
+    if (!claimed) {
+      const current = await this.deps.researchExports.getResearchExport(userId, exportId);
+      if (current?.state === 'completed') return;
+      throw new CloudError(
+        409,
+        'research_export_not_claimed',
+        'Export is already processing',
+        true,
+      );
+    }
+    try {
+      const batches = await this.deps.research.listBatches(userId);
+      const result = await this.deps.researchObjects.createExport(
+        userId,
+        exportId,
+        batches.map(({ objectKey, sha256, byteLength }) => ({
+          objectKey,
+          sha256,
+          byteLength,
+        })),
+      );
+      await this.deps.researchExports.transitionResearchExport(
+        userId,
+        exportId,
+        ['processing'],
+        'completed',
+        now(),
+        { objectKey: result.objectKey },
+      );
+    } catch (error) {
+      await this.deps.researchExports.transitionResearchExport(
+        userId,
+        exportId,
+        ['processing'],
+        'failed',
+        now(),
+        { failureCode: error instanceof CloudError ? error.code : 'research_export_failed' },
+      );
+      throw error;
+    }
+  }
+}
+
 export class DeletionWorker {
   constructor(private readonly deps: ServiceDependencies) {}
 
@@ -642,6 +932,7 @@ export class DeletionWorker {
     try {
       await this.deps.researchObjects.deleteAllForUser(userId);
       await this.deps.research.deleteResearchForUser(userId);
+      await this.deps.researchExports.deleteResearchExportsForUser(userId);
       await this.deps.actions.deleteActionsForUser(userId);
       await this.deps.deletions.transitionDeletion(
         userId,
@@ -705,10 +996,13 @@ export class DeletionWorker {
 
 export function createServices(deps: ServiceDependencies) {
   return {
+    session: new SessionService(deps),
     connections: new ConnectionsService(deps),
     connectorFiles: new ConnectorFilesService(deps),
     actions: new ActionsService(deps),
     research: new ResearchService(deps),
+    researchAdmin: new ResearchAdminService(deps),
+    researchExportWorker: new ResearchExportWorker(deps),
     invites: new InvitesService(deps),
     meta: new MetaService(deps),
     deletionWorker: new DeletionWorker(deps),
@@ -861,6 +1155,126 @@ function validateHash(value: unknown, label: string, pattern: RegExp): string {
 function requireAdmin(user: AuthContext): void {
   if (!user.groups.includes('Admins'))
     throw new CloudError(403, 'admin_required', 'Admin access is required');
+}
+
+function requireFeature(enabled: boolean, code: string): void {
+  if (!enabled) {
+    throw new CloudError(503, code, 'This capability is temporarily disabled', true);
+  }
+}
+
+function validateRawResearchBatch(request: ResearchBatchRequest): void {
+  const scope = request.scope;
+  if (!scope) {
+    throw new CloudError(
+      400,
+      'invalid_raw_research_batch',
+      'Raw research batches require thread and turn scope',
+    );
+  }
+  if (
+    (scope.sequenceStart === undefined) !== (scope.sequenceEnd === undefined) ||
+    (scope.sequenceStart !== undefined && scope.sequenceStart > scope.sequenceEnd!)
+  ) {
+    throw new CloudError(
+      400,
+      'invalid_raw_research_batch',
+      'Raw research sequence bounds are invalid',
+    );
+  }
+  const declaredKinds = new Set(scope.eventKinds);
+  const observedKinds = new Set<string>();
+  for (const event of request.events) {
+    if (event.kind !== 'raw.event' && event.kind !== 'raw.event_chunk') {
+      throw new CloudError(
+        400,
+        'invalid_raw_research_batch',
+        'Raw research batches may contain only raw event records',
+      );
+    }
+    if (!isRecord(event.payload)) {
+      throw new CloudError(
+        400,
+        'invalid_raw_research_batch',
+        'Raw event payload must be an object',
+      );
+    }
+    const payload = event.payload;
+    if (
+      payload.schemaVersion !== 1 ||
+      payload.threadId !== scope.threadId ||
+      payload.turnId !== scope.turnId
+    ) {
+      throw new CloudError(
+        400,
+        'invalid_raw_research_batch',
+        'Raw event scope does not match its batch',
+      );
+    }
+    const eventType = requireString(payload.eventType, 'event.payload.eventType', { max: 128 });
+    observedKinds.add(eventType);
+    if (!declaredKinds.has(eventType)) {
+      throw new CloudError(
+        400,
+        'invalid_raw_research_batch',
+        'Raw event kind is missing from batch scope',
+      );
+    }
+    if (payload.sequence !== undefined) {
+      if (!Number.isSafeInteger(payload.sequence) || Number(payload.sequence) < 0) {
+        throw new CloudError(
+          400,
+          'invalid_raw_research_batch',
+          'Raw event sequence must be a positive integer',
+        );
+      }
+      const sequence = Number(payload.sequence);
+      if (
+        scope.sequenceStart !== undefined &&
+        (sequence < scope.sequenceStart || sequence > scope.sequenceEnd!)
+      ) {
+        throw new CloudError(
+          400,
+          'invalid_raw_research_batch',
+          'Raw event sequence is outside the declared batch scope',
+        );
+      }
+    }
+    if (event.kind === 'raw.event_chunk') {
+      const chunkIndex = payload.chunkIndex;
+      const chunkCount = payload.chunkCount;
+      if (
+        payload.encoding !== 'base64-json' ||
+        typeof payload.eventId !== 'string' ||
+        !payload.eventId ||
+        !Number.isSafeInteger(chunkIndex) ||
+        !Number.isSafeInteger(chunkCount) ||
+        Number(chunkCount) < 1 ||
+        Number(chunkIndex) < 0 ||
+        Number(chunkIndex) >= Number(chunkCount) ||
+        typeof payload.chunkData !== 'string' ||
+        payload.chunkData.length === 0 ||
+        payload.chunkData.length > 2_000_000 ||
+        !/^[A-Za-z0-9+/]*={0,2}$/.test(payload.chunkData)
+      ) {
+        throw new CloudError(
+          400,
+          'invalid_raw_research_batch',
+          'Raw event chunk metadata is invalid',
+        );
+      }
+    }
+  }
+  if (
+    observedKinds.size !== declaredKinds.size ||
+    [...observedKinds].some((kind) => !declaredKinds.has(kind))
+  ) {
+    throw new CloudError(
+      400,
+      'invalid_raw_research_batch',
+      'Raw event kinds do not match the declared batch scope',
+    );
+  }
 }
 
 function duplicateResearchBatch(

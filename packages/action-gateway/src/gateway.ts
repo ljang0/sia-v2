@@ -183,7 +183,8 @@ function defaultSafetyDecision(
 export interface DefaultActionAuthorizationPolicyOptions {
   /**
    * When it returns true, computer_* and browser_* actions run without an interactive
-   * approval (hard safety denials still apply). Connector writes keep requiring approval.
+   * approval (hard safety denials still apply). Other mutations still cross the host
+   * authorization broker, which can authorize them automatically in autonomous mode.
    */
   readonly trustLocalActions?: () => boolean;
 }

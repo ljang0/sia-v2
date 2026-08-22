@@ -2,7 +2,7 @@ import type { ToolName } from './contracts.js';
 import { CloudError, isRecord } from './domain.js';
 import type { ComposioConfig } from './ports.js';
 
-/** Schemas audited against the public Composio toolkit catalog on 2026-08-13. */
+/** Schemas audited against the public Composio toolkit catalog on 2026-08-22. */
 export const COMPOSIO_TOOL_VERSION = '20260721_00';
 
 export const COMPOSIO_TOOL_SLUGS = {
@@ -14,19 +14,50 @@ export const COMPOSIO_TOOL_SLUGS = {
   'drive.read': 'GOOGLEDRIVE_GET_FILE_METADATA',
   'drive.upload': 'GOOGLEDRIVE_UPLOAD_FILE',
   'drive.share': 'GOOGLEDRIVE_CREATE_PERMISSION',
+  'docs.create': 'GOOGLEDOCS_CREATE_DOCUMENT_MARKDOWN',
+  'docs.read': 'GOOGLEDOCS_GET_DOCUMENT_PLAINTEXT',
+  'docs.append': 'GOOGLEDOCS_INSERT_TEXT_ACTION',
+  'sheets.create': 'GOOGLESHEETS_CREATE_GOOGLE_SHEET1',
+  'sheets.read': 'GOOGLESHEETS_VALUES_GET',
+  'sheets.update': 'GOOGLESHEETS_VALUES_UPDATE',
+  'sheets.append': 'GOOGLESHEETS_SPREADSHEETS_VALUES_APPEND',
+  'slides.create': 'GOOGLESLIDES_CREATE_SLIDES_MARKDOWN',
+  'slides.read': 'GOOGLESLIDES_PRESENTATIONS_GET',
+  'slides.append': 'GOOGLESLIDES_PRESENTATIONS_BATCH_UPDATE',
   'slack.search': 'SLACK_SEARCH_MESSAGES',
+  'slack.find_users': 'SLACK_FIND_USERS',
+  'slack.open_dm': 'SLACK_OPEN_DM',
   'slack.read_thread': 'SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION',
   'slack.post': 'SLACK_SEND_MESSAGE',
 } as const satisfies Record<ToolName, string>;
 
+export const COMPOSIO_TOOL_VERSIONS = {
+  'mail.search': COMPOSIO_TOOL_VERSION,
+  'mail.read_thread': COMPOSIO_TOOL_VERSION,
+  'mail.create_draft': COMPOSIO_TOOL_VERSION,
+  'mail.send': COMPOSIO_TOOL_VERSION,
+  'drive.search': COMPOSIO_TOOL_VERSION,
+  'drive.read': COMPOSIO_TOOL_VERSION,
+  'drive.upload': COMPOSIO_TOOL_VERSION,
+  'drive.share': COMPOSIO_TOOL_VERSION,
+  'docs.create': '20260818_00',
+  'docs.read': '20260818_00',
+  'docs.append': '20260818_00',
+  'sheets.create': '20260813_00',
+  'sheets.read': '20260813_00',
+  'sheets.update': '20260813_00',
+  'sheets.append': '20260813_00',
+  'slides.create': '20260819_00',
+  'slides.read': '20260819_00',
+  'slides.append': '20260819_00',
+  'slack.search': '20260819_00',
+  'slack.find_users': '20260819_00',
+  'slack.open_dm': '20260819_00',
+  'slack.read_thread': '20260819_00',
+  'slack.post': '20260819_00',
+} as const satisfies Record<ToolName, string>;
+
 export function assertComposioContract(config: ComposioConfig, tool?: ToolName): void {
-  if (config.toolVersion !== COMPOSIO_TOOL_VERSION) {
-    throw new CloudError(
-      503,
-      'connector_contract_mismatch',
-      `Connector toolkit version must be ${COMPOSIO_TOOL_VERSION}`,
-    );
-  }
   const tools = tool ? [tool] : (Object.keys(COMPOSIO_TOOL_SLUGS) as ToolName[]);
   for (const canonical of tools) {
     if (config.toolSlugs[canonical] !== COMPOSIO_TOOL_SLUGS[canonical]) {
@@ -34,6 +65,13 @@ export function assertComposioContract(config: ComposioConfig, tool?: ToolName):
         503,
         'connector_contract_mismatch',
         `Connector mapping for ${canonical} is not supported by this release`,
+      );
+    }
+    if (config.toolVersions[canonical] !== COMPOSIO_TOOL_VERSIONS[canonical]) {
+      throw new CloudError(
+        503,
+        'connector_contract_mismatch',
+        `Connector version for ${canonical} must be ${COMPOSIO_TOOL_VERSIONS[canonical]}`,
       );
     }
   }
@@ -121,6 +159,116 @@ export function mapCanonicalConnectorInput(
         send_notification_email: true,
       };
     }
+    case 'docs.create': {
+      exactKeys(input, ['title', 'markdown'], ['title']);
+      return {
+        title: boundedString(input.title, 'title', 512),
+        markdown_text:
+          input.markdown === undefined
+            ? ''
+            : boundedString(input.markdown, 'markdown', 500_000, true),
+      };
+    }
+    case 'docs.read': {
+      exactKeys(input, ['document_id'], ['document_id']);
+      return {
+        document_id: opaqueId(input.document_id, 'document_id'),
+        include_tables: true,
+        include_tabs_content: true,
+      };
+    }
+    case 'docs.append': {
+      exactKeys(input, ['document_id', 'text'], ['document_id', 'text']);
+      return {
+        document_id: opaqueId(input.document_id, 'document_id'),
+        text_to_insert: boundedString(input.text, 'text', 500_000),
+        append_to_end: true,
+      };
+    }
+    case 'sheets.create': {
+      exactKeys(input, ['title', 'folder_id'], ['title']);
+      return {
+        title: boundedString(input.title, 'title', 512),
+        ...(input.folder_id === undefined
+          ? {}
+          : { folder_id: opaqueId(input.folder_id, 'folder_id') }),
+      };
+    }
+    case 'sheets.read': {
+      exactKeys(
+        input,
+        ['spreadsheet_id', 'range', 'start_row', 'end_row'],
+        ['spreadsheet_id', 'range', 'start_row', 'end_row'],
+      );
+      const startRow = boundedInteger(input.start_row, 'start_row', 1, 10_000_000);
+      const endRow = boundedInteger(input.end_row, 'end_row', startRow, 10_000_000);
+      if (endRow - startRow > 499) invalid('sheet reads are limited to 500 rows');
+      return {
+        spreadsheet_id: opaqueId(input.spreadsheet_id, 'spreadsheet_id'),
+        range: boundedString(input.range, 'range', 512),
+        start_row: startRow,
+        end_row: endRow,
+        major_dimension: 'ROWS',
+        value_render_option: 'FORMATTED_VALUE',
+        date_time_render_option: 'FORMATTED_STRING',
+      };
+    }
+    case 'sheets.update': {
+      exactKeys(
+        input,
+        ['spreadsheet_id', 'range', 'values', 'value_input_option'],
+        ['spreadsheet_id', 'range', 'values', 'value_input_option'],
+      );
+      return {
+        spreadsheet_id: opaqueId(input.spreadsheet_id, 'spreadsheet_id'),
+        range: boundedString(input.range, 'range', 512),
+        values: sheetValues(input.values),
+        major_dimension: 'ROWS',
+        auto_expand_sheet: true,
+        value_input_option: sheetInputOption(input.value_input_option),
+        include_values_in_response: false,
+      };
+    }
+    case 'sheets.append': {
+      exactKeys(
+        input,
+        ['spreadsheet_id', 'range', 'values', 'value_input_option'],
+        ['spreadsheet_id', 'range', 'values', 'value_input_option'],
+      );
+      const range = boundedString(input.range, 'range', 512);
+      if (!range.includes('!')) invalid('append range must include an exact sheet name');
+      return {
+        spreadsheetId: opaqueId(input.spreadsheet_id, 'spreadsheet_id'),
+        range,
+        values: sheetValues(input.values, true),
+        majorDimension: 'ROWS',
+        insertDataOption: 'INSERT_ROWS',
+        valueInputOption: sheetInputOption(input.value_input_option),
+        includeValuesInResponse: false,
+      };
+    }
+    case 'slides.create': {
+      exactKeys(input, ['title', 'markdown'], ['title', 'markdown']);
+      return {
+        title: boundedString(input.title, 'title', 512),
+        markdown_text: boundedString(input.markdown, 'markdown', 500_000),
+      };
+    }
+    case 'slides.read': {
+      exactKeys(input, ['presentation_id'], ['presentation_id']);
+      return {
+        presentationId: opaqueId(input.presentation_id, 'presentation_id'),
+        fields:
+          'presentationId,title,slides(objectId,pageElements(objectId,title,description,shape(shapeType,text)))',
+      };
+    }
+    case 'slides.append': {
+      exactKeys(input, ['presentation_id', 'markdown'], ['presentation_id', 'markdown']);
+      return {
+        presentationId: opaqueId(input.presentation_id, 'presentation_id'),
+        markdown_text: boundedString(input.markdown, 'markdown', 500_000),
+      };
+    }
     case 'slack.search': {
       exactKeys(input, ['query', 'limit'], ['query']);
       return {
@@ -128,6 +276,25 @@ export function mapCanonicalConnectorInput(
         count: input.limit === undefined ? 20 : boundedInteger(input.limit, 'limit', 1, 100),
         auto_paginate: false,
       };
+    }
+    case 'slack.find_users': {
+      exactKeys(input, ['query', 'limit'], ['query']);
+      return {
+        search_query: boundedString(input.query, 'query', 512),
+        limit: input.limit === undefined ? 20 : boundedInteger(input.limit, 'limit', 1, 100),
+        exact_match: false,
+        include_bots: false,
+        include_deleted: false,
+        include_restricted: true,
+      };
+    }
+    case 'slack.open_dm': {
+      exactKeys(input, ['user_id'], ['user_id']);
+      const userId = opaqueId(input.user_id, 'user_id');
+      if (!/^[UW][A-Z0-9]+$/.test(userId)) {
+        invalid('user_id must be an exact Slack user ID');
+      }
+      return { users: userId, return_im: true, prevent_creation: false };
     }
     case 'slack.read_thread': {
       exactKeys(input, ['resource_id'], ['resource_id']);
@@ -148,6 +315,45 @@ export function mapCanonicalConnectorInput(
       };
     }
   }
+}
+
+function sheetInputOption(value: unknown): 'RAW' | 'USER_ENTERED' {
+  if (value !== 'RAW' && value !== 'USER_ENTERED') {
+    invalid('value_input_option must be RAW or USER_ENTERED');
+  }
+  return value;
+}
+
+function sheetValues(
+  value: unknown,
+  allowNull = false,
+): Array<Array<string | number | boolean | null>> {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 500) {
+    invalid('values must contain 1-500 rows');
+  }
+  let cells = 0;
+  const rows = value.map((row, rowIndex) => {
+    if (!Array.isArray(row) || row.length === 0 || row.length > 100) {
+      invalid(`values row ${rowIndex + 1} must contain 1-100 cells`);
+    }
+    cells += row.length;
+    return row.map((cell) => {
+      if (
+        typeof cell !== 'string' &&
+        typeof cell !== 'boolean' &&
+        (typeof cell !== 'number' || !Number.isFinite(cell)) &&
+        !(allowNull && cell === null)
+      ) {
+        invalid('sheet cells must be finite numbers, strings, booleans, or allowed nulls');
+      }
+      if (typeof cell === 'string' && cell.length > 50_000) {
+        invalid('sheet cell text is too long');
+      }
+      return cell as string | number | boolean | null;
+    });
+  });
+  if (cells > 5_000) invalid('sheet writes are limited to 5,000 cells');
+  return rows;
 }
 
 export function validateCanonicalDriveUploadInput(input: Record<string, unknown>): void {

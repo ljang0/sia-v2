@@ -1,7 +1,7 @@
 /*
- * Sia's visual system: "an agent is a room". A deep green shell holds the agents; the selected
- * agent's room sits inside it, and that agent's own hue tints the room (its avatar, its threads,
- * its approvals, its presence). Ink-black pills are the person's controls. Bricolage Grotesque
+ * Sia's visual system: a quiet evergreen shell holds focused workspaces. Each agent keeps a
+ * restrained identifying hue across its avatar, threads, approvals, and presence. Ink controls
+ * belong to the person; color communicates identity or state. Bricolage Grotesque
  * (SIL OFL 1.1, bundled variable latin subset) is the display face for names and headings; the
  * system sans carries the interface. The production CSP is font-src 'self', so nothing loads
  * from the network.
@@ -51,13 +51,14 @@
   --display-settings: 'opsz' 40;
 
   /* Room surfaces (light). */
-  --bg-app: #edf0ee;
-  --bg-sidebar: #e6eae8;
-  --bg-canvas: #f3f5f4;
-  --bg-subtle: #e6eae8;
+  --bg-app: #e9ece8;
+  --bg-sidebar: #e7eae6;
+  --bg-canvas: #f8f8f5;
+  --bg-subtle: #ecefeb;
   --bg-raised: #ffffff;
-  --bg-hover: #e0e5e2;
-  --bg-selected: #dce6e1;
+  --bg-hover: #e5e9e5;
+  --bg-selected: #e1e8e3;
+  --bg-field: #f2f3f0;
 
   /* The person's controls: ink. */
   --bg-accent: #14211c;
@@ -65,9 +66,9 @@
   --bg-danger: #b3402a;
   --bg-danger-hover: #99351f;
 
-  --text-primary: #14211c;
-  --text-secondary: #4c5b54;
-  --text-tertiary: #55645d;
+  --text-primary: #18201d;
+  --text-secondary: #505c56;
+  --text-tertiary: #5b6761;
   --text-on-accent: #f3f5f4;
   --text-on-danger: #fff5f2;
   --text-link: #1e5c49;
@@ -75,8 +76,8 @@
   --text-warning: #7a5a12;
   --text-success: #1e5c49;
 
-  --border-subtle: #d3dbd7;
-  --border-strong: #66746d;
+  --border-subtle: #d8ddd9;
+  --border-strong: #6c7771;
   --border-accent: #14211c;
   --border-danger: #e0a698;
   --focus-ring: #1e5c49;
@@ -88,41 +89,43 @@
   --overlay: rgb(15 59 46 / 46%);
 
   /* The shell around the rooms. Same in both appearances. */
-  --shell-bg: #0f3b2e;
-  --shell-bg-deep: #0b2c22;
-  --shell-text: #e9f1ec;
-  --shell-dim: #b7cfc4;
-  --shell-muted: #8fb4a4;
-  --shell-hover: rgb(233 241 236 / 8%);
-  --shell-selected: rgb(233 241 236 / 12%);
-  --shell-line: rgb(233 241 236 / 14%);
+  --shell-bg: #182620;
+  --shell-bg-deep: #111b17;
+  --shell-text: #f0f3f1;
+  --shell-dim: #bdc8c2;
+  --shell-muted: #899a92;
+  --shell-hover: rgb(240 243 241 / 7%);
+  --shell-selected: rgb(240 243 241 / 11%);
+  --shell-line: rgb(240 243 241 / 12%);
 
   /* Agent hues. Identity 0-3 map to these; --agent-color is the room's current hue. */
-  --hue-0: #e9b44c;
-  --hue-1: #e97c4c;
-  --hue-2: #7fb6e9;
-  --hue-3: #8fd9a9;
+  --hue-0: #c7aa62;
+  --hue-1: #c77d62;
+  --hue-2: #86a8bc;
+  --hue-3: #86ad92;
   --agent-color: var(--hue-0);
   --agent-ink: #14211c;
   --agent-soft: color-mix(in srgb, var(--agent-color) 22%, transparent);
   --agent-line: color-mix(in srgb, var(--agent-color) 70%, transparent);
 
-  --shadow-raised: 0 1px 2px rgb(20 33 28 / 6%), 0 4px 14px rgb(20 33 28 / 5%);
+  --shadow-raised: 0 1px 2px rgb(20 33 28 / 4%), 0 3px 10px rgb(20 33 28 / 3%);
   --shadow-dialog: 0 28px 80px rgb(15 59 46 / 26%), 0 3px 12px rgb(20 33 28 / 8%);
   --shadow-menu: 0 14px 36px rgb(20 33 28 / 14%), 0 2px 7px rgb(20 33 28 / 6%);
-  --shadow-composer: 0 18px 48px rgb(20 33 28 / 8%), 0 2px 8px rgb(20 33 28 / 5%);
+  --shadow-composer: 0 14px 38px rgb(20 33 28 / 7%), 0 2px 7px rgb(20 33 28 / 4%);
+  --shadow-control: 0 1px 2px rgb(20 33 28 / 6%);
+  --shadow-float: 0 18px 48px rgb(20 33 28 / 12%), 0 2px 8px rgb(20 33 28 / 5%);
 
   --radius-tight: 6px;
   --radius-control: 10px;
   --radius-surface: 14px;
-  --radius-dialog: 18px;
-  --radius-room: 16px;
+  --radius-dialog: 20px;
+  --radius-room: 0;
   --radius-round: 999px;
   --ink-line: 1.5px;
 
   --motion-fast: 140ms;
-  --motion-standard: 210ms;
-  --motion-surface: 280ms;
+  --motion-standard: 190ms;
+  --motion-surface: 240ms;
   --ease-standard: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-out-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
 
@@ -146,6 +149,7 @@
     --bg-raised: #262e2a;
     --bg-hover: #2c3531;
     --bg-selected: #2f3b35;
+    --bg-field: #202724;
     --bg-accent: #ecf1ee;
     --bg-accent-hover: #ffffff;
     --bg-danger: #d9654e;
@@ -173,13 +177,15 @@
     --surface-info: #23342d;
     --overlay: rgb(4 10 8 / 64%);
 
-    --shell-bg: #0b2c22;
-    --shell-bg-deep: #08211a;
+    --shell-bg: #101b16;
+    --shell-bg-deep: #0b120f;
 
     --shadow-raised: 0 1px 2px rgb(0 0 0 / 30%), 0 4px 14px rgb(0 0 0 / 22%);
     --shadow-dialog: 0 28px 80px rgb(0 0 0 / 50%), 0 3px 12px rgb(0 0 0 / 24%);
     --shadow-menu: 0 14px 36px rgb(0 0 0 / 36%), 0 2px 7px rgb(0 0 0 / 22%);
     --shadow-composer: 0 18px 48px rgb(0 0 0 / 26%), 0 2px 8px rgb(0 0 0 / 18%);
+    --shadow-control: 0 1px 2px rgb(0 0 0 / 24%);
+    --shadow-float: 0 20px 56px rgb(0 0 0 / 42%), 0 2px 8px rgb(0 0 0 / 22%);
   }
 }
 
@@ -232,7 +238,8 @@ select,
 }
 
 :focus-visible {
-  box-shadow: 0 0 0 2px var(--focus-ring);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 ::selection {

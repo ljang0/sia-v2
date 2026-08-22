@@ -218,25 +218,50 @@ export const demoSnapshot: RendererSnapshot = {
     {
       id: 'gmail',
       name: 'Gmail',
-      description: 'Search mail, read threads, and create or send approved drafts.',
+      description: 'Search mail, read threads, and create or send drafts.',
       status: 'connected',
       account: 'lawrence@example.com',
-      permissions: ['Search and read mail', 'Create and send approved drafts'],
+      permissions: ['Search and read mail', 'Create and send drafts'],
     },
     {
       id: 'drive',
       name: 'Google Drive',
-      description: 'Find and read files, then upload or share with approval.',
+      description: 'Find and read files, then upload or share.',
       status: 'connected',
       account: 'lawrence@example.com',
-      permissions: ['Find and read selected files', 'Upload and share with approval'],
+      permissions: ['Find and read selected files', 'Upload and share files'],
+    },
+    {
+      id: 'docs',
+      name: 'Google Docs',
+      description: 'Read, create, and append to documents.',
+      status: 'connected',
+      account: 'lawrence@example.com',
+      permissions: ['Read document text', 'Create and append to documents'],
+    },
+    {
+      id: 'sheets',
+      name: 'Google Sheets',
+      description: 'Read and write bounded spreadsheet ranges.',
+      status: 'connected',
+      account: 'lawrence@example.com',
+      permissions: ['Read bounded ranges', 'Create, update, and append values'],
+    },
+    {
+      id: 'slides',
+      name: 'Google Slides',
+      description: 'Read, create, and append Markdown-authored slides.',
+      status: 'connected',
+      account: 'lawrence@example.com',
+      permissions: ['Read presentation text', 'Create and append slides'],
     },
     {
       id: 'slack',
       name: 'Slack',
-      description: 'Search messages, read threads, and post with approval.',
-      status: 'disconnected',
-      permissions: ['Search and read messages', 'Post approved messages'],
+      description: 'Search messages, read threads, and post.',
+      status: 'connected',
+      account: 'lawrence@example.com',
+      permissions: ['Search and read messages', 'Post messages'],
     },
   ],
   browser: {
@@ -312,6 +337,7 @@ export const demoSnapshot: RendererSnapshot = {
     excludedPaths: ['~/Library', '~/Documents/Personal'],
     lastSyncedAt: iso(4),
     pendingItems: 0,
+    pendingBytes: 0,
   },
   archivedThreads: [],
   schedules: [],
@@ -731,6 +757,25 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         }
       });
     },
+    async connectGoogleApps() {
+      mutate((current) => {
+        for (const app of current.apps) {
+          if (app.id === 'slack') continue;
+          app.status = 'connected';
+          app.account = app.account ?? 'lawrence@example.com';
+        }
+      });
+    },
+    async connectSelectedApps(apps) {
+      mutate((current) => {
+        const selected = new Set(apps);
+        for (const app of current.apps) {
+          if (!selected.has(app.id)) continue;
+          app.status = 'connected';
+          app.account = app.account ?? 'lawrence@example.com';
+        }
+      });
+    },
     async connectApp(app) {
       mutate((current) => {
         const target = current.apps.find((item) => item.id === app);
@@ -758,6 +803,15 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
       mutate((current) => {
         current.cloudAuth.state = 'signed-in';
         current.connection = 'online';
+      });
+    },
+    async beginAdminMfa() {
+      return { secretCode: 'DEMOADMINMFA' };
+    },
+    async completeAdminMfa() {
+      mutate((current) => {
+        current.cloudAuth.state = 'signed-in';
+        current.cloudAuth.adminMfa = true;
       });
     },
     async signOutCloud() {
@@ -790,6 +844,7 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
           allowedOrigins: [],
           excludedPaths: [],
           pendingItems: 0,
+          pendingBytes: 0,
         };
         current.cloudAuth = { state: 'signed-out' };
         current.connection = 'offline';
@@ -890,7 +945,17 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         current.research.capture = 'paused';
         current.research.allowedOrigins = [];
         current.research.pendingItems = 0;
+        current.research.pendingBytes = 0;
       });
+    },
+    async listResearchParticipants() {
+      return [];
+    },
+    async listResearchBatches() {
+      return [];
+    },
+    async readResearchBatch() {
+      return undefined;
     },
   };
 }

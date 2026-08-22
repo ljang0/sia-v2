@@ -23,7 +23,7 @@ test('configured first run offers Sia sign-in before local setup', async () => {
   }
 });
 
-test('one guided action connects all work apps in deterministic development mode', async () => {
+test('one guided action connects Google Workspace and Slack in deterministic development mode', async () => {
   const harness = await launchIsolatedSia({
     prefix: 'sia-connected-apps-',
     environment: {
@@ -35,19 +35,29 @@ test('one guided action connects all work apps in deterministic development mode
   });
 
   try {
-    await harness.page.getByRole('button', { name: 'Use without sharing' }).click();
+    await harness.page.getByRole('button', { name: 'Join research release' }).click();
+    const onboarding = harness.page.getByRole('dialog', {
+      name: 'Connect your work apps',
+    });
+    await expect(onboarding).toBeVisible();
+    await expect(onboarding.getByText('Research recording is on')).toBeVisible();
+    await expect(onboarding.getByText('0 of 6 apps ready')).toBeVisible();
+    await expect(
+      onboarding.getByText('Browser approval only - no API key or plugin'),
+    ).toBeVisible();
+    await expect(onboarding.getByRole('button', { name: 'Choose apps' })).toBeVisible();
+    await onboarding.getByRole('button', { name: 'Connect work apps' }).click();
+    await expect(onboarding).toBeHidden();
+
     await harness.page.getByRole('button', { name: 'Settings' }).click();
     await harness.page.getByRole('button', { name: 'Apps' }).click();
 
-    await expect(harness.page.getByText('0 of 3 connected')).toBeVisible();
-    await expect(harness.page.getByText(/Nothing is bulk copied into Sia/)).toBeVisible();
-    await harness.page.getByRole('button', { name: 'Connect work apps' }).click();
-
-    await expect(
-      harness.page.getByRole('button', { name: 'Work apps connected' }),
-    ).toBeVisible();
-    await expect(harness.page.getByText('3 of 3 connected')).toBeVisible();
-    await expect(harness.page.getByText('Connected', { exact: true })).toHaveCount(3);
+    await expect(harness.page.getByText(/nothing is bulk copied into Sia/)).toBeVisible();
+    await expect(harness.page.getByText('6 of 6 ready')).toBeVisible();
+    await expect(harness.page.getByRole('button', { name: 'Connect work apps' })).toHaveCount(
+      0,
+    );
+    await expect(harness.page.getByRole('button', { name: /^Disconnect/ })).toHaveCount(6);
     await expect
       .poll(async () => {
         const snapshot = await harness.page.evaluate(async () => await window.sia.bootstrap());
@@ -56,6 +66,51 @@ test('one guided action connects all work apps in deterministic development mode
       .toEqual([
         { id: 'gmail', status: 'connected' },
         { id: 'drive', status: 'connected' },
+        { id: 'docs', status: 'connected' },
+        { id: 'sheets', status: 'connected' },
+        { id: 'slides', status: 'connected' },
+        { id: 'slack', status: 'connected' },
+      ]);
+    expect(harness.rendererErrors).toEqual([]);
+  } finally {
+    await harness.close();
+  }
+});
+
+test('first run can connect only a selected set of work apps', async () => {
+  const harness = await launchIsolatedSia({
+    prefix: 'sia-selected-apps-',
+    environment: {
+      SIA_API_BASE_URL: 'https://cloud.example.test/alpha',
+      SIA_COGNITO_REGION: 'us-east-1',
+      SIA_COGNITO_CLIENT_ID: 'deterministicclientid',
+      SIA_DEV_ID_TOKEN: 'deterministic-development-token',
+    },
+  });
+
+  try {
+    await harness.page.getByRole('button', { name: 'Join research release' }).click();
+    const onboarding = harness.page.getByRole('dialog', {
+      name: 'Connect your work apps',
+    });
+    await onboarding.getByRole('button', { name: 'Choose apps' }).click();
+    await onboarding.getByRole('button', { name: 'Clear selection' }).click();
+    await onboarding.getByRole('checkbox', { name: 'Select Google Docs' }).click();
+    await onboarding.getByRole('checkbox', { name: 'Select Slack' }).click();
+    await onboarding.getByRole('button', { name: 'Connect selected' }).click();
+    await expect(onboarding).toBeHidden();
+
+    await expect
+      .poll(async () => {
+        const snapshot = await harness.page.evaluate(async () => await window.sia.bootstrap());
+        return snapshot.connections.map(({ id, status }) => ({ id, status }));
+      })
+      .toEqual([
+        { id: 'gmail', status: 'disconnected' },
+        { id: 'drive', status: 'disconnected' },
+        { id: 'docs', status: 'connected' },
+        { id: 'sheets', status: 'disconnected' },
+        { id: 'slides', status: 'disconnected' },
         { id: 'slack', status: 'connected' },
       ]);
     expect(harness.rendererErrors).toEqual([]);

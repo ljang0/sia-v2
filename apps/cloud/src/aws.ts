@@ -1,16 +1,21 @@
 import {
   AdminCreateUserCommand,
   AdminDeleteUserCommand,
+  AdminGetUserCommand,
   CognitoIdentityProviderClient,
   ListUsersCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { ConditionalCheckFailedException, DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   ListObjectVersionsCommand,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
 } from '@aws-sdk/client-s3';
 import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
@@ -24,7 +29,7 @@ import {
   UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
 import {
   APP_IDS,
@@ -67,6 +72,10 @@ import type {
   PreparedActionRecord,
   QuotaGate,
   ResearchBatchMetadata,
+  ResearchExportJob,
+  ResearchExportQueue,
+  ResearchExportRepository,
+  ResearchExportState,
   ResearchObjectStore,
   ResearchRepository,
   SecretProvider,
@@ -94,8 +103,10 @@ export interface S3ResearchObjectOptions {
 export interface RuntimeConfig {
   tableName: string;
   bucketName: string;
+  auditBucketName: string;
   kmsKeyArn: string;
   deletionQueueUrl: string;
+  exportQueueUrl: string;
   userPoolId: string;
   metaSecretArn: string;
   composioSecretArn: string;
@@ -103,14 +114,22 @@ export interface RuntimeConfig {
   actionTtlSeconds: number;
   inviteLimit: number;
   metaConcurrency: number;
+  features: {
+    researchUploads: boolean;
+    researchArchive: boolean;
+    connectors: boolean;
+    schedules: boolean;
+  };
 }
 
 export function loadRuntimeConfig(environment: NodeJS.ProcessEnv = process.env): RuntimeConfig {
   return {
     tableName: requiredEnv(environment, 'TABLE_NAME'),
     bucketName: requiredEnv(environment, 'RESEARCH_BUCKET'),
+    auditBucketName: requiredEnv(environment, 'AUDIT_BUCKET'),
     kmsKeyArn: requiredEnv(environment, 'KMS_KEY_ARN'),
     deletionQueueUrl: requiredEnv(environment, 'DELETION_QUEUE_URL'),
+    exportQueueUrl: requiredEnv(environment, 'EXPORT_QUEUE_URL'),
     userPoolId: requiredEnv(environment, 'USER_POOL_ID'),
     metaSecretArn: requiredEnv(environment, 'META_SECRET_ARN'),
     composioSecretArn: requiredEnv(environment, 'COMPOSIO_SECRET_ARN'),
@@ -121,6 +140,12 @@ export function loadRuntimeConfig(environment: NodeJS.ProcessEnv = process.env):
     ),
     inviteLimit: positiveInteger(environment.INVITE_LIMIT ?? '20', 'INVITE_LIMIT'),
     metaConcurrency: positiveInteger(environment.META_CONCURRENCY ?? '2', 'META_CONCURRENCY'),
+    features: {
+      researchUploads: booleanEnv(environment.ENABLE_RESEARCH_UPLOADS ?? 'true'),
+      researchArchive: booleanEnv(environment.ENABLE_RESEARCH_ARCHIVE ?? 'true'),
+      connectors: booleanEnv(environment.ENABLE_CONNECTORS ?? 'true'),
+      schedules: booleanEnv(environment.ENABLE_SCHEDULES ?? 'true'),
+    },
   };
 }
 
@@ -130,6 +155,7 @@ export class DynamoState
     ActionRepository,
     ConnectorUploadRepository,
     ResearchRepository,
+    ResearchExportRepository,
     InviteRepository,
     DeletionRepository
 {
@@ -296,6 +322,25 @@ export class DynamoState
     return this.queryPrefix<ResearchBatchMetadata>(userPk(userId), 'BATCH#');
   }
 
+  async listAllBatches(): Promise<ResearchBatchMetadata[]> {
+    const records: ResearchBatchMetadata[] = [];
+    let cursor: Record<string, unknown> | undefined;
+    do {
+      const result = await this.client.send(
+        new QueryCommand({
+          TableName: this.tableName,
+          IndexName: 'GSI1',
+          KeyConditionExpression: 'GSI1PK = :pk',
+          ExpressionAttributeValues: { ':pk': 'RESEARCH#BATCHES' },
+          ...(cursor ? { ExclusiveStartKey: cursor } : {}),
+        }),
+      );
+      records.push(...((result.Items ?? []) as ResearchBatchMetadata[]));
+      cursor = result.LastEvaluatedKey;
+    } while (cursor);
+    return records;
+  }
+
   async putBatchIfAbsent(
     batch: ResearchBatchMetadata,
   ): Promise<{ created: true } | { created: false; existing: ResearchBatchMetadata }> {
@@ -307,6 +352,8 @@ export class DynamoState
             PK: userPk(batch.userId),
             SK: `BATCH#${batch.batchId}`,
             Type: 'ResearchBatch',
+            GSI1PK: 'RESEARCH#BATCHES',
+            GSI1SK: `${batch.createdAt}#${safeSegment(batch.userId)}#${safeSegment(batch.batchId)}`,
             ...batch,
           },
           ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
@@ -326,6 +373,70 @@ export class DynamoState
   async deleteResearchForUser(userId: string): Promise<void> {
     await this.deletePrefix(userPk(userId), 'BATCH#');
     await this.deletePrefix(userPk(userId), 'CONSENT#');
+  }
+
+  async putResearchExport(job: ResearchExportJob): Promise<void> {
+    await this.put({
+      PK: userPk(job.userId),
+      SK: `EXPORT#${job.id}`,
+      Type: 'ResearchExport',
+      ...job,
+    });
+  }
+
+  async getResearchExport(
+    userId: string,
+    exportId: string,
+  ): Promise<ResearchExportJob | undefined> {
+    return this.get<ResearchExportJob>(userPk(userId), `EXPORT#${exportId}`);
+  }
+
+  async transitionResearchExport(
+    userId: string,
+    exportId: string,
+    expected: readonly ResearchExportState[],
+    next: ResearchExportState,
+    updatedAt: string,
+    detail: { objectKey?: string; failureCode?: string } = {},
+  ): Promise<boolean> {
+    if (expected.length === 0) return false;
+    const values: Record<string, unknown> = { ':next': next, ':updated': updatedAt };
+    const expectedTokens = expected.map((state, index) => {
+      values[`:expected${index}`] = state;
+      return `:expected${index}`;
+    });
+    const set = ['#state = :next', 'updatedAt = :updated'];
+    const remove = ['objectKey', 'failureCode'];
+    if (detail.objectKey) {
+      values[':objectKey'] = detail.objectKey;
+      set.push('objectKey = :objectKey');
+      remove.splice(remove.indexOf('objectKey'), 1);
+    }
+    if (detail.failureCode) {
+      values[':failureCode'] = detail.failureCode;
+      set.push('failureCode = :failureCode');
+      remove.splice(remove.indexOf('failureCode'), 1);
+    }
+    try {
+      await this.client.send(
+        new UpdateCommand({
+          TableName: this.tableName,
+          Key: { PK: userPk(userId), SK: `EXPORT#${exportId}` },
+          UpdateExpression: `SET ${set.join(', ')}${remove.length ? ` REMOVE ${remove.join(', ')}` : ''}`,
+          ConditionExpression: `#state IN (${expectedTokens.join(', ')})`,
+          ExpressionAttributeNames: { '#state': 'state' },
+          ExpressionAttributeValues: values,
+        }),
+      );
+      return true;
+    } catch (error) {
+      if (error instanceof ConditionalCheckFailedException) return false;
+      throw error;
+    }
+  }
+
+  async deleteResearchExportsForUser(userId: string): Promise<void> {
+    await this.deletePrefix(userPk(userId), 'EXPORT#');
   }
 
   async getInvite(email: string): Promise<InviteRecord | undefined> {
@@ -576,45 +687,116 @@ export class S3ResearchObjects implements ResearchObjectStore {
   async createExport(
     userId: string,
     exportId: string,
-    objectKeys: readonly string[],
-  ): Promise<{ objectKey: string; downloadUrl: string }> {
-    const chunks: Uint8Array[] = [];
-    for (const objectKey of [...objectKeys].sort()) {
-      if (!objectKey.startsWith(researchKey(userId, 'batches/'))) {
-        throw new Error('Research metadata referenced an object outside the user batch prefix');
-      }
-      const fetched = await this.client.send(
-        new GetObjectCommand({ Bucket: this.bucketName, Key: objectKey }),
-      );
-      if (!fetched.Body) throw new Error('A claimed research batch object is missing');
-      const bytes = await fetched.Body.transformToByteArray();
-      chunks.push(bytes, Buffer.from('\n'));
-      if (chunks.reduce((total, chunk) => total + chunk.byteLength, 0) > 64 * 1024 * 1024) {
-        throw new CloudError(
-          413,
-          'research_export_too_large',
-          'Research export exceeds the alpha export limit',
+    objects: readonly { objectKey: string; sha256: string; byteLength: number }[],
+  ): Promise<{ objectKey: string }> {
+    const objectKey = researchKey(userId, `exports/${safeSegment(exportId)}.jsonl`);
+    const common = {
+      Bucket: this.bucketName,
+      Key: objectKey,
+      ContentType: 'application/x-ndjson',
+      ContentDisposition: `attachment; filename="sia-research-${safeSegment(exportId)}.jsonl"`,
+      ServerSideEncryption: 'aws:kms' as const,
+      SSEKMSKeyId: this.kmsKeyArn,
+    };
+    const orderedObjects = [...objects].sort((left, right) =>
+      left.objectKey.localeCompare(right.objectKey),
+    );
+    if (orderedObjects.length === 0) {
+      await this.client.send(new PutObjectCommand({ ...common, Body: Buffer.alloc(0) }));
+    } else {
+      const started = await this.client.send(new CreateMultipartUploadCommand(common));
+      const uploadId = started.UploadId;
+      if (!uploadId) throw new Error('S3 did not create a research export upload');
+      const completedParts: Array<{ ETag: string; PartNumber: number }> = [];
+      const minimumPartBytes = 5 * 1024 * 1024;
+      let pending = Buffer.alloc(0);
+      let partNumber = 1;
+      const uploadPart = async (body: Uint8Array) => {
+        const uploaded = await this.client.send(
+          new UploadPartCommand({
+            Bucket: this.bucketName,
+            Key: objectKey,
+            UploadId: uploadId,
+            PartNumber: partNumber,
+            Body: body,
+          }),
         );
+        if (!uploaded.ETag) throw new Error('S3 did not acknowledge an export part');
+        completedParts.push({ ETag: uploaded.ETag, PartNumber: partNumber });
+        partNumber += 1;
+      };
+      try {
+        for (const object of orderedObjects) {
+          const batchObjectKey = object.objectKey;
+          if (!batchObjectKey.startsWith(researchKey(userId, 'batches/'))) {
+            throw new Error(
+              'Research metadata referenced an object outside the user batch prefix',
+            );
+          }
+          const fetched = await this.client.send(
+            new GetObjectCommand({ Bucket: this.bucketName, Key: batchObjectKey }),
+          );
+          if (!fetched.Body) throw new Error('A claimed research batch object is missing');
+          const bytes = await fetched.Body.transformToByteArray();
+          const sha256 = createHash('sha256').update(bytes).digest('base64url');
+          if (bytes.byteLength !== object.byteLength || sha256 !== object.sha256) {
+            throw new Error('A research batch failed its export integrity check');
+          }
+          pending = Buffer.concat([pending, Buffer.from(bytes), Buffer.from('\n')]);
+          while (pending.byteLength >= minimumPartBytes) {
+            await uploadPart(pending.subarray(0, minimumPartBytes));
+            pending = pending.subarray(minimumPartBytes);
+          }
+        }
+        if (pending.byteLength > 0) await uploadPart(pending);
+        await this.client.send(
+          new CompleteMultipartUploadCommand({
+            Bucket: this.bucketName,
+            Key: objectKey,
+            UploadId: uploadId,
+            MultipartUpload: { Parts: completedParts },
+          }),
+        );
+      } catch (error) {
+        await this.client
+          .send(
+            new AbortMultipartUploadCommand({
+              Bucket: this.bucketName,
+              Key: objectKey,
+              UploadId: uploadId,
+            }),
+          )
+          .catch(() => undefined);
+        throw error;
       }
     }
-    const objectKey = researchKey(userId, `exports/${safeSegment(exportId)}.jsonl`);
-    await this.client.send(
-      new PutObjectCommand({
-        Bucket: this.bucketName,
-        Key: objectKey,
-        Body: Buffer.concat(chunks),
-        ContentType: 'application/x-ndjson',
-        ContentDisposition: `attachment; filename="sia-research-${safeSegment(exportId)}.jsonl"`,
-        ServerSideEncryption: 'aws:kms',
-        SSEKMSKeyId: this.kmsKeyArn,
-      }),
+    return { objectKey };
+  }
+
+  async readBatchObject(
+    objectKey: string,
+  ): Promise<{ document: unknown; sha256: string; byteLength: number }> {
+    const fetched = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucketName, Key: objectKey }),
     );
-    const downloadUrl = await getSignedUrl(
+    if (!fetched.Body) throw new Error('The requested research batch object is missing');
+    const bytes = await fetched.Body.transformToByteArray();
+    return {
+      document: JSON.parse(Buffer.from(bytes).toString('utf8')) as unknown,
+      sha256: createHash('sha256').update(bytes).digest('base64url'),
+      byteLength: bytes.byteLength,
+    };
+  }
+
+  async createExportDownloadUrl(userId: string, objectKey: string): Promise<string> {
+    if (!objectKey.startsWith(researchKey(userId, 'exports/'))) {
+      throw new Error('Research export metadata referenced an object outside the user prefix');
+    }
+    return await getSignedUrl(
       this.client,
       new GetObjectCommand({ Bucket: this.bucketName, Key: objectKey }),
       { expiresIn: 15 * 60 },
     );
-    return { objectKey, downloadUrl };
   }
 
   async deleteAllForUser(userId: string): Promise<void> {
@@ -741,6 +923,18 @@ export class AwsDeletionQueue implements DeletionQueue {
   }
 }
 
+export class AwsResearchExportQueue implements ResearchExportQueue {
+  constructor(
+    private readonly client: SQSClient,
+    private readonly queueUrl: string,
+  ) {}
+  async enqueue(job: { id: string; userId: string }): Promise<void> {
+    await this.client.send(
+      new SendMessageCommand({ QueueUrl: this.queueUrl, MessageBody: JSON.stringify(job) }),
+    );
+  }
+}
+
 export class CognitoIdentity implements IdentityProvider {
   constructor(
     private readonly client: CognitoIdentityProviderClient,
@@ -783,6 +977,12 @@ export class CognitoIdentity implements IdentityProvider {
     await this.client.send(
       new AdminDeleteUserCommand({ UserPoolId: this.userPoolId, Username: username }),
     );
+  }
+  async hasMfa(email: string): Promise<boolean> {
+    const user = await this.client.send(
+      new AdminGetUserCommand({ UserPoolId: this.userPoolId, Username: email }),
+    );
+    return (user.UserMFASettingList ?? []).includes('SOFTWARE_TOKEN_MFA');
   }
 }
 
@@ -858,17 +1058,31 @@ export class ComposioConnector implements ConnectorProvider {
       'GET',
       `/api/v3.1/connected_accounts/${encodeURIComponent(connectionId)}`,
     );
-    const rawStatus = String(body.status ?? '').toUpperCase();
-    const status: ConnectorStatus['status'] =
-      rawStatus === 'ACTIVE' || rawStatus === 'CONNECTED'
-        ? 'connected'
-        : rawStatus === 'INITIALIZING' || rawStatus === 'INITIATED' || rawStatus === 'PENDING'
-          ? 'link_pending'
-          : rawStatus === 'DISABLED' || rawStatus === 'REVOKED'
-            ? 'disconnected'
+    const rawStatus = normalizedConnectorStatus(body.status);
+    const subordinateStatuses = [
+      nestedConnectorStatus(body, 'state'),
+      nestedConnectorStatus(body, 'data'),
+    ].filter((value): value is string => value !== undefined);
+    const observedStatuses = [rawStatus, ...subordinateStatuses];
+    const status: ConnectorStatus['status'] = observedStatuses.some((value) =>
+      ['DISABLED', 'REVOKED'].includes(value),
+    )
+      ? 'disconnected'
+      : observedStatuses.some((value) => ['FAILED', 'EXPIRED', 'ERROR'].includes(value))
+        ? 'failed'
+        : ['ACTIVE', 'CONNECTED'].includes(rawStatus) &&
+            subordinateStatuses.every((value) => ['ACTIVE', 'CONNECTED'].includes(value))
+          ? 'connected'
+          : observedStatuses.some((value) =>
+                ['INITIALIZING', 'INITIATED', 'PENDING', 'ACTIVE', 'CONNECTED'].includes(value),
+              )
+            ? 'link_pending'
             : 'failed';
     const label =
-      typeof body.account_display_name === 'string' ? body.account_display_name : undefined;
+      typeof body.account_display_name === 'string' &&
+      body.account_display_name.trim().length > 0
+        ? body.account_display_name.trim()
+        : undefined;
     return { status, ...(label === undefined ? {} : { accountLabel: label }) };
   }
 
@@ -952,7 +1166,7 @@ export class ComposioConnector implements ConnectorProvider {
       {
         connected_account_id: connectionId,
         user_id: userId,
-        version: config.toolVersion,
+        version: config.toolVersions[tool],
         arguments: input,
       },
       { 'Idempotency-Key': idempotencyKey },
@@ -1095,9 +1309,50 @@ export class DynamoMetaQuota implements QuotaGate {
 }
 
 export class MetadataAuditSink implements AuditSink {
+  constructor(
+    private readonly client?: S3Client,
+    private readonly bucketName?: string,
+    private readonly kmsKeyArn?: string,
+  ) {}
+
   async write(event: AuditEvent): Promise<void> {
     // Deliberately metadata-only: never add request bodies or provider responses here.
     console.info(JSON.stringify({ logType: 'audit', ...event }));
+    if (
+      event.action.startsWith('research.admin.') &&
+      (event.outcome === 'denied' || event.outcome === 'failed')
+    ) {
+      console.info(
+        JSON.stringify({
+          _aws: {
+            Timestamp: Date.now(),
+            CloudWatchMetrics: [
+              {
+                Namespace: 'Sia/Research',
+                Dimensions: [[]],
+                Metrics: [{ Name: 'ArchiveAccessFailure', Unit: 'Count' }],
+              },
+            ],
+          },
+          ArchiveAccessFailure: 1,
+        }),
+      );
+    }
+    if (!this.client || !this.bucketName || !this.kmsKeyArn) return;
+    const occurred = new Date(event.occurredAt);
+    const date = Number.isFinite(occurred.getTime())
+      ? occurred.toISOString().slice(0, 10)
+      : 'invalid-date';
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: `audit/${date}/${safeSegment(event.action)}/${randomUUID()}.json`,
+        Body: Buffer.from(JSON.stringify({ schemaVersion: 1, ...event })),
+        ContentType: 'application/json',
+        ServerSideEncryption: 'aws:kms',
+        SSEKMSKeyId: this.kmsKeyArn,
+      }),
+    );
   }
 }
 
@@ -1106,6 +1361,8 @@ export function createAwsDependencies(config = loadRuntimeConfig()): ServiceDepe
     marshallOptions: { removeUndefinedValues: true },
   });
   const state = new DynamoState(documentClient, config.tableName);
+  const s3 = new S3Client({});
+  const sqs = new SQSClient({});
   const secrets = new SecretsManagerProvider(
     new SecretsManagerClient({}),
     config.metaSecretArn,
@@ -1119,23 +1376,22 @@ export function createAwsDependencies(config = loadRuntimeConfig()): ServiceDepe
     connectorUploads: state,
     actions: state,
     research: state,
-    researchObjects: new S3ResearchObjects(
-      new S3Client({}),
-      config.bucketName,
-      config.kmsKeyArn,
-    ),
+    researchExports: state,
+    researchExportQueue: new AwsResearchExportQueue(sqs, config.exportQueueUrl),
+    researchObjects: new S3ResearchObjects(s3, config.bucketName, config.kmsKeyArn),
     invites: state,
     identity: new CognitoIdentity(new CognitoIdentityProviderClient({}), config.userPoolId),
     deletions: state,
-    deletionQueue: new AwsDeletionQueue(new SQSClient({}), config.deletionQueueUrl),
+    deletionQueue: new AwsDeletionQueue(sqs, config.deletionQueueUrl),
     secrets,
     metaProvider: new OpenAiCompatibleMetaProvider(),
     quota: new DynamoMetaQuota(documentClient, config.tableName, config.metaConcurrency),
-    audit: new MetadataAuditSink(),
+    audit: new MetadataAuditSink(s3, config.auditBucketName, config.kmsKeyArn),
     config: {
       actionTtlSeconds: config.actionTtlSeconds,
       consentVersion: config.consentVersion,
       inviteLimit: config.inviteLimit,
+      features: { ...config.features },
     },
   };
 }
@@ -1162,6 +1418,12 @@ function requiredEnv(environment: NodeJS.ProcessEnv, name: string): string {
   return value;
 }
 
+function booleanEnv(value: string): boolean {
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  throw new Error('Feature flags must be true or false');
+}
+
 function positiveInteger(value: string, name: string): number {
   const parsed = Number(value);
   if (!Number.isSafeInteger(parsed) || parsed <= 0)
@@ -1186,11 +1448,17 @@ function parseMetaConfig(value: unknown): MetaConfig {
 }
 
 function parseComposioConfig(value: unknown): ComposioConfig {
-  if (!isRecord(value) || !isRecord(value.authConfigIds) || !isRecord(value.toolSlugs)) {
+  if (
+    !isRecord(value) ||
+    !isRecord(value.authConfigIds) ||
+    !isRecord(value.toolSlugs) ||
+    !isRecord(value.toolVersions)
+  ) {
     throw new CloudError(503, 'secret_invalid', 'Composio configuration is invalid');
   }
   const authConfigIdsValue = value.authConfigIds;
   const toolSlugsValue = value.toolSlugs;
+  const toolVersionsValue = value.toolVersions;
   const authConfigIds = Object.fromEntries(
     APP_IDS.map((app) => [app, configString(authConfigIdsValue[app], `authConfigIds.${app}`)]),
   ) as Record<AppId, string>;
@@ -1200,12 +1468,18 @@ function parseComposioConfig(value: unknown): ComposioConfig {
       configString(toolSlugsValue[tool], `toolSlugs.${tool}`),
     ]),
   ) as Record<ToolName, string>;
+  const toolVersions = Object.fromEntries(
+    (Object.keys(TOOL_POLICIES) as ToolName[]).map((tool) => [
+      tool,
+      configString(toolVersionsValue[tool], `toolVersions.${tool}`),
+    ]),
+  ) as Record<ToolName, string>;
   const config: ComposioConfig = {
     apiKey: secretString(value.apiKey),
     baseUrl: configString(value.baseUrl, 'baseUrl'),
     authConfigIds,
     toolSlugs,
-    toolVersion: configString(value.toolVersion, 'toolVersion'),
+    toolVersions,
   };
   assertComposioContract(config);
   return config;
@@ -1287,6 +1561,22 @@ function stringField(record: Record<string, unknown>, field: string): string {
     throw new CloudError(502, 'connector_invalid_response', `Connected app omitted ${field}`);
   }
   return value;
+}
+
+function normalizedConnectorStatus(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toUpperCase() : '';
+}
+
+function nestedConnectorStatus(
+  record: Record<string, unknown>,
+  field: 'state' | 'data',
+): string | undefined {
+  const container = record[field];
+  if (!isRecord(container)) return undefined;
+  const valueContainer =
+    field === 'state' && isRecord(container.val) ? container.val : container;
+  const status = normalizedConnectorStatus(valueContainer.status);
+  return status || undefined;
 }
 
 function httpsUrlField(record: Record<string, unknown>, field: string): string {

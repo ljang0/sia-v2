@@ -232,6 +232,13 @@ async function performApplicationCreation(): Promise<void> {
       ensureBrowserAttached: () => activeController.ensureBrowserAttachedForActions(),
       resolveConnectionId: (app, selector, approvalId) =>
         activeController.connectionIdForAction(app, selector, approvalId),
+      schedules: {
+        create: (threadId, input) => activeController.createScheduleFromAction(threadId, input),
+        list: (threadId) => activeController.listSchedulesForAction(threadId),
+        update: (threadId, input) => activeController.updateScheduleFromAction(threadId, input),
+        delete: (threadId, scheduleId) =>
+          activeController.deleteScheduleFromAction(threadId, scheduleId),
+      },
     });
     activeController.attachBrowserCapabilitySink(actionBackend);
     const gateway = new ActionGateway({

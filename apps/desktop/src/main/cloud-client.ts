@@ -7,7 +7,7 @@ import type {
   MetaTurnRequest,
 } from '@sia/runtime';
 
-import type { ConnectionId } from '../shared/bridge.js';
+import type { CloudFeatureFlags, ConnectionId } from '../shared/bridge.js';
 
 export interface IdTokenSource {
   read(): Promise<string | undefined>;
@@ -22,7 +22,7 @@ export interface ConnectionStartResult {
 export interface ConnectionStatusResult {
   connections: Array<{
     id: string;
-    app: 'gmail' | 'google_drive' | 'slack';
+    app: 'gmail' | 'google_drive' | 'google_docs' | 'google_sheets' | 'google_slides' | 'slack';
     status: 'link_pending' | 'connected' | 'failed' | 'disconnected';
     accountLabel?: string;
   }>;
@@ -79,6 +79,31 @@ export interface CloudDeletionWaitOptions {
   signal?: AbortSignal;
 }
 
+export interface AdminResearchParticipant {
+  subject: string;
+  email?: string;
+  batchCount: number;
+  byteLength: number;
+  lastCreatedAt: string;
+}
+
+export interface AdminResearchBatch {
+  batchId: string;
+  consentVersion: string;
+  eventCount: number;
+  sha256: string;
+  byteLength: number;
+  createdAt: string;
+  format?: 'filtered_v2' | 'raw_v1';
+  scope?: {
+    threadId: string;
+    turnId: string;
+    sequenceStart?: number;
+    sequenceEnd?: number;
+    eventKinds: string[];
+  };
+}
+
 interface ConnectorUploadGrant {
   file: ConnectorUploadDescriptor;
   upload: {
@@ -123,6 +148,10 @@ export class CloudClient implements MetaTransport {
 
   get configured(): boolean {
     return Boolean(this.#baseUrl);
+  }
+
+  async sessionStatus(): Promise<{ admin: boolean; features: CloudFeatureFlags }> {
+    return this.#request('/v1/session', { method: 'GET' });
   }
 
   async capabilities(_signal?: AbortSignal): Promise<MetaCapabilities> {
@@ -373,7 +402,44 @@ export class CloudClient implements MetaTransport {
   }
 
   async requestResearchExport(): Promise<{ downloadUrl: string }> {
-    return this.#request('/v1/research/export', { method: 'POST' });
+    const requested = asRecord(
+      await this.#request<unknown>('/v1/research/export', { method: 'POST' }),
+    );
+    const exportId = typeof requested.exportId === 'string' ? requested.exportId : undefined;
+    if (!exportId) throw new Error('Sia cloud did not accept the research export.');
+    const deadline = Date.now() + 5 * 60_000;
+    while (Date.now() < deadline) {
+      await abortableDelay(1_000);
+      const query = new URLSearchParams({ exportId });
+      const status = asRecord(
+        await this.#request<unknown>(`/v1/research/export?${query.toString()}`, {
+          method: 'GET',
+        }),
+      );
+      if (status.status === 'completed' && typeof status.downloadUrl === 'string') {
+        return { downloadUrl: status.downloadUrl };
+      }
+      if (status.status === 'failed') {
+        throw new Error('Sia cloud could not prepare the complete research export.');
+      }
+    }
+    throw new Error(
+      'Research export preparation is taking longer than expected. Try again later.',
+    );
+  }
+
+  async listAdminResearchParticipants(): Promise<{ participants: AdminResearchParticipant[] }> {
+    return this.#request('/v1/admin/research/participants', { method: 'GET' });
+  }
+
+  async listAdminResearchBatches(subject: string): Promise<{ batches: AdminResearchBatch[] }> {
+    const query = new URLSearchParams({ subject });
+    return this.#request(`/v1/admin/research/batches?${query.toString()}`, { method: 'GET' });
+  }
+
+  async readAdminResearchBatch(subject: string, batchId: string): Promise<{ batch: unknown }> {
+    const query = new URLSearchParams({ subject, batchId });
+    return this.#request(`/v1/admin/research/batch?${query.toString()}`, { method: 'GET' });
   }
 
   async deleteResearchData(options: CloudDeletionWaitOptions = {}): Promise<CloudDeletionJob> {
@@ -656,8 +722,14 @@ function resolveCloudUrl(baseUrl: URL, path: string): URL {
   return url;
 }
 
-function cloudAppId(connectionId: ConnectionId): 'gmail' | 'google_drive' | 'slack' {
-  return connectionId === 'drive' ? 'google_drive' : connectionId;
+function cloudAppId(
+  connectionId: ConnectionId,
+): 'gmail' | 'google_drive' | 'google_docs' | 'google_sheets' | 'google_slides' | 'slack' {
+  if (connectionId === 'drive') return 'google_drive';
+  if (connectionId === 'docs') return 'google_docs';
+  if (connectionId === 'sheets') return 'google_sheets';
+  if (connectionId === 'slides') return 'google_slides';
+  return connectionId;
 }
 
 async function* readSseData(body: ReadableStream<Uint8Array>): AsyncIterable<unknown> {

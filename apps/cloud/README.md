@@ -4,20 +4,27 @@ Typed, dependency-injected services for the Sia alpha control plane. Domain test
 
 Routes:
 
+- `GET /v1/session` — authenticated operator feature policy for research uploads/archive,
+  connectors, and schedules.
 - `POST /v1/meta/turns` — authenticated OpenAI-compatible Meta relay as SSE. Prompt/tool payloads are streamed and never persisted or logged.
-- `POST|GET|DELETE /v1/connections/{app}` — managed Gmail, Google Drive, and Slack links.
+- `POST|GET|DELETE /v1/connections/{app}` — managed Gmail, Drive, Docs, Sheets, Slides, and Slack links.
 - `POST /v1/actions/prepare` — executes reviewed reads immediately; mutation tools return an expiring preview and digest.
 - `POST /v1/actions/commit` — resubmits the exact input. The digest must match and an atomic one-shot claim prevents automatic duplicate writes. No mutation body is stored.
 - `POST /v1/connector-files/upload-request` — validates a Drive file descriptor and returns a short-lived Composio presigned `PUT` grant. The desktop uploads bytes directly; provider keys remain cloud-only.
-- `POST /v1/research/batches` — accepts only untainted `research_allowed` events under the current consent version.
-- `POST /v1/research/export` and `POST|GET /v1/research/delete` — short-lived export and asynchronous research/account deletion.
+- `POST /v1/research/batches` — accepts current-consent raw event bundles with canonical
+  participant/thread/turn/sequence metadata and an idempotent content claim.
+- `POST|GET /v1/research/export` — creates and polls a queued, integrity-checked multipart export;
+  completed downloads use a 15-minute signed link.
+- `POST|GET /v1/research/delete` — asynchronous research/account deletion.
+- `GET /v1/admin/research/participants|batches|batch` — Cognito `Admins` plus software-token MFA;
+  raw reads verify SHA-256/length and all allowed, denied, or failed attempts are immutably audited.
 - `POST|GET /v1/admin/invites` — `Admins` Cognito group only, capped at 20 invitations.
 
 Connector execution results are returned to the authenticated caller in the response and then discarded. Durable connector state is limited to account/tool/timestamp/outcome metadata and opaque provider IDs.
 
 ## Pinned connector contract
 
-The control plane accepts Sia's canonical connector fields, rejects unknown or out-of-bounds fields, and explicitly maps them to Composio. It never forwards a canonical input object wholesale. This release is fail-closed to Composio toolkit version `20260721_00` and the exact slugs listed in `src/connector-contract.ts`; changing either requires a schema audit and code update.
+The control plane accepts Sia's canonical connector fields, rejects unknown or out-of-bounds fields, and explicitly maps them to Composio. It never forwards a canonical input object wholesale. This release is fail-closed to the per-tool Composio versions and exact slugs listed in `src/connector-contract.ts`; changing either requires a schema audit and code update. Google editor writes expose bounded, purpose-built fields rather than a raw Google batch-update request surface.
 
 Two intentional alpha limits are worth calling out:
 

@@ -194,6 +194,32 @@ describe('local parity renderer contracts', () => {
     expect(onDelete).toHaveBeenCalledWith('schedule-1');
   });
 
+  it('infers the first run when a recurring schedule omits it', async () => {
+    const onCreate = vi.fn(async () => undefined);
+    render(
+      <ScheduleControls
+        schedules={[]}
+        onCreate={onCreate}
+        onSetEnabled={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'New schedule' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Task' }), {
+      target: { value: 'Check the web for new release notes' },
+    });
+    fireEvent.change(screen.getByLabelText('Repeat'), { target: { value: 'hourly' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create schedule' }));
+
+    await waitFor(() => expect(onCreate).toHaveBeenCalledOnce());
+    expect(onCreate).toHaveBeenCalledWith({
+      prompt: 'Check the web for new release notes',
+      cadence: 'hourly',
+      runAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+    });
+  });
+
   it('stages directly but confirms destructive file restoration', async () => {
     const onStage = vi.fn();
     const onRestore = vi.fn();

@@ -1,5 +1,6 @@
 import { CloudAccountSettings } from '../components/settings/CloudAccountSettings';
 import { PrivacySettings } from '../components/settings/PrivacySettings';
+import { ReleaseReviewSettings } from '../components/settings/ReleaseReviewSettings';
 import { demoSnapshot } from '../demo';
 import styles from '../ui.module.css';
 
@@ -16,6 +17,8 @@ export function AccountAuditMatrix() {
               cloudAuth={{ state: 'signed-out' }}
               onStartCloudSignIn={noop}
               onCompleteCloudSignIn={noop}
+              onBeginAdminMfa={async () => ({ secretCode: 'AUDIT' })}
+              onCompleteAdminMfa={noop}
               onSignOutCloud={noop}
               onDeleteCloudAccount={noop}
             />
@@ -25,6 +28,8 @@ export function AccountAuditMatrix() {
               cloudAuth={{ state: 'code-sent', email: 'lawrence@example.com' }}
               onStartCloudSignIn={noop}
               onCompleteCloudSignIn={noop}
+              onBeginAdminMfa={async () => ({ secretCode: 'AUDIT' })}
+              onCompleteAdminMfa={noop}
               onSignOutCloud={noop}
               onDeleteCloudAccount={noop}
             />
@@ -34,6 +39,8 @@ export function AccountAuditMatrix() {
               cloudAuth={{ state: 'signed-in', email: 'lawrence@example.com' }}
               onStartCloudSignIn={noop}
               onCompleteCloudSignIn={noop}
+              onBeginAdminMfa={async () => ({ secretCode: 'AUDIT' })}
+              onCompleteAdminMfa={noop}
               onSignOutCloud={noop}
               onDeleteCloudAccount={noop}
             />
@@ -43,6 +50,8 @@ export function AccountAuditMatrix() {
               cloudAuth={{ state: 'unconfigured' }}
               onStartCloudSignIn={noop}
               onCompleteCloudSignIn={noop}
+              onBeginAdminMfa={async () => ({ secretCode: 'AUDIT' })}
+              onCompleteAdminMfa={noop}
               onSignOutCloud={noop}
               onDeleteCloudAccount={noop}
             />
@@ -65,6 +74,32 @@ export function AccountAuditMatrix() {
             onSetCapturePaused={noop}
             onExport={noop}
             onDelete={noop}
+          />
+        </div>
+      </section>
+
+      <section className={styles.auditSection}>
+        <h2>Admin release review</h2>
+        <div className={styles.auditNarrowColumn}>
+          <ReleaseReviewSettings
+            snapshot={{
+              ...structuredClone(demoSnapshot),
+              cloudAuth: {
+                state: 'signed-in',
+                email: 'admin@example.com',
+                admin: true,
+                adminMfa: true,
+                features: {
+                  researchUploads: true,
+                  researchArchive: true,
+                  connectors: true,
+                  schedules: true,
+                },
+              },
+            }}
+            onOpenPrivacy={() => undefined}
+            onOpenVoice={() => undefined}
+            onOpenArchive={() => undefined}
           />
         </div>
       </section>

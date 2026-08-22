@@ -2,25 +2,39 @@ import {
   ArrowSquareOut,
   Browser,
   ChatCircleText,
-  CheckCircle,
+  CircleNotch,
   EnvelopeSimple,
+  FileText,
   FolderSimple,
+  GoogleLogo,
   PlugsConnected,
+  Presentation,
+  Table,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 import type { AppConnection, RendererSnapshot } from '../../types';
 import styles from '../../ui.module.css';
 import { BrowserWindowPicker } from '../BrowserWindowPicker';
 import { CloudAccountSettings } from './CloudAccountSettings';
+import { ConnectionAppChooser } from './ConnectionAppChooser';
 import { errorMessage, InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
 
 export function AppsSettings({
   snapshot,
   onConnectAll,
   onConnect,
+  onConnectSelected = async (apps) => {
+    for (const app of apps) await onConnect(app);
+  },
   onDisconnect,
   onStartCloudSignIn,
   onCompleteCloudSignIn,
+  onBeginAdminMfa = async () => {
+    throw new Error('Authenticator setup is unavailable in this build.');
+  },
+  onCompleteAdminMfa = async () => {
+    throw new Error('Authenticator setup is unavailable in this build.');
+  },
   onSignOutCloud,
   onDeleteCloudAccount,
   onAttachBrowser = async () => undefined,
@@ -31,9 +45,12 @@ export function AppsSettings({
   snapshot: RendererSnapshot;
   onConnectAll(): Promise<void>;
   onConnect(app: AppConnection['id']): Promise<void>;
-  onDisconnect(app: AppConnection['id']): Promise<void>;
+  onConnectSelected?(apps: AppConnection['id'][]): Promise<void>;
+  onDisconnect(app: AppConnection['id'], expectedConnectionId?: string): Promise<void>;
   onStartCloudSignIn(email: string): Promise<void>;
   onCompleteCloudSignIn(code: string): Promise<void>;
+  onBeginAdminMfa?(): Promise<{ secretCode: string }>;
+  onCompleteAdminMfa?(code: string): Promise<void>;
   onSignOutCloud(): Promise<void>;
   onDeleteCloudAccount(confirmation: 'DELETE ACCOUNT'): Promise<void>;
   onAttachBrowser?(windowId?: number): Promise<void>;
@@ -43,11 +60,21 @@ export function AppsSettings({
 }) {
   const [pending, setPending] = useState<string>();
   const [error, setError] = useState<string>();
+  const [chooserOpen, setChooserOpen] = useState(false);
+  const [selected, setSelected] = useState(
+    () => new Set<AppConnection['id']>(snapshot.apps.map(({ id }) => id)),
+  );
   const connectedCount = snapshot.apps.filter(({ status }) => status === 'connected').length;
+  const googleApps = snapshot.apps.filter(({ id }) => id !== 'slack');
+  const slack = snapshot.apps.find(({ id }) => id === 'slack');
+  const googleConnectedCount = googleApps.filter(({ status }) => status === 'connected').length;
+  const googleConnected = googleConnectedCount === googleApps.length;
+  const slackConnected = slack?.status === 'connected';
   const allConnected = connectedCount === snapshot.apps.length;
   const setupActive = snapshot.apps.some(({ status }) => status === 'connecting');
-  const needsRecovery = snapshot.apps.some(({ status }) => status === 'error');
-  const cloudReady = snapshot.cloudAuth.state === 'signed-in';
+  const connectionNeedsRecovery = snapshot.apps.some(({ status }) => status === 'error');
+  const connectorsEnabled = snapshot.cloudAuth.features?.connectors !== false;
+  const cloudReady = snapshot.cloudAuth.state === 'signed-in' && connectorsEnabled;
   const run = async (key: string, action: () => Promise<void>, fallback: string) => {
     setPending(key);
     setError(undefined);
@@ -66,7 +93,7 @@ export function AppsSettings({
         title="Connected apps"
         description="Optional cloud connections can be added later. They are not required for local work."
       >
-        <div className={styles.cloudIdentity}>
+        <div className={styles.cloudLocalSummary}>
           <div className={styles.cloudIdentityHeader}>
             <div>
               <strong>Local mode is ready</strong>
@@ -77,8 +104,8 @@ export function AppsSettings({
             </div>
           </div>
           <div className={styles.cloudUnavailable} role="status">
-            Gmail, Google Drive, Slack, and cloud sync will appear here after a cloud service is
-            configured.
+            Gmail, Drive, Docs, Sheets, Slides, Slack, and cloud sync will appear here after a
+            cloud service is configured.
           </div>
         </div>
         <LocalIntegrations
@@ -97,60 +124,144 @@ export function AppsSettings({
   return (
     <SettingsSectionHeader
       title="Connected apps"
-      description="Reads can run after connection. Drafts, posts, uploads, and sharing always show a preview."
+      description="Connect once, then Sia can search, draft, post, upload, and share without interrupting an autonomous run."
     >
       <CloudAccountSettings
         cloudAuth={snapshot.cloudAuth}
         onStartCloudSignIn={onStartCloudSignIn}
         onCompleteCloudSignIn={onCompleteCloudSignIn}
+        onBeginAdminMfa={onBeginAdminMfa}
+        onCompleteAdminMfa={onCompleteAdminMfa}
         onSignOutCloud={onSignOutCloud}
         onDeleteCloudAccount={onDeleteCloudAccount}
       />
+      {!connectorsEnabled ? (
+        <div className={styles.inlineWarning} role="status">
+          Connected apps are paused by the alpha operator. Existing grants can still be
+          disconnected.
+        </div>
+      ) : null}
       <div className={styles.connectionSetup}>
-        <div className={styles.connectionSetupBody}>
+        <div className={styles.connectionSetupIntro}>
           <div className={styles.connectionSetupHeader}>
-            <strong>Connect your work apps</strong>
+            <strong>Bring your tools into Sia</strong>
             <span className={styles.connectionSetupProgress}>
-              {connectedCount} of {snapshot.apps.length} connected
+              {connectedCount} of {snapshot.apps.length} ready
             </span>
           </div>
           <p>
-            Start once in Sia, then approve Gmail, Google Drive, and Slack in their own consent
-            pages. Each page opens only after the previous connection is verified.
-          </p>
-          <p>
-            Your data stays in each service and is read live only when a task needs it. Nothing
-            is bulk copied into Sia.
+            One click starts Google Workspace and Slack in order. Each provider still shows its
+            own secure approval page, and nothing is bulk copied into Sia.
           </p>
         </div>
-        <button
-          type="button"
-          className={allConnected ? styles.secondaryButton : styles.primaryButton}
-          disabled={
-            pending === 'connect-all' ||
-            !cloudReady ||
-            allConnected ||
-            setupActive ||
-            needsRecovery
-          }
-          title={
-            !cloudReady
-              ? 'Sign in to Sia cloud first'
-              : needsRecovery
-                ? 'Disconnect the app that needs attention before restarting guided setup'
-                : undefined
-          }
-          onClick={() => run('connect-all', onConnectAll, 'Work apps could not be connected.')}
-        >
-          {allConnected ? <CheckCircle size={16} weight="fill" aria-hidden="true" /> : null}
-          {allConnected
-            ? 'Work apps connected'
-            : setupActive
-              ? 'Finish approval in browser'
-              : pending === 'connect-all'
-                ? 'Opening browser...'
-                : 'Connect work apps'}
-        </button>
+        {!chooserOpen ? (
+          <div className={styles.connectionGroups}>
+            <section className={styles.connectionGroup} data-connected={googleConnected}>
+              <span className={styles.connectionGroupIcon} aria-hidden="true">
+                <GoogleLogo size={20} weight="bold" />
+              </span>
+              <div className={styles.connectionGroupBody}>
+                <strong>Google Workspace</strong>
+                <span>Gmail, Drive, Docs, Sheets, and Slides</span>
+                <span className={styles.connectionGroupStatus}>
+                  {googleConnectedCount} of {googleApps.length} connected
+                </span>
+              </div>
+            </section>
+            {slack ? (
+              <section className={styles.connectionGroup} data-connected={slackConnected}>
+                <span className={styles.connectionGroupIcon} aria-hidden="true">
+                  <PlugsConnected size={20} />
+                </span>
+                <div className={styles.connectionGroupBody}>
+                  <strong>Slack</strong>
+                  <span>Browser approval only - no API key or plugin</span>
+                  <span className={styles.connectionGroupStatus}>
+                    {slackConnected ? 'Connected' : 'Not connected'}
+                  </span>
+                </div>
+              </section>
+            ) : null}
+          </div>
+        ) : null}
+        {!allConnected ? (
+          <div className={styles.connectionOnboardingActions}>
+            {chooserOpen ? (
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                disabled={Boolean(pending) || setupActive}
+                onClick={() => setChooserOpen(false)}
+              >
+                Back
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  disabled={
+                    pending === 'connect-all' ||
+                    !cloudReady ||
+                    setupActive ||
+                    connectionNeedsRecovery
+                  }
+                  title={
+                    !cloudReady
+                      ? 'Sign in to Sia cloud first'
+                      : connectionNeedsRecovery
+                        ? 'Review the app connection that needs attention first'
+                        : undefined
+                  }
+                  onClick={() =>
+                    run('connect-all', onConnectAll, 'Work apps could not be connected.')
+                  }
+                >
+                  {pending === 'connect-all' || setupActive ? (
+                    <CircleNotch className={styles.spin} size={16} aria-hidden="true" />
+                  ) : (
+                    <PlugsConnected size={16} aria-hidden="true" />
+                  )}
+                  {setupActive
+                    ? 'Finish approvals in browser'
+                    : pending === 'connect-all'
+                      ? 'Opening browser...'
+                      : 'Connect work apps'}
+                </button>
+                <button
+                  type="button"
+                  className={styles.secondaryButton}
+                  disabled={
+                    Boolean(pending) || !cloudReady || setupActive || connectionNeedsRecovery
+                  }
+                  aria-expanded={false}
+                  onClick={() => setChooserOpen(true)}
+                >
+                  Choose apps
+                </button>
+              </>
+            )}
+          </div>
+        ) : null}
+        {chooserOpen && !allConnected ? (
+          <ConnectionAppChooser
+            apps={snapshot.apps}
+            selected={selected}
+            busy={pending === 'connect-selected' || setupActive}
+            disabled={!cloudReady || connectionNeedsRecovery}
+            onChange={setSelected}
+            onConnect={() => {
+              const apps = snapshot.apps
+                .filter(({ id, status }) => selected.has(id) && status !== 'connected')
+                .map(({ id }) => id);
+              void run(
+                'connect-selected',
+                () => onConnectSelected(apps),
+                'The selected apps could not be connected.',
+              );
+            }}
+          />
+        ) : null}
       </div>
       <InlineSettingsError message={error} />
       <div className={styles.settingsList}>
@@ -171,7 +282,7 @@ export function AppsSettings({
             onDisconnect={() =>
               run(
                 `disconnect-${app.id}`,
-                () => onDisconnect(app.id),
+                () => onDisconnect(app.id, app.connectionId),
                 `${appName(app.id)} could not be disconnected.`,
               )
             }
@@ -210,7 +321,14 @@ function AppRow({
   onConnect(): void;
   onDisconnect(): void;
 }) {
-  const icons = { gmail: EnvelopeSimple, drive: FolderSimple, slack: PlugsConnected };
+  const icons = {
+    gmail: EnvelopeSimple,
+    drive: FolderSimple,
+    docs: FileText,
+    sheets: Table,
+    slides: Presentation,
+    slack: PlugsConnected,
+  };
   const Icon = icons[app.id];
   const busy = pending === `connect-${app.id}` || pending === `disconnect-${app.id}`;
   const cloudReady = cloudState === 'signed-in';
@@ -396,7 +514,7 @@ function LocalIntegrations({
             </div>
             <p>
               Opens Apple Messages with its existing account. Sia does not copy message history;
-              any computer action remains visible and approval-gated.
+              every computer action remains visible in the local activity log.
             </p>
           </div>
           <button
@@ -423,4 +541,11 @@ function LocalIntegrations({
 }
 
 const appName = (id: AppConnection['id']) =>
-  ({ gmail: 'Gmail', drive: 'Google Drive', slack: 'Slack' })[id];
+  ({
+    gmail: 'Gmail',
+    drive: 'Google Drive',
+    docs: 'Google Docs',
+    sheets: 'Google Sheets',
+    slides: 'Google Slides',
+    slack: 'Slack',
+  })[id];

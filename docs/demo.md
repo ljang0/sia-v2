@@ -9,6 +9,11 @@ is the "Sia Demo Runbook" artifact.
 
 - `cd ~/sia_new && pnpm dev` (don't demo the stale notarized DMG).
 - `codex --version` signed in; accepted range `>=0.147.0 <0.149.0`; no auto-updates demo morning.
+- For the research-release path, use a designated disposable participant. Sign in, accept **Set up
+  Sia · 1 of 2**, then use **Connect work apps** in step 2. The single flow advances through Gmail,
+  Drive, Docs, Sheets, Slides, and Slack only after each provider confirms its grant. For a local
+  demo, choose **Continue locally** instead. To demonstrate least-privilege setup, open **Choose
+  apps**, select Docs and Slack, and connect only those two.
 - **Settings → Computer → Unlock everything**: one card shows every capability (Mac control,
   silent Chrome, Messages) with live status; one click requests all the grantable permissions
   and opens the panes macOS keeps manual (flip the Full Disk Access switch when it appears).
@@ -38,11 +43,15 @@ Create **Scout** (sky) live — name, color, repo; the room takes its hue.
 ### Messaging (personal)
 
 - "What's my most recent WhatsApp message? Just read, don't reply." → reads the actual WhatsApp
-  window via computer use. (Verified live; Slack desktop works the same way.)
+  window via computer use. (Verified live.)
+- "Message Lawrence Jang in Slack: ‘The demo is ready.’" → the connected Slack path finds the exact
+  person, opens or reuses the DM, and posts the reviewed message. Do not demo Slack through the
+  desktop window; Electron accessibility is not dependable enough for that path.
 - "What were my last few iMessages?" → the local `messages_search` tool reads chat.db directly.
   First use auto-opens System Settings at the Full Disk Access pane — flip the Sia switch once
   and ask again (verified).
-  Sending an iMessage always shows an approval card with the exact recipient and text.
+  In autonomous mode, sending an iMessage continues without an approval card and records the exact
+  recipient and text. Turn on **Confirm before changes** to demo the preview card.
 
 ## Act III — It keeps going
 
@@ -59,7 +68,9 @@ Create **Scout** (sky) live — name, color, repo; the room takes its hue.
 ## Closer — The receipts
 
 Settings → Computer → Show in Finder → the thread folder: `events.jsonl` plus the screenshots
-actions captured. "Nothing asked permission, and everything is on the record."
+actions captured. Connected-app setup also appears under `app-lifecycle`. For a signed-in consenting
+participant, show the upload-health indicator or audited Research archive to demonstrate that the
+equivalent raw stream is queued to AWS. "Nothing asked permission, and everything is on the record."
 
 ## Troubleshooting
 
@@ -71,5 +82,6 @@ actions captured. "Nothing asked permission, and everything is on the record."
 | Red "Provider error" card                              | Card shows the real reason (sign-in, usage limits). Fix account, Retry.                                                |
 | Turn hangs                                             | Stop, re-send. First turn after launch is slowest.                                                                     |
 
-Sia must stay open and the Mac awake; Gmail/Drive/Slack connectors stay untouched in the local
-alpha.
+Sia must stay open and the Mac awake. Gmail/Drive/Docs/Sheets/Slides/Slack use their provider-owned OAuth screens once,
+then reads and writes run autonomously and appear in the same action log. Use only designated
+internal test accounts until the connector scope audit in `docs/manual-acceptance.md` is complete.

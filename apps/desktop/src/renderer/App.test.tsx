@@ -91,18 +91,22 @@ describe('app privacy routing', () => {
 
     render(<App api={api} />);
 
-    expect(await screen.findByRole('alertdialog', { name: 'Help improve Sia?' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Use without sharing' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Join research' })).toBeTruthy();
+    expect(
+      await screen.findByRole('alertdialog', { name: 'Join the Sia research release?' }),
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Decline & sign out' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Join research release' })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Use without sharing' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Decline & sign out' }));
     await waitFor(() =>
-      expect(screen.queryByRole('alertdialog', { name: 'Help improve Sia?' })).toBeNull(),
+      expect(
+        screen.queryByRole('alertdialog', { name: 'Join the Sia research release?' }),
+      ).toBeNull(),
     );
     expect((await api.getSnapshot()).research).toMatchObject({
       consented: false,
       capture: 'paused',
-      promptReviewedVersion: 'alpha-research-v2',
+      promptReviewedVersion: 'alpha-research-v3-raw',
     });
   });
 
@@ -120,16 +124,122 @@ describe('app privacy routing', () => {
     const api = createDemoRendererApi(snapshot);
 
     render(<App api={api} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Join research' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Join research release' }));
 
     await waitFor(() =>
-      expect(screen.queryByRole('alertdialog', { name: 'Help improve Sia?' })).toBeNull(),
+      expect(
+        screen.queryByRole('alertdialog', { name: 'Join the Sia research release?' }),
+      ).toBeNull(),
     );
     expect((await api.getSnapshot()).research).toMatchObject({
       consented: true,
       capture: 'recording',
-      promptReviewedVersion: 'alpha-research-v2',
+      promptReviewedVersion: 'alpha-research-v3-raw',
     });
+  });
+
+  it('makes connection setup the first signed-in step after research recording starts', async () => {
+    const snapshot: RendererSnapshot = {
+      ...structuredClone(demoSnapshot),
+      agents: [],
+      selectedAgentId: undefined,
+      selectedThreadId: undefined,
+      activeThread: undefined,
+      apps: structuredClone(demoSnapshot.apps).map(({ account: _account, ...app }) => ({
+        ...app,
+        status: 'disconnected' as const,
+      })),
+      cloudAuth: {
+        state: 'signed-in',
+        email: 'participant@example.com',
+        features: {
+          researchUploads: true,
+          researchArchive: true,
+          connectors: true,
+          schedules: true,
+        },
+      },
+      research: {
+        ...structuredClone(demoSnapshot.research),
+        consented: false,
+        capture: 'paused',
+        promptReviewedVersion: undefined,
+      },
+    };
+    const api = createDemoRendererApi(snapshot);
+
+    render(<App api={api} />);
+
+    expect(
+      await screen.findByRole('alertdialog', { name: 'Join the Sia research release?' }),
+    ).toBeTruthy();
+    expect(screen.getByText('Set up Sia · 1 of 2')).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'Connect your work apps' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Join research release' }));
+
+    const connectionDialog = await screen.findByRole('dialog', {
+      name: 'Connect your work apps',
+    });
+    expect(connectionDialog.textContent).toContain('Research recording is on');
+    expect(connectionDialog.textContent).toContain('0 of 6 apps ready');
+    expect(connectionDialog.textContent).toContain(
+      'OAuth URLs, codes, and tokens are excluded',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect work apps' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Connect your work apps' })).toBeNull(),
+    );
+    expect((await api.getSnapshot()).apps.every(({ status }) => status === 'connected')).toBe(
+      true,
+    );
+  });
+
+  it('finishes first-run setup after connecting a chosen subset', async () => {
+    const snapshot: RendererSnapshot = {
+      ...structuredClone(demoSnapshot),
+      apps: structuredClone(demoSnapshot.apps).map(({ account: _account, ...app }) => ({
+        ...app,
+        status: 'disconnected' as const,
+      })),
+      cloudAuth: {
+        state: 'signed-in',
+        email: 'participant@example.com',
+        features: {
+          researchUploads: true,
+          researchArchive: true,
+          connectors: true,
+          schedules: true,
+        },
+      },
+      research: {
+        ...structuredClone(demoSnapshot.research),
+        consented: true,
+        capture: 'recording',
+        promptReviewedVersion: 'alpha-research-v3-raw',
+      },
+    };
+    const api = createDemoRendererApi(snapshot);
+    render(<App api={api} />);
+
+    await screen.findByRole('dialog', { name: 'Connect your work apps' });
+    fireEvent.click(screen.getByRole('button', { name: 'Choose apps' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Clear selection' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Slack' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect selected' }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Connect your work apps' })).toBeNull(),
+    );
+    expect((await api.getSnapshot()).apps.map(({ id, status }) => ({ id, status }))).toEqual([
+      { id: 'gmail', status: 'disconnected' },
+      { id: 'drive', status: 'disconnected' },
+      { id: 'docs', status: 'disconnected' },
+      { id: 'sheets', status: 'disconnected' },
+      { id: 'slides', status: 'disconnected' },
+      { id: 'slack', status: 'connected' },
+    ]);
   });
 
   it('offers local-only research after the first local agent exists', async () => {
@@ -146,7 +256,9 @@ describe('app privacy routing', () => {
 
     render(<App api={createDemoRendererApi(snapshot)} />);
 
-    const dialog = await screen.findByRole('alertdialog', { name: 'Help improve Sia?' });
+    const dialog = await screen.findByRole('alertdialog', {
+      name: 'Join the Sia research release?',
+    });
     expect(dialog.textContent).toContain('captures stay encrypted on this Mac');
     expect(dialog.textContent).not.toContain('Cloud copies expire');
   });

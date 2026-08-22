@@ -10,6 +10,7 @@ interface ResearchConsentDialogProps {
   autoOpen?: boolean;
   cloudAvailable?: boolean;
   showTrigger?: boolean;
+  researchRequired?: boolean;
 }
 
 export function ResearchConsentDialog({
@@ -18,6 +19,7 @@ export function ResearchConsentDialog({
   autoOpen = false,
   cloudAvailable = false,
   showTrigger = true,
+  researchRequired = false,
 }: ResearchConsentDialogProps) {
   const [open, setOpen] = useState(autoOpen);
   const [saving, setSaving] = useState<'accept' | 'decline'>();
@@ -33,7 +35,10 @@ export function ResearchConsentDialog({
     setError(undefined);
     try {
       if (decision === 'accept') await onAccept();
-      else await onDecline?.();
+      else if (onDecline) await onDecline();
+      else if (researchRequired) {
+        throw new Error('Sign out from Connected apps to decline the research release.');
+      }
       setOpen(false);
     } catch (cause) {
       setError(errorMessage(cause, 'Your research choice could not be saved.'));
@@ -47,6 +52,7 @@ export function ResearchConsentDialog({
       open={open}
       onOpenChange={(next) => {
         if (saving) return;
+        if (researchRequired && !next) return;
         setOpen(next);
         if (!next) setError(undefined);
       }}
@@ -61,10 +67,13 @@ export function ResearchConsentDialog({
       <AlertDialog.Portal>
         <AlertDialog.Overlay className={styles.dialogOverlay} />
         <AlertDialog.Content className={styles.alertDialogContent}>
-          <AlertDialog.Title>Help improve Sia?</AlertDialog.Title>
+          {researchRequired ? (
+            <span className={styles.onboardingStep}>Set up Sia · 1 of 2</span>
+          ) : null}
+          <AlertDialog.Title>Join the Sia research release?</AlertDialog.Title>
           <AlertDialog.Description>
-            Research participation supports this early release. Your choice starts off and can
-            be changed later in Access.
+            This release records the raw activity Sia observes so researchers can understand
+            complete agent behavior. Review this before participating.
           </AlertDialog.Description>
 
           <div className={styles.consentSummary}>
@@ -72,16 +81,18 @@ export function ResearchConsentDialog({
               <CheckCircle size={17} aria-hidden="true" />
               <p>
                 <strong>If you join</strong>
-                Prompts, responses, safe coding progress, and one permitted non-sensitive
-                screenshot per eligible turn may be stored.
+                Raw prompts, responses, surfaced reasoning, commands and output, tool
+                arguments/results, approvals, browser/computer activity, and captured images are
+                uploaded in an organized event stream.
               </p>
             </div>
             <div>
               <ShieldCheck size={17} aria-hidden="true" />
               <p>
-                <strong>Always excluded</strong>
-                Browser and connected-app content, sign-in screens, secrets, reasoning,
-                commands, output, diffs, and paths.
+                <strong>Outside the capture surface</strong>
+                Sia does not obtain provider credentials, Chrome cookies, Keychain contents, or
+                hidden credentials outside the task. Anything visible to a task may be included
+                raw.
               </p>
             </div>
           </div>
@@ -90,6 +101,7 @@ export function ResearchConsentDialog({
             <p className={styles.consentFactsLabel}>What happens to the data</p>
             <ul className={styles.consentFacts}>
               <li>Research data is not used for model training.</li>
+              <li>Authorized research administrators can inspect individual raw turns.</li>
               <li>
                 {cloudAvailable
                   ? 'Cloud copies expire after 90 days. Unsynced local records are retained.'
@@ -100,8 +112,13 @@ export function ResearchConsentDialog({
                 MB or 500-batch limit.
               </li>
               <li>
-                Other secrets may not be detected, so do not capture private documents. You can
-                pause, export, or delete your data at any time. Deleting resets consent.
+                Raw task content can contain private or secret information. Do not use this
+                research release for material you do not agree to share. You can export or
+                delete your data at any time.{' '}
+                {researchRequired
+                  ? 'Sign out to stop new capture.'
+                  : 'Local participants can pause capture.'}{' '}
+                Deleting resets consent.
               </li>
             </ul>
           </div>
@@ -120,7 +137,11 @@ export function ResearchConsentDialog({
               disabled={Boolean(saving)}
               onClick={() => void decide('decline')}
             >
-              {saving === 'decline' ? 'Saving...' : 'Use without sharing'}
+              {saving === 'decline'
+                ? 'Saving...'
+                : researchRequired
+                  ? 'Decline & sign out'
+                  : 'Use without sharing'}
             </button>
             <button
               type="button"
@@ -128,7 +149,7 @@ export function ResearchConsentDialog({
               disabled={Boolean(saving)}
               onClick={() => void decide('accept')}
             >
-              {saving === 'accept' ? 'Joining...' : 'Join research'}
+              {saving === 'accept' ? 'Joining...' : 'Join research release'}
             </button>
           </div>
         </AlertDialog.Content>

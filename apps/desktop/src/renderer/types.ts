@@ -2,7 +2,7 @@ export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude';
 
 export type ThreadStatus = 'idle' | 'running' | 'queued' | 'waiting' | 'error';
 
-export type CaptureState = 'recording' | 'paused' | 'sync-pending';
+export type CaptureState = 'recording' | 'paused' | 'sync-pending' | 'blocked';
 
 export type ProviderStatus =
   'ready' | 'needs-install' | 'needs-login' | 'incompatible' | 'unavailable' | 'disabled';
@@ -116,7 +116,7 @@ export interface ConnectorApproval {
   id: string;
   kind: 'connector';
   title: string;
-  app: 'Gmail' | 'Google Drive' | 'Slack';
+  app: 'Gmail' | 'Google Drive' | 'Google Docs' | 'Google Sheets' | 'Google Slides' | 'Slack';
   account: string;
   action: string;
   destination: string;
@@ -237,6 +237,14 @@ export interface ThreadSchedule {
   enabled: boolean;
   createdAt: string;
   lastRunAt?: string | undefined;
+  runCount?: number | undefined;
+  maxRuns?: number | undefined;
+  lastRun?: {
+    id: string;
+    startedAt: string;
+    finishedAt?: string;
+    outcome: 'started' | 'completed' | 'failed' | 'cancelled';
+  };
 }
 
 export interface TranscriptSearchResult {
@@ -290,7 +298,7 @@ export interface ComputerInspectorState {
   accessibility: 'allowed' | 'denied' | 'not-requested';
   screenRecording: 'allowed' | 'denied' | 'not-requested';
   windows: ComputerWindow[];
-  /** 'auto' runs computer/browser actions without per-action approval. */
+  /** 'auto' runs eligible actions without in-app approval. */
   trust: 'auto' | 'ask';
   messagesAccess?: 'ready' | 'needs_full_disk_access' | 'unavailable' | undefined;
   chromeConnection?: 'enabled' | 'off' | 'unavailable' | undefined;
@@ -318,10 +326,12 @@ export interface ProviderSetup {
 }
 
 export interface AppConnection {
-  id: 'gmail' | 'drive' | 'slack';
+  id: 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack';
   name: string;
   description: string;
   status: ConnectionStatus;
+  /** Opaque cloud grant id used only to guard connection-specific UI actions. */
+  connectionId?: string | undefined;
   account?: string | undefined;
   permissions: string[];
 }
@@ -334,13 +344,31 @@ export interface ResearchSettings {
   excludedPaths: string[];
   lastSyncedAt?: string | undefined;
   pendingItems: number;
+  pendingBytes: number;
+  oldestPendingAt?: string | undefined;
+  lastSyncError?: string | undefined;
+  blockedReason?: string | undefined;
 }
 
 export interface RendererSnapshot {
   connection: 'online' | 'offline';
   cloudAuth: {
-    state: 'unconfigured' | 'signed-out' | 'code-sent' | 'signed-in';
+    state:
+      | 'unconfigured'
+      | 'signed-out'
+      | 'code-sent'
+      | 'password-required'
+      | 'mfa-required'
+      | 'signed-in';
     email?: string | undefined;
+    admin?: boolean | undefined;
+    adminMfa?: boolean | undefined;
+    features?: {
+      researchUploads: boolean;
+      researchArchive: boolean;
+      connectors: boolean;
+      schedules: boolean;
+    };
   };
   agents: AgentSummary[];
   selectedAgentId?: string | undefined;
@@ -371,6 +399,31 @@ export interface AgentDraft {
   workspace: string;
   voiceId?: string;
   hue?: number;
+}
+
+export interface ResearchParticipant {
+  subject: string;
+  email?: string;
+  batchCount: number;
+  byteLength: number;
+  lastCreatedAt: string;
+}
+
+export interface ResearchBatchSummary {
+  batchId: string;
+  consentVersion: string;
+  eventCount: number;
+  sha256: string;
+  byteLength: number;
+  createdAt: string;
+  format?: 'filtered_v2' | 'raw_v1';
+  scope?: {
+    threadId: string;
+    turnId: string;
+    sequenceStart?: number;
+    sequenceEnd?: number;
+    eventKinds: string[];
+  };
 }
 
 export type ApprovalDecision = 'approve' | 'reject';
@@ -442,6 +495,7 @@ export interface RendererApi {
     prompt: string,
     cadence: ThreadSchedule['cadence'],
     nextRunAt: string,
+    maxRuns?: number,
   ): Promise<void>;
   setScheduleEnabled(scheduleId: string, enabled: boolean): Promise<void>;
   deleteSchedule(scheduleId: string): Promise<void>;
@@ -454,10 +508,14 @@ export interface RendererApi {
   openProviderSetup(provider: ProviderId): Promise<void>;
   refreshProvider(provider: ProviderId): Promise<void>;
   connectAllApps(): Promise<void>;
+  connectGoogleApps(): Promise<void>;
+  connectSelectedApps(apps: AppConnection['id'][]): Promise<void>;
   connectApp(app: AppConnection['id']): Promise<void>;
-  disconnectApp(app: AppConnection['id']): Promise<void>;
+  disconnectApp(app: AppConnection['id'], expectedConnectionId?: string): Promise<void>;
   startCloudSignIn(email: string): Promise<void>;
   completeCloudSignIn(code: string): Promise<void>;
+  beginAdminMfa(): Promise<{ secretCode: string }>;
+  completeAdminMfa(code: string): Promise<void>;
   signOutCloud(): Promise<void>;
   deleteCloudAccount(confirmation: 'DELETE ACCOUNT'): Promise<void>;
   attachBrowser(windowId?: number): Promise<void>;
@@ -484,4 +542,7 @@ export interface RendererApi {
   ): Promise<{ audioBase64: string; mimeType: 'audio/mpeg' }>;
   exportResearchData(): Promise<void>;
   deleteResearchData(): Promise<void>;
+  listResearchParticipants(): Promise<ResearchParticipant[]>;
+  listResearchBatches(subject: string): Promise<ResearchBatchSummary[]>;
+  readResearchBatch(subject: string, batchId: string): Promise<unknown>;
 }

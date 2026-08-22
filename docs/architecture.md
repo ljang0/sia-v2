@@ -9,10 +9,12 @@ Electron main -------------- Sia cloud API
   |       |       |             |-- invite auth
   |       |       |             |-- Meta relay (client-disabled pending live verification)
   |       |       |             |-- connector gateway
-  |       |       |             `-- consented research sync
+  |       |       |             |-- consented raw research sync + queued export
+  |       |       |             `-- MFA-gated, audited admin research archive
   |       |       |
   |       |       `-- ActionGateway -- CUA / authenticated Chrome
-  |       |                         `-- explicitly opened Apple Messages window
+  |       |                         |-- Apple Messages read/send capabilities
+  |       |                         `-- authorized schedule mutations
   |       `---------- encrypted local SQLite + macOS Keychain
   |                    |-- app-open schedules + Activity
   |                    |-- scoped Git/worktree/terminal operations
@@ -24,7 +26,7 @@ Electron main -------------- Sia cloud API
                          `-- Meta streaming tool loop (production-gated)
 ```
 
-The provider runtime can propose a Sia action, but only the main-process ActionGateway can authorize it. Its `DefaultActionAuthorizationPolicy` skips the interactive approval for computer/browser actions while the controller reports trusted local mode (`computer.trust === 'auto'`, the default) and keeps it for connector writes; in ask mode the renderer renders approval requests and returns a decision tied to the request digest. Every action result, timeline item, and automatic authorization is appended to the always-on local `TrajectoryRecorder` (`<userData>/trajectories/<threadId>/events.jsonl` plus image files). Provider-native shell, files, public web, and subagents retain their provider protocol and approvals.
+The provider runtime can propose a Sia action, but only the main-process ActionGateway can authorize it. In autonomous mode (`computer.trust === 'auto'`, the default), the controller silently authorizes eligible computer, browser, connector, message, upload, and schedule actions after capability and input validation; confirmation mode renders a request tied to the exact action digest. Every action result, timeline item, and automatic authorization is appended to the always-on local `TrajectoryRecorder` (`<userData>/trajectories/<threadId>/events.jsonl` plus image files). Complete thread directories roll off after 90 days or when the local trajectory store exceeds 128 MiB, oldest first; this is separate from the encrypted consented-research outbox. The model-visible schedule surface is limited to create/list/update/delete for controller-owned once/hourly/daily/weekly tasks in the current thread; it cannot write an OS crontab or arbitrary shell schedule. Codex provider-native work uses `approvalPolicy: never` inside the verified workspace-write sandbox, while host-side effects still cross the ActionGateway.
 
 There is no generic renderer IPC, generic connector catalog, raw CUA server, arbitrary CDP/JavaScript route, cookie API, visualization tool, or cross-provider subagent abstraction.
 
@@ -38,8 +40,8 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
 - SQLite stores agents, immutable thread snapshots, normalized events, approval history, connection identifiers, Sia tokens, and capture/sync records as payloads encrypted by macOS Keychain-backed `safeStorage`.
 - Browser/tab capabilities, one-shot action grants, and turn/resource leases are process-local and are never restored after Sia restarts.
 - Chrome and Messages reuse accounts already configured by their owning Mac applications. Chrome
-  requires an explicit window attachment; Messages is only launched by Sia and is not mirrored or
-  read from its private database.
+  attaches to a signed-in window without copying cookies. Messages read capabilities access bounded
+  local `chat.db` rows only with Full Disk Access, and exact sends follow the autonomous/confirmation setting.
 - Provider authentication stays in each official CLI. Sia does not inspect, copy, or store provider API keys or consumer-login files.
 - ElevenLabs is an optional speech service, not a model provider. Its restricted API key is encrypted
   in the Keychain-backed repository, never returned to the renderer, and never exposed to an agent.
@@ -49,8 +51,19 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   and ends long narration at a sentence boundary with an explicit on-screen handoff.
 - The renderer permission handler admits only an audio-only microphone request from Sia's own main
   frame. Camera, display capture, Bluetooth, and unrelated renderer permissions remain denied.
-- Provider protocol frames and raw connected-app payloads stay in memory.
-- AWS stores invite, consent, connection, preview, quota, deletion, and encrypted research objects behind the Sia API. Electron receives no AWS credential.
+- Under v3 raw research consent, provider protocol frames and connected-app/browser/computer/action
+  events observed during a turn are copied into encrypted local research batches and synced to AWS.
+  Without that consent they remain within their normal runtime/transcript boundaries.
+- AWS stores invite, consent, connection, preview, quota, deletion, and KMS-encrypted raw research
+  objects behind the Sia API. Raw objects are organized by participant and batch, metadata carries
+  thread/turn/sequence/event-kind scope, and only Cognito `Admins` can list or read the archive;
+  those reads are integrity-checked and audited to an Object-Locked metadata bucket. Participant
+  exports run asynchronously through SQS and multipart S3 so the API request is not responsible for
+  buffering the full archive. Electron receives no AWS credential.
+- The desktop research outbox is fail-closed: only AWS-acknowledged batches can be pruned, pending
+  byte count/age/errors are visible, and a durable-write failure blocks new signed-in turns. Cloud
+  kill switches can pause uploads, archive reads, connectors, or schedules independently without
+  weakening server authorization.
 - Full account deletion is initiated by the signed-in user. The main process accepts only the exact `DELETE ACCOUNT` confirmation, stops active turns, and waits for the same account-scope cloud job to reach `completed` before it clears encrypted local Sia records and the local cloud session. A failed, mismatched, or timed-out cloud job leaves local records available for a safe retry.
 - Native attachment paths are held in expiring, process-local grants. Persisted transcripts keep
   attachment names, kinds, and sizes, not a reusable capability to arbitrary files.

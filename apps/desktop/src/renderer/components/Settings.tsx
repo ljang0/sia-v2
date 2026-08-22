@@ -1,21 +1,26 @@
 import {
   ArrowClockwise,
+  CheckSquareOffset,
+  Database,
   Desktop,
   PlugsConnected,
   ShieldCheck,
   SpeakerHigh,
   X,
 } from '@phosphor-icons/react';
-import { useState } from 'react';
-import type { AppConnection, ProviderId, RendererSnapshot } from '../types';
+import { useEffect, useState } from 'react';
+import type { AppConnection, ProviderId, RendererApi, RendererSnapshot } from '../types';
 import styles from '../ui.module.css';
 import { AppsSettings } from './settings/AppsSettings';
 import { ComputerSettings } from './settings/ComputerSettings';
 import { PrivacySettings } from './settings/PrivacySettings';
+import { ReleaseReviewSettings } from './settings/ReleaseReviewSettings';
+import { ResearchArchiveSettings } from './settings/ResearchArchiveSettings';
 import { ProvidersSettings } from './settings/ProvidersSettings';
 import { VoiceSettings } from './settings/VoiceSettings';
 
-export type SettingsSection = 'providers' | 'apps' | 'computer' | 'voice' | 'privacy';
+export type SettingsSection =
+  'providers' | 'apps' | 'computer' | 'voice' | 'privacy' | 'release' | 'research';
 
 interface SettingsProps {
   snapshot: RendererSnapshot;
@@ -23,10 +28,13 @@ interface SettingsProps {
   onClose(): void;
   onProbeProvider(provider: ProviderId): Promise<void>;
   onConnectAllApps(): Promise<void>;
+  onConnectSelectedApps(apps: AppConnection['id'][]): Promise<void>;
   onConnectApp(app: AppConnection['id']): Promise<void>;
-  onDisconnectApp(app: AppConnection['id']): Promise<void>;
+  onDisconnectApp(app: AppConnection['id'], expectedConnectionId?: string): Promise<void>;
   onStartCloudSignIn(email: string): Promise<void>;
   onCompleteCloudSignIn(code: string): Promise<void>;
+  onBeginAdminMfa(): Promise<{ secretCode: string }>;
+  onCompleteAdminMfa(code: string): Promise<void>;
   onSignOutCloud(): Promise<void>;
   onDeleteCloudAccount(confirmation: 'DELETE ACCOUNT'): Promise<void>;
   onAttachBrowser(windowId?: number): Promise<void>;
@@ -46,6 +54,9 @@ interface SettingsProps {
   onSetCapturePaused(paused: boolean): Promise<void>;
   onExport(): Promise<void>;
   onDelete(): Promise<void>;
+  onListResearchParticipants: RendererApi['listResearchParticipants'];
+  onListResearchBatches: RendererApi['listResearchBatches'];
+  onReadResearchBatch: RendererApi['readResearchBatch'];
 }
 
 export function Settings({
@@ -54,10 +65,13 @@ export function Settings({
   onClose,
   onProbeProvider,
   onConnectAllApps,
+  onConnectSelectedApps,
   onConnectApp,
   onDisconnectApp,
   onStartCloudSignIn,
   onCompleteCloudSignIn,
+  onBeginAdminMfa,
+  onCompleteAdminMfa,
   onSignOutCloud,
   onDeleteCloudAccount,
   onAttachBrowser,
@@ -77,14 +91,31 @@ export function Settings({
   onSetCapturePaused,
   onExport,
   onDelete,
+  onListResearchParticipants,
+  onListResearchBatches,
+  onReadResearchBatch,
 }: SettingsProps) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
+  const canReviewRelease = Boolean(snapshot.cloudAuth.admin && snapshot.cloudAuth.adminMfa);
+  const canViewResearchArchive = Boolean(
+    canReviewRelease && snapshot.cloudAuth.features?.researchArchive !== false,
+  );
+
+  useEffect(() => {
+    if (
+      (section === 'release' && !canReviewRelease) ||
+      (section === 'research' && !canViewResearchArchive)
+    ) {
+      setSection('providers');
+    }
+  }, [canReviewRelease, canViewResearchArchive, section]);
 
   return (
     <main className={styles.settingsPage}>
       <header className={styles.settingsTopbar}>
         <div>
           <h1>Settings</h1>
+          <p>Accounts, capabilities, and data controls</p>
         </div>
         <button
           type="button"
@@ -129,9 +160,25 @@ export function Settings({
             label="Privacy"
             onClick={() => setSection('privacy')}
           />
+          {canReviewRelease ? (
+            <SettingsNavButton
+              active={section === 'release'}
+              icon={<CheckSquareOffset size={17} aria-hidden="true" />}
+              label="Release review"
+              onClick={() => setSection('release')}
+            />
+          ) : null}
+          {canViewResearchArchive ? (
+            <SettingsNavButton
+              active={section === 'research'}
+              icon={<Database size={17} aria-hidden="true" />}
+              label="Research archive"
+              onClick={() => setSection('research')}
+            />
+          ) : null}
         </nav>
 
-        <div className={styles.settingsContent}>
+        <div key={section} className={styles.settingsContent}>
           {section === 'providers' ? (
             <ProvidersSettings
               providers={snapshot.providers}
@@ -143,10 +190,13 @@ export function Settings({
             <AppsSettings
               snapshot={snapshot}
               onConnectAll={onConnectAllApps}
+              onConnectSelected={onConnectSelectedApps}
               onConnect={onConnectApp}
               onDisconnect={onDisconnectApp}
               onStartCloudSignIn={onStartCloudSignIn}
               onCompleteCloudSignIn={onCompleteCloudSignIn}
+              onBeginAdminMfa={onBeginAdminMfa}
+              onCompleteAdminMfa={onCompleteAdminMfa}
               onSignOutCloud={onSignOutCloud}
               onDeleteCloudAccount={onDeleteCloudAccount}
               onAttachBrowser={onAttachBrowser}
@@ -185,6 +235,21 @@ export function Settings({
               onSetCapturePaused={onSetCapturePaused}
               onExport={onExport}
               onDelete={onDelete}
+            />
+          ) : null}
+          {section === 'release' && canReviewRelease ? (
+            <ReleaseReviewSettings
+              snapshot={snapshot}
+              onOpenPrivacy={() => setSection('privacy')}
+              onOpenVoice={() => setSection('voice')}
+              onOpenArchive={canViewResearchArchive ? () => setSection('research') : undefined}
+            />
+          ) : null}
+          {section === 'research' && canViewResearchArchive ? (
+            <ResearchArchiveSettings
+              listParticipants={onListResearchParticipants}
+              listBatches={onListResearchBatches}
+              readBatch={onReadResearchBatch}
             />
           ) : null}
         </div>

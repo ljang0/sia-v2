@@ -137,12 +137,22 @@ const api: DesktopBridgeApi = {
   },
   connections: {
     startAll: () => invoke('connections.startAll', undefined),
+    startGoogle: () => invoke('connections.startGoogle', undefined),
+    startSelected: (connectionIds) => invoke('connections.startSelected', { connectionIds }),
     start: (connectionId) => invoke('connections.start', { connectionId }),
-    disconnect: (connectionId) => invoke('connections.disconnect', { connectionId }),
+    disconnect: (connectionId, expectedConnectionId) =>
+      invoke(
+        'connections.disconnect',
+        expectedConnectionId === undefined
+          ? { connectionId }
+          : { connectionId, expectedConnectionId },
+      ),
   },
   auth: {
     start: (email) => invoke('auth.start', { email }),
     complete: (code) => invoke('auth.complete', { code }),
+    mfaBegin: () => invoke('auth.mfaBegin', undefined),
+    mfaComplete: (code) => invoke('auth.mfaComplete', { code }),
     signOut: () => invoke('auth.signOut', undefined),
     deleteAccount: (confirmation) => invoke('auth.deleteAccount', { confirmation }),
   },
@@ -154,6 +164,10 @@ const api: DesktopBridgeApi = {
       }),
     export: () => invoke('research.export', undefined),
     delete: () => invoke('research.delete', { confirmation: 'DELETE' }),
+    listAdminParticipants: () => invoke('research.admin.participants', undefined),
+    listAdminBatches: (subject) => invoke('research.admin.batches', { subject }),
+    readAdminBatch: (subject, batchId) =>
+      invoke('research.admin.readBatch', { subject, batchId }),
   },
   subscribe: (listener) => {
     const wrapped = (_event: Electron.IpcRendererEvent, value: DesktopPushEvent): void => {

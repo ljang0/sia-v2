@@ -16,8 +16,42 @@ const string = (
   description: string,
   extra: Record<string, unknown> = {},
 ): Record<string, unknown> => ({ type: 'string', description, ...extra });
-const accountSelector = (app: 'gmail' | 'drive' | 'slack'): Record<string, unknown> =>
+type ConnectedAppSelector = 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack';
+const accountSelector = (app: ConnectedAppSelector): Record<string, unknown> =>
   string(`Stable ${app} account selector`, { enum: [app] });
+const sheetWriteInputSchema = (append: boolean): Record<string, unknown> =>
+  object(
+    {
+      account_id: accountSelector('sheets'),
+      spreadsheet_id: string('Spreadsheet id from its URL'),
+      range: string(
+        append
+          ? 'Exact sheet-qualified append range, for example Sheet1!A:D'
+          : 'Exact A1 destination range, for example Sheet1!A1:D20',
+      ),
+      values: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 500,
+        description: 'Rows of cell values; no more than 5,000 total cells',
+        items: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 100,
+          items: {
+            type: append
+              ? ['string', 'number', 'boolean', 'null']
+              : ['string', 'number', 'boolean'],
+          },
+        },
+      },
+      value_input_option: string('How Sheets interprets values', {
+        enum: ['RAW', 'USER_ENTERED'],
+        default: 'USER_ENTERED',
+      }),
+    },
+    ['account_id', 'spreadsheet_id', 'range', 'values'],
+  );
 
 const computerList = z.object({}).strict();
 const computerSnapshot = z.object({ app_id: id, window_id: id }).strict();
@@ -27,7 +61,7 @@ const computerAction = z
     window_id: id,
     snapshot_id: id,
     action: z.enum(['click', 'type', 'set', 'scroll', 'key']),
-    element_ref: id,
+    element_ref: id.optional(),
     text: z.string().max(20_000).optional(),
     value: z
       .string()
@@ -44,7 +78,16 @@ const computerAction = z
     amount: z.number().int().positive().max(10_000).optional(),
     target_role: z.string().max(128).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine(({ action, element_ref }, context) => {
+    if ((action === 'click' || action === 'set') && !element_ref) {
+      context.addIssue({
+        code: 'custom',
+        path: ['element_ref'],
+        message: `${action} requires an exact element reference`,
+      });
+    }
+  });
 const browserTabs = z.object({}).strict();
 const browserSnapshot = z.object({ tab_id: id }).strict();
 const browserNavigate = z
@@ -119,12 +162,116 @@ const driveShare = z
     role: z.enum(['reader', 'commenter', 'writer']),
   })
   .strict();
+const docsCreate = z
+  .object({
+    account_id: z.literal('docs'),
+    title: z.string().trim().min(1).max(512),
+    markdown: z.string().max(500_000).optional(),
+  })
+  .strict();
+const docsRead = z.object({ account_id: z.literal('docs'), document_id: id }).strict();
+const docsAppend = z
+  .object({
+    account_id: z.literal('docs'),
+    document_id: id,
+    text: z.string().min(1).max(500_000),
+  })
+  .strict();
+const sheetCell = z.union([z.string().max(50_000), z.number().finite(), z.boolean()]);
+const sheetValues = (append: boolean) =>
+  z
+    .array(
+      z
+        .array(append ? z.union([sheetCell, z.null()]) : sheetCell)
+        .min(1)
+        .max(100),
+    )
+    .min(1)
+    .max(500)
+    .superRefine((rows, context) => {
+      if (rows.reduce((total, row) => total + row.length, 0) > 5_000) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Sheet writes are limited to 5,000 cells',
+        });
+      }
+    });
+const sheetsCreate = z
+  .object({
+    account_id: z.literal('sheets'),
+    title: z.string().trim().min(1).max(512),
+    folder_id: optionalId,
+  })
+  .strict();
+const sheetsRead = z
+  .object({
+    account_id: z.literal('sheets'),
+    spreadsheet_id: id,
+    range: z.string().trim().min(1).max(512),
+    start_row: z.number().int().min(1).max(10_000_000).default(1),
+    end_row: z.number().int().min(1).max(10_000_000).default(500),
+  })
+  .strict()
+  .superRefine(({ start_row, end_row }, context) => {
+    if (end_row < start_row || end_row - start_row > 499) {
+      context.addIssue({
+        code: 'custom',
+        path: ['end_row'],
+        message: 'Sheet reads must cover 1-500 ascending rows',
+      });
+    }
+  });
+const sheetWriteBase = {
+  account_id: z.literal('sheets'),
+  spreadsheet_id: id,
+  range: z.string().trim().min(1).max(512),
+  value_input_option: z.enum(['RAW', 'USER_ENTERED']).default('USER_ENTERED'),
+};
+const sheetsUpdate = z.object({ ...sheetWriteBase, values: sheetValues(false) }).strict();
+const sheetsAppend = z
+  .object({ ...sheetWriteBase, values: sheetValues(true) })
+  .strict()
+  .refine(({ range }) => range.includes('!'), {
+    path: ['range'],
+    message: 'Append range must include the exact sheet name',
+  });
+const slidesCreate = z
+  .object({
+    account_id: z.literal('slides'),
+    title: z.string().trim().min(1).max(512),
+    markdown: z.string().min(1).max(500_000),
+  })
+  .strict();
+const slidesRead = z.object({ account_id: z.literal('slides'), presentation_id: id }).strict();
+const slidesAppend = z
+  .object({
+    account_id: z.literal('slides'),
+    presentation_id: id,
+    markdown: z.string().min(1).max(500_000),
+  })
+  .strict();
 const slackPost = z
   .object({
     account_id: z.literal('slack'),
     channel_id: id,
     text: z.string().min(1).max(40_000),
     thread_id: optionalId,
+  })
+  .strict();
+const slackFindUsers = z
+  .object({
+    account_id: z.literal('slack'),
+    query: z.string().trim().min(1).max(512),
+    limit: z.number().int().positive().max(100).default(20),
+  })
+  .strict();
+const slackOpenDm = z
+  .object({
+    account_id: z.literal('slack'),
+    user_id: z
+      .string()
+      .trim()
+      .regex(/^[UW][A-Z0-9]+$/),
   })
   .strict();
 const messagesSearch = z
@@ -145,6 +292,36 @@ const messagesSend = z
     text: z.string().min(1).max(10_000),
   })
   .strict();
+const scheduleCadence = z.enum(['once', 'hourly', 'daily', 'weekly']);
+const scheduleCreate = z
+  .object({
+    task: z.string().trim().min(1).max(20_000),
+    cadence: scheduleCadence,
+    first_run_at: z.string().trim().min(1).max(64).optional(),
+    max_runs: z.number().int().min(1).max(10_000).optional(),
+  })
+  .strict();
+const scheduleList = z.object({}).strict();
+const scheduleUpdate = z
+  .object({
+    schedule_id: id,
+    task: z.string().trim().min(1).max(20_000).optional(),
+    cadence: scheduleCadence.optional(),
+    next_run_at: z.string().trim().min(1).max(64).optional(),
+    enabled: z.boolean().optional(),
+    max_runs: z.number().int().min(1).max(10_000).optional(),
+  })
+  .strict()
+  .refine(
+    ({ task, cadence, next_run_at, enabled, max_runs }) =>
+      task !== undefined ||
+      cadence !== undefined ||
+      next_run_at !== undefined ||
+      enabled !== undefined ||
+      max_runs !== undefined,
+    { message: 'Provide at least one schedule change' },
+  );
+const scheduleDelete = z.object({ schedule_id: id }).strict();
 
 export const actionInputSchemas = {
   computer_list: computerList,
@@ -163,12 +340,28 @@ export const actionInputSchemas = {
   drive_read: accountResource('drive'),
   drive_upload: driveUpload,
   drive_share: driveShare,
+  docs_create: docsCreate,
+  docs_read: docsRead,
+  docs_append: docsAppend,
+  sheets_create: sheetsCreate,
+  sheets_read: sheetsRead,
+  sheets_update: sheetsUpdate,
+  sheets_append: sheetsAppend,
+  slides_create: slidesCreate,
+  slides_read: slidesRead,
+  slides_append: slidesAppend,
   slack_search: accountQuery('slack'),
+  slack_find_users: slackFindUsers,
+  slack_open_dm: slackOpenDm,
   slack_read_thread: accountResource('slack'),
   slack_post: slackPost,
   messages_search: messagesSearch,
   messages_read_thread: messagesReadThread,
   messages_send: messagesSend,
+  schedule_create: scheduleCreate,
+  schedule_list: scheduleList,
+  schedule_update: scheduleUpdate,
+  schedule_delete: scheduleDelete,
 } as const;
 
 export type ActionToolName = keyof typeof actionInputSchemas;
@@ -199,14 +392,16 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_action: {
     name: 'computer_action',
     description:
-      'Perform one ref-first action against the exact captured application window. It never authorizes foreground takeover. "type" inserts only the new text at the current caret; never repeat existing field content. "set" replaces the entire editable value. For shortcuts, put one non-modifier key in value and list modifiers separately.',
+      'Perform one action against the exact freshly captured application window. Prefer an element_ref. If an Electron or canvas app exposes no usable element, type, key, and scroll may omit element_ref to use the focused control in that exact window; click and set still require a ref. "type" inserts only new text at the current caret. "set" replaces the entire editable value. For shortcuts, put one non-modifier key in value and list modifiers separately.',
     inputSchema: object(
       {
         app_id: string('Exact application id'),
         window_id: string('Exact window id'),
         snapshot_id: string('Fresh snapshot id'),
         action: string('Action', { enum: ['click', 'type', 'set', 'scroll', 'key'] }),
-        element_ref: string('Element reference from the snapshot'),
+        element_ref: string(
+          'Element reference from the snapshot. Required for click and set; optional for type, key, and scroll when the exact window already has the intended focused control.',
+        ),
         text: string(
           'For type: only new characters to insert at the caret. For set: the exact complete replacement value.',
         ),
@@ -221,9 +416,9 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
         amount: { type: 'integer', minimum: 1, maximum: 10000 },
         target_role: string('Accessibility role'),
       },
-      ['app_id', 'window_id', 'snapshot_id', 'action', 'element_ref'],
+      ['app_id', 'window_id', 'snapshot_id', 'action'],
     ),
-    annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
+    annotations: { readOnly: false, requiresApproval: true, takesForeground: true },
   },
   browser_tabs: {
     name: 'browser_tabs',
@@ -402,6 +597,131 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
     ),
     annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
   },
+  docs_create: {
+    name: 'docs_create',
+    description:
+      'Create a Google Doc from Markdown in the connected Docs account. Use headings, lists, tables, links, blockquotes, and code blocks naturally.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('docs'),
+        title: string('Document title'),
+        markdown: string('Optional initial Markdown content'),
+      },
+      ['account_id', 'title'],
+    ),
+    annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
+  },
+  docs_read: {
+    name: 'docs_read',
+    description:
+      'Read the plain-text content of a Google Doc, including document tabs and tables. Formatting details are not returned.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('docs'),
+        document_id: string('Google Doc id or full Docs URL'),
+      },
+      ['account_id', 'document_id'],
+    ),
+    annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
+  },
+  docs_append: {
+    name: 'docs_append',
+    description:
+      'Append plain text to the end of an existing Google Doc. Read the document first when context matters.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('docs'),
+        document_id: string('Google Doc id'),
+        text: string('Exact text to append'),
+      },
+      ['account_id', 'document_id', 'text'],
+    ),
+    annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
+  },
+  sheets_create: {
+    name: 'sheets_create',
+    description: 'Create a Google Sheets spreadsheet, optionally in an exact Drive folder.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('sheets'),
+        title: string('Spreadsheet title'),
+        folder_id: string('Optional exact Google Drive folder id'),
+      },
+      ['account_id', 'title'],
+    ),
+    annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
+  },
+  sheets_read: {
+    name: 'sheets_read',
+    description:
+      'Read up to 500 rows from an exact A1 range in Google Sheets. Responses use formatted cell values organized by rows.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('sheets'),
+        spreadsheet_id: string('Spreadsheet id from its URL'),
+        range: string('A1 range, for example Sheet1!A1:D100'),
+        start_row: { type: 'integer', minimum: 1, maximum: 10_000_000, default: 1 },
+        end_row: { type: 'integer', minimum: 1, maximum: 10_000_000, default: 500 },
+      },
+      ['account_id', 'spreadsheet_id', 'range'],
+    ),
+    annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
+  },
+  sheets_update: {
+    name: 'sheets_update',
+    description:
+      'Replace a rectangular Google Sheets range with up to 5,000 cells. USER_ENTERED supports formulas and normal Sheets parsing; RAW preserves exact values.',
+    inputSchema: sheetWriteInputSchema(false),
+    annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
+  },
+  sheets_append: {
+    name: 'sheets_append',
+    description:
+      'Append up to 5,000 cells as new rows in an existing Google Sheets table. The range must name the exact sheet, for example Sheet1!A:D.',
+    inputSchema: sheetWriteInputSchema(true),
+    annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
+  },
+  slides_create: {
+    name: 'slides_create',
+    description:
+      'Create a Google Slides presentation from Markdown. Separate slides with a line containing ---. Supports bullets, tables, quotes, images, and two-column ||| layouts.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('slides'),
+        title: string('Presentation title'),
+        markdown: string('Complete Markdown slide deck'),
+      },
+      ['account_id', 'title', 'markdown'],
+    ),
+    annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
+  },
+  slides_read: {
+    name: 'slides_read',
+    description:
+      'Read the title, ordered slide ids, element labels, and text from an existing Google Slides presentation.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('slides'),
+        presentation_id: string('Presentation id from its URL'),
+      },
+      ['account_id', 'presentation_id'],
+    ),
+    annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
+  },
+  slides_append: {
+    name: 'slides_append',
+    description:
+      'Append one or more Markdown-authored slides to an existing Google Slides presentation. Separate multiple new slides with ---.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('slides'),
+        presentation_id: string('Presentation id'),
+        markdown: string('Markdown for the new slide or slides'),
+      },
+      ['account_id', 'presentation_id', 'markdown'],
+    ),
+    annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
+  },
   slack_search: {
     name: 'slack_search',
     description: 'Search messages in a connected Slack workspace.',
@@ -412,6 +732,33 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
         limit: { type: 'integer', minimum: 1, maximum: 100 },
       },
       ['account_id', 'query'],
+    ),
+    annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
+  },
+  slack_find_users: {
+    name: 'slack_find_users',
+    description:
+      'Find Slack people by name, display name, or exact user ID. Select one exact returned user ID before opening a DM.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('slack'),
+        query: string('Person name, display name, or Slack user ID'),
+        limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+      },
+      ['account_id', 'query'],
+    ),
+    annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
+  },
+  slack_open_dm: {
+    name: 'slack_open_dm',
+    description:
+      'Open or reuse a one-to-one Slack DM using an exact user ID returned by slack_find_users. Use the returned D-prefixed channel ID with slack_post.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('slack'),
+        user_id: string('Exact Slack user ID, beginning with U or W'),
+      },
+      ['account_id', 'user_id'],
     ),
     annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
   },
@@ -470,13 +817,76 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   messages_send: {
     name: 'messages_send',
     description:
-      'Send an iMessage through the signed-in Messages app. The exact recipient and text always pass an interactive approval first.',
+      'Send an iMessage through the signed-in Messages app. The exact recipient and text pass the host authorization boundary and are logged; confirmation mode shows a preview first.',
     inputSchema: object(
       {
         recipient: string('Phone number, email, or exact contact handle'),
         text: string('Message text'),
       },
       ['recipient', 'text'],
+    ),
+    annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
+  },
+  schedule_create: {
+    name: 'schedule_create',
+    description:
+      'Create persisted future or recurring work in the current Sia thread. Use this when the person asks to do, check, monitor, search, or report something later or on a cadence. The task is sent back to the agent verbatim at each run. first_run_at must be an RFC 3339 timestamp with a UTC offset when supplied; recurring schedules otherwise begin one cadence interval from now, while a one-time schedule runs as soon as the current turn is idle.',
+    inputSchema: object(
+      {
+        task: string('Exact self-contained task to run each time'),
+        cadence: string('Run frequency', { enum: ['once', 'hourly', 'daily', 'weekly'] }),
+        first_run_at: string('Optional RFC 3339 first-run timestamp with a UTC offset', {
+          format: 'date-time',
+        }),
+        max_runs: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 10_000,
+          description: 'Optional safety limit; the schedule pauses after this many runs',
+        },
+      },
+      ['task', 'cadence'],
+    ),
+    annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
+  },
+  schedule_list: {
+    name: 'schedule_list',
+    description: 'List persisted scheduled work owned by the current Sia thread.',
+    inputSchema: object({}),
+    annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
+  },
+  schedule_update: {
+    name: 'schedule_update',
+    description:
+      'Change, pause, or resume scheduled work owned by the current Sia thread. next_run_at must be an RFC 3339 timestamp with a UTC offset.',
+    inputSchema: object(
+      {
+        schedule_id: string('Schedule id returned by schedule_list or schedule_create'),
+        task: string('Replacement self-contained task'),
+        cadence: string('Replacement run frequency', {
+          enum: ['once', 'hourly', 'daily', 'weekly'],
+        }),
+        next_run_at: string('Replacement RFC 3339 next-run timestamp with a UTC offset', {
+          format: 'date-time',
+        }),
+        enabled: { type: 'boolean', description: 'False pauses; true resumes' },
+        max_runs: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 10_000,
+          description: 'Replacement total run limit',
+        },
+      },
+      ['schedule_id'],
+    ),
+    annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
+  },
+  schedule_delete: {
+    name: 'schedule_delete',
+    description: 'Permanently remove scheduled work owned by the current Sia thread.',
+    inputSchema: object(
+      { schedule_id: string('Schedule id returned by schedule_list or schedule_create') },
+      ['schedule_id'],
     ),
     annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
   },

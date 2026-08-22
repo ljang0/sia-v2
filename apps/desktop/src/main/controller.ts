@@ -24,6 +24,7 @@ import type {
   BrowserView,
   BrowserWindowView,
   CaptureView,
+  CloudFeatureFlags,
   ComputerPermissionsView,
   ComputerView,
   ConnectionView,
@@ -46,6 +47,7 @@ import type { CloudIdentityStatus } from './identity.js';
 import type { CuaAuthorizationContext } from './cua-service.js';
 import type { VoiceOperations } from './voice-service.js';
 import type { TrajectoryRecorder } from './trajectory-recorder.js';
+import { RESEARCH_CONSENT_VERSION } from '../shared/bridge.js';
 
 interface ComputerAutomation {
   permissions(): Promise<ComputerPermissionsView>;
@@ -77,6 +79,10 @@ interface ControllerOptions {
     status(): CloudIdentityStatus;
     startEmailSignIn(email: string): Promise<CloudIdentityStatus>;
     completeEmailSignIn(code: string): Promise<CloudIdentityStatus>;
+    completePasswordSignIn?(password: string): Promise<CloudIdentityStatus>;
+    completeMfaSignIn?(code: string): Promise<CloudIdentityStatus>;
+    beginMfaEnrollment?(): Promise<{ secretCode: string }>;
+    completeMfaEnrollment?(code: string): Promise<CloudIdentityStatus>;
     signOut(): Promise<CloudIdentityStatus>;
   };
   fakeServices: boolean;
@@ -151,9 +157,10 @@ interface PersistedState {
   activeAgentId?: string;
   activeThreadId?: string;
   schedules: ScheduleView[];
+  cloudFeatures: CloudFeatureFlags;
   preferences: {
     completionSound: boolean;
-    /** Computer/browser actions run without per-action approval when 'auto' (default). */
+    /** All eligible actions run without in-app approval when 'auto' (default). */
     computerTrust?: 'auto' | 'ask';
     /** Full local trajectory log (requests, replies, actions, screenshots); default on. */
     trajectoryLog?: boolean;
@@ -170,6 +177,7 @@ interface QueuedTurn {
   source?: 'manual' | 'schedule' | 'goal' | 'review';
   reviewTarget?: BridgeRequestMap['reviews.start']['target'];
   fakeDelayMs?: number;
+  scheduleRunId?: string;
 }
 
 interface AttachmentGrant {
@@ -216,6 +224,23 @@ type ResearchEventRecord = ResearchEventBase &
       }
   );
 
+interface RawResearchEventRecord extends ResearchEventBase {
+  kind: 'raw.event' | 'raw.event_chunk';
+  payload: {
+    schemaVersion: 1;
+    threadId: string;
+    turnId: string;
+    eventType: string;
+    eventId?: string;
+    sequence?: number;
+    data?: unknown;
+    encoding?: 'base64-json';
+    chunkIndex?: number;
+    chunkCount?: number;
+    chunkData?: string;
+  };
+}
+
 interface ResearchBatchRecord {
   batchId: string;
   /** False for captures created before cloud was configured; never retroactively upload them. */
@@ -225,7 +250,15 @@ interface ResearchBatchRecord {
     acceptedAt: string;
     purpose: 'research_evaluation_debugging';
   };
-  events: ResearchEventRecord[];
+  format?: 'filtered_v2' | 'raw_v1';
+  scope?: {
+    threadId: string;
+    turnId: string;
+    sequenceStart?: number;
+    sequenceEnd?: number;
+    eventKinds: string[];
+  };
+  events: Array<ResearchEventRecord | RawResearchEventRecord>;
 }
 
 interface ResearchSyncRecord {
@@ -236,6 +269,7 @@ interface ResearchSyncRecord {
 interface StagedResearchTurn {
   tainted: boolean;
   events: ResearchEventRecord[];
+  rawEvents: RawResearchEventRecord[];
   eventByMessageId: Map<string, string>;
   safeActionNames: string[];
 }
@@ -243,8 +277,11 @@ interface StagedResearchTurn {
 const SAFE_RESEARCH_ACTIONS = new Set(['computer_list', 'computer_snapshot']);
 const MAX_LOCAL_RESEARCH_BATCH_BYTES = 3 * 1024 * 1024;
 const MAX_RESEARCH_SCREENSHOT_BASE64_BYTES = 1_500_000;
-const MAX_LOCAL_RESEARCH_BYTES = 128 * 1024 * 1024;
-const MAX_LOCAL_RESEARCH_BATCHES = 500;
+const MAX_RAW_EVENT_JSON_BYTES = 768 * 1024;
+// Synced batches are pruned at these soft targets. Unsynced research is never discarded to
+// satisfy an application quota: it remains in the encrypted outbox until AWS acknowledges it.
+const TARGET_LOCAL_RESEARCH_BYTES = 128 * 1024 * 1024;
+const TARGET_LOCAL_RESEARCH_BATCHES = 500;
 const LOCAL_RESEARCH_RETENTION_MS = 90 * 24 * 60 * 60_000;
 const LOCAL_RESEARCH_IDENTITY = '__local__';
 
@@ -271,6 +308,9 @@ interface ApprovedConnectorBinding {
 const EMPTY_CONNECTIONS: ConnectionView[] = [
   { id: 'gmail', label: 'Gmail', status: 'disconnected' },
   { id: 'drive', label: 'Google Drive', status: 'disconnected' },
+  { id: 'docs', label: 'Google Docs', status: 'disconnected' },
+  { id: 'sheets', label: 'Google Sheets', status: 'disconnected' },
+  { id: 'slides', label: 'Google Slides', status: 'disconnected' },
   { id: 'slack', label: 'Slack', status: 'disconnected' },
 ];
 
@@ -284,6 +324,12 @@ const INITIAL_STATE: PersistedState = {
   browser: { status: 'detached', grantedOrigins: [] },
   connectionOwners: {},
   schedules: [],
+  cloudFeatures: {
+    researchUploads: true,
+    researchArchive: false,
+    connectors: true,
+    schedules: true,
+  },
   preferences: { completionSound: false },
 };
 
@@ -398,17 +444,96 @@ export class DesktopController {
   actionResultObserver(): ActionResultObserver {
     return (notice) => {
       this.#recordActionResult(notice);
+      this.#stageRawResearchEvent({
+        threadId: notice.context.threadId,
+        turnId: notice.context.turnId,
+        eventType: 'sia.action_result',
+        data: {
+          name: notice.name,
+          arguments: notice.arguments ?? {},
+          result: notice.result,
+        },
+      });
       this.#stageResearchActionResult(notice);
     };
   }
 
-  /** 'auto' runs computer/browser actions without per-action approval. */
+  /** 'auto' runs eligible actions without in-app approval. */
   computerTrust(): 'auto' | 'ask' {
     return this.#state.preferences.computerTrust ?? 'auto';
   }
 
   trajectoryLogEnabled(): boolean {
     return this.#state.preferences.trajectoryLog ?? true;
+  }
+
+  createScheduleFromAction(
+    threadId: string,
+    input: {
+      task: string;
+      cadence: ScheduleView['cadence'];
+      firstRunAt?: string;
+      maxRuns?: number;
+    },
+  ): ScheduleView {
+    const firstRunAt =
+      input.firstRunAt ??
+      new Date(
+        Date.now() + (input.cadence === 'once' ? 0 : scheduleIntervalMs(input.cadence)),
+      ).toISOString();
+    const schedule = this.#insertSchedule({
+      threadId,
+      prompt: input.task,
+      cadence: input.cadence,
+      nextRunAt: firstRunAt,
+      ...(input.maxRuns === undefined ? {} : { maxRuns: input.maxRuns }),
+    });
+    return structuredClone(schedule);
+  }
+
+  listSchedulesForAction(threadId: string): ScheduleView[] {
+    this.#requireThread(threadId);
+    return structuredClone(
+      this.#state.schedules.filter((schedule) => schedule.threadId === threadId),
+    );
+  }
+
+  updateScheduleFromAction(
+    threadId: string,
+    input: {
+      scheduleId: string;
+      task?: string;
+      cadence?: ScheduleView['cadence'];
+      nextRunAt?: string;
+      enabled?: boolean;
+      maxRuns?: number;
+    },
+  ): ScheduleView {
+    const schedule = this.#requireSchedule(input.scheduleId);
+    if (schedule.threadId !== threadId)
+      throw new Error('Scheduled task not found in this thread.');
+    if (input.task !== undefined) {
+      const task = input.task.trim();
+      if (!task) throw new Error('A scheduled task cannot be empty.');
+      schedule.prompt = task;
+    }
+    if (input.cadence !== undefined) schedule.cadence = input.cadence;
+    if (input.nextRunAt !== undefined) {
+      schedule.nextRunAt = validScheduleTime(input.nextRunAt);
+    }
+    if (input.enabled !== undefined) schedule.enabled = input.enabled;
+    if (input.maxRuns !== undefined) schedule.maxRuns = validScheduleRunLimit(input.maxRuns);
+    this.#commit();
+    if (schedule.enabled) void this.#runDueSchedules();
+    return structuredClone(schedule);
+  }
+
+  deleteScheduleFromAction(threadId: string, scheduleId: string): void {
+    const schedule = this.#requireSchedule(scheduleId);
+    if (schedule.threadId !== threadId)
+      throw new Error('Scheduled task not found in this thread.');
+    this.#state.schedules = this.#state.schedules.filter(({ id }) => id !== scheduleId);
+    this.#commit();
   }
 
   /** Any HTTP(S) origin is allowed while trusted; otherwise only origins granted at attach. */
@@ -545,6 +670,7 @@ export class DesktopController {
     this.#refreshMetaProviderState();
     await this.#refreshProviderModels();
     await this.#reconcileIdentityBoundState();
+    await this.#refreshCloudSession();
     this.#computerState = computer;
     this.#refreshResearchPendingCount();
     this.#persist();
@@ -587,6 +713,9 @@ export class DesktopController {
             : 'offline',
         auth: this.#cloud.configured ? this.#identity.status().state : 'unconfigured',
         ...(this.#identity.status().email ? { account: this.#identity.status().email } : {}),
+        ...(this.#identity.status().admin ? { admin: true } : {}),
+        ...(this.#identity.status().adminMfa ? { adminMfa: true } : {}),
+        features: structuredClone(this.#state.cloudFeatures),
       },
       ...(this.#startupNotice ? { startupNotice: structuredClone(this.#startupNotice) } : {}),
     };
@@ -882,13 +1011,19 @@ export class DesktopController {
       }
       case 'connections.startAll':
         return (await this.#startAllConnections()) as unknown as BridgeResultMap[M];
+      case 'connections.startGoogle':
+        return (await this.#startGoogleConnections()) as unknown as BridgeResultMap[M];
+      case 'connections.startSelected':
+        return (await this.#startSelectedConnections(
+          (input as BridgeRequestMap['connections.startSelected']).connectionIds,
+        )) as unknown as BridgeResultMap[M];
       case 'connections.start':
         return (await this.#startConnection(
           (input as BridgeRequestMap['connections.start']).connectionId,
         )) as unknown as BridgeResultMap[M];
       case 'connections.disconnect':
         return (await this.#disconnectConnection(
-          (input as BridgeRequestMap['connections.disconnect']).connectionId,
+          input as BridgeRequestMap['connections.disconnect'],
         )) as unknown as BridgeResultMap[M];
       case 'auth.start':
         return (await this.#startSignIn(
@@ -898,6 +1033,15 @@ export class DesktopController {
         return (await this.#completeSignIn(
           (input as BridgeRequestMap['auth.complete']).code,
         )) as unknown as BridgeResultMap[M];
+      case 'auth.mfaBegin':
+        if (!this.#identity.beginMfaEnrollment) {
+          throw new Error('Authenticator setup is unavailable in this build.');
+        }
+        return (await this.#identity.beginMfaEnrollment()) as BridgeResultMap[M];
+      case 'auth.mfaComplete':
+        return (await this.#completeMfaEnrollment(
+          (input as BridgeRequestMap['auth.mfaComplete']).code,
+        )) as BridgeResultMap[M];
       case 'auth.signOut':
         return (await this.#signOut()) as unknown as BridgeResultMap[M];
       case 'auth.deleteAccount':
@@ -914,6 +1058,19 @@ export class DesktopController {
         return (await this.#deleteResearch(
           (input as BridgeRequestMap['research.delete']).confirmation,
         )) as unknown as BridgeResultMap[M];
+      case 'research.admin.participants':
+        return (await this.#cloud.listAdminResearchParticipants()) as BridgeResultMap[M];
+      case 'research.admin.batches':
+        return (await this.#cloud.listAdminResearchBatches(
+          (input as BridgeRequestMap['research.admin.batches']).subject,
+        )) as BridgeResultMap[M];
+      case 'research.admin.readBatch': {
+        const value = input as BridgeRequestMap['research.admin.readBatch'];
+        return (await this.#cloud.readAdminResearchBatch(
+          value.subject,
+          value.batchId,
+        )) as BridgeResultMap[M];
+      }
     }
     throw new Error(`Unknown desktop method: ${String(method)}`);
   }
@@ -947,6 +1104,22 @@ export class DesktopController {
         riskClass: request.riskClass,
         summary: request.humanSummary,
       });
+      this.#stageRawResearchEvent({
+        threadId: context.threadId,
+        turnId: context.turnId,
+        eventType: 'computer.authorization',
+        data: {
+          decision: 'allow',
+          automatic: true,
+          adapterId: request.adapterId,
+          riskClass: request.riskClass,
+          permissionMode: request.permissionMode,
+          requestDigest: request.requestDigest,
+          humanSummary: request.humanSummary,
+          resourceJson: request.resourceJson,
+          expiresUnixMs: request.expiresUnixMs.toString(),
+        },
+      });
       return 'allow';
     }
     const approvalId = randomUUID();
@@ -965,6 +1138,21 @@ export class DesktopController {
       expiresAt,
       status: 'pending',
     });
+    this.#stageRawResearchEvent({
+      threadId: context.threadId,
+      turnId: context.turnId,
+      eventType: 'computer.authorization_request',
+      data: {
+        approvalId,
+        adapterId: request.adapterId,
+        riskClass: request.riskClass,
+        permissionMode: request.permissionMode,
+        requestDigest: request.requestDigest,
+        humanSummary: request.humanSummary,
+        resourceJson: request.resourceJson,
+        expiresUnixMs: request.expiresUnixMs.toString(),
+      },
+    });
     this.#commit();
 
     return new Promise((resolve) => {
@@ -973,6 +1161,7 @@ export class DesktopController {
         () => {
           this.#pendingApprovals.delete(approvalId);
           this.#setApprovalStatus(approvalId, 'expired');
+          this.#stageApprovalDecision(approvalId, context, 'expired');
           resolve('cancel');
         },
         Math.min(remaining, 120_000),
@@ -1392,7 +1581,24 @@ export class DesktopController {
     input: BridgeRequestMap['threads.send'],
     source: QueuedTurn['source'] = 'manual',
     reviewTarget?: QueuedTurn['reviewTarget'],
+    scheduleRunId?: string,
   ): BridgeResultMap['threads.send'] {
+    if (this.#state.capture.status === 'blocked') {
+      throw new Error(
+        this.#state.capture.blockedReason ??
+          'Raw research capture could not be stored. Free disk space or sign out before starting another task.',
+      );
+    }
+    if (
+      this.#cloud.configured &&
+      this.#identity.status().state === 'signed_in' &&
+      (this.#state.capture.consentVersion !== RESEARCH_CONSENT_VERSION ||
+        !this.#researchCaptureActive())
+    ) {
+      throw new Error(
+        'Review and accept the current raw research consent, or sign out, before starting a task.',
+      );
+    }
     const thread = this.#requireThread(input.threadId);
     if (thread.archivedAt) throw new Error('Unarchive this thread before sending a message.');
     const attachmentGrants = (input.attachmentIds ?? []).map((id) => {
@@ -1481,6 +1687,7 @@ export class DesktopController {
         : {}),
       status: 'complete',
       timestamp,
+      ...(scheduleRunId ? { scheduleRunId } : {}),
     });
     this.#stageResearchText({
       turnId,
@@ -1501,6 +1708,7 @@ export class DesktopController {
       text: messageText,
       source,
       ...(reviewTarget ? { reviewTarget } : {}),
+      ...(scheduleRunId ? { scheduleRunId } : {}),
       ...(attachmentGrants.length
         ? { attachments: attachmentGrants.map(({ attachment }) => attachment) }
         : {}),
@@ -1787,25 +1995,39 @@ export class DesktopController {
   }
 
   #createSchedule(input: BridgeRequestMap['schedules.create']): DesktopSnapshot {
-    const thread = this.#requireThread(input.threadId);
-    if (thread.archivedAt) throw new Error('Unarchive this thread before scheduling work.');
-    const nextRunAt = new Date(input.nextRunAt);
-    if (!Number.isFinite(nextRunAt.getTime())) throw new Error('Choose a valid schedule time.');
-    this.#state.schedules.push({
-      id: randomUUID(),
-      threadId: thread.id,
-      prompt: input.prompt.trim(),
-      cadence: input.cadence,
-      nextRunAt: nextRunAt.toISOString(),
-      enabled: true,
-      createdAt: new Date().toISOString(),
-    });
-    this.#commit();
-    void this.#runDueSchedules();
+    this.#insertSchedule(input);
     return this.snapshot();
   }
 
+  #insertSchedule(input: BridgeRequestMap['schedules.create']): ScheduleView {
+    if (!this.#schedulesAvailable()) {
+      throw new Error('Scheduled execution is temporarily disabled by the alpha operator.');
+    }
+    const thread = this.#requireThread(input.threadId);
+    if (thread.archivedAt) throw new Error('Unarchive this thread before scheduling work.');
+    const prompt = input.prompt.trim();
+    if (!prompt) throw new Error('A scheduled task cannot be empty.');
+    const schedule: ScheduleView = {
+      id: randomUUID(),
+      threadId: thread.id,
+      prompt,
+      cadence: input.cadence,
+      nextRunAt: validScheduleTime(input.nextRunAt),
+      enabled: true,
+      createdAt: new Date().toISOString(),
+      runCount: 0,
+      ...(input.maxRuns === undefined ? {} : { maxRuns: validScheduleRunLimit(input.maxRuns) }),
+    };
+    this.#state.schedules.push(schedule);
+    this.#commit();
+    void this.#runDueSchedules();
+    return schedule;
+  }
+
   #setScheduleEnabled(input: BridgeRequestMap['schedules.setEnabled']): DesktopSnapshot {
+    if (input.enabled && !this.#schedulesAvailable()) {
+      throw new Error('Scheduled execution is temporarily disabled by the alpha operator.');
+    }
     const schedule = this.#requireSchedule(input.scheduleId);
     schedule.enabled = input.enabled;
     this.#commit();
@@ -1821,23 +2043,27 @@ export class DesktopController {
   }
 
   #runScheduleNow(scheduleId: string): BridgeResultMap['schedules.runNow'] {
+    if (!this.#schedulesAvailable()) {
+      throw new Error('Scheduled execution is temporarily disabled by the alpha operator.');
+    }
     const schedule = this.#requireSchedule(scheduleId);
-    const result = this.#sendTurn(
-      { threadId: schedule.threadId, text: schedule.prompt },
-      'schedule',
-    );
-    this.#advanceSchedule(schedule, new Date());
-    this.#commit();
-    return result;
+    return this.#dispatchSchedule(schedule, new Date());
   }
 
   async #runDueSchedules(): Promise<void> {
-    if (this.#scheduleRunInFlight || this.#accountDeletionInProgress) return;
+    if (
+      this.#scheduleRunInFlight ||
+      this.#accountDeletionInProgress ||
+      !this.#schedulesAvailable()
+    )
+      return;
     this.#scheduleRunInFlight = true;
     try {
       const now = new Date();
       const due = this.#state.schedules.filter(
-        (schedule) => schedule.enabled && Date.parse(schedule.nextRunAt) <= now.getTime(),
+        (schedule) =>
+          Boolean(schedule.activeRun) ||
+          (schedule.enabled && Date.parse(schedule.nextRunAt) <= now.getTime()),
       );
       for (const schedule of due) {
         const thread = this.#state.threads.find(({ id }) => id === schedule.threadId);
@@ -1853,9 +2079,9 @@ export class DesktopController {
           continue;
         }
         try {
-          this.#sendTurn({ threadId: thread.id, text: schedule.prompt }, 'schedule');
-          this.#advanceSchedule(schedule, now);
+          this.#dispatchSchedule(schedule, now);
         } catch (error) {
+          delete schedule.activeRun;
           schedule.enabled = false;
           this.#appendTimeline(thread.id, {
             id: randomUUID(),
@@ -1875,21 +2101,53 @@ export class DesktopController {
   }
 
   #advanceSchedule(schedule: ScheduleView, now: Date): void {
-    schedule.lastRunAt = now.toISOString();
     if (schedule.cadence === 'once') {
       schedule.enabled = false;
       return;
     }
-    const interval =
-      schedule.cadence === 'hourly'
-        ? 60 * 60_000
-        : schedule.cadence === 'daily'
-          ? 24 * 60 * 60_000
-          : 7 * 24 * 60 * 60_000;
+    const interval = scheduleIntervalMs(schedule.cadence);
     let next = Date.parse(schedule.nextRunAt);
     do next += interval;
     while (next <= now.getTime());
     schedule.nextRunAt = new Date(next).toISOString();
+  }
+
+  #dispatchSchedule(schedule: ScheduleView, now: Date): BridgeResultMap['schedules.runNow'] {
+    const claim =
+      schedule.activeRun ??
+      ({
+        id: randomUUID(),
+        dueAt: schedule.nextRunAt,
+        claimedAt: now.toISOString(),
+      } satisfies NonNullable<ScheduleView['activeRun']>);
+    if (!schedule.activeRun) {
+      schedule.activeRun = claim;
+      // The claim reaches disk before the user turn. Recovery can now distinguish a crash before
+      // dispatch from a crash after dispatch by searching for this stable scheduleRunId.
+      this.#commit();
+    }
+    const dispatched = this.#state.timeline.find(
+      (item) => item.scheduleRunId === claim.id && item.kind === 'user' && item.turnId,
+    );
+    const result = dispatched?.turnId
+      ? { turnId: dispatched.turnId, snapshot: this.snapshot() }
+      : this.#sendTurn(
+          { threadId: schedule.threadId, text: schedule.prompt },
+          'schedule',
+          undefined,
+          claim.id,
+        );
+    const startedAt = dispatched?.timestamp ?? now.toISOString();
+    schedule.lastRunAt = startedAt;
+    schedule.lastRun = { id: claim.id, startedAt, outcome: 'started' };
+    schedule.runCount = (schedule.runCount ?? 0) + 1;
+    this.#advanceSchedule(schedule, now);
+    if (schedule.maxRuns !== undefined && schedule.runCount >= schedule.maxRuns) {
+      schedule.enabled = false;
+    }
+    delete schedule.activeRun;
+    this.#commit();
+    return result;
   }
 
   #resolveApproval(input: BridgeRequestMap['approvals.resolve']): DesktopSnapshot {
@@ -1904,6 +2162,11 @@ export class DesktopController {
     this.#pendingApprovals.delete(input.approvalId);
     this.#setApprovalStatus(
       input.approvalId,
+      input.decision === 'approve' ? 'approved' : 'denied',
+    );
+    this.#stageApprovalDecision(
+      input.approvalId,
+      { threadId: pending.threadId, turnId: pending.turnId },
       input.decision === 'approve' ? 'approved' : 'denied',
     );
     if (pending.kind === 'provider' && pending.threadId && pending.requestId) {
@@ -2284,29 +2547,62 @@ export class DesktopController {
   }
 
   async #startAllConnections(): Promise<BridgeResultMap['connections.startAll']> {
+    return await this.#startConnectionGroup(this.#state.connections.map(({ id }) => id));
+  }
+
+  async #startGoogleConnections(): Promise<BridgeResultMap['connections.startGoogle']> {
+    return await this.#startConnectionGroup(['gmail', 'drive', 'docs', 'sheets', 'slides']);
+  }
+
+  async #startSelectedConnections(
+    connectionIds: BridgeRequestMap['connections.startSelected']['connectionIds'],
+  ): Promise<BridgeResultMap['connections.startSelected']> {
+    const selected = new Set(connectionIds);
+    const ordered = this.#state.connections
+      .filter(({ id }) => selected.has(id))
+      .map(({ id }) => id);
+    return await this.#startConnectionGroup(ordered);
+  }
+
+  async #startConnectionGroup(
+    included: readonly ConnectionView['id'][],
+  ): Promise<BridgeResultMap['connections.startAll']> {
     if (this.#connectionSetup) {
       throw new Error('Work-app setup is already waiting for provider approval.');
     }
     const interrupted = this.#state.connections.find(
-      (connection) => connection.status === 'error' && connection.connectionId,
+      (connection) =>
+        included.includes(connection.id) &&
+        connection.status === 'error' &&
+        connection.connectionId,
     );
     if (interrupted) {
-      throw new Error(
-        `Disconnect ${interrupted.label}'s saved grant before connecting all apps.`,
-      );
+      throw new Error(`Disconnect ${interrupted.label}'s saved grant before continuing setup.`);
     }
-    if (this.#state.connections.some((connection) => connection.status === 'connecting')) {
-      throw new Error('Finish the current app approval before connecting all apps.');
+    if (
+      this.#state.connections.some(
+        (connection) => included.includes(connection.id) && connection.status === 'connecting',
+      )
+    ) {
+      throw new Error('Finish the current app approval before continuing setup.');
     }
     const pending = this.#state.connections
-      .filter((connection) => connection.status !== 'connected')
+      .filter(
+        (connection) => included.includes(connection.id) && connection.status !== 'connected',
+      )
       .map((connection) => connection.id);
     if (pending.length === 0) return { opened: false, snapshot: this.snapshot() };
+    this.#recordLifecycleEvent(
+      'connector.guided_setup.started',
+      { apps: pending },
+      { requireResearch: true },
+    );
 
     if (this.#fakeServices) {
       for (const connectionId of pending) {
         await this.#startConnection(connectionId, { partOfBundle: true });
       }
+      this.#recordLifecycleEvent('connector.guided_setup.completed', { apps: pending });
       return { opened: false, snapshot: this.snapshot() };
     }
 
@@ -2341,7 +2637,14 @@ export class DesktopController {
       if (!(await this.#pollConnection(currentId, expectedId, signal))) return;
       index += 1;
       const nextId = ordered[index];
-      if (!nextId || signal.aborted) return;
+      if (!nextId || signal.aborted) {
+        if (!signal.aborted && index >= ordered.length) {
+          this.#recordLifecycleEvent('connector.guided_setup.completed', {
+            apps: ordered,
+          });
+        }
+        return;
+      }
       try {
         await this.#startConnection(nextId, {
           poll: false,
@@ -2362,6 +2665,9 @@ export class DesktopController {
     connectionId: BridgeRequestMap['connections.start']['connectionId'],
     options: { poll?: boolean; partOfBundle?: boolean } = {},
   ): Promise<BridgeResultMap['connections.start']> {
+    if (!this.#fakeServices && this.#state.cloudFeatures?.connectors === false) {
+      throw new Error('Connected apps are temporarily disabled by the alpha operator.');
+    }
     if (this.#connectionSetup && !options.partOfBundle) {
       throw new Error('Finish or cancel the guided work-app setup first.');
     }
@@ -2373,6 +2679,11 @@ export class DesktopController {
     if (!this.#fakeServices && !owner) {
       throw new Error('Sign in to Sia cloud before connecting an app.');
     }
+    this.#recordLifecycleEvent(
+      'connector.setup.started',
+      { app: connectionId, guided: Boolean(options.partOfBundle) },
+      { requireResearch: true },
+    );
     this.#connectorGenerations.set(
       connectionId,
       (this.#connectorGenerations.get(connectionId) ?? 0) + 1,
@@ -2380,12 +2691,19 @@ export class DesktopController {
     this.#updateConnection(connectionId, { status: 'connecting' });
     this.#commit();
     if (this.#fakeServices) {
+      const connectedAccount = `demo@${connectionId}.test`;
+      const connectedId = `fake-${connectionId}-${randomUUID()}`;
       this.#updateConnection(connectionId, {
         status: 'connected',
-        account: `demo@${connectionId}.test`,
-        connectionId: `fake-${connectionId}-${randomUUID()}`,
+        account: connectedAccount,
+        connectionId: connectedId,
       });
       this.#commit();
+      this.#recordLifecycleEvent('connector.connected', {
+        app: connectionId,
+        account: connectedAccount,
+        connectionId: connectedId,
+      });
       return { opened: false, snapshot: this.snapshot() };
     }
     try {
@@ -2399,6 +2717,10 @@ export class DesktopController {
       const url = new URL(started.redirectUrl);
       if (url.protocol !== 'https:') throw new Error('Connector authorization must use HTTPS.');
       await this.#openExternal(url.toString());
+      this.#recordLifecycleEvent('connector.authorization.opened', {
+        app: connectionId,
+        connectionId: started.connectionId,
+      });
       if (options.poll !== false) void this.#pollConnection(connectionId, started.connectionId);
       return { opened: true, snapshot: this.snapshot() };
     } catch (error) {
@@ -2407,6 +2729,10 @@ export class DesktopController {
         detail: error instanceof Error ? error.message : 'Connection setup failed.',
       });
       this.#commit();
+      this.#recordLifecycleEvent('connector.setup.failed', {
+        app: connectionId,
+        reason: 'Connection setup failed.',
+      });
       throw error;
     }
   }
@@ -2418,18 +2744,78 @@ export class DesktopController {
   }
 
   async #completeSignIn(code: string): Promise<DesktopSnapshot> {
-    await this.#identity.completeEmailSignIn(code);
+    const state = this.#identity.status().state;
+    if (state === 'password_required') {
+      if (!this.#identity.completePasswordSignIn) {
+        throw new Error('Administrator password sign-in is unavailable in this build.');
+      }
+      await this.#identity.completePasswordSignIn(code);
+    } else if (state === 'mfa_required') {
+      if (!this.#identity.completeMfaSignIn) {
+        throw new Error('Authenticator sign-in is unavailable in this build.');
+      }
+      await this.#identity.completeMfaSignIn(code);
+    } else {
+      await this.#identity.completeEmailSignIn(code);
+    }
     this.#refreshMetaProviderState();
     await this.#reconcileIdentityBoundState();
+    await this.#refreshCloudSession();
     this.#scheduleResearchSync();
     this.#commit();
     return this.snapshot();
   }
 
+  async #completeMfaEnrollment(code: string): Promise<DesktopSnapshot> {
+    if (!this.#identity.completeMfaEnrollment) {
+      throw new Error('Authenticator setup is unavailable in this build.');
+    }
+    await this.#identity.completeMfaEnrollment(code);
+    this.#commit();
+    return this.snapshot();
+  }
+
+  async #refreshCloudSession(): Promise<void> {
+    if (
+      this.#fakeServices ||
+      !this.#cloud.configured ||
+      this.#identity.status().state !== 'signed_in'
+    )
+      return;
+    try {
+      const session = await this.#cloud.sessionStatus();
+      this.#state.cloudFeatures = structuredClone(session.features);
+    } catch {
+      // Keep the last signed operator policy while offline. Cloud endpoints enforce the current
+      // policy independently, so a stale cache cannot re-enable a server-side capability.
+    }
+  }
+
+  #schedulesAvailable(): boolean {
+    return (
+      this.#identity.status().state !== 'signed_in' ||
+      this.#state.cloudFeatures?.schedules !== false
+    );
+  }
+
   async #signOut(): Promise<DesktopSnapshot> {
     this.#connectionSetup?.controller.abort();
+    if (this.#cloud.configured) {
+      await this.#researchSync?.catch(() => undefined);
+      this.#refreshResearchPendingCount();
+      if (this.#state.capture.pendingCount > 0) {
+        await this.#syncResearchBatches(this.#researchGeneration);
+        this.#refreshResearchPendingCount();
+      }
+      if (this.#state.capture.pendingCount > 0) {
+        throw new Error(
+          'Sia still has raw research waiting for AWS. Reconnect and retry, or delete the research data before signing out.',
+        );
+      }
+    }
     await this.#clearResearchForIdentityBoundary();
     await this.#identity.signOut();
+    this.#state.cloudFeatures = structuredClone(INITIAL_STATE.cloudFeatures);
     this.#refreshMetaProviderState();
     this.#lockConnections('Sign in with the account that created this grant to manage it.');
     this.#commit();
@@ -2584,14 +2970,20 @@ export class DesktopController {
   }
 
   async #disconnectConnection(
-    connectionId: BridgeRequestMap['connections.disconnect']['connectionId'],
+    request: BridgeRequestMap['connections.disconnect'],
   ): Promise<DesktopSnapshot> {
+    const { connectionId, expectedConnectionId } = request;
+    const current = this.#state.connections.find(({ id }) => id === connectionId);
+    if (expectedConnectionId && current?.connectionId !== expectedConnectionId) {
+      throw new Error(
+        `${current?.label ?? 'This app'} changed since this screen was shown. Review the current connection before disconnecting it.`,
+      );
+    }
     this.#connectionSetup?.controller.abort();
     this.#connectorGenerations.set(
       connectionId,
       (this.#connectorGenerations.get(connectionId) ?? 0) + 1,
     );
-    const current = this.#state.connections.find(({ id }) => id === connectionId);
     const owner = this.#state.connectionOwners[connectionId];
     if (!this.#fakeServices && owner && owner !== this.#currentIdentityKey()) {
       throw new Error('Sign in with the account that created this grant before revoking it.');
@@ -2613,6 +3005,10 @@ export class DesktopController {
     }
     delete this.#state.connectionOwners[connectionId];
     this.#commit();
+    this.#recordLifecycleEvent('connector.disconnected', {
+      app: connectionId,
+      ...(current?.connectionId ? { connectionId: current.connectionId } : {}),
+    });
     return this.snapshot();
   }
 
@@ -2622,6 +3018,7 @@ export class DesktopController {
     signal?: AbortSignal,
   ): Promise<boolean> {
     const deadline = Date.now() + 2 * 60_000;
+    let lastStatusError: unknown;
     while (Date.now() < deadline) {
       await abortableDelay(2_000, signal);
       const current = this.#state.connections.find(({ id }) => id === connectionId);
@@ -2646,10 +3043,27 @@ export class DesktopController {
             ...(remote.accountLabel ? { account: remote.accountLabel } : {}),
           });
           this.#commit();
+          this.#recordLifecycleEvent('connector.connected', {
+            app: connectionId,
+            connectionId: expectedId,
+            ...(remote.accountLabel ? { account: remote.accountLabel } : {}),
+          });
           return true;
         }
-        if (remote?.status === 'failed')
-          throw new Error('The connected-app provider declined setup.');
+        if (remote?.status === 'failed') {
+          this.#updateConnection(connectionId, {
+            status: 'error',
+            detail: 'The connected-app provider declined setup.',
+          });
+          this.#commit();
+          this.#recordLifecycleEvent('connector.setup.failed', {
+            app: connectionId,
+            connectionId: expectedId,
+            reason: 'The connected-app provider declined setup.',
+          });
+          return false;
+        }
+        lastStatusError = undefined;
       } catch (error) {
         const pending = this.#state.connections.find(({ id }) => id === connectionId);
         if (
@@ -2660,25 +3074,38 @@ export class DesktopController {
         ) {
           return false;
         }
-        this.#updateConnection(connectionId, {
-          status: 'error',
-          detail: error instanceof Error ? error.message : 'Connection setup failed.',
-        });
-        this.#commit();
-        return false;
+        // OAuth approval often outlives a brief laptop/network interruption. Keep the
+        // pending grant stable and retry rather than forcing the user to disconnect it.
+        lastStatusError = error;
       }
     }
     this.#updateConnection(connectionId, {
       status: 'error',
-      detail: 'Connection setup timed out. You can safely try again.',
+      detail: lastStatusError
+        ? 'Sia could not verify the connection before setup timed out. Check your network, then try again.'
+        : 'Connection setup timed out. You can safely try again.',
     });
     this.#commit();
+    this.#recordLifecycleEvent('connector.setup.timed_out', {
+      app: connectionId,
+      connectionId: expectedId,
+    });
     return false;
   }
 
   #setCapture(input: BridgeRequestMap['research.setCapture']): DesktopSnapshot {
     if (input.enabled && this.#state.capture.status === 'deleting') {
       throw new Error('Finish or retry research deletion before enabling capture.');
+    }
+    if (
+      !input.enabled &&
+      !input.consentVersion &&
+      this.#cloud.configured &&
+      this.#identity.status().state === 'signed_in'
+    ) {
+      throw new Error(
+        'Research capture is required while signed in. Sign out to stop capture.',
+      );
     }
     const consentVersion = input.consentVersion ?? this.#state.capture.consentVersion;
     if (
@@ -2689,8 +3116,16 @@ export class DesktopController {
     }
     if (input.enabled) {
       const identity = this.#currentIdentityKey();
-      if (!this.#fakeServices && this.#cloud.configured && !identity) {
-        throw new Error('Sign in to Sia cloud before consenting to research capture.');
+      if (
+        identity &&
+        this.#state.researchIdentity &&
+        this.#state.researchIdentity !== LOCAL_RESEARCH_IDENTITY &&
+        this.#state.researchIdentity !== identity &&
+        this.#researchBatches().some(({ batchId }) => !this.#researchBatchSynced(batchId))
+      ) {
+        throw new Error(
+          'This Mac has unsynced research for another Sia account. Sign in with that account or delete its local research before continuing.',
+        );
       }
       this.#state.researchIdentity = identity ?? LOCAL_RESEARCH_IDENTITY;
       const acceptedAt =
@@ -2706,6 +3141,7 @@ export class DesktopController {
         promptReviewedVersion: consentVersion!,
         ...(acceptedAt ? { consentAcceptedAt: acceptedAt } : {}),
       };
+      this.#refreshResearchPendingCount();
     } else if (input.consentVersion) {
       this.#state.capture = {
         status: 'not_consented',
@@ -2725,12 +3161,31 @@ export class DesktopController {
         staged.eventByMessageId.clear();
       }
     }
+    this.#trajectory?.record({
+      type: input.enabled
+        ? 'research_consent_accepted'
+        : input.consentVersion
+          ? 'research_consent_declined'
+          : 'research_capture_paused',
+      threadId: 'app-lifecycle',
+      consentVersion,
+      signedIn: this.#identity.status().state === 'signed_in',
+    });
     this.#commit();
     if (input.enabled) this.#scheduleResearchSync();
     return this.snapshot();
   }
 
   async #exportResearch(): Promise<BridgeResultMap['research.export']> {
+    if (
+      !this.#fakeServices &&
+      this.#cloud.configured &&
+      this.#identity.status().state === 'signed_in'
+    ) {
+      const { downloadUrl } = await this.#cloud.requestResearchExport();
+      await this.#openExternal(downloadUrl);
+      return { path: null };
+    }
     const payload = {
       exportedAt: new Date().toISOString(),
       consentVersion: this.#state.capture.consentVersion,
@@ -2822,6 +3277,7 @@ export class DesktopController {
       staged = {
         tainted: false,
         events: [],
+        rawEvents: [],
         eventByMessageId: new Map(),
         safeActionNames: [],
       };
@@ -2871,6 +3327,7 @@ export class DesktopController {
     const staged = this.#researchStaging.get(turnId) ?? {
       tainted: false,
       events: [],
+      rawEvents: [],
       eventByMessageId: new Map<string, string>(),
       safeActionNames: [],
     };
@@ -2881,7 +3338,103 @@ export class DesktopController {
   }
 
   #discardResearchTurn(turnId: string): void {
+    if (this.#rawResearchEnabled()) {
+      this.#persistRawResearchTurn(turnId, 'discarded');
+      return;
+    }
     this.#researchStaging.delete(turnId);
+  }
+
+  #rawResearchEnabled(): boolean {
+    return (
+      this.#researchCaptureActive() &&
+      this.#state.capture.consentVersion === RESEARCH_CONSENT_VERSION
+    );
+  }
+
+  /**
+   * Records non-turn product activity without ever retaining an OAuth URL, code, or token.
+   * Signed-in connector setup is fail-closed unless the current raw research stream is active.
+   */
+  #recordLifecycleEvent(
+    eventType: string,
+    data: Record<string, unknown>,
+    options: { requireResearch?: boolean } = {},
+  ): void {
+    const occurredAt = new Date().toISOString();
+    const threadId = 'app-lifecycle';
+    const turnId = `lifecycle-${randomUUID()}`;
+    this.#trajectory?.record({
+      type: eventType,
+      threadId,
+      turnId,
+      data: jsonSafeValue(data),
+    });
+
+    if (!this.#rawResearchEnabled()) {
+      if (
+        options.requireResearch &&
+        this.#cloud.configured &&
+        this.#identity.status().state === 'signed_in'
+      ) {
+        throw new Error(
+          this.#state.capture.blockedReason ??
+            'Raw research recording must be active before connecting an app.',
+        );
+      }
+      return;
+    }
+
+    this.#stageRawResearchEvent({
+      threadId,
+      turnId,
+      eventType,
+      data,
+      occurredAt,
+    });
+    this.#persistRawResearchTurn(turnId, 'completed');
+    if (options.requireResearch && this.#state.capture.status === 'blocked') {
+      throw new Error(
+        this.#state.capture.blockedReason ??
+          'Sia could not durably queue the connection record.',
+      );
+    }
+  }
+
+  #stageRawResearchEvent(input: {
+    threadId: string;
+    turnId: string;
+    eventType: string;
+    sequence?: number;
+    data: unknown;
+    occurredAt?: string;
+    sourceEventId?: string;
+  }): void {
+    if (!this.#rawResearchEnabled()) return;
+    const staged = this.#researchStaging.get(input.turnId) ?? {
+      tainted: false,
+      events: [],
+      rawEvents: [],
+      eventByMessageId: new Map<string, string>(),
+      safeActionNames: [],
+    };
+    staged.rawEvents.push({
+      id: randomUUID(),
+      occurredAt: input.occurredAt ?? new Date().toISOString(),
+      classification: 'research_allowed',
+      taints: [],
+      kind: 'raw.event',
+      payload: {
+        schemaVersion: 1,
+        threadId: input.threadId,
+        turnId: input.turnId,
+        eventType: input.eventType,
+        ...(input.sequence === undefined ? {} : { sequence: input.sequence }),
+        data: jsonSafeValue(input.data),
+      },
+      sourceEventIds: input.sourceEventId ? [input.sourceEventId] : [],
+    });
+    this.#researchStaging.set(input.turnId, staged);
   }
 
   #markSafeResearchAction(turnId: string, name: string): void {
@@ -2966,6 +3519,10 @@ export class DesktopController {
   }
 
   #completeResearchTurn(turnId: string): void {
+    if (this.#rawResearchEnabled()) {
+      this.#persistRawResearchTurn(turnId, 'completed');
+      return;
+    }
     const staged = this.#researchStaging.get(turnId);
     this.#researchStaging.delete(turnId);
     if (!staged || staged.tainted || staged.events.length === 0) return;
@@ -2983,17 +3540,77 @@ export class DesktopController {
       events: staged.events,
     };
     const batchBytes = Buffer.byteLength(JSON.stringify(batch), 'utf8');
-    if (
-      batchBytes > MAX_LOCAL_RESEARCH_BATCH_BYTES ||
-      !this.#prepareLocalResearchStorage(batchBytes)
-    ) {
+    if (batchBytes > MAX_LOCAL_RESEARCH_BATCH_BYTES) {
+      this.#blockResearchCapture(
+        "A research bundle exceeded Sia's durable batch limit. Sign out and contact the alpha team before continuing.",
+      );
       return;
     }
-    this.#repository.put('research', batch.batchId, batch);
-    this.#repository.put<ResearchSyncRecord>('research_sync', batch.batchId, {
-      batchId: batch.batchId,
-      synced: false,
-    });
+    this.#prepareLocalResearchStorage(batchBytes);
+    if (!this.#storeResearchBatch(batch)) return;
+    this.#refreshResearchPendingCount();
+    this.#scheduleResearchSync();
+  }
+
+  #persistRawResearchTurn(turnId: string, outcome: 'completed' | 'discarded'): void {
+    const staged = this.#researchStaging.get(turnId);
+    if (!staged?.rawEvents.length) return;
+    const version = this.#state.capture.consentVersion;
+    const acceptedAt = this.#state.capture.consentAcceptedAt;
+    if (version !== RESEARCH_CONSENT_VERSION || !acceptedAt) return;
+    const first = staged.rawEvents[0]!;
+    const threadId = first.payload.threadId;
+    const expanded = expandRawResearchEvents([
+      ...staged.rawEvents,
+      {
+        id: randomUUID(),
+        occurredAt: new Date().toISOString(),
+        classification: 'research_allowed',
+        taints: [],
+        kind: 'raw.event',
+        payload: {
+          schemaVersion: 1,
+          threadId,
+          turnId,
+          eventType: 'turn.capture_finished',
+          data: { outcome },
+        },
+        sourceEventIds: [],
+      },
+    ]);
+    for (const events of partitionRawResearchEvents(expanded)) {
+      const sequences = events
+        .map(({ payload }) => payload.sequence)
+        .filter((value): value is number => typeof value === 'number');
+      const batch: ResearchBatchRecord = {
+        batchId: randomUUID(),
+        syncEligible: this.#state.researchIdentity !== LOCAL_RESEARCH_IDENTITY,
+        format: 'raw_v1',
+        scope: {
+          threadId,
+          turnId,
+          ...(sequences.length ? { sequenceStart: Math.min(...sequences) } : {}),
+          ...(sequences.length ? { sequenceEnd: Math.max(...sequences) } : {}),
+          eventKinds: [...new Set(events.map(({ payload }) => payload.eventType))],
+        },
+        consent: {
+          version,
+          acceptedAt,
+          purpose: 'research_evaluation_debugging',
+        },
+        events,
+      };
+      const batchBytes = Buffer.byteLength(JSON.stringify(batch), 'utf8');
+      if (batchBytes > MAX_LOCAL_RESEARCH_BATCH_BYTES) {
+        this.#blockResearchCapture(
+          "A raw research bundle exceeded Sia's durable batch limit. Sign out and contact the alpha team before continuing.",
+        );
+        return;
+      }
+      this.#prepareLocalResearchStorage(batchBytes);
+      if (!this.#storeResearchBatch(batch)) return;
+    }
+    this.#researchStaging.delete(turnId);
     this.#refreshResearchPendingCount();
     this.#scheduleResearchSync();
   }
@@ -3026,7 +3643,7 @@ export class DesktopController {
     }
   }
 
-  #prepareLocalResearchStorage(incomingBytes: number): boolean {
+  #prepareLocalResearchStorage(incomingBytes: number): void {
     const batches = this.#researchBatches();
     let storedBytes = batches.reduce(
       (total, batch) => total + Buffer.byteLength(JSON.stringify(batch), 'utf8'),
@@ -3041,25 +3658,72 @@ export class DesktopController {
           Date.parse(right.events[0]?.occurredAt ?? ''),
       );
     while (
-      storedBytes + incomingBytes > MAX_LOCAL_RESEARCH_BYTES ||
-      storedBatches >= MAX_LOCAL_RESEARCH_BATCHES
+      storedBytes + incomingBytes > TARGET_LOCAL_RESEARCH_BYTES ||
+      storedBatches >= TARGET_LOCAL_RESEARCH_BATCHES
     ) {
       const oldest = removable.shift();
-      if (!oldest) return false;
+      if (!oldest) break;
       storedBytes -= Buffer.byteLength(JSON.stringify(oldest), 'utf8');
       storedBatches -= 1;
       this.#repository.remove('research', oldest.batchId);
       this.#repository.remove('research_sync', oldest.batchId);
     }
-    return true;
+  }
+
+  #storeResearchBatch(batch: ResearchBatchRecord): boolean {
+    try {
+      this.#repository.put('research', batch.batchId, batch);
+      this.#repository.put<ResearchSyncRecord>('research_sync', batch.batchId, {
+        batchId: batch.batchId,
+        synced: false,
+      });
+      return true;
+    } catch {
+      // Do not continue taking research-required turns after the encrypted outbox fails. If the
+      // batch write succeeded but its sync marker did not, the absent marker already means
+      // "unsynced", so the raw batch remains eligible for a later upload.
+      this.#blockResearchCapture(
+        'Sia could not durably queue the raw research record. Free disk space or sign out, then reopen Sia before continuing.',
+      );
+      return false;
+    }
+  }
+
+  #blockResearchCapture(reason: string): void {
+    this.#state.capture.status = 'blocked';
+    this.#state.capture.blockedReason = reason;
+    this.#state.capture.lastSyncError = reason;
+    this.#refreshResearchPendingCount();
+    try {
+      this.#commit();
+    } catch {
+      // A storage failure may prevent even the status update from reaching disk. The in-memory
+      // status still makes the running process fail closed.
+    }
   }
 
   #refreshResearchPendingCount(): void {
-    this.#state.capture.pendingCount = this.#researchBatches()
-      .filter(
-        (batch) => batch.syncEligible !== false && !this.#researchBatchSynced(batch.batchId),
-      )
-      .reduce((count, batch) => count + batch.events.length, 0);
+    const pending = this.#researchBatches().filter(
+      (batch) => batch.syncEligible !== false && !this.#researchBatchSynced(batch.batchId),
+    );
+    this.#state.capture.pendingCount = pending.reduce(
+      (count, batch) => count + batch.events.length,
+      0,
+    );
+    if (pending.length) {
+      this.#state.capture.pendingBytes = pending.reduce(
+        (bytes, batch) => bytes + Buffer.byteLength(JSON.stringify(batch), 'utf8'),
+        0,
+      );
+    } else {
+      delete this.#state.capture.pendingBytes;
+    }
+    const oldest = pending
+      .map((batch) => batch.events[0]?.occurredAt)
+      .filter((value): value is string => Boolean(value))
+      .sort()[0];
+    if (oldest) this.#state.capture.oldestPendingAt = oldest;
+    else delete this.#state.capture.oldestPendingAt;
   }
 
   #scheduleResearchSync(): void {
@@ -3107,17 +3771,21 @@ export class DesktopController {
       }
       if (generation !== this.#researchGeneration) return;
       this.#researchRetryDelayMs = 15_000;
+      delete this.#state.capture.lastSyncError;
       this.#refreshResearchPendingCount();
       if (
         this.#state.capture.pendingCount === 0 &&
-        this.#state.capture.status === 'sync_pending'
+        (this.#state.capture.status === 'sync_pending' ||
+          this.#state.capture.status === 'blocked')
       ) {
         this.#state.capture.status = 'recording';
+        delete this.#state.capture.blockedReason;
       }
       this.#commit();
-    } catch {
+    } catch (error) {
       if (generation !== this.#researchGeneration) return;
       this.#refreshResearchPendingCount();
+      this.#state.capture.lastSyncError = researchSyncErrorMessage(error);
       if (this.#state.capture.status === 'recording') {
         this.#state.capture.status = 'sync_pending';
       }
@@ -3301,7 +3969,10 @@ export class DesktopController {
         this.#markTurnFinished(thread, turn, 'failed');
       }
     } finally {
-      if (signal.aborted) this.#discardResearchTurn(turn.id);
+      if (signal.aborted) {
+        this.#discardResearchTurn(turn.id);
+        this.#markScheduleRunFinished(turn, 'cancelled');
+      }
       this.#revokeApprovalsForTurn(turn.threadId, turn.id);
       lease?.release();
       this.#releaseTurn(turn.threadId);
@@ -3314,6 +3985,7 @@ export class DesktopController {
     turn: QueuedTurn,
     outcome: 'complete' | 'failed',
   ): void {
+    this.#markScheduleRunFinished(turn, outcome === 'complete' ? 'completed' : 'failed');
     if (outcome === 'complete') this.#failedTurnAttachments.delete(turn.id);
     // Streamed items are appended early and mutated as text arrives; the finished turn is
     // written once more so the log always ends with the final transcript for that turn.
@@ -3342,8 +4014,33 @@ export class DesktopController {
     );
   }
 
+  #markScheduleRunFinished(
+    turn: QueuedTurn,
+    outcome: 'completed' | 'failed' | 'cancelled',
+  ): void {
+    if (!turn.scheduleRunId) return;
+    const schedule = this.#state.schedules.find(
+      ({ lastRun }) => lastRun?.id === turn.scheduleRunId,
+    );
+    if (!schedule?.lastRun) return;
+    schedule.lastRun = {
+      ...schedule.lastRun,
+      outcome,
+      finishedAt: new Date().toISOString(),
+    };
+  }
+
   #applyRuntimeEvent(event: ThreadEventEnvelope): void {
     const thread = this.#requireThread(event.threadId);
+    this.#stageRawResearchEvent({
+      threadId: event.threadId,
+      turnId: event.turnId,
+      eventType: `provider.${event.type}`,
+      sequence: event.sequence,
+      data: event,
+      occurredAt: event.timestamp,
+      sourceEventId: event.id,
+    });
     if (event.type === 'approval' || event.type === 'question') {
       this.#taintResearchTurn(event.turnId);
     }
@@ -3729,7 +4426,7 @@ export class DesktopController {
     this.#taintResearchTurn(request.turnId);
     const approvalId = randomUUID();
     const expiresAt = new Date(Date.now() + 2 * 60_000).toISOString();
-    const connector = /^(mail|drive|slack)_/.test(request.tool.name);
+    const connector = /^(mail|drive|docs|sheets|slides|slack)_/.test(request.tool.name);
     const upload = /upload/.test(request.tool.name);
     const dataLeaving = summarizeDataLeaving(request.arguments, request.tool.name);
     const dataLabel =
@@ -3761,6 +4458,51 @@ export class DesktopController {
     const account = connector
       ? this.#connectorAccountLabel(request.arguments.account_id)
       : undefined;
+    if (this.computerTrust() === 'auto') {
+      if (
+        connectorApp &&
+        connectorSelector &&
+        pinnedConnectionId &&
+        pinnedGeneration !== undefined
+      ) {
+        this.#approvedConnectorBindings.set(request.id, {
+          approvalId: request.id,
+          threadId: request.threadId,
+          turnId: request.turnId,
+          app: connectorApp,
+          selector: connectorSelector,
+          connectionId: pinnedConnectionId,
+          generation: pinnedGeneration,
+          ...(account ? { account } : {}),
+        });
+      }
+      const automaticTarget =
+        trustedTarget ?? summarizeActionTarget(request.arguments, request.tool.name);
+      this.#trajectory?.record({
+        type: 'action_authorization',
+        threadId: request.threadId,
+        turnId: request.turnId,
+        decision: 'allow',
+        automatic: true,
+        toolName: request.tool.name,
+        target: automaticTarget,
+      });
+      this.#stageRawResearchEvent({
+        threadId: request.threadId,
+        turnId: request.turnId,
+        eventType: 'action.authorization',
+        data: {
+          requestId: request.id,
+          decision: 'allow',
+          automatic: true,
+          toolName: request.tool.name,
+          target: automaticTarget,
+          ...(account ? { account } : {}),
+          ...(dataLeaving ? { dataLeaving } : {}),
+        },
+      });
+      return { approved: true };
+    }
     this.#state.approvals.push({
       id: approvalId,
       threadId: request.threadId,
@@ -3867,6 +4609,11 @@ export class DesktopController {
     if (pending.requestId) this.#approvedConnectorBindings.delete(pending.requestId);
     const approval = this.#state.approvals.find(({ id }) => id === approvalId);
     if (approval?.status === 'pending') approval.status = 'expired';
+    this.#stageApprovalDecision(
+      approvalId,
+      { threadId: pending.threadId, turnId: pending.turnId },
+      'expired',
+    );
     if (pending.kind === 'provider' && pending.requestId) {
       void this.#runtime
         ?.respondToRequest(pending.threadId, {
@@ -3876,6 +4623,31 @@ export class DesktopController {
         .catch(() => undefined);
     }
     pending.resolve('cancel');
+  }
+
+  #stageApprovalDecision(
+    approvalId: string,
+    context: { threadId: string; turnId: string },
+    decision: 'approved' | 'denied' | 'expired',
+  ): void {
+    const approval = this.#state.approvals.find(({ id }) => id === approvalId);
+    this.#stageRawResearchEvent({
+      threadId: context.threadId,
+      turnId: context.turnId,
+      eventType: 'approval.decision',
+      data: {
+        approvalId,
+        decision,
+        ...(approval
+          ? {
+              kind: approval.kind,
+              title: approval.title,
+              summary: approval.summary,
+              target: approval.target,
+            }
+          : {}),
+      },
+    });
   }
 
   #releaseTurn(threadId: string): void {
@@ -3915,6 +4687,17 @@ export class DesktopController {
           candidate.threadId === threadId ? Math.max(highest, candidate.sequence) : highest,
         0,
       ) + 1;
+    if (item.turnId) {
+      this.#stageRawResearchEvent({
+        threadId,
+        turnId: item.turnId,
+        eventType: `timeline.${item.kind}`,
+        sequence,
+        data: item,
+        occurredAt: item.timestamp,
+        sourceEventId: item.id,
+      });
+    }
     this.#state.timeline.push({ ...item, threadId, sequence });
     this.#trajectory?.record({
       type: `timeline_${item.kind}`,
@@ -3998,7 +4781,13 @@ export class DesktopController {
         this.#state.researchIdentity !== LOCAL_RESEARCH_IDENTITY &&
         (this.#state.researchIdentity || storedBatches.length)
       ) {
-        await this.#clearResearchForIdentityBoundary();
+        this.#state.capture = {
+          status: 'not_consented',
+          pendingCount: this.#state.capture.pendingCount,
+          ...(this.#state.capture.promptReviewedVersion
+            ? { promptReviewedVersion: this.#state.capture.promptReviewedVersion }
+            : {}),
+        };
       }
       this.#lockConnections('Sign in with the account that created this grant to manage it.');
       return;
@@ -4008,6 +4797,13 @@ export class DesktopController {
       // explicitly signed-in identity covered by the same reviewed consent.
       this.#state.researchIdentity = identity;
     } else if (this.#state.researchIdentity && this.#state.researchIdentity !== identity) {
+      if (storedBatches.some(({ batchId }) => !this.#researchBatchSynced(batchId))) {
+        this.#blockResearchCapture(
+          'This Mac has unsynced research for another Sia account. Sign in with that account or delete its local research before continuing.',
+        );
+        this.#lockConnections('This grant belongs to another Sia cloud account.');
+        return;
+      }
       await this.#clearResearchForIdentityBoundary();
     }
     for (const connection of this.#state.connections) {
@@ -4134,7 +4930,12 @@ export class DesktopController {
   #recover(state: PersistedState): PersistedState {
     const recovered = structuredClone(state);
     recovered.connectionOwners = recovered.connectionOwners ?? {};
-    recovered.schedules = recovered.schedules ?? [];
+    recovered.schedules = (recovered.schedules ?? []).map((schedule) => ({
+      ...schedule,
+      runCount: schedule.runCount ?? 0,
+    }));
+    recovered.cloudFeatures =
+      recovered.cloudFeatures ?? structuredClone(INITIAL_STATE.cloudFeatures);
     recovered.preferences = recovered.preferences ?? { completionSound: false };
     // A CUA browser attachment is process-local. Never revive its UI grant without
     // preparing a fresh native session and rebuilding host-only tab capabilities.
@@ -4142,15 +4943,19 @@ export class DesktopController {
     recovered.approvals = recovered.approvals.map((approval) =>
       approval.status === 'pending' ? { ...approval, status: 'expired' } : approval,
     );
-    recovered.connections = recovered.connections.map((connection) =>
-      connection.status === 'connecting'
+    const recoveredConnections = new Map(
+      recovered.connections.map((connection) => [connection.id, connection]),
+    );
+    recovered.connections = EMPTY_CONNECTIONS.map((fallback) => {
+      const connection = recoveredConnections.get(fallback.id) ?? fallback;
+      return connection.status === 'connecting'
         ? {
             ...connection,
             status: 'error',
             detail: 'Connection setup was interrupted. Verify or disconnect this saved grant.',
           }
-        : connection,
-    );
+        : connection;
+    });
     recovered.threads = recovered.threads.map((thread) => {
       const agent = recovered.agents.find(({ id }) => id === thread.agentId);
       const restored: ThreadView = {
@@ -4666,6 +5471,9 @@ function mapRuntimePresentation(
 function connectorAppForTool(value: string): ConnectionView['id'] | undefined {
   if (value.startsWith('mail_')) return 'gmail';
   if (value.startsWith('drive_')) return 'drive';
+  if (value.startsWith('docs_')) return 'docs';
+  if (value.startsWith('sheets_')) return 'sheets';
+  if (value.startsWith('slides_')) return 'slides';
   if (value.startsWith('slack_')) return 'slack';
   return undefined;
 }
@@ -4674,6 +5482,16 @@ function summarizeActionTarget(
   argumentsValue: Readonly<Record<string, unknown>>,
   toolName?: string,
 ): string {
+  if (toolName === 'schedule_create') {
+    const firstRun =
+      typeof argumentsValue.first_run_at === 'string'
+        ? ` starting ${argumentsValue.first_run_at}`
+        : '';
+    return `${String(argumentsValue.cadence)}: ${String(argumentsValue.task)}${firstRun}`;
+  }
+  if (toolName === 'schedule_update' || toolName === 'schedule_delete') {
+    return `schedule ${String(argumentsValue.schedule_id)}`;
+  }
   if (toolName === 'browser_upload') {
     return `${String(argumentsValue.origin)}, file input ${String(argumentsValue.element_ref)}`;
   }
@@ -4700,6 +5518,10 @@ function summarizeActionTarget(
     'recipient',
     'channel_id',
     'resource_id',
+    'document_id',
+    'spreadsheet_id',
+    'presentation_id',
+    'title',
     'parent_id',
     'tab_id',
     'window_id',
@@ -4710,6 +5532,26 @@ function summarizeActionTarget(
       return `${key.replaceAll('_', ' ')}: ${value}`;
   }
   return 'Exact action shown above';
+}
+
+function validScheduleTime(value: string): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) throw new Error('Choose a valid schedule time.');
+  return date.toISOString();
+}
+
+function validScheduleRunLimit(value: number): number {
+  if (!Number.isSafeInteger(value) || value < 1 || value > 10_000) {
+    throw new Error('Schedule run limit must be between 1 and 10,000.');
+  }
+  return value;
+}
+
+function scheduleIntervalMs(cadence: ScheduleView['cadence']): number {
+  if (cadence === 'hourly') return 60 * 60_000;
+  if (cadence === 'daily') return 24 * 60 * 60_000;
+  if (cadence === 'weekly') return 7 * 24 * 60 * 60_000;
+  return 0;
 }
 
 function summarizeDataLeaving(
@@ -4726,6 +5568,9 @@ function summarizeDataLeaving(
   }
   if (typeof argumentsValue.body === 'string') {
     lines.push(`Body:\n${argumentsValue.body}`);
+  }
+  if (typeof argumentsValue.markdown === 'string') {
+    lines.push(`Markdown:\n${argumentsValue.markdown}`);
   }
   if (typeof argumentsValue.text === 'string') {
     const action = argumentsValue.action;
@@ -4747,6 +5592,19 @@ function summarizeDataLeaving(
   if (typeof argumentsValue.resource_id === 'string') {
     lines.push(`Resource: ${argumentsValue.resource_id}`);
   }
+  if (typeof argumentsValue.document_id === 'string') {
+    lines.push(`Document: ${argumentsValue.document_id}`);
+  }
+  if (typeof argumentsValue.spreadsheet_id === 'string') {
+    lines.push(`Spreadsheet: ${argumentsValue.spreadsheet_id}`);
+  }
+  if (typeof argumentsValue.presentation_id === 'string') {
+    lines.push(`Presentation: ${argumentsValue.presentation_id}`);
+  }
+  if (typeof argumentsValue.range === 'string') lines.push(`Range: ${argumentsValue.range}`);
+  if (Array.isArray(argumentsValue.values)) {
+    lines.push(`Values:\n${JSON.stringify(argumentsValue.values)}`);
+  }
   if (typeof argumentsValue.thread_id === 'string') {
     lines.push(`Thread: ${argumentsValue.thread_id}`);
   }
@@ -4756,6 +5614,9 @@ function summarizeDataLeaving(
   if (typeof argumentsValue.name === 'string') {
     lines.push(`Remote name: ${argumentsValue.name}`);
   }
+  if (typeof argumentsValue.title === 'string') {
+    lines.push(`Title: ${argumentsValue.title}`);
+  }
   for (const key of ['file_path', 'file_paths']) {
     const value = argumentsValue[key];
     if (typeof value === 'string' && value.length > 0) lines.push(`File: ${value}`);
@@ -4764,6 +5625,80 @@ function summarizeDataLeaving(
     }
   }
   return lines.length > 0 ? lines.join('\n\n') : undefined;
+}
+
+function jsonSafeValue(value: unknown): unknown {
+  try {
+    return JSON.parse(JSON.stringify(value)) as unknown;
+  } catch {
+    return { serializationError: 'The raw event was not JSON-serializable.' };
+  }
+}
+
+function researchSyncErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message.trim() : '';
+  if (!message) return 'The encrypted research outbox could not reach AWS.';
+  return message.length > 240 ? `${message.slice(0, 237)}…` : message;
+}
+
+function expandRawResearchEvents(
+  events: readonly RawResearchEventRecord[],
+): RawResearchEventRecord[] {
+  const expanded: RawResearchEventRecord[] = [];
+  for (const event of events) {
+    const body = Buffer.from(JSON.stringify(event.payload.data ?? null), 'utf8');
+    if (body.byteLength <= MAX_RAW_EVENT_JSON_BYTES) {
+      expanded.push(event);
+      continue;
+    }
+    const chunkCount = Math.ceil(body.byteLength / MAX_RAW_EVENT_JSON_BYTES);
+    for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
+      expanded.push({
+        ...event,
+        id: randomUUID(),
+        kind: 'raw.event_chunk',
+        payload: {
+          schemaVersion: 1,
+          threadId: event.payload.threadId,
+          turnId: event.payload.turnId,
+          eventType: event.payload.eventType,
+          eventId: event.id,
+          ...(event.payload.sequence === undefined ? {} : { sequence: event.payload.sequence }),
+          encoding: 'base64-json',
+          chunkIndex,
+          chunkCount,
+          chunkData: body
+            .subarray(
+              chunkIndex * MAX_RAW_EVENT_JSON_BYTES,
+              (chunkIndex + 1) * MAX_RAW_EVENT_JSON_BYTES,
+            )
+            .toString('base64'),
+        },
+      });
+    }
+  }
+  return expanded;
+}
+
+function partitionRawResearchEvents(
+  events: readonly RawResearchEventRecord[],
+): RawResearchEventRecord[][] {
+  const partitions: RawResearchEventRecord[][] = [];
+  let current: RawResearchEventRecord[] = [];
+  let bytes = 0;
+  const targetBytes = MAX_LOCAL_RESEARCH_BATCH_BYTES - 256 * 1024;
+  for (const event of events) {
+    const eventBytes = Buffer.byteLength(JSON.stringify(event), 'utf8');
+    if (current.length && bytes + eventBytes > targetBytes) {
+      partitions.push(current);
+      current = [];
+      bytes = 0;
+    }
+    current.push(event);
+    bytes += eventBytes;
+  }
+  if (current.length) partitions.push(current);
+  return partitions;
 }
 
 function stringArray(value: unknown): string[] {

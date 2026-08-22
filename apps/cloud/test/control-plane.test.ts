@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { AuthContext, ResearchBatchRequest, ToolName } from '../src/contracts.js';
-import { COMPOSIO_TOOL_SLUGS, COMPOSIO_TOOL_VERSION } from '../src/connector-contract.js';
+import { COMPOSIO_TOOL_SLUGS, COMPOSIO_TOOL_VERSIONS } from '../src/connector-contract.js';
 import { CloudError } from '../src/domain.js';
 import {
   EchoMetaProvider,
@@ -13,6 +13,7 @@ import {
   MemoryIdentity,
   MemoryQuota,
   MemoryResearchObjects,
+  MemoryResearchExportQueue,
   MemoryState,
   SequenceIds,
 } from '../src/memory.js';
@@ -20,6 +21,11 @@ import type { ComposioConfig, MetaConfig } from '../src/ports.js';
 import { createServices, type ServiceDependencies } from '../src/services.js';
 
 const user: AuthContext = { subject: 'user-1', email: 'user@example.com', groups: [] };
+const otherUser: AuthContext = {
+  subject: 'user-2',
+  email: 'other@example.com',
+  groups: [],
+};
 const admin: AuthContext = {
   subject: 'admin-1',
   email: 'admin@example.com',
@@ -66,6 +72,56 @@ describe('connector action gateway', () => {
       hasCode('invalid_connector_input'),
     );
     assert.equal(fixture.connector.executions.length, 0);
+  });
+
+  it('routes bounded Google editor reads and exact writes through their own connections', async () => {
+    const fixture = makeFixture();
+    await connect(fixture, 'google_docs', 'docs-connection');
+    await connect(fixture, 'google_sheets', 'sheets-connection');
+
+    const read = await fixture.services.actions.prepare(user, {
+      connectionId: 'docs-connection',
+      tool: 'docs.read',
+      input: { document_id: 'document-123' },
+    });
+    assert.equal(read.status, 'executed');
+    assert.deepEqual(fixture.connector.executions[0]?.input, {
+      document_id: 'document-123',
+      include_tables: true,
+      include_tabs_content: true,
+    });
+
+    const input = {
+      spreadsheet_id: 'spreadsheet-123',
+      range: 'Forecast!A1:B2',
+      values: [
+        ['Day', 'High'],
+        ['Tuesday', 95],
+      ],
+      value_input_option: 'USER_ENTERED',
+    };
+    const prepared = await fixture.services.actions.prepare(user, {
+      connectionId: 'sheets-connection',
+      tool: 'sheets.update',
+      input,
+    });
+    assert.equal(prepared.status, 'approval_required');
+    assert.equal(fixture.connector.executions.length, 1);
+
+    await fixture.services.actions.commit(user, {
+      actionId: prepared.actionId,
+      digest: prepared.digest,
+      input,
+    });
+    assert.deepEqual(fixture.connector.executions[1]?.input, {
+      spreadsheet_id: 'spreadsheet-123',
+      range: 'Forecast!A1:B2',
+      values: input.values,
+      major_dimension: 'ROWS',
+      auto_expand_sheet: true,
+      value_input_option: 'USER_ENTERED',
+      include_values_in_response: false,
+    });
   });
 
   it('stores no mutation body and commits only the exact approved input once', async () => {
@@ -269,6 +325,44 @@ describe('connector action gateway', () => {
 });
 
 describe('connection lifecycle', () => {
+  it('isolates provider grants between Sia users', async () => {
+    const fixture = makeFixture();
+    const first = await fixture.services.connections.start(user, 'gmail');
+    const second = await fixture.services.connections.start(otherUser, 'gmail');
+
+    assert.notEqual(first.connectionId, second.connectionId);
+    assert.deepEqual(
+      (await fixture.services.connections.status(user, 'gmail')).connections.map(
+        ({ id }) => id,
+      ),
+      [first.connectionId],
+    );
+    assert.deepEqual(
+      (await fixture.services.connections.status(otherUser, 'gmail')).connections.map(
+        ({ id }) => id,
+      ),
+      [second.connectionId],
+    );
+
+    assert.deepEqual(
+      await fixture.services.connections.disconnect(otherUser, 'gmail', first.connectionId),
+      { disconnected: true },
+    );
+    assert.equal(fixture.connector.statuses.get(first.connectionId)?.status, 'link_pending');
+    assert.equal(fixture.state.connectionRecords.size, 2);
+  });
+
+  it('treats an already-removed connection as disconnected', async () => {
+    const fixture = makeFixture();
+
+    assert.deepEqual(
+      await fixture.services.connections.disconnect(user, 'gmail', 'missing-connection'),
+      { disconnected: true },
+    );
+    assert.equal(fixture.state.connectionRecords.size, 0);
+    assert.equal(fixture.connector.statuses.has('missing-connection'), false);
+  });
+
   it('cancels a pending link and removes its local connection record', async () => {
     const fixture = makeFixture();
     const started = await fixture.services.connections.start(user, 'gmail');
@@ -379,14 +473,42 @@ describe('research boundary', () => {
       poll();
     });
 
-    const exported = await fixture.services.research.export(user);
-    const exportKey = exported.downloadUrl.slice('memory://'.length);
+    const requested = await fixture.services.research.export(user);
+    await fixture.services.researchExportWorker.process(user.subject, requested.exportId);
+    const exported = await fixture.services.research.exportStatus(user, requested.exportId);
+    assert.equal(exported.status, 'completed');
+    const exportKey = exported.downloadUrl!.slice('memory://'.length);
     const body = Buffer.from(fixture.objects.objects.get(exportKey) ?? []).toString('utf8');
     assert.match(body, /Summarize my own local notes/);
     assert.doesNotMatch(body, /Unclaimed competing research content/);
 
     releaseSecondClaim();
     await assert.rejects(loser, hasCode('research_batch_conflict'));
+  });
+
+  it('fails a corrupted export safely and can retry the same job after recovery', async () => {
+    const fixture = makeFixture();
+    await fixture.services.research.upload(user, validBatch());
+    const metadata = (await fixture.state.listBatches(user.subject))[0]!;
+    const original = fixture.objects.objects.get(metadata.objectKey)!.slice();
+    fixture.objects.objects.set(metadata.objectKey, Buffer.from('corrupted export input'));
+
+    const requested = await fixture.services.research.export(user);
+    await assert.rejects(
+      fixture.services.researchExportWorker.process(user.subject, requested.exportId),
+      /integrity check/,
+    );
+    assert.equal(
+      (await fixture.services.research.exportStatus(user, requested.exportId)).status,
+      'failed',
+    );
+
+    fixture.objects.objects.set(metadata.objectKey, original);
+    await fixture.services.researchExportWorker.process(user.subject, requested.exportId);
+    assert.equal(
+      (await fixture.services.research.exportStatus(user, requested.exportId)).status,
+      'completed',
+    );
   });
 
   it('rejects connector taint, auth surfaces, and secret-shaped payloads before S3', async () => {
@@ -444,6 +566,139 @@ describe('research boundary', () => {
       fixture.services.research.upload(user, batch),
       hasCode('consent_version_required'),
     );
+  });
+
+  it('stores v3 raw event bundles with turn metadata and exposes them only to admins', async () => {
+    const fixture = makeFixture();
+    await fixture.state.putInvite({
+      email: 'user@example.com',
+      invitedBy: admin.subject,
+      invitedAt: fixture.clock.now().toISOString(),
+      subject: user.subject,
+      status: 'active',
+    });
+    const batch: ResearchBatchRequest = {
+      batchId: 'raw-batch-1',
+      format: 'raw_v1',
+      scope: {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        sequenceStart: 1,
+        sequenceEnd: 1,
+        eventKinds: ['provider.tool'],
+      },
+      consent: {
+        version: 'alpha-1',
+        acceptedAt: '2026-08-13T00:00:00.000Z',
+        purpose: 'research_evaluation_debugging',
+      },
+      events: [
+        {
+          id: 'raw-event-1',
+          occurredAt: '2026-08-13T00:00:01.000Z',
+          classification: 'research_allowed',
+          taints: [],
+          kind: 'raw.event',
+          payload: {
+            schemaVersion: 1,
+            threadId: 'thread-1',
+            turnId: 'turn-1',
+            eventType: 'provider.tool',
+            data: {
+              arguments: { command: 'printenv' },
+              result: { authorization: 'raw research fixture' },
+            },
+          },
+        },
+      ],
+    };
+
+    await fixture.services.research.upload(user, batch);
+    await assert.rejects(
+      fixture.services.researchAdmin.participants(user),
+      hasCode('admin_required'),
+    );
+    const participants = await fixture.services.researchAdmin.participants(admin);
+    assert.deepEqual(participants.participants[0], {
+      subject: user.subject,
+      email: 'user@example.com',
+      batchCount: 1,
+      byteLength: participants.participants[0]?.byteLength,
+      lastCreatedAt: '2026-08-13T00:00:00.000Z',
+    });
+    const batches = await fixture.services.researchAdmin.batches(admin, user.subject);
+    assert.equal(batches.batches[0]?.format, 'raw_v1');
+    assert.equal(batches.batches[0]?.scope?.turnId, 'turn-1');
+    const read = await fixture.services.researchAdmin.batch(admin, user.subject, 'raw-batch-1');
+    assert.match(JSON.stringify(read.batch), /raw research fixture/);
+    assert.equal(
+      fixture.audit.events.filter(({ action }) => action.startsWith('research.admin')).length,
+      4,
+    );
+    assert.equal(
+      fixture.audit.events.find(
+        ({ action, userId }) =>
+          action === 'research.admin.participants' && userId === user.subject,
+      )?.outcome,
+      'denied',
+    );
+  });
+
+  it('denies and audits an admin archive read until MFA is configured', async () => {
+    const fixture = makeFixture();
+    fixture.identity.hasMfa = async () => false;
+
+    await assert.rejects(
+      fixture.services.researchAdmin.participants(admin),
+      hasCode('admin_mfa_required'),
+    );
+    assert.deepEqual(fixture.audit.events.at(-1), {
+      userId: admin.subject,
+      action: 'research.admin.participants',
+      outcome: 'denied',
+      occurredAt: '2026-08-13T00:00:00.000Z',
+      errorCode: 'admin_mfa_required',
+    });
+  });
+
+  it('rejects raw bundles whose event organization does not match the declared turn', async () => {
+    const fixture = makeFixture();
+    const batch: ResearchBatchRequest = {
+      batchId: 'raw-batch-mismatch',
+      format: 'raw_v1',
+      scope: {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        eventKinds: ['provider.message'],
+      },
+      consent: {
+        version: 'alpha-1',
+        acceptedAt: '2026-08-13T00:00:00.000Z',
+        purpose: 'research_evaluation_debugging',
+      },
+      events: [
+        {
+          id: 'raw-event-mismatch',
+          occurredAt: '2026-08-13T00:00:01.000Z',
+          classification: 'research_allowed',
+          taints: [],
+          kind: 'raw.event',
+          payload: {
+            schemaVersion: 1,
+            threadId: 'thread-1',
+            turnId: 'different-turn',
+            eventType: 'provider.message',
+            data: { text: 'raw' },
+          },
+        },
+      ],
+    };
+
+    await assert.rejects(
+      fixture.services.research.upload(user, batch),
+      hasCode('invalid_raw_research_batch'),
+    );
+    assert.equal(fixture.objects.objects.size, 0);
   });
 });
 
@@ -535,6 +790,7 @@ function makeFixture(overrides: { inviteLimit?: number } = {}) {
   const objects = new MemoryResearchObjects();
   const identity = new MemoryIdentity();
   const queue = new MemoryDeletionQueue();
+  const exportQueue = new MemoryResearchExportQueue();
   const audit = new MemoryAudit();
   const clock = new FixedClock(new Date('2026-08-13T00:00:00.000Z'));
   const metaConfig: MetaConfig = {
@@ -547,9 +803,16 @@ function makeFixture(overrides: { inviteLimit?: number } = {}) {
   const composioConfig: ComposioConfig = {
     apiKey: 'test-composio-key-with-enough-characters',
     baseUrl: 'https://composio.invalid',
-    authConfigIds: { gmail: 'gmail', google_drive: 'drive', slack: 'slack' },
+    authConfigIds: {
+      gmail: 'gmail',
+      google_drive: 'drive',
+      google_docs: 'docs',
+      google_sheets: 'sheets',
+      google_slides: 'slides',
+      slack: 'slack',
+    },
     toolSlugs: { ...COMPOSIO_TOOL_SLUGS } as Record<ToolName, string>,
-    toolVersion: COMPOSIO_TOOL_VERSION,
+    toolVersions: { ...COMPOSIO_TOOL_VERSIONS } as Record<ToolName, string>,
   };
   const deps: ServiceDependencies = {
     clock,
@@ -559,6 +822,8 @@ function makeFixture(overrides: { inviteLimit?: number } = {}) {
     connectorUploads: state,
     actions: state,
     research: state,
+    researchExports: state,
+    researchExportQueue: exportQueue,
     researchObjects: objects,
     invites: state,
     identity,
@@ -572,6 +837,12 @@ function makeFixture(overrides: { inviteLimit?: number } = {}) {
       actionTtlSeconds: 600,
       consentVersion: 'alpha-1',
       inviteLimit: overrides.inviteLimit ?? 20,
+      features: {
+        researchUploads: true,
+        researchArchive: true,
+        connectors: true,
+        schedules: true,
+      },
     },
   };
   return {
@@ -580,6 +851,7 @@ function makeFixture(overrides: { inviteLimit?: number } = {}) {
     objects,
     identity,
     queue,
+    exportQueue,
     audit,
     clock,
     services: createServices(deps),
@@ -588,7 +860,7 @@ function makeFixture(overrides: { inviteLimit?: number } = {}) {
 
 async function connect(
   fixture: ReturnType<typeof makeFixture>,
-  app: 'gmail' | 'google_drive' | 'slack',
+  app: 'gmail' | 'google_drive' | 'google_docs' | 'google_sheets' | 'google_slides' | 'slack',
   id: string,
 ) {
   await fixture.state.putConnection({

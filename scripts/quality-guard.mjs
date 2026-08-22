@@ -25,12 +25,28 @@ const expectedActionTools = [
   'drive_read',
   'drive_upload',
   'drive_share',
+  'docs_create',
+  'docs_read',
+  'docs_append',
+  'sheets_create',
+  'sheets_read',
+  'sheets_update',
+  'sheets_append',
+  'slides_create',
+  'slides_read',
+  'slides_append',
   'slack_search',
+  'slack_find_users',
+  'slack_open_dm',
   'slack_read_thread',
   'slack_post',
   'messages_search',
   'messages_read_thread',
   'messages_send',
+  'schedule_create',
+  'schedule_list',
+  'schedule_update',
+  'schedule_delete',
 ].sort();
 
 const failures = [];
@@ -54,8 +70,11 @@ const infraTemplateSource = await readFile(infraTemplatePath, 'utf8');
 if (/from ['"]\.\/demo['"]/.test(appControllerSource)) {
   failures.push('The production renderer silently falls back to demo state');
 }
-if (!infraTemplateSource.includes("MfaConfiguration: 'OFF'")) {
-  failures.push('The Cognito MFA enum must stay quoted so YAML does not coerce OFF to false');
+if (
+  !infraTemplateSource.includes("MfaConfiguration: 'OPTIONAL'") ||
+  !infraTemplateSource.includes('- SOFTWARE_TOKEN_MFA')
+) {
+  failures.push('The Cognito software-token MFA policy must stay explicit and YAML-safe');
 }
 if (!infraTemplateSource.includes('AllowedFirstAuthFactors: [PASSWORD, EMAIL_OTP]')) {
   failures.push(

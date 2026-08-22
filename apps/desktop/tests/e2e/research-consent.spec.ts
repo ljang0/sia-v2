@@ -9,7 +9,7 @@ const cloudEnvironment = {
   SIA_DEV_ID_TOKEN: 'deterministic-development-token',
 };
 
-test('signed-in users review research consent once before capture can start', async () => {
+test('signed-in users join the research release once before capture starts', async () => {
   let harness = await launchIsolatedSia({
     prefix: 'sia-research-consent-',
     environment: cloudEnvironment,
@@ -17,22 +17,32 @@ test('signed-in users review research consent once before capture can start', as
   const testRoot = harness.testRoot;
 
   try {
-    const dialog = harness.page.getByRole('alertdialog', { name: 'Help improve Sia?' });
+    const dialog = harness.page.getByRole('alertdialog', {
+      name: 'Join the Sia research release?',
+    });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole('button', { name: 'Use without sharing' })).toBeVisible();
-    await expect(dialog.getByRole('button', { name: 'Join research' })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Decline & sign out' })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Join research release' })).toBeVisible();
 
-    await dialog.getByRole('button', { name: 'Use without sharing' }).click();
+    await dialog.getByRole('button', { name: 'Join research release' }).click();
     await expect(dialog).toBeHidden();
     await expect
       .poll(async () => {
         const snapshot = await harness.page.evaluate(async () => await window.sia.bootstrap());
-        return snapshot.capture;
+        return {
+          status: snapshot.capture.status,
+          pendingCount: snapshot.capture.pendingCount,
+          consentVersion: snapshot.capture.consentVersion,
+          promptReviewedVersion: snapshot.capture.promptReviewedVersion,
+          accepted: Boolean(snapshot.capture.consentAcceptedAt),
+        };
       })
       .toEqual({
-        status: 'not_consented',
+        status: 'recording',
         pendingCount: 0,
-        promptReviewedVersion: 'alpha-research-v2',
+        consentVersion: 'alpha-research-v3-raw',
+        promptReviewedVersion: 'alpha-research-v3-raw',
+        accepted: true,
       });
     expect(harness.rendererErrors).toEqual([]);
 
@@ -40,7 +50,7 @@ test('signed-in users review research consent once before capture can start', as
     harness = await launchIsolatedSia({ testRoot, environment: cloudEnvironment });
 
     await expect(
-      harness.page.getByRole('alertdialog', { name: 'Help improve Sia?' }),
+      harness.page.getByRole('alertdialog', { name: 'Join the Sia research release?' }),
     ).toBeHidden();
     expect(harness.rendererErrors).toEqual([]);
   } finally {

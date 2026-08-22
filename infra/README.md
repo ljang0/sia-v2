@@ -34,7 +34,11 @@ The Meta secret schema is:
 }
 ```
 
-The Composio secret contains `apiKey`, `baseUrl`, a dated `toolVersion`, the managed OAuth `authConfigIds` for `gmail`, `google_drive`, and `slack`, and an exact `toolSlugs` mapping for the eleven canonical Sia tools. Use a scoped project key that can link/revoke accounts and execute only those reviewed tool slugs. The application does not query or expose Composio's raw catalog.
+The Composio secret contains `apiKey`, `baseUrl`, exact per-tool `toolVersions`, reviewed OAuth
+`authConfigIds` for Gmail, Drive, Docs, Sheets, Slides, and Slack, and an exact `toolSlugs` mapping
+for the twenty-three canonical connector tools. Use a scoped project key that can link/revoke accounts
+and execute only those reviewed tool slugs. The application does not query or expose Composio's raw
+catalog.
 
 API Gateway body tracing is disabled. Lambda logging is metadata-only by code contract. Keep this invariant when adding telemetry: request bodies, provider responses, prompt content, email/file/message bodies, authorization headers, and OAuth URLs must never enter logs.
 

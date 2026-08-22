@@ -14,7 +14,7 @@
     "dev": "electron-vite dev",
     "icon:build": "node scripts/build-icon.mjs",
     "licenses:build": "node scripts/build-third-party-licenses.mjs",
-    "package:mac": "rimraf release && node scripts/verify-release-environment.mjs && pnpm cloud-config:prepare:release && pnpm icon:build && pnpm -w build && electron-builder --mac --universal && node scripts/finalize-release-artifacts.mjs --arch=universal && node scripts/verify-packaged-app.mjs --arch=universal --signing=release",
+    "package:mac": "node scripts/verify-release-environment.mjs && rimraf release && pnpm cloud-config:prepare:release && pnpm icon:build && pnpm -w build && electron-builder --mac --universal && node scripts/finalize-release-artifacts.mjs --arch=universal && node scripts/verify-packaged-app.mjs --arch=universal --signing=release",
     "package:mac:arm64:dir": "rimraf release && pnpm cloud-config:prepare && pnpm icon:build && pnpm -w build && electron-builder --mac --arm64 --dir --config.mac.identity=null --config.mac.notarize=false && node scripts/verify-packaged-app.mjs --arch=arm64 --signing=unsigned",
     "package:mac:dir": "rimraf release && pnpm cloud-config:prepare && pnpm icon:build && pnpm -w build && electron-builder --mac --universal --dir --config.mac.identity=null --config.mac.notarize=false && node scripts/verify-packaged-app.mjs --arch=universal --signing=unsigned",
     "preview": "electron-vite preview",

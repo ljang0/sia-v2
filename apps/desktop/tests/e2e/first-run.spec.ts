@@ -47,7 +47,9 @@ test('first run creates an agent, starts a thread, and completes a deterministic
     );
     await page.getByRole('button', { name: 'Create agent' }).click();
 
-    const researchDialog = page.getByRole('alertdialog', { name: 'Help improve Sia?' });
+    const researchDialog = page.getByRole('alertdialog', {
+      name: 'Join the Sia research release?',
+    });
     await expect(researchDialog).toBeVisible();
     await expect(researchDialog).toContainText('captures stay encrypted on this Mac');
     await researchDialog.getByRole('button', { name: 'Use without sharing' }).click();

@@ -1,15 +1,22 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { ComposioConnector } from '../src/aws.js';
-import { COMPOSIO_TOOL_SLUGS, COMPOSIO_TOOL_VERSION } from '../src/connector-contract.js';
+import { COMPOSIO_TOOL_SLUGS, COMPOSIO_TOOL_VERSIONS } from '../src/connector-contract.js';
 import type { ComposioConfig, SecretProvider } from '../src/ports.js';
 
 const config: ComposioConfig = {
   apiKey: 'provider-secret-never-returned',
   baseUrl: 'https://backend.composio.test',
-  authConfigIds: { gmail: 'gmail', google_drive: 'drive', slack: 'slack' },
+  authConfigIds: {
+    gmail: 'gmail',
+    google_drive: 'drive',
+    google_docs: 'docs',
+    google_sheets: 'sheets',
+    google_slides: 'slides',
+    slack: 'slack',
+  },
   toolSlugs: { ...COMPOSIO_TOOL_SLUGS },
-  toolVersion: COMPOSIO_TOOL_VERSION,
+  toolVersions: { ...COMPOSIO_TOOL_VERSIONS },
 };
 
 const secrets: SecretProvider = {
@@ -113,6 +120,61 @@ describe('Composio connection lifecycle adapter', () => {
     try {
       assert.deepEqual(await new ComposioConnector(secrets).connectionStatus('pending'), {
         status: 'link_pending',
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('does not trust a premature ACTIVE status while OAuth state is still initiated', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      Response.json({
+        status: 'ACTIVE',
+        state: { val: { status: 'INITIATED' } },
+        data: { status: 'INITIATED', redirectUrl: 'https://provider.test/authorize' },
+      })) as typeof fetch;
+
+    try {
+      assert.deepEqual(await new ComposioConnector(secrets).connectionStatus('premature'), {
+        status: 'link_pending',
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('accepts a consistently active OAuth connection and trims its account label', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      Response.json({
+        status: 'ACTIVE',
+        state: { val: { status: 'ACTIVE' } },
+        data: { status: 'CONNECTED' },
+        account_display_name: '  user@example.test  ',
+      })) as typeof fetch;
+
+    try {
+      assert.deepEqual(await new ComposioConnector(secrets).connectionStatus('active'), {
+        status: 'connected',
+        accountLabel: 'user@example.test',
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('fails closed when a subordinate OAuth state reports failure', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      Response.json({
+        status: 'ACTIVE',
+        state: { val: { status: 'FAILED' } },
+      })) as typeof fetch;
+
+    try {
+      assert.deepEqual(await new ComposioConnector(secrets).connectionStatus('failed'), {
+        status: 'failed',
       });
     } finally {
       globalThis.fetch = originalFetch;

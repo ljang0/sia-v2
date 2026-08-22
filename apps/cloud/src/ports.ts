@@ -144,6 +144,14 @@ export interface ResearchBatchMetadata {
   sha256: string;
   byteLength: number;
   createdAt: string;
+  format?: 'filtered_v2' | 'raw_v1';
+  scope?: {
+    threadId: string;
+    turnId: string;
+    sequenceStart?: number;
+    sequenceEnd?: number;
+    eventKinds: string[];
+  };
 }
 
 export interface ResearchRepository {
@@ -151,10 +159,42 @@ export interface ResearchRepository {
   getConsent(userId: string, version: string): Promise<ConsentReceipt | undefined>;
   getBatch(userId: string, batchId: string): Promise<ResearchBatchMetadata | undefined>;
   listBatches(userId: string): Promise<ResearchBatchMetadata[]>;
+  listAllBatches(): Promise<ResearchBatchMetadata[]>;
   putBatchIfAbsent(
     batch: ResearchBatchMetadata,
   ): Promise<{ created: true } | { created: false; existing: ResearchBatchMetadata }>;
   deleteResearchForUser(userId: string): Promise<void>;
+}
+
+export type ResearchExportState = 'requested' | 'processing' | 'completed' | 'failed';
+
+export interface ResearchExportJob {
+  id: string;
+  userId: string;
+  state: ResearchExportState;
+  requestedAt: string;
+  updatedAt: string;
+  objectKey?: string;
+  failureCode?: string;
+  expiresAt: number;
+}
+
+export interface ResearchExportRepository {
+  putResearchExport(job: ResearchExportJob): Promise<void>;
+  getResearchExport(userId: string, exportId: string): Promise<ResearchExportJob | undefined>;
+  transitionResearchExport(
+    userId: string,
+    exportId: string,
+    expected: readonly ResearchExportState[],
+    next: ResearchExportState,
+    updatedAt: string,
+    detail?: { objectKey?: string; failureCode?: string },
+  ): Promise<boolean>;
+  deleteResearchExportsForUser(userId: string): Promise<void>;
+}
+
+export interface ResearchExportQueue {
+  enqueue(job: { id: string; userId: string }): Promise<void>;
 }
 
 export interface ResearchObjectStore {
@@ -163,8 +203,16 @@ export interface ResearchObjectStore {
   createExport(
     userId: string,
     exportId: string,
-    objectKeys: readonly string[],
-  ): Promise<{ objectKey: string; downloadUrl: string }>;
+    objects: readonly {
+      objectKey: string;
+      sha256: string;
+      byteLength: number;
+    }[],
+  ): Promise<{ objectKey: string }>;
+  createExportDownloadUrl(userId: string, objectKey: string): Promise<string>;
+  readBatchObject(
+    objectKey: string,
+  ): Promise<{ document: unknown; sha256: string; byteLength: number }>;
   deleteAllForUser(userId: string): Promise<void>;
 }
 
@@ -187,6 +235,7 @@ export interface InviteRepository {
 export interface IdentityProvider {
   createPasswordlessUser(email: string): Promise<{ subject: string }>;
   deleteUser(subject: string): Promise<void>;
+  hasMfa(email: string): Promise<boolean>;
 }
 
 export type DeletionState =
@@ -240,7 +289,7 @@ export interface ComposioConfig {
   baseUrl: string;
   authConfigIds: Record<AppId, string>;
   toolSlugs: Record<ToolName, string>;
-  toolVersion: string;
+  toolVersions: Record<ToolName, string>;
 }
 
 export interface SecretProvider {

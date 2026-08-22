@@ -51,6 +51,7 @@ async function createHarness(
     openMessages?: () => Promise<void>;
     repository?: RecordRepository;
     capabilitySetup?: ConstructorParameters<typeof DesktopController>[0]['capabilitySetup'];
+    trajectory?: ConstructorParameters<typeof DesktopController>[0]['trajectory'];
   } = {},
 ): Promise<{
   controller: DesktopController;
@@ -76,6 +77,7 @@ async function createHarness(
     exportJson: async () => '/tmp/export.json',
     ...(options.capabilitySetup ? { capabilitySetup: options.capabilitySetup } : {}),
     ...(options.runCommand ? { runCommand: options.runCommand } : {}),
+    ...(options.trajectory ? { trajectory: options.trajectory } : {}),
   });
   await controller.initialize();
   await controller.invoke('settings.openDirectory', undefined);
@@ -182,6 +184,122 @@ describe('DesktopController', () => {
     expect(deleted.activeThreadId).toBeUndefined();
     expect(deleted.activeAgentId).toBe(agent.agentId);
     await controller.shutdown();
+  });
+
+  it('persists agent-authored schedules and keeps them scoped to their thread', async () => {
+    const controller = await createController();
+    const agent = await controller.invoke('agents.save', {
+      name: 'Scheduler',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const first = await controller.invoke('threads.create', { agentId: agent.agentId });
+    const second = await controller.invoke('threads.create', { agentId: agent.agentId });
+
+    const created = controller.createScheduleFromAction(first.threadId, {
+      task: 'Search the web for meaningful changes and summarize them.',
+      cadence: 'hourly',
+      firstRunAt: '2030-08-21T12:00:00+09:00',
+    });
+    expect(created).toMatchObject({
+      threadId: first.threadId,
+      prompt: 'Search the web for meaningful changes and summarize them.',
+      cadence: 'hourly',
+      nextRunAt: '2030-08-21T03:00:00.000Z',
+      enabled: true,
+    });
+    expect(controller.listSchedulesForAction(first.threadId)).toHaveLength(1);
+    expect(controller.listSchedulesForAction(second.threadId)).toEqual([]);
+
+    const paused = controller.updateScheduleFromAction(first.threadId, {
+      scheduleId: created.id,
+      enabled: false,
+    });
+    expect(paused.enabled).toBe(false);
+    expect(() =>
+      controller.updateScheduleFromAction(second.threadId, {
+        scheduleId: created.id,
+        enabled: true,
+      }),
+    ).toThrow('not found in this thread');
+    expect(() => controller.deleteScheduleFromAction(second.threadId, created.id)).toThrow(
+      'not found in this thread',
+    );
+
+    controller.deleteScheduleFromAction(first.threadId, created.id);
+    expect(controller.listSchedulesForAction(first.threadId)).toEqual([]);
+    await controller.shutdown();
+  });
+
+  it('recovers a claimed schedule without dispatching its persisted turn twice', async () => {
+    const initial = await createHarness();
+    const agent = await initial.controller.invoke('agents.save', {
+      name: 'Crash-safe scheduler',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await initial.controller.invoke('threads.create', {
+      agentId: agent.agentId,
+    });
+    const schedule = initial.controller.createScheduleFromAction(threadId, {
+      task: 'Check the web once.',
+      cadence: 'hourly',
+      firstRunAt: '2030-08-21T03:00:00.000Z',
+      maxRuns: 2,
+    });
+    const persisted = structuredClone(
+      initial.repository.get<{
+        schedules: Array<{
+          id: string;
+          activeRun?: { id: string; dueAt: string; claimedAt: string };
+        }>;
+        timeline: Array<Record<string, unknown>>;
+      }>('desktop', 'state')!,
+    );
+    await initial.controller.shutdown();
+
+    const claimId = 'schedule-run-after-dispatch';
+    const storedSchedule = persisted.schedules.find(({ id }) => id === schedule.id)!;
+    storedSchedule.activeRun = {
+      id: claimId,
+      dueAt: '2026-08-21T00:00:00.000Z',
+      claimedAt: '2026-08-21T00:00:01.000Z',
+    };
+    persisted.timeline.push({
+      id: 'persisted-scheduled-prompt',
+      threadId,
+      turnId: 'persisted-scheduled-turn',
+      sequence: 1,
+      kind: 'user',
+      text: 'Check the web once.',
+      status: 'complete',
+      timestamp: '2026-08-21T00:00:02.000Z',
+      scheduleRunId: claimId,
+    });
+    const recoveredRepository = new SqliteRecordRepository(
+      ':memory:',
+      new PlaintextTestCipher(),
+    );
+    recoveredRepository.put('desktop', 'state', persisted);
+    const recovered = await createHarness({ repository: recoveredRepository });
+    await vi.waitFor(() => {
+      expect(recovered.controller.snapshot().schedules?.[0]?.activeRun).toBeUndefined();
+    });
+
+    const snapshot = recovered.controller.snapshot();
+    expect(
+      snapshot.timeline.filter(({ scheduleRunId }) => scheduleRunId === claimId),
+    ).toHaveLength(1);
+    expect(snapshot.schedules?.[0]).toMatchObject({
+      runCount: 1,
+      maxRuns: 2,
+      lastRun: { id: claimId, outcome: 'started' },
+    });
+    await recovered.controller.shutdown();
   });
 
   it('requires an active turn to stop before its thread can be deleted', async () => {
@@ -516,6 +634,59 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('does not discard an unsynced research outbox during sign-out', async () => {
+    let identityState: 'signed_in' | 'signed_out' = 'signed_in';
+    const identity = {
+      initialize: async () => ({ state: identityState, email: 'person@example.com' }),
+      status: () =>
+        identityState === 'signed_in'
+          ? ({ state: identityState, email: 'person@example.com' } as const)
+          : ({ state: identityState } as const),
+      startEmailSignIn: async () => ({ state: identityState }),
+      completeEmailSignIn: async () => ({ state: identityState }),
+      signOut: async () => {
+        identityState = 'signed_out';
+        return { state: identityState } as const;
+      },
+    } satisfies ConstructorParameters<typeof DesktopController>[0]['identity'];
+    const cloud = {
+      configured: true,
+      sessionStatus: async () => ({
+        features: {
+          researchUploads: true,
+          researchArchive: true,
+          connectors: true,
+          schedules: true,
+        },
+      }),
+      uploadResearchBatch: vi.fn(async () => {
+        throw new Error('offline');
+      }),
+    } as unknown as CloudClient;
+    const { controller, repository } = await createHarness({ cloud, identity });
+    await controller.invoke('research.setCapture', {
+      enabled: true,
+      consentVersion: 'alpha-research-v3-raw',
+    });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Research participant',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const thread = await controller.invoke('threads.create', { agentId: agent.agentId });
+    await controller.invoke('threads.send', { threadId: thread.threadId, text: 'Retain me' });
+    await vi.waitFor(() => expect(repository.list('research').length).toBeGreaterThan(0));
+
+    await expect(controller.invoke('auth.signOut', undefined)).rejects.toThrow(
+      'waiting for AWS',
+    );
+    expect(identityState).toBe('signed_in');
+    expect(repository.list('research')).not.toHaveLength(0);
+    await controller.shutdown();
+  });
+
   it('revokes process-local browser and interrupted turn state on relaunch', async () => {
     const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
     const now = new Date().toISOString();
@@ -801,6 +972,63 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('routes an MFA-protected admin through password then authenticator completion', async () => {
+    let identityState: 'password_required' | 'mfa_required' | 'signed_in' = 'password_required';
+    const completePasswordSignIn = vi.fn(async (password: string) => {
+      expect(password).toBe('admin password with spaces');
+      identityState = 'mfa_required';
+      return { state: identityState, email: 'admin@example.com' } as const;
+    });
+    const completeMfaSignIn = vi.fn(async (code: string) => {
+      expect(code).toBe('123456');
+      identityState = 'signed_in';
+      return {
+        state: identityState,
+        email: 'admin@example.com',
+        admin: true,
+        adminMfa: true,
+      } as const;
+    });
+    const identity = {
+      initialize: async () => ({ state: identityState, email: 'admin@example.com' }),
+      status: () =>
+        identityState === 'signed_in'
+          ? {
+              state: identityState,
+              email: 'admin@example.com',
+              admin: true,
+              adminMfa: true,
+            }
+          : { state: identityState, email: 'admin@example.com' },
+      startEmailSignIn: async () => ({ state: identityState, email: 'admin@example.com' }),
+      completeEmailSignIn: vi.fn(async () => ({
+        state: identityState,
+        email: 'admin@example.com',
+      })),
+      completePasswordSignIn,
+      completeMfaSignIn,
+      signOut: async () => ({ state: 'signed_out' as const }),
+    } satisfies ConstructorParameters<typeof DesktopController>[0]['identity'];
+    const { controller } = await createHarness({
+      identity,
+      cloud: new CloudClient('https://api.example.test', { read: async () => undefined }),
+    });
+
+    await controller.invoke('auth.complete', { code: 'admin password with spaces' });
+    expect(completePasswordSignIn).toHaveBeenCalledOnce();
+    expect(identity.completeEmailSignIn).not.toHaveBeenCalled();
+    expect(controller.snapshot().cloud.auth).toBe('mfa_required');
+
+    await controller.invoke('auth.complete', { code: '123456' });
+    expect(completeMfaSignIn).toHaveBeenCalledOnce();
+    expect(controller.snapshot().cloud).toMatchObject({
+      auth: 'signed_in',
+      admin: true,
+      adminMfa: true,
+    });
+    await controller.shutdown();
+  });
+
   it('refuses account deletion without a configured signed-in cloud identity', async () => {
     const controller = await createController();
     await expect(
@@ -815,6 +1043,49 @@ describe('DesktopController', () => {
       'Review and accept',
     );
     expect(controller.snapshot().capture).toEqual({ status: 'not_consented', pendingCount: 0 });
+    await controller.shutdown();
+  });
+
+  it('requires signed-in research-release users to sign out before pausing capture', async () => {
+    const identity = {
+      initialize: async () => ({ state: 'signed_in' as const, email: 'person@example.com' }),
+      status: () => ({ state: 'signed_in' as const, email: 'person@example.com' }),
+      startEmailSignIn: async () => ({
+        state: 'signed_in' as const,
+        email: 'person@example.com',
+      }),
+      completeEmailSignIn: async () => ({
+        state: 'signed_in' as const,
+        email: 'person@example.com',
+      }),
+      signOut: async () => ({ state: 'signed_out' as const }),
+    } satisfies ConstructorParameters<typeof DesktopController>[0]['identity'];
+    const { controller } = await createHarness({
+      cloud: new CloudClient('https://api.example.test', { read: async () => 'test-token' }),
+      identity,
+    });
+    const created = await controller.invoke('agents.save', {
+      name: 'Research participant',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', {
+      agentId: created.agentId,
+    });
+    await expect(
+      controller.invoke('threads.send', { threadId, text: 'This must not bypass consent.' }),
+    ).rejects.toThrow('current raw research consent');
+    await controller.invoke('research.setCapture', {
+      enabled: true,
+      consentVersion: 'alpha-research-v3-raw',
+    });
+
+    await expect(controller.invoke('research.setCapture', { enabled: false })).rejects.toThrow(
+      'required while signed in',
+    );
+    expect(controller.snapshot().capture.status).toBe('recording');
     await controller.shutdown();
   });
 
@@ -1104,6 +1375,81 @@ describe('DesktopController', () => {
     expect(serialized).toContain('"presentation":"command"');
     expect(serialized).not.toContain('printenv');
     expect(serialized).not.toContain('never collect provider output');
+    await controller.shutdown();
+  });
+
+  it('captures organized raw provider events under the v3 research consent', async () => {
+    let runtimeThreadId = '';
+    const runtime = {
+      async *runTurn(input: { turnId: string }) {
+        const base = {
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 1,
+          type: 'tool' as const,
+          payload: {
+            callId: 'raw-call-1',
+            name: 'shell_command',
+            phase: 'completed' as const,
+            native: true,
+            arguments: { command: 'printf raw-fixture' },
+            result: 'raw command output',
+            presentation: {
+              kind: 'command' as const,
+              command: 'printf raw-fixture',
+              output: 'raw command output',
+              exitCode: 0,
+            },
+          },
+        };
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller, repository } = await createHarness({ fakeServices: false, runtime });
+    await controller.invoke('research.setCapture', {
+      enabled: true,
+      consentVersion: 'alpha-research-v3-raw',
+    });
+    const created = await controller.invoke('agents.save', {
+      name: 'Raw research',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', {
+      agentId: created.agentId,
+    });
+    runtimeThreadId = threadId;
+
+    await controller.invoke('threads.send', { threadId, text: 'Capture this exact turn' });
+    await vi.waitFor(() => expect(repository.list('research').length).toBeGreaterThan(0));
+
+    const batches = repository.list<ResearchBatchView & { format?: string; scope?: unknown }>(
+      'research',
+    );
+    const serialized = JSON.stringify(batches);
+    expect(batches.every(({ format }) => format === 'raw_v1')).toBe(true);
+    expect(serialized).toContain('provider.tool');
+    expect(serialized).toContain('Capture this exact turn');
+    expect(serialized).toContain('printf raw-fixture');
+    expect(serialized).toContain('raw command output');
+    expect(serialized).toContain(threadId);
     await controller.shutdown();
   });
 
@@ -1465,6 +1811,7 @@ describe('DesktopController', () => {
 
   it('shows exact connector recipients and content in the approval preview', async () => {
     const controller = await createController();
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
     await controller.invoke('connections.start', { connectionId: 'gmail' });
     const agent = await controller.invoke('agents.save', {
       name: 'Personal',
@@ -1509,6 +1856,44 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('authorizes connector changes without an approval card in autonomous mode', async () => {
+    const controller = await createController();
+    await controller.invoke('connections.start', { connectionId: 'slack' });
+    const connectionId = controller
+      .snapshot()
+      .connections.find(({ id }) => id === 'slack')?.connectionId;
+    const agent = await controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
+    const started = await controller.invoke('threads.send', {
+      threadId,
+      text: 'Post the update',
+    });
+
+    await expect(
+      controller.approvalBroker().requestApproval({
+        id: 'automatic-slack-call',
+        sessionId: 'session-1',
+        threadId,
+        turnId: started.turnId,
+        tool: getActionToolDescriptor('slack_post')!,
+        arguments: { account_id: 'slack', channel_id: 'C1', text: 'Ready.' },
+        targetDigest: 'automatic-slack-digest',
+        reason: 'This posts a Slack message.',
+      }),
+    ).resolves.toEqual({ approved: true });
+    expect(controller.snapshot().approvals).toHaveLength(0);
+    expect(controller.connectionIdForAction('slack', 'slack', 'automatic-slack-call')).toBe(
+      connectionId,
+    );
+    await controller.shutdown();
+  });
+
   it('connects every work app from one guided request in fake-services mode', async () => {
     const controller = await createController();
 
@@ -1518,22 +1903,203 @@ describe('DesktopController', () => {
     expect(result.snapshot.connections).toEqual([
       expect.objectContaining({ id: 'gmail', status: 'connected' }),
       expect.objectContaining({ id: 'drive', status: 'connected' }),
+      expect.objectContaining({ id: 'docs', status: 'connected' }),
+      expect.objectContaining({ id: 'sheets', status: 'connected' }),
+      expect.objectContaining({ id: 'slides', status: 'connected' }),
       expect.objectContaining({ id: 'slack', status: 'connected' }),
     ]);
     await controller.shutdown();
   });
 
+  it('connects Google Workspace as one guided group without implicitly granting Slack', async () => {
+    const controller = await createController();
+
+    const result = await controller.invoke('connections.startGoogle', undefined);
+
+    expect(result.opened).toBe(false);
+    expect(
+      result.snapshot.connections
+        .filter(({ id }) => id !== 'slack')
+        .every(({ status }) => status === 'connected'),
+    ).toBe(true);
+    expect(result.snapshot.connections.find(({ id }) => id === 'slack')).toMatchObject({
+      status: 'disconnected',
+    });
+    await controller.shutdown();
+  });
+
+  it('connects only the selected apps in canonical setup order', async () => {
+    const controller = await createController();
+
+    const result = await controller.invoke('connections.startSelected', {
+      connectionIds: ['slack', 'docs', 'gmail'],
+    });
+
+    expect(result.opened).toBe(false);
+    expect(result.snapshot.connections.map(({ id, status }) => ({ id, status }))).toEqual([
+      { id: 'gmail', status: 'connected' },
+      { id: 'drive', status: 'disconnected' },
+      { id: 'docs', status: 'connected' },
+      { id: 'sheets', status: 'disconnected' },
+      { id: 'slides', status: 'disconnected' },
+      { id: 'slack', status: 'connected' },
+    ]);
+    await controller.shutdown();
+  });
+
+  it('resumes Google Workspace setup without replacing apps that are already connected', async () => {
+    const controller = await createController();
+    await controller.invoke('connections.start', { connectionId: 'gmail' });
+    await controller.invoke('connections.start', { connectionId: 'drive' });
+    const before = controller.snapshot().connections;
+    const gmailGrant = before.find(({ id }) => id === 'gmail')?.connectionId;
+    const driveGrant = before.find(({ id }) => id === 'drive')?.connectionId;
+
+    const result = await controller.invoke('connections.startGoogle', undefined);
+
+    expect(result.snapshot.connections.find(({ id }) => id === 'gmail')).toMatchObject({
+      status: 'connected',
+      connectionId: gmailGrant,
+    });
+    expect(result.snapshot.connections.find(({ id }) => id === 'drive')).toMatchObject({
+      status: 'connected',
+      connectionId: driveGrant,
+    });
+    expect(
+      result.snapshot.connections
+        .filter(({ id }) => id !== 'slack')
+        .every(({ status }) => status === 'connected'),
+    ).toBe(true);
+    expect(result.snapshot.connections.find(({ id }) => id === 'slack')).toMatchObject({
+      status: 'disconnected',
+    });
+    await controller.shutdown();
+  });
+
+  it('records connector setup locally and in the raw AWS research stream', async () => {
+    const uploadResearchBatch = vi.fn(async () => undefined);
+    const startConnection = vi.fn(async () => ({
+      redirectUrl: 'https://connect.example.test/docs',
+      connectionId: 'grant-docs',
+      expiresAt: new Date(Date.now() + 120_000).toISOString(),
+    }));
+    const cloud = {
+      configured: true,
+      sessionStatus: async () => ({
+        features: {
+          researchUploads: true,
+          researchArchive: true,
+          connectors: true,
+          schedules: true,
+        },
+      }),
+      startConnection,
+      connectionStatus: async () => ({
+        connections: [
+          {
+            id: 'grant-docs',
+            app: 'google_docs' as const,
+            status: 'connected' as const,
+            accountLabel: 'research-fixture@example.test',
+          },
+        ],
+      }),
+      disconnect: async () => undefined,
+      uploadResearchBatch,
+    } as unknown as CloudClient;
+    const identity = {
+      initialize: async () => ({ state: 'signed_in' as const, email: 'person@example.com' }),
+      status: () => ({ state: 'signed_in' as const, email: 'person@example.com' }),
+      startEmailSignIn: async () => ({
+        state: 'signed_in' as const,
+        email: 'person@example.com',
+      }),
+      completeEmailSignIn: async () => ({
+        state: 'signed_in' as const,
+        email: 'person@example.com',
+      }),
+      signOut: async () => ({ state: 'signed_out' as const }),
+    } satisfies ConstructorParameters<typeof DesktopController>[0]['identity'];
+    const record = vi.fn();
+    const trajectory = {
+      rootDirectory: '/tmp/sia-trajectories',
+      record,
+    } as unknown as NonNullable<
+      ConstructorParameters<typeof DesktopController>[0]['trajectory']
+    >;
+    const { controller, repository } = await createHarness({
+      cloud,
+      identity,
+      fakeServices: false,
+      trajectory,
+    });
+
+    await expect(
+      controller.invoke('connections.start', { connectionId: 'docs' }),
+    ).rejects.toThrow('Raw research recording must be active');
+    expect(startConnection).not.toHaveBeenCalled();
+
+    await controller.invoke('research.setCapture', {
+      enabled: true,
+      consentVersion: 'alpha-research-v3-raw',
+    });
+    vi.useFakeTimers();
+    try {
+      await controller.invoke('connections.start', { connectionId: 'docs' });
+      await vi.advanceTimersByTimeAsync(2_000);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(controller.snapshot().connections.find(({ id }) => id === 'docs')).toMatchObject({
+        status: 'connected',
+        account: 'research-fixture@example.test',
+      });
+      const serialized = JSON.stringify(repository.list('research'));
+      expect(serialized).toContain('connector.setup.started');
+      expect(serialized).toContain('connector.authorization.opened');
+      expect(serialized).toContain('connector.connected');
+      expect(serialized).not.toContain('https://connect.example.test/docs');
+      expect(uploadResearchBatch).toHaveBeenCalled();
+      expect(record.mock.calls.map(([event]) => event.type)).toEqual(
+        expect.arrayContaining([
+          'connector.setup.started',
+          'connector.authorization.opened',
+          'connector.connected',
+        ]),
+      );
+    } finally {
+      vi.useRealTimers();
+      await controller.shutdown();
+    }
+  });
+
   it('opens each provider only after the previous grant is verified', async () => {
-    const startConnection = vi.fn(async (connectionId: 'gmail' | 'drive' | 'slack') => ({
+    type TestConnectionId = 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack';
+    const connectionOrder: TestConnectionId[] = [
+      'gmail',
+      'drive',
+      'docs',
+      'sheets',
+      'slides',
+      'slack',
+    ];
+    const startConnection = vi.fn(async (connectionId: TestConnectionId) => ({
       redirectUrl: `https://connect.example.test/${connectionId}`,
       connectionId: `grant-${connectionId}`,
       expiresAt: new Date(Date.now() + 120_000).toISOString(),
     }));
-    const connectionStatus = vi.fn(async (connectionId: 'gmail' | 'drive' | 'slack') => ({
+    const connectionStatus = vi.fn(async (connectionId: TestConnectionId) => ({
       connections: [
         {
           id: `grant-${connectionId}`,
-          app: connectionId === 'drive' ? ('google_drive' as const) : connectionId,
+          app: {
+            gmail: 'gmail',
+            drive: 'google_drive',
+            docs: 'google_docs',
+            sheets: 'google_sheets',
+            slides: 'google_slides',
+            slack: 'slack',
+          }[connectionId],
           status: 'connected' as const,
           accountLabel: `${connectionId}@example.test`,
         },
@@ -1542,9 +2108,18 @@ describe('DesktopController', () => {
     const disconnect = vi.fn(async () => undefined);
     const cloud = {
       configured: true,
+      sessionStatus: async () => ({
+        features: {
+          researchUploads: true,
+          researchArchive: true,
+          connectors: true,
+          schedules: true,
+        },
+      }),
       startConnection,
       connectionStatus,
       disconnect,
+      uploadResearchBatch: async () => undefined,
     } as unknown as CloudClient;
     const identity = {
       initialize: async () => ({ state: 'signed_in' as const, email: 'person@example.com' }),
@@ -1560,6 +2135,10 @@ describe('DesktopController', () => {
       fakeServices: false,
       openExternal,
     });
+    await controller.invoke('research.setCapture', {
+      enabled: true,
+      consentVersion: 'alpha-research-v3-raw',
+    });
     vi.useFakeTimers();
 
     try {
@@ -1568,26 +2147,21 @@ describe('DesktopController', () => {
       expect(openExternal).toHaveBeenCalledTimes(1);
       expect(openExternal).toHaveBeenLastCalledWith('https://connect.example.test/gmail');
 
+      for (let index = 1; index < connectionOrder.length; index += 1) {
+        await vi.advanceTimersByTimeAsync(2_000);
+        expect(openExternal).toHaveBeenCalledTimes(index + 1);
+        expect(openExternal).toHaveBeenLastCalledWith(
+          `https://connect.example.test/${connectionOrder[index]}`,
+        );
+      }
       await vi.advanceTimersByTimeAsync(2_000);
-      expect(openExternal).toHaveBeenCalledTimes(2);
-      expect(openExternal).toHaveBeenLastCalledWith('https://connect.example.test/drive');
-
-      await vi.advanceTimersByTimeAsync(2_000);
-      expect(openExternal).toHaveBeenCalledTimes(3);
-      expect(openExternal).toHaveBeenLastCalledWith('https://connect.example.test/slack');
-
-      await vi.advanceTimersByTimeAsync(2_000);
-      expect(startConnection.mock.calls.map(([id]) => id)).toEqual(['gmail', 'drive', 'slack']);
-      expect(connectionStatus.mock.calls.map(([id]) => id)).toEqual([
-        'gmail',
-        'drive',
-        'slack',
-      ]);
+      expect(startConnection.mock.calls.map(([id]) => id)).toEqual(connectionOrder);
+      expect(connectionStatus.mock.calls.map(([id]) => id)).toEqual(connectionOrder);
       expect(
         controller.snapshot().connections.every(({ status }) => status === 'connected'),
       ).toBe(true);
 
-      for (const connectionId of ['gmail', 'drive', 'slack'] as const) {
+      for (const connectionId of connectionOrder) {
         await controller.invoke('connections.disconnect', { connectionId });
       }
       const delayedStatus = Promise.withResolvers<{
@@ -1600,9 +2174,9 @@ describe('DesktopController', () => {
       }>();
       connectionStatus.mockImplementationOnce(async () => await delayedStatus.promise);
       await controller.invoke('connections.startAll', undefined);
-      expect(openExternal).toHaveBeenCalledTimes(4);
+      expect(openExternal).toHaveBeenCalledTimes(7);
       await vi.advanceTimersByTimeAsync(2_000);
-      expect(connectionStatus).toHaveBeenCalledTimes(4);
+      expect(connectionStatus).toHaveBeenCalledTimes(7);
 
       await controller.invoke('connections.disconnect', { connectionId: 'gmail' });
       delayedStatus.resolve({
@@ -1617,10 +2191,13 @@ describe('DesktopController', () => {
       });
       await Promise.resolve();
       await Promise.resolve();
-      expect(openExternal).toHaveBeenCalledTimes(4);
+      expect(openExternal).toHaveBeenCalledTimes(7);
       expect(controller.snapshot().connections).toEqual([
         expect.objectContaining({ id: 'gmail', status: 'disconnected' }),
         expect.objectContaining({ id: 'drive', status: 'disconnected' }),
+        expect.objectContaining({ id: 'docs', status: 'disconnected' }),
+        expect.objectContaining({ id: 'sheets', status: 'disconnected' }),
+        expect.objectContaining({ id: 'slides', status: 'disconnected' }),
         expect.objectContaining({ id: 'slack', status: 'disconnected' }),
       ]);
     } finally {
@@ -1629,8 +2206,82 @@ describe('DesktopController', () => {
     }
   });
 
+  it('keeps polling through a transient connection-status outage', async () => {
+    const connectionStatus = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Temporary network failure'))
+      .mockResolvedValue({
+        connections: [
+          {
+            id: 'grant-slack',
+            app: 'slack' as const,
+            status: 'connected' as const,
+            accountLabel: 'fixture-workspace',
+          },
+        ],
+      });
+    const cloud = {
+      configured: true,
+      sessionStatus: async () => ({
+        features: {
+          researchUploads: true,
+          researchArchive: true,
+          connectors: true,
+          schedules: true,
+        },
+      }),
+      startConnection: async () => ({
+        redirectUrl: 'https://connect.example.test/slack',
+        connectionId: 'grant-slack',
+        expiresAt: new Date(Date.now() + 120_000).toISOString(),
+      }),
+      connectionStatus,
+      disconnect: async () => undefined,
+      uploadResearchBatch: async () => undefined,
+    } as unknown as CloudClient;
+    const identity = {
+      initialize: async () => ({ state: 'signed_in' as const, email: 'person@example.com' }),
+      status: () => ({ state: 'signed_in' as const, email: 'person@example.com' }),
+      startEmailSignIn: async () => ({ state: 'signed_in' as const }),
+      completeEmailSignIn: async () => ({ state: 'signed_in' as const }),
+      signOut: async () => ({ state: 'signed_out' as const }),
+    } satisfies ConstructorParameters<typeof DesktopController>[0]['identity'];
+    const { controller } = await createHarness({
+      cloud,
+      identity,
+      fakeServices: false,
+      openExternal: async () => undefined,
+    });
+    await controller.invoke('research.setCapture', {
+      enabled: true,
+      consentVersion: 'alpha-research-v3-raw',
+    });
+    vi.useFakeTimers();
+
+    try {
+      await controller.invoke('connections.start', { connectionId: 'slack' });
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(controller.snapshot().connections.find(({ id }) => id === 'slack')).toMatchObject({
+        status: 'connecting',
+        connectionId: 'grant-slack',
+      });
+
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(controller.snapshot().connections.find(({ id }) => id === 'slack')).toMatchObject({
+        status: 'connected',
+        connectionId: 'grant-slack',
+        account: 'fixture-workspace',
+      });
+      expect(connectionStatus).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+      await controller.shutdown();
+    }
+  });
+
   it('pins connector approvals to the exact connection and consumes them once', async () => {
     const controller = await createController();
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
     await controller.invoke('connections.start', { connectionId: 'gmail' });
     const originalConnectionId = controller
       .snapshot()
@@ -1692,8 +2343,37 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('does not let a stale disconnect revoke a replacement connector grant', async () => {
+    const controller = await createController();
+    await controller.invoke('connections.start', { connectionId: 'gmail' });
+    const originalConnectionId = controller
+      .snapshot()
+      .connections.find(({ id }) => id === 'gmail')?.connectionId;
+    expect(originalConnectionId).toEqual(expect.any(String));
+
+    await controller.invoke('connections.disconnect', {
+      connectionId: 'gmail',
+      expectedConnectionId: originalConnectionId!,
+    });
+    await controller.invoke('connections.start', { connectionId: 'gmail' });
+    const replacement = controller.snapshot().connections.find(({ id }) => id === 'gmail');
+    expect(replacement?.connectionId).not.toBe(originalConnectionId);
+
+    await expect(
+      controller.invoke('connections.disconnect', {
+        connectionId: 'gmail',
+        expectedConnectionId: originalConnectionId!,
+      }),
+    ).rejects.toThrow('changed since this screen was shown');
+    expect(controller.snapshot().connections.find(({ id }) => id === 'gmail')).toEqual(
+      replacement,
+    );
+    await controller.shutdown();
+  });
+
   it('uses host-resolved element labels for browser and computer approvals', async () => {
     const controller = await createController();
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
     const trustedApprovalTarget = vi.fn(
       () =>
         'https://mail.example.test: click “Compose” (button, exact snapshot ref b:snapshot:0)',

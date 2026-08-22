@@ -9,12 +9,16 @@ export function SiaSignInDialog({
   cloudAuth,
   onStart,
   onComplete,
+  onBeginAdminMfa,
+  onCompleteAdminMfa,
   onSignOut,
   onDelete,
 }: {
   cloudAuth: RendererSnapshot['cloudAuth'];
   onStart(email: string): Promise<void>;
   onComplete(code: string): Promise<void>;
+  onBeginAdminMfa(): Promise<{ secretCode: string }>;
+  onCompleteAdminMfa(code: string): Promise<void>;
   onSignOut(): Promise<void>;
   onDelete(confirmation: 'DELETE ACCOUNT'): Promise<void>;
 }) {
@@ -29,7 +33,8 @@ export function SiaSignInDialog({
             <div>
               <Dialog.Title>Sign in to Sia</Dialog.Title>
               <Dialog.Description>
-                Keep your account and connected apps together. Local work remains available.
+                Join the research release, then connect your work apps in one guided setup.
+                Local work remains available.
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
@@ -43,6 +48,8 @@ export function SiaSignInDialog({
               cloudAuth={cloudAuth}
               onStartCloudSignIn={onStart}
               onCompleteCloudSignIn={onComplete}
+              onBeginAdminMfa={onBeginAdminMfa}
+              onCompleteAdminMfa={onCompleteAdminMfa}
               onSignOutCloud={onSignOut}
               onDeleteCloudAccount={onDelete}
             />

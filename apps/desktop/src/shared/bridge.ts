@@ -154,6 +154,8 @@ export interface TimelineItemView {
   approvalId?: string;
   toolName?: string;
   toolCallId?: string;
+  /** Stable dispatch id used to recover a claimed schedule without creating a duplicate turn. */
+  scheduleRunId?: string;
   activity?: ActivityPresentationView;
   attachments?: AttachmentView[];
 }
@@ -212,6 +214,19 @@ export interface ScheduleView {
   enabled: boolean;
   createdAt: string;
   lastRunAt?: string;
+  runCount?: number;
+  maxRuns?: number;
+  activeRun?: {
+    id: string;
+    dueAt: string;
+    claimedAt: string;
+  };
+  lastRun?: {
+    id: string;
+    startedAt: string;
+    finishedAt?: string;
+    outcome: 'started' | 'completed' | 'failed' | 'cancelled';
+  };
 }
 
 export type ApprovalKind =
@@ -234,7 +249,7 @@ export interface ApprovalView {
   status: 'pending' | 'approved' | 'denied' | 'expired';
 }
 
-export type ConnectionId = 'gmail' | 'drive' | 'slack';
+export type ConnectionId = 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack';
 
 export interface ConnectionView {
   id: ConnectionId;
@@ -247,15 +262,48 @@ export interface ConnectionView {
 }
 
 export interface CaptureView {
-  status: 'not_consented' | 'recording' | 'paused' | 'sync_pending' | 'deleting';
+  status: 'not_consented' | 'recording' | 'paused' | 'sync_pending' | 'blocked' | 'deleting';
   consentVersion?: string;
   consentAcceptedAt?: string;
   /** Last consent text shown to the current local identity, including a decline. */
   promptReviewedVersion?: string;
   pendingCount: number;
+  /** Encrypted raw batches still waiting for a cloud acknowledgement. */
+  pendingBytes?: number;
+  /** Creation time of the oldest batch that has not been acknowledged by the cloud. */
+  oldestPendingAt?: string;
+  /** Sanitized operational detail from the most recent failed upload attempt. */
+  lastSyncError?: string;
+  /** Set when Sia cannot durably queue raw capture. New turns fail closed until resolved. */
+  blockedReason?: string;
 }
 
-export const RESEARCH_CONSENT_VERSION = 'alpha-research-v2' as const;
+export interface AdminResearchParticipantView {
+  subject: string;
+  email?: string;
+  batchCount: number;
+  byteLength: number;
+  lastCreatedAt: string;
+}
+
+export interface AdminResearchBatchView {
+  batchId: string;
+  consentVersion: string;
+  eventCount: number;
+  sha256: string;
+  byteLength: number;
+  createdAt: string;
+  format?: 'filtered_v2' | 'raw_v1';
+  scope?: {
+    threadId: string;
+    turnId: string;
+    sequenceStart?: number;
+    sequenceEnd?: number;
+    eventKinds: string[];
+  };
+}
+
+export const RESEARCH_CONSENT_VERSION = 'alpha-research-v3-raw' as const;
 
 export interface ComputerPermissionsView {
   status: 'unavailable' | 'needs_permission' | 'ready' | 'error';
@@ -271,7 +319,7 @@ export interface ComputerView extends ComputerPermissionsView {
   chromeConnection?: 'enabled' | 'off' | 'unavailable';
   /**
    * 'auto' (default): computer and browser actions run without per-action approval and Chrome
-   * attaches to the frontmost window on demand. 'ask' restores interactive approvals.
+   * attaches to the frontmost window on demand. 'ask' restores confirmation previews.
    */
   trust: 'auto' | 'ask';
   /** Whether the always-on local trajectory log (requests, replies, actions, screenshots) is kept. */
@@ -322,13 +370,29 @@ export interface DesktopSnapshot {
   activeThreadId?: string;
   cloud: {
     status: 'offline' | 'connecting' | 'online' | 'error';
-    auth: 'unconfigured' | 'signed_out' | 'code_sent' | 'signed_in';
+    auth:
+      | 'unconfigured'
+      | 'signed_out'
+      | 'code_sent'
+      | 'password_required'
+      | 'mfa_required'
+      | 'signed_in';
     account?: string;
+    admin?: boolean;
+    adminMfa?: boolean;
+    features?: CloudFeatureFlags;
   };
   startupNotice?: {
     title: string;
     detail: string;
   };
+}
+
+export interface CloudFeatureFlags {
+  researchUploads: boolean;
+  researchArchive: boolean;
+  connectors: boolean;
+  schedules: boolean;
 }
 
 export interface SaveAgentInput {
@@ -364,6 +428,7 @@ export interface CreateScheduleInput {
   prompt: string;
   cadence: ScheduleView['cadence'];
   nextRunAt: string;
+  maxRuns?: number;
 }
 
 export interface StartReviewInput {
@@ -452,15 +517,22 @@ export interface BridgeRequestMap {
   'voice.realtime.stop': { sessionId: string; commit: boolean };
   'voice.speak': { text: string; voiceId?: string };
   'connections.startAll': undefined;
+  'connections.startGoogle': undefined;
+  'connections.startSelected': { connectionIds: ConnectionId[] };
   'connections.start': { connectionId: ConnectionId };
-  'connections.disconnect': { connectionId: ConnectionId };
+  'connections.disconnect': { connectionId: ConnectionId; expectedConnectionId?: string };
   'auth.start': { email: string };
   'auth.complete': { code: string };
+  'auth.mfaBegin': undefined;
+  'auth.mfaComplete': { code: string };
   'auth.signOut': undefined;
   'auth.deleteAccount': { confirmation: 'DELETE ACCOUNT' };
   'research.setCapture': { enabled: boolean; consentVersion?: string };
   'research.export': undefined;
   'research.delete': { confirmation: 'DELETE' };
+  'research.admin.participants': undefined;
+  'research.admin.batches': { subject: string };
+  'research.admin.readBatch': { subject: string; batchId: string };
 }
 
 export interface BridgeResultMap {
@@ -531,15 +603,22 @@ export interface BridgeResultMap {
   'voice.realtime.stop': { text: string };
   'voice.speak': { audioBase64: string; mimeType: 'audio/mpeg' };
   'connections.startAll': { opened: boolean; snapshot: DesktopSnapshot };
+  'connections.startGoogle': { opened: boolean; snapshot: DesktopSnapshot };
+  'connections.startSelected': { opened: boolean; snapshot: DesktopSnapshot };
   'connections.start': { opened: boolean; snapshot: DesktopSnapshot };
   'connections.disconnect': DesktopSnapshot;
   'auth.start': DesktopSnapshot;
   'auth.complete': DesktopSnapshot;
+  'auth.mfaBegin': { secretCode: string };
+  'auth.mfaComplete': DesktopSnapshot;
   'auth.signOut': DesktopSnapshot;
   'auth.deleteAccount': DesktopSnapshot;
   'research.setCapture': DesktopSnapshot;
   'research.export': { path: string | null };
   'research.delete': DesktopSnapshot;
+  'research.admin.participants': { participants: AdminResearchParticipantView[] };
+  'research.admin.batches': { batches: AdminResearchBatchView[] };
+  'research.admin.readBatch': { batch: unknown };
 }
 
 export type BridgeMethod = keyof BridgeRequestMap;
@@ -669,12 +748,21 @@ export interface DesktopBridgeApi {
   };
   connections: {
     startAll(): Promise<BridgeResultMap['connections.startAll']>;
+    startGoogle(): Promise<BridgeResultMap['connections.startGoogle']>;
+    startSelected(
+      connectionIds: ConnectionId[],
+    ): Promise<BridgeResultMap['connections.startSelected']>;
     start(connectionId: ConnectionId): Promise<BridgeResultMap['connections.start']>;
-    disconnect(connectionId: ConnectionId): Promise<DesktopSnapshot>;
+    disconnect(
+      connectionId: ConnectionId,
+      expectedConnectionId?: string,
+    ): Promise<DesktopSnapshot>;
   };
   auth: {
     start(email: string): Promise<DesktopSnapshot>;
     complete(code: string): Promise<DesktopSnapshot>;
+    mfaBegin(): Promise<{ secretCode: string }>;
+    mfaComplete(code: string): Promise<DesktopSnapshot>;
     signOut(): Promise<DesktopSnapshot>;
     deleteAccount(confirmation: 'DELETE ACCOUNT'): Promise<DesktopSnapshot>;
   };
@@ -682,6 +770,12 @@ export interface DesktopBridgeApi {
     setCapture(enabled: boolean, consentVersion?: string): Promise<DesktopSnapshot>;
     export(): Promise<{ path: string | null }>;
     delete(): Promise<DesktopSnapshot>;
+    listAdminParticipants(): Promise<BridgeResultMap['research.admin.participants']>;
+    listAdminBatches(subject: string): Promise<BridgeResultMap['research.admin.batches']>;
+    readAdminBatch(
+      subject: string,
+      batchId: string,
+    ): Promise<BridgeResultMap['research.admin.readBatch']>;
   };
   subscribe(listener: (event: DesktopPushEvent) => void): () => void;
 }

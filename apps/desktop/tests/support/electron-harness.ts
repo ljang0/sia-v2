@@ -107,9 +107,14 @@ export async function createAgentAndThread(
     .getByRole('dialog', { name: 'New agent' })
     .getByRole('button', { name: 'Create agent' })
     .click();
-  const researchChoice = page.getByRole('button', { name: 'Use without sharing' });
-  await researchChoice.waitFor({ state: 'visible', timeout: 3_000 }).catch(() => undefined);
-  if (await researchChoice.isVisible().catch(() => false)) await researchChoice.click();
+  const joinResearch = page.getByRole('button', { name: 'Join research release' });
+  const localOnly = page.getByRole('button', { name: 'Use without sharing' });
+  await Promise.race([
+    joinResearch.waitFor({ state: 'visible', timeout: 3_000 }),
+    localOnly.waitFor({ state: 'visible', timeout: 3_000 }),
+  ]).catch(() => undefined);
+  if (await joinResearch.isVisible().catch(() => false)) await joinResearch.click();
+  else if (await localOnly.isVisible().catch(() => false)) await localOnly.click();
   await page.getByRole('button', { name: 'New thread' }).click();
 
   const snapshot = await page.evaluate(async () => await window.sia.bootstrap());

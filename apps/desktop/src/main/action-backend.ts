@@ -33,6 +33,31 @@ export type CuaToolCaller = Pick<CuaService, 'call'>;
 export type CloudActionClient = Pick<CloudClient, 'prepareAction' | 'commitAction'> &
   Partial<Pick<CloudClient, 'configured' | 'stageConnectorFile'>>;
 
+export interface ScheduleActionHost {
+  create(
+    threadId: string,
+    input: {
+      task: string;
+      cadence: 'once' | 'hourly' | 'daily' | 'weekly';
+      firstRunAt?: string;
+      maxRuns?: number;
+    },
+  ): unknown;
+  list(threadId: string): unknown;
+  update(
+    threadId: string,
+    input: {
+      scheduleId: string;
+      task?: string;
+      cadence?: 'once' | 'hourly' | 'daily' | 'weekly';
+      nextRunAt?: string;
+      enabled?: boolean;
+      maxRuns?: number;
+    },
+  ): unknown;
+  delete(threadId: string, scheduleId: string): unknown;
+}
+
 export interface DesktopActionBackendOptions {
   readonly cua: CuaToolCaller;
   readonly cloud?: CloudActionClient;
@@ -44,7 +69,7 @@ export interface DesktopActionBackendOptions {
   readonly ensureBrowserAttached?: () => Promise<string | undefined>;
   /** Resolves a stable model-visible app/account selector to a trusted cloud connection. */
   readonly resolveConnectionId?: (
-    app: 'gmail' | 'drive' | 'slack',
+    app: 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack',
     selector: string,
     approvalId?: string,
   ) => string | undefined;
@@ -56,6 +81,8 @@ export interface DesktopActionBackendOptions {
     readThread(chatId: string, limit: number): unknown[];
     send(recipient: string, text: string): Promise<void>;
   };
+  /** Persists agent-authored schedules in the controller-owned desktop state. */
+  readonly schedules?: ScheduleActionHost;
   /** Opens System Settings at the Full Disk Access pane so the one grant is a switch flip. */
   readonly openFullDiskAccessSettings?: () => Promise<void>;
 }
@@ -123,7 +150,19 @@ const CONNECTOR_TOOLS = {
   drive_read: 'drive.read',
   drive_upload: 'drive.upload',
   drive_share: 'drive.share',
+  docs_create: 'docs.create',
+  docs_read: 'docs.read',
+  docs_append: 'docs.append',
+  sheets_create: 'sheets.create',
+  sheets_read: 'sheets.read',
+  sheets_update: 'sheets.update',
+  sheets_append: 'sheets.append',
+  slides_create: 'slides.create',
+  slides_read: 'slides.read',
+  slides_append: 'slides.append',
   slack_search: 'slack.search',
+  slack_find_users: 'slack.find_users',
+  slack_open_dm: 'slack.open_dm',
   slack_read_thread: 'slack.read_thread',
   slack_post: 'slack.post',
 } as const;
@@ -227,12 +266,13 @@ export class DesktopActionBackend implements ActionBackend {
   readonly #isBrowserOriginAllowed: ((origin: string) => boolean) | undefined;
   readonly #ensureBrowserAttached: (() => Promise<string | undefined>) | undefined;
   readonly #messages: DesktopActionBackendOptions['messages'];
+  readonly #schedules: ScheduleActionHost | undefined;
   readonly #openFullDiskAccessSettings: (() => Promise<void>) | undefined;
   #fullDiskAccessSettingsOpened = false;
   #lastAttachDetail: string | undefined;
   readonly #resolveConnectionId:
     | ((
-        app: 'gmail' | 'drive' | 'slack',
+        app: 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack',
         selector: string,
         approvalId?: string,
       ) => string | undefined)
@@ -255,6 +295,7 @@ export class DesktopActionBackend implements ActionBackend {
     this.#isBrowserOriginAllowed = options.isBrowserOriginAllowed;
     this.#ensureBrowserAttached = options.ensureBrowserAttached;
     this.#messages = options.messages;
+    this.#schedules = options.schedules;
     this.#openFullDiskAccessSettings = options.openFullDiskAccessSettings;
     this.#resolveConnectionId = options.resolveConnectionId;
     this.#hostPid = options.hostPid ?? process.pid;
@@ -308,11 +349,10 @@ export class DesktopActionBackend implements ActionBackend {
         !window ||
         !app ||
         !appId ||
-        !element ||
-        !ref ||
         !windowId ||
         !snapshotId ||
         !action ||
+        (ref ? !element : !['type', 'key', 'scroll'].includes(action)) ||
         snapshot.appId !== appId ||
         snapshot.publicWindowId !== windowId ||
         window.appId !== appId ||
@@ -323,7 +363,9 @@ export class DesktopActionBackend implements ActionBackend {
         return undefined;
       }
       const windowLabel = window.title ? `, window “${window.title}”` : '';
-      return `${app.name}${windowLabel}: ${action} ${approvalElementLabel(element, ref)}`;
+      return element && ref
+        ? `${app.name}${windowLabel}: ${action} ${approvalElementLabel(element, ref)}`
+        : `${app.name}${windowLabel}: ${action} the currently focused control`;
     }
     if (toolName === 'browser_action' || toolName === 'browser_upload') {
       const snapshotId = stringValue(argumentsValue.snapshot_id);
@@ -389,7 +431,19 @@ export class DesktopActionBackend implements ActionBackend {
         case 'drive_read':
         case 'drive_upload':
         case 'drive_share':
+        case 'docs_create':
+        case 'docs_read':
+        case 'docs_append':
+        case 'sheets_create':
+        case 'sheets_read':
+        case 'sheets_update':
+        case 'sheets_append':
+        case 'slides_create':
+        case 'slides_read':
+        case 'slides_append':
         case 'slack_search':
+        case 'slack_find_users':
+        case 'slack_open_dm':
         case 'slack_read_thread':
         case 'slack_post':
           return await this.#connectorAction(request, request.name);
@@ -397,9 +451,81 @@ export class DesktopActionBackend implements ActionBackend {
         case 'messages_read_thread':
         case 'messages_send':
           return await this.#messagesAction(request);
+        case 'schedule_create':
+        case 'schedule_list':
+        case 'schedule_update':
+        case 'schedule_delete':
+          return this.#scheduleAction(request);
       }
     } catch (error) {
       return classifyFailure(error);
+    }
+  }
+
+  #scheduleAction(request: ValidatedActionInvocation): ActionExecutionResult {
+    const schedules = this.#schedules;
+    if (!schedules) return refused('Scheduled work is unavailable in this build.');
+    if (request.name !== 'schedule_list' && !request.approvalId) {
+      return refused('This schedule change is missing its exact action authorization.');
+    }
+    const args = request.arguments;
+    switch (request.name) {
+      case 'schedule_create': {
+        const cadence = args.cadence as 'once' | 'hourly' | 'daily' | 'weekly';
+        const schedule = schedules.create(request.context.threadId, {
+          task: String(args.task),
+          cadence,
+          ...(typeof args.first_run_at === 'string' ? { firstRunAt: args.first_run_at } : {}),
+          ...(typeof args.max_runs === 'number' ? { maxRuns: args.max_runs } : {}),
+        });
+        return {
+          outcome: 'verified',
+          summary: `Created the ${cadence} schedule.`,
+          data: { schedule },
+          verification: { evidence: 'Persisted in Sia desktop schedule state.' },
+        };
+      }
+      case 'schedule_list': {
+        const scheduleList = schedules.list(request.context.threadId);
+        return {
+          outcome: 'verified',
+          summary: 'Listed scheduled work for this thread.',
+          data: { schedules: scheduleList },
+          verification: { evidence: 'Read from Sia desktop schedule state.' },
+        };
+      }
+      case 'schedule_update': {
+        const schedule = schedules.update(request.context.threadId, {
+          scheduleId: String(args.schedule_id),
+          ...(typeof args.task === 'string' ? { task: args.task } : {}),
+          ...(typeof args.cadence === 'string'
+            ? {
+                cadence: args.cadence as 'once' | 'hourly' | 'daily' | 'weekly',
+              }
+            : {}),
+          ...(typeof args.next_run_at === 'string' ? { nextRunAt: args.next_run_at } : {}),
+          ...(typeof args.enabled === 'boolean' ? { enabled: args.enabled } : {}),
+          ...(typeof args.max_runs === 'number' ? { maxRuns: args.max_runs } : {}),
+        });
+        return {
+          outcome: 'verified',
+          summary: 'Updated the schedule.',
+          data: { schedule },
+          verification: { evidence: 'Persisted in Sia desktop schedule state.' },
+        };
+      }
+      case 'schedule_delete': {
+        const scheduleId = String(args.schedule_id);
+        schedules.delete(request.context.threadId, scheduleId);
+        return {
+          outcome: 'verified',
+          summary: 'Deleted the schedule.',
+          data: { schedule_id: scheduleId },
+          verification: { evidence: 'Removed from Sia desktop schedule state.' },
+        };
+      }
+      default:
+        return refused('Unsupported schedule action.');
     }
   }
 
@@ -409,14 +535,14 @@ export class DesktopActionBackend implements ActionBackend {
     const args = request.arguments;
     if (request.name === 'messages_send') {
       // Same fail-closed contract as connector mutations: the exact send must have crossed
-      // the interactive approval boundary, whatever mode the local actions run in.
+      // the host authorization boundary, whether authorization was automatic or interactive.
       if (!request.approvalId) {
-        return refused('This message send is missing its exact interactive approval.');
+        return refused('This message send is missing its exact action authorization.');
       }
       await messages.send(String(args.recipient), String(args.text));
       return {
         outcome: 'verified',
-        summary: `Sent the approved iMessage to ${String(args.recipient)}.`,
+        summary: `Sent the iMessage to ${String(args.recipient)}.`,
         verification: {
           evidence: 'The signed-in Messages app accepted the send via Apple events.',
         },
@@ -633,11 +759,14 @@ export class DesktopActionBackend implements ActionBackend {
     const address = this.#windowElementAddress(capability, args.element_ref);
     if (args.element_ref && !address)
       return stale('The element reference is not in this snapshot.');
+    if (!address && !['type', 'key', 'scroll'].includes(String(args.action))) {
+      return refused('This computer action requires an exact element reference.');
+    }
     const base = compact({
       pid: binding.pid,
       window_id: binding.windowId,
       session: request.context.sessionId,
-      delivery_mode: 'background',
+      delivery_mode: address ? 'background' : 'foreground',
       snapshot_id: capability.nativeSnapshotId,
       element_token: address?.token,
       element_index: address?.index,
@@ -691,7 +820,14 @@ export class DesktopActionBackend implements ActionBackend {
     }
 
     const raw = await this.#callCua(request, tool, input);
-    const native = actionResult(raw, `Delivered ${String(args.action)} in the background.`);
+    const focusedFallback = !address;
+    const native = actionResult(
+      raw,
+      focusedFallback
+        ? `Delivered ${String(args.action)} to the focused control in the exact window.`
+        : `Delivered ${String(args.action)} in the background.`,
+      { allowForeground: focusedFallback },
+    );
     if (
       native.outcome === 'refused' ||
       native.outcome === 'stale' ||
@@ -1097,7 +1233,7 @@ export class DesktopActionBackend implements ActionBackend {
     const accountSelector = requiredString(request.arguments.account_id, 'account_id');
     const connectorApp = connectorAppForTool(name);
     if (request.descriptor.annotations.requiresApproval && !request.approvalId) {
-      return refused('This connector mutation is missing its exact interactive approval.');
+      return refused('This connector mutation is missing its exact action authorization.');
     }
     const connectionId = this.#resolveConnectionId?.(
       connectorApp,
@@ -1511,13 +1647,20 @@ function connectorReadResult(
   };
 }
 
-function actionResult(value: unknown, summary: string): ActionExecutionResult {
+function actionResult(
+  value: unknown,
+  summary: string,
+  options: { allowForeground?: boolean } = {},
+): ActionExecutionResult {
   const refusalResult = resultRefusal(value);
   if (refusalResult) return refusalResult;
   const effect = findString(value, ['effect']);
   const deliveryMode = findNestedString(value, 'delivery', ['mode']);
   const escalationTarget = findString(value, ['target'], (record) => 'reason' in record);
-  if (deliveryMode === 'foreground' || escalationTarget === 'foreground') {
+  if (
+    (deliveryMode === 'foreground' && !options.allowForeground) ||
+    escalationTarget === 'foreground'
+  ) {
     return {
       outcome: 'needs_foreground',
       summary:
@@ -1801,9 +1944,14 @@ function humanToolName(name: ConnectorTool): string {
   return name.replaceAll('_', ' ');
 }
 
-function connectorAppForTool(name: ConnectorTool): 'gmail' | 'drive' | 'slack' {
+function connectorAppForTool(
+  name: ConnectorTool,
+): 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack' {
   if (name.startsWith('mail_')) return 'gmail';
   if (name.startsWith('drive_')) return 'drive';
+  if (name.startsWith('docs_')) return 'docs';
+  if (name.startsWith('sheets_')) return 'sheets';
+  if (name.startsWith('slides_')) return 'slides';
   return 'slack';
 }
 

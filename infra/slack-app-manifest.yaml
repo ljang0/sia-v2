@@ -1,0 +1,23 @@
+_metadata:
+  major_version: 1
+  minor_version: 1
+display_information:
+  name: Sia Research Alpha
+  description: Connect Slack to Sia for reviewed search, thread reading, and messages.
+  background_color: '#173f35'
+oauth_config:
+  redirect_urls:
+    - https://backend.composio.dev/api/v1/auth-apps/add
+  scopes:
+    user:
+      - search:read
+      - users:read
+      - im:write
+      - chat:write
+      - channels:history
+      - groups:history
+      - im:history
+      - mpim:history
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false

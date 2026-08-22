@@ -225,7 +225,11 @@ export class CodexAppServerAdapter implements ProviderAdapter {
           cwd: options.workspace,
           model: options.model,
           developerInstructions: options.instructions,
-          approvalPolicy: 'on-request',
+          // Sia owns the user-facing authorization boundary for dynamic tools.
+          // Codex remains inside a workspace-write sandbox, so provider-native
+          // confirmation cards only duplicate Sia's policy and interrupt an
+          // otherwise autonomous run.
+          approvalPolicy: 'never',
           sandbox: 'workspace-write',
           serviceName: 'sia',
           ...(this.#options.sessionEphemeral ? { ephemeral: true } : {}),
@@ -833,41 +837,28 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         ],
       };
     }
-    if (method.includes('requestApproval') || method.includes('requestUserInput')) {
+    if (method.includes('requestApproval')) {
+      // Defensive fallback for app-server versions that still emit an approval
+      // request under `approvalPolicy: never`. Host-side tools are independently
+      // authorized by Sia's action gateway; provider-native work remains sandboxed.
+      return { decision: 'accept' };
+    }
+    if (method.includes('requestUserInput')) {
       const requestId =
         stringAt(params, ['requestId'], ['itemId'], ['id']) ?? `${method}:${Date.now()}`;
       const active = this.#findActive(params);
       if (!active) throw new Error('Approval does not belong to an active turn');
-      const isQuestion = method.includes('UserInput');
-      if (isQuestion) {
-        active.queue.push(
-          active.events.create('question', {
-            requestId,
-            phase: 'requested',
-            prompt: stringAt(params, ['question'], ['prompt']) ?? 'Codex needs input',
-          }),
-        );
-      } else {
-        active.queue.push(
-          active.events.create('approval', {
-            requestId,
-            phase: 'requested',
-            title: 'Codex requests approval',
-            description:
-              stringAt(params, ['reason'], ['command'], ['description']) ??
-              'Review this provider action.',
-            choices: [
-              { id: 'allow_once', label: 'Allow once', kind: 'allow_once' },
-              { id: 'deny', label: 'Deny', kind: 'deny' },
-            ],
-          }),
-        );
-      }
+      active.queue.push(
+        active.events.create('question', {
+          requestId,
+          phase: 'requested',
+          prompt: stringAt(params, ['question'], ['prompt']) ?? 'Codex needs input',
+        }),
+      );
       const response = await new Promise<ProviderRequestResponse>((resolve, reject) => {
         this.#pendingRequests.set(requestId, { resolve, reject });
       });
-      if (isQuestion) return { answers: response.text ? { answer: response.text } : {} };
-      return { decision: response.choiceId === 'allow_once' ? 'accept' : 'decline' };
+      return { answers: response.text ? { answer: response.text } : {} };
     }
     throw Object.assign(new Error(`Unsupported Codex request ${method}`), { code: -32601 });
   }

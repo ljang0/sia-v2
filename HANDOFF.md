@@ -1,6 +1,6 @@
 # Sia handoff
 
-_Updated: 2026-08-19 KST_
+_Updated: 2026-08-22 KST_
 
 ## Read this first
 
@@ -8,41 +8,60 @@ Sia is a local-first macOS desktop assistant (Electron + pnpm monorepo). The sou
 now Git: **https://github.com/ljang0/sia-v2** (private, `main`). `ljang0/sia` is the older v1
 canvas app and is unrelated; do not push there. This working tree (`~/sia_new`) is that clone.
 
-State on 2026-08-19:
+State on 2026-08-22:
 
 - **Product**: Codex app-server harness (threads, workspaces, file edits, review, subagents,
   compaction, recovery, per-thread model/reasoning, goals, schedules, Git review, terminals,
-  worktrees), macOS computer use, signed-in Chrome, optional ElevenLabs voice, optional cloud
-  (Gmail/Drive/Slack connectors, research sync, account deletion — deferred, see below).
-- **UI**: the "an agent is a room" identity (`docs/ui-quality.md`) — deep green shell, each agent
-  has a persisted hue that tints its room, ink pill controls, bundled Bricolage Grotesque display
-  face, message avatars, tool popovers, hover motion. Every screen was reviewed light/dark at
-  1280×820 and 960×640 with an automated horizontal-bleed check; transitions were frame-captured.
-- **Trust mode (new)**: computer and browser actions run **without per-action approval by
+  worktrees), macOS computer use, signed-in Chrome, optional ElevenLabs voice, and cloud
+  Gmail/Drive/Docs/Sheets/Slides/Slack connectors, research sync, and account deletion.
+- **UI**: a quiet evergreen shell with persisted agent hues, bundled Bricolage Grotesque headings,
+  restrained controls, muted accents, subtle shadows, and reduced ambient motion. Settings now use
+  one horizontal section rail instead of a second sidebar; account dialogs and local-mode setup are
+  flatter; selected agents stay in the shell; and authenticated admins get a focused Release review.
+  Signed-in first run is now explicitly two steps: raw-research consent, then one guided six-app
+  connection dialog before agent setup (with a visible defer path).
+  Core first-run, agent, conversation, Settings, and scheduling states were inspected at 960×640.
+- **Trust mode (new)**: eligible computer, browser, connector, message, upload, and schedule actions
+  run **without per-action approval by
   default** and Chrome **auto-attaches to the frontmost window** the first time the browser is
   needed; macOS Accessibility/Screen Recording are requested once at first launch. Every action
-  is still ref/snapshot-bound and hard safety denials still apply (sensitive apps, secure fields,
-  private windows, non-http navigation, sensitive upload paths). `Settings → Computer → Ask
-before every action` restores approvals + explicit window choice. Connector writes (Gmail/
-  Drive/Slack) always keep their approval. Implementation: `DefaultActionAuthorizationPolicy`
+  is still exact-target/snapshot-bound and hard safety denials still apply (sensitive apps, secure
+  fields, private windows, non-http navigation, sensitive upload paths). `Settings → Computer →
+Confirm before changes` restores previews. Implementation: `DefaultActionAuthorizationPolicy`
   `trustLocalActions` (`packages/action-gateway/src/gateway.ts`), `DesktopController.computerTrust`
   / `ensureBrowserAttachedForActions` / `isBrowserOriginAllowed` / auto `authorizeComputer`
   (`apps/desktop/src/main/controller.ts`), `DesktopActionBackend.ensureBrowserAttached`.
-- **Local trajectory log (new, default on)**: `TrajectoryRecorder`
+- **Local trajectory log (default on)**: `TrajectoryRecorder`
   (`apps/desktop/src/main/trajectory-recorder.ts`) appends every timeline item, the finished turn
   transcript, every action result with arguments/outcome/data, every automatic authorization,
-  browser attachments, and every returned image (screenshots/snapshots as files) to
-  `<userData>/trajectories/<threadId>/events.jsonl`. Local only; not part of research capture or
-  cloud sync. Toggle + "Show in Finder" in `Settings → Computer`. `PRIVACY.md`, `README.md`,
-  `SECURITY.md`, `docs/architecture.md` describe both new defaults.
-- **Gates on this source**: `pnpm check` (build, prettier, quality guard, typecheck, 219 desktop
-  unit tests + package suites incl. a trusted-mode gateway test and recorder tests) passes;
+  browser attachments, connected-app lifecycle events, and every returned image
+  (screenshots/snapshots as files) to
+  `<userData>/trajectories/<threadId>/events.jsonl`. Complete thread directories roll off after 90
+  days or when the local trajectory store exceeds 128 MiB, oldest first. The exact plain files are
+  local only. With
+  `alpha-research-v3-raw` consent, equivalent observed turn events are separately chunked into
+  encrypted research batches and uploaded to AWS. Connection records exclude OAuth URLs, codes, and
+  tokens; signed-in setup fails before the provider call when raw recording is unavailable. Toggle + "Show in Finder" in
+  `Settings → Computer`; research capture is controlled separately.
+- **Research release (2026-08-21)**: signed-in users must accept the v3 raw consent or sign out.
+  Completed, failed, and cancelled turns upload provider events, prompts/replies, surfaced reasoning,
+  command/action inputs and results, approvals, browser/computer/connector events, paths/diffs,
+  errors, and images. Cloud admin routes list participants/batches and read raw S3 objects only for
+  Cognito `Admins`, with audited access. The desktop Research archive groups batches by turn and
+  reconstructs chunked events.
+- **Agent-authored schedules (2026-08-21)**: ActionGateway exposes approved
+  `schedule_create`, `schedule_list`, `schedule_update`, and `schedule_delete`. These call the
+  existing controller-owned persisted scheduler; there is no arbitrary crontab/shell surface and
+  runs still require Sia to be open and the Mac awake.
+- **Gates on this source**: `pnpm check` (build, prettier, quality guard, typecheck, 395 unit and
+  integration tests across the workspace) passes;
   `pnpm test:e2e` 23/23 (parity is strict by default now); real Codex auth probe and real CUA
   permission probe pass on the release Mac (`SIA_REAL_CODEX_E2E=1 SIA_REAL_CUA_E2E=1
 npx playwright test tests/e2e/real-no-turn.spec.ts`).
-- **Artifact**: the notarized DMG in `apps/desktop/release/` predates all of the above and is
-  **stale**. Rebuild + notarize (`pnpm package:mac` with the env below), then re-run the compact
-  Light/Dark, first-run, presence reduced-motion checks and refresh the hashes in this file.
+- **Artifact**: the universal app and DMG in `apps/desktop/release/` were freshly signed, notarized,
+  stapled, and verified on 2026-08-22. Deployment, artifact hashes, and live rehearsal results are
+  recorded in `docs/release-evidence-2026-08-22.md`. It remains blocked from distribution by the
+  human-only gates listed there and by the dirty release working tree.
 - Fourteen superseded builds live under `apps/desktop/_old-builds/` (README inside); nothing in
   the repo references them; they are gitignored.
 
@@ -72,14 +91,11 @@ capture and trust code paths are mapped in `docs/architecture.md`.
    from an automated session it reported no visible window even with one open. If the model's
    first browser call lands while Chrome is on another Space, attach fails with "Open a visible
    Chrome window" — surface _why_ (Space/minimized) and offer a one-click retry.
-2. Clicking an agent's **name** toggles its disclosure; only clicking a thread enters the room.
-   Make name = enter, chevron = collapse.
-3. Approvals (ask mode) have no visual preview of the target; a small screenshot crop with the
+2. Approvals (ask mode) have no visual preview of the target; a small screenshot crop with the
    ref highlighted would help.
-4. No inline artifact/diff viewer for files the agent produces.
-5. Shipping DMG is cloud-enabled (`build/sia-cloud.json`), so recipients see "Sign in to Sia"
+3. No inline artifact/diff viewer for files the agent produces.
+4. Shipping DMG is cloud-enabled (`build/sia-cloud.json`), so recipients see "Sign in to Sia"
    first; a cloud-disabled build removes that instruction dependency for a local alpha.
-6. Trajectory log has no size cap or retention; add one before a long-running alpha.
 
 ## Credential pointers
 
@@ -111,9 +127,9 @@ the existing exact-secret IAM resources.
 
 ## Current release state
 
-_Recorded 2026-08-17. Where this conflicts with **Read this first** (per-action approvals, explicit
-Chrome window selection), the newer section above is authoritative; the cloud, credential,
-Composio, and ElevenLabs details below are unchanged._
+The current 2026-08-22 deployment and artifact evidence is in
+`docs/release-evidence-2026-08-22.md`. Older 2026-08-17 observations below remain useful migration
+and provider history but do not supersede that record.
 
 ### Desktop and local harness
 
@@ -131,25 +147,31 @@ Composio, and ElevenLabs details below are unchanged._
   cannot accept the MCP-host-only download-approval attestation through its public application API;
   Sia fails closed instead of showing an approval for an operation that cannot complete. Users can
   still download normally in Chrome outside Sia automation.
-- Native computer use is ref-bound, snapshot-bound, approval-gated, background-capable, and excludes
-  auth/security surfaces and unsafe targets.
+- Native computer use is exact-app/window/snapshot-bound, autonomous by default, background-capable,
+  and excludes auth/security surfaces and unsafe targets. When Electron/canvas apps expose no
+  accessibility elements, typing, keys, and scrolling may use the already focused control in the
+  exact bound window; clicks and value-setting still require a fresh element ref.
 - Real model turns can retain their host-minted native app/window grant for up to ten minutes;
-  every action still revalidates the live process, exact window, latest snapshot ref, and explicit
-  approval. This replaces the one-minute grant that expired during legitimate model reasoning.
+  every action still revalidates the live process, exact window, and latest snapshot. Confirmation
+  mode additionally requires the exact interactive approval. This replaces the one-minute grant
+  that expired during legitimate model reasoning.
 - Every Chrome attachment now receives a fresh opaque CUA session id. Detach still revokes all
   origins/refs and ends the driver session, while a later explicit reattach no longer reuses a
   terminal session name.
 - Optional ElevenLabs voice supports realtime dictation, read-aloud, per-agent voices, interruption,
   bounded narration, in-memory audio, and Keychain-backed secret storage. It is not a free-running
   voice-agent loop.
-- Gmail, Drive, and Slack remain optional cloud gateway features. Do not authorize them in the
-  local-focused alpha; signed-in Chrome and native computer use operate the user's existing local
-  sessions instead. Provider-owned OAuth consent remains mandatory if the cloud gateway is resumed.
-- Research capture is opt-in, locally encrypted, retention-bounded, and excludes reasoning, secrets,
-  commands/output, diffs, paths, browser/connector/auth data, and mutations.
-- The UI has completed the premium/minimal polish pass, compact-width checks, light/dark inspection,
-  motion/reduced-motion coverage, accessibility work, and asset audit. No known clipping or
-  horizontal bleed remains in the tested sizes.
+- Gmail, Drive, Docs, Sheets, Slides, and Slack are enabled for invited internal-alpha acceptance.
+  Provider-owned OAuth consent remains mandatory once per account; subsequent reads and writes
+  follow Sia's autonomous mode and remain exactly account-bound and logged. Do not offer them to
+  external recipients until the hosted scopes are replaced or audited and the live scope review
+  passes.
+- Local research capture remains optional. Signed-in research-release use requires versioned v3 raw
+  consent and includes all exact task-surface events described above; credential stores, cookies,
+  Keychain, secure fields, private windows, and hidden authentication surfaces remain unavailable.
+- The source has the restrained professional/light visual pass. Its predecessor passed compact,
+  light/dark, reduced-motion, accessibility, and clipping checks; repeat those checks on the fresh
+  artifact before accepting this source revision.
 
 ### Settled-source automated baseline
 
@@ -176,16 +198,16 @@ These passed on the settled source on 2026-08-17 after the local CUA fixes.
 - Installed signing identity:
   `Developer ID Application: Lawrence Jang (DXYJ578DD4)`
 - Notary profile: `notarytool-profile`
-- The current app was rebuilt from the settled source and rechecked on 2026-08-17:
+- The current app was rebuilt from the working tree and rechecked on 2026-08-22:
   - `codesign --verify --deep --strict`: pass
   - Gatekeeper `spctl --assess`: accepted, Notarized Developer ID
   - `xcrun stapler validate`: pass
-  - app notary submission `ad5e47eb-2d98-4e85-b72b-7f4e98eb0eb5`: accepted at
-    `2026-08-17T08:27:05.209Z`
-  - DMG notary submission `d794111d-1966-448e-a573-918d8f7be8cf`: accepted at
-    `2026-08-17T08:29:03.034Z`
-  - DMG SHA-256: `e7f4a91d158bf88bbc6aac06af22daa3fd5f0aa62d560f57c34f68dd6aa14603`
-  - ZIP SHA-256: `bc6f34fdb4b1324705c403f7025f8b6a66e98484fbf7728f667fe590370740c6`
+  - app notary submission `f74d66cc-f58e-419c-9162-dedab083ab61`: accepted at
+    `2026-08-21T22:51:18.748Z`
+  - DMG notary submission `cd836d91-9e07-4faf-aefa-1f40fdddc567`: accepted at
+    `2026-08-21T22:53:17.001Z`
+  - DMG SHA-256: `a57577faebf8c8e0428abad7dd6b121f921d32002433b682d17440e0537319fd`
+  - ZIP SHA-256: `b7cc2d9e505a348458e789d88c710993ce6c347426643f7da4c7eb3ad352d217`
 - The obsolete `/Applications/Sia.app` is not this product build and was quit during acceptance. Do
   not relaunch or distribute it; use only the artifact paths above.
 - Rollback artifact: `apps/desktop/release-signed-current-20260816-final/`
@@ -203,15 +225,20 @@ These passed on the settled source on 2026-08-17 after the local CUA fixes.
 - AWS account: `677513020767`
 - Region: `us-east-1`
 - Stack: `sia-alpha`
-- Stack status checked 2026-08-17: `UPDATE_COMPLETE`
+- Stack status checked 2026-08-22: `UPDATE_COMPLETE`, drift status `IN_SYNC`
 - API base URL: `https://uve01q24la.execute-api.us-east-1.amazonaws.com/alpha`
 - Cognito region: `us-east-1`
 - Desktop Cognito client ID: `331ej6ep7pojlil9k944v4fn7d`
+- Bootstrap admin authentication material stays in the macOS login Keychain only:
+  - TOTP service: `Sia Alpha Cognito TOTP`
+  - permanent-password service: `Sia Alpha Cognito Admin Password`
+  - account for both: `superintelligentagents@gmail.com`
 - Alarm email subscription for `superintelligentagents@gmail.com` is confirmed.
-- All nine `sia-alpha-*` alarms are currently `OK` with actions enabled.
+- All fifteen `sia-alpha-*` alarms have actions enabled and target the confirmed operator topic.
+  Rehearsal-induced alarms and recovery are recorded in the current evidence file.
 - The real account-deletion API -> SQS -> deletion-Lambda success path previously passed and left no
   synthetic Cognito user behind.
-- A controlled synthetic deletion message failed five worker deliveries, reached the DLQ, triggered
+- A controlled synthetic export message failed five worker deliveries, reached the DLQ, triggered
   the monitored alarm and operator email, and was removed by exact body match. The alarm recovered
   naturally to `OK`; both queues are empty and the source visibility timeout is restored to 360s.
 - Still required: the user-visible failing/stalled deletion acceptance case with a disposable signed-in
@@ -229,11 +256,12 @@ export SIA_RELEASE_COGNITO_CLIENT_ID='331ej6ep7pojlil9k944v4fn7d'
 
 ## Composio status
 
-**Local-release decision (2026-08-17):** Composio is not required for the local-focused alpha. Keep
-the deployed connector control plane dormant, do not grant the remaining managed Slack config, and
-do not treat connector verification, provider identities, or public OAuth branding as local-mode
-release gates. The history below is retained so cloud connector work can resume without repeating
-security discovery.
+**Connector decision (updated 2026-08-22):** `EnableConnectors` defaults to `true`, and the live
+CloudFormation parameter is now reconciled to `true`. Gmail, Drive, Docs, Sheets, Slides, and Slack
+start URLs were smoke-tested and the diagnostic connections were revoked. The runtime and encrypted
+AWS secret now map twenty-three exact pinned tool slugs. Custom Sia-owned auth configs are live for
+all six providers. Slack unlisted public distribution is active; Google remains limited to approved
+test users until its production publishing, domain, and verification gates are complete.
 
 ### Completed
 
@@ -247,8 +275,11 @@ security discovery.
 - Auth configs are enabled and mapped as follows:
   - Gmail custom: `ac_8IHyxAWRWbts`
   - Google Drive custom: `ac_88SW6Q8pleGi`
-  - Slack managed, pending replacement: `ac_hobLkrc2crrm`
-- The AWS secret contains the reviewed 11-action canonical-to-provider allowlist.
+  - Google Docs custom: `ac_szGE2xbi8e5_`
+  - Google Sheets custom: `ac_LjsJ7EQe-Y6J`
+  - Google Slides custom: `ac_peHwngwT-6s_`
+  - Slack custom: `ac_fcZCuByASLWP`
+- The AWS secret contains the reviewed 23-tool canonical-to-provider contract.
 - The configured project key passed the least-privilege contract:
   - connected accounts: allowed (`200`)
   - tool/file execution: allowed (`200`)
@@ -267,8 +298,8 @@ security discovery.
 - Regression tests cover pending cancellation, active revoke-then-delete ordering, fail-closed active
   revoke failure, provider `INITIALIZING` mapping, and removal of the local pending row.
 - The deployed create -> cancel smoke returned `201` then `200`; the exact DynamoDB row was absent and
-  the provider returned `404` for the synthetic connection. Current Gmail/Drive/Slack connection
-  counts are all zero.
+  the provider returned `404` for the synthetic connection. At the time of that three-connector
+  smoke, Gmail/Drive/Slack connection counts were all zero.
 - After the key cutover, a direct invocation of the deployed control Lambda created a Gmail hosted
   link (`201`), cancelled it (`200`), and confirmed the provider-side account was gone (`404`).
 - After the custom Google config cutover, fresh deployed control-Lambda invocations created hosted
@@ -279,10 +310,9 @@ security discovery.
   and its failed placeholder was disconnected. Sia returned to `0 of 3 connected`, and guided setup
   did not advance to a later provider after cancellation.
 
-### Deferred cloud connector work
+### Historical managed-config findings
 
-Do not authorize the remaining managed Slack config for release users. A Computer Use inspection of
-the original managed provider URLs on 2026-08-17 found:
+The original managed provider URLs inspected on 2026-08-17 requested excessive scopes:
 
 - Gmail requests 11 scopes, including full `https://mail.google.com/` access plus unrelated contacts,
   addresses, birthday, phone-number, language, and profile/email scopes.
@@ -291,10 +321,15 @@ the original managed provider URLs on 2026-08-17 found:
   profile/workspace writes, and other capabilities outside Sia's three allowlisted Slack actions.
   Slack also labels the managed Composio app as not approved by Slack.
 
-The overbroad managed Gmail and Drive configs have now been replaced. The managed Slack config must
-still be replaced before any future cloud-connector tester grants Slack access. The server-side
-action allowlist limits what Sia can execute, but it does not narrow the access users grant at a
-provider consent screen. None of this is required for local Chrome/native computer use.
+All three managed configs have been replaced in the deployed AWS mapping. The server-side action
+allowlist still remains a separate defense from the provider consent scopes. None of this is
+required for local Chrome/native computer use.
+
+On 2026-08-22, managed Composio configs were created for Google Docs (`ac_P7HVBoWxSLxM`), Sheets
+(`ac_IsvcBHAlC-oU`), and Slides (`ac_UG0AMCzDpzjK`). They have zero connections and must remain
+internal-only until their live consent scopes are inspected and accepted or replaced with reviewed
+custom configs. The code pins ten purpose-built editor slugs and toolkit versions; it does not expose
+raw Slides batch requests or unbounded Sheets writes.
 
 Custom-provider setup advanced on 2026-08-17 but is not yet ready for user consent:
 
@@ -325,22 +360,19 @@ Custom-provider setup advanced on 2026-08-17 but is not yet ready for user conse
   duplicates `A0BQQB0QMA8`, `A0BQQDA724C`, and `A0BQNJVC09X` were permanently deleted after operator
   confirmation. The remaining RLC record `A0BQJMCB3D4` is not distributed and has zero authorized
   users. The operator explicitly rejected RLC as the target; do not use that app.
-- A separate `Sia` app `A0BQQJLG328` now exists in the intended `Russ Lab` workspace. It has the two
-  reviewed Composio callbacks, exactly the six user scopes `search:read`, `channels:history`,
-  `groups:history`, `im:history`, `mpim:history`, and `chat:write`, and no bot scopes. It was installed
-  once during setup; the generated user OAuth token appeared in browser inspection output and was
-  immediately revoked. Slack now offers **Install to Russ Lab** again, so no live user OAuth token
-  remains from that installation.
-- The Russ Lab client ID and client secret were captured only in the browser-control process and were
-  not written to this repository, printed, or sent to Composio. A custom Composio Slack config was
-  staged with exactly six scopes, then canceled before credential entry or creation. The AWS runtime
-  mapping therefore still points to managed config `ac_hobLkrc2crrm`.
-- Deprecated Slack verification-token values appeared during inspection. Neither Slack app has
-  triggers enabled, and neither app is used by local mode. If cloud Slack work resumes, rotate those
-  values before use and delete the unused RLC/Russ Lab records only after fresh permanent-deletion
-  confirmation.
-- Public Slack distribution remains deferred and would require the operator-controlled homepage,
-  privacy/support, and terms URLs plus a custom Composio config. It is not a local-mode release gate.
+- The `Sia` app `A0BQQJLG328` in the intended `Russ Lab` workspace has the two reviewed Composio
+  callbacks and exactly eight user scopes: `search:read`, `users:read`, `im:write`, `channels:history`,
+  `groups:history`, `im:history`, `mpim:history`, and `chat:write`. It has no bot scopes.
+- Custom Composio Slack config `ac_fcZCuByASLWP` stores the app credentials and permits exactly
+  `SLACK_SEARCH_MESSAGES`, `SLACK_FIND_USERS`, `SLACK_OPEN_DM`,
+  `SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION`, and `SLACK_SEND_MESSAGE`. The credentials were
+  entered directly in the provider UI and were not written to this repository.
+- The deprecated Slack verification token exposed during inspection was regenerated. Slack triggers
+  remain disabled and the verification-token field is not configured in Composio.
+- Unlisted public Slack distribution is active. A live Russ Lab OAuth acceptance passed person
+  lookup, message search, DM open/reuse, and thread read through the deployed Lambda; no message was
+  sent, and the disposable connection was revoked after the run. A second unrelated-workspace pass
+  and an explicitly approved send remain open acceptance items.
 
 The Composio dashboard also currently lists `sia_production_runtime` and `Getting Started` as **Full
 access** project keys alongside the scoped `sia-alpha-runtime-20260817-release` key. The dashboard offers a
@@ -348,22 +380,20 @@ permanent **Revoke** action for both. Reconcile their consumers and revoke them 
 handoff before distribution; do not assume that the earlier rejected predecessor-token probe proves
 these two dashboard rows are harmless.
 
-## Deferred cloud-connector acceptance
+## Cloud-connector acceptance
 
-This section is not required for the local-focused alpha. Run it only when the optional cloud
-connector gateway returns to release scope. Use designated disposable accounts and benign fixtures;
-never substitute an operator or maintainer account. The current Composio configs have zero
-connections. Do not continue past a provider consent screen until the overbroad OAuth configs above
-have been replaced.
+Run this with designated disposable accounts and benign fixtures; never substitute an operator or
+maintainer account. Connector start URLs are enabled for invited internal acceptance, but do not
+continue past a provider consent screen until the overbroad OAuth configs below have been replaced.
 
 1. Launch the cloud-enabled signed Sia build with a disposable profile.
 2. Sign into Sia with the disposable email and complete the Cognito email OTP.
 3. In Settings -> Apps, choose **Connect work apps**.
-4. Complete Gmail consent, then Drive, then Slack using the intended disposable identities.
-5. Verify the UI shows the exact connected identity for all three.
+4. Complete Gmail, Drive, Docs, Sheets, Slides, then Slack consent using the intended disposable identities.
+5. Verify the UI shows the exact connected identity for all six.
 6. Run one read per provider.
-7. Approve one exact write per provider using non-sensitive fixtures.
-8. Disconnect all three and verify provider-side revocation and no remaining Composio account.
+7. Run one exact write per provider using non-sensitive fixtures.
+8. Disconnect all six and verify provider-side revocation and no remaining Composio account.
 9. Repeat once with cancellation in the middle; no later provider should open.
 
 Before any future connector-enabled alpha or public distribution, use branded custom Google and Slack
@@ -428,12 +458,17 @@ advertised tool surface because the embedded driver cannot accept its MCP-host-o
    upgrade on a disposable macOS account using the confirmed intended prior v2 bundle. The contained
    same-profile prior-v2 -> final migration, provider detection, and post-upgrade read-only workflow
    pass; clean-profile first run, local escape, minimum size, and Light/Dark checks also pass.
-2. Confirm the intended alpha recipient list outside the repository and tell recipients this is a
-   local-mode alpha: continue locally and do not authorize Gmail, Drive, or Slack connected apps.
-3. Keep connector OAuth, Composio key reconciliation, provider acceptance, and cloud-account deletion
-   in the deferred cloud backlog. They become release gates only if those features return to scope.
-4. If any source changes, rebuild, notarize, repeat artifact verification, and update the artifact
-   hashes in this handoff.
+2. Have the release operator complete the final signed-app admin password/TOTP/archive UI pass and
+   the offline-outbox UI pass. Direct Cognito password → TOTP and archive access, the renderer state,
+   and the packaged secure password field are independently verified.
+3. Confirm the intended alpha recipient list outside the repository. Explain that Sia sign-in is raw
+   research-release enrollment, **Continue locally** is available without sharing, and cloud
+   connectors require separate provider consent and are internal-only pending the scope audit.
+4. Finish connector OAuth scope replacement, Composio key reconciliation, and disposable-account
+   provider acceptance before external distribution. Cloud research and account deletion remain
+   release gates.
+5. Commit or otherwise immutably identify the dirty release source before distribution; rebuild and
+   refresh this evidence after any further packaged-source change.
 
 ## Important product boundaries
 
@@ -441,8 +476,10 @@ advertised tool surface because the embedded driver cannot accept its MCP-host-o
   not an OS login daemon or remote cloud workcell.
 - Persistent terminals are user-operated and intentionally not exposed as an unrestricted model
   shell.
-- Gmail/Drive/Slack cloud connectors are outside this local release; local Chrome/native computer
-  actions use the user's existing sessions and remain explicitly approval-gated.
+- Slack cloud OAuth is enabled for unlisted cross-workspace alpha distribution. Google Workspace
+  connectors remain limited to approved test users until Google production publishing and
+  verification complete. Local Chrome/native computer actions and connector operations are
+  autonomous by default and exactly targeted and logged.
 - Chrome consent and provider OAuth pages must remain provider-owned; never automate a CAPTCHA,
   browser security warning, or unsupported credential step.
 - Grok remains policy-gated and production-disabled. Codex app-server is the supported release

@@ -1,5 +1,6 @@
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import {
+  ArrowClockwise,
   DownloadSimple,
   LockKey,
   Pause,
@@ -30,13 +31,18 @@ export function PrivacySettings({
   const [pending, setPending] = useState<'capture' | 'export'>();
   const [error, setError] = useState<string>();
   const paused = snapshot.research.capture === 'paused';
+  const blocked = snapshot.research.capture === 'blocked';
+  const researchRequired = snapshot.cloudAuth.state === 'signed-in';
+  const uploadsPaused = snapshot.cloudAuth.features?.researchUploads === false;
   const captureLabel = !snapshot.research.consented
     ? 'Not enabled'
     : snapshot.research.capture === 'sync-pending'
       ? 'Sync pending'
-      : paused
-        ? 'Paused'
-        : 'Recording';
+      : blocked
+        ? 'Action required'
+        : paused
+          ? 'Paused'
+          : 'Recording';
 
   const run = async (kind: 'capture' | 'export', action: () => Promise<void>) => {
     setPending(kind);
@@ -56,6 +62,18 @@ export function PrivacySettings({
       description="Research capture is visible and separate from provider or connected-app permissions."
     >
       <InlineSettingsError message={error} />
+      {uploadsPaused ? (
+        <div className={styles.inlineWarning} role="status">
+          <WarningCircle size={15} aria-hidden="true" />
+          <div>
+            <strong>Cloud research uploads are paused</strong>
+            <p>
+              New records remain encrypted on this Mac and will sync after the service is
+              re-enabled.
+            </p>
+          </div>
+        </div>
+      ) : null}
       <section className={styles.captureSettings} aria-label="Research capture">
         <div>
           <div className={styles.rowTitleLine}>
@@ -64,7 +82,7 @@ export function PrivacySettings({
               className={`${styles.stateLabel} ${
                 !snapshot.research.consented
                   ? styles.state_unavailable
-                  : paused
+                  : paused || blocked
                     ? styles.state_paused
                     : styles.state_ready
               }`}
@@ -73,16 +91,29 @@ export function PrivacySettings({
             </span>
           </div>
           <p>
-            Stores prompts, responses, privacy-bounded coding trajectory metadata, and at most
-            one screenshot from an explicitly permitted non-sensitive app snapshot. It is not
-            used for model training.
+            Stores the raw prompts, responses, surfaced reasoning, tool arguments/results,
+            commands and output, browser/computer activity, and captured images Sia observes. It
+            is not used for model training.
           </p>
         </div>
         {!snapshot.research.consented ? (
           <ResearchConsentDialog
             cloudAvailable={snapshot.cloudAuth.state !== 'unconfigured'}
+            researchRequired={researchRequired}
             onAccept={() => onSetCapturePaused(false)}
           />
+        ) : blocked ? (
+          <button
+            type="button"
+            className={styles.primaryButton}
+            disabled={pending === 'capture'}
+            onClick={() => void run('capture', () => onSetCapturePaused(false))}
+          >
+            <ArrowClockwise size={15} aria-hidden="true" />
+            {pending === 'capture' ? 'Checking storage…' : 'Retry capture'}
+          </button>
+        ) : researchRequired ? (
+          <span className={styles.stateLabel}>Required while signed in</span>
         ) : (
           <button
             type="button"
@@ -104,12 +135,12 @@ export function PrivacySettings({
         <div>
           <LockKey size={17} aria-hidden="true" />
           <div>
-            <strong>Capture filters</strong>
+            <strong>Raw research record</strong>
             <p>
-              Sia excludes browser and connected-app turns, authentication surfaces, mutations,
-              provider reasoning, tool arguments/results, command output, diffs, paths, and
-              recognized secret patterns. Screenshots are accepted only from the first read-only
-              computer snapshot in an eligible turn. Other secrets may not be detected.
+              Authorized researchers can inspect complete ordered turns, including content from
+              tools and apps used in the task. Provider credentials, Chrome cookies, Keychain
+              contents, and hidden credentials outside Sia's task surface are never collected.
+              Anything the task can observe may be included raw.
             </p>
           </div>
         </div>
@@ -118,22 +149,51 @@ export function PrivacySettings({
           <div>
             <strong>Your controls</strong>
             <p>
-              Pause collection, export local records, or delete your research data.{' '}
-              {snapshot.cloudAuth.state === 'unconfigured'
-                ? 'Cloud sync is not configured, so captures stay encrypted on this Mac. '
-                : 'Deletion also requests removal of active cloud research copies. '}
-              Unsynced records are retained; synced local copies roll off after 90 days or
-              earlier if encrypted research storage reaches 128 MB. Deletion turns capture off
-              and resets consent.
+              {researchRequired
+                ? 'Sign out to stop new collection. You can export local records or delete your research data. '
+                : 'Pause collection, export local records, or delete your research data. '}
+              {snapshot.cloudAuth.state === 'signed-in'
+                ? 'Deletion also requests removal of active cloud research copies. '
+                : 'While signed out, captures stay encrypted on this Mac. '}
+              {snapshot.cloudAuth.state === 'signed-in'
+                ? 'Unsynced records stay in an encrypted outbox until AWS acknowledges them. Synced local copies roll off after 90 days or earlier when the local cache reaches its target size. '
+                : 'Local-only records are never made eligible for a later upload. '}
+              Deletion turns capture off and resets consent.
             </p>
           </div>
         </div>
       </div>
 
-      {snapshot.research.consented && snapshot.research.pendingItems ? (
+      {blocked ? (
+        <div className={styles.inlineError} role="alert">
+          <WarningCircle size={15} aria-hidden="true" />
+          <div>
+            <strong>Research capture is blocked</strong>
+            <p>
+              {snapshot.research.blockedReason ??
+                'Sia could not durably queue the raw record. New tasks are paused to prevent silent data loss.'}
+            </p>
+          </div>
+        </div>
+      ) : snapshot.research.consented && snapshot.research.pendingItems ? (
         <div className={styles.inlineWarning} role="status">
           <WarningCircle size={15} aria-hidden="true" />
-          {snapshot.research.pendingItems} research items are waiting for a secure connection.
+          <div>
+            <strong>
+              {snapshot.research.pendingItems} research items ·{' '}
+              {formatBytes(snapshot.research.pendingBytes)} queued
+            </strong>
+            <p>
+              Waiting for a secure AWS acknowledgement
+              {snapshot.research.oldestPendingAt
+                ? ` since ${new Date(snapshot.research.oldestPendingAt).toLocaleString()}`
+                : ''}
+              .
+              {snapshot.research.lastSyncError
+                ? ` Last attempt: ${snapshot.research.lastSyncError}`
+                : ''}
+            </p>
+          </div>
         </div>
       ) : null}
 
@@ -145,7 +205,11 @@ export function PrivacySettings({
           onClick={() => void run('export', onExport)}
         >
           <DownloadSimple size={16} aria-hidden="true" />
-          {pending === 'export' ? 'Exporting...' : 'Export local records'}
+          {pending === 'export'
+            ? 'Preparing export…'
+            : researchRequired
+              ? 'Export all research data'
+              : 'Export local records'}
         </button>
         <DeleteResearchDialog
           cloudAvailable={snapshot.cloudAuth.state !== 'unconfigured'}
@@ -154,6 +218,12 @@ export function PrivacySettings({
       </div>
     </SettingsSectionHeader>
   );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function DeleteResearchDialog({

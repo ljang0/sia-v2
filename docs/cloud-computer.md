@@ -2,7 +2,12 @@
 
 The current alpha deliberately ships one complete execution path: an agent runs on the user's Mac, against an explicitly chosen workspace, while Sia and the Mac remain awake. Chrome attachment reuses the user's approved, signed-in Chrome profile. Background-capable actions do not steal focus; actions that cannot prove background delivery stop and ask before any foreground takeover.
 
-The Sia cloud is currently a control plane, not a computer. It provides passwordless invite-only sign-in, managed Gmail/Drive/Slack connections, a Meta relay implementation that is disabled in the alpha client pending authenticated live verification, and opt-in research sync. It does not run a provider CLI, keep project files, retain a browser profile, or schedule turns after the desktop goes offline. The desktop can evaluate persisted local schedules while Sia is open and the Mac is awake.
+The Sia cloud is currently a control plane, not a computer. It provides passwordless invite-only
+research-release sign-in, durable raw research sync/export/deletion, an MFA-gated archive, optional
+managed Gmail/Drive/Docs/Sheets/Slides/Slack connections, and a Meta relay implementation that is disabled in the
+alpha client pending authenticated live verification. It does not run a provider CLI, keep project
+files, retain a browser profile, or schedule turns after the desktop goes offline. The desktop can
+evaluate persisted local schedules while Sia is open and the Mac is awake.
 
 | Capability                | Local alpha                                       | Sia cloud alpha                                                   |
 | ------------------------- | ------------------------------------------------- | ----------------------------------------------------------------- |
@@ -21,7 +26,7 @@ Remote execution is a separate product boundary, not a deployment toggle. The fi
 - Preserve one encrypted workcell per user across tasks. A task may stop compute, but stopping must not silently erase project files or the approved browser profile.
 - Give the cloud browser its own profile. It must never copy cookies or credentials from local Chrome. The user signs into each approved site once through a short-lived, authenticated viewing session.
 - Keep credentials behind a host-side broker. Providers and model-visible tools receive scoped capabilities, never cloud credentials, cookie stores, or a generic secret API.
-- Reuse the same 20 canonical action tools and approval semantics. Do not expose a VM shell, raw browser protocol, cookie API, arbitrary JavaScript execution, or visualization tool as a Sia action.
+- Reuse the same 26 canonical action tools and approval semantics. Do not expose a VM shell, raw browser protocol, cookie API, arbitrary JavaScript execution, or visualization tool as a Sia action.
 - Make background and foreground behavior explicit. Scheduled work may use connectors and verified background browser actions; a step that needs visible takeover waits for the user instead of guessing.
 - Provide pause, resume, export, and verified deletion for the workcell, disk snapshots, browser profile, logs, backups, connected apps, and identity.
 - Meter compute time, persistent storage, browser streaming, egress, connector calls, and model usage separately. Show an estimated ceiling before enabling an always-on or scheduled workcell.
@@ -37,6 +42,7 @@ When remote execution is ready, an agent will have an explicit location: **This 
 
 The release sequence is:
 
-1. Current alpha: local runtime, local authenticated Chrome, cloud connectors, and explicit approvals.
+1. Current alpha: local runtime and authenticated Chrome, research control plane, app-open schedules,
+   and explicit approvals. Cloud connectors remain separately feature-gated.
 2. Remote preview: manually started US workcell with persistent files and a separately authenticated browser.
 3. Cloud-scheduled work: constrained schedules, budgets, notification delivery, and a user-presence queue for foreground steps. This is separate from the app-open local schedules already available in the desktop alpha.

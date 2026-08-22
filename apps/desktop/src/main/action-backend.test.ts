@@ -531,6 +531,60 @@ describe('DesktopActionBackend computer boundary', () => {
     });
   });
 
+  it('types into the focused control when an exact app window exposes no elements', async () => {
+    let snapshot = 0;
+    const cua = fakeCua(async (tool) => {
+      if (tool === 'list_apps') {
+        return { apps: [{ pid: 77, name: 'Slack', bundle_id: 'com.tinyspeck.slackmacgap' }] };
+      }
+      if (tool === 'list_windows') {
+        return { windows: [{ pid: 77, window_id: 88, app_name: 'Slack', title: 'Lawrence' }] };
+      }
+      if (tool === 'get_window_state') {
+        snapshot += 1;
+        return { snapshot_id: `slack-native-${snapshot}`, elements: [] };
+      }
+      if (tool === 'type_text') {
+        return { effect: 'confirmed', delivery: { mode: 'foreground' } };
+      }
+      throw new Error(`Unexpected ${tool}`);
+    });
+    const backend = new DesktopActionBackend({ cua });
+    const target = await grantedComputerTarget(backend);
+    const captured = await backend.invoke(
+      request('computer_snapshot', { app_id: target.appId, window_id: target.windowId }),
+    );
+    const capturedData = dataRecord(captured.data);
+
+    expect(
+      backend.trustedApprovalTarget('computer_action', {
+        app_id: target.appId,
+        window_id: target.windowId,
+        snapshot_id: capturedData.snapshot_id,
+        action: 'type',
+        text: 'Hello from Sia',
+      }),
+    ).toBe('Slack, window “Lawrence”: type the currently focused control');
+
+    const typed = await backend.invoke(
+      request('computer_action', {
+        app_id: target.appId,
+        window_id: target.windowId,
+        snapshot_id: capturedData.snapshot_id,
+        action: 'type',
+        text: 'Hello from Sia',
+      }),
+    );
+
+    expect(typed.outcome).toBe('verified');
+    expect(cua.call.mock.calls.find(([tool]) => tool === 'type_text')?.[1]).toMatchObject({
+      pid: 77,
+      window_id: 88,
+      text: 'Hello from Sia',
+      delivery_mode: 'foreground',
+    });
+  });
+
   it('never performs an implicit foreground retry', async () => {
     const cua = fakeCua(async (tool) => {
       if (tool === 'list_apps') {
@@ -610,7 +664,7 @@ describe('DesktopActionBackend browser boundary', () => {
     expect(openFullDiskAccessSettings).toHaveBeenCalledOnce();
   });
 
-  it('refuses a message send that skipped the interactive approval', async () => {
+  it('refuses a message send that skipped the host authorization boundary', async () => {
     const cua = fakeCua(async (tool) => {
       throw new Error(`Unexpected ${tool}`);
     });
@@ -625,7 +679,7 @@ describe('DesktopActionBackend browser boundary', () => {
     });
     const result = await backend.invoke(unapproved);
     expect(result.outcome).toBe('refused');
-    expect(result.reason).toContain('interactive approval');
+    expect(result.reason).toContain('action authorization');
     expect(send).not.toHaveBeenCalled();
   });
 
@@ -1166,6 +1220,81 @@ describe('DesktopActionBackend connector boundary', () => {
     expect(cloud.commitAction).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [
+      'docs_read',
+      'docs',
+      'docs.read',
+      { account_id: 'docs', document_id: 'document-1' },
+      { document_id: 'document-1' },
+    ],
+    [
+      'sheets_read',
+      'sheets',
+      'sheets.read',
+      {
+        account_id: 'sheets',
+        spreadsheet_id: 'sheet-1',
+        range: 'Sheet1!A1:B20',
+        start_row: 1,
+        end_row: 20,
+      },
+      { spreadsheet_id: 'sheet-1', range: 'Sheet1!A1:B20', start_row: 1, end_row: 20 },
+    ],
+    [
+      'slides_read',
+      'slides',
+      'slides.read',
+      { account_id: 'slides', presentation_id: 'deck-1' },
+      { presentation_id: 'deck-1' },
+    ],
+    [
+      'slack_find_users',
+      'slack',
+      'slack.find_users',
+      { account_id: 'slack', query: 'Lawrence Jang', limit: 10 },
+      { query: 'Lawrence Jang', limit: 10 },
+    ],
+    [
+      'slack_open_dm',
+      'slack',
+      'slack.open_dm',
+      { account_id: 'slack', user_id: 'U012ABCDEF' },
+      { user_id: 'U012ABCDEF' },
+    ],
+  ] as const)(
+    'routes %s through its exact editor account',
+    async (toolName, account, cloudTool, argumentsValue, cloudInput) => {
+      const cloud: CloudActionClient = {
+        configured: true,
+        prepareAction: vi.fn(async () => ({
+          status: 'executed' as const,
+          executionId: 'execution-editor',
+          result: { ok: true },
+        })),
+        commitAction: vi.fn(),
+      };
+      const backend = new DesktopActionBackend({
+        cua: fakeCua(async () => ({})),
+        cloud,
+        resolveConnectionId: (app, selector) =>
+          app === account && selector === account ? `connection-${account}` : undefined,
+      });
+
+      await expect(backend.invoke(request(toolName, argumentsValue))).resolves.toMatchObject({
+        outcome: 'verified',
+      });
+      expect(cloud.prepareAction).toHaveBeenCalledWith(
+        {
+          connectionId: `connection-${account}`,
+          tool: cloudTool,
+          input: cloudInput,
+        },
+        undefined,
+      );
+    },
+  );
+
   it('commits mutation input against the exact cloud digest', async () => {
     const cloud: CloudActionClient = {
       configured: true,
@@ -1182,8 +1311,9 @@ describe('DesktopActionBackend connector boundary', () => {
         result: { message_id: 'opaque-message' },
       })),
     };
-    const resolveConnectionId = vi.fn((app: 'gmail' | 'drive' | 'slack', selector: string) =>
-      app === 'slack' && selector === 'slack' ? 'connection-9' : undefined,
+    const resolveConnectionId = vi.fn(
+      (app: 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack', selector: string) =>
+        app === 'slack' && selector === 'slack' ? 'connection-9' : undefined,
     );
     const backend = new DesktopActionBackend({
       cua: fakeCua(async () => ({})),
@@ -1219,7 +1349,7 @@ describe('DesktopActionBackend connector boundary', () => {
     );
   });
 
-  it('refuses connector mutations that did not cross the interactive approval boundary', async () => {
+  it('refuses connector mutations that did not cross the host authorization boundary', async () => {
     const cloud: CloudActionClient = {
       configured: true,
       prepareAction: vi.fn(),
@@ -1238,7 +1368,7 @@ describe('DesktopActionBackend connector boundary', () => {
 
     await expect(backend.invoke(unapproved)).resolves.toMatchObject({
       outcome: 'refused',
-      reason: expect.stringContaining('missing its exact interactive approval'),
+      reason: expect.stringContaining('missing its exact action authorization'),
     });
     expect(cloud.prepareAction).not.toHaveBeenCalled();
   });
@@ -1442,5 +1572,80 @@ describe('DesktopActionBackend connector boundary', () => {
       reason: expect.stringContaining('read-only request into a mutation'),
     });
     expect(cloud.commitAction).not.toHaveBeenCalled();
+  });
+});
+
+describe('DesktopActionBackend schedule boundary', () => {
+  it('creates, lists, updates, and deletes only through the controller-owned host', async () => {
+    const schedules = {
+      create: vi.fn(() => ({ id: 'schedule-1', cadence: 'hourly' })),
+      list: vi.fn(() => [{ id: 'schedule-1', cadence: 'hourly' }]),
+      update: vi.fn(() => ({ id: 'schedule-1', enabled: false })),
+      delete: vi.fn(),
+    };
+    const backend = new DesktopActionBackend({
+      cua: fakeCua(async () => ({})),
+      schedules,
+    });
+
+    await expect(
+      backend.invoke(
+        request('schedule_create', {
+          task: 'Search the web and report changes.',
+          cadence: 'hourly',
+        }),
+      ),
+    ).resolves.toMatchObject({
+      outcome: 'verified',
+      data: { schedule: { id: 'schedule-1' } },
+    });
+    await expect(backend.invoke(request('schedule_list', {}))).resolves.toMatchObject({
+      outcome: 'verified',
+      data: { schedules: [{ id: 'schedule-1' }] },
+    });
+    await backend.invoke(
+      request('schedule_update', { schedule_id: 'schedule-1', enabled: false }),
+    );
+    await backend.invoke(request('schedule_delete', { schedule_id: 'schedule-1' }));
+
+    expect(schedules.create).toHaveBeenCalledWith('thread-1', {
+      task: 'Search the web and report changes.',
+      cadence: 'hourly',
+    });
+    expect(schedules.list).toHaveBeenCalledWith('thread-1');
+    expect(schedules.update).toHaveBeenCalledWith('thread-1', {
+      scheduleId: 'schedule-1',
+      enabled: false,
+    });
+    expect(schedules.delete).toHaveBeenCalledWith('thread-1', 'schedule-1');
+  });
+
+  it('fails closed when a schedule mutation reaches the backend without authorization', async () => {
+    const schedules = {
+      create: vi.fn(),
+      list: vi.fn(() => []),
+      update: vi.fn(),
+      delete: vi.fn(),
+    };
+    const backend = new DesktopActionBackend({
+      cua: fakeCua(async () => ({})),
+      schedules,
+    });
+    const invocation = request('schedule_create', {
+      task: 'Check every hour.',
+      cadence: 'hourly',
+    });
+    const unapproved: ValidatedActionInvocation = {
+      name: invocation.name,
+      arguments: invocation.arguments,
+      descriptor: invocation.descriptor,
+      context: invocation.context,
+    };
+
+    await expect(backend.invoke(unapproved)).resolves.toMatchObject({
+      outcome: 'refused',
+      reason: expect.stringMatching(/authorization/i),
+    });
+    expect(schedules.create).not.toHaveBeenCalled();
   });
 });

@@ -4,7 +4,7 @@ import type { ToolName } from '../src/contracts.js';
 import {
   assertComposioContract,
   COMPOSIO_TOOL_SLUGS,
-  COMPOSIO_TOOL_VERSION,
+  COMPOSIO_TOOL_VERSIONS,
   mapCanonicalConnectorInput,
   validateCanonicalDriveUploadInput,
 } from '../src/connector-contract.js';
@@ -75,9 +75,120 @@ describe('canonical connector input mapping', () => {
       },
     ],
     [
+      'docs.create',
+      { title: 'Launch notes', markdown: '# Launch\n\nReady.' },
+      { title: 'Launch notes', markdown_text: '# Launch\n\nReady.' },
+    ],
+    [
+      'docs.read',
+      { document_id: 'document-1' },
+      { document_id: 'document-1', include_tables: true, include_tabs_content: true },
+    ],
+    [
+      'docs.append',
+      { document_id: 'document-1', text: '\nNext step.' },
+      { document_id: 'document-1', text_to_insert: '\nNext step.', append_to_end: true },
+    ],
+    [
+      'sheets.create',
+      { title: 'Launch tracker', folder_id: 'folder-1' },
+      { title: 'Launch tracker', folder_id: 'folder-1' },
+    ],
+    [
+      'sheets.read',
+      { spreadsheet_id: 'sheet-1', range: 'Launch!A1:C20', start_row: 1, end_row: 20 },
+      {
+        spreadsheet_id: 'sheet-1',
+        range: 'Launch!A1:C20',
+        start_row: 1,
+        end_row: 20,
+        major_dimension: 'ROWS',
+        value_render_option: 'FORMATTED_VALUE',
+        date_time_render_option: 'FORMATTED_STRING',
+      },
+    ],
+    [
+      'sheets.update',
+      {
+        spreadsheet_id: 'sheet-1',
+        range: 'Launch!A1:B2',
+        values: [
+          ['Owner', 'Ready'],
+          ['Sia', true],
+        ],
+        value_input_option: 'USER_ENTERED',
+      },
+      {
+        spreadsheet_id: 'sheet-1',
+        range: 'Launch!A1:B2',
+        values: [
+          ['Owner', 'Ready'],
+          ['Sia', true],
+        ],
+        major_dimension: 'ROWS',
+        auto_expand_sheet: true,
+        value_input_option: 'USER_ENTERED',
+        include_values_in_response: false,
+      },
+    ],
+    [
+      'sheets.append',
+      {
+        spreadsheet_id: 'sheet-1',
+        range: 'Launch!A:B',
+        values: [['Sia', null]],
+        value_input_option: 'RAW',
+      },
+      {
+        spreadsheetId: 'sheet-1',
+        range: 'Launch!A:B',
+        values: [['Sia', null]],
+        majorDimension: 'ROWS',
+        insertDataOption: 'INSERT_ROWS',
+        valueInputOption: 'RAW',
+        includeValuesInResponse: false,
+      },
+    ],
+    [
+      'slides.create',
+      { title: 'Launch review', markdown: '# Launch\n\n---\n\n# Results' },
+      { title: 'Launch review', markdown_text: '# Launch\n\n---\n\n# Results' },
+    ],
+    [
+      'slides.read',
+      { presentation_id: 'deck-1' },
+      {
+        presentationId: 'deck-1',
+        fields:
+          'presentationId,title,slides(objectId,pageElements(objectId,title,description,shape(shapeType,text)))',
+      },
+    ],
+    [
+      'slides.append',
+      { presentation_id: 'deck-1', markdown: '# Next steps' },
+      { presentationId: 'deck-1', markdown_text: '# Next steps' },
+    ],
+    [
       'slack.search',
       { query: 'in:general launch', limit: 30 },
       { query: 'in:general launch', count: 30, auto_paginate: false },
+    ],
+    [
+      'slack.find_users',
+      { query: 'Lawrence Jang', limit: 10 },
+      {
+        search_query: 'Lawrence Jang',
+        limit: 10,
+        exact_match: false,
+        include_bots: false,
+        include_deleted: false,
+        include_restricted: true,
+      },
+    ],
+    [
+      'slack.open_dm',
+      { user_id: 'U012ABCDEF' },
+      { users: 'U012ABCDEF', return_im: true, prevent_creation: false },
     ],
     [
       'slack.read_thread',
@@ -136,6 +247,30 @@ describe('canonical connector input mapping', () => {
       () => mapCanonicalConnectorInput('slack.read_thread', { resource_id: 'timestamp-only' }),
       hasCode('invalid_connector_input'),
     );
+    assert.throws(
+      () => mapCanonicalConnectorInput('slack.open_dm', { user_id: 'Lawrence Jang' }),
+      hasCode('invalid_connector_input'),
+    );
+    assert.throws(
+      () =>
+        mapCanonicalConnectorInput('sheets.read', {
+          spreadsheet_id: 'sheet-1',
+          range: 'Sheet1!A:Z',
+          start_row: 1,
+          end_row: 501,
+        }),
+      hasCode('invalid_connector_input'),
+    );
+    assert.throws(
+      () =>
+        mapCanonicalConnectorInput('sheets.append', {
+          spreadsheet_id: 'sheet-1',
+          range: 'A:B',
+          values: [['missing sheet name']],
+          value_input_option: 'RAW',
+        }),
+      hasCode('invalid_connector_input'),
+    );
   });
 
   it('validates Drive upload descriptors and rejects raw paths', () => {
@@ -176,7 +311,11 @@ describe('pinned Composio deployment contract', () => {
     const config = validConfig();
     assert.doesNotThrow(() => assertComposioContract(config));
     assert.throws(
-      () => assertComposioContract({ ...config, toolVersion: 'latest' }),
+      () =>
+        assertComposioContract({
+          ...config,
+          toolVersions: { ...config.toolVersions, 'docs.read': 'latest' },
+        }),
       hasCode('connector_contract_mismatch'),
     );
     assert.throws(
@@ -194,9 +333,16 @@ function validConfig(): ComposioConfig {
   return {
     apiKey: 'provider-secret-with-enough-characters',
     baseUrl: 'https://backend.composio.test',
-    authConfigIds: { gmail: 'gmail', google_drive: 'drive', slack: 'slack' },
+    authConfigIds: {
+      gmail: 'gmail',
+      google_drive: 'drive',
+      google_docs: 'docs',
+      google_sheets: 'sheets',
+      google_slides: 'slides',
+      slack: 'slack',
+    },
     toolSlugs: { ...COMPOSIO_TOOL_SLUGS } as Record<ToolName, string>,
-    toolVersion: COMPOSIO_TOOL_VERSION,
+    toolVersions: { ...COMPOSIO_TOOL_VERSIONS } as Record<ToolName, string>,
   };
 }
 

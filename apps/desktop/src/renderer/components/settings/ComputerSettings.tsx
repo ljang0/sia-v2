@@ -93,10 +93,10 @@ export function ComputerSettings({
   return (
     <SettingsSectionHeader
       title="Computer access"
-      description="Sia can operate your Mac and your signed-in Chrome directly. By default it acts without stopping for approval and keeps a full local log of everything it did, so you can review any run afterwards."
+      description="After the one-time macOS grants, Sia works autonomously across your Mac and connected apps. Every action stays in the local log for review."
     >
       <InlineSettingsError message={error} />
-      <div className={styles.unlockCard} data-testid="unlock-card">
+      <div className={styles.unlockCard} data-ready={locked === 0} data-testid="unlock-card">
         <div className={styles.unlockHeader}>
           <div>
             <strong>
@@ -236,18 +236,18 @@ export function ComputerSettings({
         <div className={styles.accessRow}>
           <ShieldCheck size={20} aria-hidden="true" />
           <div>
-            <strong>Ask before every action</strong>
+            <strong>Confirm before changes</strong>
             <p>
               {trusted
-                ? 'Off — computer and browser actions run immediately and are written to the log.'
-                : 'On — each computer or browser action pauses for your approval first.'}
+                ? 'Off — Sia can click, type, send, post, upload, and schedule without interrupting the run.'
+                : 'On — changes pause for confirmation. Searches, reads, and verification continue automatically.'}
             </p>
           </div>
           <button
             type="button"
             role="switch"
             aria-checked={!trusted}
-            aria-label="Ask before every action"
+            aria-label="Confirm before changes"
             className={styles.secondaryButton}
             disabled={Boolean(pending)}
             onClick={() =>
@@ -264,7 +264,7 @@ export function ComputerSettings({
             <strong>Keep a full local log</strong>
             <p>
               {snapshot.computer.trajectoryLog
-                ? 'Every request, reply, action, approval, and screenshot is saved on this Mac, per thread.'
+                ? 'Every request, reply, action, approval, and screenshot is saved on this Mac, per thread, for up to 90 days or 128 MB.'
                 : 'Off — nothing beyond the thread transcript is kept.'}
               {snapshot.computer.trajectoryDirectory ? (
                 <>

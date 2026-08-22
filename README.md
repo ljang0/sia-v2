@@ -3,8 +3,9 @@
 Sia is a local-first personal computer assistant for macOS. Creating agents, running Codex, working
 with files and Git, using signed-in Chrome, controlling explicitly granted Mac apps, and running
 app-open background work require neither a Sia account nor cloud credits. It keeps the interface
-small while preserving the native strengths of supported provider CLIs. An optional audited cloud
-gateway can add Gmail, Drive, Slack, and research sync later.
+small while preserving the native strengths of supported provider CLIs. The invite-only research
+release uses an audited AWS control plane for identity, raw research sync, export, and deletion;
+Gmail, Drive, Docs, Sheets, Slides, and Slack remain separately gated optional capabilities.
 
 This repository is the clean v2 implementation. It intentionally does not contain the old visualization runtime, canvas, workflow engine, or provider-independent subagent system. Voice is a narrow, user-invoked ElevenLabs integration for dictation and concise read-aloud, with an optional voice per agent; it is not an autonomous voice-agent runtime.
 
@@ -13,32 +14,48 @@ This repository is the clean v2 implementation. It intentionally does not contai
 - macOS 14 or newer.
 - When a release cloud is configured, first run offers Sia sign-in before agent setup and keeps a
   clear **Continue locally** path. A cloud-disabled build goes directly to local setup and shows no
-  unusable account controls.
+  unusable account controls. After sign-in, Sia presents the required raw-research consent as step
+  1, then one **Connect work apps** action as step 2 before agent setup. That action advances through
+  Gmail, Drive, Docs, Sheets, Slides, and Slack in order, preserving completed grants on retry. Each
+  provider still owns its own OAuth approval page. **Choose apps** can run the same verified flow for
+  any subset, and setup may be deferred.
 - Local execution requires Sia to be running and the Mac to remain awake.
-- Local turns keep running when the Sia window is closed on macOS, and the Activity view preserves their status when the window is reopened. Local schedules run only while the Sia process is open and the Mac is awake; they are not an always-on daemon.
+- Local turns keep running when the Sia window is closed on macOS, and the Activity view preserves their status when the window is reopened. The agent can create, list, update, and delete persisted once/hourly/daily/weekly schedules after approval. They run only while the Sia process is open and the Mac is awake; they are not an always-on daemon or OS cron job.
 - The cloud control plane handles sign-in, connected apps, the implemented-but-not-yet-live-verified Meta relay, and consented research sync. Meta stays unavailable in the alpha client until an authenticated capability check exists. The cloud does not yet provide a persistent remote computer, remote browser profile, or offline scheduled agent turns.
 - Codex is the default provider through its official app-server protocol. The alpha pins Codex CLI `>=0.147.0 <0.149.0`; inherited extensions are disabled and verified before a thread starts.
 - The Meta adapter targets the Sia cloud relay but remains production-disabled until an authenticated live check is implemented. Gemini, Grok, and Claude also remain production-disabled until their compatibility, isolation, and product-policy gates are satisfied.
-- Apple Messages works locally: reading recent iMessages needs Full Disk Access; sending always
-  passes an exact-recipient approval. WhatsApp and Slack desktop apps are readable and operable
-  through granted computer use.
-- Connected-app writes require an exact, expiring approval. Sia-hosted browser/computer changes run without per-action approval in the default trusted local mode (every action is bound to a live window/tab/snapshot and written to the local trajectory log); `Settings → Computer → Ask before every action` restores approvals. Read-only inspection stays background-capable and never steals focus.
-- Gmail, Drive, and Slack each have an individual connection button as well as one guided sequence.
+- Apple Messages works locally: reading recent iMessages needs Full Disk Access; sending is bound to
+  an exact recipient and message. WhatsApp can use granted computer control. Slack uses its connected
+  app path for dependable person lookup, DM resolution, message search, thread reads, and reviewed
+  sends; desktop-window accessibility is not treated as a reliable Slack integration.
+- Sia runs autonomously by default after one-time OS and account grants. Computer, browser,
+  connector, message, upload, and schedule changes continue without in-app confirmation and are
+  written to a per-thread local trajectory log, bounded to 90 days or 128 MiB; `Settings → Computer
+→ Confirm before changes` restores exact, expiring approvals. Hard blocks for credential fields,
+  private browser surfaces, and sensitive apps remain in every mode.
+- Gmail, Drive, Docs, Sheets, Slides, and Slack share one ordered guided setup, with a selectable
+  subset path and per-app controls for later connection, recovery, and disconnects.
   Provider-owned OAuth consent remains separate: Google and Slack are never represented as one
-  blanket permission.
-- Research capture is opt-in. Local users are asked after creating their first agent, and signed-in
-  users are asked after authentication, but capture remains off until they explicitly join;
-  declining is remembered for that consent version. Local captures are encrypted on the Mac and
-  are never made eligible for retroactive upload if cloud is added later. Only new eligible captures
-  created after cloud sign-in may sync. Capture may retain prompts/responses, content-free coding
-  trajectory metadata, and one bounded screenshot from an explicitly permitted non-sensitive
-  read-only native-app snapshot. Browser/connected-app turns, authentication surfaces, mutations,
-  reasoning, arguments/results, command output, diffs, paths, and recognized secret patterns are
-  excluded. Do not paste other secrets or capture private documents in a research-consented
-  conversation. Alpha data is not used for training.
-- Pausing research stops collection but retains the accepted consent. The current export contains locally retained research batches only. Research deletion requests deletion of the synced cloud copy when configured and signed in, clears the local copy, and resets consent.
+  blanket permission. Connection setup, provider-page opening, success, failure, timeout, and
+  disconnection are recorded in the local trajectory and the consented encrypted AWS research
+  stream without retaining OAuth URLs, codes, or tokens.
+- Research capture is opt-in in local mode. A signed-in account is a research-release account and
+  must accept the current versioned consent to remain signed in. Under the v3 raw consent, Sia queues
+  the exact observed turn stream for AWS upload: prompts, responses, surfaced reasoning, provider
+  events, commands and output, tool arguments/results, approvals, browser/computer events, connected-
+  app results, paths/diffs, errors, and captured images. Bundles are organized by participant,
+  thread, turn, sequence, and event type; authorized admins can inspect them in the audited Research
+  archive. Sia still does not obtain provider credentials, Chrome cookies, Keychain contents, secure
+  fields, or hidden credentials outside the task surface. Raw task content can contain private data
+  or secrets, so the consent dialog must be read before joining. Alpha data is not used for training.
+- Local-only participants may pause research while retaining accepted consent. Signed-in
+  research-release accounts must sign out to stop new capture. Unsynced records remain in the
+  encrypted outbox until AWS acknowledges them; Sia will not silently discard them to satisfy a
+  cache limit or during sign-out. Signed-in export is prepared asynchronously from the complete
+  uploaded archive, while local-only export contains locally retained batches. Research deletion
+  removes the active cloud copy when configured, clears the local copy, and resets consent.
 - Signed-in users can delete their Sia cloud account directly from Connected apps. Sia requires the exact phrase `DELETE ACCOUNT`, waits for the account-scope cloud job to report `completed`, and only then clears local Sia state and sign-in. It does not delete workspace files, provider CLI accounts, or macOS permissions.
-- Provider CLIs are separately installed and authenticated by the user; they are not bundled with Sia. Sia does not inject a visualization or canvas tool into the prime agent. Its added surface is the fixed browser, computer, Gmail, Drive, and Slack gateway.
+- Provider CLIs are separately installed and authenticated by the user; they are not bundled with Sia. Sia does not inject a visualization or canvas tool into the prime agent. Its added surface is the fixed browser, computer, Gmail, Drive, Docs, Sheets, Slides, Slack, Messages, and scheduling gateway.
 - The Apps page also exposes local Chrome and Apple Messages entry points. Chrome reuses only an
   explicitly selected signed-in window and never copies cookies. The Messages button opens the
   account already configured in Apple Messages; Sia does not read `chat.db`, copy message history,

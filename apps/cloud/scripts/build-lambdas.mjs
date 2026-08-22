@@ -12,6 +12,7 @@ const entries = [
   ['control', 'src/lambda.ts'],
   ['meta', 'src/meta-lambda.ts'],
   ['deletion', 'src/deletion-lambda.ts'],
+  ['export', 'src/export-lambda.ts'],
 ];
 
 // Lambda injects this streaming adapter at runtime. A minimal local stand-in lets

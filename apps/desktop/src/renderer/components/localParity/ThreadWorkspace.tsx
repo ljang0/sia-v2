@@ -207,6 +207,7 @@ export function ThreadWorkspaceTools({
                     draft.prompt,
                     draft.cadence,
                     new Date(draft.runAt).toISOString(),
+                    draft.maxRuns,
                   ),
                 )
               }

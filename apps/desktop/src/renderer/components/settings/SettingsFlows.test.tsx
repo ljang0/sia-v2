@@ -72,6 +72,34 @@ describe('cloud account settings', () => {
     await waitFor(() => expect(onSignOut).toHaveBeenCalledOnce());
   });
 
+  it('collects an admin password privately before the authenticator step', async () => {
+    const onComplete = vi.fn().mockResolvedValue(undefined);
+    render(
+      <AppsSettings
+        snapshot={withCloud('password-required', 'admin@example.com')}
+        onConnectAll={vi.fn()}
+        onConnect={vi.fn()}
+        onDisconnect={vi.fn()}
+        onStartCloudSignIn={vi.fn()}
+        onCompleteCloudSignIn={onComplete}
+        onSignOutCloud={vi.fn()}
+        onDeleteCloudAccount={vi.fn()}
+      />,
+    );
+
+    const password = screen.getByLabelText('Administrator password') as HTMLInputElement;
+    expect(password.type).toBe('password');
+    expect(password.autocomplete).toBe('current-password');
+    expect(document.activeElement).toBe(password);
+    fireEvent.change(password, { target: { value: ' admin password with spaces ' } });
+    fireEvent.submit(password.closest('form')!);
+
+    await waitFor(() =>
+      expect(onComplete).toHaveBeenCalledWith(' admin password with spaces '),
+    );
+    expect(screen.getByText(/password, then an authenticator code/)).toBeTruthy();
+  });
+
   it('explains local mode without showing unusable app connection controls', () => {
     render(
       <AppsSettings
@@ -111,12 +139,18 @@ describe('cloud account settings', () => {
       />,
     );
     expect(screen.getByText(/^Signed in as lawrence@example\.com\./)).toBeTruthy();
-    expect(
-      screen.getByRole('button', { name: 'Sign out & clear local research' }),
-    ).toBeTruthy();
-    for (const name of ['Connect Gmail', 'Connect Google Drive', 'Connect Slack']) {
-      const button = screen.getByRole('button', { name });
-      expect((button as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
+    for (const name of [
+      'Connect Gmail',
+      'Connect Google Drive',
+      'Connect Google Docs',
+      'Connect Google Sheets',
+      'Connect Google Slides',
+      'Connect Slack',
+    ]) {
+      for (const button of screen.getAllByRole('button', { name })) {
+        expect((button as HTMLButtonElement).disabled).toBe(false);
+      }
     }
   });
 
@@ -172,10 +206,36 @@ describe('cloud account settings', () => {
       />,
     );
 
-    expect(screen.getByText(/their own consent pages/)).toBeTruthy();
-    expect(screen.getByText(/Nothing is bulk copied into Sia/)).toBeTruthy();
+    expect(screen.getByText(/its own secure approval page/)).toBeTruthy();
+    expect(screen.getByText(/nothing is bulk copied into Sia/i)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Connect work apps' }));
     await waitFor(() => expect(onConnectAll).toHaveBeenCalledOnce());
+  });
+
+  it('lets people choose a subset of work apps from the guided setup', async () => {
+    const onConnectSelected = vi.fn().mockResolvedValue(undefined);
+    render(
+      <AppsSettings
+        snapshot={withCloud('signed-in', 'lawrence@example.com')}
+        onConnectAll={vi.fn()}
+        onConnectSelected={onConnectSelected}
+        onConnect={vi.fn()}
+        onDisconnect={vi.fn()}
+        onStartCloudSignIn={vi.fn()}
+        onCompleteCloudSignIn={vi.fn()}
+        onSignOutCloud={vi.fn()}
+        onDeleteCloudAccount={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Choose apps' }));
+    expect(screen.getByRole('group', { name: 'Choose apps to connect' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear selection' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Google Docs' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Slack' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect selected' }));
+
+    await waitFor(() => expect(onConnectSelected).toHaveBeenCalledWith(['docs', 'slack']));
   });
 
   it('surfaces an interrupted saved grant and provides a safe disconnect path', () => {
@@ -269,14 +329,16 @@ describe('research consent settings', () => {
     );
 
     expect(screen.getByText('Not enabled')).toBeTruthy();
-    expect(screen.getByText(/Other secrets may not be detected/)).toBeTruthy();
+    expect(screen.getByText(/Anything the task can observe may be included raw/)).toBeTruthy();
     expect(screen.queryByText(/always excluded|withdraw consent/i)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Review & enable' }));
-    const dialog = screen.getByRole('alertdialog', { name: 'Help improve Sia?' });
+    const dialog = screen.getByRole('alertdialog', {
+      name: 'Join the Sia research release?',
+    });
     expect(dialog.textContent).toContain('Research data is not used for model training.');
-    expect(dialog.textContent).toContain('Other secrets may not be detected');
+    expect(dialog.textContent).toContain('Raw task content can contain private or secret');
     expect(dialog.textContent).toContain('Deleting resets consent.');
-    fireEvent.click(screen.getByRole('button', { name: 'Join research' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Join research release' }));
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('Research service is unavailable.');
@@ -316,6 +378,21 @@ describe('research consent settings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete data' }));
     await waitFor(() => expect(onDelete).toHaveBeenCalledOnce());
   });
+
+  it('does not offer a capture pause while a research-release account is signed in', () => {
+    render(
+      <PrivacySettings
+        snapshot={structuredClone(demoSnapshot)}
+        onSetCapturePaused={vi.fn()}
+        onExport={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Required while signed in')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
+    expect(screen.getByText(/Sign out to stop new collection/)).toBeTruthy();
+  });
 });
 
 describe('computer access settings', () => {
@@ -334,10 +411,10 @@ describe('computer access settings', () => {
       />,
     );
 
-    expect(screen.getByText(/keeps a full local log of everything it did/)).toBeTruthy();
+    expect(screen.getByText(/Every action stays in the local log for review/)).toBeTruthy();
     expect(
       screen
-        .getByRole('switch', { name: 'Ask before every action' })
+        .getByRole('switch', { name: 'Confirm before changes' })
         .getAttribute('aria-checked'),
     ).toBe('false');
     expect(
@@ -364,7 +441,7 @@ describe('computer access settings', () => {
         onRevealTrajectories={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole('switch', { name: 'Ask before every action' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Confirm before changes' }));
     await waitFor(() => expect(onSetComputerTrust).toHaveBeenCalledWith('ask'));
     await waitFor(() =>
       expect(

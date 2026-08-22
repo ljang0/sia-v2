@@ -1,4 +1,11 @@
-import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -6,7 +13,10 @@ import { join } from 'node:path';
  * `<userData>/trajectories/<threadId>/` holding `events.jsonl` (requests, replies, notices,
  * approvals, tool actions with their arguments and outcomes, browser/computer state changes)
  * and any images the actions returned (screenshots, snapshots) as files referenced from the
- * JSONL rows. Everything stays on this Mac; nothing here is synced or sent anywhere.
+ * JSONL rows. These exact plain files stay on this Mac. When versioned raw research consent is
+ * active, equivalent observed turn events are separately queued in encrypted research bundles.
+ * Complete local thread directories roll off after 90 days or when this store exceeds 128 MiB;
+ * the separately encrypted research outbox follows its own acknowledged-upload retention rules.
  */
 export interface TrajectoryEvent {
   readonly type: string;
@@ -24,7 +34,14 @@ export interface TrajectoryRecorderOptions {
   readonly rootDirectory: string;
   readonly enabled: () => boolean;
   readonly now?: () => Date;
+  readonly maxAgeMs?: number;
+  readonly maxBytes?: number;
+  readonly maintenanceIntervalMs?: number;
 }
+
+const DEFAULT_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1_000;
+const DEFAULT_MAX_BYTES = 128 * 1024 * 1024;
+const DEFAULT_MAINTENANCE_INTERVAL_MS = 5 * 60 * 1_000;
 
 const EXTENSIONS: Record<string, string> = {
   'image/png': 'png',
@@ -37,12 +54,23 @@ export class TrajectoryRecorder {
   readonly #root: string;
   readonly #enabled: () => boolean;
   readonly #now: () => Date;
+  readonly #maxAgeMs: number;
+  readonly #maxBytes: number;
+  readonly #maintenanceIntervalMs: number;
   #sequence = 0;
+  #estimatedBytes: number | undefined;
+  #lastMaintenanceMs = Number.NEGATIVE_INFINITY;
 
   constructor(options: TrajectoryRecorderOptions) {
     this.#root = options.rootDirectory;
     this.#enabled = options.enabled;
     this.#now = options.now ?? (() => new Date());
+    this.#maxAgeMs = positiveLimit(options.maxAgeMs, DEFAULT_MAX_AGE_MS);
+    this.#maxBytes = positiveLimit(options.maxBytes, DEFAULT_MAX_BYTES);
+    this.#maintenanceIntervalMs = nonNegativeLimit(
+      options.maintenanceIntervalMs,
+      DEFAULT_MAINTENANCE_INTERVAL_MS,
+    );
   }
 
   get rootDirectory(): string {
@@ -53,29 +81,110 @@ export class TrajectoryRecorder {
   record(event: TrajectoryEvent, images: readonly TrajectoryImage[] = []): void {
     if (!this.#enabled()) return;
     try {
-      const directory = this.#threadDirectory(event.threadId);
       const at = this.#now();
       const stamp = at.toISOString();
-      const imageFiles = images
-        .map((image, index) => {
-          const extension = EXTENSIONS[image.mimeType];
-          if (!extension) return undefined;
-          const name = `${stamp.replace(/[:.]/g, '-')}-${String(++this.#sequence).padStart(4, '0')}${index ? `-${index}` : ''}.${extension}`;
-          writeFileSync(join(directory, name), Buffer.from(image.dataBase64, 'base64'));
-          return { file: name, mimeType: image.mimeType };
-        })
-        .filter((entry): entry is { file: string; mimeType: string } => Boolean(entry));
-      const row = { at: stamp, ...event, ...(imageFiles.length ? { images: imageFiles } : {}) };
-      appendFileSync(join(directory, 'events.jsonl'), `${JSON.stringify(row)}\n`);
+      const preparedImages: Array<{
+        reference: { file: string; mimeType: string };
+        bytes: Uint8Array;
+      }> = [];
+      images.forEach((image, index) => {
+        const extension = EXTENSIONS[image.mimeType];
+        if (!extension) return;
+        const name = `${stamp.replace(/[:.]/g, '-')}-${String(++this.#sequence).padStart(4, '0')}${index ? `-${index}` : ''}.${extension}`;
+        preparedImages.push({
+          reference: { file: name, mimeType: image.mimeType },
+          bytes: Buffer.from(image.dataBase64, 'base64'),
+        });
+      });
+      const row = {
+        at: stamp,
+        ...event,
+        ...(preparedImages.length
+          ? { images: preparedImages.map(({ reference }) => reference) }
+          : {}),
+      };
+      const line = `${JSON.stringify(row)}\n`;
+      const incomingBytes =
+        Buffer.byteLength(line) +
+        preparedImages.reduce((total, image) => total + image.bytes.byteLength, 0);
+      const directory = this.#threadDirectoryPath(event.threadId);
+      this.#maintainStorage(at.getTime(), incomingBytes, directory);
+      mkdirSync(directory, { recursive: true });
+      for (const image of preparedImages) {
+        writeFileSync(join(directory, image.reference.file), image.bytes);
+      }
+      appendFileSync(join(directory, 'events.jsonl'), line);
+      this.#estimatedBytes = (this.#estimatedBytes ?? 0) + incomingBytes;
     } catch {
       // The log is best-effort evidence; a disk hiccup must never break the turn.
     }
   }
 
-  #threadDirectory(threadId: string): string {
-    const safe = threadId.replace(/[^A-Za-z0-9_-]/g, '_');
-    const directory = join(this.#root, safe);
-    mkdirSync(directory, { recursive: true });
-    return directory;
+  #maintainStorage(nowMs: number, incomingBytes: number, protectedDirectory: string): void {
+    const due = nowMs - this.#lastMaintenanceMs >= this.#maintenanceIntervalMs;
+    const overBudget =
+      this.#estimatedBytes !== undefined &&
+      this.#estimatedBytes + incomingBytes > this.#maxBytes;
+    if (this.#estimatedBytes !== undefined && !due && !overBudget) return;
+
+    mkdirSync(this.#root, { recursive: true });
+    const cutoff = nowMs - this.#maxAgeMs;
+    const groups = this.#storageGroups();
+    for (const group of groups) {
+      if (group.path === protectedDirectory) continue;
+      if (group.latestModifiedMs < cutoff) rmSync(group.path, { recursive: true, force: true });
+    }
+
+    const retained = this.#storageGroups()
+      .filter((group) => group.path !== protectedDirectory)
+      .sort((first, second) => first.latestModifiedMs - second.latestModifiedMs);
+    const protectedBytes = this.#storageGroups().find(
+      (group) => group.path === protectedDirectory,
+    )?.bytes;
+    const availableBytes = Math.max(0, this.#maxBytes - incomingBytes);
+    let totalBytes =
+      (protectedBytes ?? 0) + retained.reduce((total, group) => total + group.bytes, 0);
+    for (const group of retained) {
+      if (totalBytes <= availableBytes) break;
+      rmSync(group.path, { recursive: true, force: true });
+      totalBytes -= group.bytes;
+    }
+    this.#estimatedBytes = totalBytes;
+    this.#lastMaintenanceMs = nowMs;
   }
+
+  #storageGroups(): Array<{ path: string; bytes: number; latestModifiedMs: number }> {
+    const groups: Array<{ path: string; bytes: number; latestModifiedMs: number }> = [];
+    for (const entry of readdirSync(this.#root, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const path = join(this.#root, entry.name);
+      let bytes = 0;
+      let latestModifiedMs = 0;
+      for (const file of readdirSync(path, { withFileTypes: true })) {
+        if (!file.isFile()) continue;
+        const details = statSync(join(path, file.name));
+        bytes += details.size;
+        latestModifiedMs = Math.max(latestModifiedMs, details.mtimeMs);
+      }
+      groups.push({ path, bytes, latestModifiedMs });
+    }
+    return groups;
+  }
+
+  #threadDirectoryPath(threadId: string): string {
+    const safe = threadId.replace(/[^A-Za-z0-9_-]/g, '_');
+    return join(this.#root, safe);
+  }
+}
+
+function positiveLimit(value: number | undefined, fallback: number): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+    ? value
+    : fallback;
+}
+
+function nonNegativeLimit(value: number | undefined, fallback: number): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : fallback;
 }

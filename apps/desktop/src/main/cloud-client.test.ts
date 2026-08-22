@@ -28,7 +28,12 @@ describe('CloudClient', () => {
     },
   );
 
-  it('maps the desktop Drive id to the cloud google_drive app id', async () => {
+  it.each([
+    ['drive', 'google_drive'],
+    ['docs', 'google_docs'],
+    ['sheets', 'google_sheets'],
+    ['slides', 'google_slides'],
+  ] as const)('maps the desktop %s id to the cloud %s app id', async (desktopId, cloudId) => {
     const fetchMock = vi.fn(async (_input: URL | RequestInfo, _init?: RequestInit) =>
       Response.json({
         redirectUrl: 'https://connect.example.test/link',
@@ -41,10 +46,10 @@ describe('CloudClient', () => {
       read: async () => 'test-token',
     });
 
-    await client.startConnection('drive');
+    await client.startConnection(desktopId);
 
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
-      'https://api.example.test/v1/connections/google_drive',
+      `https://api.example.test/v1/connections/${cloudId}`,
     );
   });
 

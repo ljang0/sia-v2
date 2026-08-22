@@ -63,7 +63,7 @@ interface SessionState {
 
 /**
  * Owns provider subprocess lifecycles. Provider-native tools remain native; only
- * the 20 canonical Sia actions cross through ActionGateway.
+ * the 26 canonical Sia actions cross through ActionGateway.
  */
 export class RuntimeCoordinator {
   readonly #gateway: ActionGateway;

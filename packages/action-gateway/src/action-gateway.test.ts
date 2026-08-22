@@ -70,12 +70,19 @@ describe('curated tool surface', () => {
 
   it('contains only stable snake_case tools and no raw escape hatches', () => {
     const names = ACTION_TOOL_DESCRIPTORS.map((tool) => tool.name);
-    expect(names).toHaveLength(22);
+    expect(names).toHaveLength(38);
     expect(names.every((name) => /^[a-z][a-z0-9_]*$/.test(name))).toBe(true);
     expect(names.join(' ')).not.toMatch(/visual|canvas|javascript|cdp|cookie|profile|shell/i);
     expect(names).toContain('computer_action');
     expect(names).toContain('slack_post');
+    expect(names).toContain('slack_find_users');
+    expect(names).toContain('slack_open_dm');
     expect(names).toContain('messages_send');
+    expect(names).toContain('docs_create');
+    expect(names).toContain('sheets_update');
+    expect(names).toContain('slides_append');
+    expect(names).toContain('schedule_create');
+    expect(names).toContain('schedule_list');
     const mutationNames = [
       'browser_navigate',
       'browser_action',
@@ -85,8 +92,18 @@ describe('curated tool surface', () => {
       'mail_send',
       'drive_upload',
       'drive_share',
+      'docs_create',
+      'docs_append',
+      'sheets_create',
+      'sheets_update',
+      'sheets_append',
+      'slides_create',
+      'slides_append',
       'slack_post',
       'messages_send',
+      'schedule_create',
+      'schedule_update',
+      'schedule_delete',
     ];
     for (const name of mutationNames) {
       expect(
@@ -127,6 +144,101 @@ describe('curated tool surface', () => {
         value: 'CMD+A',
       }),
     ).toThrow();
+    expect(
+      parseActionArguments('computer_action', {
+        app_id: 'app:slack',
+        window_id: 'window:slack',
+        snapshot_id: 'snapshot:slack',
+        action: 'type',
+        text: 'Focused-field fallback',
+      }),
+    ).toMatchObject({ action: 'type', text: 'Focused-field fallback' });
+    expect(() =>
+      parseActionArguments('computer_action', {
+        app_id: 'app:slack',
+        window_id: 'window:slack',
+        snapshot_id: 'snapshot:slack',
+        action: 'click',
+      }),
+    ).toThrow(/element reference/);
+  });
+
+  it('accepts natural-language schedule plans only through the bounded schedule schema', () => {
+    expect(
+      parseActionArguments('schedule_create', {
+        task: 'Search the web for new Sia coverage and summarize material changes.',
+        cadence: 'hourly',
+      }),
+    ).toEqual({
+      task: 'Search the web for new Sia coverage and summarize material changes.',
+      cadence: 'hourly',
+    });
+    expect(() =>
+      parseActionArguments('schedule_create', {
+        task: 'Run arbitrary cron',
+        cadence: '*/5 * * * *',
+      }),
+    ).toThrow();
+    expect(() =>
+      parseActionArguments('schedule_update', { schedule_id: 'schedule-1' }),
+    ).toThrow();
+  });
+
+  it('bounds Google editor reads and writes without exposing raw batch requests', () => {
+    expect(
+      parseActionArguments('docs_create', {
+        account_id: 'docs',
+        title: 'Launch notes',
+        markdown: '# Launch',
+      }),
+    ).toMatchObject({ account_id: 'docs', title: 'Launch notes' });
+    expect(
+      parseActionArguments('sheets_read', {
+        account_id: 'sheets',
+        spreadsheet_id: 'sheet-1',
+        range: 'Sheet1!A1:C20',
+      }),
+    ).toMatchObject({ start_row: 1, end_row: 500 });
+    expect(() =>
+      parseActionArguments('sheets_append', {
+        account_id: 'sheets',
+        spreadsheet_id: 'sheet-1',
+        range: 'A:C',
+        values: [['missing sheet name']],
+      }),
+    ).toThrow(/sheet name/i);
+    expect(() =>
+      parseActionArguments('sheets_update', {
+        account_id: 'sheets',
+        spreadsheet_id: 'sheet-1',
+        range: 'Sheet1!A1:K500',
+        values: Array.from({ length: 500 }, () => Array(11).fill('x')),
+      }),
+    ).toThrow(/5,000 cells/i);
+    expect(() =>
+      parseActionArguments('sheets_update', {
+        account_id: 'sheets',
+        spreadsheet_id: 'sheet-1',
+        range: 'Sheet1!A1',
+        values: [[null]],
+      }),
+    ).toThrow();
+    expect(
+      parseActionArguments('sheets_append', {
+        account_id: 'sheets',
+        spreadsheet_id: 'sheet-1',
+        range: 'Sheet1!A:A',
+        values: [[null]],
+      }),
+    ).toMatchObject({ values: [[null]] });
+    expect(() =>
+      parseActionArguments('slides_append', {
+        account_id: 'slides',
+        presentation_id: 'deck-1',
+        markdown: '# Added slide',
+        requests: [{ deleteObject: { objectId: 'unsafe' } }],
+      }),
+    ).toThrow();
   });
 
   it('advertises the same stable connector selectors that its parsers require', () => {
@@ -139,7 +251,19 @@ describe('curated tool surface', () => {
       drive_read: 'drive',
       drive_upload: 'drive',
       drive_share: 'drive',
+      docs_create: 'docs',
+      docs_read: 'docs',
+      docs_append: 'docs',
+      sheets_create: 'sheets',
+      sheets_read: 'sheets',
+      sheets_update: 'sheets',
+      sheets_append: 'sheets',
+      slides_create: 'slides',
+      slides_read: 'slides',
+      slides_append: 'slides',
       slack_search: 'slack',
+      slack_find_users: 'slack',
+      slack_open_dm: 'slack',
       slack_read_thread: 'slack',
       slack_post: 'slack',
     } as const;
@@ -317,9 +441,12 @@ describe('curated tool surface', () => {
     expect(backend.invoke).not.toHaveBeenCalled();
   });
 
-  it('publishes the same required computer element reference in validation and JSON Schema', () => {
+  it('publishes focused-field fallback while keeping app and snapshot identity required', () => {
     const descriptor = getActionToolDescriptor('computer_action');
-    expect(descriptor?.inputSchema.required).toContain('element_ref');
+    expect(descriptor?.inputSchema.required).not.toContain('element_ref');
+    expect(descriptor?.inputSchema.required).toEqual(
+      expect.arrayContaining(['app_id', 'window_id', 'snapshot_id', 'action']),
+    );
     expect(descriptor?.inputSchema.required).not.toContain('app_name');
     expect(descriptor?.inputSchema.properties).not.toHaveProperty('app_name');
   });
@@ -412,7 +539,8 @@ describe('curated tool surface', () => {
     expect(requestApproval).not.toHaveBeenCalled();
     expect(backend.invoke).toHaveBeenCalledOnce();
 
-    // Connector writes keep the interactive approval even while local actions are trusted.
+    // Connector writes still cross the approval broker. The desktop controller may satisfy
+    // that broker automatically when its autonomous mode is enabled.
     await gateway.invoke({
       name: 'slack_post',
       arguments: { account_id: 'slack', channel_id: 'C1', text: 'hi' },

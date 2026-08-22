@@ -168,7 +168,7 @@ export function derivedClassification(
   return taints.length > 0 ? 'operational_only' : 'research_allowed';
 }
 
-export function assertResearchEvent(event: ResearchEvent): ResearchEvent {
+export function assertResearchEvent(event: ResearchEvent, allowRaw = false): ResearchEvent {
   requireString(event.id, 'event.id', { max: 128 });
   requireString(event.kind, 'event.kind', { max: 128 });
   if (!Number.isFinite(Date.parse(event.occurredAt))) {
@@ -195,6 +195,10 @@ export function assertResearchEvent(event: ResearchEvent): ResearchEvent {
       'Only untainted research_allowed events may be uploaded',
     );
   }
+  if (allowRaw && (event.kind === 'raw.event' || event.kind === 'raw.event_chunk')) {
+    canonicalJson(event.payload);
+    return event;
+  }
   const redacted = redactSensitive(event.payload);
   if (redacted.redactions.length > 0) {
     throw new CloudError(
@@ -216,6 +220,13 @@ export function makeActionPreview(
     case 'mail.send':
     case 'drive.upload':
     case 'drive.share':
+    case 'docs.create':
+    case 'docs.append':
+    case 'sheets.create':
+    case 'sheets.update':
+    case 'sheets.append':
+    case 'slides.create':
+    case 'slides.append':
     case 'slack.post':
       // The approval digest binds the complete input. Returning that same
       // canonical JSON value makes the preview exact: no execution-affecting

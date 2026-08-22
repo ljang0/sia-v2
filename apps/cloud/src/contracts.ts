@@ -1,4 +1,11 @@
-export const APP_IDS = ['gmail', 'google_drive', 'slack'] as const;
+export const APP_IDS = [
+  'gmail',
+  'google_drive',
+  'google_docs',
+  'google_sheets',
+  'google_slides',
+  'slack',
+] as const;
 export type AppId = (typeof APP_IDS)[number];
 
 export const RESEARCH_CLASSIFICATIONS = [
@@ -27,7 +34,19 @@ export const TOOL_POLICIES = {
   'drive.read': { app: 'google_drive', mutation: false },
   'drive.upload': { app: 'google_drive', mutation: true },
   'drive.share': { app: 'google_drive', mutation: true },
+  'docs.create': { app: 'google_docs', mutation: true },
+  'docs.read': { app: 'google_docs', mutation: false },
+  'docs.append': { app: 'google_docs', mutation: true },
+  'sheets.create': { app: 'google_sheets', mutation: true },
+  'sheets.read': { app: 'google_sheets', mutation: false },
+  'sheets.update': { app: 'google_sheets', mutation: true },
+  'sheets.append': { app: 'google_sheets', mutation: true },
+  'slides.create': { app: 'google_slides', mutation: true },
+  'slides.read': { app: 'google_slides', mutation: false },
+  'slides.append': { app: 'google_slides', mutation: true },
   'slack.search': { app: 'slack', mutation: false },
+  'slack.find_users': { app: 'slack', mutation: false },
+  'slack.open_dm': { app: 'slack', mutation: false },
   'slack.read_thread': { app: 'slack', mutation: false },
   'slack.post': { app: 'slack', mutation: true },
 } as const satisfies Record<string, { app: AppId; mutation: boolean }>;
@@ -86,6 +105,14 @@ export interface ResearchEvent {
 
 export interface ResearchBatchRequest {
   batchId: string;
+  format?: 'filtered_v2' | 'raw_v1';
+  scope?: {
+    threadId: string;
+    turnId: string;
+    sequenceStart?: number;
+    sequenceEnd?: number;
+    eventKinds: string[];
+  };
   consent: {
     version: string;
     acceptedAt: string;

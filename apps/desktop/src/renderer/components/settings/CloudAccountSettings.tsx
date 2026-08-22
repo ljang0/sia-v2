@@ -1,5 +1,5 @@
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
-import { ArrowLeft } from '@phosphor-icons/react';
+import { ArrowLeft, Key, LockKey } from '@phosphor-icons/react';
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
 import type { RendererSnapshot } from '../../types';
 import styles from '../../ui.module.css';
@@ -11,12 +11,16 @@ export function CloudAccountSettings({
   cloudAuth,
   onStartCloudSignIn,
   onCompleteCloudSignIn,
+  onBeginAdminMfa,
+  onCompleteAdminMfa,
   onSignOutCloud,
   onDeleteCloudAccount,
 }: {
   cloudAuth: CloudAuth;
   onStartCloudSignIn(email: string): Promise<void>;
   onCompleteCloudSignIn(code: string): Promise<void>;
+  onBeginAdminMfa(): Promise<{ secretCode: string }>;
+  onCompleteAdminMfa(code: string): Promise<void>;
   onSignOutCloud(): Promise<void>;
   onDeleteCloudAccount(confirmation: 'DELETE ACCOUNT'): Promise<void>;
 }) {
@@ -30,8 +34,20 @@ export function CloudAccountSettings({
 
   useEffect(() => {
     if (cloudAuth.email) setEmail(cloudAuth.email);
-    if (cloudAuth.state === 'code-sent') codeInput.current?.focus();
-    if (cloudAuth.state === 'signed-in') setCode('');
+    if (
+      cloudAuth.state === 'code-sent' ||
+      cloudAuth.state === 'password-required' ||
+      cloudAuth.state === 'mfa-required'
+    ) {
+      codeInput.current?.focus();
+    }
+    if (
+      cloudAuth.state === 'password-required' ||
+      cloudAuth.state === 'mfa-required' ||
+      cloudAuth.state === 'signed-in'
+    ) {
+      setCode('');
+    }
   }, [cloudAuth.email, cloudAuth.state]);
 
   useEffect(() => {
@@ -63,8 +79,13 @@ export function CloudAccountSettings({
     event.preventDefault();
     void run(
       'auth-complete',
-      () => onCompleteCloudSignIn(code.replaceAll(/\s/g, '')),
-      'Sia could not verify that code.',
+      () =>
+        onCompleteCloudSignIn(
+          cloudAuth.state === 'password-required' ? code : code.replaceAll(/\s/g, ''),
+        ),
+      cloudAuth.state === 'password-required'
+        ? 'Sia could not verify that administrator password.'
+        : 'Sia could not verify that code.',
     );
   };
 
@@ -84,7 +105,7 @@ export function CloudAccountSettings({
               void run('sign-out', onSignOutCloud, 'Sia could not sign out safely.')
             }
           >
-            {pending === 'sign-out' ? 'Signing out...' : 'Sign out & clear local research'}
+            {pending === 'sign-out' ? 'Signing out...' : 'Sign out'}
           </button>
         ) : null}
       </div>
@@ -110,49 +131,94 @@ export function CloudAccountSettings({
         </form>
       ) : null}
 
-      {cloudAuth.state === 'code-sent' ? (
+      {cloudAuth.state === 'code-sent' ||
+      cloudAuth.state === 'password-required' ||
+      cloudAuth.state === 'mfa-required' ? (
         <form className={styles.cloudIdentityForm} onSubmit={verify}>
           <div className={styles.field}>
-            <label htmlFor={`${formId}-code`}>Sign-in code</label>
+            <label htmlFor={`${formId}-code`}>
+              {cloudAuth.state === 'password-required'
+                ? 'Administrator password'
+                : cloudAuth.state === 'mfa-required'
+                  ? 'Authenticator code'
+                  : 'Sign-in code'}
+            </label>
             <input
               id={`${formId}-code`}
               ref={codeInput}
-              inputMode="numeric"
-              autoComplete="one-time-code"
+              type={cloudAuth.state === 'password-required' ? 'password' : 'text'}
+              inputMode={cloudAuth.state === 'password-required' ? undefined : 'numeric'}
+              autoComplete={
+                cloudAuth.state === 'password-required' ? 'current-password' : 'one-time-code'
+              }
               value={code}
               onChange={(event) =>
-                setCode(event.target.value.replaceAll(/\D/g, '').slice(0, 10))
+                setCode(
+                  cloudAuth.state === 'password-required'
+                    ? event.target.value.slice(0, 256)
+                    : event.target.value.replaceAll(/\D/g, '').slice(0, 10),
+                )
               }
-              placeholder="8-digit code"
-              minLength={6}
-              maxLength={10}
-              pattern="[0-9]{6,10}"
+              placeholder={
+                cloudAuth.state === 'password-required'
+                  ? 'Admin password'
+                  : cloudAuth.state === 'mfa-required'
+                    ? '6-digit code'
+                    : '8-digit code'
+              }
+              minLength={cloudAuth.state === 'password-required' ? 1 : 6}
+              maxLength={
+                cloudAuth.state === 'password-required'
+                  ? 256
+                  : cloudAuth.state === 'mfa-required'
+                    ? 6
+                    : 10
+              }
+              pattern={
+                cloudAuth.state === 'password-required'
+                  ? undefined
+                  : cloudAuth.state === 'mfa-required'
+                    ? '[0-9]{6}'
+                    : '[0-9]{6,10}'
+              }
               disabled={Boolean(pending)}
               aria-describedby={`${formId}-code-help${error ? ` ${formId}-error` : ''}`}
               required
             />
             <small id={`${formId}-code-help`}>
-              Sent to {cloudAuth.email ?? email}. Codes contain 6-10 digits.
+              {cloudAuth.state === 'mfa-required'
+                ? 'Open the authenticator linked to this admin account.'
+                : cloudAuth.state === 'password-required'
+                  ? 'This MFA-protected admin signs in with its password, then an authenticator code.'
+                  : `Sent to ${cloudAuth.email ?? email}. Codes contain 6-10 digits.`}
             </small>
           </div>
           <button type="submit" className={styles.primaryButton} disabled={Boolean(pending)}>
-            {pending === 'auth-complete' ? 'Checking...' : 'Verify code'}
+            {pending === 'auth-complete'
+              ? 'Checking...'
+              : cloudAuth.state === 'password-required'
+                ? 'Continue'
+                : cloudAuth.state === 'mfa-required'
+                  ? 'Verify authenticator'
+                  : 'Verify code'}
           </button>
-          <button
-            type="button"
-            className={styles.textButton}
-            disabled={Boolean(pending)}
-            onClick={() => {
-              setCode('');
-              void run(
-                'auth-start',
-                () => onStartCloudSignIn(email.trim().toLowerCase()),
-                'Sia could not send a new code.',
-              );
-            }}
-          >
-            Send a new code
-          </button>
+          {cloudAuth.state === 'code-sent' ? (
+            <button
+              type="button"
+              className={styles.textButton}
+              disabled={Boolean(pending)}
+              onClick={() => {
+                setCode('');
+                void run(
+                  'auth-start',
+                  () => onStartCloudSignIn(email.trim().toLowerCase()),
+                  'Sia could not send a new code.',
+                );
+              }}
+            >
+              Send a new code
+            </button>
+          ) : null}
           <button
             type="button"
             className={styles.textButton}
@@ -172,13 +238,125 @@ export function CloudAccountSettings({
       ) : null}
 
       {cloudAuth.state === 'signed-in' ? (
-        <DeleteCloudAccountDialog onDelete={onDeleteCloudAccount} />
+        <>
+          {cloudAuth.admin ? (
+            <AdminMfaSetup
+              enabled={Boolean(cloudAuth.adminMfa)}
+              onBegin={onBeginAdminMfa}
+              onComplete={onCompleteAdminMfa}
+            />
+          ) : null}
+          <DeleteCloudAccountDialog onDelete={onDeleteCloudAccount} />
+        </>
       ) : null}
 
       <div id={`${formId}-error`} ref={errorContainer} tabIndex={-1}>
         <InlineSettingsError message={error} />
       </div>
     </div>
+  );
+}
+
+function AdminMfaSetup({
+  enabled,
+  onBegin,
+  onComplete,
+}: {
+  enabled: boolean;
+  onBegin(): Promise<{ secretCode: string }>;
+  onComplete(code: string): Promise<void>;
+}) {
+  const [secret, setSecret] = useState<string>();
+  const [code, setCode] = useState('');
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string>();
+
+  if (enabled) {
+    return (
+      <div className={styles.adminSecurityReady} role="status">
+        <LockKey size={17} weight="fill" aria-hidden="true" />
+        <div>
+          <strong>Admin access secured</strong>
+          <p>Research archive requests require this authenticator.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <section className={styles.adminSecuritySetup} aria-label="Admin authenticator setup">
+      <div>
+        <Key size={18} aria-hidden="true" />
+        <div>
+          <strong>Secure research archive access</strong>
+          <p>Add this admin account to an authenticator before opening raw participant data.</p>
+        </div>
+      </div>
+      {secret ? (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            setPending(true);
+            setError(undefined);
+            void onComplete(code)
+              .then(() => {
+                setSecret(undefined);
+                setCode('');
+              })
+              .catch((cause: unknown) =>
+                setError(errorMessage(cause, 'The authenticator could not be verified.')),
+              )
+              .finally(() => setPending(false));
+          }}
+        >
+          <label className={styles.field}>
+            <span>Manual setup key</span>
+            <code className={styles.mfaSecret}>{secret}</code>
+          </label>
+          <label className={styles.field}>
+            <span>6-digit authenticator code</span>
+            <input
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]{6}"
+              minLength={6}
+              maxLength={6}
+              value={code}
+              onChange={(event) =>
+                setCode(event.target.value.replaceAll(/\D/g, '').slice(0, 6))
+              }
+              required
+            />
+          </label>
+          <button
+            className={styles.primaryButton}
+            type="submit"
+            disabled={pending || code.length !== 6}
+          >
+            {pending ? 'Verifying…' : 'Finish setup'}
+          </button>
+        </form>
+      ) : (
+        <button
+          type="button"
+          className={styles.primaryButton}
+          disabled={pending}
+          onClick={() => {
+            setPending(true);
+            setError(undefined);
+            void onBegin()
+              .then(({ secretCode }) => setSecret(secretCode))
+              .catch((cause: unknown) =>
+                setError(errorMessage(cause, 'Authenticator setup could not start.')),
+              )
+              .finally(() => setPending(false));
+          }}
+        >
+          {pending ? 'Preparing…' : 'Set up authenticator'}
+        </button>
+      )}
+      <InlineSettingsError message={error} />
+    </section>
   );
 }
 
@@ -296,5 +474,11 @@ function accountDescription(cloudAuth: CloudAuth) {
   if (cloudAuth.state === 'code-sent') {
     return 'Check your email, then enter the one-time code below.';
   }
-  return 'Sign in with an invited email before connecting Gmail, Drive, or Slack.';
+  if (cloudAuth.state === 'password-required') {
+    return 'This MFA-protected admin account requires its password first.';
+  }
+  if (cloudAuth.state === 'mfa-required') {
+    return 'This admin account also requires its authenticator code.';
+  }
+  return 'Sign in with an invited email before connecting Google Workspace or Slack.';
 }

@@ -7,6 +7,7 @@ import {
   Play,
   Plus,
   Trash,
+  X,
 } from '@phosphor-icons/react';
 import { useId, useState, type FormEvent } from 'react';
 import type { ThreadGoal } from '../../types';
@@ -196,12 +197,21 @@ interface ThreadSchedule {
   cadence: 'once' | 'hourly' | 'daily' | 'weekly';
   nextRunAt: string;
   enabled: boolean;
+  runCount?: number | undefined;
+  maxRuns?: number | undefined;
+  lastRun?:
+    | {
+        outcome: 'started' | 'completed' | 'failed' | 'cancelled';
+        finishedAt?: string;
+      }
+    | undefined;
 }
 
 interface ScheduleDraft {
   prompt: string;
   cadence: ThreadSchedule['cadence'];
   runAt: string;
+  maxRuns?: number;
 }
 
 interface ScheduleControlsProps {
@@ -225,14 +235,23 @@ export function ScheduleControls({
   const [prompt, setPrompt] = useState('');
   const [cadence, setCadence] = useState<ScheduleDraft['cadence']>('once');
   const [runAt, setRunAt] = useState('');
+  const [maxRuns, setMaxRuns] = useState('');
   const titleId = useId();
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (!prompt.trim() || !runAt || busy) return;
-    void Promise.resolve(onCreate({ prompt: prompt.trim(), cadence, runAt })).then(() => {
+    if (!prompt.trim() || busy) return;
+    void Promise.resolve(
+      onCreate({
+        prompt: prompt.trim(),
+        cadence,
+        runAt: runAt || inferredFirstRun(cadence),
+        ...(maxRuns ? { maxRuns: Number(maxRuns) } : {}),
+      }),
+    ).then(() => {
       setPrompt('');
       setRunAt('');
+      setMaxRuns('');
       setExpanded(false);
     });
   };
@@ -251,8 +270,12 @@ export function ScheduleControls({
           aria-expanded={expanded}
           data-testid="schedule-create"
         >
-          <Plus size={14} aria-hidden="true" />
-          New schedule
+          {expanded ? (
+            <X size={14} aria-hidden="true" />
+          ) : (
+            <Plus size={14} aria-hidden="true" />
+          )}
+          {expanded ? 'Cancel' : 'New schedule'}
         </button>
       </div>
 
@@ -261,6 +284,7 @@ export function ScheduleControls({
           <label className={styles.localField}>
             <span>Task</span>
             <input
+              autoFocus
               data-testid="schedule-prompt-input"
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
@@ -284,20 +308,44 @@ export function ScheduleControls({
               </select>
             </label>
             <label className={styles.localField}>
-              <span>First run</span>
+              <span>
+                Run limit <small>optional</small>
+              </span>
+              <input
+                type="number"
+                min="1"
+                max="10000"
+                step="1"
+                inputMode="numeric"
+                value={maxRuns}
+                onChange={(event) => setMaxRuns(event.target.value)}
+                placeholder="No limit"
+                disabled={busy}
+              />
+            </label>
+            <label className={styles.localField}>
+              <span>
+                First run <small aria-hidden="true">optional</small>
+              </span>
               <input
                 data-testid="schedule-first-run-input"
+                aria-label="First run"
                 type="datetime-local"
                 value={runAt}
                 onChange={(event) => setRunAt(event.target.value)}
                 disabled={busy}
               />
+              <small className={styles.scheduleTimingHint}>
+                {cadence === 'once'
+                  ? 'Defaults to as soon as this thread is idle.'
+                  : `Defaults to one ${cadence === 'hourly' ? 'hour' : cadence === 'daily' ? 'day' : 'week'} from now.`}
+              </small>
             </label>
           </div>
           <button
             type="submit"
             className={styles.primaryButton}
-            disabled={busy || !prompt.trim() || !runAt}
+            disabled={busy || !prompt.trim()}
             data-testid="schedule-save"
           >
             Create schedule
@@ -319,6 +367,13 @@ export function ScheduleControls({
                       ? `Next run ${formatScheduleTime(schedule.nextRunAt)}`
                       : 'Paused'}
                   </span>
+                  {schedule.runCount ? (
+                    <span>
+                      {schedule.runCount} run{schedule.runCount === 1 ? '' : 's'}
+                      {schedule.maxRuns ? ` of ${schedule.maxRuns}` : ''}
+                      {schedule.lastRun ? ` · ${schedule.lastRun.outcome}` : ''}
+                    </span>
+                  ) : null}
                 </span>
               </div>
               <button
@@ -365,4 +420,14 @@ function formatScheduleTime(value: string) {
     hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(value));
+}
+
+function inferredFirstRun(cadence: ScheduleDraft['cadence']) {
+  const intervals: Record<ScheduleDraft['cadence'], number> = {
+    once: 0,
+    hourly: 60 * 60_000,
+    daily: 24 * 60 * 60_000,
+    weekly: 7 * 24 * 60 * 60_000,
+  };
+  return new Date(Date.now() + intervals[cadence]).toISOString();
 }

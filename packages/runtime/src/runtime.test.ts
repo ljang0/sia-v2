@@ -447,7 +447,7 @@ describe('Codex app-server adapter', () => {
     }
     expect(threadStartParams).toMatchObject({
       ephemeral: true,
-      approvalPolicy: 'on-request',
+      approvalPolicy: 'never',
       sandbox: 'workspace-write',
       developerInstructions: 'Be useful',
       config: {

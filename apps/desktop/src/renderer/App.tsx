@@ -1,11 +1,12 @@
 import { SlidersHorizontal, X, WarningCircle } from '@phosphor-icons/react';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { AgentDialog } from './components/AgentDialog';
 import { AppSkeleton, WorkspaceNotice } from './components/AppStates';
 import { Conversation } from './components/Conversation';
 import { Inspector } from './components/Inspector';
 import { Settings } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
+import { ConnectedAppsOnboardingDialog } from './components/settings/ConnectedAppsOnboardingDialog';
 import { ResearchConsentDialog } from './components/settings/ResearchConsentDialog';
 import { SiaSignInDialog } from './components/settings/SiaSignInDialog';
 import {
@@ -30,6 +31,16 @@ export interface AppProps {
 
 export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   const app = useAppController(suppliedApi);
+  const [appsOnboardingDismissed, setAppsOnboardingDismissed] = useState(false);
+  const signedIn = app.snapshot?.cloudAuth.state === 'signed-in';
+  const allWorkAppsConnected = Boolean(
+    app.snapshot?.apps.length &&
+    app.snapshot.apps.every(({ status }) => status === 'connected'),
+  );
+  useEffect(() => {
+    if (!signedIn) setAppsOnboardingDismissed(false);
+    else if (allWorkAppsConnected) setAppsOnboardingDismissed(true);
+  }, [allWorkAppsConnected, signedIn]);
   const auditMode =
     forceAuditMode ??
     Boolean(
@@ -221,10 +232,15 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onClose={app.closeSettings}
               onProbeProvider={(provider) => api.refreshProvider(provider)}
               onConnectAllApps={() => api.connectAllApps()}
+              onConnectSelectedApps={(apps) => api.connectSelectedApps(apps)}
               onConnectApp={(id) => api.connectApp(id)}
-              onDisconnectApp={(id) => api.disconnectApp(id)}
+              onDisconnectApp={(id, expectedConnectionId) =>
+                api.disconnectApp(id, expectedConnectionId)
+              }
               onStartCloudSignIn={(email) => api.startCloudSignIn(email)}
               onCompleteCloudSignIn={(code) => api.completeCloudSignIn(code)}
+              onBeginAdminMfa={() => api.beginAdminMfa()}
+              onCompleteAdminMfa={(code) => api.completeAdminMfa(code)}
               onSignOutCloud={() => api.signOutCloud()}
               onDeleteCloudAccount={(confirmation) => api.deleteCloudAccount(confirmation)}
               onAttachBrowser={(windowId) => api.attachBrowser(windowId)}
@@ -244,6 +260,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onSetCapturePaused={(paused) => api.setCapturePaused(paused)}
               onExport={() => api.exportResearchData()}
               onDelete={() => api.deleteResearchData()}
+              onListResearchParticipants={() => api.listResearchParticipants()}
+              onListResearchBatches={(subject) => api.listResearchBatches(subject)}
+              onReadResearchBatch={(subject, batchId) =>
+                api.readResearchBatch(subject, batchId)
+              }
             />
           ) : (
             <Conversation
@@ -358,12 +379,16 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
           : {})}
       />
       {(snapshot.cloudAuth.state === 'signed-out' ||
-        snapshot.cloudAuth.state === 'code-sent') &&
+        snapshot.cloudAuth.state === 'code-sent' ||
+        snapshot.cloudAuth.state === 'password-required' ||
+        snapshot.cloudAuth.state === 'mfa-required') &&
       snapshot.agents.length === 0 ? (
         <SiaSignInDialog
           cloudAuth={snapshot.cloudAuth}
           onStart={(email) => api.startCloudSignIn(email)}
           onComplete={(code) => api.completeCloudSignIn(code)}
+          onBeginAdminMfa={() => api.beginAdminMfa()}
+          onCompleteAdminMfa={(code) => api.completeAdminMfa(code)}
           onSignOut={() => api.signOutCloud()}
           onDelete={(confirmation) => api.deleteCloudAccount(confirmation)}
         />
@@ -375,11 +400,32 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         <ResearchConsentDialog
           autoOpen
           cloudAvailable={snapshot.cloudAuth.state !== 'unconfigured'}
+          researchRequired={snapshot.cloudAuth.state === 'signed-in'}
           showTrigger={false}
           onAccept={() => api.setCapturePaused(false)}
-          onDecline={() => api.declineResearchConsent()}
+          onDecline={async () => {
+            await api.declineResearchConsent();
+            if (snapshot.cloudAuth.state === 'signed-in') await api.signOutCloud();
+          }}
         />
       ) : null}
+      <ConnectedAppsOnboardingDialog
+        open={
+          snapshot.cloudAuth.state === 'signed-in' &&
+          snapshot.cloudAuth.features?.connectors !== false &&
+          snapshot.research.consented &&
+          !allWorkAppsConnected &&
+          !appsOnboardingDismissed
+        }
+        apps={snapshot.apps}
+        onConnectAll={() => api.connectAllApps().then(() => undefined)}
+        onConnectSelected={(apps) => api.connectSelectedApps(apps).then(() => undefined)}
+        onOpenSettings={() => {
+          setAppsOnboardingDismissed(true);
+          app.openSettings('apps');
+        }}
+        onDone={() => setAppsOnboardingDismissed(true)}
+      />
     </div>
   );
 }

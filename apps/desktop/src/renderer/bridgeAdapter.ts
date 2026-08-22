@@ -213,8 +213,16 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       const result = await bridge.reviews.start({ threadId, target });
       publish(result.snapshot);
     },
-    async createSchedule(threadId, prompt, cadence, nextRunAt) {
-      publish(await bridge.schedules.create({ threadId, prompt, cadence, nextRunAt }));
+    async createSchedule(threadId, prompt, cadence, nextRunAt, maxRuns) {
+      publish(
+        await bridge.schedules.create({
+          threadId,
+          prompt,
+          cadence,
+          nextRunAt,
+          ...(maxRuns === undefined ? {} : { maxRuns }),
+        }),
+      );
     },
     async setScheduleEnabled(scheduleId, enabled) {
       publish(await bridge.schedules.setEnabled(scheduleId, enabled));
@@ -263,18 +271,32 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       const result = await bridge.connections.startAll();
       publish(result.snapshot);
     },
+    async connectGoogleApps() {
+      const result = await bridge.connections.startGoogle();
+      publish(result.snapshot);
+    },
+    async connectSelectedApps(apps) {
+      const result = await bridge.connections.startSelected(apps);
+      publish(result.snapshot);
+    },
     async connectApp(app) {
       const result = await bridge.connections.start(app);
       publish(result.snapshot);
     },
-    async disconnectApp(app) {
-      publish(await bridge.connections.disconnect(app));
+    async disconnectApp(app, expectedConnectionId) {
+      publish(await bridge.connections.disconnect(app, expectedConnectionId));
     },
     async startCloudSignIn(email) {
       publish(await bridge.auth.start(email));
     },
     async completeCloudSignIn(code) {
       publish(await bridge.auth.complete(code));
+    },
+    async beginAdminMfa() {
+      return await bridge.auth.mfaBegin();
+    },
+    async completeAdminMfa(code) {
+      publish(await bridge.auth.mfaComplete(code));
     },
     async signOutCloud() {
       publish(await bridge.auth.signOut());
@@ -344,6 +366,15 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     },
     async deleteResearchData() {
       publish(await bridge.research.delete());
+    },
+    async listResearchParticipants() {
+      return (await bridge.research.listAdminParticipants()).participants;
+    },
+    async listResearchBatches(subject) {
+      return (await bridge.research.listAdminBatches(subject)).batches;
+    },
+    async readResearchBatch(subject, batchId) {
+      return (await bridge.research.readAdminBatch(subject, batchId)).batch;
     },
   };
 }
@@ -439,10 +470,17 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
           ? 'signed-out'
           : source.cloud.auth === 'code_sent'
             ? 'code-sent'
-            : source.cloud.auth === 'signed_in'
-              ? 'signed-in'
-              : 'unconfigured',
+            : source.cloud.auth === 'password_required'
+              ? 'password-required'
+              : source.cloud.auth === 'mfa_required'
+                ? 'mfa-required'
+                : source.cloud.auth === 'signed_in'
+                  ? 'signed-in'
+                  : 'unconfigured',
       email: source.cloud.account,
+      admin: source.cloud.admin,
+      adminMfa: source.cloud.adminMfa,
+      ...(source.cloud.features ? { features: structuredClone(source.cloud.features) } : {}),
     },
     agents,
     selectedAgentId: source.activeAgentId,
@@ -506,15 +544,21 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
     research: {
       consented: source.capture.status !== 'not_consented',
       capture:
-        source.capture.status === 'sync_pending'
-          ? 'sync-pending'
-          : source.capture.status === 'recording'
-            ? 'recording'
-            : 'paused',
+        source.capture.status === 'blocked'
+          ? 'blocked'
+          : source.capture.status === 'sync_pending'
+            ? 'sync-pending'
+            : source.capture.status === 'recording'
+              ? 'recording'
+              : 'paused',
       promptReviewedVersion: source.capture.promptReviewedVersion,
       allowedOrigins: [],
       excludedPaths: [],
       pendingItems: source.capture.pendingCount,
+      pendingBytes: source.capture.pendingBytes ?? 0,
+      oldestPendingAt: source.capture.oldestPendingAt,
+      lastSyncError: source.capture.lastSyncError,
+      blockedReason: source.capture.blockedReason,
     },
     archivedThreads: source.threads
       .filter((thread) => Boolean(thread.archivedAt))
@@ -700,23 +744,32 @@ function mapProviderStatus(status: BridgeProviderStatus): ProviderStatus {
 
 function mapConnection(connection: DesktopSnapshot['connections'][number]): AppConnection {
   const permissions = {
-    gmail: ['Search and read mail', 'Create and send approved drafts'],
-    drive: ['Find and read selected files', 'Upload and share with approval'],
-    slack: ['Search and read messages', 'Post approved messages'],
+    gmail: ['Search and read mail', 'Create drafts and send mail'],
+    drive: ['Find and read selected files', 'Upload and share files'],
+    docs: ['Read document text', 'Create and append to documents'],
+    sheets: ['Read bounded ranges', 'Create, update, and append values'],
+    slides: ['Read presentation text', 'Create and append Markdown slides'],
+    slack: ['Search and read messages', 'Post messages'],
   }[connection.id];
   return {
     id: connection.id,
     name: connection.label,
-    description: connection.detail ?? 'Use this app through Sia with explicit write approval.',
+    description: connection.detail ?? 'Use this app directly through Sia.',
     status: connection.status,
+    connectionId: connection.connectionId,
     account: connection.account,
     permissions,
   };
 }
 
-function inferConnector(value?: string): 'Gmail' | 'Google Drive' | 'Slack' {
+function inferConnector(
+  value?: string,
+): 'Gmail' | 'Google Drive' | 'Google Docs' | 'Google Sheets' | 'Google Slides' | 'Slack' {
   const normalized = value?.toLowerCase() ?? '';
   if (normalized.includes('slack')) return 'Slack';
+  if (normalized.includes('sheets')) return 'Google Sheets';
+  if (normalized.includes('slides')) return 'Google Slides';
+  if (normalized.includes('docs')) return 'Google Docs';
   if (normalized.includes('drive')) return 'Google Drive';
   return 'Gmail';
 }
@@ -728,6 +781,9 @@ function inferActivityKind(value?: string): ActivityEvent['kind'] {
   if (
     normalized.includes('mail') ||
     normalized.includes('drive') ||
+    normalized.includes('docs') ||
+    normalized.includes('sheets') ||
+    normalized.includes('slides') ||
     normalized.includes('slack')
   ) {
     return 'connector';

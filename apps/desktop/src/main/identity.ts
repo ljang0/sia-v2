@@ -1,11 +1,19 @@
 import type { IdTokenSource } from './cloud-client.js';
 import type { RecordRepository } from './persistence.js';
 
-export type CloudIdentityState = 'unconfigured' | 'signed_out' | 'code_sent' | 'signed_in';
+export type CloudIdentityState =
+  | 'unconfigured'
+  | 'signed_out'
+  | 'code_sent'
+  | 'password_required'
+  | 'mfa_required'
+  | 'signed_in';
 
 export interface CloudIdentityStatus {
   state: CloudIdentityState;
   email?: string;
+  admin?: boolean;
+  adminMfa?: boolean;
 }
 
 interface StoredTokens {
@@ -13,21 +21,25 @@ interface StoredTokens {
   refreshToken: string;
   expiresAt: number;
   email: string;
+  mfaVerified?: boolean;
 }
 
 interface PendingChallenge {
+  kind: 'email' | 'password' | 'totp';
   email: string;
   username: string;
-  session: string;
+  session?: string;
 }
 
 /** A definitive Cognito rejection, as opposed to a transient network or service failure. */
 class CognitoApiError extends Error {
   readonly type: string;
+  readonly detail: string;
 
-  constructor(message: string, type: string) {
+  constructor(message: string, type: string, detail = '') {
     super(message);
     this.type = type;
+    this.detail = detail;
   }
 }
 
@@ -41,6 +53,7 @@ export class CognitoIdentityManager implements IdTokenSource {
   readonly #repository: RecordRepository;
   readonly #developmentIdToken: string | undefined;
   #tokens: StoredTokens | undefined;
+  #accessTokenValue: string | undefined;
   #pending: PendingChallenge | undefined;
   #refreshing: Promise<string | undefined> | undefined;
 
@@ -76,10 +89,32 @@ export class CognitoIdentityManager implements IdTokenSource {
   }
 
   status(): CloudIdentityStatus {
-    if (this.#developmentIdToken) return { state: 'signed_in', email: 'Development session' };
+    if (this.#developmentIdToken) {
+      const admin = tokenGroups(this.#developmentIdToken).includes('Admins');
+      return {
+        state: 'signed_in',
+        email: 'Development session',
+        ...(admin ? { admin: true, adminMfa: true } : {}),
+      };
+    }
     if (!this.#region || !this.#clientId) return { state: 'unconfigured' };
-    if (this.#tokens) return { state: 'signed_in', email: this.#tokens.email };
-    if (this.#pending) return { state: 'code_sent', email: this.#pending.email };
+    if (this.#tokens)
+      return {
+        state: 'signed_in',
+        email: this.#tokens.email,
+        ...(tokenGroups(this.#tokens.idToken).includes('Admins') ? { admin: true } : {}),
+        ...(this.#tokens.mfaVerified ? { adminMfa: true } : {}),
+      };
+    if (this.#pending)
+      return {
+        state:
+          this.#pending.kind === 'totp'
+            ? 'mfa_required'
+            : this.#pending.kind === 'password'
+              ? 'password_required'
+              : 'code_sent',
+        email: this.#pending.email,
+      };
     return { state: 'signed_out' };
   }
 
@@ -95,18 +130,43 @@ export class CognitoIdentityManager implements IdTokenSource {
   async startEmailSignIn(emailValue: string): Promise<CloudIdentityStatus> {
     this.#assertConfiguredForUserAuth();
     const email = normalizeEmail(emailValue);
-    let response = await this.#cognito('InitiateAuth', {
-      AuthFlow: 'USER_AUTH',
-      ClientId: this.#clientId,
-      AuthParameters: { USERNAME: email, PREFERRED_CHALLENGE: 'EMAIL_OTP' },
-    });
-    if (response.ChallengeName === 'SELECT_CHALLENGE') {
-      response = await this.#cognito('RespondToAuthChallenge', {
-        ChallengeName: 'SELECT_CHALLENGE',
+    this.#pending = undefined;
+    let response: Record<string, unknown>;
+    try {
+      response = await this.#cognito('InitiateAuth', {
+        AuthFlow: 'USER_AUTH',
         ClientId: this.#clientId,
-        ChallengeResponses: { USERNAME: email, ANSWER: 'EMAIL_OTP' },
-        Session: requiredString(response.Session, 'Cognito session'),
+        AuthParameters: { USERNAME: email, PREFERRED_CHALLENGE: 'EMAIL_OTP' },
       });
+      if (
+        response.ChallengeName === 'SELECT_CHALLENGE' &&
+        !stringArray(response.AvailableChallenges).includes('EMAIL_OTP') &&
+        stringArray(response.AvailableChallenges).includes('PASSWORD')
+      ) {
+        this.#pending = { kind: 'password', email, username: email };
+        return this.status();
+      }
+      if (response.ChallengeName === 'SELECT_CHALLENGE') {
+        response = await this.#cognito('RespondToAuthChallenge', {
+          ChallengeName: 'SELECT_CHALLENGE',
+          ClientId: this.#clientId,
+          ChallengeResponses: { USERNAME: email, ANSWER: 'EMAIL_OTP' },
+          Session: requiredString(response.Session, 'Cognito session'),
+        });
+      }
+    } catch (error) {
+      // Cognito does not offer passwordless EMAIL_OTP as a first factor after a
+      // user has enrolled TOTP MFA. Invited participants stay passwordless;
+      // the MFA-protected bootstrap admin falls back to password, then TOTP.
+      if (
+        error instanceof CognitoApiError &&
+        /NotAuthorized/i.test(error.type) &&
+        /no available challenges/i.test(error.detail)
+      ) {
+        this.#pending = { kind: 'password', email, username: email };
+        return this.status();
+      }
+      throw error;
     }
     if (record(response.AuthenticationResult).IdToken) {
       this.#storeTokens(response, email);
@@ -117,6 +177,7 @@ export class CognitoIdentityManager implements IdTokenSource {
     }
     const parameters = record(response.ChallengeParameters);
     this.#pending = {
+      kind: 'email',
       email,
       username:
         typeof parameters.USERNAME === 'string' && parameters.USERNAME
@@ -130,23 +191,146 @@ export class CognitoIdentityManager implements IdTokenSource {
   async completeEmailSignIn(codeValue: string): Promise<CloudIdentityStatus> {
     this.#assertConfiguredForUserAuth();
     const pending = this.#pending;
-    if (!pending) throw new Error('Request a new email code first.');
+    if (!pending || pending.kind !== 'email')
+      throw new Error('Request a new email code first.');
     const code = codeValue.replaceAll(/\s/g, '');
     if (!/^\d{6,10}$/.test(code)) throw new Error('Enter the numeric code from your email.');
     const response = await this.#cognito('RespondToAuthChallenge', {
       ChallengeName: 'EMAIL_OTP',
       ClientId: this.#clientId,
       ChallengeResponses: { USERNAME: pending.username, EMAIL_OTP_CODE: code },
-      Session: pending.session,
+      Session: requiredString(pending.session, 'Cognito session'),
     });
-    this.#storeTokens(response, pending.email);
+    if (response.ChallengeName === 'SOFTWARE_TOKEN_MFA') {
+      this.#pending = {
+        kind: 'totp',
+        email: pending.email,
+        username: pending.username,
+        session: requiredString(response.Session, 'Cognito MFA session'),
+      };
+      return this.status();
+    }
+    this.#storeTokens(response, pending.email, false);
     this.#pending = undefined;
+    return this.status();
+  }
+
+  async completePasswordSignIn(passwordValue: string): Promise<CloudIdentityStatus> {
+    this.#assertConfiguredForUserAuth();
+    const pending = this.#pending;
+    if (!pending || pending.kind !== 'password') {
+      throw new Error('Start sign-in again first.');
+    }
+    if (passwordValue.length === 0 || passwordValue.length > 256) {
+      throw new Error('Enter the password for this administrator account.');
+    }
+
+    let response = await this.#cognito('InitiateAuth', {
+      AuthFlow: 'USER_AUTH',
+      ClientId: this.#clientId,
+      AuthParameters: {
+        USERNAME: pending.username,
+        PREFERRED_CHALLENGE: 'PASSWORD',
+        PASSWORD: passwordValue,
+      },
+    });
+    if (response.ChallengeName === 'SELECT_CHALLENGE') {
+      response = await this.#cognito('RespondToAuthChallenge', {
+        ChallengeName: 'SELECT_CHALLENGE',
+        ClientId: this.#clientId,
+        ChallengeResponses: {
+          USERNAME: pending.username,
+          ANSWER: 'PASSWORD',
+          PASSWORD: passwordValue,
+        },
+        Session: requiredString(response.Session, 'Cognito password session'),
+      });
+    } else if (response.ChallengeName === 'PASSWORD') {
+      const parameters = record(response.ChallengeParameters);
+      const username =
+        typeof parameters.USERNAME === 'string' && parameters.USERNAME
+          ? parameters.USERNAME
+          : pending.username;
+      response = await this.#cognito('RespondToAuthChallenge', {
+        ChallengeName: 'PASSWORD',
+        ClientId: this.#clientId,
+        ChallengeResponses: { USERNAME: username, PASSWORD: passwordValue },
+        Session: requiredString(response.Session, 'Cognito password session'),
+      });
+      pending.username = username;
+    }
+
+    if (response.ChallengeName === 'SOFTWARE_TOKEN_MFA') {
+      const parameters = record(response.ChallengeParameters);
+      this.#pending = {
+        kind: 'totp',
+        email: pending.email,
+        username:
+          typeof parameters.USERNAME === 'string' && parameters.USERNAME
+            ? parameters.USERNAME
+            : pending.username,
+        session: requiredString(response.Session, 'Cognito MFA session'),
+      };
+      return this.status();
+    }
+    this.#storeTokens(response, pending.email, false);
+    this.#pending = undefined;
+    return this.status();
+  }
+
+  async completeMfaSignIn(codeValue: string): Promise<CloudIdentityStatus> {
+    this.#assertConfiguredForUserAuth();
+    const pending = this.#pending;
+    if (!pending || pending.kind !== 'totp') throw new Error('Start sign-in again first.');
+    const code = validTotp(codeValue);
+    const response = await this.#cognito('RespondToAuthChallenge', {
+      ChallengeName: 'SOFTWARE_TOKEN_MFA',
+      ClientId: this.#clientId,
+      ChallengeResponses: {
+        USERNAME: pending.username,
+        SOFTWARE_TOKEN_MFA_CODE: code,
+      },
+      Session: requiredString(pending.session, 'Cognito MFA session'),
+    });
+    this.#storeTokens(response, pending.email, true);
+    this.#pending = undefined;
+    return this.status();
+  }
+
+  async beginMfaEnrollment(): Promise<{ secretCode: string }> {
+    const accessToken = await this.#accessToken();
+    if (!accessToken) throw new Error('Sign in again before securing admin access.');
+    const response = await this.#cognito('AssociateSoftwareToken', {
+      AccessToken: accessToken,
+    });
+    return { secretCode: requiredString(response.SecretCode, 'Authenticator setup secret') };
+  }
+
+  async completeMfaEnrollment(codeValue: string): Promise<CloudIdentityStatus> {
+    const accessToken = await this.#accessToken();
+    if (!accessToken) throw new Error('Sign in again before securing admin access.');
+    const response = await this.#cognito('VerifySoftwareToken', {
+      AccessToken: accessToken,
+      UserCode: validTotp(codeValue),
+      FriendlyDeviceName: 'Sia admin',
+    });
+    if (response.Status !== 'SUCCESS')
+      throw new Error('That authenticator code was not accepted.');
+    await this.#cognito('SetUserMFAPreference', {
+      AccessToken: accessToken,
+      SoftwareTokenMfaSettings: { Enabled: true, PreferredMfa: true },
+    });
+    if (this.#tokens) {
+      this.#tokens.mfaVerified = true;
+      this.#repository.put('auth', 'cognito', this.#tokens);
+    }
     return this.status();
   }
 
   async signOut(): Promise<CloudIdentityStatus> {
     const refreshToken = this.#tokens?.refreshToken;
     this.#tokens = undefined;
+    this.#accessTokenValue = undefined;
     this.#pending = undefined;
     this.#repository.remove('auth', 'cognito');
     if (refreshToken && this.#clientId) {
@@ -169,12 +353,15 @@ export class CognitoIdentityManager implements IdTokenSource {
       });
       const result = record(response.AuthenticationResult);
       const idToken = requiredString(result.IdToken, 'ID token');
+      const accessToken = requiredString(result.AccessToken, 'access token');
       const expiresIn = positiveNumber(result.ExpiresIn) ?? 3_600;
+      this.#accessTokenValue = accessToken;
       this.#tokens = {
         idToken,
         refreshToken: current.refreshToken,
         expiresAt: Date.now() + expiresIn * 1_000,
         email: current.email,
+        ...(current.mfaVerified ? { mfaVerified: true } : {}),
       };
       this.#repository.put('auth', 'cognito', this.#tokens);
       return idToken;
@@ -184,27 +371,39 @@ export class CognitoIdentityManager implements IdTokenSource {
       // state is not destroyed by a network blip; the next read retries.
       if (error instanceof CognitoApiError && REFRESH_TOKEN_REJECTED.test(error.type)) {
         this.#tokens = undefined;
+        this.#accessTokenValue = undefined;
         this.#repository.remove('auth', 'cognito');
       }
       return undefined;
     }
   }
 
-  #storeTokens(response: Record<string, unknown>, email: string): void {
+  #storeTokens(response: Record<string, unknown>, email: string, mfaVerified = false): void {
     const result = record(response.AuthenticationResult);
     const idToken = requiredString(result.IdToken, 'ID token');
+    const accessToken = requiredString(result.AccessToken, 'access token');
     const refreshToken =
       typeof result.RefreshToken === 'string'
         ? result.RefreshToken
         : this.#tokens?.refreshToken;
     if (!refreshToken) throw new Error('Cognito did not return a renewable session.');
+    this.#accessTokenValue = accessToken;
     this.#tokens = {
       idToken,
       refreshToken,
       expiresAt: Date.now() + (positiveNumber(result.ExpiresIn) ?? 3_600) * 1_000,
       email,
+      ...(mfaVerified ? { mfaVerified: true } : {}),
     };
     this.#repository.put('auth', 'cognito', this.#tokens);
+  }
+
+  async #accessToken(): Promise<string | undefined> {
+    if (!this.#tokens) return undefined;
+    if (this.#tokens.expiresAt <= Date.now() + 60_000 || !this.#accessTokenValue) {
+      await this.#refresh();
+    }
+    return this.#accessTokenValue;
   }
 
   async #cognito(
@@ -223,27 +422,30 @@ export class CognitoIdentityManager implements IdTokenSource {
     });
     if (!response.ok) {
       let type = '';
+      let detail = '';
       try {
         const error = record(await response.json());
         type = String(error.__type ?? error.code ?? '');
+        detail = typeof error.message === 'string' ? error.message : '';
       } catch {
         // Return a stable, non-sensitive error below.
       }
       if (/CodeMismatch/i.test(type))
-        throw new CognitoApiError('That code is not correct.', type);
+        throw new CognitoApiError('That code is not correct.', type, detail);
       if (/ExpiredCode/i.test(type)) {
-        throw new CognitoApiError('That code expired. Request a new one.', type);
+        throw new CognitoApiError('That code expired. Request a new one.', type, detail);
       }
       if (/TooManyRequests|LimitExceeded/i.test(type)) {
         throw new CognitoApiError(
           'Too many sign-in attempts. Wait a moment and try again.',
           type,
+          detail,
         );
       }
       if (/NotAuthorized|UserNotFound/i.test(type)) {
-        throw new CognitoApiError('This email is not active in the Sia alpha.', type);
+        throw new CognitoApiError('This email is not active in the Sia alpha.', type, detail);
       }
-      throw new CognitoApiError(`Sia sign-in failed (${response.status}).`, type);
+      throw new CognitoApiError(`Sia sign-in failed (${response.status}).`, type, detail);
     }
     return record(await response.json());
   }
@@ -262,6 +464,31 @@ function normalizeEmail(value: string): string {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     throw new Error('Enter a valid email address.');
   return email;
+}
+
+function validTotp(value: string): string {
+  const code = value.replaceAll(/\s/g, '');
+  if (!/^\d{6}$/.test(code)) throw new Error('Enter the 6-digit code from your authenticator.');
+  return code;
+}
+
+function tokenGroups(token: string): string[] {
+  try {
+    const encoded = token.split('.')[1];
+    if (!encoded) return [];
+    const claims = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as Record<
+      string,
+      unknown
+    >;
+    const groups = claims['cognito:groups'];
+    return Array.isArray(groups)
+      ? groups.filter((group): group is string => typeof group === 'string')
+      : typeof groups === 'string'
+        ? groups.split(',').map((group) => group.trim())
+        : [];
+  } catch {
+    return [];
+  }
 }
 
 function validRegion(value: string | undefined): value is string {
@@ -292,6 +519,7 @@ function parseStoredTokens(value: unknown): StoredTokens | undefined {
     refreshToken: candidate.refreshToken,
     expiresAt: candidate.expiresAt,
     email: candidate.email,
+    ...(candidate.mfaVerified === true ? { mfaVerified: true } : {}),
   };
 }
 
@@ -308,4 +536,10 @@ function requiredString(value: unknown, label: string): string {
 
 function positiveNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
 }

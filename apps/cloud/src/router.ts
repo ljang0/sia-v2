@@ -31,6 +31,10 @@ export async function routeControlRequest(
     const method = event.httpMethod.toUpperCase();
     const path = normalizePath(event.path);
 
+    if (method === 'GET' && path === '/v1/session') {
+      return json(200, services.session.status(user));
+    }
+
     const connectionMatch = /^\/v1\/connections\/([^/]+)$/.exec(path);
     if (connectionMatch) {
       const app = parseAppId(decodeURIComponent(connectionMatch[1] ?? ''));
@@ -72,13 +76,21 @@ export async function routeControlRequest(
       );
     }
     if (method === 'POST' && path === '/v1/research/batches') {
-      return json(
+      const response = json(
         201,
         await services.research.upload(user, parseResearchBatch(parseBody(event))),
       );
+      emitMetric('ResearchUploadSuccess');
+      return response;
     }
-    if (method === 'POST' && path === '/v1/research/export') {
-      return json(201, await services.research.export(user));
+    if (path === '/v1/research/export') {
+      if (method === 'POST') return json(202, await services.research.export(user));
+      if (method === 'GET') {
+        const exportId = requireString(event.queryStringParameters?.exportId, 'exportId', {
+          max: 128,
+        });
+        return json(200, await services.research.exportStatus(user, exportId));
+      }
     }
     if (path === '/v1/research/delete') {
       if (method === 'POST') {
@@ -92,6 +104,24 @@ export async function routeControlRequest(
         const state = await services.research.status(user);
         return json(200, { deletion: state ?? null });
       }
+    }
+    if (method === 'GET' && path === '/v1/admin/research/participants') {
+      return json(200, await services.researchAdmin.participants(user));
+    }
+    if (method === 'GET' && path === '/v1/admin/research/batches') {
+      const subject = requireString(event.queryStringParameters?.subject, 'subject', {
+        max: 256,
+      });
+      return json(200, await services.researchAdmin.batches(user, subject));
+    }
+    if (method === 'GET' && path === '/v1/admin/research/batch') {
+      const subject = requireString(event.queryStringParameters?.subject, 'subject', {
+        max: 256,
+      });
+      const batchId = requireString(event.queryStringParameters?.batchId, 'batchId', {
+        max: 128,
+      });
+      return json(200, await services.researchAdmin.batch(user, subject, batchId));
     }
     if (path === '/v1/admin/invites') {
       if (method === 'POST') {
@@ -107,6 +137,12 @@ export async function routeControlRequest(
     throw new CloudError(404, 'route_not_found', 'Route not found');
   } catch (error) {
     const cloudError = normalizeError(error);
+    if (
+      event.httpMethod.toUpperCase() === 'POST' &&
+      normalizePath(event.path) === '/v1/research/batches'
+    ) {
+      emitMetric('ResearchUploadFailure');
+    }
     // Metadata only. Never add event.body, headers, query values, connector results, or stack traces.
     console.warn(
       JSON.stringify({
@@ -127,6 +163,24 @@ export async function routeControlRequest(
       requestId,
     });
   }
+}
+
+function emitMetric(name: 'ResearchUploadSuccess' | 'ResearchUploadFailure'): void {
+  console.info(
+    JSON.stringify({
+      _aws: {
+        Timestamp: Date.now(),
+        CloudWatchMetrics: [
+          {
+            Namespace: 'Sia/Research',
+            Dimensions: [[]],
+            Metrics: [{ Name: name, Unit: 'Count' }],
+          },
+        ],
+      },
+      [name]: 1,
+    }),
+  );
 }
 
 export function authFromEvent(event: APIGatewayProxyEvent): AuthContext {
@@ -206,6 +260,13 @@ function parseConnectorUpload(body: Record<string, unknown>): ConnectorUploadReq
 
 function parseResearchBatch(body: Record<string, unknown>): ResearchBatchRequest {
   const consent = requireRecord(body.consent, 'consent');
+  if (body.format !== undefined && body.format !== 'filtered_v2' && body.format !== 'raw_v1') {
+    throw new CloudError(
+      400,
+      'invalid_research_format',
+      'format must be filtered_v2 or raw_v1',
+    );
+  }
   if (!Array.isArray(body.events))
     throw new CloudError(400, 'invalid_research_batch', 'events must be an array');
   const events = body.events.map((value, index): ResearchEvent => {
@@ -246,12 +307,45 @@ function parseResearchBatch(body: Record<string, unknown>): ResearchBatchRequest
   }
   return {
     batchId: requireString(body.batchId, 'batchId', { max: 128 }),
+    ...(body.format === 'filtered_v2' || body.format === 'raw_v1'
+      ? { format: body.format }
+      : {}),
+    ...(body.scope === undefined ? {} : { scope: parseResearchScope(body.scope) }),
     consent: {
       version: requireString(consent.version, 'consent.version', { max: 64 }),
       acceptedAt: requireString(consent.acceptedAt, 'consent.acceptedAt', { max: 64 }),
       purpose,
     },
     events,
+  };
+}
+
+function parseResearchScope(value: unknown): NonNullable<ResearchBatchRequest['scope']> {
+  const scope = requireRecord(value, 'scope');
+  if (!Array.isArray(scope.eventKinds)) {
+    throw new CloudError(400, 'invalid_research_scope', 'scope.eventKinds must be an array');
+  }
+  const optionalSequence = (input: unknown, label: string): number | undefined => {
+    if (input === undefined) return undefined;
+    if (!Number.isSafeInteger(input) || Number(input) < 0) {
+      throw new CloudError(
+        400,
+        'invalid_research_scope',
+        `${label} must be a positive integer`,
+      );
+    }
+    return Number(input);
+  };
+  const sequenceStart = optionalSequence(scope.sequenceStart, 'scope.sequenceStart');
+  const sequenceEnd = optionalSequence(scope.sequenceEnd, 'scope.sequenceEnd');
+  return {
+    threadId: requireString(scope.threadId, 'scope.threadId', { max: 128 }),
+    turnId: requireString(scope.turnId, 'scope.turnId', { max: 128 }),
+    ...(sequenceStart === undefined ? {} : { sequenceStart }),
+    ...(sequenceEnd === undefined ? {} : { sequenceEnd }),
+    eventKinds: scope.eventKinds.map((kind, index) =>
+      requireString(kind, `scope.eventKinds[${index}]`, { max: 128 }),
+    ),
   };
 }
 

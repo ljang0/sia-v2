@@ -3,17 +3,18 @@ import { CodexAppServerAdapter } from './providers/codex.js';
 
 const realSmoke = process.env.SIA_CODEX_REAL_SMOKE === '1' ? it : it.skip;
 
-describe('Codex 0.147 isolation smoke', () => {
+describe('Codex isolation smoke', () => {
   realSmoke(
     'retains ChatGPT auth while creating a verified ephemeral session',
     async () => {
       const adapter = new CodexAppServerAdapter({ sessionEphemeral: true });
       try {
-        expect(await adapter.probe()).toMatchObject({
+        const probe = await adapter.probe();
+        expect(probe).toMatchObject({
           available: true,
           supported: true,
-          version: '0.147.0',
         });
+        expect(probe.version).toMatch(/^0\.(?:147|148)\.\d+$/);
         expect(await adapter.account()).toMatchObject({
           state: 'authenticated',
           billing: 'subscription',

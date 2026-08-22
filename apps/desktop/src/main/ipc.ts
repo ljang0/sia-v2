@@ -10,7 +10,7 @@ import type {
 } from '../shared/bridge.js';
 
 const providerId = z.enum(['codex', 'meta', 'grok', 'gemini', 'claude']);
-const connectionId = z.enum(['gmail', 'drive', 'slack']);
+const connectionId = z.enum(['gmail', 'drive', 'docs', 'sheets', 'slides', 'slack']);
 const identifier = z.string().uuid();
 const relativePath = z.string().trim().min(1).max(4_096);
 
@@ -195,10 +195,29 @@ const inputSchemas = {
     })
     .strict(),
   'connections.startAll': z.undefined(),
+  'connections.startGoogle': z.undefined(),
+  'connections.startSelected': z
+    .object({
+      connectionIds: z
+        .array(connectionId)
+        .min(1)
+        .max(6)
+        .refine((values) => new Set(values).size === values.length, {
+          message: 'Connection selection cannot contain duplicates.',
+        }),
+    })
+    .strict(),
   'connections.start': z.object({ connectionId }).strict(),
-  'connections.disconnect': z.object({ connectionId }).strict(),
+  'connections.disconnect': z
+    .object({
+      connectionId,
+      expectedConnectionId: z.string().trim().min(1).max(512).optional(),
+    })
+    .strict(),
   'auth.start': z.object({ email: z.string().trim().email().max(254) }).strict(),
   'auth.complete': z.object({ code: z.string().trim().min(6).max(10) }).strict(),
+  'auth.mfaBegin': z.undefined(),
+  'auth.mfaComplete': z.object({ code: z.string().trim().length(6) }).strict(),
   'auth.signOut': z.undefined(),
   'auth.deleteAccount': z.object({ confirmation: z.literal('DELETE ACCOUNT') }).strict(),
   'research.setCapture': z
@@ -206,6 +225,9 @@ const inputSchemas = {
     .strict(),
   'research.export': z.undefined(),
   'research.delete': z.object({ confirmation: z.literal('DELETE') }).strict(),
+  'research.admin.participants': z.undefined(),
+  'research.admin.batches': z.object({ subject: identifier }).strict(),
+  'research.admin.readBatch': z.object({ subject: identifier, batchId: identifier }).strict(),
 } satisfies Record<BridgeMethod, z.ZodType>;
 
 export function registerDesktopIpc(

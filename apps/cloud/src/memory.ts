@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import type {
   AppId,
   DeletionScope,
@@ -37,6 +39,10 @@ import type {
   PreparedActionRecord,
   QuotaGate,
   ResearchBatchMetadata,
+  ResearchExportJob,
+  ResearchExportQueue,
+  ResearchExportRepository,
+  ResearchExportState,
   ResearchObjectStore,
   ResearchRepository,
   SecretProvider,
@@ -76,6 +82,7 @@ export class MemoryState
     ActionRepository,
     ConnectorUploadRepository,
     ResearchRepository,
+    ResearchExportRepository,
     InviteRepository,
     DeletionRepository
 {
@@ -84,6 +91,7 @@ export class MemoryState
   readonly connectorUploadRecords = new Map<string, ConnectorUploadRecord>();
   readonly consentRecords = new Map<string, ConsentReceipt>();
   readonly batchRecords = new Map<string, ResearchBatchMetadata>();
+  readonly researchExportRecords = new Map<string, ResearchExportJob>();
   readonly inviteRecords = new Map<string, InviteRecord>();
   readonly deletionRecords = new Map<string, DeletionJob>();
 
@@ -187,6 +195,42 @@ export class MemoryState
     }
   }
 
+  async putResearchExport(job: ResearchExportJob): Promise<void> {
+    this.researchExportRecords.set(key(job.userId, job.id), structuredClone(job));
+  }
+
+  async getResearchExport(
+    userId: string,
+    exportId: string,
+  ): Promise<ResearchExportJob | undefined> {
+    return clone(this.researchExportRecords.get(key(userId, exportId)));
+  }
+
+  async transitionResearchExport(
+    userId: string,
+    exportId: string,
+    expected: readonly ResearchExportState[],
+    next: ResearchExportState,
+    updatedAt: string,
+    detail: { objectKey?: string; failureCode?: string } = {},
+  ): Promise<boolean> {
+    const job = this.researchExportRecords.get(key(userId, exportId));
+    if (!job || !expected.includes(job.state)) return false;
+    job.state = next;
+    job.updatedAt = updatedAt;
+    if (detail.objectKey) job.objectKey = detail.objectKey;
+    else delete job.objectKey;
+    if (detail.failureCode) job.failureCode = detail.failureCode;
+    else delete job.failureCode;
+    return true;
+  }
+
+  async deleteResearchExportsForUser(userId: string): Promise<void> {
+    for (const [recordKey, job] of this.researchExportRecords) {
+      if (job.userId === userId) this.researchExportRecords.delete(recordKey);
+    }
+  }
+
   async putConsent(receipt: ConsentReceipt): Promise<void> {
     this.consentRecords.set(key(receipt.userId, receipt.version), structuredClone(receipt));
   }
@@ -203,6 +247,10 @@ export class MemoryState
     return [...this.batchRecords.values()]
       .filter((record) => record.userId === userId)
       .map((record) => structuredClone(record));
+  }
+
+  async listAllBatches(): Promise<ResearchBatchMetadata[]> {
+    return [...this.batchRecords.values()].map((record) => structuredClone(record));
   }
 
   async putBatchIfAbsent(
@@ -285,17 +333,44 @@ export class MemoryResearchObjects implements ResearchObjectStore {
   async deleteBatchObject(objectKey: string): Promise<void> {
     this.objects.delete(objectKey);
   }
-  async createExport(userId: string, exportId: string, objectKeys: readonly string[]) {
+  async createExport(
+    userId: string,
+    exportId: string,
+    objects: readonly { objectKey: string; sha256: string; byteLength: number }[],
+  ) {
     const body = Buffer.concat(
-      [...objectKeys]
-        .sort()
-        .map((objectKey) => this.objects.get(objectKey))
-        .filter((value): value is Uint8Array => value !== undefined)
-        .map((value) => Buffer.concat([value, Buffer.from('\n')])),
+      [...objects]
+        .sort((left, right) => left.objectKey.localeCompare(right.objectKey))
+        .map((object) => {
+          const value = this.objects.get(object.objectKey);
+          if (!value) throw new Error('A claimed research batch object is missing');
+          const sha256 = createHash('sha256').update(value).digest('base64url');
+          if (value.byteLength !== object.byteLength || sha256 !== object.sha256) {
+            throw new Error('A research batch failed its export integrity check');
+          }
+          return Buffer.concat([value, Buffer.from('\n')]);
+        }),
     );
     const objectKey = `users/${userId}/exports/${exportId}.jsonl`;
     this.objects.set(objectKey, body);
-    return { objectKey, downloadUrl: `memory://${objectKey}` };
+    return { objectKey };
+  }
+  async readBatchObject(
+    objectKey: string,
+  ): Promise<{ document: unknown; sha256: string; byteLength: number }> {
+    const value = this.objects.get(objectKey);
+    if (!value) throw new Error('The requested research batch object is missing');
+    return {
+      document: JSON.parse(Buffer.from(value).toString('utf8')) as unknown,
+      sha256: createHash('sha256').update(value).digest('base64url'),
+      byteLength: value.byteLength,
+    };
+  }
+  async createExportDownloadUrl(userId: string, objectKey: string): Promise<string> {
+    if (!objectKey.startsWith(`users/${userId}/exports/`) || !this.objects.has(objectKey)) {
+      throw new Error('The requested research export is unavailable');
+    }
+    return `memory://${objectKey}`;
   }
   async deleteAllForUser(userId: string): Promise<void> {
     for (const objectKey of [...this.objects.keys()]) {
@@ -381,11 +456,21 @@ export class MemoryIdentity implements IdentityProvider {
   async deleteUser(subject: string): Promise<void> {
     this.users.delete(subject);
   }
+  async hasMfa(_email: string): Promise<boolean> {
+    return true;
+  }
 }
 
 export class MemoryDeletionQueue implements DeletionQueue {
   readonly messages: Array<{ id: string; userId: string; scope: DeletionScope }> = [];
   async enqueue(job: { id: string; userId: string; scope: DeletionScope }): Promise<void> {
+    this.messages.push(structuredClone(job));
+  }
+}
+
+export class MemoryResearchExportQueue implements ResearchExportQueue {
+  readonly messages: Array<{ id: string; userId: string }> = [];
+  async enqueue(job: { id: string; userId: string }): Promise<void> {
     this.messages.push(structuredClone(job));
   }
 }
