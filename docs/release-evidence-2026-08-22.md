@@ -6,25 +6,20 @@ administrator's TOTP seed.
 
 ## Source and artifact
 
-- Git base: `2c69a498483c2341f34eb6e538001c9735610ebe`
-- The release was built from the current uncommitted working tree. A sorted path + file-SHA manifest
-  covered all 65 modified or untracked files under packaged source paths (`apps`, `packages`,
-  `infra`, `scripts`, root package/lock data, patches, and third-party notices); its SHA-256 was
-  `03606cb82d87aed8afb3d600db47930ba90fcb9b09e8ae19bafaab3bebc03b84`. This is evidence, not a
-  substitute for committing the release source before distribution.
+- Frozen source commit: `7b239c32610e8beb6ff8a6e2a6c21666994b19c2`
 - Version: `0.1.0-alpha.1`
 - Bundle identifier: `ai.sia.desktop`
 - Signing authority: `Developer ID Application: Lawrence Jang (DXYJ578DD4)`
 - Team identifier: `DXYJ578DD4`
 - Hardened runtime: enabled (`Runtime Version=26.4.0`)
 - DMG SHA-256:
-  `a57577faebf8c8e0428abad7dd6b121f921d32002433b682d17440e0537319fd`
+  `4bf61ee6803316393fb62bd6ce361d5d750fa99e04297cb853f5756550c32fac`
 - ZIP SHA-256:
-  `b7cc2d9e505a348458e789d88c710993ce6c347426643f7da4c7eb3ad352d217`
-- DMG size: 256,768,473 bytes
-- ZIP size: 256,099,708 bytes
-- Apple app submission: `f74d66cc-f58e-419c-9162-dedab083ab61` — Accepted
-- Apple DMG submission: `cd836d91-9e07-4faf-aefa-1f40fdddc567` — Accepted
+  `731653a776d76c4aff174b6c8f640ae77a005d5d5a43bc47a8d55b2574cf834f`
+- DMG size: 256,788,732 bytes
+- ZIP size: 256,105,826 bytes
+- Apple app submission: `581c90e4-ea35-4b96-8e69-49bf128a7a1c` — Accepted
+- Apple DMG submission: `edcbbcac-c802-4e99-aaca-c637c67a36e2` — Accepted
 - `codesign --verify --deep --strict`, Gatekeeper execute assessment, DMG open assessment, and
   `stapler validate` passed for the app and DMG. The packaged verifier also passed universal binary,
   native-runtime, license, cloud-resource, and MCP bridge checks.
@@ -32,11 +27,7 @@ administrator's TOTP seed.
 The signed resource points to the deployed `sia-alpha` API stage and Cognito desktop client in
 `us-east-1`. No AWS or provider credentials are embedded in the resource.
 
-## Post-artifact internal integration follow-up
-
-These checks happened after the notarized artifact above was produced. They apply to the current
-working tree and an unsigned universal test package, not to the notarized DMG/ZIP hashes recorded
-above.
+## Integration work included in this artifact
 
 - The Sia Production Google project now has the Docs, Sheets, and Slides APIs enabled. Its OAuth
   data-access list adds the app-specific `documents`, `spreadsheets`, and `presentations` scopes while
@@ -106,7 +97,7 @@ above.
 
 ## Live rehearsal
 
-- Unauthenticated API access returned 403.
+- Unauthenticated API access returned 401 from the API authorizer.
 - `/v1/session` returned the expected release policy.
 - Archive access returned `admin_mfa_required` before enrollment, 200 for the enrolled administrator,
   and `admin_required` for a disposable non-admin. Allowed and denied reads wrote metadata-only
@@ -182,25 +173,33 @@ above.
   lifecycle events enter both the local trajectory and raw AWS upload queue, excludes the OAuth URL,
   and rejects signed-in setup before the provider call when raw recording is unavailable.
 - Real authenticated Codex isolation passed on CLI 0.148.0 with a no-turn ephemeral session.
-- The current signed app passed the packaged universal-binary, native-runtime, license, cloud-resource,
-  signature, notarization, and MCP bridge verifier. The immediately preceding notarized build reached
-  the configured cloud sign-in screen on a fresh isolated profile and the live bootstrap
-  administrator's secure password step without entering a credential. Isolated `--user-data-dir`
-  profiles were moved to Trash; no fixture was added to the ordinary Sia profile.
+- The current signed app passed the packaged universal-binary, native-runtime, license,
+  cloud-resource, signature, notarization, and MCP bridge verifier. The exact artifact reached cloud
+  sign-in on a fresh isolated profile, completed **Continue locally**, exposed the one-click and
+  selective six-app setup, and rendered the 90-day/128-MiB local-log policy. The isolated profile was
+  moved to Trash.
+- Opening the exact artifact on the ordinary prior-build profile preserved all existing agents,
+  threads, sign-in, and the Gmail/Drive grants. The guided setup appeared once with the existing two
+  grants intact and a **Set up later** path. A read-only Gmail action then succeeded with 20 results.
+  Its matching local trajectory contained the full seven-event lifecycle, and AWS received the
+  organized 50,552-byte raw batch under customer-managed KMS encryption.
+- The notarized DMG was mounted and installed to `/Applications/Sia.app`; the prior installed app was
+  archived under `_old-builds`. Gatekeeper accepted the installed copy as Notarized Developer ID and
+  the app launched with the preserved profile.
 - The quieter evergreen shell, horizontal Settings hierarchy, selected-agent treatment, scheduling
   form, keyboard-accessible controls, and privacy copy rendered without clipping at 960 × 640. The
   admin-only Release review now groups live system signals, direct links, and locally persisted human
   checks. Automated E2E separately covers the minimum viewport, 200% zoom, keyboard navigation, and
   reduced motion.
 
-## Final pre-freeze live audit
+## Final frozen-release live audit
 
 - AWS identity was rechecked against account `677513020767`. The `sia-alpha` stack is
   `UPDATE_COMPLETE`; a fresh drift run returned `IN_SYNC`; all fifteen alarms are `OK` with actions
   enabled; and the deletion/export source and dead-letter queues are empty.
-- The rebuilt control Lambda matches the deployed bundle byte-for-byte. The rebuilt Meta, deletion,
-  and export bundles differ because shared source changed after their prior deployment; update all
-  four functions from the frozen revision before distribution.
+- The control, Meta, deletion, and export Lambdas were updated from frozen commit `7b239c3` without a
+  full-template deployment, preserving the manually managed secrets. All four deployed bundles then
+  matched their local `index.cjs` byte-for-byte; all alarms remained `OK`.
 - Composio lists enabled Sia-owned custom OAuth configs for Gmail, Drive, Docs, Sheets, Slides, and
   Slack. The cloud state table contains one Gmail and one Drive grant for the isolated acceptance
   identity; no Slack/editor grant is retained.
@@ -212,20 +211,21 @@ above.
   reviewed user scopes. Its console reports zero currently active workspace installs after the
   disposable acceptance grant was revoked.
 
-## Human-only or still-open gates
+## Human-only, provider, or still-open gates
 
 Do not distribute the artifact until these are completed and recorded:
 
-- Commit or otherwise immutably identify the release source; the artifact was built from a dirty
-  working tree.
 - Confirm the intended recipient list and send the raw-research/local-only/separate-provider-consent
   notice. Keep connectors internal-only until the OAuth scope audit is complete.
 - Obtain named research/privacy/legal approval for the exact consent, 90-day retention, deletion,
   support, and incident-response policy.
 - Complete audible Dictate/voice comparison and microphone-denial checks with a human speaker.
-- Install from the DMG on a separate clean macOS account and on the intended prior-version upgrade
-  account; verify persistence and a read-only workflow.
+- Repeat the successful clean-profile and prior-profile checks from the installed DMG under a
+  separate disposable macOS account.
 - Complete the signed-app administrator sign-in/MFA/archive UI pass. API enforcement and the renderer
   are verified independently, but entering live OTP/TOTP values into the UI requires the release
   operator's direct participation.
 - Confirm the external support path and rollback owner.
+- Disable and delete the superseded Google OAuth client secret, add a public homepage/privacy/terms
+  surface, complete Google publishing/verification, and run the remaining fresh-account/workspace
+  connector matrix before describing Google or Slack as generally available.

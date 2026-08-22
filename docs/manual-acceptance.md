@@ -187,12 +187,18 @@ not replace the mutation checks below. When several Chrome windows are open, set
       Privacy in Light appearance. Automated final-source E2E passed 960x640, 200% zoom, keyboard,
       and reduced-motion coverage. Exact-final-artifact Dark, admin MFA/archive completion, and
       outbox states remain open.
+      The exact final artifact also completed Continue locally and rendered Providers, Apps,
+      Computer, the selective connector chooser, and the 90-day/128-MiB trajectory policy in Light
+      appearance without clipping.
 - [ ] Run the upgrade-account install on a disposable macOS account that has the intended prior v2
       build, and confirm agents, threads, provider detection, and one read-only workflow survive.
       A contained temporary-profile simulation from the notarized `_old-builds/release-signed-ux-final-v2` bundle
       to the final signed artifact already preserved the agent/thread/settings, retained Codex
       detection, and completed a post-upgrade exact-reply workflow; the separate-account installer
       pass remains.
+      The exact final artifact additionally preserved the ordinary prior-build profile's agents,
+      threads, Sia sign-in, Gmail/Drive grants, and completed a read-only Gmail workflow after the
+      one-time guided-setup migration. A separate disposable macOS account remains required.
 - [ ] Confirm the intended alpha recipient list outside the repository. Tell recipients that sign-in
       is research-release enrollment with raw task-surface upload, that **Continue locally** remains
       available without sharing, and that every Google Workspace/Slack connector requires separate

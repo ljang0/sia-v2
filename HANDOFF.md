@@ -53,16 +53,16 @@ Confirm before changes` restores previews. Implementation: `DefaultActionAuthori
   `schedule_create`, `schedule_list`, `schedule_update`, and `schedule_delete`. These call the
   existing controller-owned persisted scheduler; there is no arbitrary crontab/shell surface and
   runs still require Sia to be open and the Mac awake.
-- **Gates on this source**: `pnpm check` (build, prettier, quality guard, typecheck, 395 unit and
+- **Gates on this source**: `pnpm check` (build, prettier, quality guard, typecheck, 418 unit and
   integration tests across the workspace) passes;
-  `pnpm test:e2e` 23/23 (parity is strict by default now); real Codex auth probe and real CUA
+  `pnpm test:e2e` 24/24 (parity is strict by default now); real Codex auth probe and real CUA
   permission probe pass on the release Mac (`SIA_REAL_CODEX_E2E=1 SIA_REAL_CUA_E2E=1
 npx playwright test tests/e2e/real-no-turn.spec.ts`).
 - **Artifact**: the universal app and DMG in `apps/desktop/release/` were freshly signed, notarized,
   stapled, and verified on 2026-08-22. Deployment, artifact hashes, and live rehearsal results are
   recorded in `docs/release-evidence-2026-08-22.md`. It remains blocked from distribution by the
-  human-only gates listed there and by the dirty release working tree.
-- Fourteen superseded builds live under `apps/desktop/_old-builds/` (README inside); nothing in
+  human/provider gates listed there. Packaged source is frozen at commit `7b239c32610e8beb6ff8a6e2a6c21666994b19c2`.
+- Sixteen superseded builds live under `apps/desktop/_old-builds/` (README inside); nothing in
   the repo references them; they are gitignored.
 
 Never copy credentials from conversation history into this file, source code, logs, shell history,
@@ -94,8 +94,6 @@ capture and trust code paths are mapped in `docs/architecture.md`.
 2. Approvals (ask mode) have no visual preview of the target; a small screenshot crop with the
    ref highlighted would help.
 3. No inline artifact/diff viewer for files the agent produces.
-4. Shipping DMG is cloud-enabled (`build/sia-cloud.json`), so recipients see "Sign in to Sia"
-   first; a cloud-disabled build removes that instruction dependency for a local alpha.
 
 ## Credential pointers
 
@@ -198,27 +196,29 @@ These passed on the settled source on 2026-08-17 after the local CUA fixes.
 - Installed signing identity:
   `Developer ID Application: Lawrence Jang (DXYJ578DD4)`
 - Notary profile: `notarytool-profile`
-- The current app was rebuilt from the working tree and rechecked on 2026-08-22:
+- The current app was rebuilt from frozen commit `7b239c32610e8beb6ff8a6e2a6c21666994b19c2` and
+  rechecked on 2026-08-22:
   - `codesign --verify --deep --strict`: pass
   - Gatekeeper `spctl --assess`: accepted, Notarized Developer ID
   - `xcrun stapler validate`: pass
-  - app notary submission `f74d66cc-f58e-419c-9162-dedab083ab61`: accepted at
-    `2026-08-21T22:51:18.748Z`
-  - DMG notary submission `cd836d91-9e07-4faf-aefa-1f40fdddc567`: accepted at
-    `2026-08-21T22:53:17.001Z`
-  - DMG SHA-256: `a57577faebf8c8e0428abad7dd6b121f921d32002433b682d17440e0537319fd`
-  - ZIP SHA-256: `b7cc2d9e505a348458e789d88c710993ce6c347426643f7da4c7eb3ad352d217`
-- The obsolete `/Applications/Sia.app` is not this product build and was quit during acceptance. Do
-  not relaunch or distribute it; use only the artifact paths above.
-- Rollback artifact: `apps/desktop/release-signed-current-20260816-final/`
+  - app notary submission `581c90e4-ea35-4b96-8e69-49bf128a7a1c`: accepted at
+    `2026-08-22T08:30:46.456Z`
+  - DMG notary submission `edcbbcac-c802-4e99-aaca-c637c67a36e2`: accepted at
+    `2026-08-22T08:32:48.045Z`
+  - DMG SHA-256: `4bf61ee6803316393fb62bd6ce361d5d750fa99e04297cb853f5756550c32fac`
+  - ZIP SHA-256: `731653a776d76c4aff174b6c8f640ae77a005d5d5a43bc47a8d55b2574cf834f`
+- `/Applications/Sia.app` is now the exact notarized DMG copy. The superseded installed app is
+  archived at `apps/desktop/_old-builds/installed-Sia-obsolete-20260822.app`.
+- Rollback artifact: `apps/desktop/_old-builds/release-pre-7b239c3-20260822-1729/`
 - Contained upgrade simulation: the notarized
   `apps/desktop/_old-builds/release-signed-ux-final-v2/mac-universal/Sia.app` created an `Upgrade fixture v2`
   agent and completed thread in a fresh temporary profile. Opening the final signed artifact against
   that same profile preserved the agent, thread, provider/model settings, and original reply; Codex
   remained installed/authenticated and a new read-only exact-reply workflow completed. This is strong
   migration evidence but does not replace the final installer pass under a disposable macOS account.
-- Do not distribute this artifact until the open microphone, upgrade-account, and recipient-list
-  gates below pass. Rebuild and notarize again after any further source change.
+- Do not distribute this artifact until the open microphone, separate-account installer,
+  provider-distribution, and recipient-list gates below pass. Rebuild and notarize again after any
+  packaged source change.
 
 ## AWS release stack
 
