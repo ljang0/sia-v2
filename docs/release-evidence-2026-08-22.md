@@ -256,3 +256,34 @@ Do not distribute the artifact until these are completed and recorded:
 - Add a public homepage/privacy/terms surface, complete Google publishing/verification, and run the
   remaining fresh-account/workspace connector matrix before describing Google or Slack as generally
   available.
+
+## Public-site and Google-verification staging (2026-08-23 KST)
+
+- A greenfield Sia product site now includes a public homepage, participant notice, privacy policy,
+  terms, support troubleshooting, `security.txt`, sitemap, self-hosted display font, and the 120 by
+  120 OAuth logo. The policy states the raw task-visible research boundary, local alternative,
+  connected-service handling, Google Limited Use commitment, retention, administrator review,
+  export, deletion, and no-model-training policy.
+- CloudFormation stack `sia-public-site` created a private, encrypted, versioned S3 origin and
+  CloudFront distribution `E3MFZH4OWO2B9C`. Only that distribution can read the bucket. Hosted
+  responses redirect to HTTPS and include CSP, HSTS, framing, content-type, referrer, permissions,
+  and cross-origin-opener controls. The staging URL is recorded in `public-site-launch.md`.
+- Hosted desktop and 390 px mobile browser passes covered the hero, collapsed navigation, policy
+  content, clean URL rewriting, and console. The final Lighthouse run scored 99 performance and 100
+  for accessibility, best practices, and SEO, with 2.0 s LCP, zero CLS, zero blocking time, and no
+  console errors.
+- ACM certificate `c49d6024-56b4-4d0c-99b0-f4643cedf266` covers the apex and `www` names and is
+  pending the two exact Namecheap validation records in `public-site-launch.md`. Existing Namecheap
+  email-forwarding MX/SPF records remain untouched; the domain still has no public apex or `www` web
+  record.
+- Google Auth Platform project `sia-production-connectors` was re-audited under
+  `superintelligentagents@gmail.com`. It remains External, Testing, one of 100 users consumed, with
+  blank public URLs and `composio.dev` as its only current authorized domain. The exact non-sensitive,
+  sensitive, and restricted scopes match the reviewed connector contract.
+- `google-oauth-verification-packet.md` now records each scope justification, Google-data handling,
+  Limited Use statement, exact public identity fields, reviewer video shot list, and submission
+  order. Gmail read and compose remain restricted scopes, so release still requires Google review
+  and the annual CASA assessment Google initiates after the other verification steps pass.
+- `pnpm check` passed after adding the site workspace: all builds, formatting, quality guard,
+  typechecks, and tests completed successfully. No connector grant or Google/Slack write was run as
+  part of the public-site staging work.

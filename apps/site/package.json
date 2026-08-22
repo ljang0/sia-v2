@@ -1,0 +1,12 @@
+{
+  "name": "@sia/site",
+  "version": "0.1.0-alpha.1",
+  "private": true,
+  "description": "Public site and participant policies for the Sia research alpha.",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/build.mjs --check",
+    "deploy": "node scripts/deploy.mjs"
+  }
+}

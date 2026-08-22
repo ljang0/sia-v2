@@ -49,6 +49,14 @@ privacy-policy, and terms fields are blank and verification has not started. The
 the old secret was then permanently deleted. Docs, Sheets, and Slides each retain one connected test
 grant and passed a read-only live action. Do not describe Google as public or out of the box yet.
 
+Public-site staging update (2026-08-23): the homepage, participant notice, privacy policy, terms,
+support page, security contact, sitemap, and OAuth logo are built and staged behind the locked-down
+AWS CloudFront distribution recorded in `public-site-launch.md`. The custom certificate is pending
+the two prepared Namecheap validation CNAMEs. `google-oauth-verification-packet.md` records the exact
+scope justifications and required reviewer demo. The production gate remains unchecked until the
+domain is live, the public contacts work, Google Branding is saved, Audience is In production, and
+verification is submitted.
+
 ## Slack production gate
 
 - [x] Create the Sia-owned Slack app from `infra/slack-app-manifest.yaml`; confirm its scopes exactly

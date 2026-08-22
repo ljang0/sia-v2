@@ -168,6 +168,8 @@ importers:
         specifier: 0.31.0-3
         version: 0.31.0-3
 
+  apps/site: {}
+
   packages/action-gateway:
     dependencies:
       '@sia/protocol':
