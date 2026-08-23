@@ -14,7 +14,7 @@ describe('Codex isolation smoke', () => {
           available: true,
           supported: true,
         });
-        expect(probe.version).toMatch(/^0\.(?:147|148)\.\d+$/);
+        expect(probe.version).toMatch(/^0\.(?:147|148|149)\.\d+$/);
         expect(await adapter.account()).toMatchObject({
           state: 'authenticated',
           billing: 'subscription',

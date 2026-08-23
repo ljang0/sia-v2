@@ -29,7 +29,7 @@ const PROVIDERS: Record<ProviderId, ProviderCommand> = {
     billing: 'Uses your existing ChatGPT Codex plan or OpenAI API account.',
     detail: 'Official app server; Sia detects your Codex login without importing credentials.',
     minimumVersion: '0.147.0',
-    maximumExclusiveVersion: '0.149.0',
+    maximumExclusiveVersion: '0.150.0',
   },
   meta: {
     executable: '',

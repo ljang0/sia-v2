@@ -8,7 +8,7 @@ is the "Sia Demo Runbook" artifact.
 ## Pre-flight (5 min)
 
 - `cd ~/sia_new && pnpm dev` (don't demo the stale notarized DMG).
-- `codex --version` signed in; accepted range `>=0.147.0 <0.149.0`; no auto-updates demo morning.
+- `codex --version` signed in; accepted range `>=0.147.0 <0.150.0`; no auto-updates demo morning.
 - For the research-release path, use a designated disposable participant. Sign in, accept **Sia
   research alpha**, and show that the core app opens without a connector prompt. For a local demo,
   choose **Continue locally** instead. If demonstrating integrations, open **Settings → Apps** after

@@ -4,7 +4,7 @@ Provider availability is a legal and product boundary as well as an engineering 
 
 - **Codex:** official app-server ChatGPT OAuth or user API key. This uses the person's existing Codex
   entitlement rather than importing a plan or credential into Sia. The external alpha accepts CLI
-  versions `>=0.147.0 <0.149.0` and treats the CLI as unavailable until `codex login status`
+  versions `>=0.147.0 <0.150.0` and treats the CLI as unavailable until `codex login status`
   confirms either ChatGPT or API-key authentication. Never inspect or copy Codex auth files.
 - **Meta:** relay implementation with the credential exclusively in AWS Secrets Manager. The client
   fails closed and marks Meta ready only after a signed-in session completes the authenticated live

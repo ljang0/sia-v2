@@ -54,6 +54,8 @@ interface SettingsProps {
   onSetCapturePaused(paused: boolean): Promise<void>;
   onExport(): Promise<void>;
   onDelete(): Promise<void>;
+  onListResearchInvites: RendererApi['listResearchInvites'];
+  onCreateResearchInvite: RendererApi['createResearchInvite'];
   onListResearchParticipants: RendererApi['listResearchParticipants'];
   onListResearchBatches: RendererApi['listResearchBatches'];
   onReadResearchBatch: RendererApi['readResearchBatch'];
@@ -91,6 +93,8 @@ export function Settings({
   onSetCapturePaused,
   onExport,
   onDelete,
+  onListResearchInvites,
+  onCreateResearchInvite,
   onListResearchParticipants,
   onListResearchBatches,
   onReadResearchBatch,
@@ -247,6 +251,8 @@ export function Settings({
           ) : null}
           {section === 'research' && canViewResearchArchive ? (
             <ResearchArchiveSettings
+              listInvites={onListResearchInvites}
+              createInvite={onCreateResearchInvite}
               listParticipants={onListResearchParticipants}
               listBatches={onListResearchBatches}
               readBatch={onReadResearchBatch}

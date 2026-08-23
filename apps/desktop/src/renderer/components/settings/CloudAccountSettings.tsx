@@ -475,7 +475,7 @@ function accountDescription(cloudAuth: CloudAuth) {
     return 'Optional cloud sync and connected apps can be added later.';
   }
   if (cloudAuth.state === 'code-sent') {
-    return 'Check your email, then enter the one-time code below.';
+    return 'If this email was invited, a one-time code will arrive shortly. Check spam or request a new code.';
   }
   if (cloudAuth.state === 'password-required') {
     return 'This MFA-protected admin account requires its password first.';

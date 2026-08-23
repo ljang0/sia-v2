@@ -2,8 +2,9 @@ import type { ToolName } from './contracts.js';
 import { CloudError, isRecord } from './domain.js';
 import type { ComposioConfig } from './ports.js';
 
-/** Schemas audited against the public Composio toolkit catalog on 2026-08-22. */
-export const COMPOSIO_TOOL_VERSION = '20260721_00';
+/** Schemas audited against the public Composio toolkit catalog on 2026-08-24. */
+const COMPOSIO_GMAIL_TOOL_VERSION = '20260817_00';
+const COMPOSIO_DRIVE_TOOL_VERSION = '20260821_00';
 
 export const COMPOSIO_TOOL_SLUGS = {
   'mail.search': 'GMAIL_FETCH_EMAILS',
@@ -32,14 +33,14 @@ export const COMPOSIO_TOOL_SLUGS = {
 } as const satisfies Record<ToolName, string>;
 
 export const COMPOSIO_TOOL_VERSIONS = {
-  'mail.search': COMPOSIO_TOOL_VERSION,
-  'mail.read_thread': COMPOSIO_TOOL_VERSION,
-  'mail.create_draft': COMPOSIO_TOOL_VERSION,
-  'mail.send': COMPOSIO_TOOL_VERSION,
-  'drive.search': COMPOSIO_TOOL_VERSION,
-  'drive.read': COMPOSIO_TOOL_VERSION,
-  'drive.upload': COMPOSIO_TOOL_VERSION,
-  'drive.share': COMPOSIO_TOOL_VERSION,
+  'mail.search': COMPOSIO_GMAIL_TOOL_VERSION,
+  'mail.read_thread': COMPOSIO_GMAIL_TOOL_VERSION,
+  'mail.create_draft': COMPOSIO_GMAIL_TOOL_VERSION,
+  'mail.send': COMPOSIO_GMAIL_TOOL_VERSION,
+  'drive.search': COMPOSIO_DRIVE_TOOL_VERSION,
+  'drive.read': COMPOSIO_DRIVE_TOOL_VERSION,
+  'drive.upload': COMPOSIO_DRIVE_TOOL_VERSION,
+  'drive.share': COMPOSIO_DRIVE_TOOL_VERSION,
   'docs.create': '20260818_00',
   'docs.read': '20260818_00',
   'docs.append': '20260818_00',

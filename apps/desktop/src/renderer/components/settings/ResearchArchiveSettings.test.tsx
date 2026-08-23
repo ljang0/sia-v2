@@ -11,6 +11,44 @@ afterEach(() => {
 });
 
 describe('raw research archive', () => {
+  it('lists invitations and sends a normalized participant invite', async () => {
+    const createInvite = vi.fn(async (email: string) => ({
+      email,
+      invitedAt: '2026-08-24T02:00:00.000Z',
+      status: 'invited' as const,
+    }));
+
+    render(
+      <ResearchArchiveSettings
+        listInvites={async () => ({
+          invites: [
+            {
+              email: 'existing@example.edu',
+              invitedAt: '2026-08-23T02:00:00.000Z',
+              status: 'active',
+            },
+          ],
+          limit: 20,
+        })}
+        createInvite={createInvite}
+        listParticipants={async () => []}
+        listBatches={async () => []}
+        readBatch={async () => undefined}
+      />,
+    );
+
+    expect(await screen.findByText(/existing@example\.edu/)).toBeTruthy();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Email address' }), {
+      target: { value: '  NEW.PERSON@EXAMPLE.EDU  ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send invitation' }));
+
+    await waitFor(() => expect(createInvite).toHaveBeenCalledWith('new.person@example.edu'));
+    expect((await screen.findByRole('status')).textContent).toContain(
+      'Invitation sent to new.person@example.edu.',
+    );
+  });
+
   it('groups raw bundles by turn and reconstructs ordered chunked events', async () => {
     const batches: ResearchBatchSummary[] = [
       rawBatch('batch-1', 0, 1, ['provider.message']),
@@ -68,6 +106,10 @@ describe('raw research archive', () => {
 
     render(
       <ResearchArchiveSettings
+        listInvites={async () => ({ invites: [], limit: 20 })}
+        createInvite={async () => {
+          throw new Error('not used');
+        }}
         listParticipants={listParticipants}
         listBatches={listBatches}
         readBatch={readBatch}
@@ -94,6 +136,10 @@ describe('raw research archive', () => {
   it('shows an integrity event instead of silently dropping an incomplete chunked event', async () => {
     render(
       <ResearchArchiveSettings
+        listInvites={async () => ({ invites: [], limit: 20 })}
+        createInvite={async () => {
+          throw new Error('not used');
+        }}
         listParticipants={async () => [
           {
             subject: 'participant-1',

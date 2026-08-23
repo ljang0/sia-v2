@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { ComposioConnector } from '../src/aws.js';
 import { COMPOSIO_TOOL_SLUGS, COMPOSIO_TOOL_VERSIONS } from '../src/connector-contract.js';
+import { ConnectorReconnectRequiredError } from '../src/ports.js';
 import type { ComposioConfig, SecretProvider } from '../src/ports.js';
 
 const config: ComposioConfig = {
@@ -222,6 +223,28 @@ describe('Composio file staging adapter', () => {
         'x-api-key': 'provider-secret-never-returned',
       });
       assert.equal(JSON.stringify(grant).includes(config.apiKey), false);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe('Composio tool execution adapter', () => {
+  it('turns a gone provider grant into a reconnect-required error', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      Response.json({}, { status: 410 })) as typeof globalThis.fetch;
+    try {
+      await assert.rejects(
+        new ComposioConnector(secrets).execute(
+          'user-1',
+          'stale-connection',
+          'mail.search',
+          { query: 'newer_than:7d', max_results: 1 },
+          'execution-1',
+        ),
+        (error: unknown) => error instanceof ConnectorReconnectRequiredError,
+      );
     } finally {
       globalThis.fetch = originalFetch;
     }

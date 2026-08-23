@@ -1074,6 +1074,12 @@ export class DesktopController {
         return (await this.#deleteResearch(
           (input as BridgeRequestMap['research.delete']).confirmation,
         )) as unknown as BridgeResultMap[M];
+      case 'research.admin.invites':
+        return (await this.#cloud.listAdminInvites()) as BridgeResultMap[M];
+      case 'research.admin.invite':
+        return (await this.#cloud.createAdminInvite(
+          (input as BridgeRequestMap['research.admin.invite']).email,
+        )) as BridgeResultMap[M];
       case 'research.admin.participants':
         return (await this.#cloud.listAdminResearchParticipants()) as BridgeResultMap[M];
       case 'research.admin.batches':

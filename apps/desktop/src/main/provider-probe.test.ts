@@ -44,7 +44,7 @@ describe('probeProviders', () => {
     const run = vi.fn(
       async (_executable: string, args: readonly string[], environment: NodeJS.ProcessEnv) => ({
         code: 0,
-        stdout: args[0] === '--version' ? 'codex-cli 0.147.0' : 'Logged in using ChatGPT',
+        stdout: args[0] === '--version' ? 'codex-cli 0.149.0' : 'Logged in using ChatGPT',
         stderr: '',
         environment,
       }),
@@ -63,7 +63,7 @@ describe('probeProviders', () => {
       );
       expect(codex).toMatchObject({
         status: 'ready',
-        version: '0.147.0',
+        version: '0.149.0',
         account: 'Authenticated with ChatGPT',
       });
       expect(run).toHaveBeenCalledTimes(2);
@@ -91,14 +91,14 @@ describe('probeProviders', () => {
     const runner = {
       run: vi.fn(async (executable: string) => ({
         code: 0,
-        stdout: executable.endsWith('codex') ? 'codex-cli 0.149.0' : 'gemini 1.2.3',
+        stdout: executable.endsWith('codex') ? 'codex-cli 0.150.0' : 'gemini 1.2.3',
         stderr: '',
       })),
     };
     try {
       const [codex] = await probeProviders('codex', { PATH: directory }, runner);
       const [gemini] = await probeProviders('gemini', { PATH: directory }, runner);
-      expect(codex).toMatchObject({ status: 'incompatible', version: '0.149.0' });
+      expect(codex).toMatchObject({ status: 'incompatible', version: '0.150.0' });
       expect(gemini).toMatchObject({
         status: 'incompatible',
         detail: expect.stringContaining('standard ACP'),

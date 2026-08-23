@@ -380,6 +380,7 @@ export class MemoryResearchObjects implements ResearchObjectStore {
 }
 
 export class MemoryConnector implements ConnectorProvider {
+  executeError?: Error;
   readonly statuses = new Map<string, ConnectorStatus>();
   readonly executions: Array<{
     userId: string;
@@ -435,6 +436,7 @@ export class MemoryConnector implements ConnectorProvider {
     input: Record<string, unknown>,
     idempotencyKey: string,
   ): Promise<ConnectorExecution> {
+    if (this.executeError) throw this.executeError;
     this.executions.push({
       userId,
       connectionId,

@@ -5,6 +5,46 @@ import { CloudClient } from './cloud-client.js';
 afterEach(() => vi.unstubAllGlobals());
 
 describe('CloudClient', () => {
+  it('lists and creates alpha invitations without exposing internal identity fields', async () => {
+    const fetchMock = vi.fn(async (input: URL | RequestInfo, init?: RequestInit) => {
+      const invite = {
+        email: 'participant@example.edu',
+        invitedAt: '2026-08-24T02:00:00.000Z',
+        status: 'invited',
+        subject: 'internal-cognito-subject',
+        invitedBy: 'internal-admin-subject',
+      };
+      if (init?.method === 'POST') return Response.json(invite, { status: 201 });
+      return Response.json({ invites: [invite], limit: 20 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new CloudClient('https://api.example.test', {
+      read: async () => 'admin-token',
+    });
+
+    await expect(client.listAdminInvites()).resolves.toEqual({
+      invites: [
+        {
+          email: 'participant@example.edu',
+          invitedAt: '2026-08-24T02:00:00.000Z',
+          status: 'invited',
+        },
+      ],
+      limit: 20,
+    });
+    await expect(client.createAdminInvite('participant@example.edu')).resolves.toEqual({
+      invite: {
+        email: 'participant@example.edu',
+        invitedAt: '2026-08-24T02:00:00.000Z',
+        status: 'invited',
+      },
+    });
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
+      method: 'POST',
+      body: JSON.stringify({ email: 'participant@example.edu' }),
+    });
+  });
+
   it('rejects cloud endpoints that could expose a bearer token over an unsafe URL', () => {
     const tokens = { read: async () => 'secret-relay-token' };
     expect(() => new CloudClient('http://sia.test', tokens)).toThrow(/HTTPS/);

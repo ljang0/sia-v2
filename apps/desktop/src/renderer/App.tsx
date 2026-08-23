@@ -249,6 +249,8 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onSetCapturePaused={(paused) => api.setCapturePaused(paused)}
               onExport={() => api.exportResearchData()}
               onDelete={() => api.deleteResearchData()}
+              onListResearchInvites={() => api.listResearchInvites()}
+              onCreateResearchInvite={(email) => api.createResearchInvite(email)}
               onListResearchParticipants={() => api.listResearchParticipants()}
               onListResearchBatches={(subject) => api.listResearchBatches(subject)}
               onReadResearchBatch={(subject, batchId) =>

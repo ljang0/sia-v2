@@ -1,4 +1,4 @@
-# Sia 0.1.0-alpha.4
+# Sia 0.1.0-alpha.5
 
 Sia is a private macOS 14+ alpha for local-first agent work. This build supports Codex through the
 official CLI already installed and authenticated on the Mac, plus hosted Meta access for signed-in
@@ -25,8 +25,11 @@ invited alpha participants.
   The agent has bounded native tools to create/read/append Docs, create/read/update/append Sheets,
   and create/read/append Slides from Markdown. Messages opens the
   existing macOS account without database access, while Chrome still requires one explicit window;
+- pinned Gmail and Drive adapters updated to the provider's live August 2026 schemas, with the
+  connected-account and read-only tool checks repeated against production grants;
 - invite-only research-release sign-in, durable raw research sync, asynchronous complete export,
-  and deletion when the signed release is configured for the deployed control plane;
+  and deletion when the signed release is configured for the deployed control plane. Research
+  admins can now send and review participant invitations directly from the MFA-protected archive;
 - one guided work-app connection action that advances through provider-owned Gmail, Drive, Docs,
   Sheets, Slides, and Slack consent pages only after each prior grant is verified. Connection
   lifecycle events are written locally and to the consented encrypted AWS stream, while OAuth URLs,
@@ -48,7 +51,7 @@ invited alpha participants.
 
 ## Visual identity
 
-- Alpha.4 replaces the high-contrast dark shell in light mode with a warm-neutral workspace rail,
+- Alpha.5 carries forward the warm-neutral workspace rail introduced in Alpha.4,
   quiets agent colors into mineral identity accents, removes colorful provider tiles, and uses one
   muted evergreen action color. Dark mode remains neutral charcoal rather than green-black.
 - Native display typography now carries names and headings; bundled Bricolage Grotesque (OFL) is

@@ -5,7 +5,7 @@ the implementation was verified; it is not legal or institutional approval.
 
 ## Release boundary
 
-- Release: Sia `0.1.0-alpha.4`
+- Release: Sia `0.1.0-alpha.5`
 - Consent version: `alpha-research-v3-raw`
 - Evidence: [`release-evidence-2026-08-22.md`](./release-evidence-2026-08-22.md)
 - Invite copy: [`alpha-invite-template.md`](./alpha-invite-template.md)

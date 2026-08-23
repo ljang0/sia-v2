@@ -367,6 +367,12 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async deleteResearchData() {
       publish(await bridge.research.delete());
     },
+    async listResearchInvites() {
+      return await bridge.research.listAdminInvites();
+    },
+    async createResearchInvite(email) {
+      return (await bridge.research.createAdminInvite(email)).invite;
+    },
     async listResearchParticipants() {
       return (await bridge.research.listAdminParticipants()).participants;
     },

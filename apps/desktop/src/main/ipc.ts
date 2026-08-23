@@ -225,6 +225,8 @@ const inputSchemas = {
     .strict(),
   'research.export': z.undefined(),
   'research.delete': z.object({ confirmation: z.literal('DELETE') }).strict(),
+  'research.admin.invites': z.undefined(),
+  'research.admin.invite': z.object({ email: z.string().trim().email().max(254) }).strict(),
   'research.admin.participants': z.undefined(),
   'research.admin.batches': z.object({ subject: identifier }).strict(),
   'research.admin.readBatch': z.object({ subject: identifier, batchId: identifier }).strict(),

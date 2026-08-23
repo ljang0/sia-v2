@@ -17,6 +17,7 @@ import {
   MemoryState,
   SequenceIds,
 } from '../src/memory.js';
+import { ConnectorReconnectRequiredError } from '../src/ports.js';
 import type { ComposioConfig, MetaConfig } from '../src/ports.js';
 import { createServices, type ServiceDependencies } from '../src/services.js';
 
@@ -72,6 +73,32 @@ describe('connector action gateway', () => {
       hasCode('invalid_connector_input'),
     );
     assert.equal(fixture.connector.executions.length, 0);
+  });
+
+  it('fails a stale grant closed and keeps it failed until the user reconnects', async () => {
+    const fixture = makeFixture();
+    await connect(fixture, 'gmail', 'stale-connection');
+    fixture.connector.executeError = new ConnectorReconnectRequiredError();
+
+    await assert.rejects(
+      fixture.services.actions.prepare(user, {
+        connectionId: 'stale-connection',
+        tool: 'mail.search',
+        input: { query: 'newer_than:7d', limit: 1 },
+      }),
+      hasCode('connection_reconnect_required'),
+    );
+
+    assert.equal(
+      (await fixture.state.getConnection(user.subject, 'stale-connection'))?.status,
+      'failed',
+    );
+    fixture.connector.statuses.set('stale-connection', { status: 'connected' });
+    assert.equal(
+      (await fixture.services.connections.status(user, 'gmail')).connections[0]?.status,
+      'failed',
+    );
+    assert.equal(fixture.audit.events.at(-1)?.errorCode, 'connection_reconnect_required');
   });
 
   it('routes bounded Google editor reads and exact writes through their own connections', async () => {

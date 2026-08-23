@@ -28,11 +28,13 @@ import {
   mapCanonicalConnectorInput,
   validateCanonicalDriveUploadInput,
 } from './connector-contract.js';
+import { ConnectorReconnectRequiredError } from './ports.js';
 import type {
   ActionRepository,
   AuditSink,
   Clock,
   ConnectionRepository,
+  ConnectorExecution,
   ConnectorProvider,
   ConnectorUploadRecord,
   ConnectorUploadRepository,
@@ -234,6 +236,15 @@ export class ConnectionsService {
     );
     const output = [];
     for (const record of records) {
+      if (record.status === 'failed') {
+        output.push({
+          id: record.id,
+          app: record.app,
+          status: record.status,
+          accountLabel: record.accountLabel,
+        });
+        continue;
+      }
       const current = await this.deps.connector.connectionStatus(record.id);
       const { expiresAt: _pendingLinkExpiry, ...durableRecord } = record;
       const updated = {
@@ -313,13 +324,39 @@ export class ActionsService {
 
     if (!policy.mutation) {
       const executionId = this.deps.ids.next();
-      const result = await this.deps.connector.execute(
-        user.subject,
-        request.connectionId,
-        request.tool,
-        executionInput,
-        executionId,
-      );
+      let result: ConnectorExecution;
+      try {
+        result = await this.deps.connector.execute(
+          user.subject,
+          request.connectionId,
+          request.tool,
+          executionInput,
+          executionId,
+        );
+      } catch (error) {
+        await this.deps.audit.write({
+          userId: user.subject,
+          action: 'connector.read',
+          app: policy.app,
+          tool: request.tool,
+          connectionId: request.connectionId,
+          outcome: 'failed',
+          occurredAt: this.deps.clock.now().toISOString(),
+          errorCode:
+            error instanceof ConnectorReconnectRequiredError
+              ? 'connection_reconnect_required'
+              : 'connector_execution_failed',
+        });
+        if (error instanceof ConnectorReconnectRequiredError) {
+          await markConnectionFailed(this.deps, user.subject, request.connectionId);
+          throw new CloudError(
+            409,
+            'connection_reconnect_required',
+            'This app connection expired. Reconnect it in Settings, then try again.',
+          );
+        }
+        throw error;
+      }
       await this.deps.audit.write({
         userId: user.subject,
         action: 'connector.read',
@@ -446,6 +483,9 @@ export class ActionsService {
       });
       return { status: 'completed' as const, actionId: record.id, result: result.data };
     } catch (error) {
+      if (error instanceof ConnectorReconnectRequiredError) {
+        await markConnectionFailed(this.deps, user.subject, record.connectionId);
+      }
       await this.deps.actions.failAction(user.subject, record.id, 'connector_execution_failed');
       await this.deps.audit.write({
         userId: user.subject,
@@ -455,11 +495,35 @@ export class ActionsService {
         connectionId: record.connectionId,
         outcome: 'failed',
         occurredAt: this.deps.clock.now().toISOString(),
-        errorCode: 'connector_execution_failed',
+        errorCode:
+          error instanceof ConnectorReconnectRequiredError
+            ? 'connection_reconnect_required'
+            : 'connector_execution_failed',
       });
+      if (error instanceof ConnectorReconnectRequiredError) {
+        throw new CloudError(
+          409,
+          'connection_reconnect_required',
+          'This app connection expired. Reconnect it in Settings, then try again.',
+        );
+      }
       throw error;
     }
   }
+}
+
+async function markConnectionFailed(
+  deps: ServiceDependencies,
+  userId: string,
+  connectionId: string,
+): Promise<void> {
+  const connection = await deps.connections.getConnection(userId, connectionId);
+  if (!connection) return;
+  await deps.connections.putConnection({
+    ...connection,
+    status: 'failed',
+    updatedAt: deps.clock.now().toISOString(),
+  });
 }
 
 export class ResearchService {

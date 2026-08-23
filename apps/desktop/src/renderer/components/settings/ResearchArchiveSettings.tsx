@@ -1,10 +1,19 @@
-import { ArrowClockwise, Database, Eye, UsersThree } from '@phosphor-icons/react';
-import { useEffect, useMemo, useState } from 'react';
-import type { ResearchBatchSummary, ResearchParticipant } from '../../types';
+import {
+  ArrowClockwise,
+  Database,
+  EnvelopeSimple,
+  Eye,
+  PaperPlaneTilt,
+  UsersThree,
+} from '@phosphor-icons/react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import type { ResearchBatchSummary, ResearchInvite, ResearchParticipant } from '../../types';
 import styles from '../../ui.module.css';
 import { SettingsSectionHeader } from './SettingsShared';
 
 interface ResearchArchiveSettingsProps {
+  listInvites(): Promise<{ invites: ResearchInvite[]; limit: number }>;
+  createInvite(email: string): Promise<ResearchInvite>;
   listParticipants(): Promise<ResearchParticipant[]>;
   listBatches(subject: string): Promise<ResearchBatchSummary[]>;
   readBatch(subject: string, batchId: string): Promise<unknown>;
@@ -31,10 +40,17 @@ interface ArchiveEvent {
 const EVENT_PAGE_SIZE = 100;
 
 export function ResearchArchiveSettings({
+  listInvites,
+  createInvite,
   listParticipants,
   listBatches,
   readBatch,
 }: ResearchArchiveSettingsProps) {
+  const [invites, setInvites] = useState<ResearchInvite[]>([]);
+  const [inviteLimit, setInviteLimit] = useState(0);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviting, setInviting] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState<string>();
   const [participants, setParticipants] = useState<ResearchParticipant[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>();
   const [batches, setBatches] = useState<ResearchBatchSummary[]>([]);
@@ -44,6 +60,16 @@ export function ResearchArchiveSettings({
   const [visibleLimit, setVisibleLimit] = useState(EVENT_PAGE_SIZE);
   const [loading, setLoading] = useState<'participants' | 'turns' | 'events'>();
   const [error, setError] = useState<string>();
+
+  const refreshInvites = async () => {
+    try {
+      const next = await listInvites();
+      setInvites(next.invites);
+      setInviteLimit(next.limit);
+    } catch (cause) {
+      setError(messageFor(cause, 'Alpha invitations could not be loaded.'));
+    }
+  };
 
   const refreshParticipants = async () => {
     setLoading('participants');
@@ -60,8 +86,28 @@ export function ResearchArchiveSettings({
   };
 
   useEffect(() => {
+    void refreshInvites();
     void refreshParticipants();
   }, []);
+
+  const submitInvite = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const email = inviteEmail.trim().toLocaleLowerCase();
+    if (!email) return;
+    setInviting(true);
+    setError(undefined);
+    setInviteMessage(undefined);
+    try {
+      const invite = await createInvite(email);
+      setInvites((current) => [invite, ...current.filter((item) => item.email !== email)]);
+      setInviteEmail('');
+      setInviteMessage(`Invitation sent to ${invite.email}.`);
+    } catch (cause) {
+      setError(messageFor(cause, 'The invitation could not be sent.'));
+    } finally {
+      setInviting(false);
+    }
+  };
 
   useEffect(() => {
     if (!selectedSubject) return;
@@ -121,6 +167,65 @@ export function ResearchArchiveSettings({
       title="Raw trajectory archive"
       description="Admins can inspect the exact ordered events uploaded by research-release participants. Every archive read is audited."
     >
+      <section className={styles.archiveInvitePanel} aria-labelledby="archive-invite-title">
+        <div className={styles.archiveInviteCopy}>
+          <EnvelopeSimple size={19} aria-hidden="true" />
+          <div>
+            <strong id="archive-invite-title">Invite a participant</strong>
+            <p>
+              Send access to the research alpha. They sign in with this email and a one-time
+              code; work-app connections remain optional.
+            </p>
+          </div>
+        </div>
+        <form
+          className={styles.archiveInviteForm}
+          onSubmit={(event) => void submitInvite(event)}
+        >
+          <label className={styles.field}>
+            <span>Email address</span>
+            <input
+              type="email"
+              autoComplete="email"
+              value={inviteEmail}
+              onChange={(event) => setInviteEmail(event.target.value)}
+              placeholder="participant@example.edu"
+              required
+              maxLength={254}
+              disabled={inviting || (inviteLimit > 0 && invites.length >= inviteLimit)}
+            />
+          </label>
+          <button
+            type="submit"
+            className={styles.primaryButton}
+            disabled={
+              inviting ||
+              !inviteEmail.trim() ||
+              (inviteLimit > 0 && invites.length >= inviteLimit)
+            }
+          >
+            <PaperPlaneTilt size={15} aria-hidden="true" />
+            {inviting ? 'Sending…' : 'Send invitation'}
+          </button>
+        </form>
+        <div className={styles.archiveInviteMeta}>
+          <span>
+            {invites.length} invited
+            {inviteLimit > 0 ? ` · ${Math.max(0, inviteLimit - invites.length)} remaining` : ''}
+          </span>
+          {invites.slice(0, 3).map((invite) => (
+            <span key={invite.email} title={formatTime(invite.invitedAt)}>
+              {invite.email} · {invite.status}
+            </span>
+          ))}
+        </div>
+        {inviteMessage ? (
+          <p className={styles.archiveInviteSuccess} role="status">
+            {inviteMessage}
+          </p>
+        ) : null}
+      </section>
+
       <div className={styles.researchArchiveToolbar}>
         <div>
           <Database size={18} aria-hidden="true" />

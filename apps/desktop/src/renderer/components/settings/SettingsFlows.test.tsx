@@ -60,6 +60,7 @@ describe('cloud account settings', () => {
     );
 
     const code = screen.getByRole('textbox', { name: 'Sign-in code' });
+    expect(screen.getByText(/If this email was invited/)).toBeTruthy();
     expect(document.activeElement).toBe(code);
     fireEvent.change(code, { target: { value: '12a 34-5678901' } });
     expect((code as HTMLInputElement).value).toBe('1234567890');

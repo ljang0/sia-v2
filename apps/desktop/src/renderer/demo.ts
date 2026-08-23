@@ -948,6 +948,16 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         current.research.pendingBytes = 0;
       });
     },
+    async listResearchInvites() {
+      return { invites: [], limit: 20 };
+    },
+    async createResearchInvite(email) {
+      return {
+        email,
+        invitedAt: new Date().toISOString(),
+        status: 'invited',
+      };
+    },
     async listResearchParticipants() {
       return [];
     },

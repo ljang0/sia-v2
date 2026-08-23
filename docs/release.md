@@ -52,7 +52,10 @@ sam deploy \
     EnableResearchUploads=true \
     EnableResearchArchive=true \
     EnableConnectors=true \
-    EnableSchedules=true
+    EnableSchedules=true \
+    EmailSendingAccount=DEVELOPER \
+    SesSourceArn="$SIA_SES_SOURCE_ARN" \
+    FromEmail="$SIA_FROM_EMAIL"
 ```
 
 The cloud build emits bundled Node 22 Lambda entrypoints and a SHA-256 manifest under `apps/cloud/lambda/`. `aws cloudformation validate-template` is a useful syntax check when SAM is unavailable, but it does not replace SAM linting or package the local Lambda directories for deployment. Deploy only after the deletion dead-letter alarm has an operator-monitored SNS destination and after the deployed Meta streaming route is verified unbuffered.

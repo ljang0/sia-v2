@@ -87,6 +87,12 @@ export interface AdminResearchParticipant {
   lastCreatedAt: string;
 }
 
+export interface AdminInvite {
+  email: string;
+  invitedAt: string;
+  status: 'invited' | 'active' | 'failed';
+}
+
 export interface AdminResearchBatch {
   batchId: string;
   consentVersion: string;
@@ -431,6 +437,25 @@ export class CloudClient implements MetaTransport {
     throw new Error(
       'Research export preparation is taking longer than expected. Try again later.',
     );
+  }
+
+  async listAdminInvites(): Promise<{ invites: AdminInvite[]; limit: number }> {
+    const result = asRecord(
+      await this.#request<unknown>('/v1/admin/invites', { method: 'GET' }),
+    );
+    const invites = Array.isArray(result.invites) ? result.invites.map(parseAdminInvite) : [];
+    return {
+      invites,
+      limit: finiteInteger(result.limit) ?? invites.length,
+    };
+  }
+
+  async createAdminInvite(email: string): Promise<{ invite: AdminInvite }> {
+    const result = await this.#request<unknown>('/v1/admin/invites', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+    return { invite: parseAdminInvite(result) };
   }
 
   async listAdminResearchParticipants(): Promise<{ participants: AdminResearchParticipant[] }> {
@@ -814,6 +839,19 @@ function finiteInteger(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
     ? value
     : undefined;
+}
+
+function parseAdminInvite(value: unknown): AdminInvite {
+  const record = asRecord(value);
+  const status = record.status;
+  if (
+    typeof record.email !== 'string' ||
+    typeof record.invitedAt !== 'string' ||
+    (status !== 'invited' && status !== 'active' && status !== 'failed')
+  ) {
+    throw new Error('Sia cloud returned an invalid alpha invitation.');
+  }
+  return { email: record.email, invitedAt: record.invitedAt, status };
 }
 
 function safeJson(value: unknown): string {

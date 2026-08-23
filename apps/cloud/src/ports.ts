@@ -26,6 +26,13 @@ export interface ConnectionRecord {
   accountLabel?: string;
 }
 
+export class ConnectorReconnectRequiredError extends Error {
+  constructor() {
+    super('The connected account must be authorized again.');
+    this.name = 'ConnectorReconnectRequiredError';
+  }
+}
+
 export interface ConnectionRepository {
   putConnection(record: ConnectionRecord): Promise<void>;
   getConnection(userId: string, connectionId: string): Promise<ConnectionRecord | undefined>;

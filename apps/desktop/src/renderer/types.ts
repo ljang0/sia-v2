@@ -409,6 +409,12 @@ export interface ResearchParticipant {
   lastCreatedAt: string;
 }
 
+export interface ResearchInvite {
+  email: string;
+  invitedAt: string;
+  status: 'invited' | 'active' | 'failed';
+}
+
 export interface ResearchBatchSummary {
   batchId: string;
   consentVersion: string;
@@ -542,6 +548,8 @@ export interface RendererApi {
   ): Promise<{ audioBase64: string; mimeType: 'audio/mpeg' }>;
   exportResearchData(): Promise<void>;
   deleteResearchData(): Promise<void>;
+  listResearchInvites(): Promise<{ invites: ResearchInvite[]; limit: number }>;
+  createResearchInvite(email: string): Promise<ResearchInvite>;
   listResearchParticipants(): Promise<ResearchParticipant[]>;
   listResearchBatches(subject: string): Promise<ResearchBatchSummary[]>;
   readResearchBatch(subject: string, batchId: string): Promise<unknown>;

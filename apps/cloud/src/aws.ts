@@ -43,6 +43,7 @@ import {
 import { assertComposioContract } from './connector-contract.js';
 import { CloudError, isRecord } from './domain.js';
 import { SystemClock } from './memory.js';
+import { ConnectorReconnectRequiredError } from './ports.js';
 import type {
   ActionClaim,
   ActionRepository,
@@ -1159,18 +1160,29 @@ export class ComposioConnector implements ConnectorProvider {
     const config = await this.secrets.composio();
     assertComposioContract(config, tool);
     const slug = config.toolSlugs[tool];
-    const body = await composioRequest(
-      config,
-      'POST',
-      `/api/v3/tools/execute/${encodeURIComponent(slug)}`,
-      {
-        connected_account_id: connectionId,
-        user_id: userId,
-        version: config.toolVersions[tool],
-        arguments: input,
-      },
-      { 'Idempotency-Key': idempotencyKey },
-    );
+    let body: Record<string, unknown>;
+    try {
+      body = await composioRequest(
+        config,
+        'POST',
+        `/api/v3/tools/execute/${encodeURIComponent(slug)}`,
+        {
+          connected_account_id: connectionId,
+          user_id: userId,
+          version: config.toolVersions[tool],
+          arguments: input,
+        },
+        { 'Idempotency-Key': idempotencyKey },
+      );
+    } catch (error) {
+      if (
+        error instanceof ConnectorUpstreamHttpError &&
+        (error.upstreamStatus === 403 || error.upstreamStatus === 410)
+      ) {
+        throw new ConnectorReconnectRequiredError();
+      }
+      throw error;
+    }
     if (body.successful === false)
       throw new CloudError(
         502,

@@ -286,6 +286,12 @@ export interface AdminResearchParticipantView {
   lastCreatedAt: string;
 }
 
+export interface AdminInviteView {
+  email: string;
+  invitedAt: string;
+  status: 'invited' | 'active' | 'failed';
+}
+
 export interface AdminResearchBatchView {
   batchId: string;
   consentVersion: string;
@@ -530,6 +536,8 @@ export interface BridgeRequestMap {
   'research.setCapture': { enabled: boolean; consentVersion?: string };
   'research.export': undefined;
   'research.delete': { confirmation: 'DELETE' };
+  'research.admin.invites': undefined;
+  'research.admin.invite': { email: string };
   'research.admin.participants': undefined;
   'research.admin.batches': { subject: string };
   'research.admin.readBatch': { subject: string; batchId: string };
@@ -616,6 +624,8 @@ export interface BridgeResultMap {
   'research.setCapture': DesktopSnapshot;
   'research.export': { path: string | null };
   'research.delete': DesktopSnapshot;
+  'research.admin.invites': { invites: AdminInviteView[]; limit: number };
+  'research.admin.invite': { invite: AdminInviteView };
   'research.admin.participants': { participants: AdminResearchParticipantView[] };
   'research.admin.batches': { batches: AdminResearchBatchView[] };
   'research.admin.readBatch': { batch: unknown };
@@ -770,6 +780,8 @@ export interface DesktopBridgeApi {
     setCapture(enabled: boolean, consentVersion?: string): Promise<DesktopSnapshot>;
     export(): Promise<{ path: string | null }>;
     delete(): Promise<DesktopSnapshot>;
+    listAdminInvites(): Promise<BridgeResultMap['research.admin.invites']>;
+    createAdminInvite(email: string): Promise<BridgeResultMap['research.admin.invite']>;
     listAdminParticipants(): Promise<BridgeResultMap['research.admin.participants']>;
     listAdminBatches(subject: string): Promise<BridgeResultMap['research.admin.batches']>;
     readAdminBatch(

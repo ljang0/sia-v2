@@ -164,6 +164,8 @@ const api: DesktopBridgeApi = {
       }),
     export: () => invoke('research.export', undefined),
     delete: () => invoke('research.delete', { confirmation: 'DELETE' }),
+    listAdminInvites: () => invoke('research.admin.invites', undefined),
+    createAdminInvite: (email) => invoke('research.admin.invite', { email }),
     listAdminParticipants: () => invoke('research.admin.participants', undefined),
     listAdminBatches: (subject) => invoke('research.admin.batches', { subject }),
     readAdminBatch: (subject, batchId) =>

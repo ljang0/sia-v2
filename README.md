@@ -28,7 +28,7 @@ This repository is the clean v2 implementation. It intentionally does not contai
 - Codex is the default local provider through its official app-server protocol. It uses the person's
   existing ChatGPT Codex entitlement—including Free when available—or their OpenAI API account. Sia
   checks `codex login status` but never reads or imports Codex credentials. The alpha pins Codex CLI
-  `>=0.147.0 <0.149.0`; inherited extensions are disabled and verified before a thread starts.
+  `>=0.147.0 <0.150.0`; inherited extensions are disabled and verified before a thread starts.
 - Meta is included for signed-in invited alpha accounts through the Sia-owned AWS relay, so a
   participant does not enter a Meta key. It is a shared preview service with per-account concurrency
   limits and upstream availability limits, not a promise of permanently free API access. Gemini,

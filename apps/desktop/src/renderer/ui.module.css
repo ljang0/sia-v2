@@ -3190,6 +3190,68 @@ button.agentAvatar {
   margin-bottom: 14px;
 }
 
+.archiveInvitePanel {
+  display: grid;
+  gap: 13px;
+  margin-bottom: 24px;
+  padding: 18px 0 22px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.archiveInviteCopy {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.archiveInviteCopy > svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--text-secondary);
+}
+
+.archiveInviteCopy strong {
+  font-size: var(--text-md);
+}
+
+.archiveInviteCopy p {
+  max-width: 680px;
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.archiveInviteForm {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  align-items: end;
+  gap: 9px;
+  max-width: 720px;
+}
+
+.archiveInviteMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
+.archiveInviteMeta span:not(:first-child) {
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.archiveInviteSuccess {
+  margin: 0;
+  color: var(--text-success);
+  font-size: var(--text-sm);
+  animation: statusEnter var(--motion-standard) var(--ease-out-soft) both;
+}
+
 .researchArchiveToolbar > div {
   display: flex;
   align-items: center;
@@ -6217,6 +6279,10 @@ button.agentAvatar {
   }
 
   .researchArchiveGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .archiveInviteForm {
     grid-template-columns: 1fr;
   }
 
