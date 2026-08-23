@@ -543,3 +543,38 @@ Do not distribute the artifact until these are completed and recorded:
   with two fresh non-tester Google accounts on different domains, an unrelated Slack-workspace test
   plus an explicitly approved synthetic send, and the named privacy/security/support/release
   signoffs. The unverified-app test bypass is not an external release path.
+
+## Optional-provider alpha.2 distribution candidate (2026-08-23 KST)
+
+- Frozen application source commit: `c419d482c5c4ef1b438808836e64c40c5586e888`
+- Version: `0.1.0-alpha.2`
+- Artifact: `apps/desktop/release/Sia-0.1.0-alpha.2-universal.dmg`
+- DMG SHA-256: `9b81503bd02c4a51f12e43411aa3867b217239def99c8b378df237c71afb078c`
+- ZIP SHA-256: `5349666167faf109e4eea816d319008fb8ce6df1fe46c0f692f97cac35af88f9`
+- DMG size: 257,658,896 bytes
+- ZIP size: 257,010,284 bytes
+- Apple app submission: `0c6d39e5-69e8-40f1-9363-257ea0075918` - Accepted
+- Apple DMG submission: `f28beacc-420b-4a26-8f38-b28ec9fd0fd6` - Accepted
+- The prior corrected `0.1.0-alpha.1` release remains recoverable under
+  `apps/desktop/_old-builds/release-alpha1-before-alpha2-20260823-1645`; packaging did not delete or
+  overwrite it.
+- The release command signed the app and DMG with Developer ID, used the stored Keychain notarization
+  profile, notarized the app and DMG separately, and stapled the DMG. Independent verification passed
+  deep strict code signing, Gatekeeper execute/open assessment, app and DMG staple validation,
+  `ai.sia.desktop` bundle identity, hardened runtime, and universal `x86_64`/`arm64` architecture. The
+  packaged verifier also passed native-runtime, license, production-cloud-resource, and tool-bridge
+  checks.
+- `pnpm check` passed 431 tests plus formatting, type checking, build, and policy guard. The complete
+  Electron suite passed 24 deterministic scenarios with four opt-in real-machine cases skipped. The
+  separately enabled real Codex no-turn integration reported the supported authenticated ChatGPT
+  account ready without creating a thread or consuming a model turn.
+- Signed-in invited participants can use the live-verified Meta relay without entering a Meta key;
+  shared preview and per-account concurrency limits apply. Codex uses the person's existing official
+  ChatGPT Codex plan or OpenAI API account and does not import credentials. The current OpenAI Free
+  plan includes limited Codex use, subject to OpenAI's plan limits.
+- This binary is technically distributable for the invite-only core research alpha: sign-in and raw
+  consent remain explicit, the local path remains available, and optional work-app setup no longer
+  blocks chat, web, schedules, or computer use. Do not claim universal all-app readiness until the
+  Google verification/CASA work, two fresh non-tester Google-domain checks, unrelated Slack workspace
+  check, approved synthetic Slack send, and named privacy/security/support/release signoffs recorded
+  above are complete.
