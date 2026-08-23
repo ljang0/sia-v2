@@ -446,3 +446,23 @@ Do not distribute the artifact until these are completed and recorded:
   cloud resource passed the packaged architecture, native-runtime, license, live host CUA, and MCP
   bridge verifier. Release preflight still stops only at the missing Apple notarization credential;
   this unsigned app is not a distribution artifact.
+
+## Current external-alpha artifact (2026-08-23 KST)
+
+- Frozen application source commit: `609af6c3b4cb590c5a3a0846aadd55f3e9a54d7d`
+- Artifact: `apps/desktop/release/Sia-0.1.0-alpha.1-universal.dmg`
+- DMG SHA-256: `e5d76719c379517582aa660bb41e20b1ccfb02e1fda2f1faeeeaba3575d3def5`
+- ZIP SHA-256: `1fe15a4e4dc80db0851d1e50ea7676ec9fc2dccd43c6cb503ed1130b48b2419d`
+- DMG size: 257,701,136 bytes
+- ZIP size: 257,012,901 bytes
+- Apple app submission: `8ad46ed4-19b2-4746-9c1c-06367e5a0a94` - Accepted
+- Apple DMG submission: `1cbaa752-dad4-4fbb-a1d1-0830f6ac5af5` - Accepted
+- Electron Builder signed the universal app with `Developer ID Application: Lawrence Jang
+  (DXYJ578DD4)` and hardened runtime. The release script notarized the app, signed and separately
+  notarized the DMG, stapled both tickets, and passed strict app/DMG signature checks, Gatekeeper
+  execute/open assessment, universal/native-runtime checks, license verification, enabled production
+  cloud-resource verification, live host CUA probe, and packaged MCP bridge probe.
+- The exact DMG was mounted read-only after finalization. Its contained app passed
+  `codesign --verify --deep --strict`, Gatekeeper returned `Notarized Developer ID`, and
+  `stapler validate` succeeded. This is the current distributable binary; the ZIP is retained as
+  build evidence rather than the participant download.
