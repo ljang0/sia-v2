@@ -37,6 +37,9 @@ provider and human approvals. It does not authorize distribution by itself.
   opened the core app, and Settings → Apps rendered Gmail, Drive, Docs, Sheets, Slides, and Slack at
   960×640 in Dark/reduced-motion mode with no horizontal overflow or renderer error; the main
   transition correctly resolved to `none`.
+- A separate read-only launch against the existing acceptance profile reconciled the live cloud
+  state as 3 of 6 ready: Gmail, Drive, and Slack remained connected, while Docs, Sheets, and Slides
+  each showed **Needs attention** with an individual **Reconnect** button.
 
 ## Expired-grant correction and live editor result
 
