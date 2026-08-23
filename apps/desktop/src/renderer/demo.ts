@@ -179,7 +179,7 @@ export const demoSnapshot: RendererSnapshot = {
     {
       id: 'meta',
       name: 'Meta',
-      model: 'meta_super_nova_ext',
+      model: 'super_nova_ext',
       description: 'Hosted model access through the Sia cloud relay.',
       status: 'ready',
       billedBy: 'Included when Sia cloud is configured.',

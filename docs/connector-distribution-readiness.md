@@ -19,7 +19,9 @@ A fresh invited participant, who has never been added to a provider test-user li
 5. Receive a specific, recoverable message for provider denial, administrator policy, timeout,
    offline status, or a stale saved grant. They must never be sent into a repeated consent loop.
 6. Produce the expected local trajectory and encrypted AWS `raw_v1` events while OAuth URLs, codes,
-   tokens, cookies, and client secrets remain excluded.
+   tokens, cookies, and client secrets remain excluded. Google Workspace action turns must also be
+   absent from both research batches and the diagnostic trajectory; they remain only in the normal
+   local user-facing transcript.
 
 Until every unchecked item below passes, describe connectors as **internal alpha only**, not as
 working out of the box for arbitrary users.
@@ -30,8 +32,13 @@ working out of the box for arbitrary users.
       the production Google OAuth client. Never use a broad managed Composio consent app.
 - [x] Confirm the exact consent-screen scopes match `docs/provider-policy.md`; reject unexpected
       contacts, profile-write, full-Drive, or unrelated scopes.
-- [ ] Configure the production homepage, privacy policy, support contact, authorized domains, and
-      redirect URI, then move the External OAuth app from Testing to In production.
+- [x] Configure the production homepage, privacy policy, terms, authorized domains, reviewed Composio
+      redirect URIs, and verify the production site in Google Search Console.
+- [x] Move the External OAuth app from Testing to In production, automatically verify the public
+      brand, and publish the verified brand to users.
+- [ ] Upload the consent-screen logo and select the intended public support alias when Google makes
+      those values eligible. The public support alias already delivers externally; Google currently
+      shows the verified brand with the operator support address and no logo.
 - [ ] Submit brand and sensitive-scope verification when Google marks it as required. Do not treat
       the unverified-app bypass or the 100-test-user allowance as a release path.
 - [x] Update the KMS-encrypted connector secret with all five custom auth-config IDs and deploy the
@@ -39,22 +46,35 @@ working out of the box for arbitrary users.
 - [ ] Test from two fresh non-tester Google accounts on different domains. Verify all five grants,
       cancellation after each step, restart/resume, transient-network recovery, revocation, and
       reconnect.
-- [ ] Confirm `drive.file` cannot browse pre-existing Drive files unless the user explicitly opens
-      or shares them with Sia.
+- [x] Confirm `drive.file` cannot browse pre-existing Drive files unless the user explicitly opens
+      or shares them with Sia. A live production search over the connected test account returned zero
+      files while normal pre-existing Drive content remained outside the app grant.
 
-Current console audit (2026-08-23): `ljang@andrew.cmu.edu` is an approved test user and the reviewed
-scopes are configured, but publishing is still **Testing** with one test user. Homepage,
-privacy-policy, and terms fields are blank and verification has not started. The superseded August
-17 OAuth client secret was disabled, a new Docs grant and read proved the August 22 replacement, and
-the old secret was then permanently deleted. Docs, Sheets, and Slides each retain one connected test
-grant and passed a read-only live action. Do not describe Google as public or out of the box yet.
+Current console audit (2026-08-23): the reviewed scopes are configured, the audience is External and
+**In production**, and the public brand is verified and being shown to users. Homepage, privacy,
+terms, `composio.dev`, and `superintelligentagents.ai` are saved; both reviewed Composio redirect
+URIs are present; and the production site is verified in Search Console by the deployed HTML tag.
+The consent-screen logo is not uploaded and the selected support email remains the operator Gmail
+address. Verification Center is open but cannot be submitted until the reviewer video URL is added.
+
+One clean Google client secret now backs all five custom Composio auth configs. A secret exposed to
+operator output and the superseded secret were both disabled and permanently deleted. Fresh Gmail
+and Drive consent with `ljang@andrew.cmu.edu` completed token exchange after the rotation. Gmail,
+Drive, Docs, Sheets, and Slides reconciled as connected and fresh `mail.search`, `drive.search`,
+`docs.read`, `sheets.read`, and `slides.read` calls all returned `executed` through the deployed
+control plane. The remaining second-account attempts reached Google re-verification and stopped at
+passkey/SMS confirmation; no bypass was attempted and their pending records were removed. Do not
+describe Google as generally verified or out of the box until the reviewer video, data-access review,
+CASA, and fresh-account matrix finish.
 
 Public-site launch update (2026-08-23): the homepage, participant notice, privacy policy, terms,
 support page, security contact, sitemap, and OAuth logo are deployed behind the locked-down AWS
 CloudFront distribution recorded in `public-site-launch.md`. The apex and `www` records are live on
 public resolvers, the custom certificate is issued and attached, and the four public mail aliases are
-configured without changing the existing MX/SPF/DKIM/DMARC records. Alias delivery from an unrelated
-sender, Google Branding, Audience In production, and verification submission remain open gates.
+configured without changing the existing MX/SPF/DKIM/DMARC records. A verified SES message from
+`hello@superintelligentagents.ai` to the public support alias arrived in the operator inbox through
+the production forwarding path. An unrelated-domain sender check and the Google data-access
+verification submission remain open gates.
 
 ## Slack production gate
 
@@ -70,9 +90,12 @@ sender, Google Branding, Audience In production, and verification submission rem
       review the resolved recipient and text, send, search, read a thread, revoke, and reconnect.
 
 Current console audit (2026-08-23): public distribution is active and the share URL contains exactly
-the eight reviewed user scopes. Russ Lab now retains one acceptance grant and `slack.find_users`
-passed without opening a DM or posting. The console's daily installation counter still reports zero;
-a second unrelated-workspace acceptance, write-preview/send pass, revocation, and reconnect remain.
+the eight reviewed user scopes. A fresh browser OAuth install connected Russ Lab without a plugin,
+desktop Slack dependency, developer-console login, API key, or client secret. The deployed control
+plane reconciled the grant as connected and live `slack.find_users` plus `slack.search` reads returned
+`executed`; no DM was opened and no message was posted. The previously exposed token and its stale
+records remain revoked and deleted. A second unrelated-workspace acceptance, exact write preview and
+approved synthetic send, revocation, and reconnect remain.
 
 ## Cross-account and failure acceptance
 

@@ -285,20 +285,16 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      Description: Replace with Meta private API configuration after deployment
+      Description: Operator-managed Meta private API configuration; populate after deployment
       KmsKeyId: !GetAtt DataKey.Arn
-      SecretString: >-
-        {"enabled":false,"apiKey":"REPLACE_AFTER_DEPLOYMENT","endpoint":"https://invalid.local/v1","model":"not-configured","sessionHeader":"x-session-id","allowedModels":[]}
 
   ComposioSecret:
     Type: AWS::SecretsManager::Secret
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      Description: Replace with a least-privilege Composio project key and pinned auth/tool configuration
+      Description: Operator-managed least-privilege Composio project key and pinned auth/tool configuration
       KmsKeyId: !GetAtt DataKey.Arn
-      SecretString: >-
-        {"apiKey":"REPLACE_AFTER_DEPLOYMENT","baseUrl":"https://backend.composio.dev","authConfigIds":{"gmail":"REPLACE","google_drive":"REPLACE","google_docs":"REPLACE","google_sheets":"REPLACE","google_slides":"REPLACE","slack":"REPLACE"},"toolSlugs":{"mail.search":"GMAIL_FETCH_EMAILS","mail.read_thread":"GMAIL_FETCH_MESSAGE_BY_THREAD_ID","mail.create_draft":"GMAIL_CREATE_EMAIL_DRAFT","mail.send":"GMAIL_SEND_EMAIL","drive.search":"GOOGLEDRIVE_FIND_FILE","drive.read":"GOOGLEDRIVE_GET_FILE_METADATA","drive.upload":"GOOGLEDRIVE_UPLOAD_FILE","drive.share":"GOOGLEDRIVE_CREATE_PERMISSION","docs.create":"GOOGLEDOCS_CREATE_DOCUMENT_MARKDOWN","docs.read":"GOOGLEDOCS_GET_DOCUMENT_PLAINTEXT","docs.append":"GOOGLEDOCS_INSERT_TEXT_ACTION","sheets.create":"GOOGLESHEETS_CREATE_GOOGLE_SHEET1","sheets.read":"GOOGLESHEETS_VALUES_GET","sheets.update":"GOOGLESHEETS_VALUES_UPDATE","sheets.append":"GOOGLESHEETS_SPREADSHEETS_VALUES_APPEND","slides.create":"GOOGLESLIDES_CREATE_SLIDES_MARKDOWN","slides.read":"GOOGLESLIDES_PRESENTATIONS_GET","slides.append":"GOOGLESLIDES_PRESENTATIONS_BATCH_UPDATE","slack.search":"SLACK_SEARCH_MESSAGES","slack.find_users":"SLACK_FIND_USERS","slack.open_dm":"SLACK_OPEN_DM","slack.read_thread":"SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION","slack.post":"SLACK_SEND_MESSAGE"},"toolVersions":{"mail.search":"20260721_00","mail.read_thread":"20260721_00","mail.create_draft":"20260721_00","mail.send":"20260721_00","drive.search":"20260721_00","drive.read":"20260721_00","drive.upload":"20260721_00","drive.share":"20260721_00","docs.create":"20260818_00","docs.read":"20260818_00","docs.append":"20260818_00","sheets.create":"20260813_00","sheets.read":"20260813_00","sheets.update":"20260813_00","sheets.append":"20260813_00","slides.create":"20260819_00","slides.read":"20260819_00","slides.append":"20260819_00","slack.search":"20260819_00","slack.find_users":"20260819_00","slack.open_dm":"20260819_00","slack.read_thread":"20260819_00","slack.post":"20260819_00"}}
 
   DeletionDeadLetterQueue:
     Type: AWS::SQS::Queue
@@ -727,7 +723,9 @@ Resources:
                 Resource: !Sub ${AuditBucket.Arn}/audit/*
               - Effect: Allow
                 Action: secretsmanager:GetSecretValue
-                Resource: !Ref ComposioSecret
+                Resource:
+                  - !Ref ComposioSecret
+                  - !Ref MetaSecret
               - Effect: Allow
                 Action: sqs:SendMessage
                 Resource:
@@ -1019,6 +1017,15 @@ Resources:
                 uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2021-11-15/functions/${MetaFunction.Arn}/response-streaming-invocations
                 timeoutInMillis: 300000
                 responseTransferMode: STREAM
+          /v1/meta/capabilities:
+            get:
+              responses:
+                '200': { description: Authenticated Meta capabilities }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
           /v1/connections/{app}:
             parameters:
               - name: app

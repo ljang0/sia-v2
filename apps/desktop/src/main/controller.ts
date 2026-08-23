@@ -162,7 +162,7 @@ interface PersistedState {
     completionSound: boolean;
     /** All eligible actions run without in-app approval when 'auto' (default). */
     computerTrust?: 'auto' | 'ask';
-    /** Full local trajectory log (requests, replies, actions, screenshots); default on. */
+    /** Eligible local trajectory log; Google Workspace connector turns are excluded. */
     trajectoryLog?: boolean;
     /** Set once the automatic macOS permission prompt has been shown for this profile. */
     permissionsPromptedAt?: string;
@@ -275,6 +275,7 @@ interface StagedResearchTurn {
 }
 
 const SAFE_RESEARCH_ACTIONS = new Set(['computer_list', 'computer_snapshot']);
+const GOOGLE_WORKSPACE_ACTION = /^(?:mail|drive|docs|sheets|slides)_/;
 const MAX_LOCAL_RESEARCH_BATCH_BYTES = 3 * 1024 * 1024;
 const MAX_RESEARCH_SCREENSHOT_BASE64_BYTES = 1_500_000;
 const MAX_RAW_EVENT_JSON_BYTES = 768 * 1024;
@@ -358,6 +359,11 @@ export class DesktopController {
   readonly #connectorGenerations = new Map<ConnectionView['id'], number>();
   readonly #pendingQuestions = new Map<string, { requestId: string; turnId: string }>();
   readonly #researchStaging = new Map<string, StagedResearchTurn>();
+  /**
+   * A Google Workspace action excludes its entire turn from research capture. The set lets us
+   * discard events staged before the action was invoked and reject events that arrive afterwards.
+   */
+  readonly #researchExcludedTurns = new Set<string>();
   readonly #workspaceGrants = new Set<string>();
   readonly #attachmentGrants = new Map<string, AttachmentGrant>();
   readonly #failedTurnAttachments = new Map<string, readonly ProviderAttachment[]>();
@@ -433,6 +439,11 @@ export class DesktopController {
 
   actionInvocationObserver(): ActionInvocationObserver {
     return (invocation) => {
+      if (GOOGLE_WORKSPACE_ACTION.test(invocation.name)) {
+        this.#excludeResearchTurn(invocation.context.turnId);
+        this.#trajectory?.excludeTurn(invocation.context.threadId, invocation.context.turnId);
+        return;
+      }
       if (SAFE_RESEARCH_ACTIONS.has(invocation.name)) {
         this.#markSafeResearchAction(invocation.context.turnId, invocation.name);
       } else {
@@ -444,6 +455,7 @@ export class DesktopController {
   actionResultObserver(): ActionResultObserver {
     return (notice) => {
       this.#recordActionResult(notice);
+      if (GOOGLE_WORKSPACE_ACTION.test(notice.name)) return;
       this.#stageRawResearchEvent({
         threadId: notice.context.threadId,
         turnId: notice.context.turnId,
@@ -568,6 +580,9 @@ export class DesktopController {
 
   #recordActionResult(notice: Parameters<ActionResultObserver>[0]): void {
     if (!this.#trajectory) return;
+    if (GOOGLE_WORKSPACE_ACTION.test(notice.name)) {
+      return;
+    }
     const images = (notice.result.images ?? []).map((image) => ({
       mimeType: image.mimeType,
       dataBase64: image.dataBase64,
@@ -667,10 +682,10 @@ export class DesktopController {
       if (codexIndex >= 0) this.#providers[codexIndex] = fakeCodex;
       else this.#providers.push(fakeCodex);
     }
-    this.#refreshMetaProviderState();
     await this.#refreshProviderModels();
     await this.#reconcileIdentityBoundState();
     await this.#refreshCloudSession();
+    await this.#refreshMetaProviderState();
     this.#computerState = computer;
     this.#refreshResearchPendingCount();
     this.#persist();
@@ -2191,7 +2206,7 @@ export class DesktopController {
         else this.#providers.push(value);
       }
     } else this.#providers = updated;
-    this.#refreshMetaProviderState();
+    await this.#refreshMetaProviderState();
     await this.#refreshProviderModels(providerId);
     this.#emit();
     return this.snapshot();
@@ -2758,9 +2773,9 @@ export class DesktopController {
     } else {
       await this.#identity.completeEmailSignIn(code);
     }
-    this.#refreshMetaProviderState();
     await this.#reconcileIdentityBoundState();
     await this.#refreshCloudSession();
+    await this.#refreshMetaProviderState();
     this.#scheduleResearchSync();
     this.#commit();
     return this.snapshot();
@@ -2816,7 +2831,7 @@ export class DesktopController {
     await this.#clearResearchForIdentityBoundary();
     await this.#identity.signOut();
     this.#state.cloudFeatures = structuredClone(INITIAL_STATE.cloudFeatures);
-    this.#refreshMetaProviderState();
+    await this.#refreshMetaProviderState();
     this.#lockConnections('Sign in with the account that created this grant to manage it.');
     this.#commit();
     return this.snapshot();
@@ -2922,7 +2937,7 @@ export class DesktopController {
       this.#state = structuredClone(INITIAL_STATE);
       this.#researchSync = undefined;
       this.#researchRetryDelayMs = 15_000;
-      this.#refreshMetaProviderState();
+      await this.#refreshMetaProviderState();
       this.#revision += 1;
       this.#emit();
       return this.snapshot();
@@ -2941,7 +2956,7 @@ export class DesktopController {
     }
   }
 
-  #refreshMetaProviderState(): void {
+  async #refreshMetaProviderState(): Promise<void> {
     const index = this.#providers.findIndex(({ id }) => id === 'meta');
     if (index < 0) return;
     const current = this.#providers[index]!;
@@ -2961,12 +2976,45 @@ export class DesktopController {
       };
       return;
     }
+    if (this.#fakeServices) {
+      this.#providers[index] = {
+        ...current,
+        status: 'unavailable',
+        detail: 'Meta requires an authenticated live relay capability check.',
+      };
+      return;
+    }
     this.#providers[index] = {
       ...current,
       status: 'unavailable',
-      detail:
-        'Meta stays unavailable in this alpha until Sia can verify the authenticated relay live.',
+      detail: 'Checking the authenticated Meta relay…',
     };
+    try {
+      const capabilities = await this.#cloud.capabilities();
+      const model = capabilities.models.includes(current.model)
+        ? current.model
+        : (capabilities.models[0] ?? current.model);
+      if (!capabilities.available || !capabilities.streaming || !capabilities.tools) {
+        this.#providers[index] = {
+          ...current,
+          status: 'unavailable',
+          detail: capabilities.reason ?? 'Meta relay capabilities are incomplete.',
+        };
+        return;
+      }
+      this.#providers[index] = {
+        ...current,
+        model,
+        status: 'ready',
+        detail: 'Authenticated Meta relay verified live; local tools remain on this Mac.',
+      };
+    } catch {
+      this.#providers[index] = {
+        ...current,
+        status: 'unavailable',
+        detail: 'Sia could not verify the authenticated Meta relay.',
+      };
+    }
   }
 
   async #disconnectConnection(
@@ -3270,7 +3318,12 @@ export class DesktopController {
     messageId?: string;
     append?: boolean;
   }): void {
-    if (!this.#researchCaptureActive() || !input.text) return;
+    if (
+      !this.#researchCaptureActive() ||
+      !input.text ||
+      this.#researchExcludedTurns.has(input.turnId)
+    )
+      return;
     let staged = this.#researchStaging.get(input.turnId);
     if (!staged && input.role === 'assistant') return;
     if (!staged) {
@@ -3324,6 +3377,7 @@ export class DesktopController {
   }
 
   #taintResearchTurn(turnId: string): void {
+    if (this.#researchExcludedTurns.has(turnId)) return;
     const staged = this.#researchStaging.get(turnId) ?? {
       tainted: false,
       events: [],
@@ -3337,7 +3391,16 @@ export class DesktopController {
     this.#researchStaging.set(turnId, staged);
   }
 
+  #excludeResearchTurn(turnId: string): void {
+    this.#researchExcludedTurns.add(turnId);
+    this.#researchStaging.delete(turnId);
+  }
+
   #discardResearchTurn(turnId: string): void {
+    if (this.#researchExcludedTurns.delete(turnId)) {
+      this.#researchStaging.delete(turnId);
+      return;
+    }
     if (this.#rawResearchEnabled()) {
       this.#persistRawResearchTurn(turnId, 'discarded');
       return;
@@ -3410,7 +3473,7 @@ export class DesktopController {
     occurredAt?: string;
     sourceEventId?: string;
   }): void {
-    if (!this.#rawResearchEnabled()) return;
+    if (!this.#rawResearchEnabled() || this.#researchExcludedTurns.has(input.turnId)) return;
     const staged = this.#researchStaging.get(input.turnId) ?? {
       tainted: false,
       events: [],
@@ -3459,7 +3522,7 @@ export class DesktopController {
     occurredAt: string;
     payload: Extract<ResearchEventRecord['payload'], { source: string; type: string }>;
   }): void {
-    if (!this.#researchCaptureActive()) return;
+    if (!this.#researchCaptureActive() || this.#researchExcludedTurns.has(input.turnId)) return;
     const staged = this.#researchStaging.get(input.turnId);
     if (!staged || staged.tainted) return;
     staged.events.push({
@@ -3519,6 +3582,10 @@ export class DesktopController {
   }
 
   #completeResearchTurn(turnId: string): void {
+    if (this.#researchExcludedTurns.delete(turnId)) {
+      this.#researchStaging.delete(turnId);
+      return;
+    }
     if (this.#rawResearchEnabled()) {
       this.#persistRawResearchTurn(turnId, 'completed');
       return;
@@ -3553,6 +3620,10 @@ export class DesktopController {
   }
 
   #persistRawResearchTurn(turnId: string, outcome: 'completed' | 'discarded'): void {
+    if (this.#researchExcludedTurns.has(turnId)) {
+      this.#researchStaging.delete(turnId);
+      return;
+    }
     const staged = this.#researchStaging.get(turnId);
     if (!staged?.rawEvents.length) return;
     const version = this.#state.capture.consentVersion;
@@ -4485,7 +4556,9 @@ export class DesktopController {
         decision: 'allow',
         automatic: true,
         toolName: request.tool.name,
-        target: automaticTarget,
+        target: GOOGLE_WORKSPACE_ACTION.test(request.tool.name)
+          ? 'Google Workspace'
+          : automaticTarget,
       });
       this.#stageRawResearchEvent({
         threadId: request.threadId,
@@ -5252,6 +5325,9 @@ function browserAttachmentError(error: unknown): string {
   const message = error instanceof Error ? error.message : 'Chrome attachment failed.';
   if (message.includes('browser_binding_ambiguous')) {
     return 'Chrome could not distinguish that window from another open window. Choose a window showing a unique page, or close the duplicate and retry.';
+  }
+  if (message.includes('browser_reconnect_exhausted')) {
+    return 'Chrome is waiting for permission. Click Allow in the “Allow remote debugging?” prompt, then try again. This is a one-time Chrome security step.';
   }
   if (message.includes('browser_wrong_target_refused')) {
     return 'Chrome refused the connection. One-time fix: open chrome://inspect in Chrome, tick “Allow remote debugging” (port 9222), restart Chrome — after that Sia connects automatically. Or click Allow on Chrome’s prompt when it appears.';

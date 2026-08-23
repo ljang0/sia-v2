@@ -43,6 +43,48 @@ describe('TrajectoryRecorder', () => {
     expect(readFileSync(join(directory, second.images[0].file), 'utf8')).toBe('png-bytes');
   });
 
+  it('removes and suppresses a turn excluded by the connector data policy', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sia-trajectory-policy-'));
+    roots.push(root);
+    const recorder = new TrajectoryRecorder({
+      rootDirectory: root,
+      enabled: () => true,
+      now: () => new Date('2026-08-23T00:00:00.000Z'),
+    });
+    recorder.record({
+      type: 'user_message',
+      threadId: 'thread-1',
+      turnId: 'keep',
+      text: 'keep',
+    });
+    recorder.record(
+      {
+        type: 'action_result',
+        threadId: 'thread-1',
+        turnId: 'exclude',
+        data: 'Google Workspace fixture',
+      },
+      [{ mimeType: 'image/png', dataBase64: Buffer.from('remove-image').toString('base64') }],
+    );
+    const directory = join(root, 'thread-1');
+    const image = readdirSync(directory).find((file) => file.endsWith('.png'));
+    expect(image).toBeDefined();
+
+    recorder.excludeTurn('thread-1', 'exclude');
+    recorder.record({
+      type: 'turn_finished',
+      threadId: 'thread-1',
+      turnId: 'exclude',
+      text: 'must stay excluded',
+    });
+
+    const log = readFileSync(join(directory, 'events.jsonl'), 'utf8');
+    expect(log).toContain('"turnId":"keep"');
+    expect(log).not.toContain('"turnId":"exclude"');
+    expect(log).not.toContain('Google Workspace fixture');
+    expect(image && existsSync(join(directory, image))).toBe(false);
+  });
+
   it('is a no-op while disabled', () => {
     const root = mkdtempSync(join(tmpdir(), 'sia-trajectory-off-'));
     roots.push(root);

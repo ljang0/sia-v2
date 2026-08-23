@@ -496,6 +496,18 @@ export class FixedSecrets implements SecretProvider {
 }
 
 export class EchoMetaProvider implements MetaProvider {
+  async capabilities(config: MetaConfig): Promise<{
+    models: string[];
+    streaming: boolean;
+    tools: boolean;
+  }> {
+    return {
+      models: config.allowedModels?.length ? [...config.allowedModels] : [config.model],
+      streaming: true,
+      tools: true,
+    };
+  }
+
   async *stream(config: MetaConfig, request: MetaTurnRequest): AsyncIterable<MetaStreamEvent> {
     const sessionId = request.sessionId ?? `session-${request.turnId}`;
     yield {

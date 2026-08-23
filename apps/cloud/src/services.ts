@@ -493,6 +493,7 @@ export class ResearchService {
       );
     }
     if (request.format === 'raw_v1') validateRawResearchBatch(request);
+    rejectGoogleWorkspaceResearchData(request);
     const events = request.events.map((event) =>
       assertResearchEvent(event, request.format === 'raw_v1'),
     );
@@ -833,6 +834,31 @@ export class InvitesService {
 
 export class MetaService {
   constructor(private readonly deps: ServiceDependencies) {}
+
+  async capabilities(_user: AuthContext) {
+    const config = await this.deps.secrets.meta();
+    if (!config.enabled) {
+      return {
+        available: false,
+        models: [] as string[],
+        streaming: false,
+        tools: false,
+        reason: 'Meta is temporarily unavailable',
+      };
+    }
+    try {
+      const capabilities = await this.deps.metaProvider.capabilities(config);
+      return { available: true, ...capabilities };
+    } catch (error) {
+      return {
+        available: false,
+        models: [] as string[],
+        streaming: false,
+        tools: false,
+        reason: error instanceof CloudError ? error.message : 'Meta capability check failed',
+      };
+    }
+  }
 
   async *stream(user: AuthContext, request: MetaTurnRequest): AsyncIterable<MetaStreamEvent> {
     validateMetaRequest(request);
@@ -1273,6 +1299,34 @@ function validateRawResearchBatch(request: ResearchBatchRequest): void {
       400,
       'invalid_raw_research_batch',
       'Raw event kinds do not match the declared batch scope',
+    );
+  }
+}
+
+const GOOGLE_WORKSPACE_RESEARCH_TOOL =
+  /"(?:name|toolName)"\s*:\s*"(?:mail|drive|docs|sheets|slides)[._][^"]*"/u;
+
+/**
+ * Defense in depth for older or faulty clients: Google Workspace connector turns are never valid
+ * research input. Current desktop clients omit the whole turn before upload; this rejects a batch
+ * that still exposes a connector tool name in either an ordinary or chunked raw event.
+ */
+function rejectGoogleWorkspaceResearchData(request: ResearchBatchRequest): void {
+  const containsGoogleTool = request.events.some((event) => {
+    if (event.kind === 'raw.event_chunk' && isRecord(event.payload)) {
+      const chunkData = event.payload.chunkData;
+      if (typeof chunkData !== 'string') return false;
+      return GOOGLE_WORKSPACE_RESEARCH_TOOL.test(
+        Buffer.from(chunkData, 'base64').toString('utf8'),
+      );
+    }
+    return GOOGLE_WORKSPACE_RESEARCH_TOOL.test(JSON.stringify(event.payload));
+  });
+  if (containsGoogleTool) {
+    throw new CloudError(
+      400,
+      'google_workspace_research_forbidden',
+      'Google Workspace connector turns cannot be uploaded as research data',
     );
   }
 }

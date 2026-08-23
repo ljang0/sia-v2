@@ -15,7 +15,6 @@ realCapabilityTurn(
       fakeServices: false,
       prefix: 'sia-real-capability-turn-',
     });
-    let originalOrigin: string | undefined;
     try {
       const probed = await harness.page.evaluate(
         async () => await window.sia.providers.probe('codex'),
@@ -31,7 +30,7 @@ realCapabilityTurn(
         );
         expect(
           matches,
-          `Expected one intended Chrome window matching ${JSON.stringify(windowMatch)}.`,
+          `Expected one intended Chrome window matching ${JSON.stringify(windowMatch)}. Available: ${JSON.stringify(snapshot.browser.availableWindows)}`,
         ).toHaveLength(1);
         snapshot = await harness.page.evaluate(
           async ({ windowId }) => await window.sia.browser.attach(windowId),
@@ -39,12 +38,6 @@ realCapabilityTurn(
         );
       }
       expect(snapshot.browser.status, snapshot.browser.detail).toBe('attached');
-      originalOrigin = snapshot.browser.grantedOrigins[0];
-      if (!snapshot.browser.grantedOrigins.includes('https://mail.google.com')) {
-        snapshot = await harness.page.evaluate(
-          async () => await window.sia.browser.open('https://mail.google.com/'),
-        );
-      }
       expect(snapshot.browser.grantedOrigins).not.toHaveLength(0);
 
       const { threadId } = await createAgentAndThread(harness.page, {
@@ -106,17 +99,15 @@ realCapabilityTurn(
 
       expect(result?.errors).toEqual([]);
       expect(result?.tools).toEqual(expect.arrayContaining(['browser_tabs', 'computer_list']));
-      expect(result?.assistant.join(' ')).toMatch(/mail\.google\.com/i);
-      expect(result?.assistant.join(' ')).toMatch(/computer|inventory/i);
+      const assistantText = result?.assistant.join(' ').toLowerCase() ?? '';
+      expect(
+        snapshot.browser.grantedOrigins.some((origin) =>
+          assistantText.includes(new URL(origin).hostname.toLowerCase()),
+        ),
+      ).toBe(true);
+      expect(assistantText).toMatch(/computer|inventory/i);
       expect(harness.rendererErrors).toEqual([]);
     } finally {
-      if (originalOrigin && originalOrigin !== 'https://mail.google.com') {
-        await harness.page
-          .evaluate(async ({ url }) => await window.sia.browser.open(url), {
-            url: originalOrigin,
-          })
-          .catch(() => undefined);
-      }
       await harness.page
         .evaluate(async () => await window.sia.browser.detach())
         .catch(() => undefined);

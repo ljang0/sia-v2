@@ -230,13 +230,22 @@ export class CuaService {
     });
     const host = {
       authorize: async (request: AuthorizationRequest) => {
-        const context = this.#authorizationContext;
-        const decision =
-          context?.kind === 'direct_user'
-            ? 'allow'
-            : context
-              ? await this.#authorization.authorize(request, context)
-              : 'cancel';
+        let decision: 'allow' | 'deny' | 'cancel' = 'cancel';
+        try {
+          const context = this.#authorizationContext;
+          decision =
+            context?.kind === 'direct_user'
+              ? 'allow'
+              : context
+                ? await this.#authorization.authorize(request, context)
+                : 'cancel';
+        } catch (error) {
+          // Never let an application-side approval failure cross the native FFI callback.
+          // The driver must fail closed with a normal cancellation that the UI can explain.
+          console.error(
+            `[sia:cua-authorization] ${error instanceof Error ? error.message : 'Approval callback failed.'}`,
+          );
+        }
         const action =
           decision === 'allow'
             ? cua.DriverAuthorizationAction.Allow

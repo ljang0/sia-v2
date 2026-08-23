@@ -124,10 +124,15 @@ not replace the mutation checks below. When several Chrome windows are open, set
    Inspect the local bundles and confirm exact prompts/replies, surfaced reasoning, arguments,
    command text/output, paths/diffs, action results, approvals, errors, and image bytes are present.
    Confirm large events reconstruct byte-for-byte from ordered `raw.event_chunk` rows.
-3. Repeat with signed-in browser, all six cloud connectors, and Apple Messages fixtures containing
-   only disposable test data. Confirm their observed action arguments and results are included. Then
-   verify private windows, password/secure fields, Keychain, password managers, credential paths,
-   and known authentication surfaces are still refused before Sia can capture their contents.
+3. Repeat with signed-in browser, Slack, and Apple Messages fixtures containing only disposable test
+   data. Confirm their observed action arguments and results are included. For each Google Workspace
+   connector, confirm the entire invoking turn is absent from local research batches, cloud uploads,
+   exports, and administrator archive results while the requested result remains in the local user
+   transcript. Confirm the local diagnostic trajectory contains no row or image for that turn,
+   including events written before the connector invocation. Then verify private windows,
+   password/secure fields,
+   Keychain, password managers, credential paths, and known authentication surfaces are still refused
+   before Sia can capture their contents.
 4. Verify an offline unsynced batch is retained and automatically uploads after reconnection. In the
    Research archive as a Cognito `Admins` user with software-token MFA, list participants, open a
    multi-batch turn, filter and paginate its reconstructed events, and render a captured image.
@@ -157,8 +162,9 @@ not replace the mutation checks below. When several Chrome windows are open, set
 3. Confirm Settings reports the exact connected identity for all six apps and says that data remains
    in each service. Exercise search/read in Gmail, Drive, Docs, Sheets, Slides, and Slack, then create
    or append only non-sensitive fixtures with every write tool. Verify Sia creates no local content
-   mirror, rejects raw Slides batch-update requests and over-5,000-cell Sheets writes, and records
-   each exact action. Disconnect every grant and verify remote provider access is revoked.
+   mirror and rejects raw Slides batch-update requests and over-5,000-cell Sheets writes. Confirm
+   Slack actions are recorded under research consent while Google Workspace action turns follow the
+   exclusion above. Disconnect every grant and verify remote provider access is revoked.
 4. From Settings → Apps, open Delete account. Confirm the destructive button stays disabled until the exact case-sensitive phrase `DELETE ACCOUNT` is entered. Submit with a disposable signed-in account and confirm the accepted account-scope job reaches `completed`, connected access and the cloud identity are gone, local Sia agents/threads/auth are cleared, and the deletion dead-letter alarm remains clear. Workspace files, provider CLI accounts, and macOS permissions must remain.
 5. Repeat against a test deletion worker that fails or never completes. Confirm Sia reports the error, retains local Sia data and sign-in so the request can be retried, and never presents a local-only wipe as successful account deletion.
 
@@ -222,11 +228,12 @@ connectors out-of-the-box ready until that checklist passes.
 - [x] Deploy and validate the release cloud, deletion worker, dead-letter queue, and monitored
       alarms. Confirm every alarm subscription, exercise a synthetic alarm, and verify recovery
       before treating deletion as release-ready.
-- [ ] Replace the remaining managed Slack OAuth config and scope-audit the managed Docs, Sheets, and
-      Slides configs, then validate all six connectors with designated disposable credentials. Never
-      use a maintainer's personal Google account, Drive, workspace, the RLC Slack workspace, or the
-      operator alarm mailbox as a provider fixture. The previous three-connector build returned to
-      0/3 after cancellation; the current six-connector build must return to 0/6.
+- [x] Replace every managed provider OAuth config with the six Sia-owned custom Google Workspace and
+      Slack configs, scope-audit them, rotate the Google client secret without rendering the clean
+      replacement, and validate live read-only calls for Gmail, Drive, Docs, Sheets, Slides, and
+      Slack. The remaining external gate is not connector implementation: Google reviewer video,
+      data-access review, CASA, a second fresh-domain account, and a second unrelated Slack workspace
+      with an explicitly approved disposable write/revoke/reconnect cycle are still required.
 - [ ] Reconcile and revoke, after operator handoff, the dashboard-listed full-access Composio keys
       `sia_production_runtime` and `Getting Started` if their consumers are no longer required.
 - [ ] Submit successful and user-visible failed/stalled deletion with the prepared disposable Sia

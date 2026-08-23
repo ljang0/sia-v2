@@ -21,14 +21,16 @@ the implementation was verified; it is not legal or institutional approval.
   accepted before a task can start.
 - Captured data includes exact prompts, replies, surfaced reasoning, commands and output, tool and
   action arguments/results, approvals, errors, paths/diffs, browser/computer events, and captured
-  images visible inside the task surface. Raw task-visible strings can themselves contain private or
-  secret material.
+  images visible inside the eligible task surface. Raw task-visible strings can themselves contain
+  private or secret material. A turn that invokes Gmail, Drive, Docs, Sheets, or Slides is excluded
+  in full from research capture and administrator research review.
 - Sia does not intentionally obtain provider credentials, Chrome cookies, Keychain contents, secure
   fields, private-window contents, or hidden authentication surfaces. These controls reduce exposure
   but do not make task-visible content anonymous.
 - Research data is not used for model training under the current policy.
-- Authorized research administrators can inspect individual raw turns. Archive access requires the
-  Cognito `Admins` group plus software-token MFA and writes immutable metadata-only audit records.
+- Authorized research administrators can inspect eligible raw turns. Google Workspace connector
+  turns never enter the archive. Archive access requires the Cognito `Admins` group plus
+  software-token MFA and writes immutable metadata-only audit records.
 - Cloud research objects expire after 90 days. Audit metadata is retained under Object Lock for 365
   days and expires after 400 days. Unsynced local records remain until sync, explicit deletion, or the
   documented local retention controls apply.
@@ -53,8 +55,8 @@ Fill every field; do not use a shared inbox without a named accountable owner.
 
 ## Approval checklist
 
-- [ ] Research lead approves the research purpose, population, collected fields, and individual-turn
-      administrator review.
+- [ ] Research lead approves the research purpose, population, collected fields, eligible-turn
+      administrator review, and the Google Workspace turn exclusion.
 - [ ] Privacy/legal reviewer approves the consent language, raw-data risk statement, legal basis,
       age/territory restrictions, 90-day research retention, 365/400-day audit retention, export,
       deletion, and withdrawal behavior.
@@ -63,8 +65,9 @@ Fill every field; do not use a shared inbox without a named accountable owner.
 - [ ] Support owner has a tested process for sign-in, export, deletion, withdrawal, and incident
       requests, including response-time targets.
 - [ ] Release owner confirms the recipient list is limited to the approved population and sends the
-      exact notice that sign-in means research enrollment, Continue locally is available, raw
-      task-surface data uploads, and connected-app access is optional and separately consented.
+      exact notice that sign-in means research enrollment, Continue locally is available, eligible
+      raw task-surface data uploads, Google Workspace turns are excluded, and connected-app access
+      is optional and separately consented.
 - [ ] Release owner confirms the exact artifact hashes and committed source identity match the final
       distribution decision.
 

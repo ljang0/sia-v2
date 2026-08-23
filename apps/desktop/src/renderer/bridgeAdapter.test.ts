@@ -218,7 +218,7 @@ describe('bridge renderer truthfulness', () => {
         id: 'meta',
         label: 'Meta',
         status: 'needs_login',
-        model: 'meta_super_nova_ext',
+        model: 'super_nova_ext',
         detail: 'Sign in to Sia cloud.',
         billing: 'Included when Sia cloud is configured.',
       },
@@ -234,7 +234,7 @@ describe('bridge renderer truthfulness', () => {
 
     expect(mapDesktopSnapshot(initial).providers).toMatchObject([
       { id: 'codex', status: 'needs-install', model: 'gpt-5.6-sol' },
-      { id: 'meta', status: 'needs-login', model: 'meta_super_nova_ext' },
+      { id: 'meta', status: 'needs-login', model: 'super_nova_ext' },
       { id: 'gemini', status: 'incompatible', model: 'gemini-2.5-pro' },
     ]);
   });

@@ -28,6 +28,48 @@ describe('CloudClient', () => {
     },
   );
 
+  it('uses an authenticated cloud capability check for Meta', async () => {
+    const fetchMock = vi.fn(async (_input: URL | RequestInfo, _init?: RequestInit) =>
+      Response.json({
+        available: true,
+        models: ['super_nova_ext'],
+        streaming: true,
+        tools: true,
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new CloudClient('https://api.example.test/alpha', {
+      read: async () => 'test-id-token',
+    });
+
+    await expect(client.capabilities()).resolves.toEqual({
+      available: true,
+      models: ['super_nova_ext'],
+      streaming: true,
+      tools: true,
+    });
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      'https://api.example.test/alpha/v1/meta/capabilities',
+    );
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
+      authorization: 'Bearer test-id-token',
+    });
+  });
+
+  it('rejects an incomplete positive Meta capability response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({ available: true, models: [], streaming: true, tools: true }),
+      ),
+    );
+    const client = new CloudClient('https://api.example.test', {
+      read: async () => 'test-id-token',
+    });
+
+    await expect(client.capabilities()).rejects.toThrow(/incomplete Meta capabilities/);
+  });
+
   it.each([
     ['drive', 'google_drive'],
     ['docs', 'google_docs'],

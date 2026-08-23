@@ -4,19 +4,19 @@ The current alpha deliberately ships one complete execution path: an agent runs 
 
 The Sia cloud is currently a control plane, not a computer. It provides passwordless invite-only
 research-release sign-in, durable raw research sync/export/deletion, an MFA-gated archive, optional
-managed Gmail/Drive/Docs/Sheets/Slides/Slack connections, and a Meta relay implementation that is disabled in the
-alpha client pending authenticated live verification. It does not run a provider CLI, keep project
+managed Gmail/Drive/Docs/Sheets/Slides/Slack connections, and a Meta relay that becomes available
+only after an authenticated live capability check. It does not run a provider CLI, keep project
 files, retain a browser profile, or schedule turns after the desktop goes offline. The desktop can
 evaluate persisted local schedules while Sia is open and the Mac is awake.
 
-| Capability                | Local alpha                                       | Sia cloud alpha                                                   |
-| ------------------------- | ------------------------------------------------- | ----------------------------------------------------------------- |
-| Provider runtime          | Codex; Gemini/Grok protocol tests remain disabled | Meta relay implemented, client-disabled pending live verification |
-| Project files and tools   | Chosen local workspace                            | Not stored                                                        |
-| Authenticated browser     | Approved local Chrome profile                     | Not available                                                     |
-| Connected apps            | Invoked through the cloud gateway                 | Managed OAuth and action execution                                |
-| Runs after the Mac sleeps | No                                                | No agent runtime                                                  |
-| Scheduled turns           | While Sia is open and the Mac is awake            | No offline/always-on scheduler                                    |
+| Capability                | Local alpha                                       | Sia cloud alpha                         |
+| ------------------------- | ------------------------------------------------- | --------------------------------------- |
+| Provider runtime          | Codex; Gemini/Grok protocol tests remain disabled | Meta relay, live-probed and fail-closed |
+| Project files and tools   | Chosen local workspace                            | Not stored                              |
+| Authenticated browser     | Approved local Chrome profile                     | Not available                           |
+| Connected apps            | Invoked through the cloud gateway                 | Managed OAuth and action execution      |
+| Runs after the Mac sleeps | No                                                | No agent runtime                        |
+| Scheduled turns           | While Sia is open and the Mac is awake            | No offline/always-on scheduler          |
 
 ## Persistent cloud computer gate
 

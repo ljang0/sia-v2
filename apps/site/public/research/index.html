@@ -49,8 +49,9 @@
           <p class="eyebrow">Plain-language notice</p>
           <h1>Sia research release</h1>
           <p class="legal-summary">
-            The signed-in alpha records complete task-visible activity so researchers can study
-            how computer agents behave across real work.
+            The signed-in alpha records eligible task-visible activity so researchers can study
+            how computer agents behave across real work. Google Workspace connector turns are
+            excluded.
           </p>
           <div class="legal-meta">
             <span>Consent version: alpha-research-v3-raw</span><span>Invited adults only</span>
@@ -61,9 +62,9 @@
         <div class="container">
           <div class="notice">
             <strong>The short version.</strong> Research mode uploads raw task-visible activity.
-            Anything visible inside a task can be included and may contain private information.
-            Local mode does not upload research data. Connected apps are optional and separately
-            consented.
+            Eligible task content may contain private information. Turns that invoke Gmail,
+            Drive, Docs, Sheets, or Slides are excluded from research capture. Local mode does
+            not upload research data. Connected apps are optional and separately consented.
           </div>
           <section class="legal-section">
             <h2>Your choice</h2>
@@ -90,7 +91,8 @@
               The complete activity Sia observes can include exact prompts, replies, surfaced
               reasoning, commands and output, tool arguments and results, approvals, errors,
               file paths and diffs, browser and computer activity, and captured images visible
-              inside the task surface.
+              inside the task surface. A turn that invokes a Google Workspace connector is
+              excluded in full, including its prompt, connector result, and response.
             </p>
             <p>
               Raw task content can contain private information or secrets. It is not anonymous.
@@ -109,9 +111,10 @@
           <section class="legal-section">
             <h2>Who can review it</h2>
             <p>
-              Authorized research administrators can inspect individual raw turns. Archive
-              access requires administrator membership and multi-factor authentication. Every
-              administrator read writes an immutable metadata-only audit record.
+              Authorized research administrators can inspect eligible raw turns. Google
+              Workspace connector turns never enter that archive. Archive access requires
+              administrator membership and multi-factor authentication. Every administrator read
+              writes an immutable metadata-only audit record.
             </p>
           </section>
           <section class="legal-section">

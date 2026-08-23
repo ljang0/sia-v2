@@ -83,7 +83,8 @@ export function ResearchConsentDialog({
                 <strong>If you join</strong>
                 Raw prompts, responses, surfaced reasoning, commands and output, tool
                 arguments/results, approvals, browser/computer activity, and captured images are
-                uploaded in an organized event stream.
+                uploaded in an organized event stream, except for turns that use a Google
+                Workspace connector.
               </p>
             </div>
             <div>
@@ -91,8 +92,8 @@ export function ResearchConsentDialog({
               <p>
                 <strong>Outside the capture surface</strong>
                 Sia does not obtain provider credentials, Chrome cookies, Keychain contents, or
-                hidden credentials outside the task. Anything visible to a task may be included
-                raw.
+                hidden credentials outside the task. Google Workspace API data and every turn
+                that invokes a Google Workspace connector are excluded from research uploads.
               </p>
             </div>
           </div>
@@ -101,7 +102,10 @@ export function ResearchConsentDialog({
             <p className={styles.consentFactsLabel}>What happens to the data</p>
             <ul className={styles.consentFacts}>
               <li>Research data is not used for model training.</li>
-              <li>Authorized research administrators can inspect individual raw turns.</li>
+              <li>
+                Authorized research administrators can inspect eligible raw turns. Google
+                Workspace connector turns are never placed in that archive.
+              </li>
               <li>
                 {cloudAvailable
                   ? 'Cloud copies expire after 90 days. Unsynced local records are retained.'

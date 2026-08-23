@@ -1,7 +1,10 @@
 import {
   appendFileSync,
+  existsSync,
   mkdirSync,
+  readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -13,7 +16,8 @@ import { join } from 'node:path';
  * `<userData>/trajectories/<threadId>/` holding `events.jsonl` (requests, replies, notices,
  * approvals, tool actions with their arguments and outcomes, browser/computer state changes)
  * and any images the actions returned (screenshots, snapshots) as files referenced from the
- * JSONL rows. These exact plain files stay on this Mac. When versioned raw research consent is
+ * JSONL rows. Google Workspace connector turns are removed and suppressed. The remaining exact
+ * plain files stay on this Mac. When versioned raw research consent is
  * active, equivalent observed turn events are separately queued in encrypted research bundles.
  * Complete local thread directories roll off after 90 days or when this store exceeds 128 MiB;
  * the separately encrypted research outbox follows its own acknowledged-upload retention rules.
@@ -58,6 +62,7 @@ export class TrajectoryRecorder {
   readonly #maxBytes: number;
   readonly #maintenanceIntervalMs: number;
   #sequence = 0;
+  readonly #excludedTurns = new Set<string>();
   #estimatedBytes: number | undefined;
   #lastMaintenanceMs = Number.NEGATIVE_INFINITY;
 
@@ -80,6 +85,9 @@ export class TrajectoryRecorder {
   /** Appends one event; images are written beside the log and referenced by relative path. */
   record(event: TrajectoryEvent, images: readonly TrajectoryImage[] = []): void {
     if (!this.#enabled()) return;
+    if (event.turnId && this.#excludedTurns.has(this.#turnKey(event.threadId, event.turnId))) {
+      return;
+    }
     try {
       const at = this.#now();
       const stamp = at.toISOString();
@@ -117,6 +125,57 @@ export class TrajectoryRecorder {
       this.#estimatedBytes = (this.#estimatedBytes ?? 0) + incomingBytes;
     } catch {
       // The log is best-effort evidence; a disk hiccup must never break the turn.
+    }
+  }
+
+  /**
+   * Removes an already-started turn and refuses subsequent rows for it. Google Workspace actions
+   * use this to keep API data and derivations out of the diagnostic trajectory as well as research.
+   */
+  excludeTurn(threadId: string, turnId: string): void {
+    if (!turnId) return;
+    this.#excludedTurns.add(this.#turnKey(threadId, turnId));
+    try {
+      const directory = this.#threadDirectoryPath(threadId);
+      const logPath = join(directory, 'events.jsonl');
+      if (!existsSync(logPath)) return;
+      const retained: string[] = [];
+      const removedImages = new Set<string>();
+      for (const line of readFileSync(logPath, 'utf8').split('\n')) {
+        if (!line) continue;
+        try {
+          const row = JSON.parse(line) as Record<string, unknown>;
+          if (row.turnId !== turnId) {
+            retained.push(line);
+            continue;
+          }
+          if (Array.isArray(row.images)) {
+            for (const image of row.images) {
+              if (
+                image &&
+                typeof image === 'object' &&
+                'file' in image &&
+                typeof image.file === 'string' &&
+                image.file !== '.' &&
+                image.file !== '..' &&
+                /^[A-Za-z0-9._-]+$/u.test(image.file)
+              ) {
+                removedImages.add(image.file);
+              }
+            }
+          }
+        } catch {
+          // Preserve malformed lines rather than risk deleting unrelated diagnostic data.
+          retained.push(line);
+        }
+      }
+      const temporaryPath = `${logPath}.policy-update`;
+      writeFileSync(temporaryPath, retained.length ? `${retained.join('\n')}\n` : '');
+      renameSync(temporaryPath, logPath);
+      for (const image of removedImages) rmSync(join(directory, image), { force: true });
+      this.#estimatedBytes = undefined;
+    } catch {
+      // The recorder is best effort; the in-memory exclusion still blocks all later rows.
     }
   }
 
@@ -174,6 +233,10 @@ export class TrajectoryRecorder {
   #threadDirectoryPath(threadId: string): string {
     const safe = threadId.replace(/[^A-Za-z0-9_-]/g, '_');
     return join(this.#root, safe);
+  }
+
+  #turnKey(threadId: string, turnId: string): string {
+    return `${threadId}\u0000${turnId}`;
   }
 }
 

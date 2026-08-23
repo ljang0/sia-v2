@@ -29,13 +29,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@trycua/cua-driver": "0.19.3",
+    "@trycua/cua-driver": "0.21.0",
     "ws": "^8.21.3",
     "zod": "^4.4.3"
   },
   "optionalDependencies": {
-    "@trycua/cua-driver-darwin-arm64": "0.19.3",
-    "@trycua/cua-driver-darwin-x64": "0.19.3",
+    "@trycua/cua-driver-darwin-arm64": "0.21.0",
+    "@trycua/cua-driver-darwin-x64": "0.21.0",
     "@ubjs/node-darwin-arm64": "0.31.0-3",
     "@ubjs/node-darwin-x64": "0.31.0-3"
   },

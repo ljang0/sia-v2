@@ -129,8 +129,9 @@ export function ConnectedAppsOnboardingDialog({
               <div>
                 <strong>Research recording is on</strong>
                 <p>
-                  Connection events and future app actions enter your local trajectory and
-                  encrypted AWS research stream. OAuth URLs, codes, and tokens are excluded.
+                  Eligible connection events and future app actions enter your local trajectory
+                  and encrypted AWS research stream. Google Workspace action turns, OAuth URLs,
+                  codes, and tokens are excluded.
                 </p>
               </div>
             </div>

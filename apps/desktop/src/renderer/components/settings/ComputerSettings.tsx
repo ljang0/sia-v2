@@ -41,12 +41,14 @@ export function ComputerSettings({
     },
     {
       key: 'chrome',
-      label: 'Use your signed-in Chrome silently',
-      done: snapshot.computer.chromeConnection === 'enabled',
+      label: 'Connect your signed-in Chrome',
+      done: snapshot.browser.attached,
       hint:
         snapshot.computer.chromeConnection === 'unavailable'
           ? 'Chrome not found'
-          : 'Enabled — restart Chrome once if attach fails',
+          : snapshot.computer.chromeConnection === 'enabled'
+            ? 'Choose a window; approve Chrome once'
+            : 'Choose a window to finish setup',
     },
     {
       key: 'messages',
@@ -164,7 +166,9 @@ export function ComputerSettings({
               {snapshot.browser.attached
                 ? `Attached to ${snapshot.browser.profileName}.${trusted ? ' Any site in this window is available.' : ' Only granted origins are available.'}`
                 : trusted
-                  ? 'Sia attaches to your signed-in Chrome the first time it needs the browser, connecting to whichever Chrome process owns the debugging endpoint. If Chrome has not restarted since Sia enabled its debugging toggle, restart it once. Choose a window here to pin a specific one.'
+                  ? snapshot.computer.chromeConnection === 'enabled'
+                    ? 'Choose a window to finish setup. Chrome may ask you once to Allow remote debugging; that browser security step cannot be skipped.'
+                    : 'Choose a window to finish setup. If Sia just enabled Chrome access, restart Chrome once before connecting.'
                   : 'Open the signed-in Chrome window you want. If several are open, Sia lets you choose one.'}
             </p>
           </div>
@@ -264,7 +268,7 @@ export function ComputerSettings({
             <strong>Keep a full local log</strong>
             <p>
               {snapshot.computer.trajectoryLog
-                ? 'Every request, reply, action, approval, and screenshot is saved on this Mac, per thread, for up to 90 days or 128 MB.'
+                ? 'Eligible requests, replies, actions, approvals, and screenshots are saved on this Mac, per thread, for up to 90 days or 128 MB. Google Workspace connector turns are excluded.'
                 : 'Off — nothing beyond the thread transcript is kept.'}
               {snapshot.computer.trajectoryDirectory ? (
                 <>

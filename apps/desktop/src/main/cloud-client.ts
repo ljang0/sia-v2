@@ -154,16 +154,21 @@ export class CloudClient implements MetaTransport {
     return this.#request('/v1/session', { method: 'GET' });
   }
 
-  async capabilities(_signal?: AbortSignal): Promise<MetaCapabilities> {
-    return this.configured
-      ? { available: true, models: [], streaming: true, tools: true }
-      : {
-          available: false,
-          models: [],
-          streaming: false,
-          tools: false,
-          reason: 'Sia cloud services are not configured.',
-        };
+  async capabilities(signal?: AbortSignal): Promise<MetaCapabilities> {
+    if (!this.configured) {
+      return {
+        available: false,
+        models: [],
+        streaming: false,
+        tools: false,
+        reason: 'Sia cloud services are not configured.',
+      };
+    }
+    const value = await this.#request<unknown>('/v1/meta/capabilities', {
+      method: 'GET',
+      ...(signal ? { signal } : {}),
+    });
+    return parseMetaCapabilities(value);
   }
 
   async *stream(
@@ -577,6 +582,26 @@ function parseCloudDeletionJob(value: unknown): CloudDeletionJob {
     scope: record.scope,
     state: record.state as CloudDeletionState,
     ...(typeof record.failureCode === 'string' ? { failureCode: record.failureCode } : {}),
+  };
+}
+
+function parseMetaCapabilities(value: unknown): MetaCapabilities {
+  const record = asRecord(value);
+  const models = Array.isArray(record.models)
+    ? record.models.filter((model): model is string => typeof model === 'string')
+    : [];
+  const available = record.available === true;
+  const streaming = record.streaming === true;
+  const tools = record.tools === true;
+  if (available && (!streaming || !tools || models.length === 0)) {
+    throw new Error('Sia cloud returned incomplete Meta capabilities.');
+  }
+  return {
+    available,
+    models,
+    streaming,
+    tools,
+    ...(typeof record.reason === 'string' ? { reason: record.reason } : {}),
   };
 }
 

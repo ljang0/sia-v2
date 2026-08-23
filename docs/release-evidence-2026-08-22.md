@@ -253,9 +253,9 @@ Do not distribute the artifact until these are completed and recorded:
   are verified independently, but entering live OTP/TOTP values into the UI requires the release
   operator's direct participation.
 - Confirm the external support path and rollback owner.
-- Add a public homepage/privacy/terms surface, complete Google publishing/verification, and run the
-  remaining fresh-account/workspace connector matrix before describing Google or Slack as generally
-  available.
+- Complete Google's data-access verification and run the remaining fresh-account/workspace connector
+  matrix before describing Google or Slack as generally available. The public site, verified brand,
+  and production publishing state are already live.
 
 ## Public-site and Google-verification staging (2026-08-23 KST)
 
@@ -263,7 +263,9 @@ Do not distribute the artifact until these are completed and recorded:
   terms, support troubleshooting, `security.txt`, sitemap, self-hosted display font, and the 120 by
   120 OAuth logo. The policy states the raw task-visible research boundary, local alternative,
   connected-service handling, Google Limited Use commitment, retention, administrator review,
-  export, deletion, and no-model-training policy.
+  export, deletion, and no-model-training policy. The implementation and disclosures now exclude an
+  entire turn from research capture whenever it invokes Gmail, Drive, Docs, Sheets, or Slides; the
+  local diagnostic trajectory excludes the same turn.
 - CloudFormation stack `sia-public-site` created a private, encrypted, versioned S3 origin and
   CloudFront distribution `E3MFZH4OWO2B9C`. Only that distribution can read the bucket. Hosted
   responses redirect to HTTPS and include CSP, HSTS, framing, content-type, referrer, permissions,
@@ -290,3 +292,157 @@ Do not distribute the artifact until these are completed and recorded:
 - `pnpm check` passed after adding the site workspace: all builds, formatting, quality guard,
   typechecks, and tests completed successfully. No connector grant or Google/Slack write was run as
   part of the public-site staging work.
+
+## Distribution hardening follow-up (2026-08-23 KST)
+
+- The production homepage now carries Google's Search Console verification tag, the site was
+  redeployed through the existing private S3 and CloudFront stack, and ownership of the exact
+  `https://superintelligentagents.ai/` property was verified. Google Branding now retains the
+  homepage, privacy, terms, `composio.dev`, and `superintelligentagents.ai`; the two reviewed
+  Composio redirect URIs remain the only redirect URIs. Audience is still External and Testing with
+  one approved test user. Logo upload, the intended public support alias, In production, reviewer
+  video, verification submission, and CASA remain open.
+- SES reports the production domain verified with successful DKIM. A release-check message from the
+  verified `hello` sender to `support@superintelligentagents.ai` was accepted and arrived in the
+  operator Gmail inbox through the production forwarding route. A sender on an unrelated external
+  domain remains the final anti-loop and provider-independent delivery check.
+- Slack Manage Distribution remains active and its share URL requests exactly the reviewed eight
+  user scopes. Redirect URLs still point only to the two reviewed Composio callbacks. The current
+  Russ Lab grant executed `slack.find_users` without opening a DM or posting. Its user token entered
+  local operator output during the console audit, so it was immediately revoked and its stale
+  Composio and Sia records were removed. A fresh one-click Russ Lab connection is now required before
+  distribution.
+- A full stack deployment exposed a template-drift bug: CloudFormation restored the Composio
+  placeholder secret and the control plane failed closed with `provider_not_configured`. The intact
+  encrypted previous version was promoted without printing the key. Both provider resources now
+  omit `SecretString` from the template, so credentials are empty on a first deployment and remain
+  operator-managed afterward. A second full stack update modified both secret resources without
+  changing either live value. The current Composio value has six auth configs and twenty-three exact
+  slug/version mappings; the current Meta value remains enabled and configured.
+- The live Meta relay now probes the provider model endpoint before advertising readiness, pins
+  `super_nova_ext`, preserves streaming and tool support, and does not impose an artificial output
+  budget. A direct production capability invocation returned the expected single-model surface and
+  a streamed production completion returned the requested sentinel plus provider usage metadata.
+- Fresh downloads of the deployed control, Meta, deletion, and export Lambda ZIPs matched the four
+  local `index.cjs` entries in the reproducible bundle manifest byte-for-byte. The stack is
+  `UPDATE_COMPLETE`; all nine monitored alarms are `OK`, actions are enabled, and every alarm has an
+  operator notification target.
+- All six saved connector records reconciled through the repaired control plane. Docs, Sheets,
+  Slides, and Slack are active; fresh `docs.read`, `sheets.read`, `slides.read`, and
+  `slack.find_users` actions returned `executed`. The immutable audit bucket contains four matching
+  new `connector.read` records with `allowed` outcomes. Gmail and Drive correctly reconcile as
+  failed because their earlier test grants are expired; they require fresh provider consent before
+  their final read/write pass.
+- The research bucket contained 60 encrypted JSON objects at the audit point. The newest inspected
+  object was `raw_v1`, consent version `alpha-research-v3-raw`, with 48 ordered raw events, declared
+  thread/turn sequence scope, and raw payload envelopes. Only structural metadata was printed during
+  this check; participant content was not copied into this record.
+- `pnpm check` passed: 93 cloud tests, 277 desktop tests, 23 action-gateway tests, 20 runtime tests,
+  eight tool-bridge tests, and three protocol tests. The complete Electron suite passed 24 scenarios
+  with four explicitly gated real-provider/device cases skipped. The separate real Codex isolation
+  smoke passed and retained ChatGPT authentication while reporting an isolated ephemeral session.
+- A fresh unsigned universal package with the live cloud resource passed binary, native-runtime,
+  license, and packaged-bridge verification. An isolated packaged launch showed the cloud sign-in
+  dialog, the local alternative, five providers, six connector slots, and zero renderer errors. The
+  prior signed build was preserved under `_old-builds/release-pre-meta-20260823`. This fresh source is
+  not distributable until a new Developer ID signed and notarized DMG is produced; the local release
+  shell does not currently expose notarization credentials.
+
+## External-distribution connector hardening (2026-08-23 KST)
+
+- Google Audience moved from External/Testing to External/**In production**. Google automatically
+  verified the public brand against the Search Console property, homepage, privacy policy, terms,
+  authorized domains, and support identity; the verified brand was then published and is being shown
+  to users. Verification Center now exposes the expected sensitive/restricted-scope submission form.
+  The remaining required inputs are the saved scope-usage statements and an accessible reviewer demo
+  video URL, followed by Google review and the restricted-scope CASA assessment.
+- A newly generated Google client secret reached operator output and was therefore treated as
+  compromised: it was disabled and permanently deleted before use. A second clean secret was captured
+  without rendering and installed into all five custom Google Composio auth configs. Fresh Gmail and
+  Drive consent exchanges succeeded with that secret. `mail.search`, `drive.search`, `docs.read`,
+  `sheets.read`, and `slides.read` then all returned `executed` through the deployed control Lambda.
+  The superseded secret was disabled and permanently deleted only after those live checks passed.
+- A `drive.file` boundary query returned zero accessible files while the account retained unrelated
+  pre-existing Drive content, confirming that Sia cannot bulk browse the existing Drive. No Google
+  write was committed. Two second-account attempts correctly stopped at Google's passkey/SMS
+  re-verification; no authentication bypass was attempted and both pending provider records were
+  removed.
+- Slack completed a fresh Russ Lab browser OAuth install through the public distribution app. The
+  screen selected the workspace and showed the exact reviewed user permissions; no plugin, desktop
+  Slack app, developer console, user API key, or client secret was required. Cloud reconciliation
+  returned connected, and both `slack.find_users` and `slack.search` returned `executed`. No DM was
+  opened and no message was posted. A second unrelated workspace and an explicitly approved
+  synthetic write remain required.
+- The test cleanup removed both cancelled Google Docs connection requests and the two previously
+  expired Gmail/Drive records from the disposable acceptance subject. The production subject now has
+  one connected Gmail, Drive, Docs, Sheets, Slides, and Slack record. OAuth URLs, codes, provider
+  tokens, client secrets, and connector response content are intentionally absent from this evidence.
+
+## Real Chrome and computer-capability hardening (2026-08-23 KST)
+
+- The macOS computer-use runtime was upgraded from the exactly pinned CUA Driver 0.19.3 to 0.21.0,
+  including both universal-package native dependencies. The lockfile supply-chain policy accepted
+  all 679 entries, and the generated third-party license corpus now covers 557 installed packages.
+- A first real Chrome attachment correctly stopped at Chrome's browser-owned **Allow remote
+  debugging?** sheet. After the operator accepted that one-time browser grant, the same isolated
+  desktop probe attached the selected Chrome window and exposed only its top-level HTTP(S) origins.
+  Sia now translates `browser_reconnect_exhausted` into that exact recovery step, never attempts to
+  automate the Chrome confirmation, and does not label Chrome ready until a window is actually
+  attached.
+- The real no-turn suite passed all three enabled probes together: authenticated Codex, selected
+  signed-in Chrome attachment, and macOS Accessibility plus Screen Recording. A separate bounded
+  real Codex turn called exactly `browser_tabs` and `computer_list`, reported at least one safe
+  granted origin, completed the computer inventory, and performed no navigation, typing, upload, or
+  external write. Sensitive authentication origins remained filtered from the model-visible list.
+- The live-capability test itself was corrected to stop navigating the selected tab to Gmail while
+  claiming to be read-only. It now observes the existing origin only and fails with the current
+  chooser inventory when a stale window-title matcher is supplied. The CUA authorization callback
+  also fails closed as a normal cancellation if application-side approval logging ever throws,
+  rather than propagating an FFI callback failure.
+- Final validation passed `pnpm check` with 93 cloud, 279 desktop, 23 action-gateway, 20 runtime,
+  eight tool-bridge, and three protocol tests (426 total). All 13 strict parity scenarios passed;
+  the complete Electron suite passed 24 deterministic scenarios with the four separately gated
+  real-machine cases skipped; all three real no-turn probes and the separate real bounded-capability
+  turn passed when explicitly enabled.
+- A fresh unsigned universal app containing the enabled production cloud resource passed the
+  packaged main/helper/framework architecture checks, both macOS CUA native runtimes, generated
+  license corpus, live host-architecture CUA probe, and packaged MCP bridge probe at
+  `apps/desktop/release/mac-universal/Sia.app`. Release preflight found the installed Developer ID
+  identity and all three cloud coordinates; the only missing artifact input is an Apple notarization
+  credential. This unsigned directory is verification evidence only and must not be distributed.
+
+## Google Workspace research-data boundary (2026-08-23 KST)
+
+- The desktop now excludes an entire turn from research capture as soon as it invokes a Gmail,
+  Drive, Docs, Sheets, or Slides action. Events staged earlier in that turn are deleted; later text,
+  trajectory, raw, completion, and failure events are refused; completion cannot persist the turn.
+  The local diagnostic trajectory atomically removes earlier rows and images for the invoking turn
+  and suppresses later rows. The normal local user-facing transcript remains.
+- A new desktop regression exercised a raw-consent turn with assistant text staged before a
+  `mail_search` invocation and private result data afterwards. The research repository remained
+  empty and the local diagnostic trajectory contained no Google action-result record. A separate
+  recorder regression verifies that earlier rows and image files are removed and later rows stay
+  suppressed. The final repository check passed with 94 cloud, 281 desktop, 23 action-gateway, 20
+  runtime, eight tool-bridge, and three protocol tests (429 total); the Electron suite passed 24
+  deterministic scenarios with four separately gated real-machine probes skipped, and the earlier
+  strict parity run passed all 13 scenarios.
+- The control plane now rejects any ordinary or chunked research event that exposes a Google
+  Workspace action name. This defense-in-depth rule prevents older or faulty clients from placing a
+  Google connector turn into S3. Its unit test verifies both raw event encodings leave research
+  objects and metadata empty.
+- The in-app consent, public homepage, participant notice, privacy policy, terms, Google verification
+  packet, invitation, manual acceptance, architecture, release checklist, and distribution contract
+  now state the same exception. Google Workspace API data is used only for the requested user-facing
+  task and is excluded from research uploads and administrator research review; operational
+  connected/disconnected metadata can remain without Google content.
+- The corrected site was synced to the private production S3 origin. Final CloudFront invalidation
+  `ICULIJL11W26B8RI6QJUWGUDR7` completed, and production privacy, research, and terms pages each
+  returned HTTP 200 with the new exception and the existing CSP, HSTS, framing, content-type,
+  referrer, and permissions headers intact.
+- SAM validation passed and the updated four-Lambda bundle deployed to `sia-alpha` without resource
+  replacement. CloudFormation returned `UPDATE_COMPLETE`; all monitored alarms were `OK`, actions
+  remained enabled, and every alarm retained the operator SNS target.
+- A fresh unsigned universal app containing the local trajectory exclusion and enabled production
+  cloud resource passed the packaged architecture, native-runtime, license, live host CUA, and MCP
+  bridge verifier. Release preflight still stops only at the missing Apple notarization credential;
+  this unsigned app is not a distribution artifact.

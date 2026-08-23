@@ -43,7 +43,7 @@ describe('agent defaults', () => {
       (screen.getByRole('combobox', { name: 'Provider' }) as HTMLSelectElement).value,
     ).toBe('meta');
     expect((screen.getByRole('textbox', { name: /^Model\b/ }) as HTMLInputElement).value).toBe(
-      'meta_super_nova_ext',
+      'super_nova_ext',
     );
   });
 
@@ -112,7 +112,7 @@ describe('agent defaults', () => {
     const provider = screen.getByRole('combobox', { name: 'Provider' });
     const model = screen.getByRole('textbox', { name: /^Model\b/ }) as HTMLInputElement;
     for (const [providerId, modelId] of [
-      ['meta', 'meta_super_nova_ext'],
+      ['meta', 'super_nova_ext'],
       ['grok', 'grok-code-fast'],
       ['gemini', 'gemini-2.5-pro'],
       ['claude', 'claude-sonnet-4-5'],

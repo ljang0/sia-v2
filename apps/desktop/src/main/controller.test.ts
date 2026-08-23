@@ -388,7 +388,7 @@ describe('DesktopController', () => {
         name: 'Cloud assistant',
         instructions: '',
         provider: 'meta',
-        model: 'meta_super_nova_ext',
+        model: 'super_nova_ext',
         workspace: '/tmp/sia-workspace',
       }),
     ).rejects.toThrow(/Meta is not ready \(unavailable\)/);
@@ -1450,6 +1450,110 @@ describe('DesktopController', () => {
     expect(serialized).toContain('printf raw-fixture');
     expect(serialized).toContain('raw command output');
     expect(serialized).toContain(threadId);
+    await controller.shutdown();
+  });
+
+  it('excludes an entire Google Workspace action turn from research capture', async () => {
+    let runtimeThreadId = '';
+    let gateway!: ActionGateway;
+    const record = vi.fn();
+    const excludeTurn = vi.fn();
+    const trajectory = {
+      rootDirectory: '/tmp/sia-trajectories',
+      record,
+      excludeTurn,
+    } as unknown as NonNullable<
+      ConstructorParameters<typeof DesktopController>[0]['trajectory']
+    >;
+    const runtime = {
+      async *runTurn(input: { turnId: string }) {
+        const base = {
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 1,
+          type: 'message' as const,
+          payload: {
+            messageId: 'before-google-action',
+            role: 'assistant' as const,
+            parts: [{ kind: 'text' as const, text: 'I will search the test inbox.' }],
+            delta: false,
+          },
+        };
+        await gateway.invoke({
+          name: 'mail_search',
+          arguments: { account_id: 'gmail', query: 'private fixture' },
+          context: {
+            sessionId: 'session-1',
+            threadId: runtimeThreadId,
+            turnId: input.turnId,
+            provider: 'codex',
+            workspace: '/tmp/sia-workspace',
+          },
+        });
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller, repository } = await createHarness({
+      fakeServices: false,
+      runtime,
+      trajectory,
+    });
+    gateway = new ActionGateway({
+      backend: {
+        invoke: async () => ({
+          outcome: 'verified',
+          summary: 'Found a private fixture',
+          data: { message: 'private Google Workspace result' },
+        }),
+      },
+      onInvocation: controller.actionInvocationObserver(),
+      onResult: controller.actionResultObserver(),
+    });
+    await controller.invoke('research.setCapture', {
+      enabled: true,
+      consentVersion: 'alpha-research-v3-raw',
+    });
+    const created = await controller.invoke('agents.save', {
+      name: 'Google policy fixture',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', {
+      agentId: created.agentId,
+    });
+    runtimeThreadId = threadId;
+
+    await controller.invoke('threads.send', { threadId, text: 'Search my test inbox' });
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+        'idle',
+      ),
+    );
+
+    expect(repository.list('research')).toHaveLength(0);
+    expect(excludeTurn).toHaveBeenCalledWith(threadId, expect.any(String));
+    expect(
+      record.mock.calls
+        .map(([event]) => event)
+        .some((event) => event.type === 'action_result' && event.name === 'mail_search'),
+    ).toBe(false);
     await controller.shutdown();
   });
 
@@ -2696,6 +2800,36 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('explains the one-time Chrome permission when reconnect waits for consent', async () => {
+    const browserComputer = {
+      ...computer,
+      call: vi.fn(async (tool: string) => {
+        if (tool === 'list_apps') {
+          return {
+            apps: [{ pid: 42, name: 'Google Chrome', bundle_id: 'com.google.Chrome' }],
+          };
+        }
+        if (tool === 'list_windows') {
+          return { windows: [{ pid: 42, window_id: 8, title: 'Fixture page' }] };
+        }
+        if (tool === 'browser_prepare') {
+          throw new Error('CUA refused: browser_reconnect_exhausted');
+        }
+        throw new Error(`Unexpected ${tool}`);
+      }),
+    };
+    const { controller } = await createHarness({ computer: browserComputer });
+
+    const snapshot = await controller.invoke('browser.attach', {});
+
+    expect(snapshot.browser).toMatchObject({
+      status: 'error',
+      detail: expect.stringMatching(/Click Allow.*one-time Chrome security step/i),
+    });
+    expect(snapshot.browser.detail).not.toContain('browser_reconnect_exhausted');
+    await controller.shutdown();
+  });
+
   it('explains ambiguous duplicate Chrome windows without exposing driver codes', async () => {
     const browserComputer = {
       ...computer,
@@ -2982,6 +3116,73 @@ describe('DesktopController', () => {
       status: 'needs_login',
     });
     await controller.shutdown();
+  });
+
+  it('marks Meta ready only after an authenticated live capability probe', async () => {
+    let state: 'signed_out' | 'signed_in' = 'signed_out';
+    const identity = {
+      initialize: async () => ({ state }),
+      status: () =>
+        state === 'signed_in' ? { state, email: 'person@example.com' } : { state },
+      startEmailSignIn: async () => ({ state }),
+      completeEmailSignIn: async () => {
+        state = 'signed_in';
+        return { state, email: 'person@example.com' };
+      },
+      signOut: async () => {
+        state = 'signed_out';
+        return { state };
+      },
+    } satisfies ConstructorParameters<typeof DesktopController>[0]['identity'];
+    const fetchMock = vi.fn(async (input: URL | RequestInfo) => {
+      const url = String(input);
+      if (url.endsWith('/v1/session')) {
+        return Response.json({
+          admin: false,
+          features: {
+            researchUploads: true,
+            researchArchive: false,
+            connectors: true,
+            schedules: true,
+          },
+        });
+      }
+      if (url.endsWith('/v1/meta/capabilities')) {
+        return Response.json({
+          available: true,
+          models: ['super_nova_ext'],
+          streaming: true,
+          tools: true,
+        });
+      }
+      throw new Error(`Unexpected cloud request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const { controller } = await createHarness({
+        fakeServices: false,
+        cloud: new CloudClient('https://api.example.test', {
+          read: async () => 'test-id-token',
+        }),
+        identity,
+      });
+
+      await controller.invoke('auth.complete', { code: '123456' });
+
+      expect(controller.snapshot().providers.find(({ id }) => id === 'meta')).toMatchObject({
+        status: 'ready',
+        model: 'super_nova_ext',
+      });
+      expect(fetchMock).toHaveBeenCalledWith(
+        new URL('https://api.example.test/v1/meta/capabilities'),
+        expect.objectContaining({
+          headers: expect.objectContaining({ authorization: 'Bearer test-id-token' }),
+        }),
+      );
+      await controller.shutdown();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

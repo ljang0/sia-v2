@@ -298,6 +298,11 @@ export interface SecretProvider {
 }
 
 export interface MetaProvider {
+  capabilities(config: MetaConfig): Promise<{
+    models: string[];
+    streaming: boolean;
+    tools: boolean;
+  }>;
   stream(config: MetaConfig, request: MetaTurnRequest): AsyncIterable<MetaStreamEvent>;
 }
 

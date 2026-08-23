@@ -34,6 +34,9 @@ export async function routeControlRequest(
     if (method === 'GET' && path === '/v1/session') {
       return json(200, services.session.status(user));
     }
+    if (method === 'GET' && path === '/v1/meta/capabilities') {
+      return json(200, await services.meta.capabilities(user));
+    }
 
     const connectionMatch = /^\/v1\/connections\/([^/]+)$/.exec(path);
     if (connectionMatch) {

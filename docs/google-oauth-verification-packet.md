@@ -15,7 +15,9 @@ contains no client secret, OAuth code, token, connection ID, or participant cont
 - Terms: `https://superintelligentagents.ai/terms/`
 - Participant notice: `https://superintelligentagents.ai/research/`
 - Support: `https://superintelligentagents.ai/support/`
-- User support email: `support@superintelligentagents.ai`
+- Intended user support email: `support@superintelligentagents.ai`
+- Current console selection: `superintelligentagents@gmail.com` until the public alias is eligible
+  for selection and its external delivery test passes
 - Developer contact: `superintelligentagents@gmail.com`
 - Authorized domains to retain: `composio.dev`, `superintelligentagents.ai`
 - Consent-screen logo: `apps/site/public/assets/sia-oauth-logo.png` (120 by 120 PNG)
@@ -24,6 +26,23 @@ The homepage publicly identifies Sia, explains connected Google features and res
 the matching privacy policy, and is accessible without signing in. The privacy policy separately
 describes Google API data, optional provider consent, task-visible research capture, service
 providers, retention, export, deletion, and the Google Limited Use requirements.
+
+Current submission state (2026-08-23 KST): Branding has the homepage, privacy, terms, and both
+authorized domains saved. The exact production HTTPS origin is verified in Search Console through a
+deployed HTML meta tag. Audience is External and **In production**. Google automatically verified the
+brand against the public site and the verified brand is being shown to users. Verification Center is
+open and correctly requires scope justification, intended Gmail data usage, and a demo-video URL for
+the three sensitive editor scopes and two restricted Gmail scopes. The logo and public support alias
+are not selected in Google because the console file chooser and email selector did not accept them;
+the public support alias itself is live and externally delivered. The reviewer video, data-access
+submission, Google review, and CASA assessment remain open.
+
+The production OAuth credential was rotated again during the live acceptance pass. A secret whose
+value reached operator output was disabled and permanently deleted immediately. One clean secret was
+captured without rendering, installed in the Gmail, Drive, Docs, Sheets, and Slides custom Composio
+auth configs, and proved by fresh Gmail and Drive token exchanges plus live reads through all five
+deployed connector routes. The superseded secret was then disabled and permanently deleted. No
+Google OAuth secret is stored in this repository or in this packet.
 
 ## Exact reviewed scopes and justifications
 
@@ -84,15 +103,48 @@ needs it and is not bulk copied into Sia. Composio brokers the OAuth connection 
 OAuth tokens and provider credentials are handled separately and are not intentionally recorded in
 Sia trajectories.
 
-When signed-in research mode is enabled, Google content that becomes visible inside a task can be
-included in that task's raw research event stream. This is disclosed before research participation and
-again in the public privacy policy. Cloud research content expires after 90 days. Authorized research
-administrators use MFA and archive reads write immutable metadata-only audit records. Participants can
-export or delete research records or delete their Sia account. Research data is not used for model
-training under the current policy.
+Google Workspace API data is excluded from research uploads, the research archive, and administrator
+research review. When a task invokes Gmail, Drive, Docs, Sheets, or Slides, Sia excludes that entire
+turn from research capture, including the prompt, connector result, and assistant response. The same
+turn is excluded from Sia's optional local diagnostic trajectory. The user-facing result can remain
+in the person's local Sia transcript until the person deletes it.
+Operational connection metadata such as connected/disconnected state can be recorded without Google
+Workspace content. Google API data is not used for advertising, model training, or generalized AI
+development and is not transferred to the research archive.
 
 Sia's use and transfer of information received from Google APIs adheres to the Google API Services
 User Data Policy, including the Limited Use requirements.
+
+## Exact Verification Center form values
+
+Select **Email productivity** for **What features will you use?** Use the following consolidated
+justifications. Keep the deployed behavior and public privacy policy unchanged after submission.
+
+Sensitive scopes justification:
+
+> Sia is a macOS assistant that lets a person explicitly create, read, and edit Google Docs, Sheets,
+> and Slides in a visible task. The documents, spreadsheets, and presentations scopes are needed to
+> read and apply bounded user-requested changes across files the person selects or creates;
+> drive.file cannot provide document bodies or editor operations. Sia does not bulk copy or index
+> Workspace data. Each action is user initiated, results appear in the local transcript, and writes
+> show a preview. Google Workspace API data and every turn invoking these connectors are excluded
+> from research uploads, the AWS research archive, administrator research review, the optional local
+> diagnostic trajectory, advertising, and generalized AI or model training. OAuth is optional and
+> revocable.
+
+Restricted scopes justification:
+
+> Sia uses gmail.readonly only when a person explicitly asks to find, read, or summarize email in the
+> visible task. Message bodies are required for thread summaries and requested detail extraction, so
+> metadata-only scopes are insufficient. Sia uses gmail.compose to create a reviewable Gmail draft
+> and, only after the user provides or approves the recipient, subject, and body, send it. Sia does
+> not index or bulk copy mail. Gmail API data and the entire invoking turn are excluded from research
+> uploads, the AWS research archive, administrator research review, the optional local diagnostic
+> trajectory, advertising, and generalized AI or model training. OAuth is optional and revocable;
+> results remain only in the local user-facing transcript until deletion.
+
+Do not save or submit the form until the accessible reviewer-video URL is ready. The console requires
+that URL before it enables **Save**.
 
 ## Reviewer demo video shot list
 
@@ -118,16 +170,17 @@ credentials, codes, tokens, or unrelated inbox material.
 11. Sheets: read a synthetic range, preview one bounded range update, approve it, and show the result.
 12. Slides: read a synthetic presentation, preview one bounded update, approve it, and show the result.
 13. Disconnect each Google service from Sia and show the disconnected state.
-14. Show Research archive export and deletion controls, then finish on the public support and privacy
-    contacts.
+14. Show that the completed Google connector turn remains in the local transcript but is absent from
+    Research archive export, then finish on the public support and privacy contacts.
 
 Publish the video as unlisted YouTube or an equivalently accessible reviewer link. Verify the link in
 an incognito browser before submitting it.
 
 ## Submission order
 
-1. Publish and verify `superintelligentagents.ai`, including a Google Search Console Domain property
-   verified by a Google Cloud project owner.
+1. Publish and verify `superintelligentagents.ai` in Google Search Console under a Google Cloud
+   project owner. The exact HTTPS origin is already verified; add the DNS Domain property as a second
+   method if Verification Center requires domain-wide proof.
 2. Set the public homepage, privacy, terms, support email, logo, and authorized domain in Branding.
 3. Confirm the production client retains only reviewed redirect URIs and no unrelated JavaScript
    origins.

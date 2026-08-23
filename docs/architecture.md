@@ -7,7 +7,7 @@ Renderer (sandboxed)
         |
 Electron main -------------- Sia cloud API
   |       |       |             |-- invite auth
-  |       |       |             |-- Meta relay (client-disabled pending live verification)
+  |       |       |             |-- Meta relay (authenticated live capability probe)
   |       |       |             |-- connector gateway
   |       |       |             |-- consented raw research sync + queued export
   |       |       |             `-- MFA-gated, audited admin research archive
@@ -26,7 +26,7 @@ Electron main -------------- Sia cloud API
                          `-- Meta streaming tool loop (production-gated)
 ```
 
-The provider runtime can propose a Sia action, but only the main-process ActionGateway can authorize it. In autonomous mode (`computer.trust === 'auto'`, the default), the controller silently authorizes eligible computer, browser, connector, message, upload, and schedule actions after capability and input validation; confirmation mode renders a request tied to the exact action digest. Every action result, timeline item, and automatic authorization is appended to the always-on local `TrajectoryRecorder` (`<userData>/trajectories/<threadId>/events.jsonl` plus image files). Complete thread directories roll off after 90 days or when the local trajectory store exceeds 128 MiB, oldest first; this is separate from the encrypted consented-research outbox. The model-visible schedule surface is limited to create/list/update/delete for controller-owned once/hourly/daily/weekly tasks in the current thread; it cannot write an OS crontab or arbitrary shell schedule. Codex provider-native work uses `approvalPolicy: never` inside the verified workspace-write sandbox, while host-side effects still cross the ActionGateway.
+The provider runtime can propose a Sia action, but only the main-process ActionGateway can authorize it. In autonomous mode (`computer.trust === 'auto'`, the default), the controller silently authorizes eligible computer, browser, connector, message, upload, and schedule actions after capability and input validation; confirmation mode renders a request tied to the exact action digest. Eligible action results, timeline items, and automatic authorizations are appended to the always-on local `TrajectoryRecorder` (`<userData>/trajectories/<threadId>/events.jsonl` plus image files). A Google Workspace invocation atomically removes earlier diagnostic rows for that turn and suppresses later rows; only the normal local user-facing transcript remains. Complete thread directories roll off after 90 days or when the local trajectory store exceeds 128 MiB, oldest first; this is separate from the encrypted consented-research outbox. The model-visible schedule surface is limited to create/list/update/delete for controller-owned once/hourly/daily/weekly tasks in the current thread; it cannot write an OS crontab or arbitrary shell schedule. Codex provider-native work uses `approvalPolicy: never` inside the verified workspace-write sandbox, while host-side effects still cross the ActionGateway.
 
 There is no generic renderer IPC, generic connector catalog, raw CUA server, arbitrary CDP/JavaScript route, cookie API, visualization tool, or cross-provider subagent abstraction.
 
@@ -51,9 +51,12 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   and ends long narration at a sentence boundary with an explicit on-screen handoff.
 - The renderer permission handler admits only an audio-only microphone request from Sia's own main
   frame. Camera, display capture, Bluetooth, and unrelated renderer permissions remain denied.
-- Under v3 raw research consent, provider protocol frames and connected-app/browser/computer/action
-  events observed during a turn are copied into encrypted local research batches and synced to AWS.
-  Without that consent they remain within their normal runtime/transcript boundaries.
+- Under v3 raw research consent, eligible provider protocol frames and connected-app/browser/
+  computer/action events observed during a turn are copied into encrypted local research batches
+  and synced to AWS. A turn that invokes Gmail, Drive, Docs, Sheets, or Slides is excluded in full;
+  Google Workspace action results remain only in the normal local user-facing transcript, and the
+  diagnostic trajectory excludes the entire turn. Without
+  consent, other events remain within their normal runtime/transcript boundaries.
 - AWS stores invite, consent, connection, preview, quota, deletion, and KMS-encrypted raw research
   objects behind the Sia API. Raw objects are organized by participant and batch, metadata carries
   thread/turn/sequence/event-kind scope, and only Cognito `Admins` can list or read the archive;

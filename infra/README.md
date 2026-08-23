@@ -6,10 +6,10 @@ Configure the desktop with the complete API output URL, including its stage path
 
 ## Build and deploy
 
-1. Run `pnpm --filter @sia/cloud build`. This compiles TypeScript and creates three self-contained, content-hashed Node 22 Lambda bundles under `apps/cloud/lambda/`; CloudFormation points only at those generated directories.
+1. Run `pnpm --filter @sia/cloud build`. This compiles TypeScript and creates four self-contained, content-hashed Node 22 Lambda bundles under `apps/cloud/lambda/`; CloudFormation points only at those generated directories.
 2. Validate with `sam validate --lint --template-file infra/template.yaml --region us-east-1`. A successful `aws cloudformation validate-template` is only a syntax check and does not replace SAM linting.
 3. Deploy with `sam deploy --guided --template-file infra/template.yaml --stack-name sia-alpha --region us-east-1 --capabilities CAPABILITY_IAM`, passing `BootstrapAdminEmail` for the first deployment, verified SES settings for a user-facing alpha, and `AlarmNotificationTopicArn` for an operator-monitored SNS topic. The stack creates alarms for deletion backlog/DLQ, Lambda errors and throttles, and DynamoDB throttling; every subscription must be confirmed before release.
-4. Replace the two placeholder Secrets Manager values. Do not put either API key in CloudFormation parameters, Lambda environment variables, desktop configuration, CI logs, or source control.
+4. Populate the two empty, operator-managed Secrets Manager resources after the first deployment. The template intentionally omits `SecretString` so later stack updates cannot replace live credentials. Do not put either API key in CloudFormation parameters, Lambda environment variables, desktop configuration, CI logs, or source control.
 5. Revoke and rotate the Meta credential that was previously pasted into chat before enabling the relay.
 6. Map the deployed outputs exactly: `ApiBaseUrl` to `SIA_RELEASE_API_BASE_URL`, `CognitoRegion` to `SIA_RELEASE_COGNITO_REGION`, and `DesktopClientId` to `SIA_RELEASE_COGNITO_CLIENT_ID`. A packaged app ignores mutable `SIA_API_*` environment values and accepts cloud destinations only from its code-signed `sia-cloud.json` resource.
 

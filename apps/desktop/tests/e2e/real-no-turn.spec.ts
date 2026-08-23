@@ -64,6 +64,9 @@ realBrowserAttach(
               const current = await harness.page.evaluate(
                 async () => await window.sia.bootstrap(),
               );
+              if (current.browser.status === 'error') {
+                throw new Error(current.browser.detail ?? 'Chrome attachment failed.');
+              }
               return current.browser.status;
             },
             { timeout: 60_000 },

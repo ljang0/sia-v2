@@ -34,7 +34,7 @@ const PROVIDERS: Record<ProviderId, ProviderCommand> = {
   meta: {
     executable: '',
     versionArgs: [],
-    model: 'meta_super_nova_ext',
+    model: 'super_nova_ext',
     label: 'Meta',
     billing: 'Included when Sia cloud is configured.',
     detail: 'Runs through the Sia cloud relay; local tools remain on this Mac.',

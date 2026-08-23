@@ -1187,6 +1187,52 @@ export class ComposioConnector implements ConnectorProvider {
 }
 
 export class OpenAiCompatibleMetaProvider implements MetaProvider {
+  async capabilities(config: MetaConfig): Promise<{
+    models: string[];
+    streaming: boolean;
+    tools: boolean;
+  }> {
+    const endpoint = new URL('models', ensureTrailingSlash(config.endpoint));
+    if (endpoint.protocol !== 'https:')
+      throw new CloudError(503, 'meta_config_invalid', 'Meta endpoint must use HTTPS');
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        authorization: `Bearer ${config.apiKey}`,
+        accept: 'application/json',
+        [config.sessionHeader ?? 'x-session-id']: randomUUID(),
+      },
+    });
+    if (!response.ok) {
+      throw new CloudError(
+        502,
+        'meta_upstream_error',
+        `Meta returned HTTP ${response.status}`,
+        response.status >= 500,
+      );
+    }
+    const body: unknown = await response.json().catch(() => undefined);
+    const data = isRecord(body) && Array.isArray(body.data) ? body.data : [];
+    const upstreamModels = new Set(
+      data.flatMap((entry) =>
+        isRecord(entry) && typeof entry.id === 'string' ? [entry.id] : [],
+      ),
+    );
+    const configuredModels = config.allowedModels?.length
+      ? config.allowedModels
+      : [config.model];
+    const models = configuredModels.filter((model) => upstreamModels.has(model));
+    if (!models.length) {
+      throw new CloudError(
+        503,
+        'meta_model_unavailable',
+        'The configured Meta model is not available',
+        true,
+      );
+    }
+    return { models, streaming: true, tools: true };
+  }
+
   async *stream(config: MetaConfig, request: MetaTurnRequest): AsyncIterable<MetaStreamEvent> {
     const endpoint = new URL('chat/completions', ensureTrailingSlash(config.endpoint));
     if (endpoint.protocol !== 'https:')

@@ -425,6 +425,36 @@ describe('computer access settings', () => {
     expect(screen.queryByText(/Every grant is narrow, visible, and revocable/)).toBeNull();
   });
 
+  it('does not call Chrome ready until a window is attached', () => {
+    const snapshot = structuredClone(demoSnapshot);
+    snapshot.browser = {
+      status: 'detached',
+      profileName: 'Chrome',
+      attached: false,
+      availableWindows: [],
+      tabs: [],
+    };
+    snapshot.computer.chromeConnection = 'enabled';
+
+    render(
+      <ComputerSettings
+        snapshot={snapshot}
+        onAttachBrowser={vi.fn()}
+        onOpenBrowserSite={vi.fn()}
+        onDetachBrowser={vi.fn()}
+        onRequestPermissions={vi.fn()}
+        onUnlockComputer={vi.fn()}
+        onSetComputerTrust={vi.fn()}
+        onSetTrajectoryLog={vi.fn()}
+        onRevealTrajectories={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText('Everything is unlocked')).toBeNull();
+    expect(screen.getByText(/approve Chrome once/i)).toBeTruthy();
+    expect(screen.getByText(/security step cannot be skipped/i)).toBeTruthy();
+  });
+
   it('flips trust and the local log through the switches', async () => {
     const onSetComputerTrust = vi.fn(async () => undefined);
     const onSetTrajectoryLog = vi.fn(async () => undefined);

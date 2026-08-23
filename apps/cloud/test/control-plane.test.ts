@@ -397,6 +397,75 @@ describe('research boundary', () => {
     assert.equal(fixture.objects.objects.size, 1);
   });
 
+  it('rejects Google Workspace connector turns before they reach research storage', async () => {
+    const fixture = makeFixture();
+    const rawEvent = {
+      batchId: 'google-raw-event',
+      format: 'raw_v1' as const,
+      scope: {
+        threadId: 'thread-google',
+        turnId: 'turn-google',
+        eventKinds: ['sia.action_result'],
+      },
+      consent: {
+        version: 'alpha-1',
+        acceptedAt: '2026-08-13T00:00:00.000Z',
+        purpose: 'research_evaluation_debugging' as const,
+      },
+      events: [
+        {
+          id: 'google-event-1',
+          occurredAt: '2026-08-13T00:00:01.000Z',
+          classification: 'research_allowed' as const,
+          taints: [],
+          kind: 'raw.event',
+          payload: {
+            schemaVersion: 1,
+            threadId: 'thread-google',
+            turnId: 'turn-google',
+            eventType: 'sia.action_result',
+            data: { name: 'docs_read', result: { text: 'must not be stored' } },
+          },
+        },
+      ],
+    } satisfies ResearchBatchRequest;
+    const chunkBody = Buffer.from(
+      JSON.stringify({ name: 'mail_search', result: { text: 'must not be stored' } }),
+      'utf8',
+    ).toString('base64');
+    const rawChunk: ResearchBatchRequest = {
+      ...rawEvent,
+      batchId: 'google-raw-chunk',
+      events: [
+        {
+          ...rawEvent.events[0]!,
+          id: 'google-event-chunk-1',
+          kind: 'raw.event_chunk',
+          payload: {
+            schemaVersion: 1,
+            threadId: 'thread-google',
+            turnId: 'turn-google',
+            eventType: 'sia.action_result',
+            eventId: 'google-event-original',
+            encoding: 'base64-json',
+            chunkIndex: 0,
+            chunkCount: 1,
+            chunkData: chunkBody,
+          },
+        },
+      ],
+    };
+
+    for (const batch of [rawEvent, rawChunk]) {
+      await assert.rejects(
+        fixture.services.research.upload(user, batch),
+        hasCode('google_workspace_research_forbidden'),
+      );
+    }
+    assert.equal(fixture.objects.objects.size, 0);
+    assert.equal(fixture.state.batchRecords.size, 0);
+  });
+
   it('binds a reused batch ID to its canonical content', async () => {
     const fixture = makeFixture();
     const original = validBatch();
@@ -767,6 +836,17 @@ describe('invites and deletion', () => {
 });
 
 describe('Meta relay service', () => {
+  it('returns authenticated release capabilities without consuming turn quota', async () => {
+    const fixture = makeFixture();
+
+    assert.deepEqual(await fixture.services.meta.capabilities(user), {
+      available: true,
+      models: ['meta-test'],
+      streaming: true,
+      tools: true,
+    });
+  });
+
   it('pins configured models and releases its concurrency lease', async () => {
     const fixture = makeFixture();
     const events = [];

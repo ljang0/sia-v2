@@ -422,7 +422,7 @@ export function AgentDialog({
 function defaultModel(provider: ProviderId) {
   return {
     codex: 'gpt-5.6-sol',
-    meta: 'meta_super_nova_ext',
+    meta: 'super_nova_ext',
     grok: 'grok-code-fast',
     gemini: 'gemini-2.5-pro',
     claude: 'claude-sonnet-4-5',

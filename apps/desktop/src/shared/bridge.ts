@@ -322,7 +322,7 @@ export interface ComputerView extends ComputerPermissionsView {
    * attaches to the frontmost window on demand. 'ask' restores confirmation previews.
    */
   trust: 'auto' | 'ask';
-  /** Whether the always-on local trajectory log (requests, replies, actions, screenshots) is kept. */
+  /** Whether the local trajectory log is kept for turns allowed by the connector data policy. */
   trajectoryLog: boolean;
   trajectoryDirectory?: string;
 }

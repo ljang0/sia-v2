@@ -119,7 +119,8 @@
             </ul>
             <h3>Raw task activity in research mode</h3>
             <p>
-              Sia records the complete task-visible activity it observes, which may include:
+              Except for excluded Google Workspace connector turns described below, Sia records
+              the complete task-visible activity it observes, which may include:
             </p>
             <ul>
               <li>Exact prompts, replies, and reasoning surfaced in the task.</li>
@@ -150,7 +151,8 @@
               contents, secure fields, private-window contents, or hidden authentication
               surfaces. These controls reduce exposure but do not make task-visible content
               anonymous. If a secret appears inside the task surface, it may be included in raw
-              research data.
+              research data unless that turn is excluded by the Google Workspace rule in Section
+              6.
             </p>
           </section>
           <section class="legal-section">
@@ -180,10 +182,23 @@
               needs it and is not bulk copied into Sia.
             </p>
             <p>
-              Some task-visible connected-service content can still appear in the raw research
-              event stream when research mode is enabled. For example, a message returned to a
-              task or a document excerpt shown in a response can be recorded as part of that
-              task.
+              Google Workspace API data is used only for the user-facing feature you request.
+              Gmail, Drive, Docs, Sheets, and Slides connector results are excluded from
+              research uploads, the research archive, and administrator research review. When a
+              task invokes one of those Google Workspace connectors, Sia excludes the entire
+              turn from research capture. The user-facing result can remain in your local Sia
+              transcript until you delete it.
+            </p>
+            <p>
+              Operational connection metadata, such as whether a Google service was connected or
+              disconnected, may be included in research records without the Google Workspace
+              content. Task-visible content from Slack or another non-Google connected service
+              can still appear in the raw research event stream when research mode is enabled.
+            </p>
+            <p>
+              Google Workspace connector turns are also excluded from Sia's optional local
+              diagnostic trajectory files. The normal user-facing transcript remains local so
+              you can review the result and delete the thread.
             </p>
             <p>
               Sia's use and transfer of information received from Google APIs complies with the
@@ -194,8 +209,8 @@
               >, including the Limited Use requirements.
             </p>
             <p>
-              OAuth tokens and provider credentials are handled separately from raw task records
-              and are not intentionally included in research trajectories.
+              OAuth tokens and provider credentials are handled separately from task records and
+              are not included in research or diagnostic trajectories.
             </p>
           </section>
           <section class="legal-section">
