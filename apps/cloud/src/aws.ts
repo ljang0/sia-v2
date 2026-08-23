@@ -1183,6 +1183,9 @@ export class ComposioConnector implements ConnectorProvider {
       }
       throw error;
     }
+    if (body.successful === false && composioExecutionRequiresReconnect(body)) {
+      throw new ConnectorReconnectRequiredError();
+    }
     if (body.successful === false)
       throw new CloudError(
         502,
@@ -1623,6 +1626,17 @@ function stringField(record: Record<string, unknown>, field: string): string {
 
 function normalizedConnectorStatus(value: unknown): string {
   return typeof value === 'string' ? value.trim().toUpperCase() : '';
+}
+
+function composioExecutionRequiresReconnect(body: Record<string, unknown>): boolean {
+  const error = body.error;
+  if (!isRecord(error)) return false;
+  if (error.auth_refresh_required === true) return true;
+
+  const data = isRecord(error.data) ? error.data : undefined;
+  return [error.status_code, error.mercury_last_http_status_code, data?.status_code].some(
+    (status) => status === 401 || status === 403 || status === 410,
+  );
 }
 
 function nestedConnectorStatus(

@@ -363,19 +363,25 @@ function AppRow({
         <button
           type="button"
           className={
-            app.status === 'connecting' ? styles.secondaryButton : styles.textButtonDanger
+            app.status === 'error'
+              ? styles.secondaryButton
+              : app.status === 'connecting'
+                ? styles.secondaryButton
+                : styles.textButtonDanger
           }
           disabled={busy || !cloudReady}
           title={!cloudReady ? disabledReason : undefined}
-          onClick={onDisconnect}
-          aria-label={`${app.status === 'connecting' ? 'Cancel setup for' : 'Disconnect'} ${appName(app.id)}`}
+          onClick={app.status === 'error' ? onConnect : onDisconnect}
+          aria-label={`${app.status === 'error' ? 'Reconnect' : app.status === 'connecting' ? 'Cancel setup for' : 'Disconnect'} ${appName(app.id)}`}
         >
           {busy
-            ? 'Disconnecting...'
+            ? app.status === 'error'
+              ? 'Reconnecting...'
+              : 'Disconnecting...'
             : app.status === 'connecting'
               ? 'Cancel setup'
               : app.status === 'error'
-                ? 'Disconnect saved grant'
+                ? 'Reconnect'
                 : 'Disconnect'}
         </button>
       ) : (

@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CloudClient } from './cloud-client.js';
+import {
+  CloudClient,
+  CloudRequestError,
+  isConnectionReconnectRequired,
+} from './cloud-client.js';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -49,6 +53,35 @@ describe('CloudClient', () => {
     const tokens = { read: async () => 'secret-relay-token' };
     expect(() => new CloudClient('http://sia.test', tokens)).toThrow(/HTTPS/);
     expect(() => new CloudClient('https://user:pass@sia.test', tokens)).toThrow(/HTTPS/);
+  });
+
+  it('preserves only the safe reconnect code from a failed cloud response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json(
+          {
+            code: 'connection_reconnect_required',
+            message: 'provider response containing private upstream details',
+          },
+          { status: 409, headers: { 'x-request-id': 'request-1' } },
+        ),
+      ),
+    );
+    const client = new CloudClient('https://api.example.test', {
+      read: async () => 'test-id-token',
+    });
+
+    const error: unknown = await client.startConnection('docs').catch((reason) => reason);
+
+    expect(error).toBeInstanceOf(CloudRequestError);
+    expect(error).toMatchObject({
+      status: 409,
+      code: 'connection_reconnect_required',
+      requestId: 'request-1',
+    });
+    expect(isConnectionReconnectRequired(error)).toBe(true);
+    expect(String(error)).not.toContain('private upstream details');
   });
 
   it.each(['https://api.example.test/alpha', 'https://api.example.test/alpha/'])(

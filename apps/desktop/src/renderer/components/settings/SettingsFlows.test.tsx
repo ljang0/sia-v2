@@ -239,19 +239,21 @@ describe('cloud account settings', () => {
     await waitFor(() => expect(onConnectSelected).toHaveBeenCalledWith(['docs', 'slack']));
   });
 
-  it('surfaces an interrupted saved grant and provides a safe disconnect path', () => {
+  it('surfaces an interrupted saved grant and provides one-click reconnect', async () => {
     const snapshot = withCloud('signed-in', 'lawrence@example.com');
     snapshot.apps[0] = {
       ...snapshot.apps[0]!,
       status: 'error',
       description: 'Connection setup was interrupted. Verify or disconnect this saved grant.',
     };
+    const onConnect = vi.fn().mockResolvedValue(undefined);
+    const onDisconnect = vi.fn();
     render(
       <AppsSettings
         snapshot={snapshot}
         onConnectAll={vi.fn()}
-        onConnect={vi.fn()}
-        onDisconnect={vi.fn()}
+        onConnect={onConnect}
+        onDisconnect={onDisconnect}
         onStartCloudSignIn={vi.fn()}
         onCompleteCloudSignIn={vi.fn()}
         onSignOutCloud={vi.fn()}
@@ -261,9 +263,9 @@ describe('cloud account settings', () => {
 
     expect(screen.getByText('Needs attention')).toBeTruthy();
     expect(screen.getByText(/Connection setup was interrupted/)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Disconnect Gmail' }).textContent).toBe(
-      'Disconnect saved grant',
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Reconnect Gmail' }));
+    await waitFor(() => expect(onConnect).toHaveBeenCalledWith('gmail'));
+    expect(onDisconnect).not.toHaveBeenCalled();
   });
 
   it('requires the exact account-deletion phrase and keeps failures recoverable', async () => {

@@ -483,10 +483,14 @@ export class ActionsService {
       });
       return { status: 'completed' as const, actionId: record.id, result: result.data };
     } catch (error) {
-      if (error instanceof ConnectorReconnectRequiredError) {
+      const reconnectRequired = error instanceof ConnectorReconnectRequiredError;
+      if (reconnectRequired) {
         await markConnectionFailed(this.deps, user.subject, record.connectionId);
       }
-      await this.deps.actions.failAction(user.subject, record.id, 'connector_execution_failed');
+      const errorCode = reconnectRequired
+        ? 'connection_reconnect_required'
+        : 'connector_execution_failed';
+      await this.deps.actions.failAction(user.subject, record.id, errorCode);
       await this.deps.audit.write({
         userId: user.subject,
         action: 'connector.write',
@@ -495,12 +499,9 @@ export class ActionsService {
         connectionId: record.connectionId,
         outcome: 'failed',
         occurredAt: this.deps.clock.now().toISOString(),
-        errorCode:
-          error instanceof ConnectorReconnectRequiredError
-            ? 'connection_reconnect_required'
-            : 'connector_execution_failed',
+        errorCode,
       });
-      if (error instanceof ConnectorReconnectRequiredError) {
+      if (reconnectRequired) {
         throw new CloudError(
           409,
           'connection_reconnect_required',

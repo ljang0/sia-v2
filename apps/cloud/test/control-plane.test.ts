@@ -204,6 +204,38 @@ describe('connector action gateway', () => {
     assert.equal(fixture.connector.executions.length, 1);
   });
 
+  it('records reconnect-required when a mutation discovers an expired grant', async () => {
+    const fixture = makeFixture();
+    await connect(fixture, 'google_docs', 'expired-docs-connection');
+    const input = { title: 'Fixture', markdown: 'read-back' };
+    const prepared = await fixture.services.actions.prepare(user, {
+      connectionId: 'expired-docs-connection',
+      tool: 'docs.create',
+      input,
+    });
+    assert.equal(prepared.status, 'approval_required');
+    fixture.connector.executeError = new ConnectorReconnectRequiredError();
+
+    await assert.rejects(
+      fixture.services.actions.commit(user, {
+        actionId: prepared.actionId,
+        digest: prepared.digest,
+        input,
+      }),
+      hasCode('connection_reconnect_required'),
+    );
+
+    assert.equal(
+      (await fixture.state.getConnection(user.subject, 'expired-docs-connection'))?.status,
+      'failed',
+    );
+    assert.equal(
+      (await fixture.state.getAction(user.subject, prepared.actionId))?.failureCode,
+      'connection_reconnect_required',
+    );
+    assert.equal(fixture.audit.events.at(-1)?.errorCode, 'connection_reconnect_required');
+  });
+
   it('rejects a tool used with the wrong app and an expired approval', async () => {
     const fixture = makeFixture();
     await connect(fixture, 'slack', 'connection-1');

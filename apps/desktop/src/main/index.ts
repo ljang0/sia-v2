@@ -232,6 +232,8 @@ async function performApplicationCreation(): Promise<void> {
       ensureBrowserAttached: () => activeController.ensureBrowserAttachedForActions(),
       resolveConnectionId: (app, selector, approvalId) =>
         activeController.connectionIdForAction(app, selector, approvalId),
+      onConnectionReconnectRequired: (app, connectionId) =>
+        activeController.markConnectionReconnectRequired(app, connectionId),
       schedules: {
         create: (threadId, input) => activeController.createScheduleFromAction(threadId, input),
         list: (threadId) => activeController.listSchedulesForAction(threadId),

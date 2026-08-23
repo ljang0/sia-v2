@@ -19,7 +19,11 @@ import type {
   ActionExecutionResult,
   ValidatedActionInvocation,
 } from '@sia/action-gateway';
-import type { CloudClient, PreparedActionResult } from './cloud-client.js';
+import {
+  isConnectionReconnectRequired,
+  type CloudClient,
+  type PreparedActionResult,
+} from './cloud-client.js';
 import {
   isCuaCallResult,
   type CuaAuthorizationContext,
@@ -73,6 +77,11 @@ export interface DesktopActionBackendOptions {
     selector: string,
     approvalId?: string,
   ) => string | undefined;
+  /** Updates the trusted local connection view when the control plane rejects an expired grant. */
+  readonly onConnectionReconnectRequired?: (
+    app: 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack',
+    connectionId: string,
+  ) => void;
   /** Main-process pid, injectable only so the host-self exclusion can be tested. */
   readonly hostPid?: number;
   /** Local Apple Messages integration; absent off macOS or in tests that do not use it. */
@@ -277,6 +286,8 @@ export class DesktopActionBackend implements ActionBackend {
         approvalId?: string,
       ) => string | undefined)
     | undefined;
+  readonly #onConnectionReconnectRequired:
+    DesktopActionBackendOptions['onConnectionReconnectRequired'] | undefined;
   readonly #hostPid: number;
   readonly #computerApps = new Map<string, ComputerAppBinding>();
   readonly #computerWindows = new Map<string, ComputerWindowBinding>();
@@ -298,6 +309,7 @@ export class DesktopActionBackend implements ActionBackend {
     this.#schedules = options.schedules;
     this.#openFullDiskAccessSettings = options.openFullDiskAccessSettings;
     this.#resolveConnectionId = options.resolveConnectionId;
+    this.#onConnectionReconnectRequired = options.onConnectionReconnectRequired;
     this.#hostPid = options.hostPid ?? process.pid;
     void sweepStaleBrowserVaults();
   }
@@ -458,6 +470,11 @@ export class DesktopActionBackend implements ActionBackend {
           return this.#scheduleAction(request);
       }
     } catch (error) {
+      if (isConnectionReconnectRequired(error)) {
+        return refused(
+          'This connected app authorization expired. Reconnect it in Settings > Apps, then retry.',
+        );
+      }
       return classifyFailure(error);
     }
   }
@@ -1248,45 +1265,52 @@ export class DesktopActionBackend implements ActionBackend {
         ? await this.#stageDriveUpload(request, connectionId)
         : withoutKey(request.arguments, 'account_id');
     if (request.context.signal?.aborted) return refused('Action cancelled before execution.');
-    const prepared = await this.#cloud.prepareAction(
-      {
-        connectionId,
-        tool: CONNECTOR_TOOLS[name],
-        input,
-      },
-      request.context.signal,
-    );
-    if (prepared.status === 'executed') return connectorReadResult(name, prepared);
-    if (!request.descriptor.annotations.requiresApproval) {
-      return refused(
-        'The connected app tried to turn a read-only request into a mutation without approval.',
+    try {
+      const prepared = await this.#cloud.prepareAction(
+        {
+          connectionId,
+          tool: CONNECTOR_TOOLS[name],
+          input,
+        },
+        request.context.signal,
       );
-    }
-    if (!isDeepStrictEqual(prepared.preview, input)) {
-      return refused(
-        'The connected app returned a preview that did not exactly match the approved action.',
+      if (prepared.status === 'executed') return connectorReadResult(name, prepared);
+      if (!request.descriptor.annotations.requiresApproval) {
+        return refused(
+          'The connected app tried to turn a read-only request into a mutation without approval.',
+        );
+      }
+      if (!isDeepStrictEqual(prepared.preview, input)) {
+        return refused(
+          'The connected app returned a preview that did not exactly match the approved action.',
+        );
+      }
+      if (request.context.signal?.aborted) return refused('Action cancelled before commit.');
+      const committed = await this.#cloud.commitAction(
+        {
+          actionId: prepared.actionId,
+          digest: prepared.digest,
+          input,
+        },
+        request.context.signal,
       );
+      return {
+        outcome: 'verified',
+        summary:
+          committed.status === 'already_completed'
+            ? `${humanToolName(name)} was already completed; it was not repeated.`
+            : `${humanToolName(name)} completed through the connected app.`,
+        ...(committed.result === undefined ? {} : { data: committed.result }),
+        verification: {
+          evidence: `Cloud action ${committed.actionId} passed digest verification and idempotent commit.`,
+        },
+      };
+    } catch (error) {
+      if (isConnectionReconnectRequired(error)) {
+        this.#onConnectionReconnectRequired?.(connectorApp, connectionId);
+      }
+      throw error;
     }
-    if (request.context.signal?.aborted) return refused('Action cancelled before commit.');
-    const committed = await this.#cloud.commitAction(
-      {
-        actionId: prepared.actionId,
-        digest: prepared.digest,
-        input,
-      },
-      request.context.signal,
-    );
-    return {
-      outcome: 'verified',
-      summary:
-        committed.status === 'already_completed'
-          ? `${humanToolName(name)} was already completed; it was not repeated.`
-          : `${humanToolName(name)} completed through the connected app.`,
-      ...(committed.result === undefined ? {} : { data: committed.result }),
-      verification: {
-        evidence: `Cloud action ${committed.actionId} passed digest verification and idempotent commit.`,
-      },
-    };
   }
 
   async #stageDriveUpload(

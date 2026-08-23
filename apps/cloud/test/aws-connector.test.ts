@@ -249,4 +249,31 @@ describe('Composio tool execution adapter', () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it('turns a nested provider authentication failure into a reconnect-required error', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      Response.json({
+        successful: false,
+        error: {
+          auth_refresh_required: false,
+          mercury_last_http_status_code: 401,
+          data: { status_code: 401 },
+        },
+      })) as typeof globalThis.fetch;
+    try {
+      await assert.rejects(
+        new ComposioConnector(secrets).execute(
+          'user-1',
+          'expired-connection',
+          'docs.create',
+          { title: 'Fixture', markdown_text: 'read-back' },
+          'execution-2',
+        ),
+        (error: unknown) => error instanceof ConnectorReconnectRequiredError,
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

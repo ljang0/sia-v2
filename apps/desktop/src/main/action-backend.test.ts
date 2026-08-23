@@ -25,6 +25,7 @@ import {
   type CloudActionClient,
   type CuaToolCaller,
 } from './action-backend.js';
+import { CloudRequestError } from './cloud-client.js';
 
 function request(
   name: ActionToolName,
@@ -1239,6 +1240,68 @@ describe('DesktopActionBackend connector boundary', () => {
       undefined,
     );
     expect(cloud.commitAction).not.toHaveBeenCalled();
+  });
+
+  it('marks an editor grant for reconnect when a read discovers expired authorization', async () => {
+    const reconnect = vi.fn();
+    const cloud: CloudActionClient = {
+      configured: true,
+      prepareAction: vi.fn(async () => {
+        throw new CloudRequestError(409, 'connection_reconnect_required', 'request-1');
+      }),
+      commitAction: vi.fn(),
+    };
+    const backend = new DesktopActionBackend({
+      cua: fakeCua(async () => ({})),
+      cloud,
+      resolveConnectionId: () => 'connection-docs',
+      onConnectionReconnectRequired: reconnect,
+    });
+
+    await expect(
+      backend.invoke(request('docs_read', { account_id: 'docs', document_id: 'document-1' })),
+    ).resolves.toMatchObject({
+      outcome: 'refused',
+      reason: expect.stringContaining('authorization expired'),
+    });
+    expect(reconnect).toHaveBeenCalledWith('docs', 'connection-docs');
+  });
+
+  it('marks an editor grant for reconnect when a mutation commit discovers expired authorization', async () => {
+    const reconnect = vi.fn();
+    const cloud: CloudActionClient = {
+      configured: true,
+      prepareAction: vi.fn(async ({ input }) => ({
+        status: 'approval_required' as const,
+        actionId: 'action-docs',
+        digest: 'digest-docs',
+        expiresAt: '2030-01-01T00:00:00.000Z',
+        preview: structuredClone(input),
+      })),
+      commitAction: vi.fn(async () => {
+        throw new CloudRequestError(409, 'connection_reconnect_required', 'request-2');
+      }),
+    };
+    const backend = new DesktopActionBackend({
+      cua: fakeCua(async () => ({})),
+      cloud,
+      resolveConnectionId: () => 'connection-docs',
+      onConnectionReconnectRequired: reconnect,
+    });
+
+    await expect(
+      backend.invoke(
+        request('docs_create', {
+          account_id: 'docs',
+          title: 'Fixture',
+          markdown: 'read-back',
+        }),
+      ),
+    ).resolves.toMatchObject({
+      outcome: 'refused',
+      reason: expect.stringContaining('authorization expired'),
+    });
+    expect(reconnect).toHaveBeenCalledWith('docs', 'connection-docs');
   });
 
   it.each([

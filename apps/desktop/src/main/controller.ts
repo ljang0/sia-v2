@@ -774,6 +774,21 @@ export class DesktopController {
     return connection.connectionId;
   }
 
+  markConnectionReconnectRequired(app: ConnectionView['id'], connectionId: string): void {
+    const connection = this.#state.connections.find((candidate) => candidate.id === app);
+    if (!connection || connection.connectionId !== connectionId) return;
+    this.#updateConnection(app, {
+      status: 'error',
+      detail: 'This app connection expired. Reconnect it, then retry the action.',
+    });
+    this.#commit();
+    this.#recordLifecycleEvent('connector.setup.failed', {
+      app,
+      connectionId,
+      reason: 'connection_reconnect_required',
+    });
+  }
+
   async invoke<M extends BridgeMethod>(
     method: M,
     input: BridgeRequestMap[M],
@@ -2693,9 +2708,16 @@ export class DesktopController {
     if (this.#connectionSetup && !options.partOfBundle) {
       throw new Error('Finish or cancel the guided work-app setup first.');
     }
-    const existing = this.#state.connections.find(({ id }) => id === connectionId);
+    let existing = this.#state.connections.find(({ id }) => id === connectionId);
     if (existing?.connectionId) {
-      throw new Error('Disconnect the existing or pending grant before connecting again.');
+      if (existing.status !== 'error') {
+        throw new Error('Disconnect the existing or pending grant before connecting again.');
+      }
+      await this.#disconnectConnection({
+        connectionId,
+        expectedConnectionId: existing.connectionId,
+      });
+      existing = this.#state.connections.find(({ id }) => id === connectionId);
     }
     const owner = this.#currentIdentityKey();
     if (!this.#fakeServices && !owner) {

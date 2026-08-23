@@ -1,4 +1,4 @@
-# Sia 0.1.0-alpha.5
+# Sia 0.1.0-alpha.6
 
 Sia is a private macOS 14+ alpha for local-first agent work. This build supports Codex through the
 official CLI already installed and authenticated on the Mac, plus hosted Meta access for signed-in
@@ -35,6 +35,9 @@ invited alpha participants.
   lifecycle events are written locally and to the consented encrypted AWS stream, while OAuth URLs,
   codes, and tokens are excluded. People can keep the one-click default or open **Choose apps** to
   connect any subset and add or disconnect individual apps later;
+- expired connected-app authorization is now detected even when the provider wraps a Google 401 in
+  a successful transport response. Sia marks only that exact grant as needing attention, explains
+  the recovery in the task, and replaces the stale grant through one **Reconnect** click;
 - versioned v3 raw research consent for every observed completed, failed, or cancelled turn,
   including prompts, responses, surfaced reasoning, commands/output, action arguments/results,
   approvals, browser/computer and connected-app events, paths/diffs, errors, and images. Signed-in
@@ -51,7 +54,7 @@ invited alpha participants.
 
 ## Visual identity
 
-- Alpha.5 carries forward the warm-neutral workspace rail introduced in Alpha.4,
+- Alpha.6 carries forward the warm-neutral workspace rail introduced in Alpha.4,
   quiets agent colors into mineral identity accents, removes colorful provider tiles, and uses one
   muted evergreen action color. Dark mode remains neutral charcoal rather than green-black.
 - Native display typography now carries names and headings; bundled Bricolage Grotesque (OFL) is

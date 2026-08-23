@@ -2015,6 +2015,31 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('replaces an expired saved grant in one reconnect action', async () => {
+    const controller = await createController();
+    await controller.invoke('connections.start', { connectionId: 'docs' });
+    const original = controller
+      .snapshot()
+      .connections.find(({ id }) => id === 'docs')?.connectionId;
+    expect(original).toBeTruthy();
+
+    controller.markConnectionReconnectRequired('docs', original!);
+    expect(controller.snapshot().connections.find(({ id }) => id === 'docs')).toMatchObject({
+      status: 'error',
+      connectionId: original,
+      detail: 'This app connection expired. Reconnect it, then retry the action.',
+    });
+
+    const result = await controller.invoke('connections.start', { connectionId: 'docs' });
+    expect(result.snapshot.connections.find(({ id }) => id === 'docs')).toMatchObject({
+      status: 'connected',
+    });
+    expect(result.snapshot.connections.find(({ id }) => id === 'docs')?.connectionId).not.toBe(
+      original,
+    );
+    await controller.shutdown();
+  });
+
   it('connects Google Workspace as one guided group without implicitly granting Slack', async () => {
     const controller = await createController();
 

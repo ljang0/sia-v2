@@ -79,6 +79,25 @@ export interface CloudDeletionWaitOptions {
   signal?: AbortSignal;
 }
 
+export class CloudRequestError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string | undefined,
+    readonly requestId: string | null,
+  ) {
+    super(`Sia cloud request failed (${status})${requestId ? `, request ${requestId}` : ''}.`);
+    this.name = 'CloudRequestError';
+  }
+}
+
+export function isConnectionReconnectRequired(error: unknown): boolean {
+  return (
+    error instanceof CloudRequestError &&
+    error.status === 409 &&
+    error.code === 'connection_reconnect_required'
+  );
+}
+
 export interface AdminResearchParticipant {
   subject: string;
   email?: string;
@@ -549,9 +568,15 @@ export class CloudClient implements MetaTransport {
     });
     if (!response.ok) {
       const requestId = response.headers.get('x-request-id');
-      throw new Error(
-        `Sia cloud request failed (${response.status})${requestId ? `, request ${requestId}` : ''}.`,
-      );
+      let code: string | undefined;
+      try {
+        const payload: unknown = await response.json();
+        const record = asRecord(payload);
+        if (typeof record.code === 'string') code = record.code;
+      } catch {
+        // Error payloads are optional. Never include their contents in the thrown message.
+      }
+      throw new CloudRequestError(response.status, code, requestId);
     }
     if (response.status === 204) return undefined as T;
     return (await response.json()) as T;
