@@ -473,3 +473,49 @@ Do not distribute the artifact until these are completed and recorded:
   the provider-owned approval sequence. The macOS error/fault log contained only AppKit's benign
   missing state-restoration class notice and no Sia startup, renderer, cloud-config, or signature
   failure.
+
+## Superseding corrected alpha artifact and live connector acceptance (2026-08-23 KST)
+
+- Superseding frozen application source commit: `0f3bfeb` (`Honor connector OAuth link expiry`).
+  The desktop had polled every OAuth attempt for a hard-coded two minutes even when the provider
+  returned a roughly ten-minute approval URL. A valid, eventually connected grant could therefore
+  be shown as failed. The controller now retains each provider expiry and polls through that expiry
+  plus a bounded grace period, with a ten-minute fallback. A regression keeps a ten-minute link
+  active past 122 seconds and verifies successful reconciliation at 124 seconds.
+- Final `pnpm check` passed formatting, quality, type checking, and 430 tests: 94 cloud, 282 desktop,
+  23 action-gateway, 20 runtime, eight tool-bridge, and three protocol tests.
+- Superseding artifact: `apps/desktop/release/Sia-0.1.0-alpha.1-universal.dmg`
+- DMG SHA-256: `fb7f00082398aaa75d5caa623fdaee936d87e688eea72851763029cafe6b2174`
+- ZIP SHA-256: `d97c3c58a181be96c01e91b976a08e8f98c43c2680a2a7c7d30e07d1c4c74ff5`
+- DMG size: 257,703,797 bytes
+- ZIP size: 257,013,078 bytes
+- Apple app submission: `97d75738-9d5f-4fa4-949b-55fd0e57b730` - Accepted
+- Apple DMG submission: `0954cc49-99a1-4d68-9829-c1933ab6bbd1` - Accepted
+- The corrected app and DMG both passed `stapler validate`; the app passed deep strict code-signature
+  verification; Gatekeeper returned `Notarized Developer ID`. The exact corrected release app was
+  then launched from `apps/desktop/release/mac-universal/Sia.app` for the connector acceptance run.
+- The operator completed fresh browser OAuth in the existing `ljang@andrew.cmu.edu` Chrome profile
+  for Gmail, Drive, Docs, Sheets, and Slides. Slack completed browser OAuth against Russ Lab through
+  the public-distribution Sia app. No desktop Slack dependency, developer-console credential, user
+  API key, DM open, or Slack post was used. The app and DynamoDB reconciled exactly one connected
+  record for each of Gmail, Drive, Docs, Sheets, Slides, and Slack.
+- The live pass exposed and removed two misleading older grants before release: Gmail displayed
+  connected while its provider read returned 401, and Drive was attached to a different saved Google
+  account. Only those connector grants were revoked. Both were reauthorized explicitly against the
+  Andrew CMU account and reconciled as connected; no provider file, message, or workspace data was
+  deleted.
+- Read-only connector execution passed without quoting or persisting provider content: Gmail fetched
+  one inbox metadata result; Drive search executed successfully and returned zero files, matching the
+  intentional `drive.file` boundary until Sia creates or the user explicitly grants a file; Docs
+  returned 9,498 plaintext characters with no warnings; Sheets returned one row for the bounded
+  `A1:A1` range; Slides returned a 20-slide presentation; Slack exact-phrase search executed with a
+  limit of one and no match. No draft, send, upload, share, create, edit, append, DM, or post ran.
+- OAuth URLs, authorization codes, account tokens, connection identifiers, provider response content,
+  document identifiers, and cell/slide/message contents are intentionally absent from this evidence.
+  Google Workspace connector turns remain excluded from research capture under the documented
+  Limited Use boundary.
+- This artifact is Apple-distributable, but general external all-app distribution still depends on
+  the Google reviewer demo URL, sensitive/restricted-scope verification and CASA review, validation
+  with two fresh non-tester Google accounts on different domains, an unrelated Slack-workspace test
+  plus an explicitly approved synthetic send, and the named privacy/security/support/release
+  signoffs. The unverified-app test bypass is not an external release path.
