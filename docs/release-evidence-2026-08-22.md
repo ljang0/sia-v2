@@ -466,3 +466,10 @@ Do not distribute the artifact until these are completed and recorded:
   `codesign --verify --deep --strict`, Gatekeeper returned `Notarized Developer ID`, and
   `stapler validate` succeeded. This is the current distributable binary; the ZIP is retained as
   build evidence rather than the participant download.
+- The older installed Sia process was closed gracefully without deleting its profile. The exact
+  notarized release app then launched from the finalized release directory and rendered the
+  production **Connect your work apps** setup surface. The visible UI showed Google Workspace,
+  Slack's browser-only approval boundary, the Google Workspace research/trajectory exclusion, and
+  the provider-owned approval sequence. The macOS error/fault log contained only AppKit's benign
+  missing state-restoration class notice and no Sia startup, renderer, cloud-config, or signature
+  failure.
