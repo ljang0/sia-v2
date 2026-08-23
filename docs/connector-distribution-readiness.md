@@ -87,6 +87,12 @@ as failed, audits `connection_reconnect_required`, and presents the normal recon
 of silently restoring the misleading status. The stale Google records were marked failed; the
 working Slack grant was preserved.
 
+The exact signed alpha.5 artifact additionally passed a clean temporary-profile launch, local-only
+onboarding, required workspace selection, first-agent and first-thread creation, quit, relaunch, and
+state restoration. A control-table audit kept the acceptance and administrator connection sets
+strictly separated. This is one-profile evidence only and does not satisfy the required two-profile,
+two-provider-identity matrix below.
+
 ## Slack production gate
 
 - [x] Create the Sia-owned Slack app from `infra/slack-app-manifest.yaml`; confirm its scopes exactly

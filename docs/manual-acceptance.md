@@ -196,6 +196,12 @@ not replace the mutation checks below. When several Chrome windows are open, set
       The exact final artifact also completed Continue locally and rendered Providers, Apps,
       Computer, the selective connector chooser, and the 90-day/128-MiB trajectory policy in Light
       appearance without clipping.
+      On 2026-08-24 the exact alpha.5 signed artifact completed Continue locally, required workspace
+      selection, first-agent creation, first-thread creation, quit, relaunch, and state restoration
+      from a disposable clean user-data profile. Its packaged renderer also passed a 960x640
+      Dark/reduced-motion media check of Settings and the complete Apps copy without horizontal
+      clipping. A human exact-artifact Dark appearance review, administrator MFA/archive, and outbox
+      states remain open.
 - [ ] Run the upgrade-account install on a disposable macOS account that has the intended prior v2
       build, and confirm agents, threads, provider detection, and one read-only workflow survive.
       A contained temporary-profile simulation from the notarized `_old-builds/release-signed-ux-final-v2` bundle
