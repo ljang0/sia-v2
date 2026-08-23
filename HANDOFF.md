@@ -173,11 +173,10 @@ and provider history but do not supersede that record.
 
 ### Settled-source automated baseline
 
-These passed on the settled source on 2026-08-17 after the local CUA fixes.
+These passed on frozen `0.1.0-alpha.2` source on 2026-08-23.
 
-- `pnpm check`: build, formatting, quality guard, typecheck, and 321 unit tests passed; the one
-  explicitly opt-in real isolation smoke remained skipped in this aggregate invocation.
-- `pnpm test:e2e`: 23/23 enabled Electron Playwright tests passed; four opt-in real tests skipped as
+- `pnpm check`: build, formatting, quality guard, typecheck, and 431 tests passed.
+- `pnpm test:e2e`: 24 enabled Electron Playwright tests passed; four opt-in real tests skipped as
   expected in the baseline invocation.
 - `pnpm test:e2e:parity:strict`: 13/13 passed.
 - `pnpm test:codex-isolation:real`: passed without sending a model turn.
@@ -191,34 +190,32 @@ These passed on the settled source on 2026-08-17 after the local CUA fixes.
 
 - Current artifact: `apps/desktop/release/mac-universal/Sia.app`
 - Distribution files:
-  - `apps/desktop/release/Sia-0.1.0-alpha.1-universal.dmg`
-  - `apps/desktop/release/Sia-0.1.0-alpha.1-universal.zip`
+  - `apps/desktop/release/Sia-0.1.0-alpha.2-universal.dmg`
+  - `apps/desktop/release/Sia-0.1.0-alpha.2-universal.zip`
 - Installed signing identity:
   `Developer ID Application: Lawrence Jang (DXYJ578DD4)`
 - Notary profile: `notarytool-profile`
-- The current app was rebuilt from frozen commit `7b239c32610e8beb6ff8a6e2a6c21666994b19c2` and
-  rechecked on 2026-08-22:
+- The current app was rebuilt from frozen commit `c419d482c5c4ef1b438808836e64c40c5586e888` and
+  rechecked on 2026-08-23:
   - `codesign --verify --deep --strict`: pass
   - Gatekeeper `spctl --assess`: accepted, Notarized Developer ID
   - `xcrun stapler validate`: pass
-  - app notary submission `581c90e4-ea35-4b96-8e69-49bf128a7a1c`: accepted at
-    `2026-08-22T08:30:46.456Z`
-  - DMG notary submission `edcbbcac-c802-4e99-aaca-c637c67a36e2`: accepted at
-    `2026-08-22T08:32:48.045Z`
-  - DMG SHA-256: `4bf61ee6803316393fb62bd6ce361d5d750fa99e04297cb853f5756550c32fac`
-  - ZIP SHA-256: `731653a776d76c4aff174b6c8f640ae77a005d5d5a43bc47a8d55b2574cf834f`
-- `/Applications/Sia.app` is now the exact notarized DMG copy. The superseded installed app is
-  archived at `apps/desktop/_old-builds/installed-Sia-obsolete-20260822.app`.
-- Rollback artifact: `apps/desktop/_old-builds/release-pre-7b239c3-20260822-1729/`
+  - app notary submission `0c6d39e5-69e8-40f1-9363-257ea0075918`: accepted
+  - DMG notary submission `f28beacc-420b-4a26-8f38-b28ec9fd0fd6`: accepted
+  - DMG SHA-256: `9b81503bd02c4a51f12e43411aa3867b217239def99c8b378df237c71afb078c`
+  - ZIP SHA-256: `5349666167faf109e4eea816d319008fb8ce6df1fe46c0f692f97cac35af88f9`
+- Rollback artifact:
+  `apps/desktop/_old-builds/release-alpha1-before-alpha2-20260823-1645/`
 - Contained upgrade simulation: the notarized
   `apps/desktop/_old-builds/release-signed-ux-final-v2/mac-universal/Sia.app` created an `Upgrade fixture v2`
   agent and completed thread in a fresh temporary profile. Opening the final signed artifact against
   that same profile preserved the agent, thread, provider/model settings, and original reply; Codex
   remained installed/authenticated and a new read-only exact-reply workflow completed. This is strong
   migration evidence but does not replace the final installer pass under a disposable macOS account.
-- Do not distribute this artifact until the open microphone, separate-account installer,
-  provider-distribution, and recipient-list gates below pass. Rebuild and notarize again after any
-  packaged source change.
+- The binary is technically distributable for the invite-only core research alpha. Do not claim
+  universal all-app readiness until the Google verification/CASA, unrelated-account/workspace,
+  approved synthetic-write, and named human signoff gates below pass. Rebuild and notarize again
+  after any packaged source change.
 
 ## AWS release stack
 
