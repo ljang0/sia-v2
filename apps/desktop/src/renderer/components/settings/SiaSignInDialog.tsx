@@ -46,6 +46,7 @@ export function SiaSignInDialog({
           <div className={styles.signInDialogBody}>
             <CloudAccountSettings
               cloudAuth={cloudAuth}
+              autoFocusEmail
               onStartCloudSignIn={onStart}
               onCompleteCloudSignIn={onComplete}
               onBeginAdminMfa={onBeginAdminMfa}

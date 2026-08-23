@@ -1,4 +1,4 @@
-# Sia 0.1.0-alpha.2
+# Sia 0.1.0-alpha.3
 
 Sia is a private macOS 14+ alpha for local-first agent work. This build supports Codex through the
 official CLI already installed and authenticated on the Mac, plus hosted Meta access for signed-in
@@ -55,6 +55,11 @@ invited alpha participants.
   on the system font. Settings use a single horizontal section rail, account dialogs and local-mode
   setup are flatter, and the schedule form can infer its first run. Admins have a dedicated Release
   review with live signals, direct links, and a local operator checklist.
+- Alpha.3 softens secondary actions and form outlines, unifies control surfaces and focus halos,
+  removes the desktop-size scrollbar from agent creation, focuses the useful email field first in
+  sign-in, and matches the native window paint to the light and dark canvas to prevent a startup
+  color flash. A deterministic screenshot audit now covers the core, settings, apps, agent, activity,
+  sign-in, local-choice, compact, dark, keyboard-focus, overflow, font, and reduced-motion states.
 
 ## Alpha boundaries
 

@@ -59,6 +59,7 @@
   --bg-hover: #e5e9e5;
   --bg-selected: #e1e8e3;
   --bg-field: #f2f3f0;
+  --bg-control: color-mix(in srgb, var(--bg-field) 58%, var(--bg-raised));
 
   /* The person's controls: ink. */
   --bg-accent: #14211c;
@@ -80,7 +81,9 @@
   --border-strong: #6c7771;
   --border-accent: #14211c;
   --border-danger: #e0a698;
+  --border-control: color-mix(in srgb, var(--border-strong) 36%, var(--border-subtle));
   --focus-ring: #1e5c49;
+  --focus-halo: color-mix(in srgb, var(--focus-ring) 11%, transparent);
 
   --surface-warning: #f6ecd2;
   --surface-danger: #f9e6e1;

@@ -259,7 +259,7 @@
 
 .transcriptSearch .threadSearch:focus-within {
   border-color: var(--focus-ring);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 14%, transparent);
+  box-shadow: 0 0 0 3px var(--focus-halo);
   color: var(--text-secondary);
 }
 
@@ -1722,16 +1722,16 @@ button.agentAvatar {
 
 .secondaryButton {
   padding: 0 14px;
-  border: 1px solid color-mix(in srgb, var(--border-strong) 62%, var(--border-subtle));
-  background: var(--bg-raised);
+  border: 1px solid color-mix(in srgb, var(--border-strong) 42%, var(--border-subtle));
+  background: color-mix(in srgb, var(--bg-raised) 82%, var(--bg-canvas));
   color: var(--text-primary);
-  box-shadow: var(--shadow-control);
+  box-shadow: none;
 }
 
 .secondaryButton:hover {
   border-color: var(--border-strong);
-  background: var(--bg-raised);
-  box-shadow: var(--shadow-raised);
+  background: var(--bg-hover);
+  box-shadow: var(--shadow-control);
   transform: translateY(-1px);
 }
 
@@ -2019,7 +2019,7 @@ button.agentAvatar {
 
 .composer {
   padding: 11px 11px 9px 13px;
-  border: 1px solid color-mix(in srgb, var(--border-strong) 68%, var(--border-subtle));
+  border: 1px solid color-mix(in srgb, var(--border-strong) 44%, var(--border-subtle));
   border-radius: var(--radius-surface);
   background: var(--bg-raised);
   box-shadow: var(--shadow-composer);
@@ -2032,7 +2032,7 @@ button.agentAvatar {
 .composer:focus-within {
   border-color: var(--focus-ring);
   box-shadow:
-    0 0 0 4px color-mix(in srgb, var(--focus-ring) 13%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--focus-ring) 11%, transparent),
     var(--shadow-composer);
 }
 
@@ -2456,7 +2456,7 @@ button.agentAvatar {
   width: min(560px, calc(100vw - 40px));
   max-height: calc(100vh - 48px);
   overflow-y: auto;
-  border: 1px solid color-mix(in srgb, var(--border-strong) 54%, var(--border-subtle));
+  border: 1px solid color-mix(in srgb, var(--border-strong) 28%, var(--border-subtle));
   border-radius: var(--radius-dialog);
   background: var(--bg-raised);
   box-shadow: var(--shadow-dialog);
@@ -2617,7 +2617,7 @@ button.agentAvatar {
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  padding: 24px 24px 12px;
+  padding: 22px 24px 10px;
   border-bottom: 0;
 }
 
@@ -2662,8 +2662,8 @@ button.agentAvatar {
 .agentForm {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: 18px 24px 24px;
+  gap: 16px;
+  padding: 16px 24px 22px;
 }
 
 .field {
@@ -2692,9 +2692,9 @@ button.agentAvatar {
   width: 100%;
   min-height: 40px;
   padding: 8px 11px;
-  border: 1px solid color-mix(in srgb, var(--border-strong) 58%, var(--border-subtle));
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-control);
-  background: var(--bg-field);
+  background: var(--bg-control);
   color: var(--text-primary);
   font-size: var(--text-md);
   transition:
@@ -2704,7 +2704,7 @@ button.agentAvatar {
 }
 
 .field textarea {
-  min-height: 120px;
+  min-height: 104px;
   resize: vertical;
   line-height: 1.48;
 }
@@ -2721,7 +2721,7 @@ button.agentAvatar {
 .workspacePicker input:focus {
   border-color: var(--focus-ring);
   background: var(--bg-raised);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 14%, transparent);
+  box-shadow: 0 0 0 3px var(--focus-halo);
 }
 
 .unlockCard {
@@ -2965,12 +2965,17 @@ button.agentAvatar {
   text-align: left;
   transition:
     background-color var(--motion-fast) var(--ease-standard),
-    color var(--motion-fast) var(--ease-standard);
+    color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
 }
 
 .settingsNav button:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
+}
+
+.settingsNav button:active {
+  transform: translateY(1px) scale(0.98);
 }
 
 .settingsNav .settingsNavActive {
@@ -3085,9 +3090,9 @@ button.agentAvatar {
   width: 100%;
   min-height: 40px;
   padding: 8px 11px;
-  border: 1px solid color-mix(in srgb, var(--border-strong) 58%, var(--border-subtle));
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-control);
-  background: var(--bg-field);
+  background: var(--bg-control);
   color: var(--text-primary);
   transition:
     background-color var(--motion-fast) var(--ease-standard),
@@ -3099,7 +3104,7 @@ button.agentAvatar {
 .voiceSelect select:focus {
   border-color: var(--focus-ring);
   background: var(--bg-raised);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 14%, transparent);
+  box-shadow: 0 0 0 3px var(--focus-halo);
 }
 
 .voiceSetupBody .voicePrivacyNote {
@@ -3313,7 +3318,7 @@ button.agentAvatar {
 .researchEventColumn > header input:focus {
   border-color: var(--focus-ring);
   background: var(--bg-raised);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 14%, transparent);
+  box-shadow: 0 0 0 3px var(--focus-halo);
 }
 
 .researchEventRow {
@@ -3577,9 +3582,9 @@ button.agentAvatar {
   width: 100%;
   min-height: 40px;
   padding: 8px 11px;
-  border: 1px solid color-mix(in srgb, var(--border-strong) 58%, var(--border-subtle));
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-control);
-  background: var(--bg-field);
+  background: var(--bg-control);
   color: var(--text-primary);
   font: inherit;
 }
@@ -3587,7 +3592,7 @@ button.agentAvatar {
 .confirmationField input:focus {
   border-color: var(--focus-ring);
   background: var(--bg-raised);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 14%, transparent);
+  box-shadow: 0 0 0 3px var(--focus-halo);
 }
 
 .settingsError,
@@ -4443,10 +4448,10 @@ button.agentAvatar {
   height: 38px;
   min-width: 0;
   padding: 0 9px;
-  border: 1px solid color-mix(in srgb, var(--border-strong) 58%, var(--border-subtle));
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-control);
   outline: 0;
-  background: var(--bg-field);
+  background: var(--bg-control);
   color: var(--text-primary);
   font: inherit;
   font-size: var(--text-sm);
@@ -4455,7 +4460,7 @@ button.agentAvatar {
 .browserOpenSite input:focus {
   border-color: var(--focus-ring);
   background: var(--bg-raised);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 14%, transparent);
+  box-shadow: 0 0 0 3px var(--focus-halo);
 }
 
 .captureSettings {
@@ -5147,10 +5152,10 @@ button.agentAvatar {
   width: 100%;
   height: 40px;
   padding: 0 11px;
-  border: 1px solid color-mix(in srgb, var(--border-strong) 58%, var(--border-subtle));
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-control);
   outline: 0;
-  background: var(--bg-field);
+  background: var(--bg-control);
   color: var(--text-primary);
   font: inherit;
   font-weight: var(--weight-regular);
@@ -5164,7 +5169,7 @@ button.agentAvatar {
 .localField select:focus {
   border-color: var(--focus-ring);
   background: var(--bg-raised);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 14%, transparent);
+  box-shadow: 0 0 0 3px var(--focus-halo);
 }
 
 .scheduleForm {
@@ -5736,16 +5741,16 @@ button.agentAvatar {
   align-items: center;
   gap: 8px;
   padding: 0 9px;
-  border: 1px solid color-mix(in srgb, var(--border-strong) 58%, var(--border-subtle));
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-control);
-  background: var(--bg-field);
+  background: var(--bg-control);
   color: var(--text-tertiary);
 }
 
 .terminalForm label:focus-within {
   border-color: var(--focus-ring);
   background: var(--bg-raised);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 14%, transparent);
+  box-shadow: 0 0 0 3px var(--focus-halo);
 }
 
 .terminalForm input {
@@ -5871,10 +5876,10 @@ button.agentAvatar {
   min-width: 0;
   min-height: 38px;
   padding: 8px 10px;
-  border: 1px solid color-mix(in srgb, var(--border-strong) 58%, var(--border-subtle));
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-control);
   outline: none;
-  background: var(--bg-field);
+  background: var(--bg-control);
   color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: var(--text-sm);

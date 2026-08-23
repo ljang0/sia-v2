@@ -15,6 +15,7 @@ export function CloudAccountSettings({
   onCompleteAdminMfa,
   onSignOutCloud,
   onDeleteCloudAccount,
+  autoFocusEmail = false,
 }: {
   cloudAuth: CloudAuth;
   onStartCloudSignIn(email: string): Promise<void>;
@@ -23,6 +24,7 @@ export function CloudAccountSettings({
   onCompleteAdminMfa(code: string): Promise<void>;
   onSignOutCloud(): Promise<void>;
   onDeleteCloudAccount(confirmation: 'DELETE ACCOUNT'): Promise<void>;
+  autoFocusEmail?: boolean;
 }) {
   const [email, setEmail] = useState(cloudAuth.email ?? '');
   const [code, setCode] = useState('');
@@ -116,6 +118,7 @@ export function CloudAccountSettings({
             <span>Invited email</span>
             <input
               type="email"
+              autoFocus={autoFocusEmail}
               autoComplete="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
