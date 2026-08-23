@@ -17,8 +17,8 @@ administrator's TOTP seed.
   guidance for reliable API and background access.
 - `pnpm check` passed the build, formatting, quality guard, type checking, and 431 default tests.
   The focused Electron first-run/optional-connection suite passed 3/3.
-- The `0.1.0-alpha.2` candidate recorded at the end of this document includes this source update in a
-  newly signed and notarized DMG.
+- The `0.1.0-alpha.3` candidate recorded at the end of this document includes this source update and
+  the final visual-polish pass in a newly signed and notarized DMG.
 - A live read-only invocation of the deployed authenticated Meta capability path returned the pinned
   `super_nova_ext` model with streaming and tools available. The encrypted secret was not read or
   printed, the deployed stack remained `UPDATE_COMPLETE`, and every monitored alarm was `OK` with
@@ -578,3 +578,37 @@ Do not distribute the artifact until these are completed and recorded:
   Google verification/CASA work, two fresh non-tester Google-domain checks, unrelated Slack workspace
   check, approved synthetic Slack send, and named privacy/security/support/release signoffs recorded
   above are complete.
+
+## Visual-polish alpha.3 distribution candidate (2026-08-23 KST)
+
+- Frozen application source commit: `6ef30ef02c001af26d663c12dcec645f705233bc`
+- Version and bundle: `0.1.0-alpha.3`, `ai.sia.desktop`
+- Artifact: `apps/desktop/release/Sia-0.1.0-alpha.3-universal.dmg`
+- DMG SHA-256: `c0196286d0d0730703283fd3eeb967fd2ac7e3052e59b0379ea044fb840864ff`
+- ZIP SHA-256: `86ccf7ee5ad704b13287c12b8e9b9a5b15e21d4701fcb2dc6baa803e1704e85e`
+- DMG size: 257,662,139 bytes
+- ZIP size: 257,010,876 bytes
+- Apple app submission: `8859a85f-e787-4fc9-93d9-54038b97cffe` - Accepted
+- Apple DMG submission: `722cc360-fc97-4b83-bd00-7f4e3f941bc9` - Accepted
+- The alpha.2 release remains recoverable under
+  `apps/desktop/_old-builds/release-alpha2-before-alpha3-20260823-1745`; packaging did not delete or
+  overwrite it.
+- Alpha.3 softens secondary actions and outlines, unifies field surfaces and focus halos, fits agent
+  creation without a desktop-size scrollbar, focuses the useful sign-in field first, and prevents a
+  one-frame native-window color mismatch. It preserves the existing evergreen/off-white palette,
+  bundled Bricolage Grotesque display face, system body type, restrained agent hues, and reduced-motion
+  policy.
+- A new deterministic screenshot audit covered the core workspace, providers, apps, agent dialog,
+  Activity, sign-in, local choice, compact dark mode, keyboard focus, font loading, transition
+  coverage, true layout overflow, and reduced-motion behavior. It reported zero renderer errors.
+- `pnpm check` passed 431 tests plus formatting, type checking, build, and policy guard. The complete
+  Electron suite passed 26 deterministic scenarios with four opt-in real-machine cases skipped, and
+  strict parity passed 13/13.
+- Independent artifact checks passed deep strict signing, Gatekeeper execute/open assessment, app and
+  DMG staple validation, hardened runtime, `0.1.0-alpha.3` bundle identity, universal
+  `x86_64`/`arm64` architecture, production cloud-resource verification, native-runtime validation,
+  license checks, and the packaged tool bridge.
+- This is the current technically distributable invite-only core research alpha. The same external
+  all-app qualifications still apply: do not claim universal Google/Slack readiness until Google
+  verification/CASA, fresh unrelated-domain/workspace testing, the approved synthetic Slack send,
+  and named privacy/security/support/release signoffs are complete.
