@@ -55,8 +55,9 @@ describe('renderer accessibility CSS policy', () => {
     expect(css).not.toMatch(/!important|(?:linear|radial|conic)-gradient\(/);
   });
 
-  it('keeps the display face on names and headings and off controls and body copy', () => {
-    expect(tokens).toMatch(/--font-display:\s*'Bricolage Grotesque',\s*'SF Pro Display'/);
+  it('reserves the brand face for the wordmark and keeps native display type off controls', () => {
+    expect(tokens).toMatch(/--font-brand:\s*'Bricolage Grotesque',\s*'SF Pro Display'/);
+    expect(tokens).toMatch(/--font-display:\s*'SF Pro Display',\s*-apple-system/);
     expect(tokens).toMatch(
       /@font-face\s*{[^}]*font-family:\s*'Bricolage Grotesque'[^}]*format\('woff2'\)/,
     );
@@ -75,12 +76,12 @@ describe('renderer accessibility CSS policy', () => {
       expect(block).not.toContain('var(--font-display)');
     }
 
-    // Names and headings do use it.
+    // Names and headings use the native display stack; only the wordmark uses the brand face.
     const rules = [...styles.matchAll(/([^{}]+){([^}]*)}/g)].map((match) => ({
       selectors: match[1]!.split(',').map((part) => part.trim()),
       body: match[2]!,
     }));
-    for (const selector of ['.wordmark', '.approvalHeader h3', '.emptyState h1']) {
+    for (const selector of ['.approvalHeader h3', '.emptyState h1']) {
       const matching = rules.filter((rule) => rule.selectors.includes(selector));
       expect(matching.length, `${selector} should exist`).toBeGreaterThan(0);
       expect(
@@ -88,6 +89,8 @@ describe('renderer accessibility CSS policy', () => {
         `${selector} should be set in the display face`,
       ).toBe(true);
     }
+    const wordmark = rules.find((rule) => rule.selectors.includes('.wordmark'));
+    expect(wordmark?.body).toContain('var(--font-brand)');
 
     // Every agent hue is defined and the room inherits the selected agent's hue.
     for (const slot of ['0', '1', '2', '3']) {

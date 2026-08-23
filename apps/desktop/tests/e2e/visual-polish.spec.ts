@@ -59,9 +59,9 @@ test('core surfaces retain the visual-system and motion contract', async ({}, te
 
     expect(visualSystem.displayFontLoaded).toBe(true);
     expect(visualSystem.colors).toEqual({
-      canvas: '#f8f8f5',
-      shell: '#182620',
-      accent: '#14211c',
+      canvas: '#fafaf8',
+      shell: '#f1f1ee',
+      accent: '#33453e',
     });
     expect(visualSystem.transitionedControls).toBeGreaterThan(
       visualSystem.visibleControls * 0.7,

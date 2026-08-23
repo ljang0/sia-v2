@@ -305,7 +305,7 @@ async function performApplicationCreation(): Promise<void> {
     minWidth: 960,
     minHeight: 640,
     show: false,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#171c1a' : '#f8f8f5',
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#191b1a' : '#fafaf8',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {

@@ -1,6 +1,6 @@
 # Sia private-alpha privacy notice
 
-_Effective for 0.1.0-alpha.3. This notice describes the implemented product behavior; it is not a
+_Effective for 0.1.0-alpha.4. This notice describes the implemented product behavior; it is not a
 substitute for organization-specific legal review._
 
 ## Local data
