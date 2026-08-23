@@ -68,7 +68,9 @@ describe('provider setup actions', () => {
       />,
     );
 
-    expect(screen.getByText('Uses your ChatGPT plan or OpenAI API account.')).toBeTruthy();
+    expect(
+      screen.getByText('Uses your existing ChatGPT Codex plan or OpenAI API account.'),
+    ).toBeTruthy();
     expect(screen.queryByText(/Billed by Uses/)).toBeNull();
   });
 

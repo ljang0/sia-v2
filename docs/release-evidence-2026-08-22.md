@@ -4,6 +4,30 @@ This record contains operational metadata only. It intentionally excludes prompt
 content, participant identifiers, authentication codes, bearer tokens, provider keys, and the
 administrator's TOTP seed.
 
+## Optional-connector source update — 2026-08-23 KST
+
+- The post-notarization source no longer opens or repeats a connected-app onboarding dialog. After
+  the required research choice, core Sia opens with chat, web search, schedules, and computer use;
+  Google Workspace and Slack remain optional under **Settings → Apps**.
+- Signed-in Chrome and Mac-local integrations now precede optional API connections in the Apps
+  hierarchy. The existing one-click all-app flow, selectable subset flow, per-app recovery, and
+  disconnect controls remain available.
+- A disconnected Gmail, Drive, Docs, Sheets, Slides, or Slack tool now returns a model-visible route
+  to continue through the corresponding signed-in browser site, while retaining Settings connection
+  guidance for reliable API and background access.
+- `pnpm check` passed the build, formatting, quality guard, type checking, and 431 default tests.
+  The focused Electron first-run/optional-connection suite passed 3/3.
+- The `0.1.0-alpha.2` candidate recorded at the end of this document includes this source update in a
+  newly signed and notarized DMG.
+- A live read-only invocation of the deployed authenticated Meta capability path returned the pinned
+  `super_nova_ext` model with streaming and tools available. The encrypted secret was not read or
+  printed, the deployed stack remained `UPDATE_COMPLETE`, and every monitored alarm was `OK` with
+  actions enabled. Participant copy now says Meta is included for invited Sia alpha accounts with
+  shared preview limits; it does not promise permanently free upstream API access.
+- The installed Codex CLI reported supported version `0.148.0` and ChatGPT authentication. The real
+  desktop no-turn probe then reported Codex ready without creating a thread or consuming a model
+  turn. Sia uses that official login and never imports or reads Codex credentials.
+
 ## Source and artifact
 
 - Frozen source commit: `7b239c32610e8beb6ff8a6e2a6c21666994b19c2`

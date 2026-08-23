@@ -124,7 +124,7 @@ export function AppsSettings({
   return (
     <SettingsSectionHeader
       title="Connected apps"
-      description="Connect once, then Sia can search, draft, post, upload, and share without interrupting an autonomous run."
+      description="Optional API connections make background work faster and more reliable. Chat, web search, schedules, and computer use work without them."
     >
       <CloudAccountSettings
         cloudAuth={snapshot.cloudAuth}
@@ -141,17 +141,27 @@ export function AppsSettings({
           disconnected.
         </div>
       ) : null}
+      <LocalIntegrations
+        snapshot={snapshot}
+        pending={pending}
+        run={run}
+        onAttachBrowser={onAttachBrowser}
+        onDetachBrowser={onDetachBrowser}
+        onOpenMessages={onOpenMessages}
+        onReviewComputerAccess={onReviewComputerAccess}
+      />
       <div className={styles.connectionSetup}>
         <div className={styles.connectionSetupIntro}>
           <div className={styles.connectionSetupHeader}>
-            <strong>Bring your tools into Sia</strong>
+            <strong>Optional API connections</strong>
             <span className={styles.connectionSetupProgress}>
               {connectedCount} of {snapshot.apps.length} ready
             </span>
           </div>
           <p>
-            One click starts Google Workspace and Slack in order. Each provider still shows its
-            own secure approval page, and nothing is bulk copied into Sia.
+            Connect only what you use. One click starts Google Workspace and Slack in order;
+            each provider still shows its own secure approval page, and nothing is bulk copied
+            into Sia.
           </p>
         </div>
         {!chooserOpen ? (
@@ -290,18 +300,9 @@ export function AppsSettings({
         ))}
       </div>
       <div className={styles.settingsNote}>
-        OAuth opens in your browser. Sia never places connector keys or account tokens in the
-        renderer.
+        You can disconnect any app without affecting core Sia features. OAuth opens in your
+        browser, and Sia never places connector keys or account tokens in the renderer.
       </div>
-      <LocalIntegrations
-        snapshot={snapshot}
-        pending={pending}
-        run={run}
-        onAttachBrowser={onAttachBrowser}
-        onDetachBrowser={onDetachBrowser}
-        onOpenMessages={onOpenMessages}
-        onReviewComputerAccess={onReviewComputerAccess}
-      />
     </SettingsSectionHeader>
   );
 }

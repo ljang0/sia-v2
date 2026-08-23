@@ -9,11 +9,11 @@ is the "Sia Demo Runbook" artifact.
 
 - `cd ~/sia_new && pnpm dev` (don't demo the stale notarized DMG).
 - `codex --version` signed in; accepted range `>=0.147.0 <0.149.0`; no auto-updates demo morning.
-- For the research-release path, use a designated disposable participant. Sign in, accept **Set up
-  Sia · 1 of 2**, then use **Connect work apps** in step 2. The single flow advances through Gmail,
-  Drive, Docs, Sheets, Slides, and Slack only after each provider confirms its grant. For a local
-  demo, choose **Continue locally** instead. To demonstrate least-privilege setup, open **Choose
-  apps**, select Docs and Slack, and connect only those two.
+- For the research-release path, use a designated disposable participant. Sign in, accept **Sia
+  research alpha**, and show that the core app opens without a connector prompt. For a local demo,
+  choose **Continue locally** instead. If demonstrating integrations, open **Settings → Apps** after
+  the core task, choose Docs and Slack, and connect only those two. Each provider confirms its own
+  grant in the browser.
 - **Settings → Computer → Unlock everything**: one card shows every capability (Mac control,
   silent Chrome, Messages) with live status; one click requests all the grantable permissions
   and opens the panes macOS keeps manual (flip the Full Disk Access switch when it appears).

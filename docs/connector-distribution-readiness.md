@@ -8,8 +8,9 @@ app publicly distributable.
 
 A fresh invited participant, who has never been added to a provider test-user list, can:
 
-1. Sign in to Sia and review the research consent.
-2. Press **Connect work apps** once. Gmail, Drive, Docs, Sheets, Slides, and Slack complete in
+1. Sign in to Sia, review the research consent, and use chat, web search, schedules, and computer
+   use without connecting a work app.
+2. Open **Settings → Apps** and press **Connect work apps** once. Gmail, Drive, Docs, Sheets, Slides, and Slack complete in
    sequence, with already-connected apps preserved after cancellation or restart. Slack still lets
    the participant select any workspace in which they are allowed to install apps.
 3. Choose **Choose apps** instead, select any subset, and complete only those approvals. Connected
@@ -17,7 +18,8 @@ A fresh invited participant, who has never been added to a provider test-user li
 4. See the connected account or workspace in Settings, complete a read and an explicitly targeted
    write, disconnect, and reconnect without operator intervention.
 5. Receive a specific, recoverable message for provider denial, administrator policy, timeout,
-   offline status, or a stale saved grant. They must never be sent into a repeated consent loop.
+   offline status, or a stale saved grant. A missing connector offers signed-in Chrome as an
+   immediate browser/computer-use fallback. They must never be sent into a repeated consent loop.
 6. Produce the expected local trajectory and encrypted AWS `raw_v1` events while OAuth URLs, codes,
    tokens, cookies, and client secrets remain excluded. Google Workspace action turns must also be
    absent from both research batches and the diagnostic trajectory; they remain only in the normal

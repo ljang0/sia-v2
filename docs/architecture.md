@@ -23,7 +23,7 @@ Electron main -------------- Sia cloud API
                          |-- Codex app-server + dynamic tools
                          |-- Grok ACP protocol tests (production-disabled)
                          |-- Gemini ACP protocol tests (production-disabled)
-                         `-- Meta streaming tool loop (production-gated)
+                         `-- Meta streaming tool loop (signed-in, authenticated live probe)
 ```
 
 The provider runtime can propose a Sia action, but only the main-process ActionGateway can authorize it. In autonomous mode (`computer.trust === 'auto'`, the default), the controller silently authorizes eligible computer, browser, connector, message, upload, and schedule actions after capability and input validation; confirmation mode renders a request tied to the exact action digest. Eligible action results, timeline items, and automatic authorizations are appended to the always-on local `TrajectoryRecorder` (`<userData>/trajectories/<threadId>/events.jsonl` plus image files). A Google Workspace invocation atomically removes earlier diagnostic rows for that turn and suppresses later rows; only the normal local user-facing transcript remains. Complete thread directories roll off after 90 days or when the local trajectory store exceeds 128 MiB, oldest first; this is separate from the encrypted consented-research outbox. The model-visible schedule surface is limited to create/list/update/delete for controller-owned once/hourly/daily/weekly tasks in the current thread; it cannot write an OS crontab or arbitrary shell schedule. Codex provider-native work uses `approvalPolicy: never` inside the verified workspace-write sandbox, while host-side effects still cross the ActionGateway.

@@ -1,6 +1,6 @@
 # Sia private-alpha privacy notice
 
-_Effective for 0.1.0-alpha.1. This notice describes the implemented product behavior; it is not a
+_Effective for 0.1.0-alpha.2. This notice describes the implemented product behavior; it is not a
 substitute for organization-specific legal review._
 
 ## Local data
@@ -17,7 +17,9 @@ only new eligible captures created after cloud sign-in may sync.
 
 Provider prompts and responses are sent to the provider selected for the thread under that
 provider's account, terms, and billing. Sia does not copy provider credential files or silently log a
-provider in or out.
+provider in or out. Codex uses the person's official ChatGPT Codex or API authentication. The
+optional Meta provider sends prompts and responses through Sia's AWS relay to the Sia-owned Meta
+provider account; no participant Meta credential is collected.
 
 ### Local trajectory log
 

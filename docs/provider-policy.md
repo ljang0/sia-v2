@@ -2,11 +2,17 @@
 
 Provider availability is a legal and product boundary as well as an engineering choice.
 
-- **Codex:** official app-server ChatGPT OAuth or user API key. The external alpha accepts CLI versions `>=0.147.0 <0.149.0` and treats the CLI as unavailable until `codex login status` confirms either ChatGPT or API-key authentication. Never inspect or copy Codex auth files.
+- **Codex:** official app-server ChatGPT OAuth or user API key. This uses the person's existing Codex
+  entitlement rather than importing a plan or credential into Sia. The external alpha accepts CLI
+  versions `>=0.147.0 <0.149.0` and treats the CLI as unavailable until `codex login status`
+  confirms either ChatGPT or API-key authentication. Never inspect or copy Codex auth files.
 - **Meta:** relay implementation with the credential exclusively in AWS Secrets Manager. The client
   fails closed and marks Meta ready only after a signed-in session completes the authenticated live
   capability check against the deployed relay and the configured model appears in the provider's
   live model list. Configuration plus sign-in alone never counts as readiness.
+  The participant-facing contract is **included for invited Sia alpha accounts**, with a two-turn
+  per-account concurrency limit plus any upstream preview limits. Do not market the hosted API as
+  permanently free; the participant supplies no Meta key, but Sia owns the shared provider account.
 - **Grok Build:** protocol tests only in the external alpha. The official ACP process currently has no comprehensive, auth-preserving switch to exclude inherited plugins, skills/instructions, and MCP servers. Do not redirect `GROK_HOME`, copy credentials, or start it from production until upstream offers a verifiable isolation boundary.
 - **Gemini CLI:** paid Gemini API, Vertex AI, or organizational Code Assist only, using a CLI release that advertises standard ACP session config options. Leave authentication inside the CLI; fail closed if the requested model cannot be selected and confirmed.
 - **Claude:** adapter development and protocol tests only until Anthropic gives written product clearance. Consumer Claude.ai credentials must not be routed through Sia.

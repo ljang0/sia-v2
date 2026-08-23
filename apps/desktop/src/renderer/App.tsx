@@ -1,12 +1,11 @@
 import { SlidersHorizontal, X, WarningCircle } from '@phosphor-icons/react';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense } from 'react';
 import { AgentDialog } from './components/AgentDialog';
 import { AppSkeleton, WorkspaceNotice } from './components/AppStates';
 import { Conversation } from './components/Conversation';
 import { Inspector } from './components/Inspector';
 import { Settings } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
-import { ConnectedAppsOnboardingDialog } from './components/settings/ConnectedAppsOnboardingDialog';
 import { ResearchConsentDialog } from './components/settings/ResearchConsentDialog';
 import { SiaSignInDialog } from './components/settings/SiaSignInDialog';
 import {
@@ -31,16 +30,6 @@ export interface AppProps {
 
 export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   const app = useAppController(suppliedApi);
-  const [appsOnboardingDismissed, setAppsOnboardingDismissed] = useState(false);
-  const signedIn = app.snapshot?.cloudAuth.state === 'signed-in';
-  const allWorkAppsConnected = Boolean(
-    app.snapshot?.apps.length &&
-    app.snapshot.apps.every(({ status }) => status === 'connected'),
-  );
-  useEffect(() => {
-    if (!signedIn) setAppsOnboardingDismissed(false);
-    else if (allWorkAppsConnected) setAppsOnboardingDismissed(true);
-  }, [allWorkAppsConnected, signedIn]);
   const auditMode =
     forceAuditMode ??
     Boolean(
@@ -313,6 +302,13 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                   : undefined
               }
               onCreateAgent={!selectedAgent ? app.openNewAgent : undefined}
+              onOpenApps={
+                snapshot.cloudAuth.state === 'signed-in' &&
+                snapshot.cloudAuth.features?.connectors !== false &&
+                snapshot.apps.some(({ status }) => status !== 'connected')
+                  ? () => app.openSettings('apps')
+                  : undefined
+              }
               workspaceTools={
                 activeThread ? (
                   <>
@@ -409,23 +405,6 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
           }}
         />
       ) : null}
-      <ConnectedAppsOnboardingDialog
-        open={
-          snapshot.cloudAuth.state === 'signed-in' &&
-          snapshot.cloudAuth.features?.connectors !== false &&
-          snapshot.research.consented &&
-          !allWorkAppsConnected &&
-          !appsOnboardingDismissed
-        }
-        apps={snapshot.apps}
-        onConnectAll={() => api.connectAllApps().then(() => undefined)}
-        onConnectSelected={(apps) => api.connectSelectedApps(apps).then(() => undefined)}
-        onOpenSettings={() => {
-          setAppsOnboardingDismissed(true);
-          app.openSettings('apps');
-        }}
-        onDone={() => setAppsOnboardingDismissed(true)}
-      />
     </div>
   );
 }

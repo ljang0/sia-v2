@@ -1830,6 +1830,11 @@ button.agentAvatar {
   margin-top: 22px;
 }
 
+.emptyState .textButton,
+.threadEmpty .textButton {
+  margin-top: 13px;
+}
+
 .inspectorEmpty .inlineError {
   margin-top: 12px;
   color: var(--text-danger);
@@ -2634,15 +2639,6 @@ button.agentAvatar {
   font-size: var(--text-sm);
 }
 
-.connectionOnboardingDialog {
-  width: min(590px, calc(100vw - 40px));
-}
-
-.connectionOnboardingHeader {
-  padding: 24px 24px 14px;
-  border-bottom: 0;
-}
-
 .onboardingStep {
   display: block;
   margin-bottom: 12px;
@@ -2653,272 +2649,6 @@ button.agentAvatar {
   text-transform: uppercase;
 }
 
-.connectionOnboardingTitle {
-  display: grid;
-  grid-template-columns: 38px minmax(0, 1fr);
-  align-items: start;
-  gap: 12px;
-}
-
-.connectionOnboardingTitle h2,
-.connectionOnboardingTitle [role='heading'] {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--display-md);
-  font-variation-settings: 'opsz' 40;
-  font-weight: var(--weight-display);
-  letter-spacing: var(--tracking-display);
-  line-height: 1.15;
-}
-
-.connectionOnboardingTitle p {
-  max-width: 48ch;
-  margin: 4px 0 0;
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  line-height: 1.48;
-  text-wrap: pretty;
-}
-
-.connectionOnboardingMark {
-  display: inline-flex;
-  width: 36px;
-  height: 36px;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-control);
-  background: var(--bg-selected);
-  color: var(--text-link);
-}
-
-.connectionOnboardingBody {
-  display: grid;
-  gap: 17px;
-  padding: 18px 24px 24px;
-}
-
-.recordingConfirmation {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  align-items: start;
-  gap: 9px;
-  padding: 11px 12px;
-  border-radius: var(--radius-control);
-  background: var(--surface-success);
-  color: var(--text-success);
-}
-
-.recordingConfirmation > svg {
-  margin-top: 1px;
-}
-
-.recordingConfirmation strong {
-  display: block;
-  color: var(--text-primary);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-}
-
-.recordingConfirmation p {
-  max-width: 58ch;
-  margin: 2px 0 0;
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-  line-height: 1.45;
-  text-wrap: pretty;
-}
-
-.onboardingProgressBlock {
-  display: grid;
-  gap: 8px;
-}
-
-.onboardingProgressBlock > div {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.onboardingProgressBlock strong {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-}
-
-.onboardingProgressBlock span {
-  color: var(--text-tertiary);
-  font-size: var(--text-xs);
-  font-variant-numeric: tabular-nums;
-}
-
-.onboardingProgressTrack {
-  display: block;
-  width: 100%;
-  height: 3px;
-  overflow: hidden;
-  border: 0;
-  border-radius: 999px;
-  appearance: none;
-  background: var(--bg-subtle);
-}
-
-.onboardingProgressTrack::-webkit-progress-bar {
-  border-radius: inherit;
-  background: var(--bg-subtle);
-}
-
-.onboardingProgressTrack::-webkit-progress-value {
-  border-radius: inherit;
-  background: var(--text-success);
-  transition: width var(--motion-surface) var(--ease-standard);
-}
-
-.onboardingConnectionGroups {
-  display: grid;
-  gap: 0;
-  overflow: visible;
-  border: 0;
-  border-top: 1px solid var(--border-subtle);
-  border-radius: 0;
-  background: transparent;
-}
-
-.onboardingConnectionGroups > section {
-  display: grid;
-  min-height: 86px;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 11px;
-  padding: 14px 4px;
-  border-bottom: 1px solid var(--border-subtle);
-  background: transparent;
-}
-
-.onboardingConnectionGroups > section[data-status='connected'] {
-  background: color-mix(in srgb, var(--surface-success) 22%, transparent);
-}
-
-.onboardingProviderIcon {
-  display: inline-flex;
-  width: 32px;
-  height: 32px;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-control);
-  background: var(--bg-subtle);
-  color: var(--text-primary);
-}
-
-[data-status='connected'] > .onboardingProviderIcon {
-  background: var(--text-success);
-  color: var(--text-on-accent);
-}
-
-.onboardingConnectionGroups > section > div {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-}
-
-.onboardingConnectionGroups strong {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-}
-
-.onboardingConnectionGroups span,
-.onboardingConnectionGroups small {
-  overflow: hidden;
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.onboardingConnectionGroups small {
-  margin-top: 2px;
-  color: var(--text-tertiary);
-  font-variant-numeric: tabular-nums;
-}
-
-.onboardingConnectionGroups button {
-  min-width: 142px;
-}
-
-.onboardingConnectionGroups > section > .connectionCompleteLabel {
-  color: var(--text-success);
-  font-weight: var(--weight-semibold);
-}
-
-.onboardingAppList {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 7px;
-  overflow: visible;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-.onboardingAppList > div {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-  min-height: 42px;
-  padding: 9px 10px;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: var(--bg-field);
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-}
-
-.onboardingAppList > div:nth-child(3n) {
-  border-right: 0;
-}
-
-.onboardingAppList > div:nth-last-child(-n + 3) {
-  border-bottom: 0;
-}
-
-.onboardingAppList > div[data-status='connected'] {
-  color: var(--text-primary);
-}
-
-.onboardingAppList > div[data-status='error'] {
-  color: var(--text-danger);
-}
-
-.onboardingAppState {
-  display: inline-flex;
-  width: 17px;
-  height: 17px;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border-strong);
-  border-radius: 50%;
-  color: var(--text-tertiary);
-}
-
-[data-status='connected'] > .onboardingAppState {
-  border-color: var(--text-success);
-  background: var(--text-success);
-  color: var(--text-on-accent);
-}
-
-[data-status='connecting'] > .onboardingAppState {
-  border-color: var(--text-link);
-  color: var(--text-link);
-}
-
-[data-status='error'] > .onboardingAppState {
-  border-color: var(--border-danger);
-  color: var(--text-danger);
-}
-
 .connectionOnboardingActions {
   display: flex;
   align-items: center;
@@ -2927,15 +2657,6 @@ button.agentAvatar {
 
 .connectionOnboardingActions .primaryButton {
   min-width: 176px;
-}
-
-.connectionOnboardingFootnote {
-  max-width: 64ch;
-  margin: -7px 0 0;
-  color: var(--text-tertiary);
-  font-size: var(--text-xs);
-  line-height: 1.45;
-  text-wrap: pretty;
 }
 
 .agentForm {
@@ -3893,6 +3614,7 @@ button.agentAvatar {
 .connectionSetup {
   display: grid;
   gap: 14px;
+  margin-top: 28px;
   margin-bottom: 24px;
   padding: 0 0 24px;
   border: 0;
@@ -6445,38 +6167,18 @@ button.agentAvatar {
     gap: 12px;
   }
 
-  .connectionGroup,
-  .onboardingConnectionGroups > section {
+  .connectionGroup {
     grid-template-columns: 34px minmax(0, 1fr);
   }
 
-  .connectionGroup > button,
-  .onboardingConnectionGroups button,
-  .onboardingConnectionGroups .connectionCompleteLabel {
+  .connectionGroup > button {
     width: fit-content;
     grid-column: 2;
     justify-self: start;
   }
 
-  .onboardingAppList {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .connectionChoiceGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .onboardingAppList > div,
-  .onboardingAppList > div:nth-child(3n) {
-    border: 0;
-  }
-
-  .onboardingAppList > div:nth-child(2n) {
-    border-right: 0;
-  }
-
-  .onboardingAppList > div:nth-last-child(-n + 2) {
-    border-bottom: 0;
   }
 
   .settingsRow,

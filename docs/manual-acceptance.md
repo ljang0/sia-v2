@@ -32,13 +32,11 @@ not replace the mutation checks below. When several Chrome windows are open, set
    account, cloud configuration, or billing information and that Settings → Apps says **Local mode
    is ready** without disabled connection buttons.
 2. On the cloud-enabled profile, sign in with a disposable participant. Confirm raw-research consent
-   is **Set up Sia · 1 of 2** and appears before any provider OAuth flow. Accept it, confirm
-   **Connect your work apps** appears as step 2 with recording-on status and 0/6 progress, then start
-   guided setup. Verify the flow advances only after each provider grant is confirmed and that **Set
-   up later** reaches the app without hiding the individual Settings → Apps controls. Repeat with
-   **Choose apps**, clear the default selection, select Docs and Slack, and confirm only those two
-   grants open in canonical order. The onboarding dialog should finish after the selected set is
-   connected, while the other four apps remain available in Settings.
+   is labeled **Sia research alpha** and appears before any provider OAuth flow. Accept it and confirm
+   the core app opens immediately with no **Connect your work apps** dialog. Verify chat, web search,
+   schedules, signed-in Chrome, and computer use remain available with 0/6 work apps connected. Open
+   **Settings → Apps**, use **Choose apps**, clear the default selection, select Docs and Slack, and
+   confirm only those two grants open in canonical order while the other four remain available.
 3. Create an agent and confirm the research choice appears only after the agent is saved. Choose
    **Use without sharing**, create a thread, and verify Codex, files, Git, terminal, schedules,
    signed-in Chrome attachment, and granted computer use remain reachable.
@@ -47,9 +45,11 @@ not replace the mutation checks below. When several Chrome windows are open, set
 5. In a test build configured for the release cloud, sign in after step 4. Confirm the pre-existing
    local batch is still present in export but is never submitted by research sync; only a newly
    completed eligible post-sign-in turn may be uploaded.
-6. Under Apps, confirm Gmail, Drive, Docs, Sheets, Slides, and Slack each have a distinct accessible
-   connection button in addition to guided setup. Attach one signed-in Chrome window from its
-   separate row. Open Messages from its row and confirm read tools request Full Disk Access before
+6. Under Apps, confirm signed-in Chrome and Messages appear before the optional API connections, and
+   Gmail, Drive, Docs, Sheets, Slides, and Slack each retain a distinct accessible connection button.
+   Attach one signed-in Chrome window from its separate row. Invoke a disconnected Drive tool and
+   confirm the agent is directed to continue through `drive.google.com` or connect later. Open
+   Messages from its row and confirm read tools request Full Disk Access before
    accessing bounded `chat.db` rows. In autonomous mode, computer actions and outgoing messages
    continue without an in-app prompt and appear in the activity log; **Confirm before changes**
    restores previews.

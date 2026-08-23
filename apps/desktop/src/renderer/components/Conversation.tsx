@@ -43,6 +43,7 @@ interface ConversationProps {
   onResolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
   onCreateThread?: (() => void) | undefined;
   onCreateAgent?: (() => void) | undefined;
+  onOpenApps?: (() => void) | undefined;
   workspaceTools?: ReactNode | undefined;
 }
 
@@ -68,6 +69,7 @@ export function Conversation({
   onResolveApproval,
   onCreateThread,
   onCreateAgent,
+  onOpenApps,
   workspaceTools,
 }: ConversationProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -258,7 +260,7 @@ export function Conversation({
           <p>
             {agentName
               ? 'Create a thread for a focused task. Its provider, model, and workspace stay pinned.'
-              : 'Select an agent from the sidebar, or create one for the way you work.'}
+              : 'Select an agent from the sidebar, or create one for the way you work. Work app connections are optional.'}
           </p>
           {onCreateThread ? (
             <button className={styles.primaryButton} type="button" onClick={onCreateThread}>
@@ -267,6 +269,11 @@ export function Conversation({
           ) : onCreateAgent ? (
             <button className={styles.primaryButton} type="button" onClick={onCreateAgent}>
               Create your first agent
+            </button>
+          ) : null}
+          {onOpenApps ? (
+            <button className={styles.textButton} type="button" onClick={onOpenApps}>
+              Connect work apps later
             </button>
           ) : null}
         </div>
@@ -351,8 +358,14 @@ export function Conversation({
               )}
               <h2>What should we work on?</h2>
               <p>
-                Sia can use this workspace, public web tools, and anything you explicitly grant.
+                Sia can use this workspace, web search, schedules, and computer use now. Connect
+                work apps later for faster background access.
               </p>
+              {onOpenApps ? (
+                <button className={styles.textButton} type="button" onClick={onOpenApps}>
+                  Connect work apps
+                </button>
+              ) : null}
             </div>
           ) : (
             <div className={styles.eventList}>

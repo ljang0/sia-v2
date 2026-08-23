@@ -174,7 +174,7 @@ export const demoSnapshot: RendererSnapshot = {
       description: 'Local coding and computer work through the official app server.',
       status: 'ready',
       version: '0.147.0',
-      billedBy: 'Uses your ChatGPT plan or OpenAI API account.',
+      billedBy: 'Uses your existing ChatGPT Codex plan or OpenAI API account.',
     },
     {
       id: 'meta',
@@ -182,7 +182,7 @@ export const demoSnapshot: RendererSnapshot = {
       model: 'super_nova_ext',
       description: 'Hosted model access through the Sia cloud relay.',
       status: 'ready',
-      billedBy: 'Included when Sia cloud is configured.',
+      billedBy: 'Included for invited Sia alpha accounts; shared preview limits apply.',
     },
     {
       id: 'grok',

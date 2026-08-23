@@ -138,7 +138,7 @@ describe('app privacy routing', () => {
     });
   });
 
-  it('makes connection setup the first signed-in step after research recording starts', async () => {
+  it('opens core Sia immediately after research consent and keeps work apps optional', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),
       agents: [],
@@ -173,30 +173,26 @@ describe('app privacy routing', () => {
     expect(
       await screen.findByRole('alertdialog', { name: 'Join the Sia research release?' }),
     ).toBeTruthy();
-    expect(screen.getByText('Set up Sia · 1 of 2')).toBeTruthy();
+    expect(screen.getByText('Sia research alpha')).toBeTruthy();
     expect(screen.queryByRole('dialog', { name: 'Connect your work apps' })).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Join research release' }));
 
-    const connectionDialog = await screen.findByRole('dialog', {
-      name: 'Connect your work apps',
-    });
-    expect(connectionDialog.textContent).toContain('Research recording is on');
-    expect(connectionDialog.textContent).toContain('0 of 6 apps ready');
-    expect(connectionDialog.textContent).toContain(
-      'OAuth URLs, codes, and tokens are excluded',
-    );
+    expect(await screen.findByRole('button', { name: 'Create your first agent' })).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'Connect your work apps' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Connect work apps later' })).toBeTruthy();
+    expect(
+      (await api.getSnapshot()).apps.every(({ status }) => status === 'disconnected'),
+    ).toBe(true);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Connect work apps' }));
-    await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: 'Connect your work apps' })).toBeNull(),
-    );
-    expect((await api.getSnapshot()).apps.every(({ status }) => status === 'connected')).toBe(
-      true,
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Connect work apps later' }));
+    expect(await screen.findByRole('heading', { name: 'Connected apps' })).toBeTruthy();
+    expect(
+      screen.getByText(/Chat, web search, schedules, and computer use work without them/),
+    ).toBeTruthy();
   });
 
-  it('finishes first-run setup after connecting a chosen subset', async () => {
+  it('connects a chosen subset later from Settings', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),
       apps: structuredClone(demoSnapshot.apps).map(({ account: _account, ...app }) => ({
@@ -223,23 +219,24 @@ describe('app privacy routing', () => {
     const api = createDemoRendererApi(snapshot);
     render(<App api={api} />);
 
-    await screen.findByRole('dialog', { name: 'Connect your work apps' });
+    expect(screen.queryByRole('dialog', { name: 'Connect your work apps' })).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Apps' }));
     fireEvent.click(screen.getByRole('button', { name: 'Choose apps' }));
     fireEvent.click(screen.getByRole('button', { name: 'Clear selection' }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select Slack' }));
     fireEvent.click(screen.getByRole('button', { name: 'Connect selected' }));
 
-    await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: 'Connect your work apps' })).toBeNull(),
+    await waitFor(async () =>
+      expect((await api.getSnapshot()).apps.map(({ id, status }) => ({ id, status }))).toEqual([
+        { id: 'gmail', status: 'disconnected' },
+        { id: 'drive', status: 'disconnected' },
+        { id: 'docs', status: 'disconnected' },
+        { id: 'sheets', status: 'disconnected' },
+        { id: 'slides', status: 'disconnected' },
+        { id: 'slack', status: 'connected' },
+      ]),
     );
-    expect((await api.getSnapshot()).apps.map(({ id, status }) => ({ id, status }))).toEqual([
-      { id: 'gmail', status: 'disconnected' },
-      { id: 'drive', status: 'disconnected' },
-      { id: 'docs', status: 'disconnected' },
-      { id: 'sheets', status: 'disconnected' },
-      { id: 'slides', status: 'disconnected' },
-      { id: 'slack', status: 'connected' },
-    ]);
   });
 
   it('offers local-only research after the first local agent exists', async () => {

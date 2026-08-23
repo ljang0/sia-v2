@@ -212,7 +212,7 @@ describe('bridge renderer truthfulness', () => {
         status: 'needs_install',
         model: 'gpt-5.6-sol',
         detail: 'Install Codex.',
-        billing: 'Uses your ChatGPT plan or OpenAI API account.',
+        billing: 'Uses your existing ChatGPT Codex plan or OpenAI API account.',
       },
       {
         id: 'meta',
@@ -220,7 +220,7 @@ describe('bridge renderer truthfulness', () => {
         status: 'needs_login',
         model: 'super_nova_ext',
         detail: 'Sign in to Sia cloud.',
-        billing: 'Included when Sia cloud is configured.',
+        billing: 'Included for invited Sia alpha accounts; shared preview limits apply.',
       },
       {
         id: 'gemini',

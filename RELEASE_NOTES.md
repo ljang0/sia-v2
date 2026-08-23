@@ -1,7 +1,8 @@
-# Sia 0.1.0-alpha.1
+# Sia 0.1.0-alpha.2
 
 Sia is a private macOS 14+ alpha for local-first agent work. This build supports Codex through the
-provider CLI already installed and authenticated on the Mac.
+official CLI already installed and authenticated on the Mac, plus hosted Meta access for signed-in
+invited alpha participants.
 
 ## Included
 
@@ -18,7 +19,8 @@ provider CLI already installed and authenticated on the Mac.
   process/window/snapshot checks remain mandatory; confirmation before mutations is optional; Chrome detach and
   explicit reattach now use distinct driver sessions without requiring an app restart;
 - configured builds offer Sia account sign-in before first-agent setup with a visible local escape;
-  signed-in onboarding then makes raw-research consent step 1 and guided work-app setup step 2;
+  signed-in onboarding then requires the raw-research choice and opens the core app immediately;
+  work-app connections remain optional under Settings;
 - separate Gmail, Drive, Docs, Sheets, Slides, Slack, signed-in Chrome, and Apple Messages controls.
   The agent has bounded native tools to create/read/append Docs, create/read/update/append Sheets,
   and create/read/append Slides from Markdown. Messages opens the
@@ -56,7 +58,12 @@ provider CLI already installed and authenticated on the Mac.
 
 ## Alpha boundaries
 
-- Grok and Meta are not enabled shipping providers.
+- Meta is included for invited signed-in alpha accounts through Sia's live-verified AWS relay. No
+  participant Meta key is needed; shared preview limits and upstream availability apply. It is not
+  represented as permanently free API access.
+- Codex uses the participant's existing ChatGPT Codex plan—including Free when available—or their
+  OpenAI API account. Sia detects official CLI authentication and never imports credentials.
+- Grok, Gemini, and Claude are not enabled shipping providers.
 - Schedules do not run while Sia or the Mac is offline.
 - The terminal is not an interactive persistent PTY.
 - Attachments do not have a general artifact-preview viewer.
@@ -65,9 +72,9 @@ provider CLI already installed and authenticated on the Mac.
 - Updates are manual; there is no automatic-update feed.
 - A Sia sign-in is explicitly a research-release enrollment. The person must accept the raw consent
   or decline and sign out. Local-only use remains available without sharing.
-- Slack is enabled for unlisted cross-workspace alpha installation. Gmail, Drive, Docs, Sheets, and
-  Slides remain limited to approved Google test users until Google production publishing and
-  verification complete. Remote/offline execution is not part of this alpha.
+- Slack is enabled for unlisted cross-workspace alpha installation. Google OAuth is externally
+  published; organization policies may still require administrator approval. Remote/offline
+  execution is not part of this alpha.
 - The release stack rehearsal and fresh signed/notarized artifact are complete. Distribution still
   requires the named human approvals and final artifact-only checks in the release evidence.
 

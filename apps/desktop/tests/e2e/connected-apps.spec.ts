@@ -23,7 +23,7 @@ test('configured first run offers Sia sign-in before local setup', async () => {
   }
 });
 
-test('one guided action connects Google Workspace and Slack in deterministic development mode', async () => {
+test('core Sia opens first and optional setup connects every work app later', async () => {
   const harness = await launchIsolatedSia({
     prefix: 'sia-connected-apps-',
     environment: {
@@ -36,21 +36,23 @@ test('one guided action connects Google Workspace and Slack in deterministic dev
 
   try {
     await harness.page.getByRole('button', { name: 'Join research release' }).click();
-    const onboarding = harness.page.getByRole('dialog', {
-      name: 'Connect your work apps',
-    });
-    await expect(onboarding).toBeVisible();
-    await expect(onboarding.getByText('Research recording is on')).toBeVisible();
-    await expect(onboarding.getByText('0 of 6 apps ready')).toBeVisible();
     await expect(
-      onboarding.getByText('Browser approval only - no API key or plugin'),
+      harness.page.getByRole('dialog', { name: 'Connect your work apps' }),
+    ).toHaveCount(0);
+    await expect(harness.page.getByRole('heading', { name: 'Choose an agent' })).toBeVisible();
+    await expect(
+      harness.page.getByRole('button', { name: 'Connect work apps later' }),
     ).toBeVisible();
-    await expect(onboarding.getByRole('button', { name: 'Choose apps' })).toBeVisible();
-    await onboarding.getByRole('button', { name: 'Connect work apps' }).click();
-    await expect(onboarding).toBeHidden();
 
     await harness.page.getByRole('button', { name: 'Settings' }).click();
     await harness.page.getByRole('button', { name: 'Apps' }).click();
+    await expect(
+      harness.page.getByText(/Chat, web search, schedules, and computer use work without them/),
+    ).toBeVisible();
+    await expect(
+      harness.page.getByText('Optional API connections', { exact: true }),
+    ).toBeVisible();
+    await harness.page.getByRole('button', { name: 'Connect work apps' }).click();
 
     await expect(harness.page.getByText(/nothing is bulk copied into Sia/)).toBeVisible();
     await expect(harness.page.getByText('6 of 6 ready')).toBeVisible();
@@ -77,7 +79,7 @@ test('one guided action connects Google Workspace and Slack in deterministic dev
   }
 });
 
-test('first run can connect only a selected set of work apps', async () => {
+test('a user can connect only a selected set of work apps later', async () => {
   const harness = await launchIsolatedSia({
     prefix: 'sia-selected-apps-',
     environment: {
@@ -90,15 +92,16 @@ test('first run can connect only a selected set of work apps', async () => {
 
   try {
     await harness.page.getByRole('button', { name: 'Join research release' }).click();
-    const onboarding = harness.page.getByRole('dialog', {
-      name: 'Connect your work apps',
-    });
-    await onboarding.getByRole('button', { name: 'Choose apps' }).click();
-    await onboarding.getByRole('button', { name: 'Clear selection' }).click();
-    await onboarding.getByRole('checkbox', { name: 'Select Google Docs' }).click();
-    await onboarding.getByRole('checkbox', { name: 'Select Slack' }).click();
-    await onboarding.getByRole('button', { name: 'Connect selected' }).click();
-    await expect(onboarding).toBeHidden();
+    await expect(
+      harness.page.getByRole('dialog', { name: 'Connect your work apps' }),
+    ).toHaveCount(0);
+    await harness.page.getByRole('button', { name: 'Settings' }).click();
+    await harness.page.getByRole('button', { name: 'Apps' }).click();
+    await harness.page.getByRole('button', { name: 'Choose apps' }).click();
+    await harness.page.getByRole('button', { name: 'Clear selection' }).click();
+    await harness.page.getByRole('checkbox', { name: 'Select Google Docs' }).click();
+    await harness.page.getByRole('checkbox', { name: 'Select Slack' }).click();
+    await harness.page.getByRole('button', { name: 'Connect selected' }).click();
 
     await expect
       .poll(async () => {

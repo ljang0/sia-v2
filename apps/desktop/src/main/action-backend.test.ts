@@ -1187,6 +1187,27 @@ describe('DesktopActionBackend browser boundary', () => {
 });
 
 describe('DesktopActionBackend connector boundary', () => {
+  it('offers browser continuation when an optional connector is not connected', async () => {
+    const backend = new DesktopActionBackend({
+      cua: fakeCua(async () => ({})),
+      cloud: {
+        configured: true,
+        prepareAction: vi.fn(),
+        commitAction: vi.fn(),
+      },
+      resolveConnectionId: () => undefined,
+    });
+
+    const result = await backend.invoke(
+      request('drive_search', { account_id: 'drive', query: 'budget', limit: 20 }),
+    );
+
+    expect(result.outcome).toBe('refused');
+    expect(result.reason).toContain('Google Drive is not connected');
+    expect(result.reason).toContain('https://drive.google.com');
+    expect(result.reason).toContain('connect it later in Settings > Apps');
+  });
+
   it('resolves stable account aliases to trusted cloud ids and strips account_id from input', async () => {
     const cloud: CloudActionClient = {
       configured: true,

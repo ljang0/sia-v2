@@ -14,16 +14,26 @@ This repository is the clean v2 implementation. It intentionally does not contai
 - macOS 14 or newer.
 - When a release cloud is configured, first run offers Sia sign-in before agent setup and keeps a
   clear **Continue locally** path. A cloud-disabled build goes directly to local setup and shows no
-  unusable account controls. After sign-in, Sia presents the required raw-research consent as step
-  1, then one **Connect work apps** action as step 2 before agent setup. That action advances through
-  Gmail, Drive, Docs, Sheets, Slides, and Slack in order, preserving completed grants on retry. Each
-  provider still owns its own OAuth approval page. **Choose apps** can run the same verified flow for
-  any subset, and setup may be deferred.
+  unusable account controls. After sign-in, Sia presents the required raw-research consent and then
+  opens the core app immediately. Google Workspace and Slack are optional Settings connections, not
+  an onboarding gate. **Connect work apps** advances through every selected provider in order and
+  preserves completed grants on retry; **Choose apps** can run the same verified flow for any subset.
+  Each provider still owns its own OAuth approval page.
 - Local execution requires Sia to be running and the Mac to remain awake.
 - Local turns keep running when the Sia window is closed on macOS, and the Activity view preserves their status when the window is reopened. The agent can create, list, update, and delete persisted once/hourly/daily/weekly schedules after approval. They run only while the Sia process is open and the Mac is awake; they are not an always-on daemon or OS cron job.
-- The cloud control plane handles sign-in, connected apps, the implemented-but-not-yet-live-verified Meta relay, and consented research sync. Meta stays unavailable in the alpha client until an authenticated capability check exists. The cloud does not yet provide a persistent remote computer, remote browser profile, or offline scheduled agent turns.
-- Codex is the default provider through its official app-server protocol. The alpha pins Codex CLI `>=0.147.0 <0.149.0`; inherited extensions are disabled and verified before a thread starts.
-- The Meta adapter targets the Sia cloud relay but remains production-disabled until an authenticated live check is implemented. Gemini, Grok, and Claude also remain production-disabled until their compatibility, isolation, and product-policy gates are satisfied.
+- The cloud control plane handles sign-in, connected apps, the authenticated live-verified Meta relay,
+  and consented research sync. Meta is advertised only after a signed-in participant passes the live
+  model, streaming, and tool-capability check. The cloud does not yet provide a persistent remote
+  computer, remote browser profile, or offline scheduled agent turns.
+- Codex is the default local provider through its official app-server protocol. It uses the person's
+  existing ChatGPT Codex entitlement—including Free when available—or their OpenAI API account. Sia
+  checks `codex login status` but never reads or imports Codex credentials. The alpha pins Codex CLI
+  `>=0.147.0 <0.149.0`; inherited extensions are disabled and verified before a thread starts.
+- Meta is included for signed-in invited alpha accounts through the Sia-owned AWS relay, so a
+  participant does not enter a Meta key. It is a shared preview service with per-account concurrency
+  limits and upstream availability limits, not a promise of permanently free API access. Gemini,
+  Grok, and Claude remain production-disabled until their compatibility, isolation, and product-
+  policy gates are satisfied.
 - Apple Messages works locally: reading recent iMessages needs Full Disk Access; sending is bound to
   an exact recipient and message. WhatsApp can use granted computer control. Slack uses its connected
   app path for dependable person lookup, DM resolution, message search, thread reads, and reviewed
@@ -33,8 +43,10 @@ This repository is the clean v2 implementation. It intentionally does not contai
   written to a per-thread local trajectory log, bounded to 90 days or 128 MiB; `Settings → Computer
 → Confirm before changes` restores exact, expiring approvals. Hard blocks for credential fields,
   private browser surfaces, and sensitive apps remain in every mode.
-- Gmail, Drive, Docs, Sheets, Slides, and Slack share one ordered guided setup, with a selectable
-  subset path and per-app controls for later connection, recovery, and disconnects.
+- Gmail, Drive, Docs, Sheets, Slides, and Slack share an optional ordered setup in Settings, with a
+  selectable subset path and per-app controls for later connection, recovery, and disconnects. If
+  an optional connector is absent, Sia can continue in a signed-in Chrome window through browser or
+  computer use; connectors remain the reliable path for API and background access.
   Provider-owned OAuth consent remains separate: Google and Slack are never represented as one
   blanket permission. Connection setup, provider-page opening, success, failure, timeout, and
   disconnection are recorded in the local trajectory and the consented encrypted AWS research
@@ -55,7 +67,11 @@ This repository is the clean v2 implementation. It intentionally does not contai
   uploaded archive, while local-only export contains locally retained batches. Research deletion
   removes the active cloud copy when configured, clears the local copy, and resets consent.
 - Signed-in users can delete their Sia cloud account directly from Connected apps. Sia requires the exact phrase `DELETE ACCOUNT`, waits for the account-scope cloud job to report `completed`, and only then clears local Sia state and sign-in. It does not delete workspace files, provider CLI accounts, or macOS permissions.
-- Provider CLIs are separately installed and authenticated by the user; they are not bundled with Sia. Sia does not inject a visualization or canvas tool into the prime agent. Its added surface is the fixed browser, computer, Gmail, Drive, Docs, Sheets, Slides, Slack, Messages, and scheduling gateway.
+- Provider CLIs such as Codex are separately installed and authenticated by the user; they are not
+  bundled with Sia. Sia detects the official login and does not copy it. The optional hosted Meta
+  provider instead requires a signed-in invited Sia account and no participant API key. Sia does not
+  inject a visualization or canvas tool into the prime agent. Its added surface is the fixed browser,
+  computer, Gmail, Drive, Docs, Sheets, Slides, Slack, Messages, and scheduling gateway.
 - The Apps page also exposes local Chrome and Apple Messages entry points. Chrome reuses only an
   explicitly selected signed-in window and never copies cookies. The Messages button opens the
   account already configured in Apple Messages; Sia does not read `chat.db`, copy message history,

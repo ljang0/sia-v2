@@ -22,7 +22,7 @@ describe('probeProviders', () => {
     expect(providers.find(({ id }) => id === 'meta')).toMatchObject({
       status: 'unavailable',
       detail: 'Meta requires a release build configured for Sia cloud.',
-      billing: 'Included when Sia cloud is configured.',
+      billing: 'Included for invited Sia alpha accounts; shared preview limits apply.',
     });
   });
 
