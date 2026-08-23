@@ -357,6 +357,7 @@ export class DesktopController {
   readonly #pendingApprovals = new Map<string, PendingApproval>();
   readonly #approvedConnectorBindings = new Map<string, ApprovedConnectorBinding>();
   readonly #connectorGenerations = new Map<ConnectionView['id'], number>();
+  readonly #connectorLinkExpiries = new Map<string, number>();
   readonly #pendingQuestions = new Map<string, { requestId: string; turnId: string }>();
   readonly #researchStaging = new Map<string, StagedResearchTurn>();
   /**
@@ -2723,6 +2724,10 @@ export class DesktopController {
     }
     try {
       const started = await this.#cloud.startConnection(connectionId);
+      const linkExpiry = Date.parse(started.expiresAt);
+      if (Number.isFinite(linkExpiry)) {
+        this.#connectorLinkExpiries.set(started.connectionId, linkExpiry);
+      }
       this.#state.connectionOwners[connectionId] = owner!;
       this.#updateConnection(connectionId, {
         status: 'connecting',
@@ -3065,13 +3070,21 @@ export class DesktopController {
     expectedId: string,
     signal?: AbortSignal,
   ): Promise<boolean> {
-    const deadline = Date.now() + 2 * 60_000;
+    // Provider authorization links currently remain valid for roughly ten minutes. Honor the
+    // exact server-supplied expiry (plus a small callback grace period) so users are not shown a
+    // false timeout while they review Google or Slack's consent screens.
+    const deadline =
+      (this.#connectorLinkExpiries.get(expectedId) ?? Date.now() + 10 * 60_000) + 15_000;
+    const finish = (connected: boolean): boolean => {
+      this.#connectorLinkExpiries.delete(expectedId);
+      return connected;
+    };
     let lastStatusError: unknown;
     while (Date.now() < deadline) {
       await abortableDelay(2_000, signal);
       const current = this.#state.connections.find(({ id }) => id === connectionId);
       if (!current || current.connectionId !== expectedId || current.status !== 'connecting')
-        return false;
+        return finish(false);
       try {
         const status = await this.#cloud.connectionStatus(connectionId);
         const pending = this.#state.connections.find(({ id }) => id === connectionId);
@@ -3081,7 +3094,7 @@ export class DesktopController {
           pending.connectionId !== expectedId ||
           pending.status !== 'connecting'
         ) {
-          return false;
+          return finish(false);
         }
         const remote = status.connections.find(({ id }) => id === expectedId);
         if (remote?.status === 'connected') {
@@ -3096,7 +3109,7 @@ export class DesktopController {
             connectionId: expectedId,
             ...(remote.accountLabel ? { account: remote.accountLabel } : {}),
           });
-          return true;
+          return finish(true);
         }
         if (remote?.status === 'failed') {
           this.#updateConnection(connectionId, {
@@ -3109,7 +3122,7 @@ export class DesktopController {
             connectionId: expectedId,
             reason: 'The connected-app provider declined setup.',
           });
-          return false;
+          return finish(false);
         }
         lastStatusError = undefined;
       } catch (error) {
@@ -3120,7 +3133,7 @@ export class DesktopController {
           pending.connectionId !== expectedId ||
           pending.status !== 'connecting'
         ) {
-          return false;
+          return finish(false);
         }
         // OAuth approval often outlives a brief laptop/network interruption. Keep the
         // pending grant stable and retry rather than forcing the user to disconnect it.
@@ -3138,7 +3151,7 @@ export class DesktopController {
       app: connectionId,
       connectionId: expectedId,
     });
-    return false;
+    return finish(false);
   }
 
   #setCapture(input: BridgeRequestMap['research.setCapture']): DesktopSnapshot {

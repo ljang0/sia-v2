@@ -2177,6 +2177,80 @@ describe('DesktopController', () => {
     }
   });
 
+  it('keeps polling until the provider-supplied authorization expiry', async () => {
+    let startedAt = 0;
+    const cloud = {
+      configured: true,
+      sessionStatus: async () => ({
+        features: {
+          researchUploads: true,
+          researchArchive: true,
+          connectors: true,
+          schedules: true,
+        },
+      }),
+      startConnection: async () => {
+        startedAt = Date.now();
+        return {
+          redirectUrl: 'https://connect.example.test/gmail',
+          connectionId: 'slow-gmail-grant',
+          expiresAt: new Date(startedAt + 10 * 60_000).toISOString(),
+        };
+      },
+      connectionStatus: async () => ({
+        connections: [
+          {
+            id: 'slow-gmail-grant',
+            app: 'gmail' as const,
+            status:
+              Date.now() - startedAt >= 124_000
+                ? ('connected' as const)
+                : ('link_pending' as const),
+            accountLabel: 'slow-consent@example.test',
+          },
+        ],
+      }),
+      disconnect: async () => undefined,
+      uploadResearchBatch: async () => undefined,
+    } as unknown as CloudClient;
+    const identity = {
+      initialize: async () => ({ state: 'signed_in' as const, email: 'person@example.com' }),
+      status: () => ({ state: 'signed_in' as const, email: 'person@example.com' }),
+      startEmailSignIn: async () => ({ state: 'signed_in' as const }),
+      completeEmailSignIn: async () => ({ state: 'signed_in' as const }),
+      signOut: async () => ({ state: 'signed_out' as const }),
+    } satisfies ConstructorParameters<typeof DesktopController>[0]['identity'];
+    const { controller } = await createHarness({
+      cloud,
+      identity,
+      fakeServices: false,
+    });
+    await controller.invoke('research.setCapture', {
+      enabled: true,
+      consentVersion: 'alpha-research-v3-raw',
+    });
+    vi.useFakeTimers();
+
+    try {
+      await controller.invoke('connections.start', { connectionId: 'gmail' });
+      await vi.advanceTimersByTimeAsync(122_000);
+      expect(controller.snapshot().connections.find(({ id }) => id === 'gmail')).toMatchObject({
+        status: 'connecting',
+        connectionId: 'slow-gmail-grant',
+      });
+
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(controller.snapshot().connections.find(({ id }) => id === 'gmail')).toMatchObject({
+        status: 'connected',
+        connectionId: 'slow-gmail-grant',
+        account: 'slow-consent@example.test',
+      });
+    } finally {
+      vi.useRealTimers();
+      await controller.shutdown();
+    }
+  });
+
   it('opens each provider only after the previous grant is verified', async () => {
     type TestConnectionId = 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack';
     const connectionOrder: TestConnectionId[] = [
