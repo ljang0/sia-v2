@@ -202,6 +202,10 @@ not replace the mutation checks below. When several Chrome windows are open, set
       Dark/reduced-motion media check of Settings and the complete Apps copy without horizontal
       clipping. A human exact-artifact Dark appearance review, administrator MFA/archive, and outbox
       states remain open.
+      The exact alpha.6 signed artifact passed a disposable packaged launch and rendered all six Apps
+      entries at 960x640 in Dark/reduced-motion mode with no horizontal overflow or renderer error.
+      It carries the one-click expired-grant reconnect correction; the remaining human/profile checks
+      above are unchanged.
 - [ ] Run the upgrade-account install on a disposable macOS account that has the intended prior v2
       build, and confirm agents, threads, provider detection, and one read-only workflow survive.
       A contained temporary-profile simulation from the notarized `_old-builds/release-signed-ux-final-v2` bundle

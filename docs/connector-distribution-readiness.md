@@ -93,6 +93,13 @@ state restoration. A control-table audit kept the acceptance and administrator c
 strictly separated. This is one-profile evidence only and does not satisfy the required two-profile,
 two-provider-identity matrix below.
 
+Alpha.6 follow-up (2026-08-24): designated private Docs, Sheets, and Slides fixture creation reached
+all three real editor tools, but each grant returned a nested Google 401 before creating a resource.
+Composio returned no resource IDs, so no fixtures or duplicates exist. The cloud now converts nested
+401/403/410 provider failures directly to `connection_reconnect_required`; the signed alpha.6 app
+immediately marks only that app as expired and replaces its stale grant through one **Reconnect**
+click. The three fixture creates and reads remain pending fresh provider consent.
+
 ## Slack production gate
 
 - [x] Create the Sia-owned Slack app from `infra/slack-app-manifest.yaml`; confirm its scopes exactly
