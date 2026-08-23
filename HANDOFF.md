@@ -167,14 +167,15 @@ and provider history but do not supersede that record.
 - Local research capture remains optional. Signed-in research-release use requires versioned v3 raw
   consent and includes all exact task-surface events described above; credential stores, cookies,
   Keychain, secure fields, private windows, and hidden authentication surfaces remain unavailable.
-- Alpha.3 has the restrained professional/light visual pass. Deterministic screenshot coverage now
-  checks the core workspace, providers, apps, agent creation, Activity, sign-in, local choice,
-  compact light/dark layouts, bundled display font, keyboard focus, overflow, transitions, and
-  reduced motion. The native window paint also matches the renderer canvas to avoid a startup flash.
+- Alpha.4 replaces the confrontational dark light-mode shell and rounded toy-like controls with a
+  warm-neutral workspace rail, one muted action color, mineral identity accents, native display
+  typography, tighter radii, editorial tabs, and composed opacity/color motion. Deterministic
+  screenshots cover the core workspace, providers, apps, agent creation, Activity, sign-in, local
+  choice, compact light/dark layouts, keyboard focus, overflow, transitions, and reduced motion.
 
 ### Settled-source automated baseline
 
-These passed on frozen `0.1.0-alpha.3` source on 2026-08-23.
+These passed on frozen `0.1.0-alpha.4` application source on 2026-08-23.
 
 - `pnpm check`: build, formatting, quality guard, typecheck, and 431 tests passed.
 - `pnpm test:e2e`: 26 enabled Electron Playwright tests passed; four opt-in real tests skipped as
@@ -182,31 +183,31 @@ These passed on frozen `0.1.0-alpha.3` source on 2026-08-23.
 - `pnpm test:e2e:parity:strict`: 13/13 passed.
 - The most recent real-machine baseline remains the alpha.2 pass: Codex isolation and the three
   no-turn auth/Chrome/CUA probes passed, and a constrained real capability turn called
-  `browser_tabs` and `computer_list` without mutation. Alpha.3 changes only renderer styling,
+  `browser_tabs` and `computer_list` without mutation. Alpha.4 changes only renderer styling,
   native background paint, and visual regression coverage.
-- The alpha.3 visual audit reported zero renderer errors or true layout overflows at 1220x780 and
+- The alpha.4 visual audit reported zero renderer errors or true layout overflows at 1220x780 and
   960x640 in light, dark, and reduced-motion modes.
 
 ### Signed macOS artifact
 
 - Current artifact: `apps/desktop/release/mac-universal/Sia.app`
 - Distribution files:
-  - `apps/desktop/release/Sia-0.1.0-alpha.3-universal.dmg`
-  - `apps/desktop/release/Sia-0.1.0-alpha.3-universal.zip`
+  - `apps/desktop/release/Sia-0.1.0-alpha.4-universal.dmg`
+  - `apps/desktop/release/Sia-0.1.0-alpha.4-universal.zip`
 - Installed signing identity:
   `Developer ID Application: Lawrence Jang (DXYJ578DD4)`
 - Notary profile: `notarytool-profile`
-- The current app was rebuilt from frozen commit `6ef30ef02c001af26d663c12dcec645f705233bc` and
+- The current app was rebuilt from frozen commit `5f917f61c7ac5b09c9f9286e08e265b5a6d366de` and
   rechecked on 2026-08-23:
   - `codesign --verify --deep --strict`: pass
   - Gatekeeper `spctl --assess`: accepted, Notarized Developer ID
   - `xcrun stapler validate`: pass
-  - app notary submission `8859a85f-e787-4fc9-93d9-54038b97cffe`: accepted
-  - DMG notary submission `722cc360-fc97-4b83-bd00-7f4e3f941bc9`: accepted
-  - DMG SHA-256: `c0196286d0d0730703283fd3eeb967fd2ac7e3052e59b0379ea044fb840864ff`
-  - ZIP SHA-256: `86ccf7ee5ad704b13287c12b8e9b9a5b15e21d4701fcb2dc6baa803e1704e85e`
+  - app notary submission `abadcc1b-318c-49c0-afda-55d00c58ded4`: accepted
+  - DMG notary submission `a806277d-5b0f-4463-a3a5-cf74147a2ee6`: accepted
+  - DMG SHA-256: `9e0af7a8b6152fec977f1a827dca0c96498313b63313379aba45b3b4bd032365`
+  - ZIP SHA-256: `d8fd368551676d2f0f93b0867f8c80ea38cf0eb36b0e069c6d21a56ac4290ea6`
 - Rollback artifact:
-  `apps/desktop/_old-builds/release-alpha2-before-alpha3-20260823-1745/`
+  `apps/desktop/_old-builds/release-alpha3-before-alpha4-20260823-1817/`
 - Contained upgrade simulation: the notarized
   `apps/desktop/_old-builds/release-signed-ux-final-v2/mac-universal/Sia.app` created an `Upgrade fixture v2`
   agent and completed thread in a fresh temporary profile. Opening the final signed artifact against

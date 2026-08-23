@@ -17,8 +17,8 @@ administrator's TOTP seed.
   guidance for reliable API and background access.
 - `pnpm check` passed the build, formatting, quality guard, type checking, and 431 default tests.
   The focused Electron first-run/optional-connection suite passed 3/3.
-- The `0.1.0-alpha.3` candidate recorded at the end of this document includes this source update and
-  the final visual-polish pass in a newly signed and notarized DMG.
+- The `0.1.0-alpha.4` candidate recorded at the end of this document includes this source update and
+  the calmer professional interface system in a newly signed and notarized DMG.
 - A live read-only invocation of the deployed authenticated Meta capability path returned the pinned
   `super_nova_ext` model with streaming and tools available. The encrypted secret was not read or
   printed, the deployed stack remained `UPDATE_COMPLETE`, and every monitored alarm was `OK` with
@@ -606,6 +606,41 @@ Do not distribute the artifact until these are completed and recorded:
   strict parity passed 13/13.
 - Independent artifact checks passed deep strict signing, Gatekeeper execute/open assessment, app and
   DMG staple validation, hardened runtime, `0.1.0-alpha.3` bundle identity, universal
+  `x86_64`/`arm64` architecture, production cloud-resource verification, native-runtime validation,
+  license checks, and the packaged tool bridge.
+- This is the current technically distributable invite-only core research alpha. The same external
+  all-app qualifications still apply: do not claim universal Google/Slack readiness until Google
+  verification/CASA, fresh unrelated-domain/workspace testing, the approved synthetic Slack send,
+  and named privacy/security/support/release signoffs are complete.
+
+## Calm-interface alpha.4 distribution candidate (2026-08-23 KST)
+
+- Frozen application source commit: `5f917f61c7ac5b09c9f9286e08e265b5a6d366de`
+- Version and bundle: `0.1.0-alpha.4`, `ai.sia.desktop`
+- Artifact: `apps/desktop/release/Sia-0.1.0-alpha.4-universal.dmg`
+- DMG SHA-256: `9e0af7a8b6152fec977f1a827dca0c96498313b63313379aba45b3b4bd032365`
+- ZIP SHA-256: `d8fd368551676d2f0f93b0867f8c80ea38cf0eb36b0e069c6d21a56ac4290ea6`
+- DMG size: 257,662,014 bytes
+- ZIP size: 257,010,892 bytes
+- Apple app submission: `abadcc1b-318c-49c0-afda-55d00c58ded4` - Accepted
+- Apple DMG submission: `a806277d-5b0f-4463-a3a5-cf74147a2ee6` - Accepted
+- The alpha.3 release remains recoverable under
+  `apps/desktop/_old-builds/release-alpha3-before-alpha4-20260823-1817`; packaging did not delete or
+  overwrite it.
+- Alpha.4 replaces the high-contrast dark shell in light mode with a warm-neutral rail, limits
+  Bricolage Grotesque to the wordmark, moves interface headings to native display typography,
+  neutralizes provider/app glyphs, tightens control radii, and turns selected settings pills into
+  editorial underline tabs. Agent colors remain as muted mineral identity accents rather than large
+  game-like fills.
+- Motion now emphasizes color and opacity. Common controls no longer lift or slide on hover, dialog
+  entry settles by six pixels without scaling, overlays use neutral low-opacity blur, and the unique
+  Sia presence animation retains its reduced-motion substitute.
+- `pnpm check` passed 431 tests plus formatting, type checking, build, contrast/accessibility policy,
+  and quality guard. The full Electron suite passed 26 deterministic scenarios with four opt-in
+  real-machine cases skipped. Visual coverage reported zero renderer errors or true overflows at
+  1220x780 and 960x640 in light, dark, and reduced-motion modes.
+- Independent artifact checks passed deep strict signing, Gatekeeper execute/open assessment, app and
+  DMG staple validation, hardened runtime, `0.1.0-alpha.4` bundle identity, universal
   `x86_64`/`arm64` architecture, production cloud-resource verification, native-runtime validation,
   license checks, and the packaged tool bridge.
 - This is the current technically distributable invite-only core research alpha. The same external
