@@ -78,6 +78,15 @@ configured without changing the existing MX/SPF/DKIM/DMARC records. A verified S
 the production forwarding path. An unrelated-domain sender check and the Google data-access
 verification submission remain open gates.
 
+Alpha.5 live update (2026-08-24): the provider's current Gmail `20260817_00` and Drive
+`20260821_00` schemas are pinned in source and AWS. A healthy acceptance account passed Gmail,
+Drive, and Slack read-only execution. Its Drive grant had no Docs, Sheets, or Slides resources, so
+the three editor content reads still need designated fixtures. The main administrator's older
+Google grants returned HTTP 410 despite a shallow ACTIVE status. Alpha.5 now persists those grants
+as failed, audits `connection_reconnect_required`, and presents the normal reconnect path instead
+of silently restoring the misleading status. The stale Google records were marked failed; the
+working Slack grant was preserved.
+
 ## Slack production gate
 
 - [x] Create the Sia-owned Slack app from `infra/slack-app-manifest.yaml`; confirm its scopes exactly
