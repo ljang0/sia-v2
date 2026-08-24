@@ -7,8 +7,7 @@ the implementation was verified; it is not legal or institutional approval.
 
 - Release: Sia `0.1.0-alpha.7`
 - Consent version: `alpha-research-v3-raw`
-- Evidence: `release-evidence-2026-08-24-alpha.7.md` (create after the final signed artifact and live
-  connector pass)
+- Evidence: [`release-evidence-2026-08-24-alpha.7.md`](./release-evidence-2026-08-24-alpha.7.md)
 - Invite copy: [`alpha-invite-template.md`](./alpha-invite-template.md)
 - Intended population: invited adults participating in the Sia research release
 - Local alternative: **Continue locally** without signing in or uploading research data
