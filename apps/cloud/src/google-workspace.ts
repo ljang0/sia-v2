@@ -873,7 +873,18 @@ function sha256(value: string): string {
 
 function missingRequiredScopes(scopes: string[]): string[] {
   const granted = new Set(scopes);
-  return GOOGLE_WORKSPACE_SCOPES.filter((scope) => !granted.has(scope));
+  return GOOGLE_WORKSPACE_SCOPES.filter((scope) => {
+    // Google's token endpoint may canonicalize the OpenID Connect `email` alias to the
+    // equivalent Google OAuth scope even though the authorization request used `email`.
+    // Workspace API scopes remain exact: accepting a broader or neighboring scope here could
+    // make the desktop claim a service is ready when its actual tool calls are not authorized.
+    if (scope === 'email') {
+      return (
+        !granted.has('email') && !granted.has('https://www.googleapis.com/auth/userinfo.email')
+      );
+    }
+    return !granted.has(scope);
+  });
 }
 
 async function boundedJson(

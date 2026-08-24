@@ -29,6 +29,9 @@
   partial token best-effort, stores no connection, marks the attempt failed, and returns a readable
   retry page. It no longer leaves the desktop indefinitely in `link_pending` or exposes raw error
   JSON to the participant.
+- The callback accepts Google's documented canonical `userinfo.email` spelling when the request
+  used the equivalent OpenID Connect `email` alias. Every Workspace API scope remains an exact
+  match, so the compatibility fix does not broaden the grant or mask a missing permission.
 - Google Workspace action turns remain excluded from diagnostic trajectories and AWS research
   uploads. OAuth URLs, authorization codes, tokens, cookies, and client secrets are excluded from
   lifecycle records.
@@ -43,10 +46,15 @@
 - AWS CloudFormation stack `sia-alpha` is `UPDATE_COMPLETE` and `IN_SYNC` in account
   `677513020767`, region `us-east-1`. The deployed Google OAuth secret has non-empty client ID and
   client-secret fields without printing either credential.
-- The dedicated `Sia Production` Google Web OAuth client uses the deployed callback. A live attempt
-  reached Google account selection and consent for `ljang@andrew.cmu.edu`; declining some granular
-  permissions failed closed as designed. The fresh all-scope read-only acceptance pass is still
-  open.
+- The dedicated `Sia Production` Google Web OAuth client uses the deployed callback. A fresh live
+  consent for `ljang@andrew.cmu.edu` selected every requested permission and saved one unified
+  connection. The desktop reported Gmail, Drive, Docs, Sheets, and Slides connected, with separate
+  service switches.
+- A metadata-minimized live acceptance turn passed Gmail search/read, Drive search, Docs read, and
+  Slides read without creating or changing data. The Sheets tool found a spreadsheet but its
+  bounded cell read returned a gateway error. A controlled server-side replay using the same
+  production grant and Google Sheets Values API succeeded, proving the grant and Google API are
+  healthy while leaving the Sia Sheets action path as an open defect.
 - The public CloudFront invalidation completed and `https://superintelligentagents.ai` serves the
   self-enrolled research-alpha copy. Public registration accepted a valid acknowledgment, rejected
   an invalid acknowledgment, and Cognito delivered an `EMAIL_OTP` to the CMU test address.
@@ -54,8 +62,8 @@
 
 ## Open external-distribution gates
 
-- Finish the fresh Google consent pass by selecting every requested Workspace permission, then
-  validate Gmail, Drive, Docs, Sheets, and Slides read-only, service switches, revoke, and reconnect.
+- Diagnose and fix the remaining Sheets action-path gateway error, then complete Sheets read-only,
+  Google service-switch, revoke, and reconnect acceptance.
 - Google sensitive/restricted-scope verification, reviewer video, and any required CASA assessment
   remain mandatory before claiming seamless general Google availability. Until approval, Google
   displays its unverified-app warning and only approved testers can be treated as supported.

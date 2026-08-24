@@ -118,7 +118,11 @@ describe('unified Google Workspace OAuth', () => {
             access_token: 'access-one',
             refresh_token: 'refresh-token-must-stay-sealed',
             expires_in: 3600,
-            scope: GOOGLE_WORKSPACE_SCOPES.join(' '),
+            // Google commonly returns the canonical userinfo scope for the requested OIDC
+            // `email` alias. A complete Workspace grant must not be rejected for that rewrite.
+            scope: GOOGLE_WORKSPACE_SCOPES.map((scope) =>
+              scope === 'email' ? 'https://www.googleapis.com/auth/userinfo.email' : scope,
+            ).join(' '),
           });
         }
         return Response.json({ access_token: 'access-refreshed', expires_in: 3600 });
