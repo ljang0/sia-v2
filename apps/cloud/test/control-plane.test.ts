@@ -866,6 +866,47 @@ describe('research boundary', () => {
 });
 
 describe('invites and deletion', () => {
+  it('self-registers passwordless accounts silently and rate-limits without exposing existence', async () => {
+    const fixture = makeFixture();
+    const request = {
+      email: 'Person@Example.com',
+      researchEnrollmentAcknowledged: true as const,
+    };
+    assert.deepEqual(await fixture.services.registration.create(request, '203.0.113.10'), {
+      accepted: true,
+    });
+    assert.deepEqual(await fixture.services.registration.create(request, '203.0.113.10'), {
+      accepted: true,
+    });
+    assert.equal(fixture.identity.creations[0]?.email, 'person@example.com');
+    assert.equal(fixture.identity.creations[0]?.suppressMessage, true);
+    assert.equal(
+      (await fixture.state.getInvite('person@example.com'))?.invitedBy,
+      'self-registration',
+    );
+    await fixture.services.registration.create(request, '203.0.113.10');
+    await fixture.services.registration.create(request, '203.0.113.10');
+    await assert.rejects(
+      fixture.services.registration.create(request, '203.0.113.10'),
+      hasCode('registration_rate_limited'),
+    );
+  });
+
+  it('requires the research-release acknowledgment before public registration', async () => {
+    const fixture = makeFixture();
+    await assert.rejects(
+      fixture.services.registration.create(
+        {
+          email: 'person@example.com',
+          researchEnrollmentAcknowledged: false as never,
+        },
+        '203.0.113.10',
+      ),
+      hasCode('research_enrollment_required'),
+    );
+    assert.equal(fixture.identity.users.size, 0);
+  });
+
   it('requires Admins membership and enforces the invitation cap', async () => {
     const fixture = makeFixture({ inviteLimit: 1 });
     await assert.rejects(
@@ -1000,6 +1041,7 @@ function makeFixture(overrides: { inviteLimit?: number } = {}) {
     researchExportQueue: exportQueue,
     researchObjects: objects,
     invites: state,
+    registrationLimits: state,
     identity,
     deletions: state,
     deletionQueue: queue,

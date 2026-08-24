@@ -174,6 +174,11 @@ export interface InviteRequest {
   email: string;
 }
 
+export interface RegistrationRequest {
+  email: string;
+  researchEnrollmentAcknowledged: true;
+}
+
 export type DeletionScope = 'research' | 'account';
 
 export interface DeleteResearchRequest {

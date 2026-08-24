@@ -78,6 +78,7 @@ import type {
   MetaProvider,
   PreparedActionRecord,
   QuotaGate,
+  RegistrationRateLimitRepository,
   ResearchBatchMetadata,
   ResearchExportJob,
   ResearchExportQueue,
@@ -119,6 +120,7 @@ export interface RuntimeConfig {
   metaSecretArn: string;
   composioSecretArn: string;
   googleSecretArn: string;
+  registrationSecretArn: string;
   consentVersion: string;
   actionTtlSeconds: number;
   inviteLimit: number;
@@ -143,6 +145,7 @@ export function loadRuntimeConfig(environment: NodeJS.ProcessEnv = process.env):
     metaSecretArn: requiredEnv(environment, 'META_SECRET_ARN'),
     composioSecretArn: requiredEnv(environment, 'COMPOSIO_SECRET_ARN'),
     googleSecretArn: requiredEnv(environment, 'GOOGLE_SECRET_ARN'),
+    registrationSecretArn: requiredEnv(environment, 'REGISTRATION_SECRET_ARN'),
     consentVersion: requiredEnv(environment, 'RESEARCH_CONSENT_VERSION'),
     actionTtlSeconds: positiveInteger(
       environment.ACTION_TTL_SECONDS ?? '600',
@@ -167,6 +170,7 @@ export class DynamoState
     ResearchRepository,
     ResearchExportRepository,
     InviteRepository,
+    RegistrationRateLimitRepository,
     DeletionRepository,
     GoogleCredentialRepository
 {
@@ -511,12 +515,46 @@ export class DynamoState
       new QueryCommand({
         TableName: this.tableName,
         KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
-        ExpressionAttributeValues: { ':pk': 'ADMIN#INVITES', ':prefix': 'EMAIL#' },
+        FilterExpression: 'invitedBy <> :selfRegistration',
+        ExpressionAttributeValues: {
+          ':pk': 'ADMIN#INVITES',
+          ':prefix': 'EMAIL#',
+          ':selfRegistration': 'self-registration',
+        },
         Select: 'COUNT',
         ConsistentRead: true,
       }),
     );
     return result.Count ?? 0;
+  }
+
+  async consumeRegistrationLimit(
+    kind: 'email' | 'network',
+    fingerprint: string,
+    windowStart: number,
+    expiresAt: number,
+    limit: number,
+  ): Promise<boolean> {
+    const result = await this.client.send(
+      new UpdateCommand({
+        TableName: this.tableName,
+        Key: {
+          PK: `REGISTRATION_RATE#${kind}#${fingerprint}`,
+          SK: `WINDOW#${windowStart}`,
+        },
+        UpdateExpression:
+          'SET #type = if_not_exists(#type, :type), expiresAt = :expiresAt ADD requestCount :one',
+        ExpressionAttributeNames: { '#type': 'Type' },
+        ExpressionAttributeValues: {
+          ':type': 'RegistrationRateLimit',
+          ':expiresAt': expiresAt,
+          ':one': 1,
+        },
+        ReturnValues: 'ALL_NEW',
+      }),
+    );
+    const count = result.Attributes?.requestCount;
+    return typeof count === 'number' && count <= limit;
   }
 
   async deleteInvitesForSubject(subject: string): Promise<void> {
@@ -990,18 +1028,41 @@ export class CognitoIdentity implements IdentityProvider {
     private readonly client: CognitoIdentityProviderClient,
     private readonly userPoolId: string,
   ) {}
-  async createPasswordlessUser(email: string): Promise<{ subject: string }> {
-    const result = await this.client.send(
-      new AdminCreateUserCommand({
-        UserPoolId: this.userPoolId,
-        Username: email,
-        DesiredDeliveryMediums: ['EMAIL'],
-        UserAttributes: [
-          { Name: 'email', Value: email },
-          { Name: 'email_verified', Value: 'true' },
-        ],
-      }),
-    );
+  async createPasswordlessUser(
+    email: string,
+    options: { suppressMessage?: boolean } = {},
+  ): Promise<{ subject: string }> {
+    let result;
+    try {
+      result = await this.client.send(
+        new AdminCreateUserCommand({
+          UserPoolId: this.userPoolId,
+          Username: email,
+          DesiredDeliveryMediums: ['EMAIL'],
+          ...(options.suppressMessage ? { MessageAction: 'SUPPRESS' as const } : {}),
+          UserAttributes: [
+            { Name: 'email', Value: email },
+            { Name: 'email_verified', Value: 'true' },
+          ],
+        }),
+      );
+    } catch (error) {
+      if (!(error instanceof Error) || error.name !== 'UsernameExistsException') throw error;
+      const existing = await this.client.send(
+        new AdminGetUserCommand({ UserPoolId: this.userPoolId, Username: email }),
+      );
+      const subject = existing.UserAttributes?.find(
+        (attribute) => attribute.Name === 'sub',
+      )?.Value;
+      if (!subject) {
+        throw new CloudError(
+          502,
+          'identity_create_failed',
+          'The account could not be prepared',
+        );
+      }
+      return { subject };
+    }
     const subject = result.User?.Attributes?.find(
       (attribute) => attribute.Name === 'sub',
     )?.Value;
@@ -1043,6 +1104,7 @@ export class SecretsManagerProvider implements SecretProvider {
     private readonly metaSecretArn: string,
     private readonly composioSecretArn: string,
     private readonly googleSecretArn: string,
+    private readonly registrationSecretArn: string,
     private readonly cacheMilliseconds = 60_000,
   ) {}
 
@@ -1059,6 +1121,14 @@ export class SecretsManagerProvider implements SecretProvider {
   async google(): Promise<GoogleOAuthConfig> {
     const value = await this.read(this.googleSecretArn);
     return parseGoogleOAuthConfig(value);
+  }
+
+  async registrationSalt(): Promise<string> {
+    const value = await this.read(this.registrationSecretArn);
+    if (!isRecord(value)) {
+      throw new CloudError(503, 'secret_invalid', 'Registration protection is unavailable');
+    }
+    return secretString(value.salt);
   }
 
   private async read(secretId: string): Promise<unknown> {
@@ -1530,6 +1600,7 @@ export function createAwsDependencies(config = loadRuntimeConfig()): ServiceDepe
     config.metaSecretArn,
     config.composioSecretArn,
     config.googleSecretArn,
+    config.registrationSecretArn,
   );
   const google = new GoogleWorkspaceConnector({
     credentials: state,
@@ -1550,6 +1621,7 @@ export function createAwsDependencies(config = loadRuntimeConfig()): ServiceDepe
     researchExportQueue: new AwsResearchExportQueue(sqs, config.exportQueueUrl),
     researchObjects: new S3ResearchObjects(s3, config.bucketName, config.kmsKeyArn),
     invites: state,
+    registrationLimits: state,
     identity: new CognitoIdentity(new CognitoIdentityProviderClient({}), config.userPoolId),
     deletions: state,
     deletionQueue: new AwsDeletionQueue(sqs, config.deletionQueueUrl),

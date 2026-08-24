@@ -9,6 +9,30 @@ import {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('CloudClient', () => {
+  it('requests idempotent public research-alpha registration before Cognito sign-in', async () => {
+    const fetchMock = vi.fn(async (_input: URL | RequestInfo, _init?: RequestInit) =>
+      Response.json({ accepted: true }, { status: 202 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new CloudClient('https://api.example.test/alpha', {
+      read: async () => undefined,
+    });
+
+    await expect(client.registerAccount('person@example.com')).resolves.toBeUndefined();
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      'https://api.example.test/alpha/v1/auth/register',
+    );
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      method: 'POST',
+      body: JSON.stringify({
+        email: 'person@example.com',
+        researchEnrollmentAcknowledged: true,
+      }),
+    });
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).not.toHaveProperty('authorization');
+  });
+
   it('lists and creates alpha invitations without exposing internal identity fields', async () => {
     const fetchMock = vi.fn(async (input: URL | RequestInfo, init?: RequestInit) => {
       const invite = {
@@ -61,8 +85,10 @@ describe('CloudClient', () => {
       vi.fn(async () =>
         Response.json(
           {
-            code: 'connection_reconnect_required',
-            message: 'provider response containing private upstream details',
+            error: {
+              code: 'connection_reconnect_required',
+              message: 'provider response containing private upstream details',
+            },
           },
           { status: 409, headers: { 'x-request-id': 'request-1' } },
         ),

@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import {
   LEGACY_GOOGLE_APP_IDS,
   TOOL_POLICIES,
@@ -13,6 +13,7 @@ import {
   type MetaTurnRequest,
   type PrepareActionRequest,
   type ResearchBatchRequest,
+  type RegistrationRequest,
 } from './contracts.js';
 import {
   CloudError,
@@ -43,6 +44,7 @@ import type {
   IdGenerator,
   IdentityProvider,
   InviteRepository,
+  RegistrationRateLimitRepository,
   QuotaGate,
   ResearchBatchMetadata,
   ResearchExportQueue,
@@ -96,6 +98,7 @@ export interface ServiceDependencies {
   researchExportQueue: ResearchExportQueue;
   researchObjects: ResearchObjectStore;
   invites: InviteRepository;
+  registrationLimits: RegistrationRateLimitRepository;
   identity: IdentityProvider;
   deletions: DeletionRepository;
   deletionQueue: DeletionQueue;
@@ -319,7 +322,11 @@ export class ConnectionsService {
       outcome: result.connected ? 'allowed' : 'denied',
       occurredAt: now,
     });
-    return { connected: result.connected, accountLabel: result.accountLabel };
+    return {
+      connected: result.connected,
+      accountLabel: result.accountLabel,
+      failure: result.failure,
+    };
   }
 }
 
@@ -930,6 +937,73 @@ export class InvitesService {
   }
 }
 
+const REGISTRATION_EMAIL_WINDOW_SECONDS = 15 * 60;
+const REGISTRATION_NETWORK_WINDOW_SECONDS = 60 * 60;
+const REGISTRATION_EMAIL_LIMIT = 4;
+const REGISTRATION_NETWORK_LIMIT = 20;
+
+/** Public, enumeration-resistant account bootstrap for the passwordless research release. */
+export class RegistrationService {
+  constructor(private readonly deps: ServiceDependencies) {}
+
+  async create(request: RegistrationRequest, sourceIp: string) {
+    if (request.researchEnrollmentAcknowledged !== true) {
+      throw new CloudError(
+        400,
+        'research_enrollment_required',
+        'Acknowledge the research release before creating an account',
+      );
+    }
+    const email = normalizeEmail(request.email);
+    const salt = await this.deps.secrets.registrationSalt();
+    const now = Math.floor(this.deps.clock.now().getTime() / 1_000);
+    const emailFingerprint = registrationFingerprint(salt, `email:${email}`);
+    const networkFingerprint = registrationFingerprint(salt, `network:${sourceIp}`);
+    const [emailAllowed, networkAllowed] = await Promise.all([
+      this.deps.registrationLimits.consumeRegistrationLimit(
+        'email',
+        emailFingerprint,
+        fixedWindowStart(now, REGISTRATION_EMAIL_WINDOW_SECONDS),
+        now + REGISTRATION_EMAIL_WINDOW_SECONDS * 2,
+        REGISTRATION_EMAIL_LIMIT,
+      ),
+      this.deps.registrationLimits.consumeRegistrationLimit(
+        'network',
+        networkFingerprint,
+        fixedWindowStart(now, REGISTRATION_NETWORK_WINDOW_SECONDS),
+        now + REGISTRATION_NETWORK_WINDOW_SECONDS * 2,
+        REGISTRATION_NETWORK_LIMIT,
+      ),
+    ]);
+    if (!emailAllowed || !networkAllowed) {
+      throw new CloudError(
+        429,
+        'registration_rate_limited',
+        'Too many account requests. Wait a little while and try again',
+        true,
+      );
+    }
+
+    // Suppress Cognito's separate welcome message. The desktop immediately starts
+    // EMAIL_OTP after this returns, so a new participant receives exactly one email.
+    const created = await this.deps.identity.createPasswordlessUser(email, {
+      suppressMessage: true,
+    });
+    const existing = await this.deps.invites.getInvite(email);
+    if (!existing) {
+      await this.deps.invites.putInvite({
+        email,
+        invitedBy: 'self-registration',
+        invitedAt: this.deps.clock.now().toISOString(),
+        subject: created.subject,
+        status: 'active',
+      });
+    }
+    // New and existing addresses deliberately receive the same response.
+    return { accepted: true as const };
+  }
+}
+
 export class MetaService {
   constructor(private readonly deps: ServiceDependencies) {}
 
@@ -1128,9 +1202,18 @@ export function createServices(deps: ServiceDependencies) {
     researchAdmin: new ResearchAdminService(deps),
     researchExportWorker: new ResearchExportWorker(deps),
     invites: new InvitesService(deps),
+    registration: new RegistrationService(deps),
     meta: new MetaService(deps),
     deletionWorker: new DeletionWorker(deps),
   };
+}
+
+function fixedWindowStart(now: number, seconds: number): number {
+  return Math.floor(now / seconds) * seconds;
+}
+
+function registrationFingerprint(salt: string, value: string): string {
+  return createHmac('sha256', salt).update(value).digest('hex');
 }
 
 function publicUploadDescriptor(record: ConnectorUploadRecord): ConnectorUploadDescriptor {

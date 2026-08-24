@@ -2885,6 +2885,7 @@ export class DesktopController {
   }
 
   async #startSignIn(email: string): Promise<DesktopSnapshot> {
+    if (this.#cloud.configured) await this.#cloud.registerAccount(email);
     await this.#identity.startEmailSignIn(email);
     this.#emit();
     return this.snapshot();

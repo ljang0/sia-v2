@@ -221,9 +221,52 @@ describe('unified Google Workspace OAuth', () => {
         connectionId: link.connectionId,
         userId: 'user-denied',
         connected: false,
+        failure: 'access_denied',
       },
     );
     assert.equal(await state.getGoogleToken(link.connectionId), undefined);
     assert.equal(state.googleOAuthStates.size, 0);
+  });
+
+  it('revokes a granular-consent grant when any required Workspace scope is missing', async () => {
+    const state = new MemoryState();
+    const calls: string[] = [];
+    const grantedScopes = GOOGLE_WORKSPACE_SCOPES.filter(
+      (scope) => scope !== 'https://www.googleapis.com/auth/presentations',
+    );
+    const google = connector(state, (async (input: URL | RequestInfo) => {
+      const url = String(input);
+      calls.push(url);
+      if (url === 'https://oauth2.googleapis.com/token') {
+        return Response.json({
+          access_token: 'partial-access-token',
+          refresh_token: 'partial-refresh-token',
+          expires_in: 3600,
+          scope: grantedScopes.join(' '),
+        });
+      }
+      if (url.startsWith('https://oauth2.googleapis.com/revoke?token=')) {
+        return new Response(null, { status: 200 });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    }) as typeof fetch);
+    const link = await google.beginConnection('user-partial');
+    const oauthState = new URL(link.redirectUrl).searchParams.get('state')!;
+
+    assert.deepEqual(await google.completeOAuth({ state: oauthState, code: 'partial-code' }), {
+      connectionId: link.connectionId,
+      userId: 'user-partial',
+      connected: false,
+      failure: 'missing_scopes',
+    });
+    assert.equal(await state.getGoogleToken(link.connectionId), undefined);
+    assert.equal(state.googleOAuthStates.size, 0);
+    assert.ok(
+      calls.includes('https://oauth2.googleapis.com/revoke?token=partial-refresh-token'),
+    );
+    assert.equal(
+      calls.some((url) => url.includes('/oauth2/v3/userinfo')),
+      false,
+    );
   });
 });

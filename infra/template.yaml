@@ -101,6 +101,7 @@ Globals:
         META_SECRET_ARN: !Ref MetaSecret
         COMPOSIO_SECRET_ARN: !Ref ComposioSecret
         GOOGLE_SECRET_ARN: !Ref GoogleSecret
+        REGISTRATION_SECRET_ARN: !Ref RegistrationSecret
         RESEARCH_CONSENT_VERSION: !Ref ResearchConsentVersion
         ACTION_TTL_SECONDS: '600'
         INVITE_LIMIT: !Ref InviteLimit
@@ -308,6 +309,19 @@ Resources:
     Properties:
       Description: Operator-managed Sia Google Workspace OAuth client configuration
       KmsKeyId: !GetAtt DataKey.Arn
+
+  RegistrationSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: Generated salt for privacy-preserving public registration rate limits
+      KmsKeyId: !GetAtt DataKey.Arn
+      GenerateSecretString:
+        SecretStringTemplate: '{}'
+        GenerateStringKey: salt
+        PasswordLength: 48
+        ExcludePunctuation: true
 
   DeletionDeadLetterQueue:
     Type: AWS::SQS::Queue
@@ -740,6 +754,7 @@ Resources:
                   - !Ref ComposioSecret
                   - !Ref MetaSecret
                   - !Ref GoogleSecret
+                  - !Ref RegistrationSecret
               - Effect: Allow
                 Action: sqs:SendMessage
                 Resource:
@@ -992,6 +1007,13 @@ Resources:
           LoggingLevel: ERROR
           DataTraceEnabled: false
           MetricsEnabled: true
+        - ResourcePath: /v1/auth/register
+          HttpMethod: POST
+          LoggingLevel: ERROR
+          DataTraceEnabled: false
+          MetricsEnabled: true
+          ThrottlingBurstLimit: 5
+          ThrottlingRateLimit: 2
       DefinitionBody:
         openapi: '3.0.1'
         info:
@@ -1011,6 +1033,16 @@ Resources:
         security:
           - SiaCognito: []
         paths:
+          /v1/auth/register:
+            post:
+              security: []
+              responses:
+                '202': { description: Account registration accepted }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
           /v1/session:
             get:
               responses:

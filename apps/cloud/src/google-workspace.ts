@@ -131,6 +131,7 @@ export class GoogleWorkspaceConnector {
     userId: string;
     connected: boolean;
     accountLabel?: string;
+    failure?: 'access_denied' | 'missing_scopes';
   }> {
     const stateRecord = await this.#credentials.consumeGoogleOAuthState(sha256(request.state));
     if (!stateRecord || stateRecord.expiresAt <= Math.floor(this.#now().getTime() / 1000)) {
@@ -141,6 +142,7 @@ export class GoogleWorkspaceConnector {
         connectionId: stateRecord.connectionId,
         userId: stateRecord.userId,
         connected: false,
+        failure: 'access_denied',
       };
     }
 
@@ -174,7 +176,18 @@ export class GoogleWorkspaceConnector {
     const accessToken = requiredStringField(tokenBody, 'access_token');
     const refreshToken = requiredStringField(tokenBody, 'refresh_token');
     const scopes = optionalStringField(tokenBody, 'scope')?.split(/\s+/).filter(Boolean) ?? [];
-    assertRequiredScopes(scopes);
+    if (missingRequiredScopes(scopes).length > 0) {
+      // Google supports granular consent, so a person may continue after leaving one or more
+      // permission boxes unchecked. Do not retain that partial grant: the desktop presents one
+      // unified Workspace connection and must never imply that unavailable services are ready.
+      await this.#revokeToken(refreshToken).catch(() => undefined);
+      return {
+        connectionId: stateRecord.connectionId,
+        userId: stateRecord.userId,
+        connected: false,
+        failure: 'missing_scopes',
+      };
+    }
 
     const profile = await this.#googleJson(
       accessToken,
@@ -220,17 +233,21 @@ export class GoogleWorkspaceConnector {
         token.encryptedRefreshToken,
         tokenContext(connectionId, token.userId),
       );
-      await this.#fetch(
-        `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(refreshToken)}`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/x-www-form-urlencoded' },
-          signal: AbortSignal.timeout(10_000),
-        },
-      );
+      await this.#revokeToken(refreshToken);
     } finally {
       await this.#credentials.deleteGoogleToken(connectionId);
     }
+  }
+
+  async #revokeToken(token: string): Promise<void> {
+    await this.#fetch(
+      `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
   }
 
   async requestFileUpload(
@@ -854,16 +871,9 @@ function sha256(value: string): string {
   return createHash('sha256').update(value).digest('base64url');
 }
 
-function assertRequiredScopes(scopes: string[]): void {
+function missingRequiredScopes(scopes: string[]): string[] {
   const granted = new Set(scopes);
-  const missing = GOOGLE_WORKSPACE_SCOPES.filter((scope) => !granted.has(scope));
-  if (missing.length) {
-    throw new CloudError(
-      409,
-      'google_scope_missing',
-      'Google did not grant every selected Workspace permission',
-    );
-  }
+  return GOOGLE_WORKSPACE_SCOPES.filter((scope) => !granted.has(scope));
 }
 
 async function boundedJson(

@@ -1,8 +1,8 @@
-# Sia 0.1.0-alpha.7
+# Sia 0.1.0-alpha.8
 
 Sia is a private macOS 14+ alpha for local-first agent work. This build supports Codex through the
 official CLI already installed and authenticated on the Mac, plus hosted Meta access for signed-in
-invited alpha participants.
+research-alpha participants.
 
 ## Included
 
@@ -27,16 +27,19 @@ invited alpha participants.
   existing macOS account without database access, while Chrome still requires one explicit window;
 - direct Gmail, Drive, Docs, Sheets, and Slides adapters use stable Google REST endpoints with
   bounded inputs and outputs; Slack continues through its audited Composio action schemas;
-- invite-only research-release sign-in, durable raw research sync, asynchronous complete export,
+- self-service passwordless research-release sign-up, durable raw research sync, asynchronous complete export,
   and deletion when the signed release is configured for the deployed control plane. Research
-  admins can now send and review participant invitations directly from the MFA-protected archive;
+  admins can still send and review participant invitations directly from the MFA-protected archive;
+- public account bootstrap is enumeration-resistant and protected by API Gateway plus short-lived,
+  privacy-preserving per-email and per-network throttles. The account form requires research-alpha
+  acknowledgment, and the full research-data choice still appears before capture starts;
 - one Google-owned OAuth approval now connects Gmail, Drive, Docs, Sheets, and Slides. The five
   service rows share that verified account grant while still allowing a person to choose which tools
   Sia may use. Slack has its own one-click OAuth action. Google refresh tokens are KMS-encrypted in a
   credential vault separated from research data and are never returned to the desktop;
 - the direct Google adapter uses a fixed API-origin allowlist, bounded responses, scoped file staging,
   PKCE, expiring one-time state, and server-side token refresh. Existing per-service Google grants are
-  revoked when a person migrates through **Connect Google**;
+  revoked when a person migrates through the single **Upgrade Google** action;
 - expired connected-app authorization is now detected even when the provider wraps a Google 401 in
   a successful transport response. Sia marks only that exact grant as needing attention, explains
   the recovery in the task, and replaces the stale grant through one **Reconnect** click;
@@ -56,7 +59,7 @@ invited alpha participants.
 
 ## Visual identity
 
-- Alpha.7 carries forward the warm-neutral workspace rail introduced in Alpha.4,
+- Alpha.8 carries forward the warm-neutral workspace rail introduced in Alpha.4,
   quiets agent colors into mineral identity accents, removes colorful provider tiles, and uses one
   muted evergreen action color. Dark mode remains neutral charcoal rather than green-black.
 - Native display typography now carries names and headings; bundled Bricolage Grotesque (OFL) is
@@ -70,7 +73,7 @@ invited alpha participants.
 
 ## Alpha boundaries
 
-- Meta is included for invited signed-in alpha accounts through Sia's live-verified AWS relay. No
+- Meta is included for signed-in research-alpha accounts through Sia's live-verified AWS relay. No
   participant Meta key is needed; shared preview limits and upstream availability apply. It is not
   represented as permanently free API access.
 - Codex uses the participant's existing ChatGPT Codex plan—including Free when available—or their

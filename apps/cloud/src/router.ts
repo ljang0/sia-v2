@@ -8,6 +8,7 @@ import type {
   PrepareActionRequest,
   ResearchBatchRequest,
   ResearchEvent,
+  RegistrationRequest,
 } from './contracts.js';
 import {
   CloudError,
@@ -39,7 +40,26 @@ export async function routeControlRequest(
         ...(code === undefined ? {} : { code }),
         ...(error === undefined ? {} : { error }),
       });
-      return oauthHtml(result.connected);
+      return oauthHtml(result.connected, result.failure);
+    }
+
+    if (method === 'POST' && path === '/v1/auth/register') {
+      const body = parseBody(event);
+      if (body.researchEnrollmentAcknowledged !== true) {
+        throw new CloudError(
+          400,
+          'research_enrollment_required',
+          'Acknowledge the research release before creating an account',
+        );
+      }
+      const request: RegistrationRequest = {
+        email: requireString(body.email, 'email', { max: 254 }),
+        researchEnrollmentAcknowledged: true,
+      };
+      const sourceIp = requireString(event.requestContext.identity?.sourceIp, 'sourceIp', {
+        max: 64,
+      });
+      return json(202, await services.registration.create(request, sourceIp));
     }
 
     const user = authFromEvent(event);
@@ -243,11 +263,20 @@ export function json(statusCode: number, body: unknown): APIGatewayProxyResult {
   };
 }
 
-function oauthHtml(connected: boolean): APIGatewayProxyResult {
-  const title = connected ? 'Google Workspace connected' : 'Google connection cancelled';
+function oauthHtml(
+  connected: boolean,
+  failure?: 'access_denied' | 'missing_scopes',
+): APIGatewayProxyResult {
+  const title = connected
+    ? 'Google Workspace connected'
+    : failure === 'missing_scopes'
+      ? 'More Google permissions needed'
+      : 'Google connection cancelled';
   const detail = connected
     ? 'Gmail, Drive, Docs, Sheets, and Slides are ready in Sia. You can close this window.'
-    : 'Nothing was connected. You can close this window and try again from Sia.';
+    : failure === 'missing_scopes'
+      ? 'No Google connection was saved. Return to Sia, choose Reconnect, and select every requested Google Workspace permission before continuing.'
+      : 'Nothing was connected. You can close this window and try again from Sia.';
   return {
     statusCode: connected ? 200 : 400,
     headers: {

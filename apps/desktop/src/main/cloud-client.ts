@@ -182,6 +182,13 @@ export class CloudClient implements MetaTransport {
     return Boolean(this.#baseUrl);
   }
 
+  async registerAccount(email: string): Promise<void> {
+    await this.#request('/v1/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email, researchEnrollmentAcknowledged: true }),
+    });
+  }
+
   async sessionStatus(): Promise<{ admin: boolean; features: CloudFeatureFlags }> {
     return this.#request('/v1/session', { method: 'GET' });
   }
@@ -579,7 +586,9 @@ export class CloudClient implements MetaTransport {
       try {
         const payload: unknown = await response.json();
         const record = asRecord(payload);
+        const nestedError = asRecord(record.error);
         if (typeof record.code === 'string') code = record.code;
+        else if (typeof nestedError.code === 'string') code = nestedError.code;
       } catch {
         // Error payloads are optional. Never include their contents in the thrown message.
       }

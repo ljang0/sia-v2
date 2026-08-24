@@ -14,10 +14,8 @@ afterEach(() => {
 });
 
 describe('cloud account settings', () => {
-  it('submits a normalized invited email and moves focus to errors', async () => {
-    const onStart = vi
-      .fn()
-      .mockRejectedValue(new Error('This email is not active in the Sia alpha.'));
+  it('requires research-alpha acknowledgment, submits a normalized email, and focuses errors', async () => {
+    const onStart = vi.fn().mockRejectedValue(new Error('Sia could not start email sign-in.'));
     render(
       <AppsSettings
         snapshot={withCloud('signed-out')}
@@ -31,14 +29,20 @@ describe('cloud account settings', () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole('textbox', { name: 'Invited email' }), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Email' }), {
       target: { value: '  LAWRENCE@EXAMPLE.COM  ' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Email me a code' }));
+    const submit = screen.getByRole('button', { name: 'Join & email me a code' });
+    expect((submit as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: /18 or older and joining the Sia research alpha/i }),
+    );
+    expect((submit as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(submit);
 
     await waitFor(() => expect(onStart).toHaveBeenCalledWith('lawrence@example.com'));
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain('This email is not active in the Sia alpha.');
+    expect(alert.textContent).toContain('Sia could not start email sign-in.');
     expect(alert.parentElement).toBe(document.activeElement);
   });
 
@@ -60,7 +64,7 @@ describe('cloud account settings', () => {
     );
 
     const code = screen.getByRole('textbox', { name: 'Sign-in code' });
-    expect(screen.getByText(/If this email was invited/)).toBeTruthy();
+    expect(screen.getByText(/A one-time code will arrive shortly/)).toBeTruthy();
     expect(document.activeElement).toBe(code);
     fireEvent.change(code, { target: { value: '12a 34-5678901' } });
     expect((code as HTMLInputElement).value).toBe('1234567890');
@@ -211,6 +215,39 @@ describe('cloud account settings', () => {
     expect(screen.getByText(/nothing is bulk copied into Sia/i)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Connect Google' }));
     await waitFor(() => expect(onConnectGoogle).toHaveBeenCalledOnce());
+  });
+
+  it('offers one-click migration when older partial Google grants are present', async () => {
+    const snapshot = withCloud('signed-in', 'lawrence@example.com');
+    snapshot.apps = snapshot.apps.map((app) => {
+      if (app.id === 'gmail') {
+        return { ...app, status: 'connected', connectionId: 'legacy_gmail' };
+      }
+      if (app.id === 'drive') {
+        return { ...app, status: 'connected', connectionId: 'legacy_drive' };
+      }
+      return app;
+    });
+    const onConnectGoogle = vi.fn().mockResolvedValue(undefined);
+    const onDisconnect = vi.fn();
+
+    render(
+      <AppsSettings
+        snapshot={snapshot}
+        onConnectGoogle={onConnectGoogle}
+        onConnect={vi.fn()}
+        onDisconnect={onDisconnect}
+        onStartCloudSignIn={vi.fn()}
+        onCompleteCloudSignIn={vi.fn()}
+        onSignOutCloud={vi.fn()}
+        onDeleteCloudAccount={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/Older connections found/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Upgrade Google' }));
+    await waitFor(() => expect(onConnectGoogle).toHaveBeenCalledOnce());
+    expect(onDisconnect).not.toHaveBeenCalled();
   });
 
   it('lets a connected Google account expose only the services the person enables', async () => {

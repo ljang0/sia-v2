@@ -1,6 +1,6 @@
 # Sia private-alpha support
 
-Reply through the private alpha invitation channel or contact the person who supplied your build.
+Use the private alpha support channel or contact the person who supplied your build.
 There is no public support SLA during the alpha.
 
 Include:

@@ -42,6 +42,7 @@ import type {
   MetaProvider,
   PreparedActionRecord,
   QuotaGate,
+  RegistrationRateLimitRepository,
   ResearchBatchMetadata,
   ResearchExportJob,
   ResearchExportQueue,
@@ -88,6 +89,7 @@ export class MemoryState
     ResearchRepository,
     ResearchExportRepository,
     InviteRepository,
+    RegistrationRateLimitRepository,
     DeletionRepository,
     GoogleCredentialRepository
 {
@@ -98,6 +100,7 @@ export class MemoryState
   readonly batchRecords = new Map<string, ResearchBatchMetadata>();
   readonly researchExportRecords = new Map<string, ResearchExportJob>();
   readonly inviteRecords = new Map<string, InviteRecord>();
+  readonly registrationLimitRecords = new Map<string, number>();
   readonly deletionRecords = new Map<string, DeletionJob>();
   readonly googleOAuthStates = new Map<string, GoogleOAuthStateRecord>();
   readonly googleTokens = new Map<string, GoogleTokenRecord>();
@@ -307,13 +310,28 @@ export class MemoryState
   }
 
   async countInvites(): Promise<number> {
-    return this.inviteRecords.size;
+    return [...this.inviteRecords.values()].filter(
+      ({ invitedBy }) => invitedBy !== 'self-registration',
+    ).length;
   }
 
   async deleteInvitesForSubject(subject: string): Promise<void> {
     for (const [email, record] of this.inviteRecords) {
       if (record.subject === subject) this.inviteRecords.delete(email);
     }
+  }
+
+  async consumeRegistrationLimit(
+    kind: 'email' | 'network',
+    fingerprint: string,
+    windowStart: number,
+    _expiresAt: number,
+    limit: number,
+  ): Promise<boolean> {
+    const recordKey = key(kind, fingerprint, String(windowStart));
+    const next = (this.registrationLimitRecords.get(recordKey) ?? 0) + 1;
+    this.registrationLimitRecords.set(recordKey, next);
+    return next <= limit;
   }
 
   async putDeletion(job: DeletionJob): Promise<void> {
@@ -482,9 +500,14 @@ export class MemoryConnector implements ConnectorProvider {
 
 export class MemoryIdentity implements IdentityProvider {
   readonly users = new Map<string, string>();
-  async createPasswordlessUser(email: string): Promise<{ subject: string }> {
+  readonly creations: Array<{ email: string; suppressMessage: boolean }> = [];
+  async createPasswordlessUser(
+    email: string,
+    options: { suppressMessage?: boolean } = {},
+  ): Promise<{ subject: string }> {
     const subject = `subject-${email}`;
     this.users.set(subject, email);
+    this.creations.push({ email, suppressMessage: options.suppressMessage === true });
     return { subject };
   }
   async deleteUser(subject: string): Promise<void> {
@@ -534,6 +557,9 @@ export class FixedSecrets implements SecretProvider {
   }
   async google(): Promise<GoogleOAuthConfig> {
     return structuredClone(this.googleConfig);
+  }
+  async registrationSalt(): Promise<string> {
+    return 'test-registration-salt-with-enough-entropy';
   }
 }
 

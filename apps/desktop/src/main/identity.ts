@@ -173,7 +173,7 @@ export class CognitoIdentityManager implements IdTokenSource {
       return this.status();
     }
     if (response.ChallengeName !== 'EMAIL_OTP') {
-      throw new Error('Email-code sign-in is not available for this invited account.');
+      throw new Error('Email-code sign-in is not available for this account.');
     }
     const parameters = record(response.ChallengeParameters);
     this.#pending = {
@@ -443,7 +443,7 @@ export class CognitoIdentityManager implements IdTokenSource {
         );
       }
       if (/NotAuthorized|UserNotFound/i.test(type)) {
-        throw new CognitoApiError('This email is not active in the Sia alpha.', type, detail);
+        throw new CognitoApiError('Sia could not start email sign-in.', type, detail);
       }
       throw new CognitoApiError(`Sia sign-in failed (${response.status}).`, type, detail);
     }

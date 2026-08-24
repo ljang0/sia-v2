@@ -28,6 +28,7 @@ const secrets: SecretProvider = {
   google: async () => {
     throw new Error('not used');
   },
+  registrationSalt: async () => 'test-registration-salt-with-enough-entropy',
 };
 
 describe('Composio connection lifecycle adapter', () => {

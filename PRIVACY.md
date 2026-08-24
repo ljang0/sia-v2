@@ -1,6 +1,6 @@
 # Sia private-alpha privacy notice
 
-_Effective for 0.1.0-alpha.7. This notice describes the implemented product behavior; it is not a
+_Effective for 0.1.0-alpha.8. This notice describes the implemented product behavior; it is not a
 substitute for organization-specific legal review._
 
 ## Local data
@@ -66,7 +66,7 @@ included in that turn's research bundle.
 
 ## Optional cloud data
 
-The configured release control plane may process an invite-only email identity, opaque connected-app
+The configured release control plane may process a self-registered email identity, opaque connected-app
 identifiers, action previews and approval records, deletion state, quotas, and explicitly consented
 research batches. One optional Google Workspace OAuth grant covers Gmail, Drive, Docs, Sheets, and
 Slides. Its refresh token is encrypted with AWS KMS in a credential vault separated from research
@@ -120,6 +120,6 @@ archive access records are KMS-encrypted, versioned, and protected by S3 Object 
 mode for 365 days, then expire after 400 days. API access logs retain 30 days. Upload, export,
 archive-access, queue, Lambda, and DynamoDB failures raise operator-monitored alarms.
 
-For access, deletion, or privacy questions, use the private alpha invitation/support channel in
+For access, deletion, or privacy questions, use the private alpha support channel in
 `SUPPORT.md`. Never send passwords, API keys, tokens, Keychain exports, or private workspace files in
 a support report.

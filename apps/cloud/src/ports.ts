@@ -88,6 +88,7 @@ export interface ConnectorProvider {
     userId: string;
     connected: boolean;
     accountLabel?: string;
+    failure?: 'access_denied' | 'missing_scopes';
   }>;
 }
 
@@ -278,8 +279,21 @@ export interface InviteRepository {
   deleteInvitesForSubject(subject: string): Promise<void>;
 }
 
+export interface RegistrationRateLimitRepository {
+  consumeRegistrationLimit(
+    kind: 'email' | 'network',
+    fingerprint: string,
+    windowStart: number,
+    expiresAt: number,
+    limit: number,
+  ): Promise<boolean>;
+}
+
 export interface IdentityProvider {
-  createPasswordlessUser(email: string): Promise<{ subject: string }>;
+  createPasswordlessUser(
+    email: string,
+    options?: { suppressMessage?: boolean },
+  ): Promise<{ subject: string }>;
   deleteUser(subject: string): Promise<void>;
   hasMfa(email: string): Promise<boolean>;
 }
@@ -348,6 +362,7 @@ export interface SecretProvider {
   meta(): Promise<MetaConfig>;
   composio(): Promise<ComposioConfig>;
   google(): Promise<GoogleOAuthConfig>;
+  registrationSalt(): Promise<string>;
 }
 
 export interface MetaProvider {

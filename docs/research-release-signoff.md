@@ -5,11 +5,11 @@ the implementation was verified; it is not legal or institutional approval.
 
 ## Release boundary
 
-- Release: Sia `0.1.0-alpha.7`
+- Release: Sia `0.1.0-alpha.8`
 - Consent version: `alpha-research-v3-raw`
 - Evidence: [`release-evidence-2026-08-24-alpha.7.md`](./release-evidence-2026-08-24-alpha.7.md)
 - Invite copy: [`alpha-invite-template.md`](./alpha-invite-template.md)
-- Intended population: invited adults participating in the Sia research release
+- Intended population: self-enrolled adults participating in the Sia research release
 - Local alternative: **Continue locally** without signing in or uploading research data
 - Connector policy: Gmail, Drive, Docs, Sheets, Slides, and Slack enabled for internal alpha
   acceptance; external distribution remains gated on
@@ -17,7 +17,7 @@ the implementation was verified; it is not legal or institutional approval.
 
 ## Participant-facing facts to approve
 
-- Signing in enrolls the invited person in the research release; the current raw consent must be
+- Signing in enrolls the person in the research release; the current raw consent must be
   accepted before a task can start.
 - Captured data includes exact prompts, replies, surfaced reasoning, commands and output, tool and
   action arguments/results, approvals, errors, paths/diffs, browser/computer events, and captured

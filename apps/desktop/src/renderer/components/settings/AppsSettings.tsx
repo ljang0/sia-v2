@@ -71,12 +71,18 @@ export function AppsSettings({
   const googleEnabledCount = googleApps.filter(
     ({ status, enabled }) => status === 'connected' && enabled !== false,
   ).length;
-  const googleConnected = googleApps.some(
-    ({ status, connectionId }) => status === 'connected' && Boolean(connectionId),
+  const activeGoogleGrants = new Set(
+    googleApps
+      .filter(({ status, connectionId }) => status === 'connected' && Boolean(connectionId))
+      .map(({ connectionId }) => connectionId!),
   );
-  const googleGrant = googleApps.find(
-    ({ status, connectionId }) => status === 'connected' && Boolean(connectionId),
-  );
+  const googleConnected =
+    activeGoogleGrants.size === 1 &&
+    googleApps.every(
+      ({ status, connectionId }) => status === 'connected' && Boolean(connectionId),
+    );
+  const googleNeedsUpgrade = activeGoogleGrants.size > 0 && !googleConnected;
+  const googleGrant = googleConnected ? googleApps[0] : undefined;
   const slackConnected = slack?.status === 'connected';
   const setupActive = snapshot.apps.some(({ status }) => status === 'connecting');
   const connectorsEnabled = snapshot.cloudAuth.features?.connectors !== false;
@@ -182,7 +188,9 @@ export function AppsSettings({
               <span className={styles.connectionGroupStatus}>
                 {googleConnected
                   ? `${googleEnabledCount} of ${googleApps.length} services available`
-                  : 'One secure Google approval'}
+                  : googleNeedsUpgrade
+                    ? 'Older connections found - upgrade with one approval'
+                    : 'One secure Google approval'}
               </span>
             </div>
             {!googleConnected ? (
@@ -207,7 +215,9 @@ export function AppsSettings({
                   ? 'Finish in browser'
                   : pending === 'connect-google'
                     ? 'Opening...'
-                    : 'Connect Google'}
+                    : googleNeedsUpgrade
+                      ? 'Upgrade Google'
+                      : 'Connect Google'}
               </button>
             ) : (
               <button

@@ -28,6 +28,7 @@ export function CloudAccountSettings({
 }) {
   const [email, setEmail] = useState(cloudAuth.email ?? '');
   const [code, setCode] = useState('');
+  const [researchEnrollmentAcknowledged, setResearchEnrollmentAcknowledged] = useState(false);
   const [pending, setPending] = useState<string>();
   const [error, setError] = useState<string>();
   const codeInput = useRef<HTMLInputElement>(null);
@@ -115,7 +116,7 @@ export function CloudAccountSettings({
       {cloudAuth.state === 'signed-out' ? (
         <form className={styles.cloudIdentityForm} onSubmit={start}>
           <label className={styles.field}>
-            <span>Invited email</span>
+            <span>Email</span>
             <input
               type="email"
               autoFocus={autoFocusEmail}
@@ -128,9 +129,45 @@ export function CloudAccountSettings({
               required
             />
           </label>
-          <button type="submit" className={styles.primaryButton} disabled={Boolean(pending)}>
-            {pending === 'auth-start' ? 'Sending...' : 'Email me a code'}
+          <button
+            type="submit"
+            className={styles.primaryButton}
+            disabled={Boolean(pending) || !researchEnrollmentAcknowledged}
+          >
+            {pending === 'auth-start' ? 'Sending...' : 'Join & email me a code'}
           </button>
+          <label className={styles.researchEnrollmentOption}>
+            <input
+              type="checkbox"
+              checked={researchEnrollmentAcknowledged}
+              onChange={(event) => setResearchEnrollmentAcknowledged(event.target.checked)}
+              disabled={Boolean(pending)}
+              required
+            />
+            <span>
+              <strong>I’m 18 or older and joining the Sia research alpha.</strong>
+              <small>
+                After verification, Sia will show the full research-data consent before any
+                research capture starts. I agree to the{' '}
+                <a
+                  href="https://superintelligentagents.ai/terms/"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Terms
+                </a>{' '}
+                and acknowledge the{' '}
+                <a
+                  href="https://superintelligentagents.ai/privacy/"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Privacy Policy
+                </a>
+                .
+              </small>
+            </span>
+          </label>
         </form>
       ) : null}
 
@@ -475,7 +512,7 @@ function accountDescription(cloudAuth: CloudAuth) {
     return 'Optional cloud sync and connected apps can be added later.';
   }
   if (cloudAuth.state === 'code-sent') {
-    return 'If this email was invited, a one-time code will arrive shortly. Check spam or request a new code.';
+    return 'A one-time code will arrive shortly. Check spam or request a new code.';
   }
   if (cloudAuth.state === 'password-required') {
     return 'This MFA-protected admin account requires its password first.';
@@ -483,5 +520,5 @@ function accountDescription(cloudAuth: CloudAuth) {
   if (cloudAuth.state === 'mfa-required') {
     return 'This admin account also requires its authenticator code.';
   }
-  return 'Sign in with an invited email before connecting Google Workspace or Slack.';
+  return 'Create or sign in to your research-alpha account, then connect Google Workspace or Slack.';
 }
