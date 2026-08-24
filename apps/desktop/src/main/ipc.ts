@@ -208,6 +208,7 @@ const inputSchemas = {
     })
     .strict(),
   'connections.start': z.object({ connectionId }).strict(),
+  'connections.setEnabled': z.object({ connectionId, enabled: z.boolean() }).strict(),
   'connections.disconnect': z
     .object({
       connectionId,

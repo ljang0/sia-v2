@@ -192,7 +192,7 @@ describe('app privacy routing', () => {
     ).toBeTruthy();
   });
 
-  it('connects a chosen subset later from Settings', async () => {
+  it('connects Slack independently later from Settings', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),
       apps: structuredClone(demoSnapshot.apps).map(({ account: _account, ...app }) => ({
@@ -222,10 +222,7 @@ describe('app privacy routing', () => {
     expect(screen.queryByRole('dialog', { name: 'Connect your work apps' })).toBeNull();
     fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
     fireEvent.click(screen.getByRole('button', { name: 'Apps' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Choose apps' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Clear selection' }));
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Slack' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Connect selected' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Connect Slack' })[0]!);
 
     await waitFor(async () =>
       expect((await api.getSnapshot()).apps.map(({ id, status }) => ({ id, status }))).toEqual([

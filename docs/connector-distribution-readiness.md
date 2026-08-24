@@ -10,11 +10,11 @@ A fresh invited participant, who has never been added to a provider test-user li
 
 1. Sign in to Sia, review the research consent, and use chat, web search, schedules, and computer
    use without connecting a work app.
-2. Open **Settings → Apps** and press **Connect work apps** once. Gmail, Drive, Docs, Sheets, Slides, and Slack complete in
-   sequence, with already-connected apps preserved after cancellation or restart. Slack still lets
-   the participant select any workspace in which they are allowed to install apps.
-3. Choose **Choose apps** instead, select any subset, and complete only those approvals. Connected
-   apps remain independently disconnectable, and omitted apps remain available to connect later.
+2. Open **Settings → Apps** and press **Connect Google** once. One Google-owned consent connects
+   Gmail, Drive, Docs, Sheets, and Slides; the participant can then turn each service on or off
+   without another OAuth round trip.
+3. Press **Connect Slack** separately and select any workspace in which the participant is allowed
+   to install apps. Google and Slack remain independently disconnectable.
 4. See the connected account or workspace in Settings, complete a read and an explicitly targeted
    write, disconnect, and reconnect without operator intervention.
 5. Receive a specific, recoverable message for provider denial, administrator policy, timeout,
@@ -30,12 +30,12 @@ working out of the box for arbitrary users.
 
 ## Google Workspace production gate
 
-- [x] Create Sia-owned custom Composio auth configs for Gmail, Drive, Docs, Sheets, and Slides from
-      the production Google OAuth client. Never use a broad managed Composio consent app.
+- [x] Deploy the Sia-owned authorization-code + PKCE callback and direct Google API adapter. Never
+      use a broad managed connector consent app for Google Workspace.
 - [x] Confirm the exact consent-screen scopes match `docs/provider-policy.md`; reject unexpected
       contacts, profile-write, full-Drive, or unrelated scopes.
-- [x] Configure the production homepage, privacy policy, terms, authorized domains, reviewed Composio
-      redirect URIs, and verify the production site in Google Search Console.
+- [x] Configure the production homepage, privacy policy, terms, authorized domains, the exact AWS
+      callback URI, and verify the production site in Google Search Console.
 - [x] Move the External OAuth app from Testing to In production, automatically verify the public
       brand, and publish the verified brand to users.
 - [ ] Upload the consent-screen logo and select the intended public support alias when Google makes
@@ -43,8 +43,10 @@ working out of the box for arbitrary users.
       shows the verified brand with the operator support address and no logo.
 - [ ] Submit brand and sensitive-scope verification when Google marks it as required. Do not treat
       the unverified-app bypass or the 100-test-user allowance as a release path.
-- [x] Update the KMS-encrypted connector secret with all five custom auth-config IDs and deploy the
-      matching control Lambda contract.
+- [x] Deploy the KMS-encrypted Google token vault, one-time OAuth-state table records, fixed Google
+      API origin allowlist, and matching control Lambda contract.
+- [ ] Create the dedicated Web OAuth client under `superintelligentagents@gmail.com`, add the exact
+      deployed callback URI, and install its client ID/secret into the empty AWS Google secret.
 - [ ] Test from two fresh non-tester Google accounts on different domains. Verify all five grants,
       cancellation after each step, restart/resume, transient-network recovery, revocation, and
       reconnect.
@@ -59,15 +61,15 @@ URIs are present; and the production site is verified in Search Console by the d
 The consent-screen logo is not uploaded and the selected support email remains the operator Gmail
 address. Verification Center is open but cannot be submitted until the reviewer video URL is added.
 
-One clean Google client secret now backs all five custom Composio auth configs. A secret exposed to
-operator output and the superseded secret were both disabled and permanently deleted. Fresh Gmail
-and Drive consent with `ljang@andrew.cmu.edu` completed token exchange after the rotation. Gmail,
-Drive, Docs, Sheets, and Slides reconciled as connected and fresh `mail.search`, `drive.search`,
-`docs.read`, `sheets.read`, and `slides.read` calls all returned `executed` through the deployed
-control plane. The remaining second-account attempts reached Google re-verification and stopped at
-passkey/SMS confirmation; no bypass was attempted and their pending records were removed. Do not
-describe Google as generally verified or out of the box until the reviewer video, data-access review,
-CASA, and fresh-account matrix finish.
+Alpha.7 architecture update (2026-08-24): Sia now uses one direct Google OAuth grant for all five
+Workspace services. The deployed callback is public and fails closed on missing/expired state; the
+refresh token is KMS-encrypted outside research storage, and the desktop receives only an opaque
+grant ID. Local per-service switches are enforced in the action router. The AWS credential resource
+is intentionally empty until the dedicated Web client is created from the production project.
+Historical Composio Google grants remain migration-only and are revoked when a person connects with
+the unified path. Do not describe Google as generally available until that secret is installed, a
+fresh `ljang@andrew.cmu.edu` read-only pass succeeds, the reviewer video/data-access review/CASA are
+complete, and the fresh-account matrix finishes.
 
 Public-site launch update (2026-08-23): the homepage, participant notice, privacy policy, terms,
 support page, security contact, sitemap, and OAuth logo are deployed behind the locked-down AWS

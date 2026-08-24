@@ -314,6 +314,17 @@ const EMPTY_CONNECTIONS: ConnectionView[] = [
   { id: 'slides', label: 'Google Slides', status: 'disconnected' },
   { id: 'slack', label: 'Slack', status: 'disconnected' },
 ];
+const GOOGLE_CONNECTION_IDS: readonly ConnectionView['id'][] = [
+  'gmail',
+  'drive',
+  'docs',
+  'sheets',
+  'slides',
+];
+
+function isGoogleConnection(id: ConnectionView['id']): boolean {
+  return id !== 'slack';
+}
 
 const INITIAL_STATE: PersistedState = {
   agents: [],
@@ -752,6 +763,7 @@ export class DesktopController {
     if (
       !connection?.connectionId ||
       connection.status !== 'connected' ||
+      connection.enabled === false ||
       (selector !== app && selector !== connection.account)
     ) {
       return undefined;
@@ -777,10 +789,16 @@ export class DesktopController {
   markConnectionReconnectRequired(app: ConnectionView['id'], connectionId: string): void {
     const connection = this.#state.connections.find((candidate) => candidate.id === app);
     if (!connection || connection.connectionId !== connectionId) return;
-    this.#updateConnection(app, {
-      status: 'error',
-      detail: 'This app connection expired. Reconnect it, then retry the action.',
-    });
+    const affected = isGoogleConnection(app) ? GOOGLE_CONNECTION_IDS : [app];
+    for (const id of affected) {
+      const candidate = this.#state.connections.find((connection) => connection.id === id);
+      if (candidate?.connectionId !== connectionId) continue;
+      this.#updateConnection(id, {
+        status: 'error',
+        detail:
+          'This app connection expired. Reconnect Google Workspace, then retry the action.',
+      });
+    }
     this.#commit();
     this.#recordLifecycleEvent('connector.setup.failed', {
       app,
@@ -1049,9 +1067,19 @@ export class DesktopController {
           (input as BridgeRequestMap['connections.startSelected']).connectionIds,
         )) as unknown as BridgeResultMap[M];
       case 'connections.start':
-        return (await this.#startConnection(
+        return (await (isGoogleConnection(
           (input as BridgeRequestMap['connections.start']).connectionId,
-        )) as unknown as BridgeResultMap[M];
+        )
+          ? this.#startSelectedConnections([
+              (input as BridgeRequestMap['connections.start']).connectionId,
+            ])
+          : this.#startConnection(
+              (input as BridgeRequestMap['connections.start']).connectionId,
+            ))) as unknown as BridgeResultMap[M];
+      case 'connections.setEnabled':
+        return this.#setConnectionEnabled(
+          input as BridgeRequestMap['connections.setEnabled'],
+        ) as unknown as BridgeResultMap[M];
       case 'connections.disconnect':
         return (await this.#disconnectConnection(
           input as BridgeRequestMap['connections.disconnect'],
@@ -2584,21 +2612,85 @@ export class DesktopController {
   }
 
   async #startAllConnections(): Promise<BridgeResultMap['connections.startAll']> {
-    return await this.#startConnectionGroup(this.#state.connections.map(({ id }) => id));
+    await this.#removeLegacyGoogleConnections();
+    for (const id of GOOGLE_CONNECTION_IDS) this.#updateConnection(id, { enabled: true });
+    return await this.#startConnectionGroup(['gmail', 'slack']);
   }
 
   async #startGoogleConnections(): Promise<BridgeResultMap['connections.startGoogle']> {
-    return await this.#startConnectionGroup(['gmail', 'drive', 'docs', 'sheets', 'slides']);
+    await this.#removeLegacyGoogleConnections();
+    for (const id of GOOGLE_CONNECTION_IDS) this.#updateConnection(id, { enabled: true });
+    return await this.#startConnectionGroup(['gmail']);
   }
 
   async #startSelectedConnections(
     connectionIds: BridgeRequestMap['connections.startSelected']['connectionIds'],
   ): Promise<BridgeResultMap['connections.startSelected']> {
     const selected = new Set(connectionIds);
-    const ordered = this.#state.connections
-      .filter(({ id }) => selected.has(id))
-      .map(({ id }) => id);
+    const ordered: ConnectionView['id'][] = [];
+    const selectedGoogle = GOOGLE_CONNECTION_IDS.filter((id) => selected.has(id));
+    if (selectedGoogle.length > 0) {
+      await this.#removeLegacyGoogleConnections();
+      const googleAlreadyConnected = this.#state.connections.some(
+        ({ id, status, connectionId }) =>
+          isGoogleConnection(id) && status === 'connected' && Boolean(connectionId),
+      );
+      for (const id of GOOGLE_CONNECTION_IDS) {
+        if (selected.has(id) || !googleAlreadyConnected) {
+          this.#updateConnection(id, { enabled: selected.has(id) });
+        }
+      }
+      ordered.push(selectedGoogle[0]!);
+    }
+    if (selected.has('slack')) ordered.push('slack');
+    this.#commit();
     return await this.#startConnectionGroup(ordered);
+  }
+
+  #setConnectionEnabled(request: BridgeRequestMap['connections.setEnabled']): DesktopSnapshot {
+    const { connectionId, enabled } = request;
+    if (!isGoogleConnection(connectionId)) {
+      throw new Error('Slack access is managed by connecting or disconnecting its workspace.');
+    }
+    const connection = this.#state.connections.find(({ id }) => id === connectionId);
+    if (!connection?.connectionId || connection.status !== 'connected') {
+      throw new Error('Connect Google Workspace before changing its service access.');
+    }
+    const owner = this.#state.connectionOwners[connectionId];
+    if (!this.#fakeServices && owner !== this.#currentIdentityKey()) {
+      throw new Error('Sign in with the account that created this grant before changing it.');
+    }
+    this.#connectorGenerations.set(
+      connectionId,
+      (this.#connectorGenerations.get(connectionId) ?? 0) + 1,
+    );
+    this.#updateConnection(connectionId, { enabled });
+    this.#commit();
+    this.#recordLifecycleEvent(
+      enabled ? 'connector.service.enabled' : 'connector.service.disabled',
+      { app: connectionId, connectionId: connection.connectionId },
+    );
+    return this.snapshot();
+  }
+
+  async #removeLegacyGoogleConnections(): Promise<void> {
+    const google = this.#state.connections.filter(({ id }) => isGoogleConnection(id));
+    const grants = new Set(google.map(({ connectionId }) => connectionId).filter(Boolean));
+    const unified =
+      grants.size === 1 &&
+      google.every(
+        ({ status, connectionId }) => status === 'connected' && Boolean(connectionId),
+      );
+    if (unified || grants.size === 0) return;
+    const revoked = new Set<string>();
+    for (const connection of google) {
+      if (!connection.connectionId || revoked.has(connection.connectionId)) continue;
+      revoked.add(connection.connectionId);
+      await this.#disconnectConnection({
+        connectionId: connection.id,
+        expectedConnectionId: connection.connectionId,
+      });
+    }
   }
 
   async #startConnectionGroup(
@@ -2708,6 +2800,7 @@ export class DesktopController {
     if (this.#connectionSetup && !options.partOfBundle) {
       throw new Error('Finish or cancel the guided work-app setup first.');
     }
+    const googleConnection = isGoogleConnection(connectionId);
     let existing = this.#state.connections.find(({ id }) => id === connectionId);
     if (existing?.connectionId) {
       if (existing.status !== 'error') {
@@ -2728,20 +2821,22 @@ export class DesktopController {
       { app: connectionId, guided: Boolean(options.partOfBundle) },
       { requireResearch: true },
     );
-    this.#connectorGenerations.set(
-      connectionId,
-      (this.#connectorGenerations.get(connectionId) ?? 0) + 1,
-    );
-    this.#updateConnection(connectionId, { status: 'connecting' });
+    const affected = googleConnection ? GOOGLE_CONNECTION_IDS : [connectionId];
+    for (const id of affected) {
+      this.#connectorGenerations.set(id, (this.#connectorGenerations.get(id) ?? 0) + 1);
+      this.#updateConnection(id, { status: 'connecting' });
+    }
     this.#commit();
     if (this.#fakeServices) {
-      const connectedAccount = `demo@${connectionId}.test`;
-      const connectedId = `fake-${connectionId}-${randomUUID()}`;
-      this.#updateConnection(connectionId, {
-        status: 'connected',
-        account: connectedAccount,
-        connectionId: connectedId,
-      });
+      const connectedAccount = `demo@${googleConnection ? 'google' : connectionId}.test`;
+      const connectedId = `fake-${googleConnection ? 'google' : connectionId}-${randomUUID()}`;
+      for (const id of affected) {
+        this.#updateConnection(id, {
+          status: 'connected',
+          account: connectedAccount,
+          connectionId: connectedId,
+        });
+      }
       this.#commit();
       this.#recordLifecycleEvent('connector.connected', {
         app: connectionId,
@@ -2756,11 +2851,13 @@ export class DesktopController {
       if (Number.isFinite(linkExpiry)) {
         this.#connectorLinkExpiries.set(started.connectionId, linkExpiry);
       }
-      this.#state.connectionOwners[connectionId] = owner!;
-      this.#updateConnection(connectionId, {
-        status: 'connecting',
-        connectionId: started.connectionId,
-      });
+      for (const id of affected) {
+        this.#state.connectionOwners[id] = owner!;
+        this.#updateConnection(id, {
+          status: 'connecting',
+          connectionId: started.connectionId,
+        });
+      }
       this.#commit();
       const url = new URL(started.redirectUrl);
       if (url.protocol !== 'https:') throw new Error('Connector authorization must use HTTPS.');
@@ -2772,10 +2869,12 @@ export class DesktopController {
       if (options.poll !== false) void this.#pollConnection(connectionId, started.connectionId);
       return { opened: true, snapshot: this.snapshot() };
     } catch (error) {
-      this.#updateConnection(connectionId, {
-        status: 'error',
-        detail: error instanceof Error ? error.message : 'Connection setup failed.',
-      });
+      for (const id of affected) {
+        this.#updateConnection(id, {
+          status: 'error',
+          detail: error instanceof Error ? error.message : 'Connection setup failed.',
+        });
+      }
       this.#commit();
       this.#recordLifecycleEvent('connector.setup.failed', {
         app: connectionId,
@@ -3077,14 +3176,24 @@ export class DesktopController {
     if (!this.#fakeServices && this.#cloud.configured && current?.connectionId) {
       await this.#cloud.disconnect(connectionId, current.connectionId);
     }
-    this.#updateConnection(connectionId, { status: 'disconnected' });
-    const disconnected = this.#state.connections.find(({ id }) => id === connectionId);
-    if (disconnected) {
-      delete disconnected.account;
-      delete disconnected.detail;
-      delete disconnected.connectionId;
+    const unifiedGoogle = Boolean(
+      isGoogleConnection(connectionId) &&
+      current?.connectionId &&
+      (current.connectionId.startsWith('gw_') ||
+        this.#state.connections.filter(({ connectionId: id }) => id === current.connectionId)
+          .length > 1),
+    );
+    const affected = unifiedGoogle ? GOOGLE_CONNECTION_IDS : [connectionId];
+    for (const id of affected) {
+      this.#updateConnection(id, { status: 'disconnected' });
+      const disconnected = this.#state.connections.find((connection) => connection.id === id);
+      if (disconnected) {
+        delete disconnected.account;
+        delete disconnected.detail;
+        delete disconnected.connectionId;
+      }
+      delete this.#state.connectionOwners[id];
     }
-    delete this.#state.connectionOwners[connectionId];
     this.#commit();
     this.#recordLifecycleEvent('connector.disconnected', {
       app: connectionId,
@@ -3126,11 +3235,16 @@ export class DesktopController {
         }
         const remote = status.connections.find(({ id }) => id === expectedId);
         if (remote?.status === 'connected') {
-          this.#updateConnection(connectionId, {
-            status: 'connected',
-            connectionId: expectedId,
-            ...(remote.accountLabel ? { account: remote.accountLabel } : {}),
-          });
+          const affected = isGoogleConnection(connectionId)
+            ? GOOGLE_CONNECTION_IDS
+            : [connectionId];
+          for (const id of affected) {
+            this.#updateConnection(id, {
+              status: 'connected',
+              connectionId: expectedId,
+              ...(remote.accountLabel ? { account: remote.accountLabel } : {}),
+            });
+          }
           this.#commit();
           this.#recordLifecycleEvent('connector.connected', {
             app: connectionId,
@@ -3140,10 +3254,15 @@ export class DesktopController {
           return finish(true);
         }
         if (remote?.status === 'failed') {
-          this.#updateConnection(connectionId, {
-            status: 'error',
-            detail: 'The connected-app provider declined setup.',
-          });
+          const affected = isGoogleConnection(connectionId)
+            ? GOOGLE_CONNECTION_IDS
+            : [connectionId];
+          for (const id of affected) {
+            this.#updateConnection(id, {
+              status: 'error',
+              detail: 'The connected-app provider declined setup.',
+            });
+          }
           this.#commit();
           this.#recordLifecycleEvent('connector.setup.failed', {
             app: connectionId,
@@ -3168,12 +3287,15 @@ export class DesktopController {
         lastStatusError = error;
       }
     }
-    this.#updateConnection(connectionId, {
-      status: 'error',
-      detail: lastStatusError
-        ? 'Sia could not verify the connection before setup timed out. Check your network, then try again.'
-        : 'Connection setup timed out. You can safely try again.',
-    });
+    const affected = isGoogleConnection(connectionId) ? GOOGLE_CONNECTION_IDS : [connectionId];
+    for (const id of affected) {
+      this.#updateConnection(id, {
+        status: 'error',
+        detail: lastStatusError
+          ? 'Sia could not verify the connection before setup timed out. Check your network, then try again.'
+          : 'Connection setup timed out. You can safely try again.',
+      });
+    }
     this.#commit();
     this.#recordLifecycleEvent('connector.setup.timed_out', {
       app: connectionId,

@@ -6,6 +6,7 @@ import type {
   MetaTurnRequest,
   ToolName,
 } from './contracts.js';
+import type { LegacyGoogleAppId } from './contracts.js';
 
 export interface Clock {
   now(): Date;
@@ -69,6 +70,7 @@ export interface ConnectorProvider {
   connectionStatus(connectionId: string): Promise<ConnectorStatus>;
   disconnect(connectionId: string): Promise<void>;
   requestFileUpload(
+    connectionId: string,
     tool: 'drive.upload',
     fileName: string,
     mimeType: string,
@@ -81,6 +83,43 @@ export interface ConnectorProvider {
     input: Record<string, unknown>,
     idempotencyKey: string,
   ): Promise<ConnectorExecution>;
+  completeGoogleOAuth?(request: { state: string; code?: string; error?: string }): Promise<{
+    connectionId: string;
+    userId: string;
+    connected: boolean;
+    accountLabel?: string;
+  }>;
+}
+
+export interface GoogleOAuthStateRecord {
+  stateHash: string;
+  userId: string;
+  connectionId: string;
+  encryptedVerifier: string;
+  expiresAt: number;
+}
+
+export interface GoogleTokenRecord {
+  connectionId: string;
+  userId: string;
+  encryptedRefreshToken: string;
+  accountLabel: string;
+  grantedScopes: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GoogleCredentialRepository {
+  putGoogleOAuthState(record: GoogleOAuthStateRecord): Promise<void>;
+  consumeGoogleOAuthState(stateHash: string): Promise<GoogleOAuthStateRecord | undefined>;
+  putGoogleToken(record: GoogleTokenRecord): Promise<void>;
+  getGoogleToken(connectionId: string): Promise<GoogleTokenRecord | undefined>;
+  deleteGoogleToken(connectionId: string): Promise<void>;
+}
+
+export interface TokenCipher {
+  encrypt(plaintext: string, context: Record<string, string>): Promise<string>;
+  decrypt(ciphertext: string, context: Record<string, string>): Promise<string>;
 }
 
 export interface ConnectorUploadRecord extends ConnectorUploadDescriptor {
@@ -294,14 +333,21 @@ export interface MetaConfig {
 export interface ComposioConfig {
   apiKey: string;
   baseUrl: string;
-  authConfigIds: Record<AppId, string>;
+  authConfigIds: Record<LegacyGoogleAppId | 'slack', string>;
   toolSlugs: Record<ToolName, string>;
   toolVersions: Record<ToolName, string>;
+}
+
+export interface GoogleOAuthConfig {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
 }
 
 export interface SecretProvider {
   meta(): Promise<MetaConfig>;
   composio(): Promise<ComposioConfig>;
+  google(): Promise<GoogleOAuthConfig>;
 }
 
 export interface MetaProvider {

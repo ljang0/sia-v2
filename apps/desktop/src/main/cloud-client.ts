@@ -22,7 +22,14 @@ export interface ConnectionStartResult {
 export interface ConnectionStatusResult {
   connections: Array<{
     id: string;
-    app: 'gmail' | 'google_drive' | 'google_docs' | 'google_sheets' | 'google_slides' | 'slack';
+    app:
+      | 'google_workspace'
+      | 'gmail'
+      | 'google_drive'
+      | 'google_docs'
+      | 'google_sheets'
+      | 'google_slides'
+      | 'slack';
     status: 'link_pending' | 'connected' | 'failed' | 'disconnected';
     accountLabel?: string;
   }>;
@@ -797,14 +804,8 @@ function resolveCloudUrl(baseUrl: URL, path: string): URL {
   return url;
 }
 
-function cloudAppId(
-  connectionId: ConnectionId,
-): 'gmail' | 'google_drive' | 'google_docs' | 'google_sheets' | 'google_slides' | 'slack' {
-  if (connectionId === 'drive') return 'google_drive';
-  if (connectionId === 'docs') return 'google_docs';
-  if (connectionId === 'sheets') return 'google_sheets';
-  if (connectionId === 'slides') return 'google_slides';
-  return connectionId;
+function cloudAppId(connectionId: ConnectionId): 'google_workspace' | 'slack' {
+  return connectionId === 'slack' ? 'slack' : 'google_workspace';
 }
 
 async function* readSseData(body: ReadableStream<Uint8Array>): AsyncIterable<unknown> {

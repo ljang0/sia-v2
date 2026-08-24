@@ -234,7 +234,7 @@ export interface ThreadSchedule {
   prompt: string;
   cadence: 'once' | 'hourly' | 'daily' | 'weekly';
   nextRunAt: string;
-  enabled: boolean;
+  enabled?: boolean | undefined;
   createdAt: string;
   lastRunAt?: string | undefined;
   runCount?: number | undefined;
@@ -330,6 +330,7 @@ export interface AppConnection {
   name: string;
   description: string;
   status: ConnectionStatus;
+  enabled: boolean;
   /** Opaque cloud grant id used only to guard connection-specific UI actions. */
   connectionId?: string | undefined;
   account?: string | undefined;
@@ -517,6 +518,7 @@ export interface RendererApi {
   connectGoogleApps(): Promise<void>;
   connectSelectedApps(apps: AppConnection['id'][]): Promise<void>;
   connectApp(app: AppConnection['id']): Promise<void>;
+  setAppEnabled(app: AppConnection['id'], enabled: boolean): Promise<void>;
   disconnectApp(app: AppConnection['id'], expectedConnectionId?: string): Promise<void>;
   startCloudSignIn(email: string): Promise<void>;
   completeCloudSignIn(code: string): Promise<void>;

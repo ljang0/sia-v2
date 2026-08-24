@@ -283,6 +283,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       const result = await bridge.connections.start(app);
       publish(result.snapshot);
     },
+    async setAppEnabled(app, enabled) {
+      publish(await bridge.connections.setEnabled(app, enabled));
+    },
     async disconnectApp(app, expectedConnectionId) {
       publish(await bridge.connections.disconnect(app, expectedConnectionId));
     },
@@ -762,6 +765,7 @@ function mapConnection(connection: DesktopSnapshot['connections'][number]): AppC
     name: connection.label,
     description: connection.detail ?? 'Use this app directly through Sia.',
     status: connection.status,
+    enabled: connection.enabled !== false,
     connectionId: connection.connectionId,
     account: connection.account,
     permissions,

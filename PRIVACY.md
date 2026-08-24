@@ -1,12 +1,12 @@
 # Sia private-alpha privacy notice
 
-_Effective for 0.1.0-alpha.6. This notice describes the implemented product behavior; it is not a
+_Effective for 0.1.0-alpha.7. This notice describes the implemented product behavior; it is not a
 substitute for organization-specific legal review._
 
 ## Local data
 
-Sia stores agents, thread configuration, transcripts, approval history, connection identifiers,
-tokens, and research state in a local SQLite database whose record payloads are encrypted with
+Sia stores agents, thread configuration, transcripts, approval history, opaque connection identifiers,
+and research state in a local SQLite database whose record payloads are encrypted with
 macOS Keychain-backed `safeStorage`. Workspace files remain in their existing locations. Persisted
 attachment records contain names, kinds, and sizes; temporary file capabilities expire and are not
 reusable arbitrary-file access.
@@ -68,16 +68,20 @@ included in that turn's research bundle.
 
 The configured release control plane may process an invite-only email identity, opaque connected-app
 identifiers, action previews and approval records, deletion state, quotas, and explicitly consented
-research batches. Gmail, Drive, Docs, Sheets, Slides, and Slack access is mediated by the configured connector provider;
-exact writes are bound to their complete input and either run automatically in autonomous mode or
+research batches. One optional Google Workspace OAuth grant covers Gmail, Drive, Docs, Sheets, and
+Slides. Its refresh token is encrypted with AWS KMS in a credential vault separated from research
+records; the desktop never receives it. Slack access uses a separate provider-owned OAuth grant.
+Exact writes are bound to their complete input and either run automatically in autonomous mode or
 require confirmation when that setting is enabled. The desktop receives no AWS credentials.
 
 Research capture is off by default in local-only mode. Sia asks local users after they create their
 first agent. A Sia cloud sign-in is a research-release enrollment: the person must explicitly accept
 the current versioned consent to remain signed in, or decline and sign out. After acceptance, Sia
-offers one guided connection step for the six work apps. Connection lifecycle records include the
-app, status, opaque connection identifier, and provider account label when available; OAuth URLs,
-authorization codes, and tokens are not retained in the local trajectory or research bundles.
+offers independent **Connect Google** and **Connect Slack** actions. The five Google service controls
+share the one Google grant, while the person may still choose which services the agent may use.
+Connection lifecycle records include the app, status, opaque connection identifier, and provider
+account label when available; OAuth URLs, authorization codes, and tokens are not retained in the
+local trajectory or research bundles.
 
 The `alpha-research-v3-raw` consent retains the raw JSON events Sia observes during every completed,
 failed, or cancelled turn. This includes prompts, responses, surfaced reasoning, provider events,

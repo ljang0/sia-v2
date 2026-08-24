@@ -25,6 +25,9 @@ const secrets: SecretProvider = {
     throw new Error('not used');
   },
   composio: async () => structuredClone(config),
+  google: async () => {
+    throw new Error('not used');
+  },
 };
 
 describe('Composio connection lifecycle adapter', () => {
@@ -197,6 +200,7 @@ describe('Composio file staging adapter', () => {
     }) as typeof fetch;
     try {
       const grant = await new ComposioConnector(secrets).requestFileUpload(
+        'drive-connection',
         'drive.upload',
         'report.pdf',
         'application/pdf',

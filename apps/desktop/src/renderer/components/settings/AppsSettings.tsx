@@ -16,16 +16,14 @@ import type { AppConnection, RendererSnapshot } from '../../types';
 import styles from '../../ui.module.css';
 import { BrowserWindowPicker } from '../BrowserWindowPicker';
 import { CloudAccountSettings } from './CloudAccountSettings';
-import { ConnectionAppChooser } from './ConnectionAppChooser';
 import { errorMessage, InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
 
 export function AppsSettings({
   snapshot,
+  onConnectGoogle,
   onConnectAll,
   onConnect,
-  onConnectSelected = async (apps) => {
-    for (const app of apps) await onConnect(app);
-  },
+  onSetEnabled = async () => undefined,
   onDisconnect,
   onStartCloudSignIn,
   onCompleteCloudSignIn,
@@ -43,8 +41,12 @@ export function AppsSettings({
   onReviewComputerAccess = () => undefined,
 }: {
   snapshot: RendererSnapshot;
-  onConnectAll(): Promise<void>;
+  onConnectGoogle?(): Promise<void>;
+  /** Deprecated compatibility hook for pre-unified settings tests and embedders. */
+  onConnectAll?(): Promise<void>;
   onConnect(app: AppConnection['id']): Promise<void>;
+  onSetEnabled?(app: AppConnection['id'], enabled: boolean): Promise<void>;
+  /** Deprecated: provider selection now happens through the Google and Slack buttons. */
   onConnectSelected?(apps: AppConnection['id'][]): Promise<void>;
   onDisconnect(app: AppConnection['id'], expectedConnectionId?: string): Promise<void>;
   onStartCloudSignIn(email: string): Promise<void>;
@@ -60,19 +62,23 @@ export function AppsSettings({
 }) {
   const [pending, setPending] = useState<string>();
   const [error, setError] = useState<string>();
-  const [chooserOpen, setChooserOpen] = useState(false);
-  const [selected, setSelected] = useState(
-    () => new Set<AppConnection['id']>(snapshot.apps.map(({ id }) => id)),
-  );
-  const connectedCount = snapshot.apps.filter(({ status }) => status === 'connected').length;
+  const connectedCount = snapshot.apps.filter(
+    ({ id, status, enabled }) =>
+      status === 'connected' && (id === 'slack' || enabled !== false),
+  ).length;
   const googleApps = snapshot.apps.filter(({ id }) => id !== 'slack');
   const slack = snapshot.apps.find(({ id }) => id === 'slack');
-  const googleConnectedCount = googleApps.filter(({ status }) => status === 'connected').length;
-  const googleConnected = googleConnectedCount === googleApps.length;
+  const googleEnabledCount = googleApps.filter(
+    ({ status, enabled }) => status === 'connected' && enabled !== false,
+  ).length;
+  const googleConnected = googleApps.some(
+    ({ status, connectionId }) => status === 'connected' && Boolean(connectionId),
+  );
+  const googleGrant = googleApps.find(
+    ({ status, connectionId }) => status === 'connected' && Boolean(connectionId),
+  );
   const slackConnected = slack?.status === 'connected';
-  const allConnected = connectedCount === snapshot.apps.length;
   const setupActive = snapshot.apps.some(({ status }) => status === 'connecting');
-  const connectionNeedsRecovery = snapshot.apps.some(({ status }) => status === 'error');
   const connectorsEnabled = snapshot.cloudAuth.features?.connectors !== false;
   const cloudReady = snapshot.cloudAuth.state === 'signed-in' && connectorsEnabled;
   const run = async (key: string, action: () => Promise<void>, fallback: string) => {
@@ -86,6 +92,7 @@ export function AppsSettings({
       setPending(undefined);
     }
   };
+  const connectGoogle = onConnectGoogle ?? onConnectAll ?? (async () => undefined);
 
   if (snapshot.cloudAuth.state === 'unconfigured') {
     return (
@@ -159,119 +166,106 @@ export function AppsSettings({
             </span>
           </div>
           <p>
-            Connect only what you use. One click starts Google Workspace and Slack in order;
-            each provider still shows its own secure approval page, and nothing is bulk copied
+            Connect either provider or both. Google uses one account approval for Gmail, Drive,
+            Docs, Sheets, and Slides. Slack uses one workspace approval. Nothing is bulk copied
             into Sia.
           </p>
         </div>
-        {!chooserOpen ? (
-          <div className={styles.connectionGroups}>
-            <section className={styles.connectionGroup} data-connected={googleConnected}>
-              <span className={styles.connectionGroupIcon} aria-hidden="true">
-                <GoogleLogo size={20} weight="bold" />
+        <div className={styles.connectionGroups}>
+          <section className={styles.connectionGroup} data-connected={googleConnected}>
+            <span className={styles.connectionGroupIcon} aria-hidden="true">
+              <GoogleLogo size={20} weight="bold" />
+            </span>
+            <div className={styles.connectionGroupBody}>
+              <strong>Google Workspace</strong>
+              <span>Gmail, Drive, Docs, Sheets, and Slides</span>
+              <span className={styles.connectionGroupStatus}>
+                {googleConnected
+                  ? `${googleEnabledCount} of ${googleApps.length} services available`
+                  : 'One secure Google approval'}
               </span>
-              <div className={styles.connectionGroupBody}>
-                <strong>Google Workspace</strong>
-                <span>Gmail, Drive, Docs, Sheets, and Slides</span>
-                <span className={styles.connectionGroupStatus}>
-                  {googleConnectedCount} of {googleApps.length} connected
-                </span>
-              </div>
-            </section>
-            {slack ? (
-              <section className={styles.connectionGroup} data-connected={slackConnected}>
-                <span className={styles.connectionGroupIcon} aria-hidden="true">
-                  <PlugsConnected size={20} />
-                </span>
-                <div className={styles.connectionGroupBody}>
-                  <strong>Slack</strong>
-                  <span>Browser approval only - no API key or plugin</span>
-                  <span className={styles.connectionGroupStatus}>
-                    {slackConnected ? 'Connected' : 'Not connected'}
-                  </span>
-                </div>
-              </section>
-            ) : null}
-          </div>
-        ) : null}
-        {!allConnected ? (
-          <div className={styles.connectionOnboardingActions}>
-            {chooserOpen ? (
+            </div>
+            {!googleConnected ? (
               <button
                 type="button"
-                className={styles.secondaryButton}
-                disabled={Boolean(pending) || setupActive}
-                onClick={() => setChooserOpen(false)}
+                className={styles.primaryButton}
+                disabled={Boolean(pending) || !cloudReady || setupActive}
+                onClick={() =>
+                  run(
+                    'connect-google',
+                    connectGoogle,
+                    'Google Workspace could not be connected.',
+                  )
+                }
               >
-                Back
+                {pending === 'connect-google' || setupActive ? (
+                  <CircleNotch className={styles.spin} size={16} aria-hidden="true" />
+                ) : (
+                  <GoogleLogo size={16} weight="bold" aria-hidden="true" />
+                )}
+                {setupActive
+                  ? 'Finish in browser'
+                  : pending === 'connect-google'
+                    ? 'Opening...'
+                    : 'Connect Google'}
               </button>
             ) : (
-              <>
+              <button
+                type="button"
+                className={styles.textButtonDanger}
+                disabled={Boolean(pending) || !cloudReady}
+                onClick={() =>
+                  run(
+                    'disconnect-google',
+                    () => onDisconnect(googleGrant!.id, googleGrant!.connectionId),
+                    'Google Workspace could not be disconnected.',
+                  )
+                }
+              >
+                {pending === 'disconnect-google' ? 'Disconnecting...' : 'Disconnect Google'}
+              </button>
+            )}
+          </section>
+          {slack ? (
+            <section className={styles.connectionGroup} data-connected={slackConnected}>
+              <span className={styles.connectionGroupIcon} aria-hidden="true">
+                <PlugsConnected size={20} />
+              </span>
+              <div className={styles.connectionGroupBody}>
+                <strong>Slack</strong>
+                <span>Choose a workspace in your browser - no plugin or API key</span>
+                <span className={styles.connectionGroupStatus}>
+                  {slackConnected ? 'Connected' : 'One secure Slack approval'}
+                </span>
+              </div>
+              {!slackConnected ? (
                 <button
                   type="button"
                   className={styles.primaryButton}
-                  disabled={
-                    pending === 'connect-all' ||
-                    !cloudReady ||
-                    setupActive ||
-                    connectionNeedsRecovery
-                  }
-                  title={
-                    !cloudReady
-                      ? 'Sign in to Sia cloud first'
-                      : connectionNeedsRecovery
-                        ? 'Review the app connection that needs attention first'
-                        : undefined
-                  }
+                  disabled={Boolean(pending) || !cloudReady || setupActive}
                   onClick={() =>
-                    run('connect-all', onConnectAll, 'Work apps could not be connected.')
+                    run(
+                      'connect-slack',
+                      () => onConnect('slack'),
+                      'Slack could not be connected.',
+                    )
                   }
                 >
-                  {pending === 'connect-all' || setupActive ? (
+                  {pending === 'connect-slack' || setupActive ? (
                     <CircleNotch className={styles.spin} size={16} aria-hidden="true" />
                   ) : (
                     <PlugsConnected size={16} aria-hidden="true" />
                   )}
                   {setupActive
-                    ? 'Finish approvals in browser'
-                    : pending === 'connect-all'
-                      ? 'Opening browser...'
-                      : 'Connect work apps'}
+                    ? 'Finish in browser'
+                    : pending === 'connect-slack'
+                      ? 'Opening...'
+                      : 'Connect Slack'}
                 </button>
-                <button
-                  type="button"
-                  className={styles.secondaryButton}
-                  disabled={
-                    Boolean(pending) || !cloudReady || setupActive || connectionNeedsRecovery
-                  }
-                  aria-expanded={false}
-                  onClick={() => setChooserOpen(true)}
-                >
-                  Choose apps
-                </button>
-              </>
-            )}
-          </div>
-        ) : null}
-        {chooserOpen && !allConnected ? (
-          <ConnectionAppChooser
-            apps={snapshot.apps}
-            selected={selected}
-            busy={pending === 'connect-selected' || setupActive}
-            disabled={!cloudReady || connectionNeedsRecovery}
-            onChange={setSelected}
-            onConnect={() => {
-              const apps = snapshot.apps
-                .filter(({ id, status }) => selected.has(id) && status !== 'connected')
-                .map(({ id }) => id);
-              void run(
-                'connect-selected',
-                () => onConnectSelected(apps),
-                'The selected apps could not be connected.',
-              );
-            }}
-          />
-        ) : null}
+              ) : null}
+            </section>
+          ) : null}
+        </div>
       </div>
       <InlineSettingsError message={error} />
       <div className={styles.settingsList}>
@@ -287,6 +281,13 @@ export function AppsSettings({
                 `connect-${app.id}`,
                 () => onConnect(app.id),
                 `${appName(app.id)} could not be connected.`,
+              )
+            }
+            onSetEnabled={(enabled) =>
+              run(
+                `set-enabled-${app.id}`,
+                () => onSetEnabled(app.id, enabled),
+                `${appName(app.id)} access could not be changed.`,
               )
             }
             onDisconnect={() =>
@@ -313,6 +314,7 @@ function AppRow({
   setupActive,
   pending,
   onConnect,
+  onSetEnabled,
   onDisconnect,
 }: {
   app: AppConnection;
@@ -320,6 +322,7 @@ function AppRow({
   setupActive: boolean;
   pending?: string | undefined;
   onConnect(): void;
+  onSetEnabled(enabled: boolean): void;
   onDisconnect(): void;
 }) {
   const icons = {
@@ -331,7 +334,11 @@ function AppRow({
     slack: PlugsConnected,
   };
   const Icon = icons[app.id];
-  const busy = pending === `connect-${app.id}` || pending === `disconnect-${app.id}`;
+  const appEnabled = app.enabled !== false;
+  const busy =
+    pending === `connect-${app.id}` ||
+    pending === `disconnect-${app.id}` ||
+    pending === `set-enabled-${app.id}`;
   const cloudReady = cloudState === 'signed-in';
   const disabledReason =
     cloudState === 'unconfigured'
@@ -345,9 +352,17 @@ function AppRow({
       <div className={styles.settingsRowBody}>
         <div className={styles.rowTitleLine}>
           <strong>{app.name}</strong>
-          <span className={`${styles.stateLabel} ${styles[`connection_${app.status}`]}`}>
+          <span
+            className={`${styles.stateLabel} ${
+              app.status === 'connected' && !appEnabled
+                ? styles.connection_disconnected
+                : styles[`connection_${app.status}`]
+            }`}
+          >
             {app.status === 'connected'
-              ? 'Connected'
+              ? app.id !== 'slack' && !appEnabled
+                ? 'Off'
+                : 'Connected'
               : app.status === 'connecting'
                 ? 'Connecting'
                 : app.status === 'error'
@@ -359,7 +374,20 @@ function AppRow({
         <div className={styles.permissionSummary}>{app.permissions.join('; ')}</div>
         {app.account ? <div className={styles.rowMeta}>{app.account}</div> : null}
       </div>
-      {app.status === 'connected' || app.status === 'connecting' || app.status === 'error' ? (
+      {app.status === 'connected' && app.id !== 'slack' ? (
+        <button
+          type="button"
+          className={styles.secondaryButton}
+          disabled={busy || !cloudReady}
+          aria-pressed={appEnabled}
+          aria-label={`${appEnabled ? 'Disable' : 'Enable'} ${appName(app.id)}`}
+          onClick={() => onSetEnabled(!appEnabled)}
+        >
+          {busy ? 'Updating...' : appEnabled ? 'On' : 'Off'}
+        </button>
+      ) : app.status === 'connected' ||
+        app.status === 'connecting' ||
+        app.status === 'error' ? (
         <button
           type="button"
           className={

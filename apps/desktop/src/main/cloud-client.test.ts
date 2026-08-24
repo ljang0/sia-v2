@@ -96,7 +96,7 @@ describe('CloudClient', () => {
       await client.startConnection('gmail');
 
       expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
-        'https://api.example.test/alpha/v1/connections/gmail',
+        'https://api.example.test/alpha/v1/connections/google_workspace',
       );
     },
   );
@@ -143,30 +143,28 @@ describe('CloudClient', () => {
     await expect(client.capabilities()).rejects.toThrow(/incomplete Meta capabilities/);
   });
 
-  it.each([
-    ['drive', 'google_drive'],
-    ['docs', 'google_docs'],
-    ['sheets', 'google_sheets'],
-    ['slides', 'google_slides'],
-  ] as const)('maps the desktop %s id to the cloud %s app id', async (desktopId, cloudId) => {
-    const fetchMock = vi.fn(async (_input: URL | RequestInfo, _init?: RequestInit) =>
-      Response.json({
-        redirectUrl: 'https://connect.example.test/link',
-        connectionId: 'connection-1',
-        expiresAt: new Date(Date.now() + 60_000).toISOString(),
-      }),
-    );
-    vi.stubGlobal('fetch', fetchMock);
-    const client = new CloudClient('https://api.example.test', {
-      read: async () => 'test-token',
-    });
+  it.each(['gmail', 'drive', 'docs', 'sheets', 'slides'] as const)(
+    'maps the desktop %s id to the unified Google Workspace app',
+    async (desktopId) => {
+      const fetchMock = vi.fn(async (_input: URL | RequestInfo, _init?: RequestInit) =>
+        Response.json({
+          redirectUrl: 'https://connect.example.test/link',
+          connectionId: 'connection-1',
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        }),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+      const client = new CloudClient('https://api.example.test', {
+        read: async () => 'test-token',
+      });
 
-    await client.startConnection(desktopId);
+      await client.startConnection(desktopId);
 
-    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
-      `https://api.example.test/v1/connections/${cloudId}`,
-    );
-  });
+      expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+        'https://api.example.test/v1/connections/google_workspace',
+      );
+    },
+  );
 
   it('uploads connector bytes only to the presigned URL without forwarding bearer credentials', async () => {
     const bytes = new TextEncoder().encode('quarterly totals');

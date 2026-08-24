@@ -52,26 +52,38 @@ test('core Sia opens first and optional setup connects every work app later', as
     await expect(
       harness.page.getByText('Optional API connections', { exact: true }),
     ).toBeVisible();
-    await harness.page.getByRole('button', { name: 'Connect work apps' }).click();
+    await harness.page.getByRole('button', { name: 'Connect Google', exact: true }).click();
+    await harness.page
+      .getByRole('button', { name: 'Connect Slack', exact: true })
+      .first()
+      .click();
 
-    await expect(harness.page.getByText(/nothing is bulk copied into Sia/)).toBeVisible();
+    await expect(harness.page.getByText(/nothing is bulk copied into Sia/i)).toBeVisible();
     await expect(harness.page.getByText('6 of 6 ready')).toBeVisible();
-    await expect(harness.page.getByRole('button', { name: 'Connect work apps' })).toHaveCount(
-      0,
-    );
-    await expect(harness.page.getByRole('button', { name: /^Disconnect/ })).toHaveCount(6);
+    await expect(
+      harness.page.getByRole('button', { name: 'Connect Google', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      harness.page.getByRole('button', { name: 'Connect Slack', exact: true }),
+    ).toHaveCount(0);
+    await expect(harness.page.getByRole('button', { name: 'Disconnect Google' })).toBeVisible();
+    await expect(harness.page.getByRole('button', { name: 'Disconnect Slack' })).toBeVisible();
     await expect
       .poll(async () => {
         const snapshot = await harness.page.evaluate(async () => await window.sia.bootstrap());
-        return snapshot.connections.map(({ id, status }) => ({ id, status }));
+        return snapshot.connections.map(({ id, status, enabled }) => ({
+          id,
+          status,
+          enabled: enabled !== false,
+        }));
       })
       .toEqual([
-        { id: 'gmail', status: 'connected' },
-        { id: 'drive', status: 'connected' },
-        { id: 'docs', status: 'connected' },
-        { id: 'sheets', status: 'connected' },
-        { id: 'slides', status: 'connected' },
-        { id: 'slack', status: 'connected' },
+        { id: 'gmail', status: 'connected', enabled: true },
+        { id: 'drive', status: 'connected', enabled: true },
+        { id: 'docs', status: 'connected', enabled: true },
+        { id: 'sheets', status: 'connected', enabled: true },
+        { id: 'slides', status: 'connected', enabled: true },
+        { id: 'slack', status: 'connected', enabled: true },
       ]);
     expect(harness.rendererErrors).toEqual([]);
   } finally {
@@ -97,25 +109,33 @@ test('a user can connect only a selected set of work apps later', async () => {
     ).toHaveCount(0);
     await harness.page.getByRole('button', { name: 'Settings' }).click();
     await harness.page.getByRole('button', { name: 'Apps' }).click();
-    await harness.page.getByRole('button', { name: 'Choose apps' }).click();
-    await harness.page.getByRole('button', { name: 'Clear selection' }).click();
-    await harness.page.getByRole('checkbox', { name: 'Select Google Docs' }).click();
-    await harness.page.getByRole('checkbox', { name: 'Select Slack' }).click();
-    await harness.page.getByRole('button', { name: 'Connect selected' }).click();
+    await harness.page.getByRole('button', { name: 'Connect Google Docs' }).click();
+    await harness.page
+      .getByRole('button', { name: 'Connect Slack', exact: true })
+      .first()
+      .click();
 
     await expect
       .poll(async () => {
         const snapshot = await harness.page.evaluate(async () => await window.sia.bootstrap());
-        return snapshot.connections.map(({ id, status }) => ({ id, status }));
+        return snapshot.connections.map(({ id, status, enabled }) => ({
+          id,
+          status,
+          enabled: enabled !== false,
+        }));
       })
       .toEqual([
-        { id: 'gmail', status: 'disconnected' },
-        { id: 'drive', status: 'disconnected' },
-        { id: 'docs', status: 'connected' },
-        { id: 'sheets', status: 'disconnected' },
-        { id: 'slides', status: 'disconnected' },
-        { id: 'slack', status: 'connected' },
+        { id: 'gmail', status: 'connected', enabled: false },
+        { id: 'drive', status: 'connected', enabled: false },
+        { id: 'docs', status: 'connected', enabled: true },
+        { id: 'sheets', status: 'connected', enabled: false },
+        { id: 'slides', status: 'connected', enabled: false },
+        { id: 'slack', status: 'connected', enabled: true },
       ]);
+    await expect(harness.page.getByRole('button', { name: 'Enable Gmail' })).toBeVisible();
+    await expect(
+      harness.page.getByRole('button', { name: 'Disable Google Docs' }),
+    ).toBeVisible();
     expect(harness.rendererErrors).toEqual([]);
   } finally {
     await harness.close();

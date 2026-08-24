@@ -27,9 +27,22 @@ export async function routeControlRequest(
 ): Promise<APIGatewayProxyResult> {
   const requestId = event.requestContext.requestId;
   try {
-    const user = authFromEvent(event);
     const method = event.httpMethod.toUpperCase();
     const path = normalizePath(event.path);
+
+    if (method === 'GET' && path === '/v1/oauth/google/callback') {
+      const state = requireString(event.queryStringParameters?.state, 'state', { max: 256 });
+      const code = optionalQueryString(event.queryStringParameters?.code, 'code', 4_096);
+      const error = optionalQueryString(event.queryStringParameters?.error, 'error', 256);
+      const result = await services.connections.completeGoogleOAuth({
+        state,
+        ...(code === undefined ? {} : { code }),
+        ...(error === undefined ? {} : { error }),
+      });
+      return oauthHtml(result.connected);
+    }
+
+    const user = authFromEvent(event);
 
     if (method === 'GET' && path === '/v1/session') {
       return json(200, services.session.status(user));
@@ -230,8 +243,35 @@ export function json(statusCode: number, body: unknown): APIGatewayProxyResult {
   };
 }
 
+function oauthHtml(connected: boolean): APIGatewayProxyResult {
+  const title = connected ? 'Google Workspace connected' : 'Google connection cancelled';
+  const detail = connected
+    ? 'Gmail, Drive, Docs, Sheets, and Slides are ready in Sia. You can close this window.'
+    : 'Nothing was connected. You can close this window and try again from Sia.';
+  return {
+    statusCode: connected ? 200 : 400,
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-store',
+      'content-security-policy':
+        "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'",
+      'x-content-type-options': 'nosniff',
+      'referrer-policy': 'no-referrer',
+    },
+    body: `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${title}</title><style>body{margin:0;background:#f7f7f3;color:#17211d;font:16px/1.5 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:grid;min-height:100vh;place-items:center}.card{max-width:34rem;margin:2rem;padding:2.5rem;border:1px solid #dce2de;border-radius:20px;background:#fff;box-shadow:0 18px 50px rgba(23,33,29,.08)}h1{font-size:1.55rem;line-height:1.2;margin:0 0 .75rem}p{color:#56615c;margin:0}</style><main class="card"><h1>${title}</h1><p>${detail}</p></main></html>`,
+  };
+}
+
 function parseOptionalBody(event: APIGatewayProxyEvent): Record<string, unknown> {
   return event.body ? parseBody(event) : {};
+}
+
+function optionalQueryString(
+  value: string | undefined,
+  label: string,
+  maximum: number,
+): string | undefined {
+  return value === undefined ? undefined : requireString(value, label, { max: maximum });
 }
 
 function parsePrepareAction(body: Record<string, unknown>): PrepareActionRequest {

@@ -192,12 +192,12 @@ describe('cloud account settings', () => {
     await waitFor(() => expect(onOpenMessages).toHaveBeenCalledOnce());
   });
 
-  it('starts guided work-app setup once and explains the provider consent boundary', async () => {
-    const onConnectAll = vi.fn().mockResolvedValue(undefined);
+  it('starts one Google approval and explains the provider consent boundary', async () => {
+    const onConnectGoogle = vi.fn().mockResolvedValue(undefined);
     render(
       <AppsSettings
         snapshot={withCloud('signed-in', 'lawrence@example.com')}
-        onConnectAll={onConnectAll}
+        onConnectGoogle={onConnectGoogle}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
         onStartCloudSignIn={vi.fn()}
@@ -207,20 +207,32 @@ describe('cloud account settings', () => {
       />,
     );
 
-    expect(screen.getByText(/its own secure approval page/)).toBeTruthy();
+    expect(screen.getByText(/one account approval for Gmail, Drive/i)).toBeTruthy();
     expect(screen.getByText(/nothing is bulk copied into Sia/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Connect work apps' }));
-    await waitFor(() => expect(onConnectAll).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Google' }));
+    await waitFor(() => expect(onConnectGoogle).toHaveBeenCalledOnce());
   });
 
-  it('lets people choose a subset of work apps from the guided setup', async () => {
-    const onConnectSelected = vi.fn().mockResolvedValue(undefined);
+  it('lets a connected Google account expose only the services the person enables', async () => {
+    const snapshot = withCloud('signed-in', 'lawrence@example.com');
+    snapshot.apps = snapshot.apps.map((app) =>
+      app.id === 'slack'
+        ? app
+        : {
+            ...app,
+            status: 'connected',
+            connectionId: 'gw_shared',
+            enabled: app.id === 'docs',
+          },
+    );
+    const onSetEnabled = vi.fn().mockResolvedValue(undefined);
+
     render(
       <AppsSettings
-        snapshot={withCloud('signed-in', 'lawrence@example.com')}
-        onConnectAll={vi.fn()}
-        onConnectSelected={onConnectSelected}
+        snapshot={snapshot}
+        onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
+        onSetEnabled={onSetEnabled}
         onDisconnect={vi.fn()}
         onStartCloudSignIn={vi.fn()}
         onCompleteCloudSignIn={vi.fn()}
@@ -229,14 +241,30 @@ describe('cloud account settings', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Choose apps' }));
-    expect(screen.getByRole('group', { name: 'Choose apps to connect' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Clear selection' }));
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Google Docs' }));
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Slack' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Connect selected' }));
+    expect(screen.getByText('1 of 5 services available')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Enable Gmail' }));
+    await waitFor(() => expect(onSetEnabled).toHaveBeenCalledWith('gmail', true));
+    fireEvent.click(screen.getByRole('button', { name: 'Disable Google Docs' }));
+    await waitFor(() => expect(onSetEnabled).toHaveBeenCalledWith('docs', false));
+  });
 
-    await waitFor(() => expect(onConnectSelected).toHaveBeenCalledWith(['docs', 'slack']));
+  it('lets people connect Slack without connecting Google', async () => {
+    const onConnect = vi.fn().mockResolvedValue(undefined);
+    render(
+      <AppsSettings
+        snapshot={withCloud('signed-in', 'lawrence@example.com')}
+        onConnectGoogle={vi.fn()}
+        onConnect={onConnect}
+        onDisconnect={vi.fn()}
+        onStartCloudSignIn={vi.fn()}
+        onCompleteCloudSignIn={vi.fn()}
+        onSignOutCloud={vi.fn()}
+        onDeleteCloudAccount={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Connect Slack' })[0]!);
+    await waitFor(() => expect(onConnect).toHaveBeenCalledWith('slack'));
   });
 
   it('surfaces an interrupted saved grant and provides one-click reconnect', async () => {

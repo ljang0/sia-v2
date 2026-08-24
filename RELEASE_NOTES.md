@@ -1,4 +1,4 @@
-# Sia 0.1.0-alpha.6
+# Sia 0.1.0-alpha.7
 
 Sia is a private macOS 14+ alpha for local-first agent work. This build supports Codex through the
 official CLI already installed and authenticated on the Mac, plus hosted Meta access for signed-in
@@ -25,16 +25,18 @@ invited alpha participants.
   The agent has bounded native tools to create/read/append Docs, create/read/update/append Sheets,
   and create/read/append Slides from Markdown. Messages opens the
   existing macOS account without database access, while Chrome still requires one explicit window;
-- pinned Gmail and Drive adapters updated to the provider's live August 2026 schemas, with the
-  connected-account and read-only tool checks repeated against production grants;
+- direct Gmail, Drive, Docs, Sheets, and Slides adapters use stable Google REST endpoints with
+  bounded inputs and outputs; Slack continues through its audited Composio action schemas;
 - invite-only research-release sign-in, durable raw research sync, asynchronous complete export,
   and deletion when the signed release is configured for the deployed control plane. Research
   admins can now send and review participant invitations directly from the MFA-protected archive;
-- one guided work-app connection action that advances through provider-owned Gmail, Drive, Docs,
-  Sheets, Slides, and Slack consent pages only after each prior grant is verified. Connection
-  lifecycle events are written locally and to the consented encrypted AWS stream, while OAuth URLs,
-  codes, and tokens are excluded. People can keep the one-click default or open **Choose apps** to
-  connect any subset and add or disconnect individual apps later;
+- one Google-owned OAuth approval now connects Gmail, Drive, Docs, Sheets, and Slides. The five
+  service rows share that verified account grant while still allowing a person to choose which tools
+  Sia may use. Slack has its own one-click OAuth action. Google refresh tokens are KMS-encrypted in a
+  credential vault separated from research data and are never returned to the desktop;
+- the direct Google adapter uses a fixed API-origin allowlist, bounded responses, scoped file staging,
+  PKCE, expiring one-time state, and server-side token refresh. Existing per-service Google grants are
+  revoked when a person migrates through **Connect Google**;
 - expired connected-app authorization is now detected even when the provider wraps a Google 401 in
   a successful transport response. Sia marks only that exact grant as needing attention, explains
   the recovery in the task, and replaces the stale grant through one **Reconnect** click;
@@ -54,7 +56,7 @@ invited alpha participants.
 
 ## Visual identity
 
-- Alpha.6 carries forward the warm-neutral workspace rail introduced in Alpha.4,
+- Alpha.7 carries forward the warm-neutral workspace rail introduced in Alpha.4,
   quiets agent colors into mineral identity accents, removes colorful provider tiles, and uses one
   muted evergreen action color. Dark mode remains neutral charcoal rather than green-black.
 - Native display typography now carries names and headings; bundled Bricolage Grotesque (OFL) is
@@ -82,9 +84,10 @@ invited alpha participants.
 - Updates are manual; there is no automatic-update feed.
 - A Sia sign-in is explicitly a research-release enrollment. The person must accept the raw consent
   or decline and sign out. Local-only use remains available without sharing.
-- Slack is enabled for unlisted cross-workspace alpha installation. Google OAuth is externally
-  published; organization policies may still require administrator approval. Remote/offline
-  execution is not part of this alpha.
+- Slack is enabled for unlisted cross-workspace alpha installation. Google OAuth is published in the
+  production project, but sensitive/restricted-scope review and CASA remain external distribution
+  gates; organization policies may also require administrator approval. Remote/offline execution is
+  not part of this alpha.
 - The release stack rehearsal and fresh signed/notarized artifact are complete. Distribution still
   requires the named human approvals and final artifact-only checks in the release evidence.
 

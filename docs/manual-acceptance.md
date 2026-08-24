@@ -35,8 +35,9 @@ not replace the mutation checks below. When several Chrome windows are open, set
    is labeled **Sia research alpha** and appears before any provider OAuth flow. Accept it and confirm
    the core app opens immediately with no **Connect your work apps** dialog. Verify chat, web search,
    schedules, signed-in Chrome, and computer use remain available with 0/6 work apps connected. Open
-   **Settings → Apps**, use **Choose apps**, clear the default selection, select Docs and Slack, and
-   confirm only those two grants open in canonical order while the other four remain available.
+   **Settings → Apps**, connect Google from the Docs row, and connect Slack separately. Confirm the
+   one Google grant is visible for all five services while only Docs is switched on; enabling Gmail
+   later must not open another OAuth page.
 3. Create an agent and confirm the research choice appears only after the agent is saved. Choose
    **Use without sharing**, create a thread, and verify Codex, files, Git, terminal, schedules,
    signed-in Chrome attachment, and granted computer use remain reachable.
@@ -153,12 +154,11 @@ not replace the mutation checks below. When several Chrome windows are open, set
 ## Provider, account, and optional connectors
 
 1. Run `pnpm test:codex-isolation:real`; it must retain the current Codex account while reporting zero inherited apps, plugins, skills, hooks, or MCP tools.
-2. With the release stack and designated disposable Google/Slack accounts, press **Connect work
-   apps** once. Confirm Gmail, Drive, Docs, Sheets, Slides, and Slack open in that order and that each
-   later service opens only after the prior grant is verified. Complete each provider-owned consent
-   page with the intended disposable identity. Cancel once in the middle and confirm no later
-   service opens; disconnect only the saved interrupted grant before retrying. Confirm completed
-   grants remain unchanged when the same one-click flow resumes.
+2. With the release stack and designated disposable Google/Slack accounts, press **Connect Google**
+   once. Confirm one Google-owned consent covers Gmail, Drive, Docs, Sheets, and Slides, then turn at
+   least two service switches off and verify their tools are unavailable. Press **Connect Slack**
+   separately and choose the intended workspace. Cancel and retry each provider once; the other
+   provider's completed grant must remain unchanged.
 3. Confirm Settings reports the exact connected identity for all six apps and says that data remains
    in each service. Exercise search/read in Gmail, Drive, Docs, Sheets, Slides, and Slack, then create
    or append only non-sensitive fixtures with every write tool. Verify Sia creates no local content
@@ -217,8 +217,8 @@ not replace the mutation checks below. When several Chrome windows are open, set
       one-time guided-setup migration. A separate disposable macOS account remains required.
 - [ ] Confirm the intended alpha recipient list outside the repository. Tell recipients that sign-in
       is research-release enrollment with raw task-surface upload, that **Continue locally** remains
-      available without sharing, and that every Google Workspace/Slack connector requires separate
-      provider consent. Do
+      available without sharing, and that Google Workspace and Slack each require their own provider
+      consent. Do
       not offer connectors to external recipients until the scope audit below is complete.
 - [ ] Deploy this source template, complete `docs/release.md`'s live research rehearsal, and attach
       the private evidence record to the release decision. The 2026-08-22 stack deployment,
@@ -238,10 +238,9 @@ connectors out-of-the-box ready until that checklist passes.
 - [x] Deploy and validate the release cloud, deletion worker, dead-letter queue, and monitored
       alarms. Confirm every alarm subscription, exercise a synthetic alarm, and verify recovery
       before treating deletion as release-ready.
-- [x] Replace every managed provider OAuth config with the six Sia-owned custom Google Workspace and
-      Slack configs, scope-audit them, rotate the Google client secret without rendering the clean
-      replacement, and validate live read-only calls for Gmail, Drive, Docs, Sheets, Slides, and
-      Slack. The remaining external gate is not connector implementation: Google reviewer video,
+- [ ] Install the dedicated direct Google OAuth client into the deployed KMS-backed credential
+      resource and validate one-grant read-only calls for Gmail, Drive, Docs, Sheets, and Slides.
+      Slack's separate custom Composio configuration remains live. Google reviewer video,
       data-access review, CASA, a second fresh-domain account, and a second unrelated Slack workspace
       with an explicitly approved disposable write/revoke/reconnect cycle are still required.
 - [ ] Reconcile and revoke, after operator handoff, the dashboard-listed full-access Composio keys

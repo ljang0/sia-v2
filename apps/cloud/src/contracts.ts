@@ -1,4 +1,5 @@
 export const APP_IDS = [
+  'google_workspace',
   'gmail',
   'google_drive',
   'google_docs',
@@ -7,6 +8,15 @@ export const APP_IDS = [
   'slack',
 ] as const;
 export type AppId = (typeof APP_IDS)[number];
+
+export const LEGACY_GOOGLE_APP_IDS = [
+  'gmail',
+  'google_drive',
+  'google_docs',
+  'google_sheets',
+  'google_slides',
+] as const;
+export type LegacyGoogleAppId = (typeof LEGACY_GOOGLE_APP_IDS)[number];
 
 export const RESEARCH_CLASSIFICATIONS = [
   'research_allowed',

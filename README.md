@@ -16,9 +16,9 @@ This repository is the clean v2 implementation. It intentionally does not contai
   clear **Continue locally** path. A cloud-disabled build goes directly to local setup and shows no
   unusable account controls. After sign-in, Sia presents the required raw-research consent and then
   opens the core app immediately. Google Workspace and Slack are optional Settings connections, not
-  an onboarding gate. **Connect work apps** advances through every selected provider in order and
-  preserves completed grants on retry; **Choose apps** can run the same verified flow for any subset.
-  Each provider still owns its own OAuth approval page.
+  an onboarding gate. **Connect Google** performs one Google-owned OAuth approval for Gmail, Drive,
+  Docs, Sheets, and Slides; **Connect Slack** performs one separate Slack-owned approval. People can
+  still choose which connected services Sia may use and can reconnect or disconnect later.
 - Local execution requires Sia to be running and the Mac to remain awake.
 - Local turns keep running when the Sia window is closed on macOS, and the Activity view preserves their status when the window is reopened. The agent can create, list, update, and delete persisted once/hourly/daily/weekly schedules after approval. They run only while the Sia process is open and the Mac is awake; they are not an always-on daemon or OS cron job.
 - The cloud control plane handles sign-in, connected apps, the authenticated live-verified Meta relay,
@@ -43,12 +43,12 @@ This repository is the clean v2 implementation. It intentionally does not contai
   written to a per-thread local trajectory log, bounded to 90 days or 128 MiB; `Settings → Computer
 → Confirm before changes` restores exact, expiring approvals. Hard blocks for credential fields,
   private browser surfaces, and sensitive apps remain in every mode.
-- Gmail, Drive, Docs, Sheets, Slides, and Slack share an optional ordered setup in Settings, with a
-  selectable subset path and per-app controls for later connection, recovery, and disconnects. If
-  an optional connector is absent, Sia can continue in a signed-in Chrome window through browser or
-  computer use; connectors remain the reliable path for API and background access.
-  Provider-owned OAuth consent remains separate: Google and Slack are never represented as one
-  blanket permission. Connection setup, provider-page opening, success, failure, timeout, and
+- Gmail, Drive, Docs, Sheets, and Slides share one optional Google Workspace connection in Settings;
+  Slack remains a separate connection. Service toggles and per-app controls determine which tools
+  Sia may use after the account grant. If an optional connector is absent, Sia can continue in a
+  signed-in Chrome window through browser or computer use; connectors remain the reliable path for
+  API and background access. Google and Slack are never represented as one blanket permission.
+  Connection setup, provider-page opening, success, failure, timeout, and
   disconnection are recorded in the local trajectory and the consented encrypted AWS research
   stream without retaining OAuth URLs, codes, or tokens.
 - Research capture is opt-in in local mode. A signed-in account is a research-release account and

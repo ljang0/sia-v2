@@ -100,6 +100,7 @@ Globals:
         USER_POOL_ID: !Ref UserPool
         META_SECRET_ARN: !Ref MetaSecret
         COMPOSIO_SECRET_ARN: !Ref ComposioSecret
+        GOOGLE_SECRET_ARN: !Ref GoogleSecret
         RESEARCH_CONSENT_VERSION: !Ref ResearchConsentVersion
         ACTION_TTL_SECONDS: '600'
         INVITE_LIMIT: !Ref InviteLimit
@@ -198,6 +199,10 @@ Resources:
         Status: Enabled
       LifecycleConfiguration:
         Rules:
+          - Id: ExpireConnectorStaging
+            Status: Enabled
+            Prefix: connector-staging/
+            ExpirationInDays: 1
           - Id: ExpireResearchCaptures
             Status: Enabled
             ExpirationInDays: !Ref ResearchRetentionDays
@@ -294,6 +299,14 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       Description: Operator-managed least-privilege Composio project key and pinned auth/tool configuration
+      KmsKeyId: !GetAtt DataKey.Arn
+
+  GoogleSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: Operator-managed Sia Google Workspace OAuth client configuration
       KmsKeyId: !GetAtt DataKey.Arn
 
   DeletionDeadLetterQueue:
@@ -726,6 +739,7 @@ Resources:
                 Resource:
                   - !Ref ComposioSecret
                   - !Ref MetaSecret
+                  - !Ref GoogleSecret
               - Effect: Allow
                 Action: sqs:SendMessage
                 Resource:
@@ -1040,6 +1054,16 @@ Resources:
                 httpMethod: POST
                 credentials: !GetAtt ApiGatewayInvokeRole.Arn
                 uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
+          /v1/oauth/google/callback:
+            get:
+              security: []
+              responses:
+                '200': { description: Google Workspace OAuth completion }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
           /v1/actions/prepare:
             post:
               responses:
@@ -1144,6 +1168,10 @@ Outputs:
     Value: !Ref MetaSecret
   ComposioSecretArn:
     Value: !Ref ComposioSecret
+  GoogleSecretArn:
+    Value: !Ref GoogleSecret
+  GoogleOAuthRedirectUri:
+    Value: !Sub https://${RestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${StageName}/v1/oauth/google/callback
   DeletionDeadLetterQueueUrl:
     Value: !Ref DeletionDeadLetterQueue
   DeletionDeadLetterQueueAlarmName:

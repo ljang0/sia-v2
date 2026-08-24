@@ -220,9 +220,9 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               initialSection={app.settingsSection}
               onClose={app.closeSettings}
               onProbeProvider={(provider) => api.refreshProvider(provider)}
-              onConnectAllApps={() => api.connectAllApps()}
-              onConnectSelectedApps={(apps) => api.connectSelectedApps(apps)}
+              onConnectGoogleApps={() => api.connectGoogleApps()}
               onConnectApp={(id) => api.connectApp(id)}
+              onSetAppEnabled={(id, enabled) => api.setAppEnabled(id, enabled)}
               onDisconnectApp={(id, expectedConnectionId) =>
                 api.disconnectApp(id, expectedConnectionId)
               }

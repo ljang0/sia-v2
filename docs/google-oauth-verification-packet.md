@@ -19,7 +19,9 @@ contains no client secret, OAuth code, token, connection ID, or participant cont
 - Current console selection: `superintelligentagents@gmail.com` until the public alias is eligible
   for selection and its external delivery test passes
 - Developer contact: `superintelligentagents@gmail.com`
-- Authorized domains to retain: `composio.dev`, `superintelligentagents.ai`
+- Authorized domain to retain: `superintelligentagents.ai`
+- Authorized redirect URI:
+  `https://uve01q24la.execute-api.us-east-1.amazonaws.com/alpha/v1/oauth/google/callback`
 - Consent-screen logo: `apps/site/public/assets/sia-oauth-logo.png` (120 by 120 PNG)
 
 The homepage publicly identifies Sia, explains connected Google features and research capture, links
@@ -37,12 +39,13 @@ are not selected in Google because the console file chooser and email selector d
 the public support alias itself is live and externally delivered. The reviewer video, data-access
 submission, Google review, and CASA assessment remain open.
 
-The production OAuth credential was rotated again during the live acceptance pass. A secret whose
-value reached operator output was disabled and permanently deleted immediately. One clean secret was
-captured without rendering, installed in the Gmail, Drive, Docs, Sheets, and Slides custom Composio
-auth configs, and proved by fresh Gmail and Drive token exchanges plus live reads through all five
-deployed connector routes. The superseded secret was then disabled and permanently deleted. No
-Google OAuth secret is stored in this repository or in this packet.
+Alpha.7 replaces the five per-service Composio Google grants with one Sia-owned Web OAuth grant.
+Authorization code + PKCE terminates at the exact AWS callback above; refresh tokens are KMS-encrypted
+in a credential vault separated from research records and are never returned to the desktop. The
+direct adapter can call only the fixed Gmail, Drive, Docs, Sheets, and Slides API origins. The
+dedicated Web client still needs to be created under the production operator account and installed
+into the empty AWS Google secret before the fresh read-only reviewer pass. No Google OAuth secret is
+stored in this repository or in this packet.
 
 ## Exact reviewed scopes and justifications
 
@@ -156,7 +159,8 @@ credentials, codes, tokens, or unrelated inbox material.
 2. Launch the signed Sia app and show the product name and version.
 3. Show the local alternative, then sign in with the dedicated reviewer account and accept the raw
    research consent.
-4. Open Connected apps and show both **Connect work apps** and **Choose apps**.
+4. Open Connected apps and show the separate **Connect Google** and **Connect Slack** actions plus
+   the five Google service switches.
 5. Start Google connection, show the complete Sia consent screen, expand every requested Google scope,
    and complete the grant.
 6. Show the connected Google account label in Sia.
@@ -169,7 +173,8 @@ credentials, codes, tokens, or unrelated inbox material.
 10. Docs: read a synthetic document, preview one bounded edit, approve it, and show the result.
 11. Sheets: read a synthetic range, preview one bounded range update, approve it, and show the result.
 12. Slides: read a synthetic presentation, preview one bounded update, approve it, and show the result.
-13. Disconnect each Google service from Sia and show the disconnected state.
+13. Turn selected Google services off and show that their actions are unavailable, then use
+    **Disconnect Google** once and show the full grant is revoked.
 14. Show that the completed Google connector turn remains in the local transcript but is absent from
     Research archive export, then finish on the public support and privacy contacts.
 

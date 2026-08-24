@@ -255,6 +255,8 @@ export interface ConnectionView {
   id: ConnectionId;
   label: string;
   status: 'disconnected' | 'connecting' | 'connected' | 'error';
+  /** Local capability switch. A connected grant cannot be used while this is false. */
+  enabled?: boolean;
   /** Opaque Sia-cloud connection id; never an OAuth credential. */
   connectionId?: string;
   account?: string;
@@ -526,6 +528,7 @@ export interface BridgeRequestMap {
   'connections.startGoogle': undefined;
   'connections.startSelected': { connectionIds: ConnectionId[] };
   'connections.start': { connectionId: ConnectionId };
+  'connections.setEnabled': { connectionId: ConnectionId; enabled: boolean };
   'connections.disconnect': { connectionId: ConnectionId; expectedConnectionId?: string };
   'auth.start': { email: string };
   'auth.complete': { code: string };
@@ -614,6 +617,7 @@ export interface BridgeResultMap {
   'connections.startGoogle': { opened: boolean; snapshot: DesktopSnapshot };
   'connections.startSelected': { opened: boolean; snapshot: DesktopSnapshot };
   'connections.start': { opened: boolean; snapshot: DesktopSnapshot };
+  'connections.setEnabled': DesktopSnapshot;
   'connections.disconnect': DesktopSnapshot;
   'auth.start': DesktopSnapshot;
   'auth.complete': DesktopSnapshot;
@@ -763,6 +767,7 @@ export interface DesktopBridgeApi {
       connectionIds: ConnectionId[],
     ): Promise<BridgeResultMap['connections.startSelected']>;
     start(connectionId: ConnectionId): Promise<BridgeResultMap['connections.start']>;
+    setEnabled(connectionId: ConnectionId, enabled: boolean): Promise<DesktopSnapshot>;
     disconnect(
       connectionId: ConnectionId,
       expectedConnectionId?: string,

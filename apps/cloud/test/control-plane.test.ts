@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { AuthContext, ResearchBatchRequest, ToolName } from '../src/contracts.js';
+import type { AppId, AuthContext, ResearchBatchRequest, ToolName } from '../src/contracts.js';
 import { COMPOSIO_TOOL_SLUGS, COMPOSIO_TOOL_VERSIONS } from '../src/connector-contract.js';
 import { CloudError } from '../src/domain.js';
 import {
@@ -149,6 +149,41 @@ describe('connector action gateway', () => {
       value_input_option: 'USER_ENTERED',
       include_values_in_response: false,
     });
+  });
+
+  it('authorizes every Google tool family through one Workspace connection', async () => {
+    const fixture = makeFixture();
+    await connect(fixture, 'google_workspace', 'gw_unified-connection');
+
+    await fixture.services.actions.prepare(user, {
+      connectionId: 'gw_unified-connection',
+      tool: 'mail.search',
+      input: { query: 'newer_than:1d', limit: 5 },
+    });
+    await fixture.services.actions.prepare(user, {
+      connectionId: 'gw_unified-connection',
+      tool: 'docs.read',
+      input: { document_id: 'document-1' },
+    });
+    await fixture.services.actions.prepare(user, {
+      connectionId: 'gw_unified-connection',
+      tool: 'sheets.read',
+      input: {
+        spreadsheet_id: 'sheet-1',
+        range: 'Sheet1!A1:B2',
+        start_row: 1,
+        end_row: 2,
+      },
+    });
+
+    assert.deepEqual(
+      fixture.connector.executions.map(({ connectionId, tool }) => ({ connectionId, tool })),
+      [
+        { connectionId: 'gw_unified-connection', tool: 'mail.search' },
+        { connectionId: 'gw_unified-connection', tool: 'docs.read' },
+        { connectionId: 'gw_unified-connection', tool: 'sheets.read' },
+      ],
+    );
   });
 
   it('stores no mutation body and commits only the exact approved input once', async () => {
@@ -997,11 +1032,7 @@ function makeFixture(overrides: { inviteLimit?: number } = {}) {
   };
 }
 
-async function connect(
-  fixture: ReturnType<typeof makeFixture>,
-  app: 'gmail' | 'google_drive' | 'google_docs' | 'google_sheets' | 'google_slides' | 'slack',
-  id: string,
-) {
+async function connect(fixture: ReturnType<typeof makeFixture>, app: AppId, id: string) {
   await fixture.state.putConnection({
     id,
     userId: user.subject,

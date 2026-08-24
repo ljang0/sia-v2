@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import {
+  LEGACY_GOOGLE_APP_IDS,
   TOOL_POLICIES,
   type AppId,
   type AuthContext,
@@ -24,7 +25,6 @@ import {
   requireString,
 } from './domain.js';
 import {
-  assertComposioContract,
   mapCanonicalConnectorInput,
   validateCanonicalDriveUploadInput,
 } from './connector-contract.js';
@@ -136,7 +136,11 @@ export class ConnectorFilesService {
       user.subject,
       request.connectionId,
     );
-    if (!connection || connection.status !== 'connected' || connection.app !== 'google_drive') {
+    if (
+      !connection ||
+      connection.status !== 'connected' ||
+      (connection.app !== 'google_drive' && connection.app !== 'google_workspace')
+    ) {
       throw new CloudError(
         404,
         'connection_not_ready',
@@ -148,9 +152,8 @@ export class ConnectorFilesService {
     const byteLength = validateConnectorByteLength(request.byteLength);
     const md5 = validateHash(request.md5, 'md5', /^[a-f0-9]{32}$/);
     const sha256 = validateHash(request.sha256, 'sha256', /^[A-Za-z0-9_-]{43}$/);
-    assertComposioContract(await this.deps.secrets.composio(), 'drive.upload');
-
     const grant = await this.deps.connector.requestFileUpload(
+      request.connectionId,
       'drive.upload',
       fileName,
       mimeType,
@@ -274,7 +277,7 @@ export class ConnectionsService {
       // reference without attempting to revoke an unowned grant.
       return { disconnected: true };
     }
-    if (record.app !== app)
+    if (!connectionAppMatches(record.app, app))
       throw new CloudError(404, 'connection_not_found', 'Connection not found');
     await this.deps.connector.disconnect(connectionId);
     await this.deps.connections.deleteConnection(user.subject, connectionId);
@@ -287,6 +290,36 @@ export class ConnectionsService {
       occurredAt: this.deps.clock.now().toISOString(),
     });
     return { disconnected: true };
+  }
+
+  async completeGoogleOAuth(request: { state: string; code?: string; error?: string }) {
+    if (!this.deps.connector.completeGoogleOAuth) {
+      throw new CloudError(503, 'google_oauth_unavailable', 'Google connection is unavailable');
+    }
+    const result = await this.deps.connector.completeGoogleOAuth(request);
+    const record = await this.deps.connections.getConnection(
+      result.userId,
+      result.connectionId,
+    );
+    if (!record || record.app !== 'google_workspace') {
+      throw new CloudError(400, 'oauth_state_invalid', 'This Google connection link expired');
+    }
+    const now = this.deps.clock.now().toISOString();
+    await this.deps.connections.putConnection({
+      ...record,
+      status: result.connected ? 'connected' : 'failed',
+      updatedAt: now,
+      ...(result.accountLabel === undefined ? {} : { accountLabel: result.accountLabel }),
+    });
+    await this.deps.audit.write({
+      userId: result.userId,
+      action: result.connected ? 'connection.oauth.completed' : 'connection.oauth.denied',
+      app: 'google_workspace',
+      connectionId: result.connectionId,
+      outcome: result.connected ? 'allowed' : 'denied',
+      occurredAt: now,
+    });
+    return { connected: result.connected, accountLabel: result.accountLabel };
   }
 }
 
@@ -303,7 +336,7 @@ export class ActionsService {
     if (!connection || connection.status !== 'connected') {
       throw new CloudError(404, 'connection_not_ready', 'The selected connection is not ready');
     }
-    if (connection.app !== policy.app) {
+    if (!connectionSupportsTool(connection.app, policy.app)) {
       throw new CloudError(
         400,
         'tool_connection_mismatch',
@@ -1117,7 +1150,6 @@ async function resolveConnectorInput(
   tool: keyof typeof TOOL_POLICIES,
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  assertComposioContract(await deps.secrets.composio(), tool);
   if (tool === 'drive.upload') {
     validateCanonicalDriveUploadInput(input);
     return resolveDriveUpload(deps, userId, connectionId, input);
@@ -1189,6 +1221,13 @@ async function resolveDriveUpload(
       name: upload.fileName,
       mimetype: upload.mimeType,
       s3key: upload.providerKey,
+      ...(connectionId.startsWith('gw_')
+        ? {
+            byte_length: upload.byteLength,
+            md5: upload.md5,
+            sha256: upload.sha256,
+          }
+        : {}),
     },
     ...(parentId === undefined ? {} : { folder_to_upload_to: parentId }),
   };
@@ -1440,6 +1479,22 @@ function validateCallback(callbackUrl: string): void {
   if (parsed.username || parsed.password) {
     throw new CloudError(400, 'invalid_callback', 'Callback credentials are not allowed');
   }
+}
+
+function connectionAppMatches(recordApp: AppId, requestedApp: AppId): boolean {
+  if (recordApp === requestedApp) return true;
+  return (
+    requestedApp === 'google_workspace' &&
+    (LEGACY_GOOGLE_APP_IDS as readonly AppId[]).includes(recordApp)
+  );
+}
+
+function connectionSupportsTool(connectionApp: AppId, toolApp: AppId): boolean {
+  if (connectionApp === toolApp) return true;
+  return (
+    connectionApp === 'google_workspace' &&
+    (LEGACY_GOOGLE_APP_IDS as readonly AppId[]).includes(toolApp)
+  );
 }
 
 function validateMetaRequest(request: MetaTurnRequest): void {

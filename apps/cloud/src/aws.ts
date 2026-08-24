@@ -6,6 +6,7 @@ import {
   ListUsersCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { ConditionalCheckFailedException, DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DecryptCommand, EncryptCommand, KMSClient } from '@aws-sdk/client-kms';
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
@@ -32,7 +33,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createHash, randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
 import {
-  APP_IDS,
+  LEGACY_GOOGLE_APP_IDS,
   TOOL_POLICIES,
   type AppId,
   type DeletionScope,
@@ -42,6 +43,7 @@ import {
 } from './contracts.js';
 import { assertComposioContract } from './connector-contract.js';
 import { CloudError, isRecord } from './domain.js';
+import { GoogleWorkspaceConnector, HybridConnector } from './google-workspace.js';
 import { SystemClock } from './memory.js';
 import { ConnectorReconnectRequiredError } from './ports.js';
 import type {
@@ -65,6 +67,10 @@ import type {
   DeletionQueue,
   DeletionRepository,
   DeletionState,
+  GoogleCredentialRepository,
+  GoogleOAuthConfig,
+  GoogleOAuthStateRecord,
+  GoogleTokenRecord,
   IdentityProvider,
   InviteRecord,
   InviteRepository,
@@ -80,6 +86,7 @@ import type {
   ResearchObjectStore,
   ResearchRepository,
   SecretProvider,
+  TokenCipher,
 } from './ports.js';
 import type { ServiceDependencies } from './services.js';
 
@@ -111,6 +118,7 @@ export interface RuntimeConfig {
   userPoolId: string;
   metaSecretArn: string;
   composioSecretArn: string;
+  googleSecretArn: string;
   consentVersion: string;
   actionTtlSeconds: number;
   inviteLimit: number;
@@ -134,6 +142,7 @@ export function loadRuntimeConfig(environment: NodeJS.ProcessEnv = process.env):
     userPoolId: requiredEnv(environment, 'USER_POOL_ID'),
     metaSecretArn: requiredEnv(environment, 'META_SECRET_ARN'),
     composioSecretArn: requiredEnv(environment, 'COMPOSIO_SECRET_ARN'),
+    googleSecretArn: requiredEnv(environment, 'GOOGLE_SECRET_ARN'),
     consentVersion: requiredEnv(environment, 'RESEARCH_CONSENT_VERSION'),
     actionTtlSeconds: positiveInteger(
       environment.ACTION_TTL_SECONDS ?? '600',
@@ -158,7 +167,8 @@ export class DynamoState
     ResearchRepository,
     ResearchExportRepository,
     InviteRepository,
-    DeletionRepository
+    DeletionRepository,
+    GoogleCredentialRepository
 {
   constructor(
     private readonly client: DynamoDBDocumentClient,
@@ -188,6 +198,45 @@ export class DynamoState
 
   async deleteConnection(userId: string, connectionId: string): Promise<void> {
     await this.delete(userPk(userId), `CONNECTION#${connectionId}`);
+  }
+
+  async putGoogleOAuthState(record: GoogleOAuthStateRecord): Promise<void> {
+    await this.put({
+      PK: `GOOGLE_OAUTH_STATE#${record.stateHash}`,
+      SK: 'STATE',
+      Type: 'GoogleOAuthState',
+      ...record,
+    });
+  }
+
+  async consumeGoogleOAuthState(
+    stateHash: string,
+  ): Promise<GoogleOAuthStateRecord | undefined> {
+    const result = await this.client.send(
+      new DeleteCommand({
+        TableName: this.tableName,
+        Key: { PK: `GOOGLE_OAUTH_STATE#${stateHash}`, SK: 'STATE' },
+        ReturnValues: 'ALL_OLD',
+      }),
+    );
+    return result.Attributes as GoogleOAuthStateRecord | undefined;
+  }
+
+  async putGoogleToken(record: GoogleTokenRecord): Promise<void> {
+    await this.put({
+      PK: `GOOGLE_CONNECTION#${record.connectionId}`,
+      SK: 'TOKEN',
+      Type: 'GoogleToken',
+      ...record,
+    });
+  }
+
+  async getGoogleToken(connectionId: string): Promise<GoogleTokenRecord | undefined> {
+    return this.get<GoogleTokenRecord>(`GOOGLE_CONNECTION#${connectionId}`, 'TOKEN');
+  }
+
+  async deleteGoogleToken(connectionId: string): Promise<void> {
+    await this.delete(`GOOGLE_CONNECTION#${connectionId}`, 'TOKEN');
   }
 
   async putAction(record: PreparedActionRecord): Promise<void> {
@@ -993,6 +1042,7 @@ export class SecretsManagerProvider implements SecretProvider {
     private readonly client: SecretsManagerClient,
     private readonly metaSecretArn: string,
     private readonly composioSecretArn: string,
+    private readonly googleSecretArn: string,
     private readonly cacheMilliseconds = 60_000,
   ) {}
 
@@ -1004,6 +1054,11 @@ export class SecretsManagerProvider implements SecretProvider {
   async composio(): Promise<ComposioConfig> {
     const value = await this.read(this.composioSecretArn);
     return parseComposioConfig(value);
+  }
+
+  async google(): Promise<GoogleOAuthConfig> {
+    const value = await this.read(this.googleSecretArn);
+    return parseGoogleOAuthConfig(value);
   }
 
   private async read(secretId: string): Promise<unknown> {
@@ -1039,6 +1094,9 @@ export class ComposioConnector implements ConnectorProvider {
     app: AppId,
     callbackUrl?: string,
   ): Promise<ConnectorLink> {
+    if (app === 'google_workspace') {
+      throw new CloudError(400, 'unsupported_app', 'Google Workspace uses Sia OAuth');
+    }
     const config = await this.secrets.composio();
     const body = await composioRequest(config, 'POST', '/api/v3.1/connected_accounts/link', {
       auth_config_id: config.authConfigIds[app],
@@ -1128,6 +1186,7 @@ export class ComposioConnector implements ConnectorProvider {
   }
 
   async requestFileUpload(
+    _connectionId: string,
     tool: 'drive.upload',
     fileName: string,
     mimeType: string,
@@ -1417,6 +1476,48 @@ export class MetadataAuditSink implements AuditSink {
   }
 }
 
+export class KmsTokenCipher implements TokenCipher {
+  constructor(
+    private readonly client: KMSClient,
+    private readonly keyArn: string,
+  ) {}
+
+  async encrypt(plaintext: string, context: Record<string, string>): Promise<string> {
+    const result = await this.client.send(
+      new EncryptCommand({
+        KeyId: this.keyArn,
+        Plaintext: Buffer.from(plaintext, 'utf8'),
+        EncryptionContext: context,
+      }),
+    );
+    if (!result.CiphertextBlob) {
+      throw new CloudError(
+        503,
+        'token_encryption_failed',
+        'Google credentials are unavailable',
+      );
+    }
+    return Buffer.from(result.CiphertextBlob).toString('base64');
+  }
+
+  async decrypt(ciphertext: string, context: Record<string, string>): Promise<string> {
+    const result = await this.client.send(
+      new DecryptCommand({
+        CiphertextBlob: Buffer.from(ciphertext, 'base64'),
+        EncryptionContext: context,
+      }),
+    );
+    if (!result.Plaintext) {
+      throw new CloudError(
+        503,
+        'token_decryption_failed',
+        'Google credentials are unavailable',
+      );
+    }
+    return Buffer.from(result.Plaintext).toString('utf8');
+  }
+}
+
 export function createAwsDependencies(config = loadRuntimeConfig()): ServiceDependencies {
   const documentClient = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
     marshallOptions: { removeUndefinedValues: true },
@@ -1428,12 +1529,20 @@ export function createAwsDependencies(config = loadRuntimeConfig()): ServiceDepe
     new SecretsManagerClient({}),
     config.metaSecretArn,
     config.composioSecretArn,
+    config.googleSecretArn,
   );
+  const google = new GoogleWorkspaceConnector({
+    credentials: state,
+    secrets,
+    cipher: new KmsTokenCipher(new KMSClient({}), config.kmsKeyArn),
+    s3,
+    stagingBucket: config.bucketName,
+  });
   return {
     clock: new SystemClock(),
     ids: { next: () => randomUUID() },
     connections: state,
-    connector: new ComposioConnector(secrets),
+    connector: new HybridConnector(google, new ComposioConnector(secrets)),
     connectorUploads: state,
     actions: state,
     research: state,
@@ -1521,8 +1630,11 @@ function parseComposioConfig(value: unknown): ComposioConfig {
   const toolSlugsValue = value.toolSlugs;
   const toolVersionsValue = value.toolVersions;
   const authConfigIds = Object.fromEntries(
-    APP_IDS.map((app) => [app, configString(authConfigIdsValue[app], `authConfigIds.${app}`)]),
-  ) as Record<AppId, string>;
+    [...LEGACY_GOOGLE_APP_IDS, 'slack'].map((app) => [
+      app,
+      configString(authConfigIdsValue[app], `authConfigIds.${app}`),
+    ]),
+  ) as ComposioConfig['authConfigIds'];
   const toolSlugs = Object.fromEntries(
     (Object.keys(TOOL_POLICIES) as ToolName[]).map((tool) => [
       tool,
@@ -1544,6 +1656,34 @@ function parseComposioConfig(value: unknown): ComposioConfig {
   };
   assertComposioContract(config);
   return config;
+}
+
+function parseGoogleOAuthConfig(value: unknown): GoogleOAuthConfig {
+  if (!isRecord(value)) {
+    throw new CloudError(503, 'secret_invalid', 'Google OAuth configuration is invalid');
+  }
+  const redirectUri = configString(value.redirectUri, 'redirectUri');
+  let redirect: URL;
+  try {
+    redirect = new URL(redirectUri);
+  } catch {
+    throw new CloudError(503, 'secret_invalid', 'Google redirect URI is invalid');
+  }
+  if (
+    redirect.protocol !== 'https:' ||
+    redirect.username ||
+    redirect.password ||
+    redirect.hash ||
+    redirect.search ||
+    !redirect.pathname.endsWith('/v1/oauth/google/callback')
+  ) {
+    throw new CloudError(503, 'secret_invalid', 'Google redirect URI is not allowed');
+  }
+  return {
+    clientId: secretString(value.clientId),
+    clientSecret: secretString(value.clientSecret),
+    redirectUri: redirect.toString(),
+  };
 }
 
 function secretString(value: unknown): string {

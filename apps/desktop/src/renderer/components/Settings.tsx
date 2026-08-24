@@ -27,9 +27,9 @@ interface SettingsProps {
   initialSection?: SettingsSection | undefined;
   onClose(): void;
   onProbeProvider(provider: ProviderId): Promise<void>;
-  onConnectAllApps(): Promise<void>;
-  onConnectSelectedApps(apps: AppConnection['id'][]): Promise<void>;
+  onConnectGoogleApps(): Promise<void>;
   onConnectApp(app: AppConnection['id']): Promise<void>;
+  onSetAppEnabled?(app: AppConnection['id'], enabled: boolean): Promise<void>;
   onDisconnectApp(app: AppConnection['id'], expectedConnectionId?: string): Promise<void>;
   onStartCloudSignIn(email: string): Promise<void>;
   onCompleteCloudSignIn(code: string): Promise<void>;
@@ -66,9 +66,9 @@ export function Settings({
   initialSection = 'providers',
   onClose,
   onProbeProvider,
-  onConnectAllApps,
-  onConnectSelectedApps,
+  onConnectGoogleApps,
   onConnectApp,
+  onSetAppEnabled = async () => undefined,
   onDisconnectApp,
   onStartCloudSignIn,
   onCompleteCloudSignIn,
@@ -193,9 +193,9 @@ export function Settings({
           {section === 'apps' ? (
             <AppsSettings
               snapshot={snapshot}
-              onConnectAll={onConnectAllApps}
-              onConnectSelected={onConnectSelectedApps}
+              onConnectGoogle={onConnectGoogleApps}
               onConnect={onConnectApp}
+              onSetEnabled={onSetAppEnabled}
               onDisconnect={onDisconnectApp}
               onStartCloudSignIn={onStartCloudSignIn}
               onCompleteCloudSignIn={onCompleteCloudSignIn}

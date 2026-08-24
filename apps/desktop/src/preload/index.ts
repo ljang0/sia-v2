@@ -140,6 +140,8 @@ const api: DesktopBridgeApi = {
     startGoogle: () => invoke('connections.startGoogle', undefined),
     startSelected: (connectionIds) => invoke('connections.startSelected', { connectionIds }),
     start: (connectionId) => invoke('connections.start', { connectionId }),
+    setEnabled: (connectionId, enabled) =>
+      invoke('connections.setEnabled', { connectionId, enabled }),
     disconnect: (connectionId, expectedConnectionId) =>
       invoke(
         'connections.disconnect',

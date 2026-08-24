@@ -1947,7 +1947,7 @@ describe('DesktopController', () => {
     });
     const approval = controller.snapshot().approvals.at(-1)!;
     expect(approval.target).toBe('email recipients: person@example.com');
-    expect(approval.account).toBe('demo@gmail.test');
+    expect(approval.account).toBe('demo@google.test');
     expect(approval.dataLeaving).toContain('To: person@example.com');
     expect(approval.dataLeaving).toContain('Subject: Quarterly status');
     expect(approval.dataLeaving).toContain(`Body:\n${body}`);
@@ -2027,7 +2027,7 @@ describe('DesktopController', () => {
     expect(controller.snapshot().connections.find(({ id }) => id === 'docs')).toMatchObject({
       status: 'error',
       connectionId: original,
-      detail: 'This app connection expired. Reconnect it, then retry the action.',
+      detail: 'This app connection expired. Reconnect Google Workspace, then retry the action.',
     });
 
     const result = await controller.invoke('connections.start', { connectionId: 'docs' });
@@ -2057,7 +2057,7 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
-  it('connects only the selected apps in canonical setup order', async () => {
+  it('treats any selected Google app as the unified Workspace grant', async () => {
     const controller = await createController();
 
     const result = await controller.invoke('connections.startSelected', {
@@ -2065,24 +2065,49 @@ describe('DesktopController', () => {
     });
 
     expect(result.opened).toBe(false);
-    expect(result.snapshot.connections.map(({ id, status }) => ({ id, status }))).toEqual([
-      { id: 'gmail', status: 'connected' },
-      { id: 'drive', status: 'disconnected' },
-      { id: 'docs', status: 'connected' },
-      { id: 'sheets', status: 'disconnected' },
-      { id: 'slides', status: 'disconnected' },
-      { id: 'slack', status: 'connected' },
+    expect(
+      result.snapshot.connections.map(({ id, status, enabled }) => ({
+        id,
+        status,
+        enabled: enabled !== false,
+      })),
+    ).toEqual([
+      { id: 'gmail', status: 'connected', enabled: true },
+      { id: 'drive', status: 'connected', enabled: false },
+      { id: 'docs', status: 'connected', enabled: true },
+      { id: 'sheets', status: 'connected', enabled: false },
+      { id: 'slides', status: 'connected', enabled: false },
+      { id: 'slack', status: 'connected', enabled: true },
     ]);
     await controller.shutdown();
   });
 
-  it('resumes Google Workspace setup without replacing apps that are already connected', async () => {
+  it('enforces Google service switches in the connector action router', async () => {
+    const controller = await createController();
+    await controller.invoke('connections.startSelected', { connectionIds: ['docs'] });
+
+    expect(controller.connectionIdForAction('gmail', 'gmail')).toBeUndefined();
+    expect(controller.connectionIdForAction('docs', 'docs')).toEqual(expect.any(String));
+
+    await controller.invoke('connections.setEnabled', {
+      connectionId: 'gmail',
+      enabled: true,
+    });
+    expect(controller.connectionIdForAction('gmail', 'gmail')).toEqual(expect.any(String));
+
+    await controller.invoke('connections.setEnabled', {
+      connectionId: 'docs',
+      enabled: false,
+    });
+    expect(controller.connectionIdForAction('docs', 'docs')).toBeUndefined();
+    await controller.shutdown();
+  });
+
+  it('reuses an already connected unified Google Workspace grant', async () => {
     const controller = await createController();
     await controller.invoke('connections.start', { connectionId: 'gmail' });
-    await controller.invoke('connections.start', { connectionId: 'drive' });
     const before = controller.snapshot().connections;
     const gmailGrant = before.find(({ id }) => id === 'gmail')?.connectionId;
-    const driveGrant = before.find(({ id }) => id === 'drive')?.connectionId;
 
     const result = await controller.invoke('connections.startGoogle', undefined);
 
@@ -2092,7 +2117,7 @@ describe('DesktopController', () => {
     });
     expect(result.snapshot.connections.find(({ id }) => id === 'drive')).toMatchObject({
       status: 'connected',
-      connectionId: driveGrant,
+      connectionId: gmailGrant,
     });
     expect(
       result.snapshot.connections
@@ -2278,14 +2303,7 @@ describe('DesktopController', () => {
 
   it('opens each provider only after the previous grant is verified', async () => {
     type TestConnectionId = 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack';
-    const connectionOrder: TestConnectionId[] = [
-      'gmail',
-      'drive',
-      'docs',
-      'sheets',
-      'slides',
-      'slack',
-    ];
+    const connectionOrder: TestConnectionId[] = ['gmail', 'slack'];
     const startConnection = vi.fn(async (connectionId: TestConnectionId) => ({
       redirectUrl: `https://connect.example.test/${connectionId}`,
       connectionId: `grant-${connectionId}`,
@@ -2377,9 +2395,9 @@ describe('DesktopController', () => {
       }>();
       connectionStatus.mockImplementationOnce(async () => await delayedStatus.promise);
       await controller.invoke('connections.startAll', undefined);
-      expect(openExternal).toHaveBeenCalledTimes(7);
+      expect(openExternal).toHaveBeenCalledTimes(3);
       await vi.advanceTimersByTimeAsync(2_000);
-      expect(connectionStatus).toHaveBeenCalledTimes(7);
+      expect(connectionStatus).toHaveBeenCalledTimes(3);
 
       await controller.invoke('connections.disconnect', { connectionId: 'gmail' });
       delayedStatus.resolve({
@@ -2394,7 +2412,7 @@ describe('DesktopController', () => {
       });
       await Promise.resolve();
       await Promise.resolve();
-      expect(openExternal).toHaveBeenCalledTimes(7);
+      expect(openExternal).toHaveBeenCalledTimes(3);
       expect(controller.snapshot().connections).toEqual([
         expect.objectContaining({ id: 'gmail', status: 'disconnected' }),
         expect.objectContaining({ id: 'drive', status: 'disconnected' }),

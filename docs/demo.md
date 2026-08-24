@@ -12,8 +12,8 @@ is the "Sia Demo Runbook" artifact.
 - For the research-release path, use a designated disposable participant. Sign in, accept **Sia
   research alpha**, and show that the core app opens without a connector prompt. For a local demo,
   choose **Continue locally** instead. If demonstrating integrations, open **Settings → Apps** after
-  the core task, choose Docs and Slack, and connect only those two. Each provider confirms its own
-  grant in the browser.
+  the core task and press **Connect Google** or **Connect Slack**. Google uses one grant for Gmail,
+  Drive, Docs, Sheets, and Slides; Google and Slack still confirm separately in the browser.
 - **Settings → Computer → Unlock everything**: one card shows every capability (Mac control,
   silent Chrome, Messages) with live status; one click requests all the grantable permissions
   and opens the panes macOS keeps manual (flip the Full Disk Access switch when it appears).

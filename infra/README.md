@@ -1,6 +1,6 @@
 # Sia cloud control plane
 
-This stack is intentionally a relay/control plane. The desktop presents the Cognito ID token to the API Gateway user-pool authorizer; Cognito access tokens are not used as API bearer credentials. The desktop never receives AWS, Meta, or Composio credentials and has no direct S3 or DynamoDB permission.
+This stack is intentionally a relay/control plane. The desktop presents the Cognito ID token to the API Gateway user-pool authorizer; Cognito access tokens are not used as API bearer credentials. The desktop never receives AWS, Meta, Composio, or Google credentials and has no direct S3 or DynamoDB permission.
 
 Configure the desktop with the complete API output URL, including its stage path (for example, `/alpha`). Local development may inject an ID token with `SIA_DEV_ID_TOKEN`; never ship or persist that override.
 
@@ -9,7 +9,7 @@ Configure the desktop with the complete API output URL, including its stage path
 1. Run `pnpm --filter @sia/cloud build`. This compiles TypeScript and creates four self-contained, content-hashed Node 22 Lambda bundles under `apps/cloud/lambda/`; CloudFormation points only at those generated directories.
 2. Validate with `sam validate --lint --template-file infra/template.yaml --region us-east-1`. A successful `aws cloudformation validate-template` is only a syntax check and does not replace SAM linting.
 3. Deploy with `sam deploy --guided --template-file infra/template.yaml --stack-name sia-alpha --region us-east-1 --capabilities CAPABILITY_IAM`, passing `BootstrapAdminEmail` for the first deployment, verified SES settings for a user-facing alpha, and `AlarmNotificationTopicArn` for an operator-monitored SNS topic. The stack creates alarms for deletion backlog/DLQ, Lambda errors and throttles, and DynamoDB throttling; every subscription must be confirmed before release.
-4. Populate the two empty, operator-managed Secrets Manager resources after the first deployment. The template intentionally omits `SecretString` so later stack updates cannot replace live credentials. Do not put either API key in CloudFormation parameters, Lambda environment variables, desktop configuration, CI logs, or source control.
+4. Populate the three empty, operator-managed Secrets Manager resources after the first deployment. The template intentionally omits `SecretString` so later stack updates cannot replace live credentials. Do not put API keys or OAuth client secrets in CloudFormation parameters, Lambda environment variables, desktop configuration, CI logs, or source control.
 5. Revoke and rotate the Meta credential that was previously pasted into chat before enabling the relay.
 6. Map the deployed outputs exactly: `ApiBaseUrl` to `SIA_RELEASE_API_BASE_URL`, `CognitoRegion` to `SIA_RELEASE_COGNITO_REGION`, and `DesktopClientId` to `SIA_RELEASE_COGNITO_CLIENT_ID`. A packaged app ignores mutable `SIA_API_*` environment values and accepts cloud destinations only from its code-signed `sia-cloud.json` resource.
 
@@ -34,11 +34,26 @@ The Meta secret schema is:
 }
 ```
 
-The Composio secret contains `apiKey`, `baseUrl`, exact per-tool `toolVersions`, reviewed OAuth
-`authConfigIds` for Gmail, Drive, Docs, Sheets, Slides, and Slack, and an exact `toolSlugs` mapping
-for the twenty-three canonical connector tools. Use a scoped project key that can link/revoke accounts
-and execute only those reviewed tool slugs. The application does not query or expose Composio's raw
-catalog.
+The Composio secret contains `apiKey`, `baseUrl`, exact per-tool `toolVersions`, the reviewed Slack
+OAuth `authConfigIds` (plus the five superseded Google IDs during alpha migration), and an exact
+`toolSlugs` mapping for the canonical connector tools. New Google connections do not use those five
+Composio auth configs. Use a scoped project key that can link/revoke Slack accounts and execute only
+the reviewed Slack tool slugs. The application does not query or expose Composio's raw catalog.
+
+The Google secret schema is:
+
+```json
+{
+  "clientId": "google-web-oauth-client-id",
+  "clientSecret": "stored-only-in-secrets-manager",
+  "redirectUri": "https://API_ID.execute-api.us-east-1.amazonaws.com/alpha/v1/oauth/google/callback"
+}
+```
+
+Register the exact `GoogleOAuthRedirectUri` stack output on the Google web OAuth client. Sia requests
+one fixed, reviewed scope bundle and stores each user's refresh token as an AWS KMS ciphertext with a
+user- and connection-bound encryption context. OAuth state is one-time, PKCE-bound, and expires after
+ten minutes. Google connector responses and tokens are never written to research storage or logs.
 
 API Gateway body tracing is disabled. Lambda logging is metadata-only by code contract. Keep this invariant when adding telemetry: request bodies, provider responses, prompt content, email/file/message bodies, authorization headers, and OAuth URLs must never enter logs.
 

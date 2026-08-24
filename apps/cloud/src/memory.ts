@@ -30,6 +30,10 @@ import type {
   DeletionQueue,
   DeletionRepository,
   DeletionState,
+  GoogleCredentialRepository,
+  GoogleOAuthConfig,
+  GoogleOAuthStateRecord,
+  GoogleTokenRecord,
   IdGenerator,
   IdentityProvider,
   InviteRecord,
@@ -84,7 +88,8 @@ export class MemoryState
     ResearchRepository,
     ResearchExportRepository,
     InviteRepository,
-    DeletionRepository
+    DeletionRepository,
+    GoogleCredentialRepository
 {
   readonly connectionRecords = new Map<string, ConnectionRecord>();
   readonly actionRecords = new Map<string, PreparedActionRecord>();
@@ -94,6 +99,8 @@ export class MemoryState
   readonly researchExportRecords = new Map<string, ResearchExportJob>();
   readonly inviteRecords = new Map<string, InviteRecord>();
   readonly deletionRecords = new Map<string, DeletionJob>();
+  readonly googleOAuthStates = new Map<string, GoogleOAuthStateRecord>();
+  readonly googleTokens = new Map<string, GoogleTokenRecord>();
 
   async putConnection(record: ConnectionRecord): Promise<void> {
     this.connectionRecords.set(key(record.userId, record.id), structuredClone(record));
@@ -111,6 +118,30 @@ export class MemoryState
 
   async deleteConnection(userId: string, connectionId: string): Promise<void> {
     this.connectionRecords.delete(key(userId, connectionId));
+  }
+
+  async putGoogleOAuthState(record: GoogleOAuthStateRecord): Promise<void> {
+    this.googleOAuthStates.set(record.stateHash, structuredClone(record));
+  }
+
+  async consumeGoogleOAuthState(
+    stateHash: string,
+  ): Promise<GoogleOAuthStateRecord | undefined> {
+    const record = this.googleOAuthStates.get(stateHash);
+    this.googleOAuthStates.delete(stateHash);
+    return clone(record);
+  }
+
+  async putGoogleToken(record: GoogleTokenRecord): Promise<void> {
+    this.googleTokens.set(record.connectionId, structuredClone(record));
+  }
+
+  async getGoogleToken(connectionId: string): Promise<GoogleTokenRecord | undefined> {
+    return clone(this.googleTokens.get(connectionId));
+  }
+
+  async deleteGoogleToken(connectionId: string): Promise<void> {
+    this.googleTokens.delete(connectionId);
   }
 
   async putAction(record: PreparedActionRecord): Promise<void> {
@@ -418,6 +449,7 @@ export class MemoryConnector implements ConnectorProvider {
     this.statuses.set(connectionId, { status: 'disconnected' });
   }
   async requestFileUpload(
+    _connectionId: string,
     tool: 'drive.upload',
     fileName: string,
     mimeType: string,
@@ -488,12 +520,20 @@ export class FixedSecrets implements SecretProvider {
   constructor(
     private readonly metaConfig: MetaConfig,
     private readonly composioConfig: ComposioConfig,
+    private readonly googleConfig: GoogleOAuthConfig = {
+      clientId: 'test-google-client.apps.googleusercontent.com',
+      clientSecret: 'test-google-client-secret',
+      redirectUri: 'https://api.example.test/v1/oauth/google/callback',
+    },
   ) {}
   async meta(): Promise<MetaConfig> {
     return structuredClone(this.metaConfig);
   }
   async composio(): Promise<ComposioConfig> {
     return structuredClone(this.composioConfig);
+  }
+  async google(): Promise<GoogleOAuthConfig> {
+    return structuredClone(this.googleConfig);
   }
 }
 
