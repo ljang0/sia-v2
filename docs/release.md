@@ -1,7 +1,7 @@
 # Release gate
 
 The current deployment, signed artifact, and live rehearsal metadata are recorded in
-[`release-evidence-2026-08-24-alpha.6.md`](./release-evidence-2026-08-24-alpha.6.md). That evidence also lists the
+[`release-evidence-2026-08-24-alpha.8.md`](./release-evidence-2026-08-24-alpha.8.md). That evidence also lists the
 remaining human-only blockers; it does not authorize distribution by itself.
 Named research, privacy, security, support, and release approval is recorded in
 [`research-release-signoff.md`](./research-release-signoff.md).
