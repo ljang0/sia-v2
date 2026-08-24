@@ -59,11 +59,12 @@ working out of the box for arbitrary users.
 Current console audit (2026-08-24): the audience is External and **In production**, and the public
 brand is verified and shown to users. The Sia-owned Web client uses the exact AWS callback and its
 credential is installed in the encrypted AWS secret. The public site is verified in Search Console.
-The newly implemented read-only Docs, Sheets, and Slides scopes plus `drive.readonly` still need to
-be added to Data Access before the progressive flow can be deployed and recorded. The consent-screen
-logo, public support alias selection, reviewer video, scope verification, and CASA remain open.
+The progressive read-only/editor flow is deployed in alpha.9. The complete scope union still needs
+to be added to Google Auth Platform Data Access before a fresh production connection can be treated
+as supported or the reviewer video can be recorded. The consent-screen logo, public support alias
+selection, reviewer video, scope verification, and CASA remain open.
 
-Alpha.8 progressive-access update (2026-08-24): Sia now requests read-only Gmail, Drive, Docs,
+Alpha.9 progressive-access update (2026-08-24): Sia now requests read-only Gmail, Drive, Docs,
 Sheets, and Slides access on first connection. A separate **Enable editing** action requests the
 reviewed compose, `drive.file`, and editor scopes while the old read grant remains usable. The cloud
 verifies the new grant before the desktop switches and then removes the superseded credential. Local
