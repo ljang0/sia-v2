@@ -127,6 +127,24 @@ describe('CloudClient', () => {
     },
   );
 
+  it('requests read-only Google access by default and sends an explicit editor upgrade', async () => {
+    const fetchMock = vi.fn(async (_input: URL | RequestInfo, _init?: RequestInit) =>
+      Response.json({ redirectUrl: 'https://connect.example.test', connectionId: 'one' }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new CloudClient('https://api.example.test', {
+      read: async () => 'test-id-token',
+    });
+
+    await client.startConnection('docs');
+    await client.startConnection('docs', 'read_write');
+
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ body: JSON.stringify({}) });
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
+      body: JSON.stringify({ access: 'read_write' }),
+    });
+  });
+
   it('uses an authenticated cloud capability check for Meta', async () => {
     const fetchMock = vi.fn(async (_input: URL | RequestInfo, _init?: RequestInit) =>
       Response.json({

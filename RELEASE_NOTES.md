@@ -1,8 +1,23 @@
-# Sia 0.1.0-alpha.8
+# Sia 0.1.0-alpha.9
 
 Sia is a private macOS 14+ alpha for local-first agent work. This build supports Codex through the
 official CLI already installed and authenticated on the Mac, plus hosted Meta access for signed-in
 research-alpha participants.
+
+## Alpha.9 changes
+
+- Google connects read-only by default. **Enable editing** opens a separate Google consent only
+  when sending or file changes are needed, while the original read connection remains usable until
+  the upgrade succeeds.
+- The cloud enforces the exact scope required by every Google tool before approval or execution and
+  removes the superseded encrypted read credential after a successful upgrade.
+- Docs, Sheets, and Slides tools accept either the raw resource ID or a matching Google URL. This
+  fixes the Sheets read failure caused by a full browser URL reaching the Values API as an ID.
+- The connected-app settings explain read-only access, editing, provider consent, service switches,
+  and recovery as one compact flow.
+- `superintelligentagents.ai` now uses a minimal private-release identity, an original signal
+  artwork, restrained motion, responsive editorial layouts, and a persistent light/dark appearance
+  choice across the homepage, policy, research, and support surfaces.
 
 ## Included
 
@@ -33,10 +48,11 @@ research-alpha participants.
 - public account bootstrap is enumeration-resistant and protected by API Gateway plus short-lived,
   privacy-preserving per-email and per-network throttles. The account form requires research-alpha
   acknowledgment, and the full research-data choice still appears before capture starts;
-- one Google-owned OAuth approval now connects Gmail, Drive, Docs, Sheets, and Slides. The five
-  service rows share that verified account grant while still allowing a person to choose which tools
-  Sia may use. Slack has its own one-click OAuth action. Google refresh tokens are KMS-encrypted in a
-  credential vault separated from research data and are never returned to the desktop;
+- one Google-owned read-only OAuth approval connects Gmail, Drive, Docs, Sheets, and Slides. The
+  five service rows share that verified account grant while still allowing a person to choose which
+  tools Sia may use. Editing and sending use a separate upgrade. Slack has its own one-click OAuth
+  action. Google refresh tokens are KMS-encrypted in a credential vault separated from research data
+  and are never returned to the desktop;
 - the direct Google adapter uses a fixed API-origin allowlist, bounded responses, scoped file staging,
   PKCE, expiring one-time state, and server-side token refresh. Existing per-service Google grants are
   revoked when a person migrates through the single **Upgrade Google** action;
@@ -59,7 +75,7 @@ research-alpha participants.
 
 ## Visual identity
 
-- Alpha.8 carries forward the warm-neutral workspace rail introduced in Alpha.4,
+- Alpha.9 carries forward the warm-neutral workspace rail introduced in Alpha.4,
   quiets agent colors into mineral identity accents, removes colorful provider tiles, and uses one
   muted evergreen action color. Dark mode remains neutral charcoal rather than green-black.
 - Native display typography now carries names and headings; bundled Bricolage Grotesque (OFL) is

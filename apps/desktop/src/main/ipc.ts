@@ -196,6 +196,7 @@ const inputSchemas = {
     .strict(),
   'connections.startAll': z.undefined(),
   'connections.startGoogle': z.undefined(),
+  'connections.upgradeGoogle': z.undefined(),
   'connections.startSelected': z
     .object({
       connectionIds: z

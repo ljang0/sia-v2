@@ -1062,6 +1062,8 @@ export class DesktopController {
         return (await this.#startAllConnections()) as unknown as BridgeResultMap[M];
       case 'connections.startGoogle':
         return (await this.#startGoogleConnections()) as unknown as BridgeResultMap[M];
+      case 'connections.upgradeGoogle':
+        return (await this.#upgradeGoogleConnections()) as unknown as BridgeResultMap[M];
       case 'connections.startSelected':
         return (await this.#startSelectedConnections(
           (input as BridgeRequestMap['connections.startSelected']).connectionIds,
@@ -2623,6 +2625,53 @@ export class DesktopController {
     return await this.#startConnectionGroup(['gmail']);
   }
 
+  async #upgradeGoogleConnections(): Promise<BridgeResultMap['connections.upgradeGoogle']> {
+    const google = this.#state.connections.filter(({ id }) => isGoogleConnection(id));
+    const grantIds = new Set(google.map(({ connectionId }) => connectionId).filter(Boolean));
+    if (
+      grantIds.size !== 1 ||
+      google.some(({ status, connectionId }) => status !== 'connected' || !connectionId)
+    ) {
+      throw new Error('Connect Google read-only before enabling editing and sending.');
+    }
+    if (google.every(({ googleAccess }) => googleAccess === 'read_write')) {
+      return { opened: false, snapshot: this.snapshot() };
+    }
+    if (google.some(({ upgradeConnectionId }) => Boolean(upgradeConnectionId))) {
+      return { opened: false, snapshot: this.snapshot() };
+    }
+    const owner = this.#currentIdentityKey();
+    if (!this.#fakeServices && !owner) {
+      throw new Error('Sign in to Sia cloud before enabling Google editing.');
+    }
+    if (this.#fakeServices) {
+      for (const id of GOOGLE_CONNECTION_IDS) {
+        this.#updateConnection(id, { googleAccess: 'read_write' });
+      }
+      this.#commit();
+      return { opened: false, snapshot: this.snapshot() };
+    }
+
+    const started = await this.#cloud.startConnection('gmail', 'read_write');
+    const linkExpiry = Date.parse(started.expiresAt);
+    if (Number.isFinite(linkExpiry)) {
+      this.#connectorLinkExpiries.set(started.connectionId, linkExpiry);
+    }
+    for (const id of GOOGLE_CONNECTION_IDS) {
+      this.#updateConnection(id, { upgradeConnectionId: started.connectionId });
+    }
+    this.#commit();
+    const url = new URL(started.redirectUrl);
+    if (url.protocol !== 'https:') throw new Error('Connector authorization must use HTTPS.');
+    await this.#openExternal(url.toString());
+    this.#recordLifecycleEvent('connector.google_access.upgrade_started', {
+      app: 'gmail',
+      connectionId: started.connectionId,
+    });
+    void this.#pollGoogleUpgrade(started.connectionId);
+    return { opened: true, snapshot: this.snapshot() };
+  }
+
   async #startSelectedConnections(
     connectionIds: BridgeRequestMap['connections.startSelected']['connectionIds'],
   ): Promise<BridgeResultMap['connections.startSelected']> {
@@ -2835,6 +2884,7 @@ export class DesktopController {
           status: 'connected',
           account: connectedAccount,
           connectionId: connectedId,
+          ...(googleConnection ? { googleAccess: 'read_write' as const } : {}),
         });
       }
       this.#commit();
@@ -3192,6 +3242,8 @@ export class DesktopController {
         delete disconnected.account;
         delete disconnected.detail;
         delete disconnected.connectionId;
+        delete disconnected.googleAccess;
+        delete disconnected.upgradeConnectionId;
       }
       delete this.#state.connectionOwners[id];
     }
@@ -3244,6 +3296,9 @@ export class DesktopController {
               status: 'connected',
               connectionId: expectedId,
               ...(remote.accountLabel ? { account: remote.accountLabel } : {}),
+              ...(isGoogleConnection(connectionId) && remote.access
+                ? { googleAccess: remote.access }
+                : {}),
             });
           }
           this.#commit();
@@ -3303,6 +3358,77 @@ export class DesktopController {
       connectionId: expectedId,
     });
     return finish(false);
+  }
+
+  async #pollGoogleUpgrade(expectedId: string): Promise<void> {
+    const deadline =
+      (this.#connectorLinkExpiries.get(expectedId) ?? Date.now() + 10 * 60_000) + 15_000;
+    const previousIds = new Set(
+      this.#state.connections
+        .filter(({ upgradeConnectionId }) => upgradeConnectionId === expectedId)
+        .map(({ connectionId }) => connectionId)
+        .filter((connectionId): connectionId is string =>
+          Boolean(connectionId && connectionId !== expectedId),
+        ),
+    );
+    const clearPending = (): void => {
+      this.#connectorLinkExpiries.delete(expectedId);
+      for (const id of GOOGLE_CONNECTION_IDS) {
+        const connection = this.#state.connections.find((candidate) => candidate.id === id);
+        if (connection?.upgradeConnectionId === expectedId) {
+          delete connection.upgradeConnectionId;
+        }
+      }
+      this.#commit();
+    };
+    while (Date.now() < deadline) {
+      await abortableDelay(2_000);
+      if (
+        !this.#state.connections.some(
+          ({ upgradeConnectionId }) => upgradeConnectionId === expectedId,
+        )
+      ) {
+        return;
+      }
+      try {
+        const status = await this.#cloud.connectionStatus('gmail');
+        const remote = status.connections.find(({ id }) => id === expectedId);
+        if (remote?.status === 'connected' && remote.access === 'read_write') {
+          // The new grant is usable before the prior credential is removed. This keeps reads
+          // available during consent while ensuring Sia retains only the upgraded credential.
+          for (const previousId of previousIds) {
+            await this.#cloud.disconnect('gmail', previousId);
+          }
+          for (const id of GOOGLE_CONNECTION_IDS) {
+            const connection = this.#state.connections.find((candidate) => candidate.id === id);
+            if (!connection || connection.upgradeConnectionId !== expectedId) continue;
+            connection.connectionId = expectedId;
+            connection.googleAccess = 'read_write';
+            if (remote.accountLabel) connection.account = remote.accountLabel;
+            delete connection.upgradeConnectionId;
+            delete connection.detail;
+          }
+          this.#connectorLinkExpiries.delete(expectedId);
+          this.#commit();
+          this.#recordLifecycleEvent('connector.google_access.upgraded', {
+            app: 'gmail',
+            connectionId: expectedId,
+          });
+          return;
+        }
+        if (remote?.status === 'failed') {
+          clearPending();
+          this.#recordLifecycleEvent('connector.google_access.upgrade_failed', {
+            app: 'gmail',
+            connectionId: expectedId,
+          });
+          return;
+        }
+      } catch {
+        // The existing read-only grant remains usable while transient status checks retry.
+      }
+    }
+    clearPending();
   }
 
   #setCapture(input: BridgeRequestMap['research.setCapture']): DesktopSnapshot {
@@ -5043,6 +5169,7 @@ export class DesktopController {
       }
       await this.#clearResearchForIdentityBoundary();
     }
+    const pendingGoogleUpgrades = new Set<string>();
     for (const connection of this.#state.connections) {
       if (!connection.connectionId) continue;
       const owner = this.#state.connectionOwners[connection.id];
@@ -5060,6 +5187,12 @@ export class DesktopController {
         if (remote?.status === 'connected') {
           connection.status = 'connected';
           if (remote.accountLabel) connection.account = remote.accountLabel;
+          if (isGoogleConnection(connection.id) && remote.access) {
+            connection.googleAccess = remote.access;
+          }
+          if (connection.upgradeConnectionId) {
+            pendingGoogleUpgrades.add(connection.upgradeConnectionId);
+          }
           delete connection.detail;
         } else {
           connection.status = 'error';
@@ -5071,6 +5204,7 @@ export class DesktopController {
         connection.detail = 'Sia could not verify this saved grant. Try again when online.';
       }
     }
+    for (const upgradeId of pendingGoogleUpgrades) void this.#pollGoogleUpgrade(upgradeId);
   }
 
   #connectorAccountLabel(accountId: unknown): string | undefined {

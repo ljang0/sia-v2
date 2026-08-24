@@ -1,71 +1,93 @@
 .legal-hero {
-  padding: clamp(72px, 10vw, 126px) 0 54px;
+  padding: clamp(92px, 12vw, 156px) 0 clamp(62px, 8vw, 94px);
+  border-bottom: 1px solid var(--line);
 }
 
-.legal-hero .container {
+.legal-hero .container,
+.legal-body .container {
   max-width: var(--reading);
 }
 
 .legal-hero h1 {
-  font-size: clamp(42px, 6vw, 70px);
+  max-width: 10ch;
+  font-size: clamp(52px, 8vw, 92px);
 }
 
 .legal-summary {
-  margin-top: 24px;
+  max-width: 680px;
+  margin-top: 30px;
   color: var(--ink-secondary);
-  font-size: 19px;
+  font-size: clamp(17px, 2.1vw, 21px);
+  line-height: 1.55;
 }
 
 .legal-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px 28px;
-  margin-top: 30px;
+  gap: 12px 30px;
+  margin-top: 36px;
   color: var(--ink-tertiary);
-  font-size: 14px;
+  font-size: 9px;
+  font-weight: 680;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
 }
 
 .legal-body {
-  padding: 24px 0 120px;
-}
-
-.legal-body .container {
-  max-width: var(--reading);
+  padding: clamp(64px, 9vw, 112px) 0 150px;
 }
 
 .notice {
-  margin-bottom: 54px;
-  padding: 25px 27px;
-  border-left: 3px solid var(--ochre);
-  background: var(--surface-soft);
+  margin-bottom: 64px;
+  padding: 25px 0 25px 28px;
+  border-left: 1px solid var(--signal);
   color: var(--ink-secondary);
+  font-size: 15px;
+}
+
+.notice strong {
+  color: var(--ink);
 }
 
 .legal-section {
-  padding: 43px 0;
+  padding: 50px 0 58px;
   border-top: 1px solid var(--line);
 }
 
 .legal-section h2 {
-  font-size: clamp(27px, 4vw, 38px);
-  line-height: 1.12;
+  max-width: 18ch;
+  font-size: clamp(29px, 4.4vw, 43px);
+  line-height: 1.04;
 }
 
 .legal-section h3 {
-  margin-top: 31px;
+  margin-top: 34px;
   font-size: 21px;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .legal-section p,
 .legal-section ul,
 .legal-section ol {
-  margin: 17px 0 0;
+  margin: 19px 0 0;
   color: var(--ink-secondary);
 }
 
+.legal-section ul,
+.legal-section ol {
+  padding-left: 22px;
+}
+
+.legal-section li {
+  padding-left: 8px;
+}
+
 .legal-section li + li {
-  margin-top: 11px;
+  margin-top: 12px;
+}
+
+.legal-section li::marker {
+  color: var(--signal);
 }
 
 .legal-section strong {
@@ -73,66 +95,101 @@
 }
 
 .contact-box {
-  margin-top: 28px;
-  padding: 26px;
-  border-radius: var(--radius-surface);
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-control);
+  margin-top: 31px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line);
+}
+
+.contact-box p {
+  margin: 0;
+  padding: 20px 0;
+}
+
+.contact-box p + p {
+  border-top: 1px solid var(--line);
 }
 
 .support-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 18px;
-  margin-top: 32px;
+  margin-top: 10px;
+  border-top: 1px solid var(--line-strong);
 }
 
 .support-card {
-  padding: 28px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-surface);
-  background: var(--surface);
+  min-height: 260px;
+  padding: 33px 34px 36px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.support-card:nth-child(even) {
+  padding-left: 34px;
+  padding-right: 0;
+  border-left: 1px solid var(--line);
 }
 
 .support-card h2 {
-  font-size: 26px;
+  font-size: 27px;
 }
 
 .support-card p {
-  margin-top: 13px;
+  margin-top: 17px;
   color: var(--ink-secondary);
+  font-size: 15px;
 }
 
 .support-card a {
   display: inline-flex;
-  margin-top: 20px;
+  margin-top: 24px;
+  color: var(--ink);
+  font-size: 13px;
   font-weight: 650;
+  text-underline-offset: 0.35em;
 }
 
 .research-choice {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 18px;
-  margin-top: 26px;
+  margin-top: 31px;
+  border-top: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line);
 }
 
 .research-choice > div {
-  padding: 26px;
-  border-radius: var(--radius-surface);
-  background: var(--surface-soft);
+  padding: 28px 30px 31px 0;
 }
 
-.not-found-action {
-  margin-top: 32px;
+.research-choice > div + div {
+  padding-left: 30px;
+  padding-right: 0;
+  border-left: 1px solid var(--line);
 }
 
 .research-choice h3 {
   margin: 0;
 }
 
+.not-found-action {
+  margin-top: 34px;
+}
+
 @media (max-width: 680px) {
   .support-grid,
   .research-choice {
     grid-template-columns: 1fr;
+  }
+
+  .support-card,
+  .support-card:nth-child(even),
+  .research-choice > div,
+  .research-choice > div + div {
+    min-height: auto;
+    padding: 28px 0 32px;
+    border-left: 0;
+  }
+
+  .research-choice > div + div {
+    border-top: 1px solid var(--line);
   }
 }

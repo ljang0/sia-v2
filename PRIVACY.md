@@ -1,6 +1,6 @@
 # Sia private-alpha privacy notice
 
-_Effective for 0.1.0-alpha.8. This notice describes the implemented product behavior; it is not a
+_Effective for 0.1.0-alpha.9. This notice describes the implemented product behavior; it is not a
 substitute for organization-specific legal review._
 
 ## Local data
@@ -29,12 +29,13 @@ screenshot or image an action returned — as plain files under the app's `traje
 (`Settings → Computer → Keep a full local log → Show in Finder`). The log exists so a run can be
 reviewed afterwards. The same local log records connected-app setup, provider-page opening, success,
 failure, timeout, and disconnection. Those exact files are not uploaded and can be turned off in
-Settings or deleted from disk at any time. If the current research consent is accepted, equivalent
-observed turn and connection-lifecycle events are also written into separate encrypted research
-bundles and queued for cloud sync as described below; disabling the local trajectory files does not
-disable consented research capture. Complete local thread directories roll off after 90 days or
-when this local store exceeds 128 MiB, oldest first. That cap does not delete the separate encrypted
-research outbox, whose acknowledged-upload retention is described below.
+Settings or deleted from disk at any time. Google Workspace tool turns are excluded in full from
+this log; only content-free connection lifecycle metadata may remain. If the current research consent
+is accepted, equivalent eligible turn and connection-lifecycle events are also written into separate
+encrypted research bundles and queued for cloud sync as described below; disabling the local
+trajectory files does not disable consented research capture. Complete local thread directories roll
+off after 90 days or when this local store exceeds 128 MiB, oldest first. That cap does not delete the
+separate encrypted research outbox, whose acknowledged-upload retention is described below.
 
 ## Browser and computer access
 
@@ -68,9 +69,10 @@ included in that turn's research bundle.
 
 The configured release control plane may process a self-registered email identity, opaque connected-app
 identifiers, action previews and approval records, deletion state, quotas, and explicitly consented
-research batches. One optional Google Workspace OAuth grant covers Gmail, Drive, Docs, Sheets, and
-Slides. Its refresh token is encrypted with AWS KMS in a credential vault separated from research
-records; the desktop never receives it. Slack access uses a separate provider-owned OAuth grant.
+research batches. One optional Google Workspace OAuth grant starts with read-only access to Gmail,
+Drive, Docs, Sheets, and Slides. Editing and sending use a separate explicit upgrade. Refresh tokens
+are encrypted with AWS KMS in a credential vault separated from research records; the desktop never
+receives them. Slack access uses a separate provider-owned OAuth grant.
 Exact writes are bound to their complete input and either run automatically in autonomous mode or
 require confirmation when that setting is enabled. The desktop receives no AWS credentials.
 
@@ -78,7 +80,7 @@ Research capture is off by default in local-only mode. Sia asks local users afte
 first agent. A Sia cloud sign-in is a research-release enrollment: the person must explicitly accept
 the current versioned consent to remain signed in, or decline and sign out. After acceptance, Sia
 offers independent **Connect Google** and **Connect Slack** actions. The five Google service controls
-share the one Google grant, while the person may still choose which services the agent may use.
+share the current Google grant, while the person may still choose which services the agent may use.
 Connection lifecycle records include the app, status, opaque connection identifier, and provider
 account label when available; OAuth URLs, authorization codes, and tokens are not retained in the
 local trajectory or research bundles.
@@ -86,8 +88,10 @@ local trajectory or research bundles.
 The `alpha-research-v3-raw` consent retains the raw JSON events Sia observes during every completed,
 failed, or cancelled turn. This includes prompts, responses, surfaced reasoning, provider events,
 commands and output, tool names and arguments, tool results, approvals and answers, browser and
-computer events, Google Workspace/Slack/Apple Messages results, paths and diffs, usage, errors, and
-captured images. Large events are split into reconstructable chunks and batches are organized by
+computer events, Slack and Apple Messages results, paths and diffs, usage, errors, and captured
+images. A turn that invokes a Google Workspace connector is excluded in full, including its prompt,
+connector result, and assistant response. Large eligible events are split into reconstructable
+chunks and batches are organized by
 participant, thread, turn, sequence, and event kind before upload to AWS. Authorized members of the
 AWS `Admins` group can list and inspect the archive in Sia; participant lists, bundle lists, and raw
 bundle reads are audited.

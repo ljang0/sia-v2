@@ -10,13 +10,14 @@ A fresh invited participant, who has never been added to a provider test-user li
 
 1. Sign in to Sia, review the research consent, and use chat, web search, schedules, and computer
    use without connecting a work app.
-2. Open **Settings → Apps** and press **Connect Google** once. One Google-owned consent connects
-   Gmail, Drive, Docs, Sheets, and Slides; the participant can then turn each service on or off
+2. Open **Settings → Apps** and press **Connect Google** once. One Google-owned read-only consent
+   connects Gmail, Drive, Docs, Sheets, and Slides; the participant can turn each service on or off
    without another OAuth round trip.
 3. Press **Connect Slack** separately and select any workspace in which the participant is allowed
    to install apps. Google and Slack remain independently disconnectable.
-4. See the connected account or workspace in Settings, complete a read and an explicitly targeted
-   write, disconnect, and reconnect without operator intervention.
+4. See the connected account or workspace in Settings, complete a read, choose **Enable editing**
+   for a separate write consent when needed, complete an explicitly targeted write, disconnect, and
+   reconnect without operator intervention.
 5. Receive a specific, recoverable message for provider denial, administrator policy, timeout,
    offline status, or a stale saved grant. A missing connector offers signed-in Chrome as an
    immediate browser/computer-use fallback. They must never be sent into a repeated consent loop.
@@ -32,8 +33,9 @@ working out of the box for arbitrary users.
 
 - [x] Deploy the Sia-owned authorization-code + PKCE callback and direct Google API adapter. Never
       use a broad managed connector consent app for Google Workspace.
-- [x] Confirm the exact consent-screen scopes match `docs/provider-policy.md`; reject unexpected
-      contacts, profile-write, full-Drive, or unrelated scopes.
+- [ ] Add the complete progressive scope union from `docs/google-oauth-verification-packet.md` to
+      Google Auth Platform. Reject unexpected contacts, profile-write, full Drive write, or
+      unrelated scopes.
 - [x] Configure the production homepage, privacy policy, terms, authorized domains, the exact AWS
       callback URI, and verify the production site in Google Search Console.
 - [x] Move the External OAuth app from Testing to In production, automatically verify the public
@@ -45,31 +47,29 @@ working out of the box for arbitrary users.
       the unverified-app bypass or the 100-test-user allowance as a release path.
 - [x] Deploy the KMS-encrypted Google token vault, one-time OAuth-state table records, fixed Google
       API origin allowlist, and matching control Lambda contract.
-- [ ] Create the dedicated Web OAuth client under `superintelligentagents@gmail.com`, add the exact
-      deployed callback URI, and install its client ID/secret into the empty AWS Google secret.
+- [x] Create the dedicated Web OAuth client under `superintelligentagents@gmail.com`, add the exact
+      deployed callback URI, and install its client ID/secret in the AWS Google secret.
 - [ ] Test from two fresh non-tester Google accounts on different domains. Verify all five grants,
       cancellation after each step, restart/resume, transient-network recovery, revocation, and
       reconnect.
-- [x] Confirm `drive.file` cannot browse pre-existing Drive files unless the user explicitly opens
-      or shares them with Sia. A live production search over the connected test account returned zero
-      files while normal pre-existing Drive content remained outside the app grant.
+- [x] Confirm the initial connection can read but cannot mutate Gmail, Drive, Docs, Sheets, or
+      Slides. The cloud rejects write tools with `google_access_upgrade_required` before creating an
+      approval or calling Google.
 
-Current console audit (2026-08-23): the reviewed scopes are configured, the audience is External and
-**In production**, and the public brand is verified and being shown to users. Homepage, privacy,
-terms, `composio.dev`, and `superintelligentagents.ai` are saved; both reviewed Composio redirect
-URIs are present; and the production site is verified in Search Console by the deployed HTML tag.
-The consent-screen logo is not uploaded and the selected support email remains the operator Gmail
-address. Verification Center is open but cannot be submitted until the reviewer video URL is added.
+Current console audit (2026-08-24): the audience is External and **In production**, and the public
+brand is verified and shown to users. The Sia-owned Web client uses the exact AWS callback and its
+credential is installed in the encrypted AWS secret. The public site is verified in Search Console.
+The newly implemented read-only Docs, Sheets, and Slides scopes plus `drive.readonly` still need to
+be added to Data Access before the progressive flow can be deployed and recorded. The consent-screen
+logo, public support alias selection, reviewer video, scope verification, and CASA remain open.
 
-Alpha.7 architecture update (2026-08-24): Sia now uses one direct Google OAuth grant for all five
-Workspace services. The deployed callback is public and fails closed on missing/expired state; the
-refresh token is KMS-encrypted outside research storage, and the desktop receives only an opaque
-grant ID. Local per-service switches are enforced in the action router. The AWS credential resource
-is intentionally empty until the dedicated Web client is created from the production project.
-Historical Composio Google grants remain migration-only and are revoked when a person connects with
-the unified path. Do not describe Google as generally available until that secret is installed, a
-fresh `ljang@andrew.cmu.edu` read-only pass succeeds, the reviewer video/data-access review/CASA are
-complete, and the fresh-account matrix finishes.
+Alpha.8 progressive-access update (2026-08-24): Sia now requests read-only Gmail, Drive, Docs,
+Sheets, and Slides access on first connection. A separate **Enable editing** action requests the
+reviewed compose, `drive.file`, and editor scopes while the old read grant remains usable. The cloud
+verifies the new grant before the desktop switches and then removes the superseded credential. Local
+service switches and per-tool scopes are enforced before any provider call. Do not describe Google
+as generally available until the progressive scope union is configured, the reviewer video, Google
+review and CASA are complete, and the fresh-account matrix finishes.
 
 Public-site launch update (2026-08-23): the homepage, participant notice, privacy policy, terms,
 support page, security contact, sitemap, and OAuth logo are deployed behind the locked-down AWS

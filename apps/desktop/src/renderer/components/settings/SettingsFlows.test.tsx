@@ -196,7 +196,7 @@ describe('cloud account settings', () => {
     await waitFor(() => expect(onOpenMessages).toHaveBeenCalledOnce());
   });
 
-  it('starts one Google approval and explains the provider consent boundary', async () => {
+  it('starts one read-only Google approval and explains the provider consent boundary', async () => {
     const onConnectGoogle = vi.fn().mockResolvedValue(undefined);
     render(
       <AppsSettings
@@ -211,10 +211,45 @@ describe('cloud account settings', () => {
       />,
     );
 
-    expect(screen.getByText(/one account approval for Gmail, Drive/i)).toBeTruthy();
+    expect(screen.getByText(/Google starts read-only for Gmail and files/i)).toBeTruthy();
+    expect(screen.getByText(/one secure Google approval, read-only by default/i)).toBeTruthy();
     expect(screen.getByText(/nothing is bulk copied into Sia/i)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Connect Google' }));
     await waitFor(() => expect(onConnectGoogle).toHaveBeenCalledOnce());
+  });
+
+  it('keeps read access active while a person explicitly enables Google editing', async () => {
+    const snapshot = withCloud('signed-in', 'lawrence@example.com');
+    snapshot.apps = snapshot.apps.map((app) =>
+      app.id === 'slack'
+        ? app
+        : {
+            ...app,
+            status: 'connected',
+            connectionId: 'gw_read_only',
+            googleAccess: 'read_only',
+            enabled: true,
+          },
+    );
+    const onUpgradeGoogle = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <AppsSettings
+        snapshot={snapshot}
+        onConnectGoogle={vi.fn()}
+        onUpgradeGoogle={onUpgradeGoogle}
+        onConnect={vi.fn()}
+        onDisconnect={vi.fn()}
+        onStartCloudSignIn={vi.fn()}
+        onCompleteCloudSignIn={vi.fn()}
+        onSignOutCloud={vi.fn()}
+        onDeleteCloudAccount={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/5 of 5 services available, read-only/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Enable editing' }));
+    await waitFor(() => expect(onUpgradeGoogle).toHaveBeenCalledOnce());
   });
 
   it('offers one-click migration when older partial Google grants are present', async () => {
@@ -278,7 +313,7 @@ describe('cloud account settings', () => {
       />,
     );
 
-    expect(screen.getByText('1 of 5 services available')).toBeTruthy();
+    expect(screen.getByText(/1 of 5 services available, editing enabled/i)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Enable Gmail' }));
     await waitFor(() => expect(onSetEnabled).toHaveBeenCalledWith('gmail', true));
     fireEvent.click(screen.getByRole('button', { name: 'Disable Google Docs' }));

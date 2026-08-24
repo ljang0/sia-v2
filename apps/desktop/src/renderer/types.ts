@@ -334,6 +334,8 @@ export interface AppConnection {
   /** Opaque cloud grant id used only to guard connection-specific UI actions. */
   connectionId?: string | undefined;
   account?: string | undefined;
+  googleAccess?: 'read_only' | 'read_write' | undefined;
+  upgrading?: boolean | undefined;
   permissions: string[];
 }
 
@@ -516,6 +518,7 @@ export interface RendererApi {
   refreshProvider(provider: ProviderId): Promise<void>;
   connectAllApps(): Promise<void>;
   connectGoogleApps(): Promise<void>;
+  upgradeGoogleApps(): Promise<void>;
   connectSelectedApps(apps: AppConnection['id'][]): Promise<void>;
   connectApp(app: AppConnection['id']): Promise<void>;
   setAppEnabled(app: AppConnection['id'], enabled: boolean): Promise<void>;

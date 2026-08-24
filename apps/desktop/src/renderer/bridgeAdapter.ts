@@ -275,6 +275,10 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       const result = await bridge.connections.startGoogle();
       publish(result.snapshot);
     },
+    async upgradeGoogleApps() {
+      const result = await bridge.connections.upgradeGoogle();
+      publish(result.snapshot);
+    },
     async connectSelectedApps(apps) {
       const result = await bridge.connections.startSelected(apps);
       publish(result.snapshot);
@@ -752,7 +756,7 @@ function mapProviderStatus(status: BridgeProviderStatus): ProviderStatus {
 }
 
 function mapConnection(connection: DesktopSnapshot['connections'][number]): AppConnection {
-  const permissions = {
+  const allPermissions = {
     gmail: ['Search and read mail', 'Create drafts and send mail'],
     drive: ['Find and read selected files', 'Upload and share files'],
     docs: ['Read document text', 'Create and append to documents'],
@@ -760,6 +764,10 @@ function mapConnection(connection: DesktopSnapshot['connections'][number]): AppC
     slides: ['Read presentation text', 'Create and append Markdown slides'],
     slack: ['Search and read messages', 'Post messages'],
   }[connection.id];
+  const permissions =
+    connection.id !== 'slack' && connection.googleAccess === 'read_only'
+      ? allPermissions.slice(0, 1)
+      : allPermissions;
   return {
     id: connection.id,
     name: connection.label,
@@ -768,6 +776,8 @@ function mapConnection(connection: DesktopSnapshot['connections'][number]): AppC
     enabled: connection.enabled !== false,
     connectionId: connection.connectionId,
     account: connection.account,
+    googleAccess: connection.googleAccess,
+    upgrading: Boolean(connection.upgradeConnectionId),
     permissions,
   };
 }

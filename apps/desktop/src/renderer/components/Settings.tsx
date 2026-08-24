@@ -28,6 +28,7 @@ interface SettingsProps {
   onClose(): void;
   onProbeProvider(provider: ProviderId): Promise<void>;
   onConnectGoogleApps(): Promise<void>;
+  onUpgradeGoogleApps(): Promise<void>;
   onConnectApp(app: AppConnection['id']): Promise<void>;
   onSetAppEnabled?(app: AppConnection['id'], enabled: boolean): Promise<void>;
   onDisconnectApp(app: AppConnection['id'], expectedConnectionId?: string): Promise<void>;
@@ -67,6 +68,7 @@ export function Settings({
   onClose,
   onProbeProvider,
   onConnectGoogleApps,
+  onUpgradeGoogleApps,
   onConnectApp,
   onSetAppEnabled = async () => undefined,
   onDisconnectApp,
@@ -194,6 +196,7 @@ export function Settings({
             <AppsSettings
               snapshot={snapshot}
               onConnectGoogle={onConnectGoogleApps}
+              onUpgradeGoogle={onUpgradeGoogleApps}
               onConnect={onConnectApp}
               onSetEnabled={onSetAppEnabled}
               onDisconnect={onDisconnectApp}

@@ -108,6 +108,24 @@ describe('canonical connector input mapping', () => {
       },
     ],
     [
+      'sheets.read',
+      {
+        spreadsheet_id: 'https://docs.google.com/spreadsheets/d/sheet-from-url/edit#gid=0',
+        range: 'A1:A1',
+        start_row: 1,
+        end_row: 1,
+      },
+      {
+        spreadsheet_id: 'sheet-from-url',
+        range: 'A1:A1',
+        start_row: 1,
+        end_row: 1,
+        major_dimension: 'ROWS',
+        value_render_option: 'FORMATTED_VALUE',
+        date_time_render_option: 'FORMATTED_STRING',
+      },
+    ],
+    [
       'sheets.update',
       {
         spreadsheet_id: 'sheet-1',
@@ -268,6 +286,23 @@ describe('canonical connector input mapping', () => {
           range: 'A:B',
           values: [['missing sheet name']],
           value_input_option: 'RAW',
+        }),
+      hasCode('invalid_connector_input'),
+    );
+    assert.throws(
+      () =>
+        mapCanonicalConnectorInput('sheets.read', {
+          spreadsheet_id: 'https://example.com/spreadsheets/d/not-google/edit',
+          range: 'Sheet1!A1',
+          start_row: 1,
+          end_row: 1,
+        }),
+      hasCode('invalid_connector_input'),
+    );
+    assert.throws(
+      () =>
+        mapCanonicalConnectorInput('docs.read', {
+          document_id: 'https://docs.google.com/document/d/%E0%A4%A/edit',
         }),
       hasCode('invalid_connector_input'),
     );

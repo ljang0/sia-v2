@@ -220,7 +220,9 @@ export const demoSnapshot: RendererSnapshot = {
       name: 'Gmail',
       description: 'Search mail, read threads, and create or send drafts.',
       status: 'connected',
+      enabled: true,
       account: 'lawrence@example.com',
+      googleAccess: 'read_write',
       permissions: ['Search and read mail', 'Create and send drafts'],
     },
     {
@@ -228,7 +230,9 @@ export const demoSnapshot: RendererSnapshot = {
       name: 'Google Drive',
       description: 'Find and read files, then upload or share.',
       status: 'connected',
+      enabled: true,
       account: 'lawrence@example.com',
+      googleAccess: 'read_write',
       permissions: ['Find and read selected files', 'Upload and share files'],
     },
     {
@@ -236,7 +240,9 @@ export const demoSnapshot: RendererSnapshot = {
       name: 'Google Docs',
       description: 'Read, create, and append to documents.',
       status: 'connected',
+      enabled: true,
       account: 'lawrence@example.com',
+      googleAccess: 'read_write',
       permissions: ['Read document text', 'Create and append to documents'],
     },
     {
@@ -244,7 +250,9 @@ export const demoSnapshot: RendererSnapshot = {
       name: 'Google Sheets',
       description: 'Read and write bounded spreadsheet ranges.',
       status: 'connected',
+      enabled: true,
       account: 'lawrence@example.com',
+      googleAccess: 'read_write',
       permissions: ['Read bounded ranges', 'Create, update, and append values'],
     },
     {
@@ -252,7 +260,9 @@ export const demoSnapshot: RendererSnapshot = {
       name: 'Google Slides',
       description: 'Read, create, and append Markdown-authored slides.',
       status: 'connected',
+      enabled: true,
       account: 'lawrence@example.com',
+      googleAccess: 'read_write',
       permissions: ['Read presentation text', 'Create and append slides'],
     },
     {
@@ -260,6 +270,7 @@ export const demoSnapshot: RendererSnapshot = {
       name: 'Slack',
       description: 'Search messages, read threads, and post.',
       status: 'connected',
+      enabled: true,
       account: 'lawrence@example.com',
       permissions: ['Search and read messages', 'Post messages'],
     },
@@ -754,6 +765,7 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         for (const app of current.apps) {
           app.status = 'connected';
           app.account = app.account ?? 'lawrence@example.com';
+          if (app.id !== 'slack') app.googleAccess = 'read_only';
         }
       });
     },
@@ -763,6 +775,16 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
           if (app.id === 'slack') continue;
           app.status = 'connected';
           app.account = app.account ?? 'lawrence@example.com';
+          app.googleAccess = 'read_only';
+        }
+      });
+    },
+    async upgradeGoogleApps() {
+      mutate((current) => {
+        for (const app of current.apps) {
+          if (app.id === 'slack') continue;
+          app.googleAccess = 'read_write';
+          app.upgrading = false;
         }
       });
     },
@@ -773,6 +795,7 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
           if (!selected.has(app.id)) continue;
           app.status = 'connected';
           app.account = app.account ?? 'lawrence@example.com';
+          if (app.id !== 'slack') app.googleAccess = 'read_only';
         }
       });
     },
@@ -782,7 +805,14 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         if (target) {
           target.status = 'connected';
           target.account = target.account ?? 'lawrence@example.com';
+          if (target.id !== 'slack') target.googleAccess = 'read_only';
         }
+      });
+    },
+    async setAppEnabled(app, enabled) {
+      mutate((current) => {
+        const target = current.apps.find((item) => item.id === app);
+        if (target) target.enabled = enabled;
       });
     },
     async disconnectApp(app) {
@@ -791,6 +821,8 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         if (target) {
           target.status = 'disconnected';
           target.account = undefined;
+          target.googleAccess = undefined;
+          target.upgrading = false;
         }
       });
     },

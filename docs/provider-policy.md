@@ -13,12 +13,14 @@ Provider availability is a legal and product boundary as well as an engineering 
   The participant-facing contract is **included for invited Sia alpha accounts**, with a two-turn
   per-account concurrency limit plus any upstream preview limits. Do not market the hosted API as
   permanently free; the participant supplies no Meta key, but Sia owns the shared provider account.
-- **Google Workspace:** use Sia's production Web OAuth client with authorization code + PKCE and the
-  fixed Gmail/Drive/Docs/Sheets/Slides scope bundle. Encrypt refresh tokens with AWS KMS in the
-  dedicated credential vault, never return them to the desktop, and allow calls only to the fixed
-  Google API origin set. One grant may expose any subset of the five services; the local service
-  switches are enforced before an opaque connection ID can reach the action adapter. Google turns
-  remain excluded from local trajectories and research uploads.
+- **Google Workspace:** use Sia's production Web OAuth client with authorization code + PKCE.
+  Connect Google with the fixed read-only Gmail/Drive/Docs/Sheets/Slides scopes first; request the
+  fixed editor/sender scopes only after the person chooses **Enable editing**. Encrypt refresh
+  tokens with AWS KMS in the dedicated credential vault, never return them to the desktop, remove
+  the superseded read credential only after the editor grant succeeds, and allow calls only to the
+  fixed Google API origin set. Local service switches are enforced before an opaque connection ID
+  can reach the action adapter. Google turns remain excluded from local trajectories and research
+  uploads.
 - **Grok Build:** protocol tests only in the external alpha. The official ACP process currently has no comprehensive, auth-preserving switch to exclude inherited plugins, skills/instructions, and MCP servers. Do not redirect `GROK_HOME`, copy credentials, or start it from production until upstream offers a verifiable isolation boundary.
 - **Gemini CLI:** paid Gemini API, Vertex AI, or organizational Code Assist only, using a CLI release that advertises standard ACP session config options. Leave authentication inside the CLI; fail closed if the requested model cannot be selected and confirmed.
 - **Claude:** adapter development and protocol tests only until Anthropic gives written product clearance. Consumer Claude.ai credentials must not be routed through Sia.

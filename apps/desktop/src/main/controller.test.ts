@@ -2057,6 +2057,126 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('keeps a read-only Google grant active until the editor upgrade succeeds', async () => {
+    let editorStarted = false;
+    const startConnection = vi.fn(
+      async (_connectionId: string, access?: 'read_only' | 'read_write') => {
+        editorStarted = access === 'read_write';
+        return {
+          redirectUrl: `https://connect.example.test/${editorStarted ? 'editor' : 'reader'}`,
+          connectionId: editorStarted ? 'grant-editor' : 'grant-reader',
+          expiresAt: new Date(Date.now() + 120_000).toISOString(),
+        };
+      },
+    );
+    const connectionStatus = vi.fn(async () => ({
+      connections: [
+        {
+          id: 'grant-reader',
+          app: 'google_workspace' as const,
+          status: 'connected' as const,
+          accountLabel: 'person@example.com',
+          access: 'read_only' as const,
+        },
+        ...(editorStarted
+          ? [
+              {
+                id: 'grant-editor',
+                app: 'google_workspace' as const,
+                status: 'connected' as const,
+                accountLabel: 'person@example.com',
+                access: 'read_write' as const,
+              },
+            ]
+          : []),
+      ],
+    }));
+    const disconnect = vi.fn(async () => undefined);
+    const cloud = {
+      configured: true,
+      sessionStatus: async () => ({
+        features: {
+          researchUploads: true,
+          researchArchive: true,
+          connectors: true,
+          schedules: true,
+        },
+      }),
+      startConnection,
+      connectionStatus,
+      disconnect,
+      uploadResearchBatch: async () => undefined,
+    } as unknown as CloudClient;
+    const identity = {
+      initialize: async () => ({ state: 'signed_in' as const, email: 'person@example.com' }),
+      status: () => ({ state: 'signed_in' as const, email: 'person@example.com' }),
+      startEmailSignIn: async () => ({ state: 'signed_in' as const }),
+      completeEmailSignIn: async () => ({ state: 'signed_in' as const }),
+      signOut: async () => ({ state: 'signed_out' as const }),
+    } satisfies ConstructorParameters<typeof DesktopController>[0]['identity'];
+    const openExternal = vi.fn(async () => undefined);
+    const { controller } = await createHarness({
+      cloud,
+      identity,
+      fakeServices: false,
+      openExternal,
+    });
+    await controller.invoke('research.setCapture', {
+      enabled: true,
+      consentVersion: 'alpha-research-v3-raw',
+    });
+    vi.useFakeTimers();
+
+    try {
+      await controller.invoke('connections.startGoogle', undefined);
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(
+        controller
+          .snapshot()
+          .connections.filter(({ id }) => id !== 'slack')
+          .every(
+            ({ status, connectionId, googleAccess }) =>
+              status === 'connected' &&
+              connectionId === 'grant-reader' &&
+              googleAccess === 'read_only',
+          ),
+      ).toBe(true);
+
+      const upgrading = await controller.invoke('connections.upgradeGoogle', undefined);
+      expect(upgrading.opened).toBe(true);
+      expect(startConnection).toHaveBeenLastCalledWith('gmail', 'read_write');
+      expect(
+        upgrading.snapshot.connections
+          .filter(({ id }) => id !== 'slack')
+          .every(
+            ({ connectionId, googleAccess, upgradeConnectionId }) =>
+              connectionId === 'grant-reader' &&
+              googleAccess === 'read_only' &&
+              upgradeConnectionId === 'grant-editor',
+          ),
+      ).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(
+        controller
+          .snapshot()
+          .connections.filter(({ id }) => id !== 'slack')
+          .every(
+            ({ connectionId, googleAccess, upgradeConnectionId }) =>
+              connectionId === 'grant-editor' &&
+              googleAccess === 'read_write' &&
+              upgradeConnectionId === undefined,
+          ),
+      ).toBe(true);
+      expect(openExternal).toHaveBeenNthCalledWith(1, 'https://connect.example.test/reader');
+      expect(openExternal).toHaveBeenNthCalledWith(2, 'https://connect.example.test/editor');
+      expect(disconnect).toHaveBeenCalledWith('gmail', 'grant-reader');
+    } finally {
+      vi.useRealTimers();
+      await controller.shutdown();
+    }
+  });
+
   it('treats any selected Google app as the unified Workspace grant', async () => {
     const controller = await createController();
 

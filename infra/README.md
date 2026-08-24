@@ -51,7 +51,8 @@ The Google secret schema is:
 ```
 
 Register the exact `GoogleOAuthRedirectUri` stack output on the Google web OAuth client. Sia requests
-one fixed, reviewed scope bundle and stores each user's refresh token as an AWS KMS ciphertext with a
+one fixed read-only scope set on first connection and a fixed editor/sender set only after the user
+chooses **Enable editing**. It stores each user's refresh token as an AWS KMS ciphertext with a
 user- and connection-bound encryption context. OAuth state is one-time, PKCE-bound, and expires after
 ten minutes. Google connector responses and tokens are never written to research storage or logs.
 

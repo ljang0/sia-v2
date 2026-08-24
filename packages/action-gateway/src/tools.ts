@@ -23,7 +23,7 @@ const sheetWriteInputSchema = (append: boolean): Record<string, unknown> =>
   object(
     {
       account_id: accountSelector('sheets'),
-      spreadsheet_id: string('Spreadsheet id from its URL'),
+      spreadsheet_id: string('Spreadsheet id or full Google Sheets URL'),
       range: string(
         append
           ? 'Exact sheet-qualified append range, for example Sheet1!A:D'
@@ -658,7 +658,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
     inputSchema: object(
       {
         account_id: accountSelector('sheets'),
-        spreadsheet_id: string('Spreadsheet id from its URL'),
+        spreadsheet_id: string('Spreadsheet id or full Google Sheets URL'),
         range: string('A1 range, for example Sheet1!A1:D100'),
         start_row: { type: 'integer', minimum: 1, maximum: 10_000_000, default: 1 },
         end_row: { type: 'integer', minimum: 1, maximum: 10_000_000, default: 500 },

@@ -63,6 +63,9 @@ export const TOOL_POLICIES = {
 
 export type ToolName = keyof typeof TOOL_POLICIES;
 
+export const GOOGLE_ACCESS_LEVELS = ['read_only', 'read_write'] as const;
+export type GoogleAccessLevel = (typeof GOOGLE_ACCESS_LEVELS)[number];
+
 export interface AuthContext {
   subject: string;
   email?: string;
@@ -71,6 +74,7 @@ export interface AuthContext {
 
 export interface StartConnectionRequest {
   callbackUrl?: string;
+  access?: GoogleAccessLevel;
 }
 
 export interface PrepareActionRequest {

@@ -206,10 +206,23 @@ export class ConnectorFilesService {
 export class ConnectionsService {
   constructor(private readonly deps: ServiceDependencies) {}
 
-  async start(user: AuthContext, app: AppId, callbackUrl?: string) {
+  async start(
+    user: AuthContext,
+    app: AppId,
+    callbackUrl?: string,
+    access?: 'read_only' | 'read_write',
+  ) {
     requireFeature(this.deps.config.features.connectors, 'connectors_disabled');
     if (callbackUrl !== undefined) validateCallback(callbackUrl);
-    const link = await this.deps.connector.beginConnection(user.subject, app, callbackUrl);
+    if (app !== 'google_workspace' && access !== undefined) {
+      throw new CloudError(400, 'invalid_request', 'Access level is only supported for Google');
+    }
+    const link = await this.deps.connector.beginConnection(
+      user.subject,
+      app,
+      callbackUrl,
+      access,
+    );
     const now = this.deps.clock.now().toISOString();
     await this.deps.connections.putConnection({
       id: link.connectionId,
@@ -265,6 +278,7 @@ export class ConnectionsService {
         app: updated.app,
         status: updated.status,
         accountLabel: updated.accountLabel,
+        ...(current.access === undefined ? {} : { access: current.access }),
       });
     }
     return { connections: output };
@@ -350,6 +364,11 @@ export class ActionsService {
         'The tool does not belong to this connection',
       );
     }
+    await this.deps.connector.validateAccess?.(
+      user.subject,
+      request.connectionId,
+      request.tool,
+    );
     const executionInput = await resolveConnectorInput(
       this.deps,
       user.subject,

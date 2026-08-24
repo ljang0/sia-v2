@@ -21,6 +21,7 @@ import { errorMessage, InlineSettingsError, SettingsSectionHeader } from './Sett
 export function AppsSettings({
   snapshot,
   onConnectGoogle,
+  onUpgradeGoogle = async () => undefined,
   onConnectAll,
   onConnect,
   onSetEnabled = async () => undefined,
@@ -42,6 +43,7 @@ export function AppsSettings({
 }: {
   snapshot: RendererSnapshot;
   onConnectGoogle?(): Promise<void>;
+  onUpgradeGoogle?(): Promise<void>;
   /** Deprecated compatibility hook for pre-unified settings tests and embedders. */
   onConnectAll?(): Promise<void>;
   onConnect(app: AppConnection['id']): Promise<void>;
@@ -83,6 +85,10 @@ export function AppsSettings({
     );
   const googleNeedsUpgrade = activeGoogleGrants.size > 0 && !googleConnected;
   const googleGrant = googleConnected ? googleApps[0] : undefined;
+  const googleAccess = googleApps.some(({ googleAccess }) => googleAccess === 'read_write')
+    ? 'read_write'
+    : 'read_only';
+  const googleUpgrading = googleApps.some(({ upgrading }) => upgrading);
   const slackConnected = slack?.status === 'connected';
   const setupActive = snapshot.apps.some(({ status }) => status === 'connecting');
   const connectorsEnabled = snapshot.cloudAuth.features?.connectors !== false;
@@ -172,8 +178,8 @@ export function AppsSettings({
             </span>
           </div>
           <p>
-            Connect either provider or both. Google uses one account approval for Gmail, Drive,
-            Docs, Sheets, and Slides. Slack uses one workspace approval. Nothing is bulk copied
+            Google starts read-only for Gmail and files. Sending and editing are optional and
+            use a separate approval. Slack uses one workspace approval. Nothing is bulk copied
             into Sia.
           </p>
         </div>
@@ -187,10 +193,14 @@ export function AppsSettings({
               <span>Gmail, Drive, Docs, Sheets, and Slides</span>
               <span className={styles.connectionGroupStatus}>
                 {googleConnected
-                  ? `${googleEnabledCount} of ${googleApps.length} services available`
+                  ? googleUpgrading
+                    ? 'Read access stays on. Finish editor approval in your browser'
+                    : googleAccess === 'read_write'
+                      ? `${googleEnabledCount} of ${googleApps.length} services available, editing enabled`
+                      : `${googleEnabledCount} of ${googleApps.length} services available, read-only`
                   : googleNeedsUpgrade
                     ? 'Older connections found - upgrade with one approval'
-                    : 'One secure Google approval'}
+                    : 'One secure Google approval, read-only by default'}
               </span>
             </div>
             {!googleConnected ? (
@@ -220,20 +230,42 @@ export function AppsSettings({
                       : 'Connect Google'}
               </button>
             ) : (
-              <button
-                type="button"
-                className={styles.textButtonDanger}
-                disabled={Boolean(pending) || !cloudReady}
-                onClick={() =>
-                  run(
-                    'disconnect-google',
-                    () => onDisconnect(googleGrant!.id, googleGrant!.connectionId),
-                    'Google Workspace could not be disconnected.',
-                  )
-                }
-              >
-                {pending === 'disconnect-google' ? 'Disconnecting...' : 'Disconnect Google'}
-              </button>
+              <div className={styles.connectionGroupActions}>
+                {googleAccess === 'read_only' ? (
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    disabled={Boolean(pending) || !cloudReady || googleUpgrading}
+                    onClick={() =>
+                      run(
+                        'upgrade-google',
+                        onUpgradeGoogle,
+                        'Google editing and sending could not be enabled.',
+                      )
+                    }
+                  >
+                    {googleUpgrading
+                      ? 'Finish in browser'
+                      : pending === 'upgrade-google'
+                        ? 'Opening...'
+                        : 'Enable editing'}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className={styles.textButtonDanger}
+                  disabled={Boolean(pending) || !cloudReady || googleUpgrading}
+                  onClick={() =>
+                    run(
+                      'disconnect-google',
+                      () => onDisconnect(googleGrant!.id, googleGrant!.connectionId),
+                      'Google Workspace could not be disconnected.',
+                    )
+                  }
+                >
+                  {pending === 'disconnect-google' ? 'Disconnecting...' : 'Disconnect'}
+                </button>
+              </div>
             )}
           </section>
           {slack ? (

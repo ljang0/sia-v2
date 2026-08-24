@@ -8,7 +8,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-import type { AppId, ToolName } from './contracts.js';
+import type { AppId, GoogleAccessLevel, ToolName } from './contracts.js';
 import { CloudError, isRecord } from './domain.js';
 import { ConnectorReconnectRequiredError } from './ports.js';
 import type {
@@ -34,12 +34,19 @@ const GOOGLE_API_ORIGINS = new Set([
   'https://slides.googleapis.com',
 ]);
 
-/**
- * One deliberately fixed grant powers the Google Workspace surface. Read scopes
- * cover existing resources; drive.file limits writes to files a user creates or
- * explicitly opens with Sia. Changing this list requires a new consent review.
- */
-export const GOOGLE_WORKSPACE_SCOPES = [
+/** The first connection is deliberately read-only. Mutations use a separate upgrade grant. */
+export const GOOGLE_WORKSPACE_READ_SCOPES = [
+  'openid',
+  'email',
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/drive.readonly',
+  'https://www.googleapis.com/auth/documents.readonly',
+  'https://www.googleapis.com/auth/spreadsheets.readonly',
+  'https://www.googleapis.com/auth/presentations.readonly',
+] as const;
+
+/** Full editor access is requested only after a person explicitly chooses to enable writes. */
+export const GOOGLE_WORKSPACE_WRITE_SCOPES = [
   'openid',
   'email',
   'https://www.googleapis.com/auth/gmail.readonly',
@@ -50,6 +57,9 @@ export const GOOGLE_WORKSPACE_SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets',
   'https://www.googleapis.com/auth/presentations',
 ] as const;
+
+/** Backward-compatible name for the legacy all-at-once grant. */
+export const GOOGLE_WORKSPACE_SCOPES = GOOGLE_WORKSPACE_WRITE_SCOPES;
 
 interface AccessTokenCacheEntry {
   token: string;
@@ -90,7 +100,10 @@ export class GoogleWorkspaceConnector {
     return connectionId.startsWith(GOOGLE_CONNECTION_PREFIX);
   }
 
-  async beginConnection(userId: string): Promise<ConnectorLink> {
+  async beginConnection(
+    userId: string,
+    access: GoogleAccessLevel = 'read_only',
+  ): Promise<ConnectorLink> {
     const config = await this.#secrets.google();
     const connectionId = `${GOOGLE_CONNECTION_PREFIX}${randomBytes(18).toString('base64url')}`;
     const state = randomBytes(32).toString('base64url');
@@ -103,6 +116,7 @@ export class GoogleWorkspaceConnector {
       userId,
       connectionId,
       encryptedVerifier: await this.#cipher.encrypt(verifier, context),
+      access,
       expiresAt,
     });
 
@@ -111,7 +125,7 @@ export class GoogleWorkspaceConnector {
       client_id: config.clientId,
       redirect_uri: config.redirectUri,
       response_type: 'code',
-      scope: GOOGLE_WORKSPACE_SCOPES.join(' '),
+      scope: scopesForAccess(access).join(' '),
       access_type: 'offline',
       include_granted_scopes: 'true',
       prompt: 'consent select_account',
@@ -176,7 +190,7 @@ export class GoogleWorkspaceConnector {
     const accessToken = requiredStringField(tokenBody, 'access_token');
     const refreshToken = requiredStringField(tokenBody, 'refresh_token');
     const scopes = optionalStringField(tokenBody, 'scope')?.split(/\s+/).filter(Boolean) ?? [];
-    if (missingRequiredScopes(scopes).length > 0) {
+    if (missingRequiredScopes(scopes, stateRecord.access).length > 0) {
       // Google supports granular consent, so a person may continue after leaving one or more
       // permission boxes unchecked. Do not retain that partial grant: the desktop presents one
       // unified Workspace connection and must never imply that unavailable services are ready.
@@ -220,8 +234,28 @@ export class GoogleWorkspaceConnector {
   async connectionStatus(connectionId: string): Promise<ConnectorStatus> {
     const token = await this.#credentials.getGoogleToken(connectionId);
     return token
-      ? { status: 'connected', accountLabel: token.accountLabel }
+      ? {
+          status: 'connected',
+          accountLabel: token.accountLabel,
+          access: googleAccessLevel(token.grantedScopes),
+        }
       : { status: 'link_pending' };
+  }
+
+  async validateAccess(userId: string, connectionId: string, tool: ToolName): Promise<void> {
+    const token = await this.#credentials.getGoogleToken(connectionId);
+    if (!token || token.userId !== userId) throw new ConnectorReconnectRequiredError();
+    const missing = toolScopeRequirements(tool).some(
+      (alternatives) =>
+        !alternatives.some((scope) => scopeIsGranted(token.grantedScopes, scope)),
+    );
+    if (missing) {
+      throw new CloudError(
+        409,
+        'google_access_upgrade_required',
+        'Enable Google editing and sending in Connected apps, then try again.',
+      );
+    }
   }
 
   async disconnect(connectionId: string): Promise<void> {
@@ -276,6 +310,7 @@ export class GoogleWorkspaceConnector {
     input: Record<string, unknown>,
     idempotencyKey: string,
   ): Promise<ConnectorExecution> {
+    await this.validateAccess(userId, connectionId, tool);
     const tokenRecord = await this.#credentials.getGoogleToken(connectionId);
     if (!tokenRecord || tokenRecord.userId !== userId)
       throw new ConnectorReconnectRequiredError();
@@ -803,10 +838,19 @@ export class HybridConnector implements ConnectorProvider {
     userId: string,
     app: AppId,
     callbackUrl?: string,
+    access?: GoogleAccessLevel,
   ): Promise<ConnectorLink> {
     return app === 'google_workspace'
-      ? this.google.beginConnection(userId)
+      ? this.google.beginConnection(userId, access)
       : this.composio.beginConnection(userId, app, callbackUrl);
+  }
+
+  async validateAccess(userId: string, connectionId: string, tool: ToolName): Promise<void> {
+    if (this.google.owns(connectionId)) {
+      await this.google.validateAccess(userId, connectionId, tool);
+      return;
+    }
+    await this.composio.validateAccess?.(userId, connectionId, tool);
   }
 
   async connectionStatus(connectionId: string): Promise<ConnectorStatus> {
@@ -871,20 +915,98 @@ function sha256(value: string): string {
   return createHash('sha256').update(value).digest('base64url');
 }
 
-function missingRequiredScopes(scopes: string[]): string[] {
+function scopesForAccess(access: GoogleAccessLevel): readonly string[] {
+  return access === 'read_write' ? GOOGLE_WORKSPACE_WRITE_SCOPES : GOOGLE_WORKSPACE_READ_SCOPES;
+}
+
+function missingRequiredScopes(scopes: string[], access: GoogleAccessLevel): string[] {
+  return scopesForAccess(access).filter((scope) => !scopeIsGranted(scopes, scope));
+}
+
+function scopeIsGranted(scopes: readonly string[], required: string): boolean {
   const granted = new Set(scopes);
-  return GOOGLE_WORKSPACE_SCOPES.filter((scope) => {
-    // Google's token endpoint may canonicalize the OpenID Connect `email` alias to the
-    // equivalent Google OAuth scope even though the authorization request used `email`.
-    // Workspace API scopes remain exact: accepting a broader or neighboring scope here could
-    // make the desktop claim a service is ready when its actual tool calls are not authorized.
-    if (scope === 'email') {
-      return (
-        !granted.has('email') && !granted.has('https://www.googleapis.com/auth/userinfo.email')
-      );
-    }
-    return !granted.has(scope);
-  });
+  // Google's token endpoint may canonicalize the OpenID Connect `email` alias.
+  if (required === 'email') {
+    return (
+      granted.has('email') || granted.has('https://www.googleapis.com/auth/userinfo.email')
+    );
+  }
+  // A full editor scope includes its read-only counterpart. No other neighboring scope is
+  // accepted, so the desktop never claims a capability the grant cannot actually perform.
+  const fullScope =
+    {
+      'https://www.googleapis.com/auth/documents.readonly':
+        'https://www.googleapis.com/auth/documents',
+      'https://www.googleapis.com/auth/spreadsheets.readonly':
+        'https://www.googleapis.com/auth/spreadsheets',
+      'https://www.googleapis.com/auth/presentations.readonly':
+        'https://www.googleapis.com/auth/presentations',
+    }[required] ?? required;
+  return granted.has(required) || granted.has(fullScope);
+}
+
+function googleAccessLevel(scopes: readonly string[]): GoogleAccessLevel {
+  return missingRequiredScopes([...scopes], 'read_write').length === 0
+    ? 'read_write'
+    : 'read_only';
+}
+
+function toolScopeRequirements(tool: ToolName): readonly (readonly string[])[] {
+  switch (tool) {
+    case 'mail.search':
+    case 'mail.read_thread':
+      return [['https://www.googleapis.com/auth/gmail.readonly']];
+    case 'mail.create_draft':
+    case 'mail.send':
+      return [['https://www.googleapis.com/auth/gmail.compose']];
+    case 'drive.search':
+    case 'drive.read':
+      return [['https://www.googleapis.com/auth/drive.readonly']];
+    case 'drive.upload':
+    case 'drive.share':
+      return [['https://www.googleapis.com/auth/drive.file']];
+    case 'docs.read':
+      return [
+        [
+          'https://www.googleapis.com/auth/documents.readonly',
+          'https://www.googleapis.com/auth/documents',
+        ],
+      ];
+    case 'docs.create':
+      return [
+        ['https://www.googleapis.com/auth/documents'],
+        ['https://www.googleapis.com/auth/drive.file'],
+      ];
+    case 'docs.append':
+      return [['https://www.googleapis.com/auth/documents']];
+    case 'sheets.read':
+      return [
+        [
+          'https://www.googleapis.com/auth/spreadsheets.readonly',
+          'https://www.googleapis.com/auth/spreadsheets',
+        ],
+      ];
+    case 'sheets.create':
+      return [
+        ['https://www.googleapis.com/auth/spreadsheets'],
+        ['https://www.googleapis.com/auth/drive.file'],
+      ];
+    case 'sheets.update':
+    case 'sheets.append':
+      return [['https://www.googleapis.com/auth/spreadsheets']];
+    case 'slides.read':
+      return [
+        [
+          'https://www.googleapis.com/auth/presentations.readonly',
+          'https://www.googleapis.com/auth/presentations',
+        ],
+      ];
+    case 'slides.create':
+    case 'slides.append':
+      return [['https://www.googleapis.com/auth/presentations']];
+    default:
+      return [];
+  }
 }
 
 async function boundedJson(

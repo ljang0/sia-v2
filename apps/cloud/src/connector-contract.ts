@@ -173,7 +173,7 @@ export function mapCanonicalConnectorInput(
     case 'docs.read': {
       exactKeys(input, ['document_id'], ['document_id']);
       return {
-        document_id: opaqueId(input.document_id, 'document_id'),
+        document_id: googleResourceId(input.document_id, 'document_id', 'document'),
         include_tables: true,
         include_tabs_content: true,
       };
@@ -181,7 +181,7 @@ export function mapCanonicalConnectorInput(
     case 'docs.append': {
       exactKeys(input, ['document_id', 'text'], ['document_id', 'text']);
       return {
-        document_id: opaqueId(input.document_id, 'document_id'),
+        document_id: googleResourceId(input.document_id, 'document_id', 'document'),
         text_to_insert: boundedString(input.text, 'text', 500_000),
         append_to_end: true,
       };
@@ -205,7 +205,11 @@ export function mapCanonicalConnectorInput(
       const endRow = boundedInteger(input.end_row, 'end_row', startRow, 10_000_000);
       if (endRow - startRow > 499) invalid('sheet reads are limited to 500 rows');
       return {
-        spreadsheet_id: opaqueId(input.spreadsheet_id, 'spreadsheet_id'),
+        spreadsheet_id: googleResourceId(
+          input.spreadsheet_id,
+          'spreadsheet_id',
+          'spreadsheets',
+        ),
         range: boundedString(input.range, 'range', 512),
         start_row: startRow,
         end_row: endRow,
@@ -221,7 +225,11 @@ export function mapCanonicalConnectorInput(
         ['spreadsheet_id', 'range', 'values', 'value_input_option'],
       );
       return {
-        spreadsheet_id: opaqueId(input.spreadsheet_id, 'spreadsheet_id'),
+        spreadsheet_id: googleResourceId(
+          input.spreadsheet_id,
+          'spreadsheet_id',
+          'spreadsheets',
+        ),
         range: boundedString(input.range, 'range', 512),
         values: sheetValues(input.values),
         major_dimension: 'ROWS',
@@ -239,7 +247,7 @@ export function mapCanonicalConnectorInput(
       const range = boundedString(input.range, 'range', 512);
       if (!range.includes('!')) invalid('append range must include an exact sheet name');
       return {
-        spreadsheetId: opaqueId(input.spreadsheet_id, 'spreadsheet_id'),
+        spreadsheetId: googleResourceId(input.spreadsheet_id, 'spreadsheet_id', 'spreadsheets'),
         range,
         values: sheetValues(input.values, true),
         majorDimension: 'ROWS',
@@ -258,7 +266,11 @@ export function mapCanonicalConnectorInput(
     case 'slides.read': {
       exactKeys(input, ['presentation_id'], ['presentation_id']);
       return {
-        presentationId: opaqueId(input.presentation_id, 'presentation_id'),
+        presentationId: googleResourceId(
+          input.presentation_id,
+          'presentation_id',
+          'presentation',
+        ),
         fields:
           'presentationId,title,slides(objectId,pageElements(objectId,title,description,shape(shapeType,text)))',
       };
@@ -266,7 +278,11 @@ export function mapCanonicalConnectorInput(
     case 'slides.append': {
       exactKeys(input, ['presentation_id', 'markdown'], ['presentation_id', 'markdown']);
       return {
-        presentationId: opaqueId(input.presentation_id, 'presentation_id'),
+        presentationId: googleResourceId(
+          input.presentation_id,
+          'presentation_id',
+          'presentation',
+        ),
         markdown_text: boundedString(input.markdown, 'markdown', 500_000),
       };
     }
@@ -418,6 +434,45 @@ function boundedString(value: unknown, label: string, max: number, allowEmpty = 
 
 function opaqueId(value: unknown, label: string, max = 512): string {
   return boundedString(value, label, max);
+}
+
+function googleResourceId(
+  value: unknown,
+  label: string,
+  resourcePath: 'document' | 'spreadsheets' | 'presentation',
+): string {
+  const candidate = boundedString(value, label, 2_048).trim();
+  if (!candidate.includes('://')) return opaqueId(candidate, label);
+  let url: URL;
+  try {
+    url = new URL(candidate);
+  } catch {
+    invalid(`${label} must be a Google resource id or URL`);
+  }
+  if (
+    url.protocol !== 'https:' ||
+    url.hostname !== 'docs.google.com' ||
+    url.username ||
+    url.password
+  ) {
+    invalid(`${label} must be a Google resource id or URL`);
+  }
+  const segments = url.pathname.split('/').filter(Boolean);
+  const marker = segments.findIndex((segment, index) => {
+    if (resourcePath === 'document')
+      return segment === 'document' && segments[index + 1] === 'd';
+    if (resourcePath === 'presentation') {
+      return segment === 'presentation' && segments[index + 1] === 'd';
+    }
+    return segment === 'spreadsheets' && segments[index + 1] === 'd';
+  });
+  const id = marker < 0 ? undefined : segments[marker + 2];
+  if (!id) invalid(`${label} URL does not contain a resource id`);
+  try {
+    return opaqueId(decodeURIComponent(id), label);
+  } catch {
+    invalid(`${label} URL contains an invalid resource id`);
+  }
 }
 
 function optionalOpaqueId(value: unknown, label: string): string | undefined {

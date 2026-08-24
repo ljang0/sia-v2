@@ -259,6 +259,10 @@ export interface ConnectionView {
   enabled?: boolean;
   /** Opaque Sia-cloud connection id; never an OAuth credential. */
   connectionId?: string;
+  /** Google starts read-only and can be upgraded with a second explicit consent. */
+  googleAccess?: 'read_only' | 'read_write';
+  /** Opaque pending grant used while read access remains available during an upgrade. */
+  upgradeConnectionId?: string;
   account?: string;
   detail?: string;
 }
@@ -526,6 +530,7 @@ export interface BridgeRequestMap {
   'voice.speak': { text: string; voiceId?: string };
   'connections.startAll': undefined;
   'connections.startGoogle': undefined;
+  'connections.upgradeGoogle': undefined;
   'connections.startSelected': { connectionIds: ConnectionId[] };
   'connections.start': { connectionId: ConnectionId };
   'connections.setEnabled': { connectionId: ConnectionId; enabled: boolean };
@@ -615,6 +620,7 @@ export interface BridgeResultMap {
   'voice.speak': { audioBase64: string; mimeType: 'audio/mpeg' };
   'connections.startAll': { opened: boolean; snapshot: DesktopSnapshot };
   'connections.startGoogle': { opened: boolean; snapshot: DesktopSnapshot };
+  'connections.upgradeGoogle': { opened: boolean; snapshot: DesktopSnapshot };
   'connections.startSelected': { opened: boolean; snapshot: DesktopSnapshot };
   'connections.start': { opened: boolean; snapshot: DesktopSnapshot };
   'connections.setEnabled': DesktopSnapshot;
@@ -763,6 +769,7 @@ export interface DesktopBridgeApi {
   connections: {
     startAll(): Promise<BridgeResultMap['connections.startAll']>;
     startGoogle(): Promise<BridgeResultMap['connections.startGoogle']>;
+    upgradeGoogle(): Promise<BridgeResultMap['connections.upgradeGoogle']>;
     startSelected(
       connectionIds: ConnectionId[],
     ): Promise<BridgeResultMap['connections.startSelected']>;

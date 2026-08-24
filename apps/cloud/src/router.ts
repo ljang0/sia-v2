@@ -77,7 +77,8 @@ export async function routeControlRequest(
       if (method === 'POST') {
         const body = parseOptionalBody(event);
         const callbackUrl = optionalString(body.callbackUrl, 'callbackUrl', 2_048);
-        return json(201, await services.connections.start(user, app, callbackUrl));
+        const access = optionalGoogleAccess(body.access);
+        return json(201, await services.connections.start(user, app, callbackUrl, access));
       }
       if (method === 'GET') return json(200, await services.connections.status(user, app));
       if (method === 'DELETE') {
@@ -463,6 +464,18 @@ function parseGroups(value: unknown): string[] {
 
 function optionalString(value: unknown, label: string, max: number): string | undefined {
   return value === undefined ? undefined : requireString(value, label, { max });
+}
+
+function optionalGoogleAccess(value: unknown): 'read_only' | 'read_write' | undefined {
+  if (value === undefined) return undefined;
+  if (value !== 'read_only' && value !== 'read_write') {
+    throw new CloudError(
+      400,
+      'invalid_request',
+      'Google access must be read_only or read_write',
+    );
+  }
+  return value;
 }
 
 function normalizePath(path: string): string {

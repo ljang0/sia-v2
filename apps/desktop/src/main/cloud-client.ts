@@ -32,6 +32,7 @@ export interface ConnectionStatusResult {
       | 'slack';
     status: 'link_pending' | 'connected' | 'failed' | 'disconnected';
     accountLabel?: string;
+    access?: 'read_only' | 'read_write';
   }>;
 }
 
@@ -336,10 +337,13 @@ export class CloudClient implements MetaTransport {
     };
   }
 
-  async startConnection(connectionId: ConnectionId): Promise<ConnectionStartResult> {
+  async startConnection(
+    connectionId: ConnectionId,
+    access?: 'read_only' | 'read_write',
+  ): Promise<ConnectionStartResult> {
     return this.#request<ConnectionStartResult>(`/v1/connections/${cloudAppId(connectionId)}`, {
       method: 'POST',
-      body: JSON.stringify({}),
+      body: JSON.stringify(access === undefined ? {} : { access }),
     });
   }
 

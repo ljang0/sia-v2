@@ -3827,8 +3827,22 @@ button.agentAvatar {
   font-variant-numeric: tabular-nums;
 }
 
-.connectionGroup > button {
+.connectionGroup > button,
+.connectionGroupActions {
   min-width: 142px;
+}
+
+.connectionGroupActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.connectionGroupActions .secondaryButton,
+.connectionGroupActions .textButtonDanger {
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .connectionChoicePanel {
@@ -6282,10 +6296,16 @@ button.agentAvatar {
     grid-template-columns: 34px minmax(0, 1fr);
   }
 
-  .connectionGroup > button {
+  .connectionGroup > button,
+  .connectionGroupActions {
     width: fit-content;
     grid-column: 2;
     justify-self: start;
+  }
+
+  .connectionGroupActions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 
   .connectionChoiceGrid {

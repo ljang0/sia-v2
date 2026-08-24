@@ -4,7 +4,12 @@ import { describe, it } from 'node:test';
 import { S3Client } from '@aws-sdk/client-s3';
 
 import { COMPOSIO_TOOL_SLUGS, COMPOSIO_TOOL_VERSIONS } from '../src/connector-contract.js';
-import { GOOGLE_WORKSPACE_SCOPES, GoogleWorkspaceConnector } from '../src/google-workspace.js';
+import {
+  GOOGLE_WORKSPACE_READ_SCOPES,
+  GOOGLE_WORKSPACE_SCOPES,
+  GOOGLE_WORKSPACE_WRITE_SCOPES,
+  GoogleWorkspaceConnector,
+} from '../src/google-workspace.js';
 import { FixedSecrets, MemoryState } from '../src/memory.js';
 import { ConnectorReconnectRequiredError } from '../src/ports.js';
 import type { ComposioConfig, MetaConfig, TokenCipher } from '../src/ports.js';
@@ -68,7 +73,7 @@ function connector(
 }
 
 describe('unified Google Workspace OAuth', () => {
-  it('creates one PKCE grant for the fixed Workspace scope set and stores only sealed state', async () => {
+  it('creates a read-only PKCE grant by default and stores only sealed state', async () => {
     const state = new MemoryState();
     const google = connector(state, async () => {
       throw new Error('network should not be used while beginning OAuth');
@@ -89,7 +94,7 @@ describe('unified Google Workspace OAuth', () => {
     );
     assert.deepEqual(
       new Set(authorization.searchParams.get('scope')!.split(' ')),
-      new Set(GOOGLE_WORKSPACE_SCOPES),
+      new Set(GOOGLE_WORKSPACE_READ_SCOPES),
     );
     assert.equal(authorization.searchParams.get('code_challenge_method'), 'S256');
     assert.ok(authorization.searchParams.get('code_challenge'));
@@ -97,10 +102,26 @@ describe('unified Google Workspace OAuth', () => {
     const stored = [...state.googleOAuthStates.values()][0]!;
     assert.equal(stored.connectionId, link.connectionId);
     assert.match(stored.encryptedVerifier, /^sealed\./);
+    assert.equal(stored.access, 'read_only');
     assert.equal(
       JSON.stringify(stored).includes(authorization.searchParams.get('state')!),
       false,
     );
+  });
+
+  it('requests editor scopes only for an explicit read-write connection', async () => {
+    const state = new MemoryState();
+    const google = connector(state, async () => {
+      throw new Error('network should not be used while beginning OAuth');
+    });
+
+    const link = await google.beginConnection('user-writer', 'read_write');
+    const authorization = new URL(link.redirectUrl);
+    assert.deepEqual(
+      new Set(authorization.searchParams.get('scope')!.split(' ')),
+      new Set(GOOGLE_WORKSPACE_WRITE_SCOPES),
+    );
+    assert.equal([...state.googleOAuthStates.values()][0]?.access, 'read_write');
   });
 
   it('exchanges a single-use code, seals the refresh token, and serves multiple Google APIs', async () => {
@@ -120,7 +141,7 @@ describe('unified Google Workspace OAuth', () => {
             expires_in: 3600,
             // Google commonly returns the canonical userinfo scope for the requested OIDC
             // `email` alias. A complete Workspace grant must not be rejected for that rewrite.
-            scope: GOOGLE_WORKSPACE_SCOPES.map((scope) =>
+            scope: GOOGLE_WORKSPACE_READ_SCOPES.map((scope) =>
               scope === 'email' ? 'https://www.googleapis.com/auth/userinfo.email' : scope,
             ).join(' '),
           });
@@ -164,6 +185,11 @@ describe('unified Google Workspace OAuth', () => {
     assert.equal(token.accountLabel, 'person@example.com');
     assert.match(token.encryptedRefreshToken, /^sealed\./);
     assert.equal(token.encryptedRefreshToken.includes('refresh-token-must-stay-sealed'), false);
+    assert.deepEqual(await google.connectionStatus(link.connectionId), {
+      status: 'connected',
+      accountLabel: 'person@example.com',
+      access: 'read_only',
+    });
 
     const mail = await google.execute(
       'user-1',
@@ -187,6 +213,13 @@ describe('unified Google Workspace OAuth', () => {
       text: 'Ready.\n',
       tabs: [],
     });
+    await assert.rejects(
+      google.validateAccess('user-1', link.connectionId, 'sheets.update'),
+      (error: unknown) =>
+        error instanceof Error &&
+        error.message ===
+          'Enable Google editing and sending in Connected apps, then try again.',
+    );
     assert.equal(
       calls.filter(({ authorization }) => authorization === 'Bearer access-one').length,
       3,

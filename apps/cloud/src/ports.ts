@@ -2,6 +2,7 @@ import type {
   AppId,
   ConnectorUploadDescriptor,
   DeletionScope,
+  GoogleAccessLevel,
   MetaStreamEvent,
   MetaTurnRequest,
   ToolName,
@@ -50,6 +51,7 @@ export interface ConnectorLink {
 export interface ConnectorStatus {
   status: ConnectionRecord['status'];
   accountLabel?: string;
+  access?: GoogleAccessLevel;
 }
 
 export interface ConnectorExecution {
@@ -66,8 +68,14 @@ export interface ConnectorFileUploadGrant {
 }
 
 export interface ConnectorProvider {
-  beginConnection(userId: string, app: AppId, callbackUrl?: string): Promise<ConnectorLink>;
+  beginConnection(
+    userId: string,
+    app: AppId,
+    callbackUrl?: string,
+    access?: GoogleAccessLevel,
+  ): Promise<ConnectorLink>;
   connectionStatus(connectionId: string): Promise<ConnectorStatus>;
+  validateAccess?(userId: string, connectionId: string, tool: ToolName): Promise<void>;
   disconnect(connectionId: string): Promise<void>;
   requestFileUpload(
     connectionId: string,
@@ -97,6 +105,7 @@ export interface GoogleOAuthStateRecord {
   userId: string;
   connectionId: string;
   encryptedVerifier: string;
+  access: GoogleAccessLevel;
   expiresAt: number;
 }
 
