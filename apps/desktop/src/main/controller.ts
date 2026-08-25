@@ -854,6 +854,10 @@ export class DesktopController {
         return this.#renameThread(
           input as BridgeRequestMap['threads.rename'],
         ) as BridgeResultMap[M];
+      case 'threads.draft':
+        return this.#setThreadDraft(
+          input as BridgeRequestMap['threads.draft'],
+        ) as BridgeResultMap[M];
       case 'threads.config':
         return this.#configureThread(
           input as BridgeRequestMap['threads.config'],
@@ -1409,6 +1413,14 @@ export class DesktopController {
     return this.snapshot();
   }
 
+  #setThreadDraft(input: BridgeRequestMap['threads.draft']): DesktopSnapshot {
+    const thread = this.#requireThread(input.threadId);
+    if (input.text) thread.draft = input.text;
+    else delete thread.draft;
+    this.#commit();
+    return this.snapshot();
+  }
+
   #configureThread(input: BridgeRequestMap['threads.config']): DesktopSnapshot {
     const thread = this.#requireIdleThread(input.threadId, 'change model settings');
     const provider = this.#requireReadyProvider(thread.provider, input.model.trim());
@@ -1491,6 +1503,7 @@ export class DesktopController {
       updatedAt: now,
     };
     delete forked.archivedAt;
+    delete forked.draft;
     delete forked.queueReason;
     delete forked.interruptedTurnId;
     this.#state.threads.push(forked);
@@ -1711,6 +1724,7 @@ export class DesktopController {
           item.status === 'pending',
       );
       if (questionItem) questionItem.status = 'complete';
+      delete thread.draft;
       const eventId = randomUUID();
       const timestamp = new Date().toISOString();
       this.#appendTimeline(thread.id, {
@@ -1760,6 +1774,7 @@ export class DesktopController {
     ) {
       throw new Error('This thread already has an active turn.');
     }
+    delete thread.draft;
     const turnId = randomUUID();
     const eventId = randomUUID();
     const timestamp = new Date().toISOString();

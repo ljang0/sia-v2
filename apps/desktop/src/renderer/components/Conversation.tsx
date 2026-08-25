@@ -47,6 +47,7 @@ interface ConversationProps {
   onCreateThread?: (() => void) | undefined;
   onCreateAgent?: (() => void) | undefined;
   onOpenApps?: (() => void) | undefined;
+  onDraftChange?: ((content: string) => Promise<void> | void) | undefined;
   workspaceTools?: ReactNode | undefined;
 }
 
@@ -73,6 +74,7 @@ export function Conversation({
   onCreateThread,
   onCreateAgent,
   onOpenApps,
+  onDraftChange,
   workspaceTools,
 }: ConversationProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -414,6 +416,7 @@ export function Conversation({
 
       <Composer
         key={thread.id}
+        initialValue={thread.draft ?? ''}
         disabled={queued || waitingForApproval}
         running={running || queued || waitingForApproval}
         stoppable={running || queued || waiting}
@@ -456,6 +459,7 @@ export function Conversation({
           }
           setVoiceConversation(active);
         }}
+        onDraftChange={onDraftChange}
         placeholder={
           queued
             ? 'This thread is queued'

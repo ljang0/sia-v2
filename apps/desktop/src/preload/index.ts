@@ -30,6 +30,7 @@ const api: DesktopBridgeApi = {
     create: (input) => invoke('threads.create', input),
     select: (threadId) => invoke('threads.select', { threadId }),
     rename: (threadId, title) => invoke('threads.rename', { threadId, title }),
+    setDraft: (threadId, text) => invoke('threads.draft', { threadId, text }),
     config: (input) => invoke('threads.config', input),
     archive: (threadId) => invoke('threads.archive', { threadId }),
     unarchive: (threadId) => invoke('threads.unarchive', { threadId }),

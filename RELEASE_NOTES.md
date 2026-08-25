@@ -1,8 +1,22 @@
-# Sia 0.1.0-alpha.11
+# Sia 0.1.0-alpha.12
 
 Sia is a private macOS 14+ alpha for local-first agent work. This build supports Codex through the
 official CLI already installed and authenticated on the Mac, plus hosted Meta access for signed-in
 research-alpha participants.
+
+## Alpha.12 changes
+
+- Composer drafts are saved per thread in Sia's encrypted local state, survive thread changes and
+  restarts, remain intact after a failed send, and clear only after a turn is accepted.
+- The agent rail now shows draft previews, relative recency, and explicit Working, Waiting for you,
+  Unread, Queued, and Needs attention signals without sacrificing keyboard-friendly thread names.
+- Repeated action failures collapse into one diagnostic tray with an occurrence count, stable
+  support ID, thread context, and a one-click copyable support bundle.
+- New agents can start from four Sia-native roles—Research partner, Release partner, Workspace
+  maintainer, and Briefing partner—while keeping provider, model, workspace, voice, and color under
+  direct control.
+- These interactions were clean-room implementations inspired by behavioral review only; no Grok
+  Bot source, CSS, copy, assets, iconography, or character geometry was used.
 
 ## Alpha.11 changes
 

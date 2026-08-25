@@ -36,6 +36,7 @@ const inputSchemas = {
   'threads.rename': z
     .object({ threadId: identifier, title: z.string().trim().min(1).max(120) })
     .strict(),
+  'threads.draft': z.object({ threadId: identifier, text: z.string().max(200_000) }).strict(),
   'threads.config': z
     .object({
       threadId: identifier,

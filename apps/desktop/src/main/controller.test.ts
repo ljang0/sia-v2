@@ -186,6 +186,38 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('persists a local thread draft and clears it only after a send is accepted', async () => {
+    const { controller, repository } = await createHarness();
+    const agent = await controller.invoke('agents.save', {
+      name: 'Writer',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
+
+    const drafted = await controller.invoke('threads.draft', {
+      threadId,
+      text: 'Keep this thought across a restart.',
+    });
+    expect(drafted.threads.find(({ id }) => id === threadId)?.draft).toBe(
+      'Keep this thought across a restart.',
+    );
+    expect(
+      repository
+        .get<{ threads: Array<{ id: string; draft?: string }> }>('desktop', 'state')
+        ?.threads.find(({ id }) => id === threadId)?.draft,
+    ).toBe('Keep this thought across a restart.');
+
+    const sent = await controller.invoke('threads.send', {
+      threadId,
+      text: 'Keep this thought across a restart.',
+    });
+    expect(sent.snapshot.threads.find(({ id }) => id === threadId)?.draft).toBeUndefined();
+    await controller.shutdown();
+  });
+
   it('persists agent-authored schedules and keeps them scoped to their thread', async () => {
     const controller = await createController();
     const agent = await controller.invoke('agents.save', {

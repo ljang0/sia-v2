@@ -316,10 +316,13 @@ export function Sidebar({
                               type="button"
                               className={styles.threadSelectButton}
                               onClick={() => onSelectThread(thread.id)}
+                              aria-label={thread.title}
                             >
-                              <span className={styles.threadTitle}>{thread.title}</span>
+                              <ThreadLabel thread={thread} />
                               {thread.status !== 'idle' ? (
                                 <StatusMark status={thread.status} />
+                              ) : thread.unread ? (
+                                <span className={styles.threadUnreadDot} aria-label="Unread" />
                               ) : null}
                             </button>
                             <ThreadMenu
@@ -532,6 +535,56 @@ export function Sidebar({
         </Dialog.Portal>
       </Dialog.Root>
     </aside>
+  );
+}
+
+function ThreadLabel({ thread }: { thread: ThreadSummary }) {
+  const draft = compactPreview(thread.draft);
+  const state = threadStateLabel(thread);
+  return (
+    <span className={styles.threadCopy} data-thread-draft={draft ? 'true' : undefined}>
+      <span className={styles.threadTitle}>{thread.title}</span>
+      <span className={styles.threadMeta}>
+        {draft ? (
+          <>
+            <strong>Draft</strong>
+            <span className={styles.threadDraftPreview}>{draft}</span>
+          </>
+        ) : state ? (
+          <span>{state}</span>
+        ) : null}
+        <time dateTime={thread.updatedAt}>{relativeTime(thread.updatedAt)}</time>
+      </span>
+    </span>
+  );
+}
+
+function threadStateLabel(thread: ThreadSummary) {
+  if (thread.status === 'running') return 'Working';
+  if (thread.status === 'waiting') return 'Waiting for you';
+  if (thread.status === 'queued') return 'Queued';
+  if (thread.status === 'error') return 'Needs attention';
+  if (thread.unread) return 'Unread';
+  return undefined;
+}
+
+function compactPreview(value?: string) {
+  const compact = value?.trim().replace(/\s+/g, ' ');
+  if (!compact) return undefined;
+  return compact.length > 44 ? `${compact.slice(0, 41)}…` : compact;
+}
+
+function relativeTime(value: string) {
+  const elapsed = Math.max(0, Date.now() - new Date(value).getTime());
+  const minutes = Math.floor(elapsed / 60_000);
+  if (minutes < 1) return 'now';
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d`;
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(
+    new Date(value),
   );
 }
 

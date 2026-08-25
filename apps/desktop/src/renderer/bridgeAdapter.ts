@@ -91,6 +91,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async renameThread(threadId, title) {
       publish(await bridge.threads.rename(threadId, title));
     },
+    async saveDraft(threadId, content) {
+      publish(await bridge.threads.setDraft(threadId, content));
+    },
     async deleteThread(threadId) {
       publish(await bridge.threads.delete(threadId));
     },
@@ -419,6 +422,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         archivedAt: thread.archivedAt,
         sourceThreadId: thread.sourceThreadId,
         unread: thread.unread,
+        draft: thread.draft,
         worktree: thread.worktree ? structuredClone(thread.worktree) : undefined,
       })),
   }));
@@ -464,6 +468,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         archivedAt: currentThread.archivedAt,
         sourceThreadId: currentThread.sourceThreadId,
         unread: currentThread.unread,
+        draft: currentThread.draft,
         worktree: currentThread.worktree ? structuredClone(currentThread.worktree) : undefined,
         events: [...timeline, ...pendingApprovals],
         error:

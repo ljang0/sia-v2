@@ -59,6 +59,8 @@ export interface ThreadView {
   archivedAt?: string;
   sourceThreadId?: string;
   unread?: boolean;
+  /** Local encrypted composer text that has not been sent. */
+  draft?: string;
   interruptedTurnId?: string;
   goal?: ThreadGoalView;
   worktree?: WorktreeView;
@@ -464,6 +466,7 @@ export interface BridgeRequestMap {
   'threads.create': CreateThreadInput;
   'threads.select': { threadId: string };
   'threads.rename': { threadId: string; title: string };
+  'threads.draft': { threadId: string; text: string };
   'threads.config': UpdateThreadConfigInput;
   'threads.archive': { threadId: string };
   'threads.unarchive': { threadId: string };
@@ -559,6 +562,7 @@ export interface BridgeResultMap {
   'threads.create': { threadId: string; snapshot: DesktopSnapshot };
   'threads.select': DesktopSnapshot;
   'threads.rename': DesktopSnapshot;
+  'threads.draft': DesktopSnapshot;
   'threads.config': DesktopSnapshot;
   'threads.archive': DesktopSnapshot;
   'threads.unarchive': DesktopSnapshot;
@@ -668,6 +672,7 @@ export interface DesktopBridgeApi {
     create(input: CreateThreadInput): Promise<BridgeResultMap['threads.create']>;
     select(threadId: string): Promise<DesktopSnapshot>;
     rename(threadId: string, title: string): Promise<DesktopSnapshot>;
+    setDraft(threadId: string, text: string): Promise<DesktopSnapshot>;
     config(input: UpdateThreadConfigInput): Promise<DesktopSnapshot>;
     archive(threadId: string): Promise<DesktopSnapshot>;
     unarchive(threadId: string): Promise<DesktopSnapshot>;

@@ -9,7 +9,7 @@ const desktopRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const assistantReply =
   'I am ready. This development turn used the deterministic local runtime, so no provider account or connected-app data was accessed.';
 
-test('saved agents, threads, and transcripts survive a full app relaunch', async () => {
+test('saved agents, threads, transcripts, and drafts survive a full app relaunch', async () => {
   const testRoot = await mkdtemp(join(tmpdir(), 'sia-electron-persistence-'));
   const userData = join(testRoot, 'user-data');
   const workspace = join(testRoot, 'workspace');
@@ -46,6 +46,9 @@ test('saved agents, threads, and transcripts survive a full app relaunch', async
     await firstPage.getByRole('textbox', { name: 'Message' }).fill(prompt);
     await firstPage.getByRole('textbox', { name: 'Message' }).press('Enter');
     await expect(firstPage.getByText(assistantReply, { exact: true })).toBeVisible();
+    const draft = 'Continue by turning the result into a short checklist.';
+    await firstPage.getByRole('textbox', { name: 'Message' }).fill(draft);
+    await expect(firstPage.getByText('Draft', { exact: true })).toBeVisible();
     expect(firstErrors).toEqual([]);
 
     await electronApp.close();
@@ -62,6 +65,8 @@ test('saved agents, threads, and transcripts survive a full app relaunch', async
     ).toBeVisible();
     await expect(restoredPage.getByText(prompt, { exact: true })).toBeVisible();
     await expect(restoredPage.getByText(assistantReply, { exact: true })).toBeVisible();
+    await expect(restoredPage.getByRole('textbox', { name: 'Message' })).toHaveValue(draft);
+    await expect(restoredPage.getByText('Draft', { exact: true })).toBeVisible();
     expect(restoredErrors).toEqual([]);
   } finally {
     await electronApp?.close();

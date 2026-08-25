@@ -433,6 +433,17 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         if (current.activeThread?.id === threadId) current.activeThread.title = title;
       });
     },
+    async saveDraft(threadId, content) {
+      mutate((current) => {
+        for (const agent of current.agents) {
+          const thread = agent.threads.find(({ id }) => id === threadId);
+          if (thread) thread.draft = content || undefined;
+        }
+        if (current.activeThread?.id === threadId) {
+          current.activeThread.draft = content || undefined;
+        }
+      });
+    },
     async deleteThread(threadId) {
       mutate((current) => {
         for (const agent of current.agents) {

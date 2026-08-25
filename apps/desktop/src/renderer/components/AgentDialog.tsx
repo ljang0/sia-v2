@@ -37,6 +37,33 @@ const HUES = [
   { slot: 3, name: 'Mint' },
 ] as const;
 
+const STARTER_PRESETS = [
+  {
+    name: 'Research partner',
+    summary: 'Compare sources, expose uncertainty, and keep a decision trail.',
+    instructions:
+      'Help me investigate questions carefully. Compare primary sources, distinguish evidence from inference, surface uncertainty, and finish with the decisions or open questions that matter.',
+  },
+  {
+    name: 'Release partner',
+    summary: 'Track gates, test risky paths, and prepare a clear handoff.',
+    instructions:
+      'Help me prepare dependable releases. Keep source, tests, deployment state, artifacts, rollback, and human approvals distinct. Prioritize hard blockers and leave a concise evidence-backed handoff.',
+  },
+  {
+    name: 'Workspace maintainer',
+    summary: 'Understand the repository before making focused repairs.',
+    instructions:
+      'Maintain this workspace with small, reviewable changes. Read local conventions first, preserve unrelated work, test in proportion to risk, and explain any remaining operational tradeoffs.',
+  },
+  {
+    name: 'Briefing partner',
+    summary: 'Turn scattered updates into a short, useful briefing.',
+    instructions:
+      'Turn new information into concise briefings. Separate changes, decisions, risks, owners, and next actions. Keep source links and dates when they affect confidence or urgency.',
+  },
+] as const;
+
 const emptyDraft: AgentDraft = {
   name: '',
   instructions: '',
@@ -164,6 +191,35 @@ export function AgentDialog({
           </div>
 
           <form className={styles.agentForm} onSubmit={(event) => void submit(event)}>
+            {!agent ? (
+              <fieldset className={styles.starterPresets}>
+                <legend>Start with a role</legend>
+                <div>
+                  {STARTER_PRESETS.map((preset) => {
+                    const selected =
+                      draft.name === preset.name && draft.instructions === preset.instructions;
+                    return (
+                      <button
+                        key={preset.name}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() =>
+                          setDraft((current) => ({
+                            ...current,
+                            name: preset.name,
+                            instructions: preset.instructions,
+                          }))
+                        }
+                      >
+                        <strong>{preset.name}</strong>
+                        <span>{preset.summary}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            ) : null}
+
             <label className={styles.field}>
               <span>Name</span>
               <input

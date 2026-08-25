@@ -33,6 +33,7 @@ export interface ThreadSummary {
   archivedAt?: string | undefined;
   sourceThreadId?: string | undefined;
   unread?: boolean | undefined;
+  draft?: string | undefined;
   worktree?:
     | { kind: 'primary'; sourceWorkspace: string; branch?: string | undefined }
     | { kind: 'linked'; sourceWorkspace: string; branch?: string | undefined }
@@ -448,6 +449,7 @@ export interface RendererApi {
   selectThread(threadId: string): Promise<void>;
   createThread(agentId: string): Promise<string>;
   renameThread(threadId: string, title: string): Promise<void>;
+  saveDraft(threadId: string, content: string): Promise<void>;
   deleteThread(threadId: string): Promise<void>;
   createAgent(draft: AgentDraft): Promise<string>;
   updateAgent(agentId: string, draft: AgentDraft): Promise<void>;

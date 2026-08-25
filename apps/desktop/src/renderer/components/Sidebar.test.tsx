@@ -61,6 +61,36 @@ describe('thread navigation', () => {
     expect(onOpenArchived).toHaveBeenCalledOnce();
   });
 
+  it('shows draft, unread, work state, and recency without changing thread labels', () => {
+    const agents = structuredClone(demoSnapshot.agents);
+    agents[0]!.threads[0]!.draft = 'Outline the release note before sending';
+    agents[0]!.threads[1]!.unread = true;
+    agents[0]!.threads[1]!.status = 'waiting';
+
+    const { container } = render(
+      <Sidebar
+        agents={agents}
+        selectedAgentId={agents[0]!.id}
+        collapsed={false}
+        onToggle={vi.fn()}
+        onSelectAgent={vi.fn()}
+        onSelectThread={vi.fn()}
+        onCreateThread={vi.fn()}
+        onRenameThread={vi.fn()}
+        onDeleteThread={vi.fn()}
+        onCreateAgent={vi.fn()}
+        onEditAgent={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Draft')).toBeTruthy();
+    expect(screen.getByText('Outline the release note before sending')).toBeTruthy();
+    expect(screen.getByText('Waiting for you')).toBeTruthy();
+    expect(container.querySelector('time[datetime]')).toBeTruthy();
+    expect(screen.getByRole('button', { name: agents[0]!.threads[0]!.title })).toBeTruthy();
+  });
+
   it('searches, renames, and confirms deletion of an idle thread', async () => {
     const onRenameThread = vi.fn().mockResolvedValue(undefined);
     const onDeleteThread = vi.fn().mockResolvedValue(undefined);

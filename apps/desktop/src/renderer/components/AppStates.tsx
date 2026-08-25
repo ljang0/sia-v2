@@ -1,4 +1,5 @@
-import { CloudSlash, WarningCircle } from '@phosphor-icons/react';
+import { Check, CloudSlash, Copy, WarningCircle } from '@phosphor-icons/react';
+import { useState } from 'react';
 import type { useAppController } from '../useAppController';
 import styles from '../ui.module.css';
 import { Conversation } from './Conversation';
@@ -6,14 +7,47 @@ import { Conversation } from './Conversation';
 type AppController = ReturnType<typeof useAppController>;
 
 export function WorkspaceNotice({ app }: { app: AppController }) {
-  if (app.actionError) {
+  const [copied, setCopied] = useState(false);
+
+  if (app.actionIssue) {
+    const diagnostic = [
+      `Sia support ID: ${app.actionIssue.supportId}`,
+      `Time: ${app.actionIssue.lastSeenAt}`,
+      `Occurrences: ${app.actionIssue.count}`,
+      `Thread: ${app.snapshot?.selectedThreadId ?? 'none'}`,
+      `Message: ${app.actionIssue.message}`,
+    ].join('\n');
     return (
-      <div className={styles.actionError} role="alert">
+      <div className={styles.actionError} role="alert" data-testid="diagnostic-tray">
         <WarningCircle size={16} aria-hidden="true" />
-        <span>{app.actionError}</span>
-        <button type="button" onClick={app.clearActionError}>
-          Dismiss
-        </button>
+        <span className={styles.actionErrorCopy}>
+          <span>{app.actionIssue.message}</span>
+          <small>
+            Support ID {app.actionIssue.supportId}
+            {app.actionIssue.count > 1 ? ` · repeated ${app.actionIssue.count} times` : ''}
+          </small>
+        </span>
+        <span className={styles.actionErrorActions}>
+          <button
+            type="button"
+            onClick={() => {
+              void navigator.clipboard
+                ?.writeText(diagnostic)
+                .then(() => setCopied(true))
+                .catch(() => undefined);
+            }}
+          >
+            {copied ? (
+              <Check size={13} aria-hidden="true" />
+            ) : (
+              <Copy size={13} aria-hidden="true" />
+            )}
+            {copied ? 'Copied' : 'Copy details'}
+          </button>
+          <button type="button" onClick={app.clearActionError}>
+            Dismiss
+          </button>
+        </span>
       </div>
     );
   }

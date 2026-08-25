@@ -7,12 +7,20 @@ const BRIDGE_ERROR =
   'Sia could not load its secure desktop bridge. Quit and reopen Sia; if this continues, reinstall the app.';
 type ActivityTarget = 'activity' | 'archived' | 'search';
 
+interface ActionIssue {
+  message: string;
+  supportId: string;
+  count: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
 export function useAppController(suppliedApi?: RendererApi | undefined) {
   const api = useMemo(() => suppliedApi ?? resolveApi(), [suppliedApi]);
   const [snapshot, setSnapshot] = useState<RendererSnapshot>();
   const [loading, setLoading] = useState(true);
   const [fatalError, setFatalError] = useState<string>();
-  const [actionError, setActionError] = useState<string>();
+  const [actionIssue, setActionIssue] = useState<ActionIssue>();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -48,12 +56,23 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
   }, [api]);
 
   const execute = async (action: () => Promise<unknown>, propagate: boolean) => {
-    setActionError(undefined);
     try {
       await action();
+      setActionIssue(undefined);
     } catch (cause) {
       const message = messageFor(cause, 'That action could not be completed.');
-      setActionError(message);
+      const now = new Date().toISOString();
+      setActionIssue((current) =>
+        current?.message === message
+          ? { ...current, count: current.count + 1, lastSeenAt: now }
+          : {
+              message,
+              supportId: supportIdFor(message),
+              count: 1,
+              firstSeenAt: now,
+              lastSeenAt: now,
+            },
+      );
       if (propagate) throw cause instanceof Error ? cause : new Error(message);
     }
   };
@@ -86,7 +105,8 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
     snapshot,
     loading,
     fatalError,
-    actionError,
+    actionError: actionIssue?.message,
+    actionIssue,
     sidebarCollapsed,
     inspectorOpen,
     settingsOpen,
@@ -100,7 +120,7 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
     run: (action: () => Promise<unknown>) => execute(action, false),
     attempt: (action: () => Promise<unknown>) => execute(action, true),
     retry,
-    clearActionError: () => setActionError(undefined),
+    clearActionError: () => setActionIssue(undefined),
     dismissStartupNotice: () => setStartupNoticeDismissed(true),
     toggleSidebar: () => setSidebarCollapsed((value) => !value),
     toggleInspector: () => setInspectorOpen((value) => !value),
@@ -155,4 +175,9 @@ function resolveApi(): RendererApi {
 
 function messageFor(cause: unknown, fallback: string) {
   return cause instanceof Error ? cause.message : fallback;
+}
+
+function supportIdFor(message: string) {
+  const cloudRequest = [...message.matchAll(/\brequest\s+([A-Za-z0-9-]{6,})\b/gi)].at(-1)?.[1];
+  return cloudRequest ?? `local-${Date.now().toString(36)}`;
 }

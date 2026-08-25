@@ -21,6 +21,7 @@ export interface ComposerAttachment {
 }
 
 interface ComposerProps {
+  initialValue?: string;
   disabled?: boolean;
   running?: boolean;
   stoppable?: boolean;
@@ -39,11 +40,13 @@ interface ComposerProps {
   voiceCanListen?: boolean | undefined;
   presence?: SiaPresenceState | undefined;
   onVoiceConversationChange?: ((active: boolean) => void) | undefined;
+  onDraftChange?: ((content: string) => Promise<void> | void) | undefined;
   onSend(content: string, attachmentIds?: readonly string[]): Promise<void> | void;
   onStop(): Promise<void> | void;
 }
 
 export function Composer({
+  initialValue = '',
   disabled,
   running,
   stoppable = running,
@@ -62,10 +65,11 @@ export function Composer({
   voiceCanListen = true,
   presence = 'idle',
   onVoiceConversationChange,
+  onDraftChange,
   onSend,
   onStop,
 }: ComposerProps) {
-  const [value, setValue] = useState('');
+  const [value, setValue] = useState(initialValue);
   const [sending, setSending] = useState(false);
   const [voicePhase, setVoicePhase] = useState<'idle' | 'recording' | 'transcribing'>('idle');
   const [voiceError, setVoiceError] = useState<string>();
@@ -90,7 +94,11 @@ export function Composer({
   const realtimeFinishing = useRef(false);
   const realtimeStopHandler = useRef(onStopRealtime);
   const voiceLevelRef = useRef(0);
+  const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const pendingDraft = useRef<string | undefined>(undefined);
+  const draftChangeHandler = useRef(onDraftChange);
   realtimeStopHandler.current = onStopRealtime;
+  draftChangeHandler.current = onDraftChange;
 
   const updateVoiceLevel = (rms: number) => {
     const next = microphoneLevel(rms);
@@ -120,6 +128,43 @@ export function Composer({
     [],
   );
 
+  useEffect(
+    () => () => {
+      if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+      const content = pendingDraft.current;
+      pendingDraft.current = undefined;
+      if (content !== undefined) {
+        void Promise.resolve(draftChangeHandler.current?.(content)).catch(() => undefined);
+      }
+    },
+    [],
+  );
+
+  const persistDraftSoon = (content: string) => {
+    pendingDraft.current = content;
+    if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+    draftSaveTimer.current = setTimeout(() => {
+      draftSaveTimer.current = undefined;
+      const pending = pendingDraft.current;
+      pendingDraft.current = undefined;
+      if (pending !== undefined) {
+        void Promise.resolve(draftChangeHandler.current?.(pending)).catch(() => undefined);
+      }
+    }, 300);
+  };
+
+  const updateValue = (content: string) => {
+    setValue(content);
+    persistDraftSoon(content);
+  };
+
+  const persistDraftNow = (content: string) => {
+    if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+    draftSaveTimer.current = undefined;
+    pendingDraft.current = undefined;
+    void Promise.resolve(draftChangeHandler.current?.(content)).catch(() => undefined);
+  };
+
   useEffect(() => {
     if (
       !voiceConversation ||
@@ -142,14 +187,19 @@ export function Composer({
     const content = value.trim();
     if ((!content && attachments.length === 0) || disabled || sending) return;
     setSending(true);
+    if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+    draftSaveTimer.current = undefined;
+    pendingDraft.current = undefined;
     try {
       await onSend(
         content,
         attachments.map((attachment) => attachment.id),
       );
       setValue('');
+      persistDraftNow('');
       if (textArea.current) textArea.current.style.height = 'auto';
     } catch {
+      persistDraftNow(value);
       textArea.current?.focus();
     } finally {
       setSending(false);
@@ -395,7 +445,7 @@ export function Composer({
       if (recordingPurpose.current === 'conversation') {
         if (transcript.trim()) await onSend(transcript.trim(), []);
       } else {
-        setValue((current) => `${current.trimEnd()}${current.trim() ? ' ' : ''}${transcript}`);
+        updateValue(`${value.trimEnd()}${value.trim() ? ' ' : ''}${transcript}`);
       }
       requestAnimationFrame(() => {
         const input = textArea.current;
@@ -455,7 +505,7 @@ export function Composer({
           placeholder={placeholder}
           aria-label="Message"
           onChange={(event) => {
-            setValue(event.target.value);
+            updateValue(event.target.value);
             event.currentTarget.style.height = 'auto';
             event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 168)}px`;
           }}

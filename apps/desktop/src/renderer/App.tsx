@@ -435,6 +435,9 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onResolveApproval={(id, decision) =>
                 run(() => api.respondToApproval(id, decision))
               }
+              onDraftChange={
+                activeThread ? (content) => api.saveDraft(activeThread.id, content) : undefined
+              }
               onCreateThread={
                 selectedAgent
                   ? () => void run(() => api.createThread(selectedAgent.id))

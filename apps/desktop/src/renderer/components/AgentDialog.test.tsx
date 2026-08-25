@@ -8,6 +8,30 @@ import { AgentDialog } from './AgentDialog';
 afterEach(cleanup);
 
 describe('agent defaults', () => {
+  it('prefills a useful Sia-native role without changing provider or workspace controls', () => {
+    render(
+      <AgentDialog
+        open
+        providers={demoSnapshot.providers}
+        onOpenChange={vi.fn()}
+        onPickWorkspace={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Release partner/ }));
+
+    expect((screen.getByRole('textbox', { name: 'Name' }) as HTMLInputElement).value).toBe(
+      'Release partner',
+    );
+    expect(
+      (screen.getByRole('textbox', { name: /^Instructions/ }) as HTMLTextAreaElement).value,
+    ).toContain('source, tests, deployment state, artifacts, rollback');
+    expect(
+      (screen.getByRole('combobox', { name: 'Provider' }) as HTMLSelectElement).value,
+    ).toBe('codex');
+  });
+
   it('uses the canonical pinned Codex model for a new agent', () => {
     render(
       <AgentDialog

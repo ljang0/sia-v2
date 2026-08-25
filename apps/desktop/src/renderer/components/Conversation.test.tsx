@@ -194,6 +194,26 @@ describe('Conversation waiting controls', () => {
     expect(input.value).toBe('Do not lose this draft');
   });
 
+  it('restores a persisted draft and flushes edits when switching threads', () => {
+    const onDraftChange = vi.fn();
+    const view = render(
+      <Conversation
+        thread={baseThread({ status: 'idle', draft: 'A thought worth keeping' })}
+        onDraftChange={onDraftChange}
+        onSend={async () => undefined}
+        onStop={async () => undefined}
+        onRetry={async () => undefined}
+        onResolveApproval={async () => undefined}
+      />,
+    );
+    const input = screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement;
+    expect(input.value).toBe('A thought worth keeping');
+
+    fireEvent.change(input, { target: { value: 'A revised thought' } });
+    view.unmount();
+    expect(onDraftChange).toHaveBeenCalledWith('A revised thought');
+  });
+
   it('allows a new message after a turn error', () => {
     renderConversation(
       baseThread({
