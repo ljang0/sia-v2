@@ -27,6 +27,8 @@ interface SettingsProps {
   initialSection?: SettingsSection | undefined;
   onClose(): void;
   onProbeProvider(provider: ProviderId): Promise<void>;
+  onCheckForUpdates(): Promise<void>;
+  onOpenUpdateDownload(): Promise<void>;
   onConnectGoogleApps(): Promise<void>;
   onUpgradeGoogleApps(): Promise<void>;
   onConnectApp(app: AppConnection['id']): Promise<void>;
@@ -67,6 +69,8 @@ export function Settings({
   initialSection = 'providers',
   onClose,
   onProbeProvider,
+  onCheckForUpdates,
+  onOpenUpdateDownload,
   onConnectGoogleApps,
   onUpgradeGoogleApps,
   onConnectApp,
@@ -190,6 +194,9 @@ export function Settings({
               providers={snapshot.providers}
               onProbe={onProbeProvider}
               onOpenCloudSettings={() => setSection('apps')}
+              updates={snapshot.updates}
+              onCheckForUpdates={onCheckForUpdates}
+              onOpenUpdateDownload={onOpenUpdateDownload}
             />
           ) : null}
           {section === 'apps' ? (

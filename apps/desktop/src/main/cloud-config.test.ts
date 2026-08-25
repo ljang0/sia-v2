@@ -69,6 +69,34 @@ describe('cloud configuration', () => {
     expect(() =>
       developmentCloudConfiguration({ SIA_API_BASE_URL: ENABLED_CONFIG.apiBaseUrl }),
     ).toThrow(/requires/);
+    expect(
+      developmentCloudConfiguration({
+        SIA_UPDATE_MANIFEST_URL: 'https://releases.example.test/latest-mac.json',
+      }),
+    ).toEqual({ updateManifestUrl: 'https://releases.example.test/latest-mac.json' });
+    expect(() =>
+      developmentCloudConfiguration({
+        SIA_UPDATE_MANIFEST_URL: 'http://releases.example.test',
+      }),
+    ).toThrow(/clean HTTPS/);
+  });
+
+  it('accepts an update manifest in a packaged local-only build', async () => {
+    await expect(
+      loadCloudConfiguration({
+        packaged: true,
+        resourcesPath: '/resources',
+        environment: {},
+        readResource: async () =>
+          JSON.stringify({
+            schemaVersion: 1,
+            enabled: false,
+            updateManifestUrl: 'https://releases.example.test/latest-mac.json',
+          }),
+      }),
+    ).resolves.toEqual({
+      updateManifestUrl: 'https://releases.example.test/latest-mac.json',
+    });
   });
 
   it('fails closed for missing, malformed, oversized, or unknown packaged configuration', async () => {

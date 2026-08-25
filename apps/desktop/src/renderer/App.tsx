@@ -1,6 +1,7 @@
 import {
   Archive,
   ChatCircle,
+  EnvelopeSimple,
   GearSix,
   MagnifyingGlass,
   Plus,
@@ -13,6 +14,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { AgentDialog } from './components/AgentDialog';
 import { AppSkeleton, WorkspaceNotice } from './components/AppStates';
 import { Conversation } from './components/Conversation';
+import { FeedbackDialog } from './components/FeedbackDialog';
 import { Inspector } from './components/Inspector';
 import { RoomHeader } from './components/RoomHeader';
 import { QuickSwitcher, type QuickSwitcherAction } from './components/QuickSwitcher';
@@ -27,7 +29,7 @@ import {
   TranscriptSearch,
   ThreadWorkspaceTools,
 } from './components/localParity';
-import type { AgentDraft, RendererApi } from './types';
+import type { AgentDraft, AgentSummary, RendererApi, RendererSnapshot } from './types';
 import { useAppController } from './useAppController';
 import { RESEARCH_CONSENT_VERSION } from '../shared/bridge';
 import './tokens.css';
@@ -49,6 +51,8 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
       import.meta.env?.DEV && typeof location !== 'undefined' && location.hash === '#audit',
     );
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [conversationFindOpen, setConversationFindOpen] = useState(false);
 
   useEffect(() => {
     if (auditMode) return undefined;
@@ -61,7 +65,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
       } else if (key === 'f') {
         event.preventDefault();
         setQuickSwitcherOpen(false);
-        app.openActivity('search');
+        if (app.snapshot?.activeThread && !app.settingsOpen && !app.activityOpen) {
+          setConversationFindOpen(true);
+        } else {
+          app.openActivity('search');
+        }
       } else if (key === 'b') {
         event.preventDefault();
         setQuickSwitcherOpen(false);
@@ -127,6 +135,14 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
           },
         ]
       : []),
+    {
+      id: 'feedback',
+      label: 'Send feedback',
+      detail: 'Review a note in your mail app',
+      keywords: 'bug issue suggestion support',
+      icon: <EnvelopeSimple size={17} />,
+      run: () => setFeedbackOpen(true),
+    },
     {
       id: 'new-agent',
       label: 'Create a new agent',
@@ -213,10 +229,23 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         }
         onCreateAgent={app.openNewAgent}
         onEditAgent={app.openEditAgent}
+        onSetAgentPinned={(agentId, pinned) =>
+          app.attempt(() => api.setAgentPinned(agentId, pinned)) as Promise<void>
+        }
+        onSetAgentNotifications={(agentId, enabled) =>
+          app.attempt(() => api.setAgentNotifications(agentId, enabled)) as Promise<void>
+        }
+        onDuplicateAgent={(agentId) =>
+          app.attempt(() => api.duplicateAgent(agentId)) as Promise<void>
+        }
+        onSetThreadUnread={(threadId, unread) =>
+          app.attempt(() => api.setThreadUnread(threadId, unread)) as Promise<void>
+        }
         onOpenActivity={() => app.openActivity('activity')}
         onOpenArchived={() => app.openActivity('archived')}
         onOpenSettings={() => app.openSettings()}
         onOpenQuickSwitcher={() => setQuickSwitcherOpen(true)}
+        onOpenFeedback={() => setFeedbackOpen(true)}
       />
 
       <QuickSwitcher
@@ -231,11 +260,15 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
           app.closeActivity();
           void run(() => api.selectAgent(agentId));
         }}
-        onSelectThread={(threadId) => {
+        onSelectThread={(threadId, archived) => {
           app.closeSettings();
           app.closeActivity();
-          void run(() => api.selectThread(threadId));
+          void run(async () => {
+            if (archived) await api.unarchiveThread(threadId);
+            await api.selectThread(threadId);
+          });
         }}
+        searchResources={(query) => api.searchThreads(query)}
       />
 
       <section
@@ -355,6 +388,8 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               initialSection={app.settingsSection}
               onClose={app.closeSettings}
               onProbeProvider={(provider) => api.refreshProvider(provider)}
+              onCheckForUpdates={() => api.checkForUpdates()}
+              onOpenUpdateDownload={() => api.openUpdateDownload()}
               onConnectGoogleApps={() => api.connectGoogleApps()}
               onUpgradeGoogleApps={() => api.upgradeGoogleApps()}
               onConnectApp={(id) => api.connectApp(id)}
@@ -406,6 +441,31 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 activeThread ? () => app.pickAttachments(activeThread.id) : undefined
               }
               onRemoveAttachment={app.removeAttachment}
+              onDropAttachments={
+                activeThread
+                  ? (files) => app.dropAttachments(activeThread.id, files)
+                  : undefined
+              }
+              onPreviewAttachment={
+                activeThread
+                  ? (attachmentId) => api.previewAttachment(activeThread.id, attachmentId)
+                  : undefined
+              }
+              onOpenAttachment={
+                activeThread
+                  ? (attachmentId) =>
+                      app.run(() => api.openAttachment(activeThread.id, attachmentId))
+                  : undefined
+              }
+              onRevealAttachment={
+                activeThread
+                  ? (attachmentId) =>
+                      app.run(() => api.revealAttachment(activeThread.id, attachmentId))
+                  : undefined
+              }
+              starterPrompts={starterPrompts(roomAgent, snapshot)}
+              findOpen={conversationFindOpen}
+              onFindOpenChange={setConversationFindOpen}
               voiceEnabled={snapshot.voice.status === 'connected'}
               onTranscribeVoice={(audioBase64, mimeType) =>
                 api.transcribeVoice(audioBase64, mimeType)
@@ -516,6 +576,16 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
             }
           : {})}
       />
+      <FeedbackDialog
+        open={feedbackOpen}
+        threadId={activeThread?.id}
+        onOpenChange={setFeedbackOpen}
+        onSubmit={(message, includeDiagnostics) =>
+          app.attempt(() =>
+            api.composeFeedback(message, activeThread?.id, includeDiagnostics),
+          ) as Promise<void>
+        }
+      />
       {(snapshot.cloudAuth.state === 'signed-out' ||
         snapshot.cloudAuth.state === 'code-sent' ||
         snapshot.cloudAuth.state === 'password-required' ||
@@ -620,4 +690,26 @@ function activityItems(snapshot: import('./types').RendererSnapshot) {
         updatedAt: thread.updatedAt,
       })),
   );
+}
+
+function starterPrompts(agent: AgentSummary | undefined, snapshot: RendererSnapshot): string[] {
+  if (!agent) return [];
+  const identity = `${agent.name} ${agent.instructions}`.toLocaleLowerCase();
+  const prompts: string[] = [];
+  if (/release|ship|qa|test/.test(identity)) {
+    prompts.push('Run the release checklist and surface anything that should stop the build.');
+  } else if (/research|analys|source/.test(identity)) {
+    prompts.push('Compare the strongest sources and show where they disagree.');
+  } else {
+    prompts.push('Summarize this workspace and suggest the first useful step.');
+  }
+  if (agent.provider === 'codex') {
+    prompts.push('Review the current changes and flag the risky parts.');
+  }
+  if (snapshot.apps.some(({ status, enabled }) => status === 'connected' && enabled)) {
+    prompts.push('Catch me up on the connected work that needs a response.');
+  } else {
+    prompts.push('Turn the latest project activity into a concise briefing.');
+  }
+  return prompts.slice(0, 3);
 }

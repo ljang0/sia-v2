@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { basename, extname, isAbsolute, normalize, resolve } from 'node:path';
 
 import { LocalLeaseCoordinator, type TurnLease } from '@sia/action-gateway';
@@ -31,10 +31,12 @@ import type {
   DesktopPushEvent,
   DesktopSnapshot,
   ProviderId,
+  ProviderUsageView,
   ProviderView,
   ScheduleView,
   ThreadView,
   TimelineItemView,
+  UpdateView,
   VoiceView,
   WorkspaceDiffView,
   WorkspaceSnapshotView,
@@ -106,8 +108,12 @@ interface ControllerOptions {
   revealDirectory?(path: string): Promise<void>;
   chooseDirectory(): Promise<string | null>;
   chooseFiles?(): Promise<string[]>;
+  openPath?(path: string): Promise<void>;
+  composeFeedback?(subject: string, body: string): Promise<void>;
+  appVersion?: string;
+  updateManifestUrl?: string;
   exportJson(value: unknown): Promise<string | null>;
-  notify?(title: string, body: string): void;
+  notify?(notice: { threadId: string; title: string; body: string }): void;
   workspaceOperations?: {
     readDiff(workspace: string): Promise<WorkspaceDiffView>;
     stage(workspace: string, paths: readonly string[]): Promise<WorkspaceDiffView>;
@@ -167,6 +173,17 @@ interface PersistedState {
     /** Set once the automatic macOS permission prompt has been shown for this profile. */
     permissionsPromptedAt?: string;
   };
+  usageByTurn: Record<
+    string,
+    {
+      threadId: string;
+      provider: ProviderId;
+      inputTokens: number;
+      outputTokens: number;
+      cachedInputTokens: number;
+      updatedAt: string;
+    }
+  >;
 }
 
 interface QueuedTurn {
@@ -347,6 +364,7 @@ const INITIAL_STATE: PersistedState = {
     schedules: true,
   },
   preferences: { completionSound: false },
+  usageByTurn: {},
 };
 
 export class DesktopController {
@@ -360,8 +378,13 @@ export class DesktopController {
   readonly #openMessages: (() => Promise<void>) | undefined;
   readonly #chooseDirectory: () => Promise<string | null>;
   readonly #chooseFiles: (() => Promise<string[]>) | undefined;
+  readonly #openPath: ((path: string) => Promise<void>) | undefined;
+  readonly #composeFeedback: ((subject: string, body: string) => Promise<void>) | undefined;
+  readonly #appVersion: string;
+  readonly #updateManifestUrl: string | undefined;
   readonly #exportJson: (value: unknown) => Promise<string | null>;
-  readonly #notify: ((title: string, body: string) => void) | undefined;
+  readonly #notify:
+    ((notice: { threadId: string; title: string; body: string }) => void) | undefined;
   readonly #workspaceOperations: ControllerOptions['workspaceOperations'];
   readonly #voice: VoiceOperations | undefined;
   readonly #startupNotice: ControllerOptions['startupNotice'];
@@ -414,6 +437,7 @@ export class DesktopController {
   #revision = 0;
   #accountDeletionInProgress = false;
   #cloudParticipant = false;
+  #updates: UpdateView;
 
   constructor(options: ControllerOptions) {
     this.#repository = options.repository;
@@ -430,6 +454,17 @@ export class DesktopController {
     this.#openMessages = options.openMessages;
     this.#chooseDirectory = options.chooseDirectory;
     this.#chooseFiles = options.chooseFiles;
+    this.#openPath = options.openPath;
+    this.#composeFeedback = options.composeFeedback;
+    this.#appVersion = options.appVersion ?? 'development';
+    this.#updateManifestUrl = options.updateManifestUrl;
+    this.#updates = {
+      status: options.updateManifestUrl ? 'idle' : 'unconfigured',
+      currentVersion: this.#appVersion,
+      detail: options.updateManifestUrl
+        ? 'Ready to check the configured release feed.'
+        : 'This build does not have a persistent signed update feed configured.',
+    };
     this.#exportJson = options.exportJson;
     this.#notify = options.notify;
     this.#workspaceOperations = options.workspaceOperations;
@@ -643,6 +678,87 @@ export class DesktopController {
     return workspace;
   }
 
+  async #composeFeedbackMessage(
+    input: BridgeRequestMap['feedback.compose'],
+  ): Promise<BridgeResultMap['feedback.compose']> {
+    if (!this.#composeFeedback)
+      throw new Error('Feedback handoff is unavailable in this build.');
+    if (input.threadId) this.#requireThread(input.threadId);
+    const diagnostics = input.includeDiagnostics
+      ? [
+          '',
+          '--- Sia diagnostics (no transcript or file contents) ---',
+          `Version: ${this.#appVersion}`,
+          ...(input.threadId ? [`Thread ID: ${input.threadId}`] : []),
+          `Providers: ${this.#providers.map(({ id, status }) => `${id}=${status}`).join(', ')}`,
+        ].join('\n')
+      : '';
+    await this.#composeFeedback(
+      'Sia internal feedback',
+      `${input.message.trim()}${diagnostics}`,
+    );
+    return { opened: true };
+  }
+
+  async #checkForUpdates(): Promise<UpdateView> {
+    if (!this.#updateManifestUrl) return structuredClone(this.#updates);
+    if (!isCleanHttpsUrl(this.#updateManifestUrl)) {
+      this.#updates = {
+        status: 'error',
+        currentVersion: this.#appVersion,
+        detail: 'The configured release feed must be a clean HTTPS URL.',
+      };
+      this.#emit();
+      return structuredClone(this.#updates);
+    }
+    this.#updates = {
+      status: 'checking',
+      currentVersion: this.#appVersion,
+      detail: 'Checking the configured release feed…',
+    };
+    this.#emit();
+    try {
+      const response = await fetch(this.#updateManifestUrl, {
+        headers: { accept: 'application/json' },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) throw new Error(`Release feed returned HTTP ${response.status}.`);
+      const raw = (await response.json()) as Record<string, unknown>;
+      const latestVersion = typeof raw.version === 'string' ? raw.version.trim() : '';
+      const downloadUrl = typeof raw.downloadUrl === 'string' ? raw.downloadUrl.trim() : '';
+      if (!latestVersion || !isCleanHttpsUrl(downloadUrl)) {
+        throw new Error('Release feed response is missing a safe version or download URL.');
+      }
+      const available = compareVersions(latestVersion, this.#appVersion) > 0;
+      this.#updates = {
+        status: available ? 'available' : 'current',
+        currentVersion: this.#appVersion,
+        latestVersion,
+        ...(available ? { downloadUrl } : {}),
+        detail: available
+          ? `Sia ${latestVersion} is ready to download.`
+          : 'This build is up to date.',
+      };
+    } catch (error) {
+      this.#updates = {
+        status: 'error',
+        currentVersion: this.#appVersion,
+        detail:
+          error instanceof Error ? error.message : 'The release feed could not be checked.',
+      };
+    }
+    this.#emit();
+    return structuredClone(this.#updates);
+  }
+
+  async #openUpdateDownload(): Promise<BridgeResultMap['updates.openDownload']> {
+    if (this.#updates.status !== 'available' || !this.#updates.downloadUrl) {
+      throw new Error('Check for updates before opening a download.');
+    }
+    await this.#openExternal(this.#updates.downloadUrl);
+    return { opened: true };
+  }
+
   async initialize(): Promise<void> {
     const stored = this.#repository.get<PersistedState>('desktop', 'state');
     this.#state = stored ? this.#recover(stored) : structuredClone(INITIAL_STATE);
@@ -748,6 +864,8 @@ export class DesktopController {
         this.#voice?.view() ?? ({ status: 'disconnected', voices: [] } satisfies VoiceView),
       ),
       preferences: structuredClone(this.#state.preferences),
+      providerUsage: this.#providerUsage(),
+      updates: structuredClone(this.#updates),
       schedules: structuredClone(this.#state.schedules),
       ...(this.#state.activeAgentId ? { activeAgentId: this.#state.activeAgentId } : {}),
       ...(this.#state.activeThreadId ? { activeThreadId: this.#state.activeThreadId } : {}),
@@ -770,6 +888,30 @@ export class DesktopController {
   subscribe(listener: (event: DesktopPushEvent) => void): () => void {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);
+  }
+
+  #providerUsage(): ProviderUsageView[] {
+    const totals = new Map<ProviderId, ProviderUsageView>();
+    for (const record of Object.values(this.#state.usageByTurn)) {
+      const current = totals.get(record.provider) ?? {
+        provider: record.provider,
+        requests: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        cachedInputTokens: 0,
+        lastUsedAt: record.updatedAt,
+        providerReported: true as const,
+      };
+      current.requests += 1;
+      current.inputTokens += record.inputTokens;
+      current.outputTokens += record.outputTokens;
+      current.cachedInputTokens += record.cachedInputTokens;
+      if (record.updatedAt > current.lastUsedAt) current.lastUsedAt = record.updatedAt;
+      totals.set(record.provider, current);
+    }
+    return [...totals.values()].sort((left, right) =>
+      left.provider.localeCompare(right.provider),
+    );
   }
 
   /** Keeps opaque cloud connection ids out of model arguments and renderer-controlled routing. */
@@ -842,6 +984,18 @@ export class DesktopController {
         return this.#deleteAgent(
           (input as BridgeRequestMap['agents.delete']).agentId,
         ) as BridgeResultMap[M];
+      case 'agents.setPinned':
+        return this.#setAgentPinned(
+          input as BridgeRequestMap['agents.setPinned'],
+        ) as BridgeResultMap[M];
+      case 'agents.setNotifications':
+        return this.#setAgentNotifications(
+          input as BridgeRequestMap['agents.setNotifications'],
+        ) as BridgeResultMap[M];
+      case 'agents.duplicate':
+        return this.#duplicateAgent(
+          (input as BridgeRequestMap['agents.duplicate']).agentId,
+        ) as BridgeResultMap[M];
       case 'threads.create':
         return this.#createThread(
           input as BridgeRequestMap['threads.create'],
@@ -869,6 +1023,10 @@ export class DesktopController {
       case 'threads.unarchive':
         return this.#unarchiveThread(
           (input as BridgeRequestMap['threads.unarchive']).threadId,
+        ) as BridgeResultMap[M];
+      case 'threads.setUnread':
+        return this.#setThreadUnread(
+          input as BridgeRequestMap['threads.setUnread'],
         ) as BridgeResultMap[M];
       case 'threads.fork':
         return (await this.#forkThread(
@@ -919,6 +1077,23 @@ export class DesktopController {
       case 'attachments.pick':
         return (await this.#pickAttachments(
           (input as BridgeRequestMap['attachments.pick']).threadId,
+        )) as BridgeResultMap[M];
+      case 'attachments.drop':
+        return (await this.#grantAttachments(
+          (input as BridgeRequestMap['attachments.drop']).threadId,
+          (input as BridgeRequestMap['attachments.drop']).paths,
+        )) as BridgeResultMap[M];
+      case 'attachments.preview':
+        return (await this.#previewAttachment(
+          input as BridgeRequestMap['attachments.preview'],
+        )) as BridgeResultMap[M];
+      case 'attachments.open':
+        return (await this.#openAttachment(
+          input as BridgeRequestMap['attachments.open'],
+        )) as BridgeResultMap[M];
+      case 'attachments.reveal':
+        return (await this.#revealAttachment(
+          input as BridgeRequestMap['attachments.reveal'],
         )) as BridgeResultMap[M];
       case 'changes.read':
         return (await this.#readChanges(
@@ -1008,6 +1183,14 @@ export class DesktopController {
         ).enabled;
         this.#commit();
         return this.snapshot() as BridgeResultMap[M];
+      case 'feedback.compose':
+        return (await this.#composeFeedbackMessage(
+          input as BridgeRequestMap['feedback.compose'],
+        )) as BridgeResultMap[M];
+      case 'updates.check':
+        return (await this.#checkForUpdates()) as BridgeResultMap[M];
+      case 'updates.openDownload':
+        return (await this.#openUpdateDownload()) as BridgeResultMap[M];
       case 'computer.permissions':
         return (await this.#refreshComputer(false)) as unknown as BridgeResultMap[M];
       case 'computer.requestPermissions':
@@ -1312,6 +1495,9 @@ export class DesktopController {
       workspace,
       ...(input.voiceId ? { voiceId: input.voiceId.trim() } : {}),
       ...(input.hue !== undefined ? { hue: input.hue } : {}),
+      pinned: input.pinned ?? existing?.pinned ?? false,
+      notificationsEnabled:
+        input.notificationsEnabled ?? existing?.notificationsEnabled ?? true,
       threadIds: existing?.threadIds ?? [],
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
@@ -1322,6 +1508,41 @@ export class DesktopController {
     this.#state.activeAgentId = agentId;
     this.#commit();
     return { agentId, snapshot: this.snapshot() };
+  }
+
+  #setAgentPinned(input: BridgeRequestMap['agents.setPinned']): DesktopSnapshot {
+    const agent = this.#requireAgent(input.agentId);
+    agent.pinned = input.pinned;
+    agent.updatedAt = new Date().toISOString();
+    this.#commit();
+    return this.snapshot();
+  }
+
+  #setAgentNotifications(input: BridgeRequestMap['agents.setNotifications']): DesktopSnapshot {
+    const agent = this.#requireAgent(input.agentId);
+    agent.notificationsEnabled = input.enabled;
+    agent.updatedAt = new Date().toISOString();
+    this.#commit();
+    return this.snapshot();
+  }
+
+  #duplicateAgent(agentId: string): BridgeResultMap['agents.duplicate'] {
+    const source = this.#requireAgent(agentId);
+    const now = new Date().toISOString();
+    const copy: AgentView = {
+      ...structuredClone(source),
+      id: randomUUID(),
+      name: `${source.name} copy`.slice(0, 80),
+      threadIds: [],
+      pinned: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.#state.agents.push(copy);
+    this.#state.activeAgentId = copy.id;
+    delete this.#state.activeThreadId;
+    this.#commit();
+    return { agentId: copy.id, snapshot: this.snapshot() };
   }
 
   #deleteAgent(agentId: string): DesktopSnapshot {
@@ -1345,6 +1566,11 @@ export class DesktopController {
     );
     this.#state.schedules = this.#state.schedules.filter(
       ({ threadId }) => !threadIds.has(threadId),
+    );
+    this.#state.usageByTurn = Object.fromEntries(
+      Object.entries(this.#state.usageByTurn).filter(
+        ([, usage]) => !threadIds.has(usage.threadId),
+      ),
     );
     const nextAgentId = this.#state.agents[0]?.id;
     if (nextAgentId) this.#state.activeAgentId = nextAgentId;
@@ -1461,6 +1687,13 @@ export class DesktopController {
     return this.snapshot();
   }
 
+  #setThreadUnread(input: BridgeRequestMap['threads.setUnread']): DesktopSnapshot {
+    const thread = this.#requireThread(input.threadId);
+    thread.unread = input.unread;
+    this.#commit();
+    return this.snapshot();
+  }
+
   async #forkThread(
     input: BridgeRequestMap['threads.fork'],
     primary = false,
@@ -1570,31 +1803,56 @@ export class DesktopController {
     if (!needle) return { results: [] };
     const results = this.#state.threads
       .map((thread) => {
-        const matches = this.#state.timeline
-          .filter((item) => item.threadId === thread.id)
-          .filter((item) =>
-            [item.title, item.text, item.detail]
-              .filter(Boolean)
-              .some((value) => value!.toLocaleLowerCase().includes(needle)),
-          )
-          .slice(-10)
-          .map((item) => ({
-            itemId: item.id,
-            excerpt: searchExcerpt(item.text ?? item.detail ?? item.title ?? '', needle),
-            timestamp: item.timestamp,
-          }));
+        const matches: BridgeResultMap['threads.search']['results'][number]['matches'] = [];
+        for (const item of this.#state.timeline.filter(
+          ({ threadId }) => threadId === thread.id,
+        )) {
+          const copy = [item.title, item.text, item.detail].filter(Boolean).join(' ');
+          if (copy.toLocaleLowerCase().includes(needle)) {
+            matches.push({
+              itemId: item.id,
+              excerpt: searchExcerpt(copy, needle),
+              timestamp: item.timestamp,
+              kind: 'message',
+            });
+          }
+          for (const attachment of item.attachments ?? []) {
+            if (!attachment.name.toLocaleLowerCase().includes(needle)) continue;
+            matches.push({
+              itemId: `${item.id}:file:${attachment.id}`,
+              excerpt: attachment.name,
+              label: attachment.name,
+              timestamp: item.timestamp,
+              kind: 'file',
+            });
+          }
+          for (const [index, url] of extractHttpUrls(copy).entries()) {
+            if (!url.toLocaleLowerCase().includes(needle)) continue;
+            matches.push({
+              itemId: `${item.id}:link:${index}`,
+              excerpt: url,
+              label: safeUrlHost(url),
+              url,
+              timestamp: item.timestamp,
+              kind: 'link',
+            });
+          }
+        }
         if (thread.title.toLocaleLowerCase().includes(needle) && matches.length === 0) {
           matches.push({
             itemId: thread.id,
             excerpt: thread.title,
             timestamp: thread.updatedAt,
+            kind: 'thread',
           });
         }
         return {
           threadId: thread.id,
           threadTitle: thread.title,
           archived: Boolean(thread.archivedAt),
-          matches,
+          matches: matches
+            .sort((left, right) => right.timestamp.localeCompare(left.timestamp))
+            .slice(0, 12),
         };
       })
       .filter((result) => result.matches.length > 0)
@@ -1670,6 +1928,11 @@ export class DesktopController {
     );
     this.#state.schedules = this.#state.schedules.filter(
       (schedule) => schedule.threadId !== thread.id,
+    );
+    this.#state.usageByTurn = Object.fromEntries(
+      Object.entries(this.#state.usageByTurn).filter(
+        ([, usage]) => usage.threadId !== thread.id,
+      ),
     );
     if (this.#state.activeThreadId === thread.id) delete this.#state.activeThreadId;
     this.#commit();
@@ -1814,7 +2077,8 @@ export class DesktopController {
         ? { attachments: attachmentGrants.map(({ attachment }) => attachment) }
         : {}),
     };
-    for (const id of input.attachmentIds ?? []) this.#attachmentGrants.delete(id);
+    // Keep short-lived grants available for local preview/open after send. They still expire
+    // after one hour and are never persisted, so a relaunch cannot revive file access.
     if (this.#runningTurns.size >= 4) {
       thread.status = 'queued';
       thread.queueReason = 'Four local tasks are already running.';
@@ -1929,9 +2193,16 @@ export class DesktopController {
   }
 
   async #pickAttachments(threadId: string): Promise<BridgeResultMap['attachments.pick']> {
-    const thread = this.#requireIdleThread(threadId, 'attach files');
     if (!this.#chooseFiles) throw new Error('File attachments are unavailable in this build.');
     const selected = await this.#chooseFiles();
+    return await this.#grantAttachments(threadId, selected);
+  }
+
+  async #grantAttachments(
+    threadId: string,
+    selected: readonly string[],
+  ): Promise<BridgeResultMap['attachments.pick']> {
+    const thread = this.#requireIdleThread(threadId, 'attach files');
     if (selected.length > 20) throw new Error('Choose at most 20 files at a time.');
     const grants: AttachmentView[] = [];
     let totalBytes = 0;
@@ -1959,6 +2230,52 @@ export class DesktopController {
     }
     this.#pruneAttachmentGrants();
     return { attachments: grants };
+  }
+
+  async #previewAttachment(
+    input: BridgeRequestMap['attachments.preview'],
+  ): Promise<BridgeResultMap['attachments.preview']> {
+    const grant = this.#requireAttachmentGrant(input.threadId, input.attachmentId);
+    const path = grant.attachment.path;
+    if (extname(path).toLocaleLowerCase() === '.pdf') return { kind: 'pdf' };
+    const mimeType = previewImageMimeType(path);
+    if (!mimeType) {
+      return { kind: 'unavailable', detail: 'Preview is available for common image files.' };
+    }
+    const info = await stat(path);
+    if (info.size > 8 * 1024 * 1024) {
+      return { kind: 'unavailable', detail: 'Open this image to view the full-size file.' };
+    }
+    const bytes = await readFile(path);
+    return { kind: 'image', dataUrl: `data:${mimeType};base64,${bytes.toString('base64')}` };
+  }
+
+  async #openAttachment(
+    input: BridgeRequestMap['attachments.open'],
+  ): Promise<BridgeResultMap['attachments.open']> {
+    if (!this.#openPath) throw new Error('Opening local files is unavailable in this build.');
+    const grant = this.#requireAttachmentGrant(input.threadId, input.attachmentId);
+    await this.#openPath(grant.attachment.path);
+    return { opened: true };
+  }
+
+  async #revealAttachment(
+    input: BridgeRequestMap['attachments.reveal'],
+  ): Promise<BridgeResultMap['attachments.reveal']> {
+    if (!this.#revealDirectory) throw new Error('Finder reveal is unavailable in this build.');
+    const grant = this.#requireAttachmentGrant(input.threadId, input.attachmentId);
+    await this.#revealDirectory(grant.attachment.path);
+    return { revealed: true };
+  }
+
+  #requireAttachmentGrant(threadId: string, attachmentId: string): AttachmentGrant {
+    this.#requireThread(threadId);
+    this.#pruneAttachmentGrants();
+    const grant = this.#attachmentGrants.get(attachmentId);
+    if (!grant || grant.threadId !== threadId) {
+      throw new Error('This local file grant expired. Attach the file again to reopen it.');
+    }
+    return grant;
   }
 
   async #readChanges(threadId: string): Promise<WorkspaceDiffView> {
@@ -4413,12 +4730,20 @@ export class DesktopController {
       thread.goal.updatedAt = new Date().toISOString();
     }
     thread.unread = true;
-    this.#notify?.(
-      outcome === 'complete' ? `${thread.title} finished` : `${thread.title} needs attention`,
-      outcome === 'complete'
-        ? 'Background work is ready to review.'
-        : 'The task stopped before it could finish.',
-    );
+    const agent = this.#state.agents.find(({ id }) => id === thread.agentId);
+    if (agent?.notificationsEnabled !== false) {
+      this.#notify?.({
+        threadId: thread.id,
+        title:
+          outcome === 'complete'
+            ? `${thread.title} finished`
+            : `${thread.title} needs attention`,
+        body:
+          outcome === 'complete'
+            ? 'Background work is ready to review.'
+            : 'The task stopped before it could finish.',
+      });
+    }
   }
 
   #markScheduleRunFinished(
@@ -4712,6 +5037,14 @@ export class DesktopController {
       return;
     }
     if (event.type === 'usage') {
+      this.#state.usageByTurn[event.turnId] = {
+        threadId: event.threadId,
+        provider: thread.provider,
+        inputTokens: event.payload.inputTokens ?? 0,
+        outputTokens: event.payload.outputTokens ?? 0,
+        cachedInputTokens: event.payload.cachedInputTokens ?? 0,
+        updatedAt: event.timestamp,
+      };
       this.#stageResearchTrajectory({
         turnId: event.turnId,
         eventId: event.id,
@@ -5354,6 +5687,12 @@ export class DesktopController {
     recovered.cloudFeatures =
       recovered.cloudFeatures ?? structuredClone(INITIAL_STATE.cloudFeatures);
     recovered.preferences = recovered.preferences ?? { completionSound: false };
+    recovered.usageByTurn = recovered.usageByTurn ?? {};
+    recovered.agents = recovered.agents.map((agent) => ({
+      ...agent,
+      pinned: agent.pinned ?? false,
+      notificationsEnabled: agent.notificationsEnabled ?? true,
+    }));
     // A CUA browser attachment is process-local. Never revive its UI grant without
     // preparing a fresh native session and rebuilding host-only tab capabilities.
     recovered.browser = { status: 'detached', grantedOrigins: [] };
@@ -6142,6 +6481,17 @@ function attachmentKind(path: string): AttachmentView['kind'] {
   return 'file';
 }
 
+function previewImageMimeType(path: string): string | undefined {
+  return {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.bmp': 'image/bmp',
+  }[extname(path).toLocaleLowerCase()];
+}
+
 function searchExcerpt(value: string, needle: string): string {
   const compact = value.replace(/\s+/g, ' ').trim();
   const index = compact.toLocaleLowerCase().indexOf(needle);
@@ -6149,6 +6499,67 @@ function searchExcerpt(value: string, needle: string): string {
   const start = Math.max(0, index - 60);
   const end = Math.min(compact.length, index + needle.length + 100);
   return `${start > 0 ? '…' : ''}${compact.slice(start, end)}${end < compact.length ? '…' : ''}`;
+}
+
+function extractHttpUrls(value: string): string[] {
+  return [...value.matchAll(/https?:\/\/[^\s<>()]+/gi)].map((match) =>
+    match[0].replace(/[),.;!?]+$/, ''),
+  );
+}
+
+function safeUrlHost(value: string): string {
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return 'Link';
+  }
+}
+
+function isCleanHttpsUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return Boolean(url.protocol === 'https:' && !url.username && !url.password && !url.hash);
+  } catch {
+    return false;
+  }
+}
+
+function compareVersions(left: string, right: string): number {
+  const parse = (value: string) => {
+    const [core = '', prerelease] = value.replace(/^v/, '').split('-', 2);
+    return {
+      core: core.split('.').map((part) => Number.parseInt(part, 10) || 0),
+      prerelease: prerelease?.split('.'),
+    };
+  };
+  const leftVersion = parse(left);
+  const rightVersion = parse(right);
+  const leftParts = leftVersion.core;
+  const rightParts = rightVersion.core;
+  for (let index = 0; index < Math.max(leftParts.length, rightParts.length); index += 1) {
+    const difference = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
+    if (difference !== 0) return difference;
+  }
+  if (!leftVersion.prerelease && rightVersion.prerelease) return 1;
+  if (leftVersion.prerelease && !rightVersion.prerelease) return -1;
+  for (
+    let index = 0;
+    index < Math.max(leftVersion.prerelease?.length ?? 0, rightVersion.prerelease?.length ?? 0);
+    index += 1
+  ) {
+    const leftPart = leftVersion.prerelease?.[index];
+    const rightPart = rightVersion.prerelease?.[index];
+    if (leftPart === rightPart) continue;
+    if (leftPart === undefined) return -1;
+    if (rightPart === undefined) return 1;
+    const leftNumber = /^\d+$/.test(leftPart) ? Number(leftPart) : undefined;
+    const rightNumber = /^\d+$/.test(rightPart) ? Number(rightPart) : undefined;
+    if (leftNumber !== undefined && rightNumber !== undefined) return leftNumber - rightNumber;
+    if (leftNumber !== undefined) return -1;
+    if (rightNumber !== undefined) return 1;
+    return leftPart.localeCompare(rightPart);
+  }
+  return 0;
 }
 
 function worktreeLabel(title: string, id: string): string {

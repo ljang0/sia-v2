@@ -1,4 +1,9 @@
-import { CheckCircle, WarningCircle } from '@phosphor-icons/react';
+import {
+  ArrowClockwise,
+  CheckCircle,
+  DownloadSimple,
+  WarningCircle,
+} from '@phosphor-icons/react';
 import { useState } from 'react';
 import {
   providerSetupHref,
@@ -13,14 +18,21 @@ export function ProvidersSettings({
   providers,
   onProbe,
   onOpenCloudSettings,
+  updates = DEFAULT_UPDATES,
+  onCheckForUpdates = async () => undefined,
+  onOpenUpdateDownload = async () => undefined,
 }: {
   providers: ProviderSetup[];
   onProbe(provider: ProviderId): Promise<void>;
   onOpenCloudSettings(): void;
+  updates?: import('../../types').RendererSnapshot['updates'] | undefined;
+  onCheckForUpdates?: (() => Promise<void>) | undefined;
+  onOpenUpdateDownload?: (() => Promise<void>) | undefined;
 }) {
   const [pending, setPending] = useState<ProviderId>();
   const [error, setError] = useState<string>();
   const [setupOpened, setSetupOpened] = useState<Set<ProviderId>>(() => new Set());
+  const [updatePending, setUpdatePending] = useState(false);
 
   const probe = async (provider: ProviderSetup) => {
     setPending(provider.id);
@@ -69,6 +81,15 @@ export function ProvidersSettings({
                   {provider.account ? <span>{provider.account}</span> : null}
                   {provider.version ? <span>CLI {provider.version}</span> : null}
                 </div>
+                {provider.usage ? (
+                  <div className={styles.providerUsage}>
+                    <strong>{provider.usage.requests} requests</strong>
+                    <span>{compactNumber(provider.usage.inputTokens)} in</span>
+                    <span>{compactNumber(provider.usage.outputTokens)} out</span>
+                    <span>{compactNumber(provider.usage.cachedInputTokens)} cached</span>
+                    <small>Provider-reported activity · not an invoice</small>
+                  </div>
+                ) : null}
                 {provider.restriction ? (
                   <div className={styles.inlineWarning}>
                     <WarningCircle size={15} aria-hidden="true" />
@@ -113,8 +134,60 @@ export function ProvidersSettings({
           );
         })}
       </div>
+      <div className={styles.settingsList}>
+        <div className={styles.settingsRow}>
+          <div className={styles.providerGlyph} aria-hidden="true">
+            <ArrowClockwise size={18} />
+          </div>
+          <div className={styles.settingsRowBody}>
+            <div className={styles.rowTitleLine}>
+              <strong>Desktop updates</strong>
+              <span className={styles.stateLabel}>v{updates.currentVersion}</span>
+            </div>
+            <p>{updates.detail}</p>
+            {updates.latestVersion ? (
+              <div className={styles.rowMeta}>Latest release: {updates.latestVersion}</div>
+            ) : null}
+          </div>
+          {updates.status === 'available' ? (
+            <button
+              type="button"
+              className={styles.primaryButton}
+              onClick={() => void onOpenUpdateDownload()}
+            >
+              <DownloadSimple size={15} aria-hidden="true" />
+              Download
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              disabled={updates.status === 'unconfigured' || updatePending}
+              onClick={() => {
+                setUpdatePending(true);
+                void onCheckForUpdates().finally(() => setUpdatePending(false));
+              }}
+            >
+              {updatePending ? 'Checking…' : 'Check now'}
+            </button>
+          )}
+        </div>
+      </div>
     </SettingsSectionHeader>
   );
+}
+
+const DEFAULT_UPDATES: import('../../types').RendererSnapshot['updates'] = {
+  status: 'unconfigured',
+  currentVersion: 'unknown',
+  detail: 'This build does not expose an update feed.',
+};
+
+function compactNumber(value: number): string {
+  return new Intl.NumberFormat(undefined, {
+    notation: value >= 1_000 ? 'compact' : 'standard',
+    maximumFractionDigits: 1,
+  }).format(value);
 }
 
 function providerMonogram(provider: ProviderId) {

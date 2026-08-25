@@ -31,6 +31,7 @@ interface ComposerProps {
   acceptingAttachments?: boolean | undefined;
   onPickAttachments?: (() => Promise<void> | void) | undefined;
   onRemoveAttachment?: ((attachmentId: string) => Promise<void> | void) | undefined;
+  onPreviewAttachment?: ((attachmentId: string) => void) | undefined;
   voiceEnabled?: boolean | undefined;
   onTranscribe?: ((audioBase64: string, mimeType: string) => Promise<string>) | undefined;
   onStartRealtime?: (() => Promise<string>) | undefined;
@@ -56,6 +57,7 @@ export function Composer({
   acceptingAttachments = false,
   onPickAttachments,
   onRemoveAttachment,
+  onPreviewAttachment,
   voiceEnabled = false,
   onTranscribe,
   onStartRealtime,
@@ -479,7 +481,15 @@ export function Composer({
                 ) : (
                   <File size={14} aria-hidden="true" />
                 )}
-                <span title={attachment.name}>{attachment.name}</span>
+                <button
+                  type="button"
+                  className={styles.attachmentPreviewButton}
+                  title={`Preview ${attachment.name}`}
+                  onClick={() => onPreviewAttachment?.(attachment.id)}
+                  disabled={!onPreviewAttachment}
+                >
+                  {attachment.name}
+                </button>
                 {attachment.sizeBytes ? (
                   <small>{formatBytes(attachment.sizeBytes)}</small>
                 ) : null}

@@ -136,6 +136,8 @@ const agents: AgentSummary[] = [
     name: 'Research partner',
     initials: 'RP',
     hue: 0,
+    pinned: true,
+    notificationsEnabled: true,
     instructions:
       'Help me turn research into clear decisions. Prefer primary sources and concise updates.',
     provider: 'codex',
@@ -150,6 +152,8 @@ const agents: AgentSummary[] = [
     name: 'Personal admin',
     initials: 'PA',
     hue: 2,
+    pinned: false,
+    notificationsEnabled: true,
     instructions:
       'Handle routine personal admin carefully. Draft before sending and keep private information private.',
     provider: 'meta',
@@ -174,6 +178,14 @@ export const demoSnapshot: RendererSnapshot = {
       description: 'Local coding and computer work through the official app server.',
       status: 'ready',
       version: '0.147.0',
+      usage: {
+        requests: 18,
+        inputTokens: 42_800,
+        outputTokens: 9_400,
+        cachedInputTokens: 21_100,
+        lastUsedAt: iso(1480),
+        providerReported: true,
+      },
       billedBy: 'Uses your existing ChatGPT Codex plan or OpenAI API account.',
     },
     {
@@ -341,6 +353,11 @@ export const demoSnapshot: RendererSnapshot = {
     detail: 'Speech is processed by ElevenLabs only when you use a voice control.',
   },
   preferences: { completionSound: false },
+  updates: {
+    status: 'unconfigured',
+    currentVersion: '0.1.0-alpha.13',
+    detail: 'This preview build does not have a persistent signed update feed configured.',
+  },
   research: {
     consented: true,
     capture: 'recording',
@@ -495,6 +512,14 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         }
       });
     },
+    async setThreadUnread(threadId, unread) {
+      mutate((current) => {
+        for (const agent of current.agents) {
+          const thread = agent.threads.find(({ id }) => id === threadId);
+          if (thread) thread.unread = unread;
+        }
+      });
+    },
     async forkThread(threadId) {
       const source = snapshot.activeThread?.id === threadId ? snapshot.activeThread : undefined;
       if (!source) return '';
@@ -535,6 +560,7 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
               itemId: event.id,
               excerpt: event.type === 'message' ? event.content : '',
               timestamp: 'timestamp' in event ? event.timestamp : thread.updatedAt,
+              kind: 'message' as const,
             })),
         }))
         .filter(({ matches }) => matches.length > 0);
@@ -578,6 +604,8 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         id,
         initials: initialsFor(draft.name),
         hue: draft.hue ?? 0,
+        pinned: false,
+        notificationsEnabled: true,
         threads: [],
       };
       mutate((current) => {
@@ -611,12 +639,48 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         }
       });
     },
+    async setAgentPinned(agentId, pinned) {
+      mutate((current) => {
+        const agent = current.agents.find(({ id }) => id === agentId);
+        if (agent) agent.pinned = pinned;
+      });
+    },
+    async setAgentNotifications(agentId, enabled) {
+      mutate((current) => {
+        const agent = current.agents.find(({ id }) => id === agentId);
+        if (agent) agent.notificationsEnabled = enabled;
+      });
+    },
+    async duplicateAgent(agentId) {
+      const source = snapshot.agents.find(({ id }) => id === agentId);
+      if (!source) return '';
+      const id = `${agentId}-copy-${Date.now()}`;
+      mutate((current) => {
+        current.agents.push({
+          ...clone(source),
+          id,
+          name: `${source.name} copy`,
+          pinned: false,
+          threads: [],
+        });
+        current.selectedAgentId = id;
+      });
+      return id;
+    },
     async pickWorkspace() {
       return '/Users/lawrencejang/Projects/new-workspace';
     },
     async pickAttachments() {
       return [];
     },
+    async dropAttachments() {
+      return [];
+    },
+    async previewAttachment() {
+      return { kind: 'unavailable', detail: 'Attach a local file in the desktop build.' };
+    },
+    async openAttachment() {},
+    async revealAttachment() {},
     async sendMessage(threadId, content) {
       mutate((current) => {
         if (!current.activeThread || current.activeThread.id !== threadId) return;
@@ -963,6 +1027,17 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         current.preferences.completionSound = enabled;
       });
     },
+    async composeFeedback() {},
+    async checkForUpdates() {
+      mutate((current) => {
+        current.updates = {
+          ...current.updates,
+          status: 'current',
+          detail: 'This demo is current.',
+        };
+      });
+    },
+    async openUpdateDownload() {},
     async transcribeVoice() {
       return 'Dictated request';
     },

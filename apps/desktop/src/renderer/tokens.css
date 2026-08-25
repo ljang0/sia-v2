@@ -74,7 +74,7 @@
   --text-on-danger: #fff5f2;
   --text-link: #3c6758;
   --text-danger: #9c3320;
-  --text-warning: #735d30;
+  --text-warning: #735565;
   --text-success: #3c6758;
 
   --border-subtle: #d3dad4;
@@ -85,7 +85,7 @@
   --focus-ring: #477364;
   --focus-halo: color-mix(in srgb, var(--focus-ring) 9%, transparent);
 
-  --surface-warning: #f4efe3;
+  --surface-warning: #f0e9ed;
   --surface-danger: #f7e9e5;
   --surface-success: #e5efea;
   --surface-info: #e8eeeb;
@@ -102,7 +102,7 @@
   --shell-line: #3b5d55;
 
   /* Agent hues. Identity 0-3 map to these; --agent-color is the room's current hue. */
-  --hue-0: #d29b3d;
+  --hue-0: #638496;
   --hue-1: #cf715d;
   --hue-2: #6697ad;
   --hue-3: #65a07d;
@@ -165,7 +165,7 @@
     --text-on-danger: #1f120e;
     --text-link: #8fd9a9;
     --text-danger: #ff9f8c;
-    --text-warning: #e8c76b;
+    --text-warning: #e1afc7;
     --text-success: #8fd9a9;
 
     --border-subtle: #373c39;
@@ -174,7 +174,7 @@
     --border-danger: #7a4437;
     --focus-ring: #8fd9a9;
 
-    --surface-warning: #353027;
+    --surface-warning: #352a31;
     --surface-danger: #382724;
     --surface-success: #26352e;
     --surface-info: #28322e;

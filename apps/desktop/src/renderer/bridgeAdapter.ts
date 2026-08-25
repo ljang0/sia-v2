@@ -112,6 +112,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async unarchiveThread(threadId) {
       publish(await bridge.threads.unarchive(threadId));
     },
+    async setThreadUnread(threadId, unread) {
+      publish(await bridge.threads.setUnread(threadId, unread));
+    },
     async forkThread(threadId, isolated, title) {
       const result = await bridge.threads.fork(threadId, isolated, title);
       selectedAgentOverride = undefined;
@@ -156,6 +159,18 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async deleteAgent(agentId) {
       publish(await bridge.agents.delete(agentId));
     },
+    async setAgentPinned(agentId, pinned) {
+      publish(await bridge.agents.setPinned(agentId, pinned));
+    },
+    async setAgentNotifications(agentId, enabled) {
+      publish(await bridge.agents.setNotifications(agentId, enabled));
+    },
+    async duplicateAgent(agentId) {
+      const result = await bridge.agents.duplicate(agentId);
+      selectedAgentOverride = undefined;
+      publish(result.snapshot);
+      return result.agentId;
+    },
     async pickWorkspace() {
       const result = await bridge.settings.openDirectory();
       return result.path ?? undefined;
@@ -163,6 +178,19 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async pickAttachments(threadId) {
       const result = await bridge.attachments.pick(threadId);
       return structuredClone(result.attachments);
+    },
+    async dropAttachments(threadId, files) {
+      const result = await bridge.attachments.drop(threadId, files);
+      return structuredClone(result.attachments);
+    },
+    async previewAttachment(threadId, attachmentId) {
+      return structuredClone(await bridge.attachments.preview(threadId, attachmentId));
+    },
+    async openAttachment(threadId, attachmentId) {
+      await bridge.attachments.open(threadId, attachmentId);
+    },
+    async revealAttachment(threadId, attachmentId) {
+      await bridge.attachments.reveal(threadId, attachmentId);
     },
     async sendMessage(threadId, content, attachmentIds) {
       const result = await bridge.threads.send({
@@ -356,6 +384,16 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async setCompletionSound(enabled) {
       publish(await bridge.settings.setCompletionSound(enabled));
     },
+    async composeFeedback(message, threadId, includeDiagnostics) {
+      await bridge.feedback.compose(message, threadId, includeDiagnostics);
+    },
+    async checkForUpdates() {
+      await bridge.updates.check();
+      publish(await bridge.bootstrap());
+    },
+    async openUpdateDownload() {
+      await bridge.updates.openDownload();
+    },
     async transcribeVoice(audioBase64, mimeType) {
       return (await bridge.voice.transcribe(audioBase64, mimeType)).text;
     },
@@ -402,6 +440,8 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
     name: agent.name,
     initials: initialsFor(agent.name),
     hue: agent.hue ?? agentIdentity(agent.id),
+    pinned: agent.pinned ?? false,
+    notificationsEnabled: agent.notificationsEnabled ?? true,
     instructions: agent.instructions,
     provider: agent.provider,
     model: agent.model,
@@ -505,24 +545,39 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
     selectedAgentId: source.activeAgentId,
     selectedThreadId: source.activeThreadId,
     activeThread,
-    providers: source.providers.map((provider) => ({
-      id: provider.id,
-      name: provider.label,
-      model: provider.model,
-      description: provider.detail,
-      status: mapProviderStatus(provider.status),
-      account: provider.account,
-      version: provider.version,
-      billedBy: provider.billing,
-      restriction: provider.restriction,
-      models: (provider.models ?? []).map((model) => ({
-        id: model.id,
-        label: model.label,
-        description: model.description,
-        reasoningEfforts: [...model.reasoningEfforts],
-        defaultReasoningEffort: model.defaultReasoningEffort,
-      })),
-    })),
+    providers: source.providers.map((provider) => {
+      const usage = (source.providerUsage ?? []).find(({ provider: id }) => id === provider.id);
+      return {
+        id: provider.id,
+        name: provider.label,
+        model: provider.model,
+        description: provider.detail,
+        status: mapProviderStatus(provider.status),
+        account: provider.account,
+        version: provider.version,
+        billedBy: provider.billing,
+        restriction: provider.restriction,
+        ...(usage
+          ? {
+              usage: {
+                requests: usage.requests,
+                inputTokens: usage.inputTokens,
+                outputTokens: usage.outputTokens,
+                cachedInputTokens: usage.cachedInputTokens,
+                lastUsedAt: usage.lastUsedAt,
+                providerReported: true as const,
+              },
+            }
+          : {}),
+        models: (provider.models ?? []).map((model) => ({
+          id: model.id,
+          label: model.label,
+          description: model.description,
+          reasoningEfforts: [...model.reasoningEfforts],
+          defaultReasoningEffort: model.defaultReasoningEffort,
+        })),
+      };
+    }),
     apps: source.connections.map(mapConnection),
     browser: {
       status: source.browser.status,
@@ -560,6 +615,20 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
       detail: source.voice.detail,
     },
     preferences: structuredClone(source.preferences),
+    updates: source.updates
+      ? {
+          status: source.updates.status,
+          currentVersion: source.updates.currentVersion,
+          ...(source.updates.latestVersion
+            ? { latestVersion: source.updates.latestVersion }
+            : {}),
+          detail: source.updates.detail,
+        }
+      : {
+          status: 'unconfigured',
+          currentVersion: 'unknown',
+          detail: 'This build does not expose an update feed.',
+        },
     research: {
       consented: source.capture.status !== 'not_consented',
       capture:

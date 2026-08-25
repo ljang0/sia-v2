@@ -26,9 +26,14 @@ const inputSchemas = {
       workspace: z.string().trim().min(1).max(4_096),
       voiceId: z.string().trim().min(1).max(200).optional(),
       hue: z.number().int().min(0).max(3).optional(),
+      pinned: z.boolean().optional(),
+      notificationsEnabled: z.boolean().optional(),
     })
     .strict(),
   'agents.delete': z.object({ agentId: identifier }).strict(),
+  'agents.setPinned': z.object({ agentId: identifier, pinned: z.boolean() }).strict(),
+  'agents.setNotifications': z.object({ agentId: identifier, enabled: z.boolean() }).strict(),
+  'agents.duplicate': z.object({ agentId: identifier }).strict(),
   'threads.create': z
     .object({ agentId: identifier, title: z.string().trim().max(120).optional() })
     .strict(),
@@ -46,6 +51,7 @@ const inputSchemas = {
     .strict(),
   'threads.archive': z.object({ threadId: identifier }).strict(),
   'threads.unarchive': z.object({ threadId: identifier }).strict(),
+  'threads.setUnread': z.object({ threadId: identifier, unread: z.boolean() }).strict(),
   'threads.fork': z
     .object({
       threadId: identifier,
@@ -84,6 +90,15 @@ const inputSchemas = {
   'threads.retry': z.object({ threadId: identifier }).strict(),
   'threads.cancel': z.object({ threadId: identifier }).strict(),
   'attachments.pick': z.object({ threadId: identifier }).strict(),
+  'attachments.drop': z
+    .object({
+      threadId: identifier,
+      paths: z.array(z.string().trim().min(1).max(4_096)).min(1).max(20),
+    })
+    .strict(),
+  'attachments.preview': z.object({ threadId: identifier, attachmentId: identifier }).strict(),
+  'attachments.open': z.object({ threadId: identifier, attachmentId: identifier }).strict(),
+  'attachments.reveal': z.object({ threadId: identifier, attachmentId: identifier }).strict(),
   'changes.read': z.object({ threadId: identifier }).strict(),
   'changes.stage': z
     .object({ threadId: identifier, paths: z.array(relativePath).min(1).max(200) })
@@ -157,6 +172,15 @@ const inputSchemas = {
   'providers.login': z.object({ providerId }).strict(),
   'settings.openDirectory': z.undefined(),
   'settings.setCompletionSound': z.object({ enabled: z.boolean() }).strict(),
+  'feedback.compose': z
+    .object({
+      message: z.string().trim().min(1).max(10_000),
+      threadId: identifier.optional(),
+      includeDiagnostics: z.boolean(),
+    })
+    .strict(),
+  'updates.check': z.undefined(),
+  'updates.openDownload': z.undefined(),
   'computer.permissions': z.undefined(),
   'computer.requestPermissions': z.undefined(),
   'computer.openMessages': z.undefined(),

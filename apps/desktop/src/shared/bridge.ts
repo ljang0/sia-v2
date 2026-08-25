@@ -35,6 +35,10 @@ export interface AgentView {
   voiceId?: string;
   /** Hue slot (0-3) that tints this agent's room; unset falls back to a stable id-derived slot. */
   hue?: number;
+  /** Keeps this room near the top of the local room list. */
+  pinned?: boolean;
+  /** Controls background completion notifications for this room. */
+  notificationsEnabled?: boolean;
   threadIds: string[];
   createdAt: string;
   updatedAt: string;
@@ -89,6 +93,11 @@ export interface AttachmentView {
   kind: AttachmentKind;
   bytes: number;
 }
+
+export type AttachmentPreviewView =
+  | { kind: 'image'; dataUrl: string }
+  | { kind: 'pdf' }
+  | { kind: 'unavailable'; detail: string };
 
 export type TimelineItemKind =
   | 'user'
@@ -166,7 +175,32 @@ export interface ThreadSearchResultView {
   threadId: string;
   threadTitle: string;
   archived: boolean;
-  matches: Array<{ itemId: string; excerpt: string; timestamp: string }>;
+  matches: Array<{
+    itemId: string;
+    excerpt: string;
+    timestamp: string;
+    kind: 'thread' | 'message' | 'file' | 'link';
+    label?: string;
+    url?: string;
+  }>;
+}
+
+export interface ProviderUsageView {
+  provider: ProviderId;
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens: number;
+  lastUsedAt: string;
+  providerReported: true;
+}
+
+export interface UpdateView {
+  status: 'unconfigured' | 'idle' | 'checking' | 'available' | 'current' | 'error';
+  currentVersion: string;
+  latestVersion?: string;
+  downloadUrl?: string;
+  detail: string;
 }
 
 export interface WorkspaceChangeView {
@@ -379,6 +413,8 @@ export interface DesktopSnapshot {
   preferences: {
     completionSound: boolean;
   };
+  providerUsage?: ProviderUsageView[];
+  updates?: UpdateView;
   schedules?: ScheduleView[];
   activeAgentId?: string;
   activeThreadId?: string;
@@ -419,6 +455,8 @@ export interface SaveAgentInput {
   workspace: string;
   voiceId?: string;
   hue?: number;
+  pinned?: boolean;
+  notificationsEnabled?: boolean;
 }
 
 export interface CreateThreadInput {
@@ -463,6 +501,9 @@ export interface BridgeRequestMap {
   bootstrap: undefined;
   'agents.save': SaveAgentInput;
   'agents.delete': { agentId: string };
+  'agents.setPinned': { agentId: string; pinned: boolean };
+  'agents.setNotifications': { agentId: string; enabled: boolean };
+  'agents.duplicate': { agentId: string };
   'threads.create': CreateThreadInput;
   'threads.select': { threadId: string };
   'threads.rename': { threadId: string; title: string };
@@ -470,6 +511,7 @@ export interface BridgeRequestMap {
   'threads.config': UpdateThreadConfigInput;
   'threads.archive': { threadId: string };
   'threads.unarchive': { threadId: string };
+  'threads.setUnread': { threadId: string; unread: boolean };
   'threads.fork': { threadId: string; title?: string; isolated: boolean };
   'threads.handoff': {
     threadId: string;
@@ -487,6 +529,10 @@ export interface BridgeRequestMap {
   'threads.retry': { threadId: string };
   'threads.cancel': { threadId: string };
   'attachments.pick': { threadId: string };
+  'attachments.drop': { threadId: string; paths: string[] };
+  'attachments.preview': { threadId: string; attachmentId: string };
+  'attachments.open': { threadId: string; attachmentId: string };
+  'attachments.reveal': { threadId: string; attachmentId: string };
   'changes.read': { threadId: string };
   'changes.stage': { threadId: string; paths: string[] };
   'changes.restore': { threadId: string; paths: string[]; confirmation: 'RESTORE' };
@@ -513,6 +559,9 @@ export interface BridgeRequestMap {
   'providers.login': { providerId: ProviderId };
   'settings.openDirectory': undefined;
   'settings.setCompletionSound': { enabled: boolean };
+  'feedback.compose': { message: string; threadId?: string; includeDiagnostics: boolean };
+  'updates.check': undefined;
+  'updates.openDownload': undefined;
   'computer.permissions': undefined;
   'computer.requestPermissions': undefined;
   'computer.openMessages': undefined;
@@ -559,6 +608,9 @@ export interface BridgeResultMap {
   bootstrap: DesktopSnapshot;
   'agents.save': { agentId: string; snapshot: DesktopSnapshot };
   'agents.delete': DesktopSnapshot;
+  'agents.setPinned': DesktopSnapshot;
+  'agents.setNotifications': DesktopSnapshot;
+  'agents.duplicate': { agentId: string; snapshot: DesktopSnapshot };
   'threads.create': { threadId: string; snapshot: DesktopSnapshot };
   'threads.select': DesktopSnapshot;
   'threads.rename': DesktopSnapshot;
@@ -566,6 +618,7 @@ export interface BridgeResultMap {
   'threads.config': DesktopSnapshot;
   'threads.archive': DesktopSnapshot;
   'threads.unarchive': DesktopSnapshot;
+  'threads.setUnread': DesktopSnapshot;
   'threads.fork': { threadId: string; snapshot: DesktopSnapshot };
   'threads.handoff': { threadId: string; snapshot: DesktopSnapshot };
   'worktrees.cleanup': DesktopSnapshot;
@@ -579,6 +632,10 @@ export interface BridgeResultMap {
   'threads.retry': { turnId: string; snapshot: DesktopSnapshot };
   'threads.cancel': DesktopSnapshot;
   'attachments.pick': { attachments: AttachmentView[] };
+  'attachments.drop': { attachments: AttachmentView[] };
+  'attachments.preview': AttachmentPreviewView;
+  'attachments.open': { opened: boolean };
+  'attachments.reveal': { revealed: boolean };
   'changes.read': WorkspaceDiffView;
   'changes.stage': WorkspaceDiffView;
   'changes.restore': WorkspaceDiffView;
@@ -604,6 +661,9 @@ export interface BridgeResultMap {
   'providers.login': { opened: boolean; snapshot: DesktopSnapshot };
   'settings.openDirectory': { path: string | null };
   'settings.setCompletionSound': DesktopSnapshot;
+  'feedback.compose': { opened: boolean };
+  'updates.check': UpdateView;
+  'updates.openDownload': { opened: boolean };
   'computer.permissions': DesktopSnapshot;
   'computer.requestPermissions': DesktopSnapshot;
   'computer.openMessages': DesktopSnapshot;
@@ -667,6 +727,9 @@ export interface DesktopBridgeApi {
   agents: {
     save(input: SaveAgentInput): Promise<BridgeResultMap['agents.save']>;
     delete(agentId: string): Promise<DesktopSnapshot>;
+    setPinned(agentId: string, pinned: boolean): Promise<DesktopSnapshot>;
+    setNotifications(agentId: string, enabled: boolean): Promise<DesktopSnapshot>;
+    duplicate(agentId: string): Promise<BridgeResultMap['agents.duplicate']>;
   };
   threads: {
     create(input: CreateThreadInput): Promise<BridgeResultMap['threads.create']>;
@@ -676,6 +739,7 @@ export interface DesktopBridgeApi {
     config(input: UpdateThreadConfigInput): Promise<DesktopSnapshot>;
     archive(threadId: string): Promise<DesktopSnapshot>;
     unarchive(threadId: string): Promise<DesktopSnapshot>;
+    setUnread(threadId: string, unread: boolean): Promise<DesktopSnapshot>;
     fork(
       threadId: string,
       isolated: boolean,
@@ -701,6 +765,16 @@ export interface DesktopBridgeApi {
   };
   attachments: {
     pick(threadId: string): Promise<BridgeResultMap['attachments.pick']>;
+    drop(threadId: string, files: File[]): Promise<BridgeResultMap['attachments.drop']>;
+    preview(
+      threadId: string,
+      attachmentId: string,
+    ): Promise<BridgeResultMap['attachments.preview']>;
+    open(threadId: string, attachmentId: string): Promise<BridgeResultMap['attachments.open']>;
+    reveal(
+      threadId: string,
+      attachmentId: string,
+    ): Promise<BridgeResultMap['attachments.reveal']>;
   };
   changes: {
     read(threadId: string): Promise<WorkspaceDiffView>;
@@ -743,6 +817,17 @@ export interface DesktopBridgeApi {
   settings: {
     openDirectory(): Promise<{ path: string | null }>;
     setCompletionSound(enabled: boolean): Promise<DesktopSnapshot>;
+  };
+  feedback: {
+    compose(
+      message: string,
+      threadId: string | undefined,
+      includeDiagnostics: boolean,
+    ): Promise<BridgeResultMap['feedback.compose']>;
+  };
+  updates: {
+    check(): Promise<UpdateView>;
+    openDownload(): Promise<BridgeResultMap['updates.openDownload']>;
   };
   computer: {
     permissions(): Promise<DesktopSnapshot>;

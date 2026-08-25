@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 import type {
   BridgeInvokeEnvelope,
@@ -25,6 +25,10 @@ const api: DesktopBridgeApi = {
   agents: {
     save: (input) => invoke('agents.save', input),
     delete: (agentId) => invoke('agents.delete', { agentId }),
+    setPinned: (agentId, pinned) => invoke('agents.setPinned', { agentId, pinned }),
+    setNotifications: (agentId, enabled) =>
+      invoke('agents.setNotifications', { agentId, enabled }),
+    duplicate: (agentId) => invoke('agents.duplicate', { agentId }),
   },
   threads: {
     create: (input) => invoke('threads.create', input),
@@ -34,6 +38,7 @@ const api: DesktopBridgeApi = {
     config: (input) => invoke('threads.config', input),
     archive: (threadId) => invoke('threads.archive', { threadId }),
     unarchive: (threadId) => invoke('threads.unarchive', { threadId }),
+    setUnread: (threadId, unread) => invoke('threads.setUnread', { threadId, unread }),
     fork: (threadId, isolated, title) =>
       invoke('threads.fork', {
         threadId,
@@ -62,6 +67,19 @@ const api: DesktopBridgeApi = {
   },
   attachments: {
     pick: (threadId) => invoke('attachments.pick', { threadId }),
+    drop: (threadId, files) =>
+      invoke('attachments.drop', {
+        threadId,
+        paths: files
+          .map((file) => webUtils.getPathForFile(file))
+          .filter(Boolean)
+          .slice(0, 20),
+      }),
+    preview: (threadId, attachmentId) =>
+      invoke('attachments.preview', { threadId, attachmentId }),
+    open: (threadId, attachmentId) => invoke('attachments.open', { threadId, attachmentId }),
+    reveal: (threadId, attachmentId) =>
+      invoke('attachments.reveal', { threadId, attachmentId }),
   },
   changes: {
     read: (threadId) => invoke('changes.read', { threadId }),
@@ -107,6 +125,18 @@ const api: DesktopBridgeApi = {
   settings: {
     openDirectory: () => invoke('settings.openDirectory', undefined),
     setCompletionSound: (enabled) => invoke('settings.setCompletionSound', { enabled }),
+  },
+  feedback: {
+    compose: (message, threadId, includeDiagnostics) =>
+      invoke('feedback.compose', {
+        message,
+        ...(threadId ? { threadId } : {}),
+        includeDiagnostics,
+      }),
+  },
+  updates: {
+    check: () => invoke('updates.check', undefined),
+    openDownload: () => invoke('updates.openDownload', undefined),
   },
   computer: {
     permissions: () => invoke('computer.permissions', undefined),

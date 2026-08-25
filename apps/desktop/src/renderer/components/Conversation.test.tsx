@@ -397,3 +397,63 @@ describe('Conversation waiting controls', () => {
     expect(screen.getByRole('button', { name: 'Cancel read aloud' })).toBeTruthy();
   });
 });
+
+describe('Conversation continuity tools', () => {
+  it('starts an empty thread from a contextual prompt', () => {
+    const onSend = vi.fn(async () => undefined);
+    render(
+      <Conversation
+        thread={baseThread({ status: 'idle', events: [] })}
+        starterPrompts={['Review the release blockers.']}
+        onSend={onSend}
+        onStop={async () => undefined}
+        onRetry={async () => undefined}
+        onResolveApproval={async () => undefined}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Review the release blockers/ }));
+    expect(onSend).toHaveBeenCalledWith('Review the release blockers.');
+  });
+
+  it('finds matching events inside the open thread', () => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn(),
+    });
+    render(
+      <Conversation
+        thread={baseThread({
+          status: 'idle',
+          events: [
+            {
+              id: 'one',
+              type: 'message',
+              role: 'assistant',
+              content: 'The release gate is green.',
+              timestamp: '2026-08-13T00:00:00.000Z',
+            },
+            {
+              id: 'two',
+              type: 'message',
+              role: 'assistant',
+              content: 'The design audit is complete.',
+              timestamp: '2026-08-13T00:01:00.000Z',
+            },
+          ],
+        })}
+        findOpen
+        onFindOpenChange={() => undefined}
+        onSend={async () => undefined}
+        onStop={async () => undefined}
+        onRetry={async () => undefined}
+        onResolveApproval={async () => undefined}
+      />,
+    );
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find in this thread' }), {
+      target: { value: 'release gate' },
+    });
+    expect(screen.getByText('1 found')).toBeTruthy();
+  });
+});

@@ -11,10 +11,15 @@ const values = {
   cognitoRegion: process.env.SIA_RELEASE_COGNITO_REGION,
   cognitoClientId: process.env.SIA_RELEASE_COGNITO_CLIENT_ID,
 };
+const updateManifestUrl = process.env.SIA_RELEASE_UPDATE_MANIFEST_URL;
 const supplied = Object.values(values).filter(Boolean).length;
 let config;
 if (supplied === 0 && mode === '--allow-disabled') {
-  config = { schemaVersion: 1, enabled: false };
+  config = {
+    schemaVersion: 1,
+    enabled: false,
+    ...(updateManifestUrl ? { updateManifestUrl } : {}),
+  };
 } else {
   if (supplied !== 3) {
     throw new Error(
@@ -22,8 +27,15 @@ if (supplied === 0 && mode === '--allow-disabled') {
     );
   }
   validate(values);
-  config = { schemaVersion: 1, enabled: true, ...values };
+  config = {
+    schemaVersion: 1,
+    enabled: true,
+    ...values,
+    ...(updateManifestUrl ? { updateManifestUrl } : {}),
+  };
 }
+
+if (updateManifestUrl) validateHttpsUrl(updateManifestUrl, 'SIA_RELEASE_UPDATE_MANIFEST_URL');
 
 const desktopRoot = resolve(import.meta.dirname, '..');
 const output = join(desktopRoot, 'build', 'sia-cloud.json');
@@ -37,19 +49,23 @@ await rename(temporary, output);
 console.log(`Prepared ${config.enabled ? 'enabled' : 'disabled'} signed cloud configuration.`);
 
 function validate(value) {
-  let url;
-  try {
-    url = new URL(value.apiBaseUrl);
-  } catch {
-    throw new Error('SIA_RELEASE_API_BASE_URL must be a valid URL.');
-  }
-  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
-    throw new Error('SIA_RELEASE_API_BASE_URL must be a clean HTTPS URL.');
-  }
+  validateHttpsUrl(value.apiBaseUrl, 'SIA_RELEASE_API_BASE_URL');
   if (!/^[a-z]{2}(?:-gov)?-[a-z]+-\d$/.test(value.cognitoRegion)) {
     throw new Error('SIA_RELEASE_COGNITO_REGION is invalid.');
   }
   if (!/^[A-Za-z0-9]{10,128}$/.test(value.cognitoClientId)) {
     throw new Error('SIA_RELEASE_COGNITO_CLIENT_ID is invalid.');
+  }
+}
+
+function validateHttpsUrl(value, label) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${label} must be a valid URL.`);
+  }
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
+    throw new Error(`${label} must be a clean HTTPS URL.`);
   }
 }

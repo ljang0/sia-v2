@@ -13,7 +13,12 @@ import {
   SidebarSimple,
   Trash,
   Archive,
+  Bell,
+  BellSlash,
+  Copy,
+  EnvelopeSimple,
   GitFork,
+  PushPin,
 } from '@phosphor-icons/react';
 import { useMemo, useState } from 'react';
 import type { AgentSummary, ThreadSummary } from '../types';
@@ -38,10 +43,15 @@ interface SidebarProps {
   onArchiveThread?(threadId: string): Promise<void>;
   onCreateAgent(): void;
   onEditAgent(agent: AgentSummary): void;
+  onSetAgentPinned?(agentId: string, pinned: boolean): Promise<void>;
+  onSetAgentNotifications?(agentId: string, enabled: boolean): Promise<void>;
+  onDuplicateAgent?(agentId: string): Promise<void>;
+  onSetThreadUnread?(threadId: string, unread: boolean): Promise<void>;
   onOpenActivity?(): void;
   onOpenArchived?(): void;
   onOpenSettings(): void;
   onOpenQuickSwitcher?(): void;
+  onOpenFeedback?(): void;
 }
 
 export function Sidebar({
@@ -60,10 +70,15 @@ export function Sidebar({
   onArchiveThread,
   onCreateAgent,
   onEditAgent,
+  onSetAgentPinned,
+  onSetAgentNotifications,
+  onDuplicateAgent,
+  onSetThreadUnread,
   onOpenActivity,
   onOpenArchived,
   onOpenSettings,
   onOpenQuickSwitcher,
+  onOpenFeedback,
 }: SidebarProps) {
   const [closedAgents, setClosedAgents] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
@@ -95,6 +110,7 @@ export function Sidebar({
           agent.threads.length > 0,
       )
       .sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
         if (a.id === selectedAgentId) return -1;
         if (b.id === selectedAgentId) return 1;
         return a.name.localeCompare(b.name);
@@ -248,21 +264,30 @@ export function Sidebar({
                   <button
                     type="button"
                     className={styles.agentEditButton}
-                    onClick={() => onEditAgent(agent)}
-                    aria-label={`Edit ${agent.name}`}
-                    title="Edit agent"
-                  >
-                    <NotePencil size={14} aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.agentEditButton}
                     onClick={() => onCreateThread(agent.id)}
                     aria-label={`Start a thread with ${agent.name}`}
                     title="New thread"
                   >
                     <Plus size={14} aria-hidden="true" />
                   </button>
+                  <AgentMenu
+                    agent={agent}
+                    onEdit={() => onEditAgent(agent)}
+                    onSetPinned={
+                      onSetAgentPinned
+                        ? () => void onSetAgentPinned(agent.id, !agent.pinned)
+                        : undefined
+                    }
+                    onSetNotifications={
+                      onSetAgentNotifications
+                        ? () =>
+                            void onSetAgentNotifications(agent.id, !agent.notificationsEnabled)
+                        : undefined
+                    }
+                    onDuplicate={
+                      onDuplicateAgent ? () => void onDuplicateAgent(agent.id) : undefined
+                    }
+                  />
                 </div>
 
                 {expanded ? (
@@ -341,6 +366,11 @@ export function Sidebar({
                                   ? () => void onArchiveThread(thread.id)
                                   : undefined
                               }
+                              onSetUnread={
+                                onSetThreadUnread
+                                  ? () => void onSetThreadUnread(thread.id, !thread.unread)
+                                  : undefined
+                              }
                               onRename={() => {
                                 setEditingThread(thread);
                                 setEditingTitle(thread.title);
@@ -401,6 +431,12 @@ export function Sidebar({
               </button>
             ) : null}
           </>
+        ) : null}
+        {onOpenFeedback ? (
+          <button className={styles.settingsButton} type="button" onClick={onOpenFeedback}>
+            <EnvelopeSimple size={17} aria-hidden="true" />
+            <span>Send feedback</span>
+          </button>
         ) : null}
         <button className={styles.settingsButton} type="button" onClick={onOpenSettings}>
           <GearSix size={17} aria-hidden="true" />
@@ -603,12 +639,14 @@ function ThreadMenu({
   onDelete,
   onFork,
   onArchive,
+  onSetUnread,
 }: {
   thread: ThreadSummary;
   onRename(): void;
   onDelete(): void;
   onFork?: (() => void) | undefined;
   onArchive?: (() => void) | undefined;
+  onSetUnread?: (() => void) | undefined;
 }) {
   return (
     <DropdownMenu.Root>
@@ -653,6 +691,16 @@ function ThreadMenu({
               Archive
             </DropdownMenu.Item>
           ) : null}
+          {onSetUnread ? (
+            <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onSetUnread}>
+              {thread.unread ? (
+                <BellSlash size={14} aria-hidden="true" />
+              ) : (
+                <Bell size={14} aria-hidden="true" />
+              )}
+              Mark {thread.unread ? 'read' : 'unread'}
+            </DropdownMenu.Item>
+          ) : null}
           <DropdownMenu.Item
             className={`${styles.threadMenuItem} ${styles.threadMenuDanger}`}
             disabled={
@@ -665,6 +713,64 @@ function ThreadMenu({
             <Trash size={14} aria-hidden="true" />
             Delete
           </DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
+
+function AgentMenu({
+  agent,
+  onEdit,
+  onSetPinned,
+  onSetNotifications,
+  onDuplicate,
+}: {
+  agent: AgentSummary;
+  onEdit(): void;
+  onSetPinned?: (() => void) | undefined;
+  onSetNotifications?: (() => void) | undefined;
+  onDuplicate?: (() => void) | undefined;
+}) {
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          className={styles.agentEditButton}
+          aria-label={`Room actions for ${agent.name}`}
+        >
+          <DotsThree size={15} weight="bold" aria-hidden="true" />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content className={styles.threadMenuContent} sideOffset={4} align="end">
+          <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onEdit}>
+            <NotePencil size={14} aria-hidden="true" />
+            Edit room
+          </DropdownMenu.Item>
+          {onSetPinned ? (
+            <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onSetPinned}>
+              <PushPin size={14} aria-hidden="true" />
+              {agent.pinned ? 'Unpin room' : 'Pin room'}
+            </DropdownMenu.Item>
+          ) : null}
+          {onSetNotifications ? (
+            <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onSetNotifications}>
+              {agent.notificationsEnabled ? (
+                <BellSlash size={14} aria-hidden="true" />
+              ) : (
+                <Bell size={14} aria-hidden="true" />
+              )}
+              {agent.notificationsEnabled ? 'Mute notifications' : 'Enable notifications'}
+            </DropdownMenu.Item>
+          ) : null}
+          {onDuplicate ? (
+            <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onDuplicate}>
+              <Copy size={14} aria-hidden="true" />
+              Duplicate room
+            </DropdownMenu.Item>
+          ) : null}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>

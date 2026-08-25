@@ -52,6 +52,12 @@ async function createHarness(
     repository?: RecordRepository;
     capabilitySetup?: ConstructorParameters<typeof DesktopController>[0]['capabilitySetup'];
     trajectory?: ConstructorParameters<typeof DesktopController>[0]['trajectory'];
+    chooseFiles?: () => Promise<string[]>;
+    openPath?: (path: string) => Promise<void>;
+    revealDirectory?: (path: string) => Promise<void>;
+    composeFeedback?: (subject: string, body: string) => Promise<void>;
+    appVersion?: string;
+    updateManifestUrl?: string;
   } = {},
 ): Promise<{
   controller: DesktopController;
@@ -74,6 +80,12 @@ async function createHarness(
     openExternal: options.openExternal ?? (async () => undefined),
     openMessages: options.openMessages ?? (async () => undefined),
     chooseDirectory: async () => '/tmp/sia-workspace',
+    ...(options.chooseFiles ? { chooseFiles: options.chooseFiles } : {}),
+    ...(options.openPath ? { openPath: options.openPath } : {}),
+    ...(options.revealDirectory ? { revealDirectory: options.revealDirectory } : {}),
+    ...(options.composeFeedback ? { composeFeedback: options.composeFeedback } : {}),
+    ...(options.appVersion ? { appVersion: options.appVersion } : {}),
+    ...(options.updateManifestUrl ? { updateManifestUrl: options.updateManifestUrl } : {}),
     exportJson: async () => '/tmp/export.json',
     ...(options.capabilitySetup ? { capabilitySetup: options.capabilitySetup } : {}),
     ...(options.runCommand ? { runCommand: options.runCommand } : {}),
@@ -90,6 +102,149 @@ async function createController(): Promise<DesktopController> {
 }
 
 describe('DesktopController', () => {
+  it('persists room controls, duplicates a clean room, and marks threads unread', async () => {
+    const controller = await createController();
+    const created = await controller.invoke('agents.save', {
+      name: 'Release room',
+      instructions: 'Review releases.',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const thread = await controller.invoke('threads.create', { agentId: created.agentId });
+
+    await controller.invoke('agents.setPinned', { agentId: created.agentId, pinned: true });
+    await controller.invoke('agents.setNotifications', {
+      agentId: created.agentId,
+      enabled: false,
+    });
+    await controller.invoke('threads.setUnread', { threadId: thread.threadId, unread: true });
+    const duplicated = await controller.invoke('agents.duplicate', {
+      agentId: created.agentId,
+    });
+    const snapshot = controller.snapshot();
+
+    expect(snapshot.agents.find(({ id }) => id === created.agentId)).toMatchObject({
+      pinned: true,
+      notificationsEnabled: false,
+    });
+    expect(snapshot.threads.find(({ id }) => id === thread.threadId)?.unread).toBe(true);
+    expect(snapshot.agents.find(({ id }) => id === duplicated.agentId)).toMatchObject({
+      name: 'Release room copy',
+      pinned: false,
+      threadIds: [],
+    });
+    await controller.shutdown();
+  });
+
+  it('hands feedback to the mail client without transcript contents', async () => {
+    const composeFeedback = vi.fn().mockResolvedValue(undefined);
+    const { controller } = await createHarness({ composeFeedback });
+
+    await controller.invoke('feedback.compose', {
+      message: 'The room menu is hard to find.',
+      includeDiagnostics: true,
+    });
+
+    expect(composeFeedback).toHaveBeenCalledOnce();
+    expect(composeFeedback.mock.calls[0]?.[1]).toContain('Version: development');
+    expect(composeFeedback.mock.calls[0]?.[1]).toContain('no transcript or file contents');
+    await controller.shutdown();
+  });
+
+  it('checks a clean update feed and opens only its HTTPS download', async () => {
+    const openExternal = vi.fn().mockResolvedValue(undefined);
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          version: '0.1.0-alpha.14',
+          downloadUrl: 'https://releases.example.test/Sia-alpha.14.dmg',
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const { controller } = await createHarness({
+      openExternal,
+      appVersion: '0.1.0-alpha.13',
+      updateManifestUrl: 'https://releases.example.test/latest-mac.json',
+    });
+
+    await expect(controller.invoke('updates.check', undefined)).resolves.toMatchObject({
+      status: 'available',
+      latestVersion: '0.1.0-alpha.14',
+    });
+    await controller.invoke('updates.openDownload', undefined);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://releases.example.test/latest-mac.json',
+      expect.objectContaining({ headers: { accept: 'application/json' } }),
+    );
+    expect(openExternal).toHaveBeenCalledWith('https://releases.example.test/Sia-alpha.14.dmg');
+    vi.unstubAllGlobals();
+    await controller.shutdown();
+  });
+
+  it('keeps the latest provider usage event once per turn', async () => {
+    let runtimeThreadId = '';
+    const runtime = {
+      async *runTurn(input: { turnId: string }) {
+        for (const [sequence, inputTokens] of [120, 180].entries()) {
+          yield {
+            id: crypto.randomUUID(),
+            threadId: runtimeThreadId,
+            turnId: input.turnId,
+            provider: 'codex' as const,
+            sequence,
+            timestamp: new Date(Date.now() + sequence).toISOString(),
+            type: 'usage' as const,
+            payload: { inputTokens, outputTokens: 40, cachedInputTokens: 20 },
+          };
+        }
+        yield {
+          id: crypto.randomUUID(),
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 3,
+          timestamp: new Date().toISOString(),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Usage room',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const thread = await controller.invoke('threads.create', { agentId: agent.agentId });
+    runtimeThreadId = thread.threadId;
+    await controller.invoke('threads.send', {
+      threadId: thread.threadId,
+      text: 'Measure this.',
+    });
+
+    await vi.waitFor(() =>
+      expect(controller.snapshot().providerUsage).toEqual([
+        expect.objectContaining({
+          provider: 'codex',
+          requests: 1,
+          inputTokens: 180,
+          outputTokens: 40,
+          cachedInputTokens: 20,
+        }),
+      ]),
+    );
+    await controller.shutdown();
+  });
+
   it('opens Apple Messages through a dedicated host capability', async () => {
     const openMessages = vi.fn().mockResolvedValue(undefined);
     const { controller } = await createHarness({ openMessages });

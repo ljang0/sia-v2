@@ -20,6 +20,8 @@ export interface AgentSummary {
   initials: string;
   /** Resolved hue slot 0-3 (explicit choice or stable id-derived default). */
   hue: number;
+  pinned: boolean;
+  notificationsEnabled: boolean;
   threads: ThreadSummary[];
 }
 
@@ -191,6 +193,11 @@ export interface RendererAttachment {
   bytes: number;
 }
 
+export type AttachmentPreview =
+  | { kind: 'image'; dataUrl: string }
+  | { kind: 'pdf' }
+  | { kind: 'unavailable'; detail: string };
+
 export interface WorkspaceChange {
   path: string;
   status: 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked' | 'conflicted';
@@ -252,7 +259,14 @@ export interface TranscriptSearchResult {
   threadId: string;
   threadTitle: string;
   archived: boolean;
-  matches: Array<{ itemId: string; excerpt: string; timestamp: string }>;
+  matches: Array<{
+    itemId: string;
+    excerpt: string;
+    timestamp: string;
+    kind: 'thread' | 'message' | 'file' | 'link';
+    label?: string;
+    url?: string;
+  }>;
 }
 
 export interface BrowserTab {
@@ -317,6 +331,14 @@ export interface ProviderSetup {
   version?: string | undefined;
   billedBy: string;
   restriction?: string | undefined;
+  usage?: {
+    requests: number;
+    inputTokens: number;
+    outputTokens: number;
+    cachedInputTokens: number;
+    lastUsedAt: string;
+    providerReported: true;
+  };
   models?: Array<{
     id: string;
     label: string;
@@ -387,6 +409,12 @@ export interface RendererSnapshot {
   preferences: {
     completionSound: boolean;
   };
+  updates: {
+    status: 'unconfigured' | 'idle' | 'checking' | 'available' | 'current' | 'error';
+    currentVersion: string;
+    latestVersion?: string;
+    detail: string;
+  };
   research: ResearchSettings;
   archivedThreads: ThreadSummary[];
   schedules: ThreadSchedule[];
@@ -454,10 +482,14 @@ export interface RendererApi {
   createAgent(draft: AgentDraft): Promise<string>;
   updateAgent(agentId: string, draft: AgentDraft): Promise<void>;
   deleteAgent(agentId: string): Promise<void>;
+  setAgentPinned(agentId: string, pinned: boolean): Promise<void>;
+  setAgentNotifications(agentId: string, enabled: boolean): Promise<void>;
+  duplicateAgent(agentId: string): Promise<string>;
   pickWorkspace(): Promise<string | undefined>;
   configureThread(threadId: string, model: string, reasoningEffort?: string): Promise<void>;
   archiveThread(threadId: string): Promise<void>;
   unarchiveThread(threadId: string): Promise<void>;
+  setThreadUnread(threadId: string, unread: boolean): Promise<void>;
   forkThread(threadId: string, isolated: boolean, title?: string): Promise<string>;
   handoffThread(
     threadId: string,
@@ -471,6 +503,10 @@ export interface RendererApi {
   resumeGoal(threadId: string): Promise<void>;
   clearGoal(threadId: string): Promise<void>;
   pickAttachments(threadId: string): Promise<RendererAttachment[]>;
+  dropAttachments(threadId: string, files: File[]): Promise<RendererAttachment[]>;
+  previewAttachment(threadId: string, attachmentId: string): Promise<AttachmentPreview>;
+  openAttachment(threadId: string, attachmentId: string): Promise<void>;
+  revealAttachment(threadId: string, attachmentId: string): Promise<void>;
   sendMessage(
     threadId: string,
     content: string,
@@ -546,6 +582,13 @@ export interface RendererApi {
   selectVoice(voiceId: string): Promise<void>;
   disconnectVoice(): Promise<void>;
   setCompletionSound(enabled: boolean): Promise<void>;
+  composeFeedback(
+    message: string,
+    threadId: string | undefined,
+    includeDiagnostics: boolean,
+  ): Promise<void>;
+  checkForUpdates(): Promise<void>;
+  openUpdateDownload(): Promise<void>;
   transcribeVoice(audioBase64: string, mimeType: string): Promise<string>;
   startRealtimeVoice(): Promise<string>;
   appendRealtimeVoice(sessionId: string, audioBase64: string): Promise<void>;

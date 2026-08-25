@@ -16,6 +16,7 @@ export const packagedCloudConfigSchema = z.discriminatedUnion('enabled', [
     .object({
       schemaVersion: z.literal(1),
       enabled: z.literal(false),
+      updateManifestUrl: cleanHttpsUrl.optional(),
     })
     .strict(),
   z
@@ -25,6 +26,7 @@ export const packagedCloudConfigSchema = z.discriminatedUnion('enabled', [
       apiBaseUrl: cleanHttpsUrl,
       cognitoRegion: region,
       cognitoClientId: clientId,
+      updateManifestUrl: cleanHttpsUrl.optional(),
     })
     .strict(),
 ]);
@@ -33,12 +35,14 @@ export interface CloudRuntimeConfiguration {
   apiBaseUrl?: string;
   cognitoRegion?: string;
   cognitoClientId?: string;
+  updateManifestUrl?: string;
 }
 
 interface CloudConfigurationEnvironment {
   SIA_API_BASE_URL?: string;
   SIA_COGNITO_REGION?: string;
   SIA_COGNITO_CLIENT_ID?: string;
+  SIA_UPDATE_MANIFEST_URL?: string;
 }
 
 export async function loadCloudConfiguration(options: {
@@ -74,8 +78,13 @@ export async function loadCloudConfiguration(options: {
         apiBaseUrl: parsed.data.apiBaseUrl,
         cognitoRegion: parsed.data.cognitoRegion,
         cognitoClientId: parsed.data.cognitoClientId,
+        ...(parsed.data.updateManifestUrl
+          ? { updateManifestUrl: parsed.data.updateManifestUrl }
+          : {}),
       }
-    : {};
+    : parsed.data.updateManifestUrl
+      ? { updateManifestUrl: parsed.data.updateManifestUrl }
+      : {};
 }
 
 export function developmentCloudConfiguration(
@@ -84,13 +93,21 @@ export function developmentCloudConfiguration(
   const apiBaseUrl = environment.SIA_API_BASE_URL;
   const cognitoRegion = environment.SIA_COGNITO_REGION;
   const cognitoClientId = environment.SIA_COGNITO_CLIENT_ID;
-  if (!apiBaseUrl && !cognitoRegion && !cognitoClientId) return {};
+  const updateManifestUrl = environment.SIA_UPDATE_MANIFEST_URL;
+  if (!apiBaseUrl && !cognitoRegion && !cognitoClientId) {
+    if (!updateManifestUrl) return {};
+    if (!isCleanHttpsUrl(updateManifestUrl)) {
+      throw new Error('Development update configuration requires a clean HTTPS manifest URL.');
+    }
+    return { updateManifestUrl };
+  }
   const parsed = packagedCloudConfigSchema.safeParse({
     schemaVersion: 1,
     enabled: true,
     apiBaseUrl,
     cognitoRegion,
     cognitoClientId,
+    ...(updateManifestUrl ? { updateManifestUrl } : {}),
   });
   if (!parsed.success || !parsed.data.enabled) {
     throw new Error(
@@ -101,6 +118,9 @@ export function developmentCloudConfiguration(
     apiBaseUrl: parsed.data.apiBaseUrl,
     cognitoRegion: parsed.data.cognitoRegion,
     cognitoClientId: parsed.data.cognitoClientId,
+    ...(parsed.data.updateManifestUrl
+      ? { updateManifestUrl: parsed.data.updateManifestUrl }
+      : {}),
   };
 }
 

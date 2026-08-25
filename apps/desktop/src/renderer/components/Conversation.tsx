@@ -1,19 +1,30 @@
+import * as Dialog from '@radix-ui/react-dialog';
 import {
   ArrowDown,
   ArrowClockwise,
   ChatCircle,
+  CaretDown,
+  CaretUp,
   Check,
   Clock,
   Copy,
   FolderSimple,
+  MagnifyingGlass,
   SpeakerHigh,
   SpinnerGap,
   StopCircle,
   User,
   WarningCircle,
+  X,
 } from '@phosphor-icons/react';
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { ApprovalDecision, RendererAttachment, ThreadDetail, ThreadEvent } from '../types';
+import type {
+  ApprovalDecision,
+  AttachmentPreview,
+  RendererAttachment,
+  ThreadDetail,
+  ThreadEvent,
+} from '../types';
 import styles from '../ui.module.css';
 import { ActivityRow } from './ActivityRow';
 import { AgentForm } from './AgentForm';
@@ -31,6 +42,13 @@ interface ConversationProps {
   acceptingAttachments?: boolean | undefined;
   onPickAttachments?: (() => Promise<void> | void) | undefined;
   onRemoveAttachment?: ((attachmentId: string) => Promise<void> | void) | undefined;
+  onDropAttachments?: ((files: File[]) => Promise<void> | void) | undefined;
+  onPreviewAttachment?: ((attachmentId: string) => Promise<AttachmentPreview>) | undefined;
+  onOpenAttachment?: ((attachmentId: string) => Promise<void>) | undefined;
+  onRevealAttachment?: ((attachmentId: string) => Promise<void>) | undefined;
+  starterPrompts?: readonly string[] | undefined;
+  findOpen?: boolean | undefined;
+  onFindOpenChange?: ((open: boolean) => void) | undefined;
   voiceEnabled?: boolean | undefined;
   onTranscribeVoice?: ((audioBase64: string, mimeType: string) => Promise<string>) | undefined;
   onStartRealtimeVoice?: (() => Promise<string>) | undefined;
@@ -60,6 +78,13 @@ export function Conversation({
   acceptingAttachments,
   onPickAttachments,
   onRemoveAttachment,
+  onDropAttachments,
+  onPreviewAttachment,
+  onOpenAttachment,
+  onRevealAttachment,
+  starterPrompts = [],
+  findOpen = false,
+  onFindOpenChange,
   voiceEnabled,
   onTranscribeVoice,
   onStartRealtimeVoice,
@@ -96,6 +121,33 @@ export function Conversation({
   }>({ phase: 'idle' });
   const [voiceConversation, setVoiceConversation] = useState(false);
   const [justCompleted, setJustCompleted] = useState(false);
+  const [findQuery, setFindQuery] = useState('');
+  const [findIndex, setFindIndex] = useState(0);
+  const [draggingFiles, setDraggingFiles] = useState(false);
+  const [preview, setPreview] = useState<{
+    attachment: RendererAttachment;
+    result?: AttachmentPreview;
+  }>();
+  const eventRefs = useRef(new Map<string, HTMLDivElement>());
+
+  const findNeedle = findQuery.trim().toLocaleLowerCase();
+  const matchingEventIds = findNeedle
+    ? (thread?.events ?? [])
+        .filter((event) => eventSearchText(event).includes(findNeedle))
+        .map(({ id }) => id)
+    : [];
+
+  useEffect(() => {
+    setFindIndex(0);
+  }, [findQuery, thread?.id]);
+
+  useEffect(() => {
+    if (!findOpen || !findQuery || matchingEventIds.length === 0) return;
+    eventRefs.current.get(matchingEventIds[findIndex]!)?.scrollIntoView({
+      block: 'center',
+      behavior: 'smooth',
+    });
+  }, [findIndex, findOpen, findQuery, matchingEventIds.join(':')]);
 
   const stopSpeech = () => {
     speechGeneration.current += 1;
@@ -313,7 +365,92 @@ export function Conversation({
       : undefined;
 
   return (
-    <main className={styles.mainPane} data-companion-conversation>
+    <main
+      className={styles.mainPane}
+      data-companion-conversation
+      data-file-dragging={draggingFiles ? 'true' : undefined}
+      onDragEnter={(event) => {
+        if (!onDropAttachments || !hasFiles(event.dataTransfer)) return;
+        event.preventDefault();
+        setDraggingFiles(true);
+      }}
+      onDragOver={(event) => {
+        if (!onDropAttachments || !hasFiles(event.dataTransfer)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        setDraggingFiles(false);
+      }}
+      onDrop={(event) => {
+        if (!onDropAttachments || !hasFiles(event.dataTransfer)) return;
+        event.preventDefault();
+        setDraggingFiles(false);
+        const files = [...event.dataTransfer.files].slice(0, 20);
+        if (files.length) void onDropAttachments(files);
+      }}
+    >
+      {findOpen ? (
+        <div className={styles.conversationFind} role="search">
+          <MagnifyingGlass size={15} aria-hidden="true" />
+          <input
+            autoFocus
+            type="search"
+            value={findQuery}
+            onChange={(event) => setFindQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') onFindOpenChange?.(false);
+              if (event.key === 'Enter' && matchingEventIds.length) {
+                event.preventDefault();
+                setFindIndex((current) =>
+                  event.shiftKey
+                    ? (current - 1 + matchingEventIds.length) % matchingEventIds.length
+                    : (current + 1) % matchingEventIds.length,
+                );
+              }
+            }}
+            placeholder="Find in this thread"
+            aria-label="Find in this thread"
+          />
+          <span>{findQuery ? `${matchingEventIds.length} found` : 'Type to find'}</span>
+          <button
+            type="button"
+            className={styles.iconButtonSmall}
+            disabled={!matchingEventIds.length}
+            onClick={() =>
+              setFindIndex(
+                (current) => (current - 1 + matchingEventIds.length) % matchingEventIds.length,
+              )
+            }
+            aria-label="Previous match"
+          >
+            <CaretUp size={14} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className={styles.iconButtonSmall}
+            disabled={!matchingEventIds.length}
+            onClick={() => setFindIndex((current) => (current + 1) % matchingEventIds.length)}
+            aria-label="Next match"
+          >
+            <CaretDown size={14} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className={styles.iconButtonSmall}
+            onClick={() => onFindOpenChange?.(false)}
+            aria-label="Close find"
+          >
+            <X size={14} aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
+      {draggingFiles ? (
+        <div className={styles.attachmentDropOverlay} role="status">
+          Drop up to 20 files to attach
+        </div>
+      ) : null}
       <div
         className={styles.threadScroll}
         ref={scrollRef}
@@ -370,31 +507,70 @@ export function Conversation({
                   Connect work apps
                 </button>
               ) : null}
+              {starterPrompts.length ? (
+                <div className={styles.starterPrompts} aria-label="Suggested starts">
+                  {starterPrompts.map((prompt) => (
+                    <button key={prompt} type="button" onClick={() => void onSend(prompt)}>
+                      <span>{prompt}</span>
+                      <span aria-hidden="true">↗</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : (
             <div className={styles.eventList}>
               {thread.events.map((event) => (
-                <EventView
+                <div
                   key={event.id}
-                  event={event}
-                  agentHue={agentHue}
-                  busyApprovalId={busyApprovalId}
-                  speechPhase={speech.eventId === event.id ? speech.phase : 'idle'}
-                  speechError={speech.eventId === event.id ? speech.error : undefined}
-                  streaming={running && event.id === currentAssistantEventId}
-                  justCompleted={justCompleted && event.id === currentAssistantEventId}
-                  onToggleSpeech={
-                    voiceEnabled && onSpeak ? (text) => toggleSpeech(event.id, text) : undefined
-                  }
-                  onResolveApproval={async (approvalId, decision) => {
-                    setBusyApprovalId(approvalId);
-                    try {
-                      await onResolveApproval(approvalId, decision);
-                    } finally {
-                      setBusyApprovalId(undefined);
-                    }
+                  ref={(node) => {
+                    if (node) eventRefs.current.set(event.id, node);
+                    else eventRefs.current.delete(event.id);
                   }}
-                />
+                  className={styles.eventSearchAnchor}
+                  data-find-match={matchingEventIds.includes(event.id) ? 'true' : undefined}
+                  data-find-current={
+                    matchingEventIds[findIndex] === event.id ? 'true' : undefined
+                  }
+                >
+                  <EventView
+                    event={event}
+                    agentHue={agentHue}
+                    busyApprovalId={busyApprovalId}
+                    speechPhase={speech.eventId === event.id ? speech.phase : 'idle'}
+                    speechError={speech.eventId === event.id ? speech.error : undefined}
+                    streaming={running && event.id === currentAssistantEventId}
+                    justCompleted={justCompleted && event.id === currentAssistantEventId}
+                    onToggleSpeech={
+                      voiceEnabled && onSpeak
+                        ? (text) => toggleSpeech(event.id, text)
+                        : undefined
+                    }
+                    onPreviewAttachment={
+                      onPreviewAttachment
+                        ? (attachment) => {
+                            setPreview({ attachment });
+                            void onPreviewAttachment(attachment.id).then(
+                              (result) => setPreview({ attachment, result }),
+                              (cause: unknown) =>
+                                setPreview({
+                                  attachment,
+                                  result: attachmentPreviewFailure(cause),
+                                }),
+                            );
+                          }
+                        : undefined
+                    }
+                    onResolveApproval={async (approvalId, decision) => {
+                      setBusyApprovalId(approvalId);
+                      try {
+                        await onResolveApproval(approvalId, decision);
+                      } finally {
+                        setBusyApprovalId(undefined);
+                      }
+                    }}
+                  />
+                </div>
               ))}
               {running ? <ThinkingRow /> : null}
             </div>
@@ -430,6 +606,20 @@ export function Conversation({
         acceptingAttachments={acceptingAttachments}
         onPickAttachments={onPickAttachments}
         onRemoveAttachment={onRemoveAttachment}
+        onPreviewAttachment={
+          onPreviewAttachment
+            ? (attachmentId) => {
+                const attachment = attachments?.find(({ id }) => id === attachmentId);
+                if (!attachment) return;
+                setPreview({ attachment });
+                void onPreviewAttachment(attachmentId).then(
+                  (result) => setPreview({ attachment, result }),
+                  (cause: unknown) =>
+                    setPreview({ attachment, result: attachmentPreviewFailure(cause) }),
+                );
+              }
+            : undefined
+        }
         voiceEnabled={voiceEnabled}
         onTranscribe={onTranscribeVoice}
         onStartRealtime={onStartRealtimeVoice}
@@ -474,6 +664,12 @@ export function Conversation({
         onSend={onSend}
         onStop={onStop}
       />
+      <AttachmentPreviewDialog
+        preview={preview}
+        onOpenChange={(open) => !open && setPreview(undefined)}
+        onOpenAttachment={onOpenAttachment}
+        onRevealAttachment={onRevealAttachment}
+      />
     </main>
   );
 }
@@ -495,6 +691,7 @@ interface EventViewProps {
   streaming?: boolean | undefined;
   justCompleted?: boolean | undefined;
   onToggleSpeech?: ((text: string) => Promise<void>) | undefined;
+  onPreviewAttachment?: ((attachment: RendererAttachment) => void) | undefined;
   onResolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
 }
 
@@ -507,6 +704,7 @@ function EventView({
   streaming,
   justCompleted,
   onToggleSpeech,
+  onPreviewAttachment,
   onResolveApproval,
 }: EventViewProps) {
   if (event.type === 'activity') return <ActivityRow event={event} />;
@@ -599,10 +797,15 @@ function EventView({
         {event.attachments?.length ? (
           <div className={styles.messageAttachments} aria-label="Message attachments">
             {event.attachments.map((attachment) => (
-              <span key={attachment.id}>
+              <button
+                type="button"
+                key={attachment.id}
+                onClick={() => onPreviewAttachment?.(attachment)}
+                disabled={!onPreviewAttachment}
+              >
                 <FolderSimple size={13} aria-hidden="true" />
                 {attachment.name}
-              </span>
+              </button>
             ))}
           </div>
         ) : null}
@@ -653,6 +856,89 @@ function CopyMessageButton({ content }: { content: string }) {
       )}
     </button>
   );
+}
+
+function AttachmentPreviewDialog({
+  preview,
+  onOpenChange,
+  onOpenAttachment,
+  onRevealAttachment,
+}: {
+  preview?: { attachment: RendererAttachment; result?: AttachmentPreview } | undefined;
+  onOpenChange(open: boolean): void;
+  onOpenAttachment?: ((attachmentId: string) => Promise<void>) | undefined;
+  onRevealAttachment?: ((attachmentId: string) => Promise<void>) | undefined;
+}) {
+  return (
+    <Dialog.Root open={Boolean(preview)} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className={styles.dialogOverlay} />
+        <Dialog.Content className={`${styles.alertDialogContent} ${styles.attachmentPreview}`}>
+          <Dialog.Title>{preview?.attachment.name}</Dialog.Title>
+          <Dialog.Description>
+            This local preview uses a short-lived file grant that expires after one hour.
+          </Dialog.Description>
+          <div className={styles.attachmentPreviewBody}>
+            {!preview?.result ? (
+              <SpinnerGap className={styles.spin} size={22} aria-label="Loading preview" />
+            ) : preview.result.kind === 'image' ? (
+              <img src={preview.result.dataUrl} alt={preview.attachment.name} />
+            ) : preview.result.kind === 'pdf' ? (
+              <p>
+                PDFs open in your default reader so Sia does not add an unsafe document frame.
+              </p>
+            ) : (
+              <p>{preview.result.detail}</p>
+            )}
+          </div>
+          <div className={styles.dialogActions}>
+            {onRevealAttachment && preview ? (
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => void onRevealAttachment(preview.attachment.id)}
+              >
+                Reveal in Finder
+              </button>
+            ) : null}
+            {onOpenAttachment && preview ? (
+              <button
+                type="button"
+                className={styles.primaryButton}
+                onClick={() => void onOpenAttachment(preview.attachment.id)}
+              >
+                Open file
+              </button>
+            ) : null}
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function eventSearchText(event: ThreadEvent): string {
+  if (event.type === 'message') {
+    return `${event.content} ${(event.attachments ?? []).map(({ name }) => name).join(' ')}`.toLocaleLowerCase();
+  }
+  if (event.type === 'activity') return event.title.toLocaleLowerCase();
+  if (event.type === 'notice') return `${event.title} ${event.detail}`.toLocaleLowerCase();
+  if (event.type === 'question') return event.prompt.toLocaleLowerCase();
+  return `${event.request.title} ${'summary' in event.request ? event.request.summary : ''}`.toLocaleLowerCase();
+}
+
+function attachmentPreviewFailure(cause: unknown): AttachmentPreview {
+  return {
+    kind: 'unavailable',
+    detail:
+      cause instanceof Error
+        ? cause.message
+        : 'This file is no longer available in the current Sia session.',
+  };
+}
+
+function hasFiles(dataTransfer: DataTransfer): boolean {
+  return [...dataTransfer.types].includes('Files');
 }
 
 function ThinkingRow() {

@@ -1,8 +1,8 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { ChatCircle, MagnifyingGlass, X } from '@phosphor-icons/react';
+import { ChatCircle, File, LinkSimple, MagnifyingGlass, X } from '@phosphor-icons/react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import companion from '../companion.module.css';
-import type { AgentSummary } from '../types';
+import type { AgentSummary, TranscriptSearchResult } from '../types';
 import styles from '../ui.module.css';
 import { AgentForm } from './AgentForm';
 
@@ -23,7 +23,8 @@ interface QuickSwitcherProps {
   actions: QuickSwitcherAction[];
   onOpenChange(open: boolean): void;
   onSelectAgent(agentId: string): void;
-  onSelectThread(threadId: string): void;
+  onSelectThread(threadId: string, archived?: boolean): void;
+  searchResources?(query: string): Promise<TranscriptSearchResult[]>;
 }
 
 type SwitcherEntry =
@@ -35,6 +36,14 @@ type SwitcherEntry =
       label: string;
       detail: string;
       updatedAt: string;
+      run(): void;
+    }
+  | {
+      kind: 'resource';
+      resourceKind: 'message' | 'file' | 'link' | 'thread';
+      id: string;
+      label: string;
+      detail: string;
       run(): void;
     };
 
@@ -49,9 +58,30 @@ export function QuickSwitcher({
   onOpenChange,
   onSelectAgent,
   onSelectThread,
+  searchResources,
 }: QuickSwitcherProps) {
   const [query, setQuery] = useState('');
   const [highlighted, setHighlighted] = useState(0);
+  const [resourceResults, setResourceResults] = useState<TranscriptSearchResult[]>([]);
+
+  useEffect(() => {
+    const normalized = query.trim();
+    if (!open || normalized.length < 2 || !searchResources) {
+      setResourceResults([]);
+      return undefined;
+    }
+    let active = true;
+    const timer = window.setTimeout(() => {
+      void searchResources(normalized).then(
+        (results) => active && setResourceResults(results),
+        () => active && setResourceResults([]),
+      );
+    }, 120);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [open, query, searchResources]);
 
   const entries = useMemo(() => {
     const normalized = normalize(query);
@@ -81,6 +111,16 @@ export function QuickSwitcher({
         run: () => onSelectThread(thread.id),
       })),
     );
+    const resourceEntries: SwitcherEntry[] = resourceResults.flatMap((result) =>
+      result.matches.map((match) => ({
+        kind: 'resource' as const,
+        resourceKind: match.kind,
+        id: `resource-${result.threadId}-${match.itemId}`,
+        label: match.label ?? match.excerpt,
+        detail: `${result.threadTitle} · ${match.kind}`,
+        run: () => onSelectThread(result.threadId, result.archived),
+      })),
+    );
 
     if (!normalized) {
       return [
@@ -92,7 +132,7 @@ export function QuickSwitcher({
       ];
     }
 
-    return [...threadEntries, ...agentEntries, ...actionEntries]
+    return [...resourceEntries, ...threadEntries, ...agentEntries, ...actionEntries]
       .map((entry) => ({ entry, score: matchScore(entry, normalized, actions) }))
       .filter((candidate) => candidate.score >= 0)
       .sort((left, right) => right.score - left.score)
@@ -104,6 +144,7 @@ export function QuickSwitcher({
     onSelectAgent,
     onSelectThread,
     query,
+    resourceResults,
     selectedAgentId,
     selectedThreadId,
   ]);
@@ -199,6 +240,14 @@ export function QuickSwitcher({
                     <AgentForm identity={entry.hue} size="small" />
                   ) : entry.kind === 'thread' ? (
                     <ChatCircle size={17} />
+                  ) : entry.kind === 'resource' ? (
+                    entry.resourceKind === 'file' ? (
+                      <File size={17} />
+                    ) : entry.resourceKind === 'link' ? (
+                      <LinkSimple size={17} />
+                    ) : (
+                      <MagnifyingGlass size={17} />
+                    )
                   ) : (
                     entry.icon
                   )}
@@ -207,7 +256,9 @@ export function QuickSwitcher({
                   <strong>{entry.label}</strong>
                   <small>{entry.detail}</small>
                 </span>
-                <span className={companion.quickSwitcherKind}>{entry.kind}</span>
+                <span className={companion.quickSwitcherKind}>
+                  {entry.kind === 'resource' ? entry.resourceKind : entry.kind}
+                </span>
               </button>
             ))}
             {entries.length === 0 ? (

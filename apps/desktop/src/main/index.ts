@@ -65,6 +65,8 @@ let sessionSecurityConfigured = false;
 let shutdownStarted = false;
 let creationInFlight: Promise<void> | undefined;
 let startupFailureReported = false;
+let unsubscribeDockBadge: (() => void) | undefined;
+const notificationTimes = new Map<string, number>();
 
 if (!app.isPackaged && process.env.SIA_TEST_USER_DATA) {
   app.setPath('userData', process.env.SIA_TEST_USER_DATA);
@@ -84,6 +86,8 @@ if (!gotLock) {
   app.on('activate', showOrCreateApplicationWindow);
 
   app.on('before-quit', (event) => {
+    unsubscribeDockBadge?.();
+    unsubscribeDockBadge = undefined;
     if (!shutdownStarted && controller) {
       event.preventDefault();
       shutdownStarted = true;
@@ -206,11 +210,32 @@ async function performApplicationCreation(): Promise<void> {
       chooseDirectory,
       chooseFiles,
       exportJson,
-      notify: (title, body) => {
+      openPath: async (path) => {
+        const error = await shell.openPath(path);
+        if (error) throw new Error(error);
+      },
+      composeFeedback: async (subject, body) => {
+        const mailto = new URL('mailto:support@superintelligentagents.ai');
+        mailto.searchParams.set('subject', subject);
+        mailto.searchParams.set('body', body);
+        await shell.openExternal(mailto.toString(), { activate: true });
+      },
+      appVersion: app.getVersion(),
+      ...(cloudConfiguration.updateManifestUrl
+        ? { updateManifestUrl: cloudConfiguration.updateManifestUrl }
+        : {}),
+      notify: ({ threadId, title, body }) => {
         if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()) return;
         if (!Notification.isSupported()) return;
+        const now = Date.now();
+        if (now - (notificationTimes.get(threadId) ?? 0) < 5_000) return;
+        notificationTimes.set(threadId, now);
         const notification = new Notification({ title, body, silent: false });
-        notification.on('click', showOrCreateApplicationWindow);
+        notification.on('click', () => {
+          void activeController.invoke('threads.select', { threadId }).finally(() => {
+            showOrCreateApplicationWindow();
+          });
+        });
         notification.show();
       },
       workspaceOperations: new WorkspaceOperationsService({
@@ -282,6 +307,17 @@ async function performApplicationCreation(): Promise<void> {
     });
     activeController.attachRuntime(activeRuntime);
     await activeController.initialize();
+    unsubscribeDockBadge?.();
+    const updateDockBadge = (snapshot: ReturnType<typeof activeController.snapshot>) => {
+      const unread = snapshot.threads.filter(
+        (thread) => thread.unread && !thread.archivedAt,
+      ).length;
+      app.dock?.setBadge(unread ? String(unread) : '');
+    };
+    updateDockBadge(activeController.snapshot());
+    unsubscribeDockBadge = activeController.subscribe((event) => {
+      if (event.type === 'snapshot') updateDockBadge(event.snapshot);
+    });
     if (!fakeServices && activeController.computerTrust() === 'auto') {
       // Trusted local mode also makes the signed-in Chrome reachable by default: Chrome's own
       // persistent remote-debugging toggle is enabled whenever Chrome is closed at launch, so
