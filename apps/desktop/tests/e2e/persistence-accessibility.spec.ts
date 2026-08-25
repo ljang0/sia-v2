@@ -20,7 +20,9 @@ test('saved agents, threads, and transcripts survive a full app relaunch', async
     electronApp = await launchSia(userData, workspace);
     const firstPage = await readyPage(electronApp);
     const firstErrors = collectRendererErrors(firstPage);
-    await expect(firstPage.getByRole('heading', { name: 'Choose an agent' })).toBeVisible();
+    await expect(
+      firstPage.getByRole('heading', { name: 'Make space for focused work.' }),
+    ).toBeVisible();
 
     await firstPage
       .getByRole('complementary', { name: 'Agent navigation' })
@@ -56,7 +58,7 @@ test('saved agents, threads, and transcripts survive a full app relaunch', async
     await expect(
       restoredPage
         .getByRole('complementary', { name: 'Agent navigation' })
-        .getByRole('button', { name: 'PH Persistent helper', exact: true }),
+        .getByRole('button', { name: 'Persistent helper', exact: true }),
     ).toBeVisible();
     await expect(restoredPage.getByText(prompt, { exact: true })).toBeVisible();
     await expect(restoredPage.getByText(assistantReply, { exact: true })).toBeVisible();
@@ -77,7 +79,9 @@ test('first-run actions and the Access surface remain usable by keyboard at 200%
   try {
     const page = await readyPage(electronApp);
     const rendererErrors = collectRendererErrors(page);
-    await expect(page.getByRole('heading', { name: 'Choose an agent' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Make space for focused work.' }),
+    ).toBeVisible();
     await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
 
     await expect(page.getByRole('button', { name: 'Create your first agent' })).toBeVisible();

@@ -251,12 +251,13 @@ async function performApplicationCreation(): Promise<void> {
       approvals: activeController.approvalBroker(),
       onInvocation: activeController.actionInvocationObserver(),
       onResult: activeController.actionResultObserver(),
+      isToolAvailable: (name) => activeController.actionToolAvailable(name),
     });
     let activeRuntime!: RuntimeCoordinator;
     let capabilityHost: CapabilitySocketHost | undefined;
     if (!fakeServices) {
       capabilityHost = new CapabilitySocketHost({
-        tools: gateway.listTools(),
+        tools: () => gateway.listTools(),
         invoker: {
           invoke: (sessionId, toolName, argumentsValue) =>
             activeRuntime.invokeCapability(sessionId, toolName, argumentsValue),

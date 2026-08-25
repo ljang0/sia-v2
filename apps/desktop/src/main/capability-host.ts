@@ -25,7 +25,7 @@ export interface CapabilityToolInvoker {
 
 /** Private, process-local host for ACP's short-lived Sia MCP bridge. */
 export class CapabilitySocketHost {
-  readonly #tools: readonly ToolDescriptor[];
+  readonly #tools: () => readonly ToolDescriptor[];
   readonly #invoker: CapabilityToolInvoker;
   readonly #peers = new Set<JsonRpcPeer>();
   readonly #capabilities = new Map<string, Capability>();
@@ -35,8 +35,12 @@ export class CapabilitySocketHost {
   #electronExecutable: string | undefined;
   #entryPath: string | undefined;
 
-  constructor(options: { tools: readonly ToolDescriptor[]; invoker: CapabilityToolInvoker }) {
-    this.#tools = options.tools;
+  constructor(options: {
+    tools: readonly ToolDescriptor[] | (() => readonly ToolDescriptor[]);
+    invoker: CapabilityToolInvoker;
+  }) {
+    const tools = options.tools;
+    this.#tools = typeof tools === 'function' ? tools : () => tools;
     this.#invoker = options.invoker;
   }
 
@@ -77,7 +81,7 @@ export class CapabilitySocketHost {
       id: randomUUID(),
       sessionId,
       expiresAt: Date.now() + 8 * 60 * 60_000,
-      tools: this.#tools,
+      tools: this.#tools(),
     };
     this.#capabilities.set(capability.id, capability);
     const launch = createPackagedToolBridgeLaunchSpec({

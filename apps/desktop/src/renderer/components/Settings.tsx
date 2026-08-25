@@ -117,7 +117,7 @@ export function Settings({
   }, [canReviewRelease, canViewResearchArchive, section]);
 
   return (
-    <main className={styles.settingsPage}>
+    <main className={styles.settingsPage} data-companion-settings>
       <header className={styles.settingsTopbar}>
         <div>
           <h1>Settings</h1>

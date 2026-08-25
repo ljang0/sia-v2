@@ -18,6 +18,7 @@ import {
 import { useMemo, useState } from 'react';
 import type { AgentSummary, ThreadSummary } from '../types';
 import styles from '../ui.module.css';
+import { AgentForm } from './AgentForm';
 import { StatusMark } from './StatusMark';
 import { SiaMark } from './SiaMark';
 
@@ -40,6 +41,7 @@ interface SidebarProps {
   onOpenActivity?(): void;
   onOpenArchived?(): void;
   onOpenSettings(): void;
+  onOpenQuickSwitcher?(): void;
 }
 
 export function Sidebar({
@@ -61,6 +63,7 @@ export function Sidebar({
   onOpenActivity,
   onOpenArchived,
   onOpenSettings,
+  onOpenQuickSwitcher,
 }: SidebarProps) {
   const [closedAgents, setClosedAgents] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
@@ -100,7 +103,11 @@ export function Sidebar({
 
   if (collapsed) {
     return (
-      <aside className={styles.sidebarCollapsed} aria-label="Agent navigation">
+      <aside
+        className={styles.sidebarCollapsed}
+        aria-label="Agent navigation"
+        data-companion-sidebar
+      >
         <div className={styles.sidebarCollapsedTitlebar} aria-hidden="true" />
         <button
           className={styles.iconButton}
@@ -125,7 +132,7 @@ export function Sidebar({
               aria-label={agent.name}
               title={agent.name}
             >
-              {agent.initials}
+              <AgentForm identity={agent.hue} state={agentPresence(agent)} size="small" />
             </button>
           ))}
         </div>
@@ -143,7 +150,7 @@ export function Sidebar({
   }
 
   return (
-    <aside className={styles.sidebar} aria-label="Agent navigation">
+    <aside className={styles.sidebar} aria-label="Agent navigation" data-companion-sidebar>
       <div className={styles.sidebarTitlebar}>
         <div className={styles.wordmark}>
           <SiaMark className={styles.wordmarkSymbol} />
@@ -230,7 +237,11 @@ export function Sidebar({
                       data-presence={agentPresence(agent)}
                       data-identity={agent.hue}
                     >
-                      {agent.initials}
+                      <AgentForm
+                        identity={agent.hue}
+                        state={agentPresence(agent)}
+                        size="small"
+                      />
                     </span>
                     <span className={styles.agentName}>{agent.name}</span>
                   </button>
@@ -357,6 +368,13 @@ export function Sidebar({
       </div>
 
       <div className={styles.sidebarFooter}>
+        {onOpenQuickSwitcher ? (
+          <button className={styles.settingsButton} type="button" onClick={onOpenQuickSwitcher}>
+            <MagnifyingGlass size={17} aria-hidden="true" />
+            <span>Jump to</span>
+            <kbd className={styles.navShortcut}>⌘K</kbd>
+          </button>
+        ) : null}
         {onOpenActivity ? (
           <>
             <button

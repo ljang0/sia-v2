@@ -11,7 +11,7 @@ is the "Sia Demo Runbook" artifact.
 - `codex --version` signed in; accepted range `>=0.147.0 <0.150.0`; no auto-updates demo morning.
 - For the research-release path, use a designated disposable participant. Sign in, accept **Sia
   research alpha**, and show that the core app opens without a connector prompt. For a local demo,
-  choose **Continue locally** instead. If demonstrating integrations, open **Settings → Apps** after
+  choose **Start in local mode** instead. If demonstrating integrations, open **Settings → Apps** after
   the core task and press **Connect Google** or **Connect Slack**. Google uses one grant for Gmail,
   Drive, Docs, Sheets, and Slides; Google and Slack still confirm separately in the browser.
 - **Settings → Computer → Unlock everything**: one card shows every capability (Mac control,

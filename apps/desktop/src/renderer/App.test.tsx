@@ -9,6 +9,21 @@ import type { RendererApi, RendererSnapshot } from './types';
 afterEach(cleanup);
 
 describe('app privacy routing', () => {
+  it('opens the quick switcher from the keyboard and routes a command', async () => {
+    render(<App api={createDemoRendererApi(structuredClone(demoSnapshot))} />);
+    await screen.findByRole('button', { name: 'Access' });
+
+    fireEvent.keyDown(window, { key: 'k', metaKey: true });
+    expect(await screen.findByRole('dialog', { name: 'Move through Sia' })).toBeTruthy();
+
+    const search = screen.getByRole('combobox', { name: 'Search rooms and actions' });
+    fireEvent.change(search, { target: { value: 'archived' } });
+    fireEvent.click(screen.getByRole('option', { name: /Open archived threads/ }));
+
+    expect(await screen.findByRole('region', { name: 'Archived' })).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'Move through Sia' })).toBeNull();
+  });
+
   it('offers Sia sign-in before first-run setup when cloud is configured', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),
@@ -21,10 +36,10 @@ describe('app privacy routing', () => {
 
     render(<App api={createDemoRendererApi(snapshot)} />);
 
-    expect(await screen.findByRole('dialog', { name: 'Sign in to Sia' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Continue locally' }));
+    expect(await screen.findByRole('dialog', { name: 'Choose how Sia starts' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Start in local mode' }));
     await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: 'Sign in to Sia' })).toBeNull(),
+      expect(screen.queryByRole('dialog', { name: 'Choose how Sia starts' })).toBeNull(),
     );
     expect(screen.getByRole('button', { name: 'Create your first agent' })).toBeTruthy();
   });

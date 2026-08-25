@@ -414,7 +414,7 @@ export function Composer({
   };
 
   return (
-    <div className={styles.composerArea}>
+    <div className={styles.composerArea} data-companion-composer>
       <div className={`${styles.composer} ${disabled ? styles.composerDisabled : ''}`}>
         {attachments.length ? (
           <div

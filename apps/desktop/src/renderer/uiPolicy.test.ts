@@ -5,8 +5,12 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const styles = readFileSync(fileURLToPath(new URL('./ui.module.css', import.meta.url)), 'utf8');
+const companion = readFileSync(
+  fileURLToPath(new URL('./companion.module.css', import.meta.url)),
+  'utf8',
+);
 const tokens = readFileSync(fileURLToPath(new URL('./tokens.css', import.meta.url)), 'utf8');
-const css = `${tokens}\n${styles}`;
+const css = `${tokens}\n${styles}\n${companion}`;
 
 describe('renderer accessibility CSS policy', () => {
   it('keeps explicit reduced-motion, increased-contrast, and forced-color modes', () => {
@@ -55,9 +59,9 @@ describe('renderer accessibility CSS policy', () => {
     expect(css).not.toMatch(/!important|(?:linear|radial|conic)-gradient\(/);
   });
 
-  it('reserves the brand face for the wordmark and keeps native display type off controls', () => {
+  it('uses the brand face for identity and keeps it off controls and body copy', () => {
     expect(tokens).toMatch(/--font-brand:\s*'Bricolage Grotesque',\s*'SF Pro Display'/);
-    expect(tokens).toMatch(/--font-display:\s*'SF Pro Display',\s*-apple-system/);
+    expect(tokens).toMatch(/--font-display:\s*'Bricolage Grotesque',\s*'SF Pro Display'/);
     expect(tokens).toMatch(
       /@font-face\s*{[^}]*font-family:\s*'Bricolage Grotesque'[^}]*format\('woff2'\)/,
     );
@@ -76,7 +80,7 @@ describe('renderer accessibility CSS policy', () => {
       expect(block).not.toContain('var(--font-display)');
     }
 
-    // Names and headings use the native display stack; only the wordmark uses the brand face.
+    // Agent names and headings share the expressive display face with the wordmark.
     const rules = [...styles.matchAll(/([^{}]+){([^}]*)}/g)].map((match) => ({
       selectors: match[1]!.split(',').map((part) => part.trim()),
       body: match[2]!,
@@ -112,7 +116,6 @@ describe('renderer accessibility CSS policy', () => {
 
     for (const background of [
       '--bg-app',
-      '--bg-sidebar',
       '--bg-canvas',
       '--bg-subtle',
       '--bg-raised',
@@ -125,6 +128,14 @@ describe('renderer accessibility CSS policy', () => {
       expect(
         contrast(token(dark, '--text-tertiary'), token(dark, background)),
       ).toBeGreaterThanOrEqual(4.5);
+    }
+
+    for (const source of [light, dark]) {
+      for (const background of ['--shell-bg', '--shell-bg-deep']) {
+        expect(
+          contrast(token(source, '--shell-muted'), token(source, background)),
+        ).toBeGreaterThanOrEqual(4.5);
+      }
     }
 
     for (const source of [light, dark]) {

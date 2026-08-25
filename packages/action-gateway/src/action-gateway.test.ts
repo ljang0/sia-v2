@@ -28,6 +28,27 @@ function verifiedBackend(): ActionBackend & { invoke: ReturnType<typeof vi.fn> }
 }
 
 describe('curated tool surface', () => {
+  it('removes unavailable capabilities from discovery and refuses stale invocations', async () => {
+    const backend = verifiedBackend();
+    const gateway = new ActionGateway({
+      backend,
+      isToolAvailable: (name) => !name.startsWith('mail_'),
+    });
+
+    expect(gateway.listTools().some(({ name }) => name === 'mail_search')).toBe(false);
+    await expect(
+      gateway.invoke({
+        name: 'mail_search',
+        arguments: { account_id: 'gmail', query: 'newer_than:1d' },
+        context,
+      }),
+    ).resolves.toMatchObject({
+      outcome: 'refused',
+      reason: 'Tool mail_search is unavailable for this account',
+    });
+    expect(backend.invoke).not.toHaveBeenCalled();
+  });
+
   it('requires exact email contents at the send approval boundary', () => {
     expect(() =>
       parseActionArguments('mail_send', {

@@ -273,6 +273,11 @@ export class GoogleWorkspaceConnector {
     }
   }
 
+  async retireSuperseded(connectionId: string): Promise<void> {
+    this.#accessTokens.delete(connectionId);
+    await this.#credentials.deleteGoogleToken(connectionId);
+  }
+
   async #revokeToken(token: string): Promise<void> {
     await this.#fetch(
       `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`,
@@ -863,6 +868,17 @@ export class HybridConnector implements ConnectorProvider {
     return this.google.owns(connectionId)
       ? this.google.disconnect(connectionId)
       : this.composio.disconnect(connectionId);
+  }
+
+  async retireSuperseded(connectionId: string): Promise<void> {
+    if (!this.google.owns(connectionId)) {
+      throw new CloudError(
+        400,
+        'unsupported_connection_retirement',
+        'Only a superseded Google Workspace credential can be retired',
+      );
+    }
+    await this.google.retireSuperseded(connectionId);
   }
 
   async requestFileUpload(

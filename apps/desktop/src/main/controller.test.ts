@@ -2092,6 +2092,7 @@ describe('DesktopController', () => {
       ],
     }));
     const disconnect = vi.fn(async () => undefined);
+    const retireSupersededGoogleConnection = vi.fn(async () => undefined);
     const cloud = {
       configured: true,
       sessionStatus: async () => ({
@@ -2105,6 +2106,7 @@ describe('DesktopController', () => {
       startConnection,
       connectionStatus,
       disconnect,
+      retireSupersededGoogleConnection,
       uploadResearchBatch: async () => undefined,
     } as unknown as CloudClient;
     const identity = {
@@ -2170,7 +2172,11 @@ describe('DesktopController', () => {
       ).toBe(true);
       expect(openExternal).toHaveBeenNthCalledWith(1, 'https://connect.example.test/reader');
       expect(openExternal).toHaveBeenNthCalledWith(2, 'https://connect.example.test/editor');
-      expect(disconnect).toHaveBeenCalledWith('gmail', 'grant-reader');
+      expect(retireSupersededGoogleConnection).toHaveBeenCalledWith(
+        'grant-reader',
+        'grant-editor',
+      );
+      expect(disconnect).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
       await controller.shutdown();

@@ -431,6 +431,7 @@ export class MemoryResearchObjects implements ResearchObjectStore {
 export class MemoryConnector implements ConnectorProvider {
   executeError?: Error;
   readonly statuses = new Map<string, ConnectorStatus>();
+  readonly retiredConnectionIds = new Set<string>();
   readonly executions: Array<{
     userId: string;
     connectionId: string;
@@ -465,6 +466,10 @@ export class MemoryConnector implements ConnectorProvider {
   }
   async disconnect(connectionId: string): Promise<void> {
     this.statuses.set(connectionId, { status: 'disconnected' });
+  }
+  async retireSuperseded(connectionId: string): Promise<void> {
+    this.retiredConnectionIds.add(connectionId);
+    this.statuses.delete(connectionId);
   }
   async requestFileUpload(
     _connectionId: string,
@@ -501,6 +506,10 @@ export class MemoryConnector implements ConnectorProvider {
 export class MemoryIdentity implements IdentityProvider {
   readonly users = new Map<string, string>();
   readonly creations: Array<{ email: string; suppressMessage: boolean }> = [];
+  readonly groupAdditions: Array<{
+    email: string;
+    group: 'Participants' | 'ConnectorTesters';
+  }> = [];
   async createPasswordlessUser(
     email: string,
     options: { suppressMessage?: boolean } = {},
@@ -509,6 +518,12 @@ export class MemoryIdentity implements IdentityProvider {
     this.users.set(subject, email);
     this.creations.push({ email, suppressMessage: options.suppressMessage === true });
     return { subject };
+  }
+  async addUserToGroup(
+    email: string,
+    group: 'Participants' | 'ConnectorTesters',
+  ): Promise<void> {
+    this.groupAdditions.push({ email, group });
   }
   async deleteUser(subject: string): Promise<void> {
     this.users.delete(subject);

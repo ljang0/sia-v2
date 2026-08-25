@@ -5,7 +5,7 @@ import type { AgentSummary, RendererApi, RendererSnapshot } from './types';
 
 const BRIDGE_ERROR =
   'Sia could not load its secure desktop bridge. Quit and reopen Sia; if this continues, reinstall the app.';
-type ActivityTarget = 'activity' | 'archived';
+type ActivityTarget = 'activity' | 'archived' | 'search';
 
 export function useAppController(suppliedApi?: RendererApi | undefined) {
   const api = useMemo(() => suppliedApi ?? resolveApi(), [suppliedApi]);

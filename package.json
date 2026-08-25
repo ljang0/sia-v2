@@ -1,6 +1,6 @@
 {
   "name": "sia-v2",
-  "version": "0.1.0-alpha.9",
+  "version": "0.1.0-alpha.11",
   "private": true,
   "description": "A local-first personal computer assistant for macOS.",
   "author": "Lawrence Jang",
@@ -19,6 +19,7 @@
     "package:mac:arm64:dir": "pnpm --filter @sia/desktop package:mac:arm64:dir",
     "package:mac:dir": "pnpm --filter @sia/desktop package:mac:dir",
     "quality:guard": "node scripts/quality-guard.mjs",
+    "release:publish-link": "node apps/desktop/scripts/publish-release.mjs",
     "test": "pnpm -r --if-present test",
     "test:codex-isolation:real": "pnpm --filter @sia/runtime test:codex-isolation:real",
     "test:e2e": "pnpm --filter @sia/desktop test:e2e",

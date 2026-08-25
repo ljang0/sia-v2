@@ -1,8 +1,9 @@
 # Release gate
 
-The current deployment, signed artifact, and live rehearsal metadata are recorded in
-[`release-evidence-2026-08-24-alpha.9.md`](./release-evidence-2026-08-24-alpha.9.md). That evidence also lists the
-remaining human-only blockers; it does not authorize distribution by itself.
+The current source-candidate evidence and remaining release gates are recorded in
+[`release-evidence-2026-08-26-alpha.11.md`](./release-evidence-2026-08-26-alpha.11.md). The last
+signed-artifact evidence remains historical and does not authorize distribution of the changed
+`alpha.11` source.
 Named research, privacy, security, support, and release approval is recorded in
 [`research-release-signoff.md`](./research-release-signoff.md).
 
@@ -76,6 +77,14 @@ Before distribution, install the signed artifact on both a clean macOS account a
 has run the previous Sia build. Complete `docs/manual-acceptance.md`, prepare release notes, confirm
 the support path, and keep the prior signed artifact available for rollback. Alpha updates are manual;
 this repository does not ship an automatic-update feed.
+
+The control-plane stack includes a separate private, encrypted, versioned release-artifact bucket.
+After the exact DMG and ZIP pass signed-package verification, publish them and create a seven-day
+download link with `pnpm release:publish-link`. The script uses a content-addressed object prefix,
+refuses conflicting replacement, verifies the uploaded size and SHA-256 metadata, and returns an
+expiring S3 URL for the DMG. Do not place that bearer URL in Git, a public site, analytics, or a
+shared channel; generate a fresh URL for each invitation batch and send it only through the approved
+participant-contact path.
 
 ## Required live research rehearsal
 

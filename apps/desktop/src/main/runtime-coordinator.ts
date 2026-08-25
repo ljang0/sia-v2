@@ -301,11 +301,13 @@ export class RuntimeCoordinator {
   }
 
   async #sessionFor(thread: RuntimeThreadConfig, signal?: AbortSignal): Promise<SessionState> {
+    const tools = this.#gateway.listTools();
     const fingerprint = JSON.stringify([
       thread.provider,
       thread.model,
       thread.workspace,
       thread.instructions,
+      tools.map(({ name }) => name),
     ]);
     const existing = this.#sessions.get(thread.id);
     if (existing?.fingerprint === fingerprint) return existing;
@@ -339,7 +341,7 @@ export class RuntimeCoordinator {
         ...(thread.provider === 'codex' && thread.priorMessages?.length
           ? { history: thread.priorMessages }
           : {}),
-        tools: this.#gateway.listTools(),
+        tools,
       },
       signal,
     );

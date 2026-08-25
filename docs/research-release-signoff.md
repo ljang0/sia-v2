@@ -5,15 +5,16 @@ the implementation was verified; it is not legal or institutional approval.
 
 ## Release boundary
 
-- Release: Sia `0.1.0-alpha.9`
+- Release: Sia `0.1.0-alpha.11`
 - Consent version: `alpha-research-v3-raw`
-- Evidence: [`release-evidence-2026-08-24-alpha.9.md`](./release-evidence-2026-08-24-alpha.9.md)
+- Evidence: [`release-evidence-2026-08-26-alpha.11.md`](./release-evidence-2026-08-26-alpha.11.md)
 - Invite copy: [`alpha-invite-template.md`](./alpha-invite-template.md)
-- Intended population: self-enrolled adults participating in the Sia research release
-- Local alternative: **Continue locally** without signing in or uploading research data
-- Connector policy: Gmail, Drive, Docs, Sheets, Slides, and Slack enabled for internal alpha
-  acceptance; external distribution remains gated on
-  [`connector-distribution-readiness.md`](./connector-distribution-readiness.md)
+- Intended population: named, invited adults on the approved research-recipient list
+- Local alternative: **Start in local mode** without signing in or uploading research data
+- Connector policy: Gmail, Drive, Docs, Sheets, Slides, and Slack are limited to the separately
+  named `ConnectorTesters` acceptance cohort. Participant-only Wave 1 does not expose those tools;
+  distribution to `ConnectorTesters` remains gated on
+  [`connector-distribution-readiness.md`](./connector-distribution-readiness.md).
 
 ## Participant-facing facts to approve
 
@@ -65,7 +66,7 @@ Fill every field; do not use a shared inbox without a named accountable owner.
 - [ ] Support owner has a tested process for sign-in, export, deletion, withdrawal, and incident
       requests, including response-time targets.
 - [ ] Release owner confirms the recipient list is limited to the approved population and sends the
-      exact notice that sign-in means research enrollment, Continue locally is available, eligible
+      exact notice that sign-in means research enrollment, Start in local mode is available, eligible
       raw task-surface data uploads, Google Workspace turns are excluded, and connected-app access
       is optional and separately consented.
 - [ ] Release owner confirms the exact artifact hashes and committed source identity match the final

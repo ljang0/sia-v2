@@ -2,12 +2,12 @@
 
 Automated tests exercise the renderer, host policy, driver contracts, persistence, approvals, and the packaged CUA runtime. Before each external build, also run this local macOS pass with disposable test accounts and non-sensitive sample data.
 
-The external invite alpha has two explicit paths. **Continue locally** remains a no-sharing mode.
-Signing in enrolls the person in the research release and requires the current raw consent before a
-task can start. Complete every local, research-cloud, archive, export, deletion, security, voice,
-upgrade, connector, and artifact checks below before distribution. Gmail, Drive, Docs, Sheets,
-Slides, and Slack are enabled for internal alpha acceptance; complete their provider-OAuth scope
-review before inviting external users.
+The invite alpha has two explicit paths. **Start in local mode** remains a no-sharing mode. Signing
+in enrolls the person in the research release and requires the current raw consent before a task can
+start. Complete the local, research-cloud, archive, export, deletion, security, upgrade, and artifact
+checks below before participant-only Wave 1. Gmail, Drive, Docs, Sheets, Slides, and Slack are
+limited to the separately named `ConnectorTesters` cohort; complete their provider acceptance gates
+before ConnectorTester Wave 2, not by expanding ordinary participant access.
 
 ## Automated local parity gate
 
@@ -26,7 +26,7 @@ not replace the mutation checks below. When several Chrome windows are open, set
 ## Local mode
 
 1. Launch a cloud-enabled build with a fresh profile. Confirm **Sign in to Sia** appears before
-   first-agent setup, email-code sign-in works, and **Continue locally** reaches agent setup without
+   first-agent setup, email-code sign-in works, and **Start in local mode** reaches agent setup without
    creating an account. Then launch a cloud-disabled build with a fresh profile and confirm it does
    not request a Sia
    account, cloud configuration, or billing information and that Settings → Apps says **Local mode
@@ -35,7 +35,8 @@ not replace the mutation checks below. When several Chrome windows are open, set
    is labeled **Sia research alpha** and appears before any provider OAuth flow. Accept it and confirm
    the core app opens immediately with no **Connect your work apps** dialog. Verify chat, web search,
    schedules, signed-in Chrome, and computer use remain available with 0/6 work apps connected. Open
-   **Settings → Apps**, connect Google from the Docs row, and connect Slack separately. Confirm the
+   **Settings → Apps**, connect Google from the consolidated Google Workspace card, and connect
+   Slack separately. Confirm the
    one Google grant is visible for all five services while only Docs is switched on; enabling Gmail
    later must not open another OAuth page.
 3. Create an agent and confirm the research choice appears only after the agent is saved. Choose
@@ -47,7 +48,8 @@ not replace the mutation checks below. When several Chrome windows are open, set
    local batch is still present in export but is never submitted by research sync; only a newly
    completed eligible post-sign-in turn may be uploaded.
 6. Under Apps, confirm signed-in Chrome and Messages appear before the optional API connections, and
-   Gmail, Drive, Docs, Sheets, Slides, and Slack each retain a distinct accessible connection button.
+   Google Workspace card retains one accessible connect/reconnect/disconnect action plus five
+   service switches, and Slack retains its own accessible connection action.
    Attach one signed-in Chrome window from its separate row. Invoke a disconnected Drive tool and
    confirm the agent is directed to continue through `drive.google.com` or connect later. Open
    Messages from its row and confirm read tools request Full Disk Access before
@@ -170,11 +172,11 @@ not replace the mutation checks below. When several Chrome windows are open, set
 
 ## External alpha release gates
 
-- [x] In the exact signed artifact, connect the restricted ElevenLabs key, select a default voice,
+- [ ] In the exact signed `alpha.11` artifact, connect the restricted ElevenLabs key, select a default voice,
       restart and refresh, exercise cancellable Read aloud, and verify no audio file is persisted.
 - [x] Rotate/disable the exposed ElevenLabs predecessors and verify the replacement is restricted,
       KMS-vaulted for operator handoff, and stored locally only through Keychain-backed encryption.
-- [x] Complete the packaged local computer-use mutation pass: native ref-bound edit, foreground
+- [ ] Complete the packaged `alpha.11` local computer-use mutation pass: native ref-bound edit, foreground
       restoration, Chrome click/type/upload, cancellation, detach, and restart capability loss. The
       exact final artifact independently passed the approved 35-byte localhost upload plus zero-tab
       restart and post-detach checks; click/type/denial passed in the immediately preceding signed
@@ -216,7 +218,7 @@ not replace the mutation checks below. When several Chrome windows are open, set
       threads, Sia sign-in, Gmail/Drive grants, and completed a read-only Gmail workflow after the
       one-time guided-setup migration. A separate disposable macOS account remains required.
 - [ ] Confirm the intended alpha recipient list outside the repository. Tell recipients that sign-in
-      is research-release enrollment with raw task-surface upload, that **Continue locally** remains
+      is research-release enrollment with raw task-surface upload, that **Start in local mode** remains
       available without sharing, and that Google Workspace and Slack each require their own provider
       consent. Do
       not offer connectors to external recipients until the scope audit below is complete.
@@ -235,9 +237,10 @@ connectors out-of-the-box ready until that checklist passes.
 
 - [x] Rotate the exposed Composio key, verify its least-privilege scope, update the KMS-encrypted
       `AWSCURRENT` secret, revoke the exposed predecessor, and smoke the deployed cutover.
-- [x] Deploy and validate the release cloud, deletion worker, dead-letter queue, and monitored
-      alarms. Confirm every alarm subscription, exercise a synthetic alarm, and verify recovery
-      before treating deletion as release-ready.
+- [ ] Deploy and validate the `alpha.11` release cloud, deletion worker, dead-letter queue, and
+      monitored alarms. Confirm every alarm subscription, exercise a synthetic alarm, and verify
+      recovery before treating deletion as release-ready. Prior-release evidence is historical and
+      does not close this source-specific gate.
 - [ ] Install the dedicated direct Google OAuth client into the deployed KMS-backed credential
       resource and validate one-grant read-only calls for Gmail, Drive, Docs, Sheets, and Slides.
       Slack's separate custom Composio configuration remains live. Google reviewer video,

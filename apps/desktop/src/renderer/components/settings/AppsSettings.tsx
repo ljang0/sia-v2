@@ -84,6 +84,7 @@ export function AppsSettings({
       ({ status, connectionId }) => status === 'connected' && Boolean(connectionId),
     );
   const googleNeedsUpgrade = activeGoogleGrants.size > 0 && !googleConnected;
+  const googleError = googleApps.find(({ status }) => status === 'error');
   const googleGrant = googleConnected ? googleApps[0] : undefined;
   const googleAccess = googleApps.some(({ googleAccess }) => googleAccess === 'read_write')
     ? 'read_write'
@@ -92,7 +93,8 @@ export function AppsSettings({
   const slackConnected = slack?.status === 'connected';
   const setupActive = snapshot.apps.some(({ status }) => status === 'connecting');
   const connectorsEnabled = snapshot.cloudAuth.features?.connectors !== false;
-  const cloudReady = snapshot.cloudAuth.state === 'signed-in' && connectorsEnabled;
+  const accountReady = snapshot.cloudAuth.state === 'signed-in';
+  const cloudReady = accountReady && connectorsEnabled;
   const run = async (key: string, action: () => Promise<void>, fallback: string) => {
     setPending(key);
     setError(undefined);
@@ -156,8 +158,8 @@ export function AppsSettings({
       />
       {!connectorsEnabled ? (
         <div className={styles.inlineWarning} role="status">
-          Connected apps are paused by the alpha operator. Existing grants can still be
-          disconnected.
+          Connected apps are in a limited acceptance test. This account does not have tester
+          access yet; any existing grants can still be disconnected.
         </div>
       ) : null}
       <LocalIntegrations
@@ -190,7 +192,11 @@ export function AppsSettings({
             </span>
             <div className={styles.connectionGroupBody}>
               <strong>Google Workspace</strong>
-              <span>Gmail, Drive, Docs, Sheets, and Slides</span>
+              <span>
+                {googleError
+                  ? googleError.description
+                  : 'Gmail, Drive, Docs, Sheets, and Slides'}
+              </span>
               <span className={styles.connectionGroupStatus}>
                 {googleConnected
                   ? googleUpgrading
@@ -198,9 +204,11 @@ export function AppsSettings({
                     : googleAccess === 'read_write'
                       ? `${googleEnabledCount} of ${googleApps.length} services available, editing enabled`
                       : `${googleEnabledCount} of ${googleApps.length} services available, read-only`
-                  : googleNeedsUpgrade
-                    ? 'Older connections found - upgrade with one approval'
-                    : 'One secure Google approval, read-only by default'}
+                  : googleError
+                    ? 'Needs attention'
+                    : googleNeedsUpgrade
+                      ? 'Older connections found - upgrade with one approval'
+                      : 'One secure Google approval, read-only by default'}
               </span>
             </div>
             {!googleConnected ? (
@@ -211,7 +219,7 @@ export function AppsSettings({
                 onClick={() =>
                   run(
                     'connect-google',
-                    connectGoogle,
+                    googleError ? () => onConnect(googleError.id) : connectGoogle,
                     'Google Workspace could not be connected.',
                   )
                 }
@@ -225,9 +233,11 @@ export function AppsSettings({
                   ? 'Finish in browser'
                   : pending === 'connect-google'
                     ? 'Opening...'
-                    : googleNeedsUpgrade
-                      ? 'Upgrade Google'
-                      : 'Connect Google'}
+                    : googleError
+                      ? `Reconnect ${appName(googleError.id)}`
+                      : googleNeedsUpgrade
+                        ? 'Upgrade Google'
+                        : 'Connect Google'}
               </button>
             ) : (
               <div className={styles.connectionGroupActions}>
@@ -254,7 +264,8 @@ export function AppsSettings({
                 <button
                   type="button"
                   className={styles.textButtonDanger}
-                  disabled={Boolean(pending) || !cloudReady || googleUpgrading}
+                  disabled={Boolean(pending) || !accountReady || googleUpgrading}
+                  aria-label="Disconnect Google Workspace"
                   onClick={() =>
                     run(
                       'disconnect-google',
@@ -263,7 +274,9 @@ export function AppsSettings({
                     )
                   }
                 >
-                  {pending === 'disconnect-google' ? 'Disconnecting...' : 'Disconnect'}
+                  {pending === 'disconnect-google'
+                    ? 'Disconnecting...'
+                    : 'Disconnect Google Workspace'}
                 </button>
               </div>
             )}
@@ -304,44 +317,103 @@ export function AppsSettings({
                       ? 'Opening...'
                       : 'Connect Slack'}
                 </button>
-              ) : null}
+              ) : (
+                <button
+                  type="button"
+                  className={styles.textButtonDanger}
+                  disabled={Boolean(pending) || !accountReady}
+                  aria-label="Disconnect Slack"
+                  onClick={() =>
+                    run(
+                      'disconnect-slack',
+                      () => onDisconnect('slack', slack.connectionId),
+                      'Slack could not be disconnected.',
+                    )
+                  }
+                >
+                  {pending === 'disconnect-slack' ? 'Disconnecting...' : 'Disconnect Slack'}
+                </button>
+              )}
             </section>
           ) : null}
         </div>
       </div>
       <InlineSettingsError message={error} />
-      <div className={styles.settingsList}>
-        {snapshot.apps.map((app) => (
-          <AppRow
-            key={app.id}
-            app={app}
-            cloudState={snapshot.cloudAuth.state}
-            setupActive={setupActive}
-            pending={pending}
-            onConnect={() =>
-              run(
-                `connect-${app.id}`,
-                () => onConnect(app.id),
-                `${appName(app.id)} could not be connected.`,
-              )
-            }
-            onSetEnabled={(enabled) =>
-              run(
-                `set-enabled-${app.id}`,
-                () => onSetEnabled(app.id, enabled),
-                `${appName(app.id)} access could not be changed.`,
-              )
-            }
-            onDisconnect={() =>
-              run(
-                `disconnect-${app.id}`,
-                () => onDisconnect(app.id, app.connectionId),
-                `${appName(app.id)} could not be disconnected.`,
-              )
-            }
-          />
-        ))}
-      </div>
+      {googleConnected ? (
+        <div className={styles.googleServiceAccess} aria-label="Google Workspace services">
+          <div>
+            <strong>Available to this agent</strong>
+            <span>Turn individual Google services on or off without changing the grant.</span>
+          </div>
+          <div className={styles.googleServiceToggles}>
+            {googleApps.map((app) => {
+              const enabled = app.enabled !== false;
+              return (
+                <button
+                  key={app.id}
+                  type="button"
+                  className={styles.googleServiceToggle}
+                  data-enabled={enabled}
+                  aria-pressed={enabled}
+                  aria-label={`${enabled ? 'Disable' : 'Enable'} ${app.name}`}
+                  disabled={Boolean(pending) || !accountReady}
+                  onClick={() =>
+                    run(
+                      `set-enabled-${app.id}`,
+                      () => onSetEnabled(app.id, !enabled),
+                      `${appName(app.id)} access could not be changed.`,
+                    )
+                  }
+                >
+                  <span>{app.name}</span>
+                  <small>
+                    {pending === `set-enabled-${app.id}` ? 'Updating' : enabled ? 'On' : 'Off'}
+                  </small>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+      {googleNeedsUpgrade ? (
+        <div className={styles.legacyConnectionCleanup}>
+          <strong>Older Google grants</strong>
+          <p>Remove these individually, or upgrade to one Workspace approval.</p>
+          {googleApps
+            .filter(({ status }) => status !== 'disconnected')
+            .map((app) => (
+              <AppRow
+                key={app.id}
+                app={app}
+                compactCleanup
+                cloudState={snapshot.cloudAuth.state}
+                setupActive={setupActive}
+                pending={pending}
+                onConnect={() =>
+                  run(
+                    `connect-${app.id}`,
+                    () => onConnect(app.id),
+                    `${appName(app.id)} could not be connected.`,
+                  )
+                }
+                onSetEnabled={(enabled) =>
+                  run(
+                    `set-enabled-${app.id}`,
+                    () => onSetEnabled(app.id, enabled),
+                    `${appName(app.id)} access could not be changed.`,
+                  )
+                }
+                onDisconnect={() =>
+                  run(
+                    `disconnect-${app.id}`,
+                    () => onDisconnect(app.id, app.connectionId),
+                    `${appName(app.id)} could not be disconnected.`,
+                  )
+                }
+              />
+            ))}
+        </div>
+      ) : null}
       <div className={styles.settingsNote}>
         You can disconnect any app without affecting core Sia features. OAuth opens in your
         browser, and Sia never places connector keys or account tokens in the renderer.
@@ -352,6 +424,7 @@ export function AppsSettings({
 
 function AppRow({
   app,
+  compactCleanup = false,
   cloudState,
   setupActive,
   pending,
@@ -360,6 +433,7 @@ function AppRow({
   onDisconnect,
 }: {
   app: AppConnection;
+  compactCleanup?: boolean | undefined;
   cloudState: RendererSnapshot['cloudAuth']['state'];
   setupActive: boolean;
   pending?: string | undefined;
@@ -386,6 +460,23 @@ function AppRow({
     cloudState === 'unconfigured'
       ? 'Cloud apps are unavailable in this build'
       : 'Sign in to Sia cloud first';
+  if (compactCleanup) {
+    return (
+      <div className={styles.legacyConnectionRow}>
+        <span>{app.name}</span>
+        <span>{app.account ?? 'Older grant'}</span>
+        <button
+          type="button"
+          className={styles.textButtonDanger}
+          disabled={busy || !cloudReady}
+          onClick={onDisconnect}
+          aria-label={`Disconnect legacy ${appName(app.id)}`}
+        >
+          {busy ? 'Disconnecting...' : 'Disconnect'}
+        </button>
+      </div>
+    );
+  }
   return (
     <div className={styles.settingsRow}>
       <span className={styles.appGlyph} data-app={app.id}>

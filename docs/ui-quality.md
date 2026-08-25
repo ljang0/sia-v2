@@ -1,22 +1,25 @@
 # UI quality gate
 
-Sia's visual idea is simple and specific: **an agent is a room.** A quiet evergreen shell holds
-your agents; the selected agent stays anchored in that shell while its workspace opens beside it,
-and the agent's own hue marks what belongs to it. Sia is a calm Mac productivity utility with a
-friendly sense of place — not an AI dashboard and not a chat template.
+Sia's visual idea is simple and specific: **an agent is a living room for work.** A deep evergreen
+dock holds distinct agent identities; the selected agent opens a clean mineral workspace beside it. The
+product should feel expressive and companionable without becoming mascot-like. Safety, consent,
+and legal surfaces remain sober. Sia is not an AI dashboard and not a chat template.
 
 ## The room rule
 
-- **The shell** (`--shell-*` tokens) is the evergreen sidebar: agents, threads, Activity /
+- **The dock** (`--shell-*` tokens) is the evergreen agent navigation: agents, contextual threads,
+  Activity /
   Archived / Settings. It is the same family in light and dark appearance. The selected agent
   remains on the shell with a quiet selected surface and a two-pixel identity marker; it never
   cuts a light card shape into navigation.
-- **The room** (`.workspace`, `--bg-*` tokens) is the space of the agent whose thread is open
+- **The room** (`.workspace`, `--bg-*` tokens) is the mineral-white, faint sage-neutral space of the agent whose thread is open
   (or the selected agent when no thread is). It carries `data-identity` so `--agent-color`
   resolves to that agent's muted hue (`--hue-0..3`: ochre, terracotta, slate blue, sage — chosen in the agent
-  dialog's Color swatches; a new agent's default follows its name via `agentIdentity`). The hue appears only where the agent is present or acting: its avatar and initials,
-  its thread dot, the topbar dot, the presence chip in the composer, the streaming caret, the
-  empty-state badge, and the header band of its approval requests. Never on the person's controls.
+  dialog's Color swatches; a new agent's default follows its name via `agentIdentity`). Each slot
+  now also selects an abstract living form. The persisted value remains `hue`; this is a visual
+  reinterpretation, not a data migration. The identity appears in the dock, room header,
+  conversation, presence, streaming caret, empty state, and approvals. Never use it to make the
+  person's consequential controls look pre-approved.
 - **The person's controls** are ink: `--bg-accent` compact buttons and deliberate outlines on
   dialogs, secondary buttons, and approval cards. The composer uses a quieter one-pixel boundary
   with a green focus ring. Links and success are the shell's green (`--text-link`).
@@ -28,9 +31,9 @@ friendly sense of place — not an AI dashboard and not a chat template.
 
 ## Locked dials
 
-Variance 3, motion 2, density 4. One green shell, one warm-neutral room surface system, four agent
-hues with one job, ink for controls, Phosphor icons, system sans for the interface, one bundled
-display face, and a four-step radius rule: `--radius-tight` 6px for chips/menus, `--radius-control`
+Variance 5, motion 3, density 4. One deep-green dock, one mineral-neutral room surface system, four agent
+forms with one job, ink for controls, Phosphor icons, system sans for the interface, one bundled
+identity/display face, and a four-step radius rule: `--radius-tight` 6px for chips/menus, `--radius-control`
 10px for controls and rows, `--radius-surface` 14px for the few contained surfaces that need an
 edge, `--radius-dialog` 20px for floating dialogs, `--radius-round` only for true circles, and a
 square workspace edge (`--radius-room: 0`). Type uses the `--text-*` / `--display-*` scale and the
@@ -56,6 +59,10 @@ use whitespace and a hairline divider before adding another box.
   transitions at `--motion-fast`. Feedback is 140ms, standard motion 190ms, and surfaces 240ms.
   Empty states and avatars do not rotate, bob, or breathe; motion is reserved for live presence,
   progress, state transitions, and overlays. Streamed tokens do not animate.
-- No gradients, glass, decorative status dots, card grids, nested cards, oversized headings outside the display scale, custom SVG icons, canvas, GenUI, or visualization affordance.
-- No `!important`, and no unexplained design token. The current known large files (`Composer.tsx`, `Conversation.tsx`, `Sidebar.tsx`, `Inspector.tsx`, `AppsSettings.tsx`, `App.tsx`) may not grow, and new surfaces must not exceed 400 lines.
+- No generic AI gradients, glass, decorative status dots, card grids, nested cards, mascot faces,
+  canvas, GenUI, or visualization affordance. A restrained monochrome grain and broad ambient
+  color mixing are permitted when they make the room feel tactile without reducing contrast.
+- No `!important`, and no unexplained design token. New identity and shell work belongs in
+  `companion.module.css`; feature-heavy legacy styles remain in `ui.module.css` until migrated.
+  New component surfaces must not exceed 400 lines.
 - The development audit matrix (`#audit` in DEV) and the real Electron E2E both pass before visual baselines are accepted.

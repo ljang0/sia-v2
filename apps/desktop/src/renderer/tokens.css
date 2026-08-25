@@ -1,10 +1,8 @@
 /*
- * Sia's visual system: a quiet evergreen shell holds focused workspaces. Each agent keeps a
- * restrained identifying hue across its avatar, approvals, and presence. Ink controls belong to
- * the person; color communicates identity or state. Bricolage Grotesque (SIL OFL 1.1, bundled
- * variable latin subset) is reserved for the wordmark. Native system typography carries the
- * product so dense work surfaces remain composed. The production CSP is font-src 'self', so
- * nothing loads from the network.
+ * Sia's visual system: a deep evergreen dock opens into calm, mineral rooms. Each agent keeps one
+ * abstract living form and one identity hue across navigation, conversation, and presence.
+ * Bricolage Grotesque (SIL OFL 1.1, bundled variable latin subset) gives names and headings a
+ * recognizable voice; native system typography carries controls and dense work surfaces.
  */
 @font-face {
   font-family: 'Bricolage Grotesque';
@@ -29,7 +27,8 @@
   --font-sans: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-brand:
     'Bricolage Grotesque', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-display: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display:
+    'Bricolage Grotesque', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
 
   /* Type scale. Interface text uses --text-*; names and headings use --display-*. */
@@ -51,15 +50,15 @@
   --tracking-display: -0.025em;
   --display-settings: 'opsz' 40;
 
-  /* Room surfaces (light). */
-  --bg-app: #ededea;
-  --bg-sidebar: #f1f1ee;
-  --bg-canvas: #fafaf8;
-  --bg-subtle: #f0f1ee;
-  --bg-raised: #ffffff;
-  --bg-hover: #eceeea;
-  --bg-selected: #e6e9e5;
-  --bg-field: #f4f5f2;
+  /* Room surfaces (light): clean mineral neutrals, without a paper-yellow cast. */
+  --bg-app: #e1e6e1;
+  --bg-sidebar: #173a34;
+  --bg-canvas: #f4f6f2;
+  --bg-subtle: #e9ede8;
+  --bg-raised: #fbfcf9;
+  --bg-hover: #e4e9e4;
+  --bg-selected: #dce7df;
+  --bg-field: #edf0ec;
   --bg-control: color-mix(in srgb, var(--bg-field) 68%, var(--bg-raised));
 
   /* The person's controls: ink. */
@@ -68,9 +67,9 @@
   --bg-danger: #b3402a;
   --bg-danger-hover: #99351f;
 
-  --text-primary: #252927;
-  --text-secondary: #555d58;
-  --text-tertiary: #626a65;
+  --text-primary: #1c2924;
+  --text-secondary: #4f5d56;
+  --text-tertiary: #56625c;
   --text-on-accent: #f3f5f4;
   --text-on-danger: #fff5f2;
   --text-link: #3c6758;
@@ -78,7 +77,7 @@
   --text-warning: #735d30;
   --text-success: #3c6758;
 
-  --border-subtle: #dde1dc;
+  --border-subtle: #d3dad4;
   --border-strong: #6d756f;
   --border-accent: #33453e;
   --border-danger: #e0a698;
@@ -93,20 +92,20 @@
   --overlay: rgb(26 31 28 / 22%);
 
   /* The shell is a quiet extension of the workspace, not a competing dark panel. */
-  --shell-bg: #f1f1ee;
-  --shell-bg-deep: #eaebe7;
-  --shell-text: #252927;
-  --shell-dim: #555d58;
-  --shell-muted: #747d77;
-  --shell-hover: #e9ece8;
-  --shell-selected: #e3e7e3;
-  --shell-line: #dce1dc;
+  --shell-bg: #173a34;
+  --shell-bg-deep: #0f2d28;
+  --shell-text: #f2f6f2;
+  --shell-dim: #c6d0c9;
+  --shell-muted: #aebdb4;
+  --shell-hover: #21473f;
+  --shell-selected: #2a5148;
+  --shell-line: #3b5d55;
 
   /* Agent hues. Identity 0-3 map to these; --agent-color is the room's current hue. */
-  --hue-0: #998d70;
-  --hue-1: #997f74;
-  --hue-2: #7d9098;
-  --hue-3: #798f84;
+  --hue-0: #d29b3d;
+  --hue-1: #cf715d;
+  --hue-2: #6697ad;
+  --hue-3: #65a07d;
   --agent-color: var(--hue-0);
   --agent-ink: #252927;
   --agent-soft: color-mix(in srgb, var(--agent-color) 15%, transparent);
@@ -119,10 +118,10 @@
   --shadow-control: 0 1px 2px rgb(22 26 24 / 4%);
   --shadow-float: 0 18px 48px rgb(22 26 24 / 13%), 0 2px 7px rgb(22 26 24 / 5%);
 
-  --radius-tight: 4px;
-  --radius-control: 7px;
-  --radius-surface: 11px;
-  --radius-dialog: 14px;
+  --radius-tight: 6px;
+  --radius-control: 10px;
+  --radius-surface: 14px;
+  --radius-dialog: 20px;
   --radius-room: 0;
   --radius-round: 999px;
   --ink-line: 1.5px;
@@ -133,10 +132,10 @@
   --ease-standard: cubic-bezier(0.2, 0.72, 0.2, 1);
   --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
 
-  --sidebar-width: 264px;
+  --sidebar-width: 284px;
   --inspector-width: 360px;
-  --titlebar-height: 52px;
-  --composer-max: 840px;
+  --titlebar-height: 76px;
+  --composer-max: 900px;
   --layer-base: 0;
   --layer-sticky: 10;
   --layer-drawer: 20;
@@ -147,13 +146,13 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg-app: #171a18;
-    --bg-sidebar: #1c1f1d;
-    --bg-canvas: #191b1a;
-    --bg-subtle: #222523;
-    --bg-raised: #252826;
-    --bg-hover: #2b2e2c;
-    --bg-selected: #303431;
-    --bg-field: #202321;
+    --bg-sidebar: #102f2a;
+    --bg-canvas: #191e1b;
+    --bg-subtle: #232923;
+    --bg-raised: #282e29;
+    --bg-hover: #30372f;
+    --bg-selected: #344039;
+    --bg-field: #212722;
     --bg-accent: #dce4df;
     --bg-accent-hover: #ffffff;
     --bg-danger: #d9654e;
@@ -181,14 +180,14 @@
     --surface-info: #28322e;
     --overlay: rgb(5 7 6 / 48%);
 
-    --shell-bg: #1c1f1d;
-    --shell-bg-deep: #171a18;
-    --shell-text: #e7ebe8;
-    --shell-dim: #bcc3be;
-    --shell-muted: #8f9992;
-    --shell-hover: #252926;
-    --shell-selected: #2c312e;
-    --shell-line: #353a37;
+    --shell-bg: #102f2a;
+    --shell-bg-deep: #09231f;
+    --shell-text: #f1f5f1;
+    --shell-dim: #c1cec6;
+    --shell-muted: #9fb1a7;
+    --shell-hover: #1a3d36;
+    --shell-selected: #24483f;
+    --shell-line: #355a51;
 
     --shadow-raised: 0 1px 2px rgb(0 0 0 / 30%), 0 4px 14px rgb(0 0 0 / 22%);
     --shadow-dialog: 0 28px 80px rgb(0 0 0 / 50%), 0 3px 12px rgb(0 0 0 / 24%);

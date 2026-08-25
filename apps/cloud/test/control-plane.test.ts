@@ -21,17 +21,83 @@ import { ConnectorReconnectRequiredError } from '../src/ports.js';
 import type { ComposioConfig, MetaConfig } from '../src/ports.js';
 import { createServices, type ServiceDependencies } from '../src/services.js';
 
-const user: AuthContext = { subject: 'user-1', email: 'user@example.com', groups: [] };
+const user: AuthContext = {
+  subject: 'user-1',
+  email: 'user@example.com',
+  groups: ['Participants', 'ConnectorTesters'],
+};
 const otherUser: AuthContext = {
   subject: 'user-2',
   email: 'other@example.com',
-  groups: [],
+  groups: ['Participants', 'ConnectorTesters'],
 };
 const admin: AuthContext = {
   subject: 'admin-1',
   email: 'admin@example.com',
   groups: ['Admins'],
 };
+
+const participant: AuthContext = {
+  subject: 'participant-1',
+  email: 'participant@example.com',
+  groups: ['Participants'],
+};
+const legacyUser: AuthContext = {
+  subject: user.subject,
+  email: 'user@example.com',
+  groups: [],
+};
+
+describe('release cohorts', () => {
+  it('computes participant and staged feature flags per authenticated identity', () => {
+    const fixture = makeFixture();
+
+    assert.deepEqual(fixture.services.session.status(legacyUser), {
+      admin: false,
+      participant: false,
+      features: {
+        researchUploads: false,
+        researchArchive: false,
+        connectors: false,
+        schedules: false,
+      },
+    });
+    assert.equal(fixture.services.session.status(participant).participant, true);
+    assert.equal(fixture.services.session.status(participant).features.connectors, false);
+    assert.equal(fixture.services.session.status(user).features.connectors, true);
+    assert.deepEqual(fixture.services.session.status(admin), {
+      admin: true,
+      participant: true,
+      features: {
+        researchUploads: true,
+        researchArchive: true,
+        connectors: true,
+        schedules: true,
+      },
+    });
+  });
+
+  it('enforces cohorts on core and connector operations while leaving cleanup available', async () => {
+    const fixture = makeFixture();
+    await assert.rejects(
+      fixture.services.research.upload(legacyUser, validBatch()),
+      hasCode('participant_access_required'),
+    );
+    await assert.rejects(
+      fixture.services.meta.capabilities(legacyUser),
+      hasCode('participant_access_required'),
+    );
+    await assert.rejects(
+      fixture.services.connections.start(participant, 'slack'),
+      hasCode('connector_tester_required'),
+    );
+
+    await connect(fixture, 'slack', 'cleanup-connection');
+    await assert.doesNotReject(
+      fixture.services.connections.disconnect(legacyUser, 'slack', 'cleanup-connection'),
+    );
+  });
+});
 
 describe('connector action gateway', () => {
   it('executes allowlisted reads directly and persists metadata only', async () => {
@@ -419,6 +485,96 @@ describe('connector action gateway', () => {
 });
 
 describe('connection lifecycle', () => {
+  it('retires only the superseded Google credential after verifying its editor replacement', async () => {
+    const fixture = makeFixture();
+    const createdAt = fixture.clock.now().toISOString();
+    await fixture.state.putConnection({
+      id: 'grant-reader',
+      userId: user.subject,
+      app: 'google_workspace',
+      status: 'connected',
+      accountLabel: 'person@example.com',
+      createdAt,
+      updatedAt: createdAt,
+    });
+    await fixture.state.putConnection({
+      id: 'grant-editor',
+      userId: user.subject,
+      app: 'google_workspace',
+      status: 'connected',
+      accountLabel: 'person@example.com',
+      createdAt,
+      updatedAt: createdAt,
+    });
+    fixture.connector.statuses.set('grant-reader', {
+      status: 'connected',
+      access: 'read_only',
+      accountLabel: 'person@example.com',
+    });
+    fixture.connector.statuses.set('grant-editor', {
+      status: 'connected',
+      access: 'read_write',
+      accountLabel: 'person@example.com',
+    });
+
+    assert.deepEqual(
+      await fixture.services.connections.retireSupersededGoogle(
+        user,
+        'google_workspace',
+        'grant-reader',
+        'grant-editor',
+      ),
+      { retired: true },
+    );
+    assert.equal(await fixture.state.getConnection(user.subject, 'grant-reader'), undefined);
+    assert.equal(
+      (await fixture.state.getConnection(user.subject, 'grant-editor'))?.status,
+      'connected',
+    );
+    assert.deepEqual([...fixture.connector.retiredConnectionIds], ['grant-reader']);
+    assert.deepEqual(fixture.audit.events.at(-1), {
+      userId: user.subject,
+      action: 'connection.superseded',
+      app: 'google_workspace',
+      connectionId: 'grant-reader',
+      outcome: 'allowed',
+      occurredAt: createdAt,
+    });
+  });
+
+  it('keeps the existing Google credential unless the replacement is an editor grant', async () => {
+    const fixture = makeFixture();
+    const createdAt = fixture.clock.now().toISOString();
+    for (const id of ['grant-reader', 'replacement-reader']) {
+      await fixture.state.putConnection({
+        id,
+        userId: user.subject,
+        app: 'google_workspace',
+        status: 'connected',
+        accountLabel: 'person@example.com',
+        createdAt,
+        updatedAt: createdAt,
+      });
+      fixture.connector.statuses.set(id, {
+        status: 'connected',
+        access: 'read_only',
+        accountLabel: 'person@example.com',
+      });
+    }
+
+    await assert.rejects(
+      fixture.services.connections.retireSupersededGoogle(
+        user,
+        'google_workspace',
+        'grant-reader',
+        'replacement-reader',
+      ),
+      hasCode('replacement_connection_not_ready'),
+    );
+    assert.ok(await fixture.state.getConnection(user.subject, 'grant-reader'));
+    assert.equal(fixture.connector.retiredConnectionIds.size, 0);
+  });
+
   it('isolates provider grants between Sia users', async () => {
     const fixture = makeFixture();
     const first = await fixture.services.connections.start(user, 'gmail');
@@ -866,12 +1022,19 @@ describe('research boundary', () => {
 });
 
 describe('invites and deletion', () => {
-  it('self-registers passwordless accounts silently and rate-limits without exposing existence', async () => {
+  it('activates only named invites and rate-limits without exposing existence', async () => {
     const fixture = makeFixture();
     const request = {
       email: 'Person@Example.com',
       researchEnrollmentAcknowledged: true as const,
     };
+    await fixture.state.putInvite({
+      email: 'person@example.com',
+      invitedBy: admin.subject,
+      invitedAt: fixture.clock.now().toISOString(),
+      subject: 'subject-person@example.com',
+      status: 'invited',
+    });
     assert.deepEqual(await fixture.services.registration.create(request, '203.0.113.10'), {
       accepted: true,
     });
@@ -880,16 +1043,31 @@ describe('invites and deletion', () => {
     });
     assert.equal(fixture.identity.creations[0]?.email, 'person@example.com');
     assert.equal(fixture.identity.creations[0]?.suppressMessage, true);
-    assert.equal(
-      (await fixture.state.getInvite('person@example.com'))?.invitedBy,
-      'self-registration',
-    );
+    assert.equal((await fixture.state.getInvite('person@example.com'))?.status, 'active');
+    assert.deepEqual(fixture.identity.groupAdditions[0], {
+      email: 'person@example.com',
+      group: 'Participants',
+    });
     await fixture.services.registration.create(request, '203.0.113.10');
     await fixture.services.registration.create(request, '203.0.113.10');
     await assert.rejects(
       fixture.services.registration.create(request, '203.0.113.10'),
       hasCode('registration_rate_limited'),
     );
+  });
+
+  it('returns the generic registration response without creating an unknown identity', async () => {
+    const fixture = makeFixture();
+    assert.deepEqual(
+      await fixture.services.registration.create(
+        { email: 'unknown@example.net', researchEnrollmentAcknowledged: true },
+        '198.51.100.12',
+      ),
+      { accepted: true },
+    );
+    assert.equal(fixture.identity.creations.length, 0);
+    assert.equal(fixture.identity.groupAdditions.length, 0);
+    assert.equal(await fixture.state.getInvite('unknown@example.net'), undefined);
   });
 
   it('requires the research-release acknowledgment before public registration', async () => {
@@ -917,6 +1095,10 @@ describe('invites and deletion', () => {
       email: 'Person@Example.com',
     });
     assert.equal(created.email, 'person@example.com');
+    assert.deepEqual(fixture.identity.groupAdditions[0], {
+      email: 'person@example.com',
+      group: 'Participants',
+    });
     const idempotent = await fixture.services.invites.create(admin, {
       email: 'person@example.com',
     });

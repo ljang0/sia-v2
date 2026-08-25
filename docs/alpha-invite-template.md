@@ -12,9 +12,10 @@ visible inside an eligible task can be included and may contain private informat
 Gmail, Drive, Docs, Sheets, or Slides are excluded in full from research uploads. Do not use research
 mode for material you do not agree to share.
 
-You can choose **Continue locally** instead. Local mode does not require a Sia account, and its
+You can choose **Start in local mode** instead. Local mode does not require a Sia account, and its
 local-only research records are never made eligible for later upload. Connected apps are optional,
-use their own provider consent pages, and can be disconnected independently.
+limited to a separately named acceptance-testing cohort, use their own provider consent pages, and
+can be disconnected independently.
 
 Research cloud records expire after 90 days. Authorized administrators with MFA can inspect eligible
 raw turns, and those reads are audited. You can export or delete your research data and can stop new
@@ -29,4 +30,9 @@ Support: [INSERT APPROVED SUPPORT ADDRESS]
 
 Security or privacy concern: [INSERT APPROVED INCIDENT CONTACT]
 
-Download and SHA-256: [INSERT FINAL DISTRIBUTION LOCATION AND DMG HASH]
+Download (expires [INSERT EXPIRY]): [INSERT PRIVATE SIGNED DMG URL]
+
+SHA-256: [INSERT FINAL DMG HASH]
+
+This link is for the named invitation recipient. Do not repost it; ask support for a replacement if
+it expires.

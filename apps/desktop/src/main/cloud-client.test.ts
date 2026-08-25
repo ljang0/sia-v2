@@ -145,6 +145,29 @@ describe('CloudClient', () => {
     });
   });
 
+  it('retires a superseded Google credential without using the disconnect endpoint', async () => {
+    const fetchMock = vi.fn(async (_input: URL | RequestInfo, _init?: RequestInit) =>
+      Response.json({ retired: true }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new CloudClient('https://api.example.test', {
+      read: async () => 'test-id-token',
+    });
+
+    await client.retireSupersededGoogleConnection('grant-reader', 'grant-editor');
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      'https://api.example.test/v1/connections/google_workspace/retire-superseded',
+    );
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      method: 'POST',
+      body: JSON.stringify({
+        connectionId: 'grant-reader',
+        replacementConnectionId: 'grant-editor',
+      }),
+    });
+  });
+
   it('uses an authenticated cloud capability check for Meta', async () => {
     const fetchMock = vi.fn(async (_input: URL | RequestInfo, _init?: RequestInit) =>
       Response.json({

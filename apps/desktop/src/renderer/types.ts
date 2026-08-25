@@ -365,6 +365,7 @@ export interface RendererSnapshot {
       | 'signed-in';
     email?: string | undefined;
     admin?: boolean | undefined;
+    participant?: boolean | undefined;
     adminMfa?: boolean | undefined;
     features?: {
       researchUploads: boolean;

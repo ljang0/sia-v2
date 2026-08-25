@@ -199,6 +199,7 @@ export function ThreadWorkspaceTools({
               schedules={schedules.map((schedule) => ({
                 ...schedule,
                 label: schedule.prompt,
+                enabled: schedule.enabled !== false,
               }))}
               onCreate={(draft) =>
                 run(() =>

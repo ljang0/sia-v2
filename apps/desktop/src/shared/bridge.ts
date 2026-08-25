@@ -391,6 +391,7 @@ export interface DesktopSnapshot {
       | 'signed_in';
     account?: string;
     admin?: boolean;
+    participant?: boolean;
     adminMfa?: boolean;
     features?: CloudFeatureFlags;
   };

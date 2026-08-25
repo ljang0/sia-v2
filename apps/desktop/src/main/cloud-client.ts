@@ -190,7 +190,11 @@ export class CloudClient implements MetaTransport {
     });
   }
 
-  async sessionStatus(): Promise<{ admin: boolean; features: CloudFeatureFlags }> {
+  async sessionStatus(): Promise<{
+    admin: boolean;
+    participant: boolean;
+    features: CloudFeatureFlags;
+  }> {
     return this.#request('/v1/session', { method: 'GET' });
   }
 
@@ -358,6 +362,19 @@ export class CloudClient implements MetaTransport {
     const query = new URLSearchParams({ connectionId: remoteConnectionId });
     await this.#request(`/v1/connections/${cloudAppId(connectionId)}?${query.toString()}`, {
       method: 'DELETE',
+    });
+  }
+
+  async retireSupersededGoogleConnection(
+    remoteConnectionId: string,
+    replacementConnectionId: string,
+  ): Promise<void> {
+    await this.#request('/v1/connections/google_workspace/retire-superseded', {
+      method: 'POST',
+      body: JSON.stringify({
+        connectionId: remoteConnectionId,
+        replacementConnectionId,
+      }),
     });
   }
 

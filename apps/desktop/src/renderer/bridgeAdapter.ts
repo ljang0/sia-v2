@@ -492,6 +492,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
                   : 'unconfigured',
       email: source.cloud.account,
       admin: source.cloud.admin,
+      participant: source.cloud.participant,
       adminMfa: source.cloud.adminMfa,
       ...(source.cloud.features ? { features: structuredClone(source.cloud.features) } : {}),
     },

@@ -1,10 +1,20 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import { createAgentAndThread, launchIsolatedSia } from '../support/electron-harness';
 
 test.describe.configure({ timeout: 60_000 });
 
-test('core surfaces retain the visual-system and motion contract', async ({}, testInfo) => {
+const stableScreenshot = { animations: 'disabled' as const, maxDiffPixels: 50 };
+
+async function stabilizeTranscriptTimes(page: Page) {
+  await page.locator('time').evaluateAll((elements) => {
+    elements.forEach((element) => {
+      element.textContent = '9:41 AM';
+    });
+  });
+}
+
+test('core surfaces retain the visual-system and motion contract', async () => {
   const sia = await launchIsolatedSia({ prefix: 'sia-visual-polish-' });
 
   try {
@@ -59,8 +69,8 @@ test('core surfaces retain the visual-system and motion contract', async ({}, te
 
     expect(visualSystem.displayFontLoaded).toBe(true);
     expect(visualSystem.colors).toEqual({
-      canvas: '#fafaf8',
-      shell: '#f1f1ee',
+      canvas: '#f4f6f2',
+      shell: '#173a34',
       accent: '#33453e',
     });
     expect(visualSystem.transitionedControls).toBeGreaterThan(
@@ -74,33 +84,34 @@ test('core surfaces retain the visual-system and motion contract', async ({}, te
       await settingsButton.evaluate((element) => getComputedStyle(element).outlineWidth),
     ).not.toBe('0px');
 
-    await sia.page.screenshot({
-      path: testInfo.outputPath('workspace-light.png'),
-      animations: 'disabled',
-    });
+    await stabilizeTranscriptTimes(sia.page);
 
-    await settingsButton.click();
+    await expect(sia.page).toHaveScreenshot('workspace-light.png', stableScreenshot);
+
+    await sia.page.keyboard.press('Meta+K');
+    const switcher = sia.page.getByRole('dialog', { name: 'Move through Sia' });
+    await expect(switcher).toBeVisible();
+    const switcherSearch = switcher.getByRole('combobox', {
+      name: 'Search rooms and actions',
+    });
+    await expect(switcherSearch).toBeFocused();
+    await stabilizeTranscriptTimes(sia.page);
+    await expect(sia.page).toHaveScreenshot('quick-switcher-light.png', stableScreenshot);
+    await switcherSearch.fill('settings');
+    await switcherSearch.press('Enter');
+
     await expect(sia.page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
     await sia.page.waitForTimeout(300);
-    await sia.page.screenshot({
-      path: testInfo.outputPath('providers-light.png'),
-      animations: 'disabled',
-    });
+    await expect(sia.page).toHaveScreenshot('providers-light.png', stableScreenshot);
 
     await sia.page.getByRole('button', { name: 'Apps' }).click();
     await sia.page.waitForTimeout(300);
-    await sia.page.screenshot({
-      path: testInfo.outputPath('apps-light.png'),
-      animations: 'disabled',
-    });
+    await expect(sia.page).toHaveScreenshot('apps-light.png', stableScreenshot);
 
     await sia.page.getByRole('button', { name: 'Close settings' }).click();
     await sia.page.getByRole('button', { name: 'Create agent' }).click();
     await expect(sia.page.getByRole('dialog', { name: 'New agent' })).toBeVisible();
-    await sia.page.screenshot({
-      path: testInfo.outputPath('agent-dialog-light.png'),
-      animations: 'disabled',
-    });
+    await expect(sia.page).toHaveScreenshot('agent-dialog-light.png', stableScreenshot);
     await sia.page
       .getByRole('dialog', { name: 'New agent' })
       .getByRole('button', { name: 'Close' })
@@ -109,19 +120,14 @@ test('core surfaces retain the visual-system and motion contract', async ({}, te
     await sia.page.getByTestId('activity-center-toggle').click();
     await expect(sia.page.getByRole('heading', { name: 'Activity', level: 1 })).toBeVisible();
     await sia.page.waitForTimeout(300);
-    await sia.page.screenshot({
-      path: testInfo.outputPath('activity-light.png'),
-      animations: 'disabled',
-    });
+    await expect(sia.page).toHaveScreenshot('activity-light.png', stableScreenshot);
     await sia.page.getByRole('button', { name: 'Close activity' }).click();
 
     await sia.page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'no-preference' });
     await sia.page.setViewportSize({ width: 960, height: 640 });
     await sia.page.waitForTimeout(300);
-    await sia.page.screenshot({
-      path: testInfo.outputPath('workspace-dark-compact.png'),
-      animations: 'disabled',
-    });
+    await stabilizeTranscriptTimes(sia.page);
+    await expect(sia.page).toHaveScreenshot('workspace-dark-compact.png', stableScreenshot);
     expect(
       await sia.page.evaluate(() =>
         [
@@ -148,7 +154,7 @@ test('core surfaces retain the visual-system and motion contract', async ({}, te
   }
 });
 
-test('first-run account and local-choice surfaces stay composed', async ({}, testInfo) => {
+test('first-run account and local-choice surfaces stay composed', async () => {
   const sia = await launchIsolatedSia({
     prefix: 'sia-visual-onboarding-',
     environment: {
@@ -161,9 +167,9 @@ test('first-run account and local-choice surfaces stay composed', async ({}, tes
   try {
     await sia.page.emulateMedia({ colorScheme: 'light', reducedMotion: 'no-preference' });
     await sia.page.setViewportSize({ width: 960, height: 640 });
-    const dialog = sia.page.getByRole('dialog', { name: 'Sign in to Sia' });
+    const dialog = sia.page.getByRole('dialog', { name: 'Choose how Sia starts' });
     await expect(dialog).toBeVisible();
-    await expect(sia.page.getByRole('textbox', { name: 'Invited email' })).toBeFocused();
+    await expect(sia.page.getByRole('textbox', { name: 'Email' })).toBeFocused();
     expect(
       await dialog.evaluate((element) => {
         const bounds = element.getBoundingClientRect();
@@ -175,18 +181,14 @@ test('first-run account and local-choice surfaces stay composed', async ({}, tes
         );
       }),
     ).toBe(true);
-    await sia.page.screenshot({
-      path: testInfo.outputPath('sign-in-light-compact.png'),
-      animations: 'disabled',
-    });
+    await expect(sia.page).toHaveScreenshot('sign-in-light-compact.png', stableScreenshot);
 
-    await sia.page.getByRole('button', { name: 'Continue locally' }).click();
-    await expect(sia.page.getByRole('heading', { name: 'Choose an agent' })).toBeVisible();
+    await sia.page.getByRole('button', { name: 'Start in local mode' }).click();
+    await expect(
+      sia.page.getByRole('heading', { name: 'Make space for focused work.' }),
+    ).toBeVisible();
     await sia.page.waitForTimeout(300);
-    await sia.page.screenshot({
-      path: testInfo.outputPath('local-choice-light-compact.png'),
-      animations: 'disabled',
-    });
+    await expect(sia.page).toHaveScreenshot('local-choice-light-compact.png', stableScreenshot);
     expect(sia.rendererErrors).toEqual([]);
   } finally {
     await sia.close();

@@ -71,6 +71,21 @@ export async function routeControlRequest(
       return json(200, await services.meta.capabilities(user));
     }
 
+    const retireGoogleMatch = /^\/v1\/connections\/([^/]+)\/retire-superseded$/.exec(path);
+    if (retireGoogleMatch && method === 'POST') {
+      const app = parseAppId(decodeURIComponent(retireGoogleMatch[1] ?? ''));
+      const body = parseBody(event);
+      return json(
+        200,
+        await services.connections.retireSupersededGoogle(
+          user,
+          app,
+          requireString(body.connectionId, 'connectionId', { max: 256 }),
+          requireString(body.replacementConnectionId, 'replacementConnectionId', { max: 256 }),
+        ),
+      );
+    }
+
     const connectionMatch = /^\/v1\/connections\/([^/]+)$/.exec(path);
     if (connectionMatch) {
       const app = parseAppId(decodeURIComponent(connectionMatch[1] ?? ''));
@@ -484,5 +499,10 @@ function normalizePath(path: string): string {
 }
 
 function routeLabel(path: string): string {
-  return path.replace(/^\/v1\/connections\/[^/]+$/, '/v1/connections/{app}');
+  return path
+    .replace(
+      /^\/v1\/connections\/[^/]+\/retire-superseded$/,
+      '/v1/connections/{app}/retire-superseded',
+    )
+    .replace(/^\/v1\/connections\/[^/]+$/, '/v1/connections/{app}');
 }

@@ -123,9 +123,17 @@ export class SessionService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   status(user: AuthContext) {
+    const admin = isAdmin(user);
+    const participant = isParticipant(user);
     return {
-      admin: user.groups.includes('Admins'),
-      features: { ...this.deps.config.features },
+      admin,
+      participant,
+      features: {
+        researchUploads: this.deps.config.features.researchUploads && participant,
+        researchArchive: this.deps.config.features.researchArchive && admin,
+        connectors: this.deps.config.features.connectors && isConnectorTester(user),
+        schedules: this.deps.config.features.schedules && participant,
+      },
     };
   }
 }
@@ -134,7 +142,7 @@ export class ConnectorFilesService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async requestUpload(user: AuthContext, request: ConnectorUploadRequest) {
-    requireFeature(this.deps.config.features.connectors, 'connectors_disabled');
+    requireConnectorAccess(this.deps, user);
     const connection = await this.deps.connections.getConnection(
       user.subject,
       request.connectionId,
@@ -212,7 +220,7 @@ export class ConnectionsService {
     callbackUrl?: string,
     access?: 'read_only' | 'read_write',
   ) {
-    requireFeature(this.deps.config.features.connectors, 'connectors_disabled');
+    requireConnectorAccess(this.deps, user);
     if (callbackUrl !== undefined) validateCallback(callbackUrl);
     if (app !== 'google_workspace' && access !== undefined) {
       throw new CloudError(400, 'invalid_request', 'Access level is only supported for Google');
@@ -309,6 +317,91 @@ export class ConnectionsService {
     return { disconnected: true };
   }
 
+  async retireSupersededGoogle(
+    user: AuthContext,
+    app: AppId,
+    connectionId: string,
+    replacementConnectionId: string,
+  ) {
+    requireConnectorAccess(this.deps, user);
+    if (app !== 'google_workspace') {
+      throw new CloudError(
+        400,
+        'invalid_request',
+        'Only a Google Workspace credential can be superseded',
+      );
+    }
+    if (connectionId === replacementConnectionId) {
+      throw new CloudError(
+        400,
+        'invalid_request',
+        'The replacement connection must be different from the superseded connection',
+      );
+    }
+
+    const replacement = await this.deps.connections.getConnection(
+      user.subject,
+      replacementConnectionId,
+    );
+    if (
+      !replacement ||
+      replacement.app !== 'google_workspace' ||
+      replacement.status !== 'connected'
+    ) {
+      throw new CloudError(
+        409,
+        'replacement_connection_not_ready',
+        'The replacement Google editor connection is not ready',
+      );
+    }
+    const replacementStatus =
+      await this.deps.connector.connectionStatus(replacementConnectionId);
+    if (replacementStatus.status !== 'connected' || replacementStatus.access !== 'read_write') {
+      throw new CloudError(
+        409,
+        'replacement_connection_not_ready',
+        'The replacement Google editor connection is not ready',
+      );
+    }
+
+    const superseded = await this.deps.connections.getConnection(user.subject, connectionId);
+    if (!superseded) return { retired: true };
+    if (superseded.app !== 'google_workspace') {
+      throw new CloudError(404, 'connection_not_found', 'Connection not found');
+    }
+    const supersededAccount = superseded.accountLabel?.trim().toLowerCase();
+    const replacementAccount = (replacementStatus.accountLabel ?? replacement.accountLabel)
+      ?.trim()
+      .toLowerCase();
+    if (!supersededAccount || !replacementAccount || supersededAccount !== replacementAccount) {
+      throw new CloudError(
+        409,
+        'replacement_account_mismatch',
+        'The replacement must use the same Google account',
+      );
+    }
+    if (!this.deps.connector.retireSuperseded) {
+      throw new CloudError(
+        503,
+        'connection_retirement_unavailable',
+        'Google connection upgrade is unavailable',
+        true,
+      );
+    }
+
+    await this.deps.connector.retireSuperseded(connectionId);
+    await this.deps.connections.deleteConnection(user.subject, connectionId);
+    await this.deps.audit.write({
+      userId: user.subject,
+      action: 'connection.superseded',
+      app,
+      connectionId,
+      outcome: 'allowed',
+      occurredAt: this.deps.clock.now().toISOString(),
+    });
+    return { retired: true };
+  }
+
   async completeGoogleOAuth(request: { state: string; code?: string; error?: string }) {
     if (!this.deps.connector.completeGoogleOAuth) {
       throw new CloudError(503, 'google_oauth_unavailable', 'Google connection is unavailable');
@@ -348,7 +441,7 @@ export class ActionsService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async prepare(user: AuthContext, request: PrepareActionRequest) {
-    requireFeature(this.deps.config.features.connectors, 'connectors_disabled');
+    requireConnectorAccess(this.deps, user);
     const policy = TOOL_POLICIES[request.tool];
     const connection = await this.deps.connections.getConnection(
       user.subject,
@@ -465,7 +558,7 @@ export class ActionsService {
   }
 
   async commit(user: AuthContext, request: CommitActionRequest) {
-    requireFeature(this.deps.config.features.connectors, 'connectors_disabled');
+    requireConnectorAccess(this.deps, user);
     const record = await this.deps.actions.getAction(user.subject, request.actionId);
     if (!record) throw new CloudError(404, 'action_not_found', 'Prepared action not found');
     const supplied = actionDigest(
@@ -590,6 +683,7 @@ export class ResearchService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async upload(user: AuthContext, request: ResearchBatchRequest) {
+    requireParticipant(user);
     requireFeature(this.deps.config.features.researchUploads, 'research_uploads_disabled');
     requireString(request.batchId, 'batchId', { max: 128 });
     if (request.consent.version !== this.deps.config.consentVersion) {
@@ -927,7 +1021,10 @@ export class InvitesService {
     requireAdmin(user);
     const email = normalizeEmail(request.email);
     const existing = await this.deps.invites.getInvite(email);
-    if (existing) return existing;
+    if (existing) {
+      await this.deps.identity.addUserToGroup(email, 'Participants');
+      return existing;
+    }
     if ((await this.deps.invites.countInvites()) >= this.deps.config.inviteLimit) {
       throw new CloudError(
         409,
@@ -936,6 +1033,7 @@ export class InvitesService {
       );
     }
     const created = await this.deps.identity.createPasswordlessUser(email);
+    await this.deps.identity.addUserToGroup(email, 'Participants');
     const record = {
       email,
       invitedBy: user.subject,
@@ -1003,21 +1101,23 @@ export class RegistrationService {
       );
     }
 
+    const existing = await this.deps.invites.getInvite(email);
+    // Keep this endpoint enumeration-resistant: uninvited and invited addresses receive
+    // exactly the same response, but only an existing named invite can reach Cognito.
+    if (!existing || existing.status === 'failed') return { accepted: true as const };
+
     // Suppress Cognito's separate welcome message. The desktop immediately starts
-    // EMAIL_OTP after this returns, so a new participant receives exactly one email.
+    // EMAIL_OTP after this returns, so an invited participant receives exactly one email.
     const created = await this.deps.identity.createPasswordlessUser(email, {
       suppressMessage: true,
     });
-    const existing = await this.deps.invites.getInvite(email);
-    if (!existing) {
+    await this.deps.identity.addUserToGroup(email, 'Participants');
+    if (existing.subject !== created.subject || existing.status !== 'active')
       await this.deps.invites.putInvite({
-        email,
-        invitedBy: 'self-registration',
-        invitedAt: this.deps.clock.now().toISOString(),
+        ...existing,
         subject: created.subject,
         status: 'active',
       });
-    }
     // New and existing addresses deliberately receive the same response.
     return { accepted: true as const };
   }
@@ -1026,7 +1126,8 @@ export class RegistrationService {
 export class MetaService {
   constructor(private readonly deps: ServiceDependencies) {}
 
-  async capabilities(_user: AuthContext) {
+  async capabilities(user: AuthContext) {
+    requireParticipant(user);
     const config = await this.deps.secrets.meta();
     if (!config.enabled) {
       return {
@@ -1052,6 +1153,7 @@ export class MetaService {
   }
 
   async *stream(user: AuthContext, request: MetaTurnRequest): AsyncIterable<MetaStreamEvent> {
+    requireParticipant(user);
     validateMetaRequest(request);
     const config = await this.deps.secrets.meta();
     if (!config.enabled)
@@ -1385,8 +1487,41 @@ function validateHash(value: unknown, label: string, pattern: RegExp): string {
 }
 
 function requireAdmin(user: AuthContext): void {
-  if (!user.groups.includes('Admins'))
-    throw new CloudError(403, 'admin_required', 'Admin access is required');
+  if (!isAdmin(user)) throw new CloudError(403, 'admin_required', 'Admin access is required');
+}
+
+function isAdmin(user: AuthContext): boolean {
+  return user.groups.includes('Admins');
+}
+
+function isParticipant(user: AuthContext): boolean {
+  return isAdmin(user) || user.groups.includes('Participants');
+}
+
+function isConnectorTester(user: AuthContext): boolean {
+  return isParticipant(user) && (isAdmin(user) || user.groups.includes('ConnectorTesters'));
+}
+
+function requireParticipant(user: AuthContext): void {
+  if (!isParticipant(user)) {
+    throw new CloudError(
+      403,
+      'participant_access_required',
+      'This research release is available to invited participants only',
+    );
+  }
+}
+
+function requireConnectorAccess(deps: ServiceDependencies, user: AuthContext): void {
+  requireFeature(deps.config.features.connectors, 'connectors_disabled');
+  requireParticipant(user);
+  if (!isConnectorTester(user)) {
+    throw new CloudError(
+      403,
+      'connector_tester_required',
+      'Connected apps are limited to the acceptance-testing cohort',
+    );
+  }
 }
 
 function requireFeature(enabled: boolean, code: string): void {

@@ -2,7 +2,9 @@ import {
   ArrowDown,
   ArrowClockwise,
   ChatCircle,
+  Check,
   Clock,
+  Copy,
   FolderSimple,
   SpeakerHigh,
   SpinnerGap,
@@ -14,15 +16,16 @@ import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 're
 import type { ApprovalDecision, RendererAttachment, ThreadDetail, ThreadEvent } from '../types';
 import styles from '../ui.module.css';
 import { ActivityRow } from './ActivityRow';
+import { AgentForm } from './AgentForm';
 import { ApprovalCard } from './ApprovalCard';
 import { Composer } from './Composer';
 import { SafeMarkdown } from './SafeMarkdown';
-import { SiaMark } from './SiaMark';
 
 interface ConversationProps {
   thread?: ThreadDetail | undefined;
   agentName?: string | undefined;
   agentInitials?: string | undefined;
+  agentHue?: number | undefined;
   loading?: boolean | undefined;
   attachments?: readonly RendererAttachment[] | undefined;
   acceptingAttachments?: boolean | undefined;
@@ -50,7 +53,7 @@ interface ConversationProps {
 export function Conversation({
   thread,
   agentName,
-  agentInitials,
+  agentHue,
   loading,
   attachments,
   acceptingAttachments,
@@ -247,21 +250,25 @@ export function Conversation({
 
   if (!thread) {
     return (
-      <main className={styles.mainPane}>
-        <div className={styles.emptyState}>
-          {agentInitials ? (
-            <span className={styles.emptyAgentBadge} aria-hidden="true">
-              {agentInitials}
-            </span>
-          ) : (
-            <SiaMark className={styles.emptyBrandMark} />
-          )}
-          <h1>{agentName ? `Start with ${agentName}` : 'Choose an agent'}</h1>
+      <main className={styles.mainPane} data-companion-conversation>
+        <div className={styles.emptyState} data-companion-empty>
+          <AgentForm identity={agentHue ?? 0} size="large" />
+          <span className={styles.emptyStateKicker}>
+            {agentName ? `${agentName} is ready` : 'A thoughtful place to begin'}
+          </span>
+          <h1>
+            {agentName ? `Open a room with ${agentName}.` : 'Make space for focused work.'}
+          </h1>
           <p>
             {agentName
-              ? 'Create a thread for a focused task. Its provider, model, and workspace stay pinned.'
-              : 'Select an agent from the sidebar, or create one for the way you work. Work app connections are optional.'}
+              ? 'Each thread keeps its own goal, model, and workspace together—so you can leave and return without rebuilding context.'
+              : 'Create a distinct agent for a kind of work. Each one keeps its own voice, workspace, and trail of threads.'}
           </p>
+          <div className={styles.emptyStateNotes} aria-hidden="true">
+            <span>one agent, one way of working</span>
+            <span>threads keep their context</span>
+            <span>you stay in control</span>
+          </div>
           {onCreateThread ? (
             <button className={styles.primaryButton} type="button" onClick={onCreateThread}>
               New thread
@@ -304,7 +311,7 @@ export function Conversation({
       : undefined;
 
   return (
-    <main className={styles.mainPane}>
+    <main className={styles.mainPane} data-companion-conversation>
       <div
         className={styles.threadScroll}
         ref={scrollRef}
@@ -348,18 +355,13 @@ export function Conversation({
           ) : null}
 
           {thread.events.length === 0 ? (
-            <div className={styles.threadEmpty}>
-              {agentInitials ? (
-                <span className={styles.emptyAgentBadge} aria-hidden="true">
-                  {agentInitials}
-                </span>
-              ) : (
-                <SiaMark className={styles.emptyBrandMark} />
-              )}
-              <h2>What should we work on?</h2>
+            <div className={styles.threadEmpty} data-companion-thread-empty>
+              <AgentForm identity={agentHue} size="large" />
+              <span className={styles.emptyStateKicker}>{agentName ?? 'Sia'} is listening</span>
+              <h2>What deserves your attention?</h2>
               <p>
-                Sia can use this workspace, web search, schedules, and computer use now. Connect
-                work apps later for faster background access.
+                Start with an outcome, a rough idea, or the thing you have been avoiding. You
+                can refine the route together.
               </p>
               {onOpenApps ? (
                 <button className={styles.textButton} type="button" onClick={onOpenApps}>
@@ -373,7 +375,7 @@ export function Conversation({
                 <EventView
                   key={event.id}
                   event={event}
-                  agentInitials={agentInitials}
+                  agentHue={agentHue}
                   busyApprovalId={busyApprovalId}
                   speechPhase={speech.eventId === event.id ? speech.phase : 'idle'}
                   speechError={speech.eventId === event.id ? speech.error : undefined}
@@ -482,7 +484,7 @@ function scrollToLatest(scroller: HTMLDivElement, behavior: ScrollBehavior) {
 
 interface EventViewProps {
   event: ThreadEvent;
-  agentInitials?: string | undefined;
+  agentHue?: number | undefined;
   busyApprovalId?: string | undefined;
   speechPhase: 'idle' | 'loading' | 'playing';
   speechError?: string | undefined;
@@ -494,7 +496,7 @@ interface EventViewProps {
 
 function EventView({
   event,
-  agentInitials,
+  agentHue,
   busyApprovalId,
   speechPhase,
   speechError,
@@ -541,18 +543,24 @@ function EventView({
       className={`${styles.message} ${
         event.role === 'user' ? styles.userMessage : styles.assistantMessage
       } ${justCompleted ? styles.messageSettled : ''}`}
+      data-message-role={event.role}
       data-completed={justCompleted ? 'true' : undefined}
     >
       <span className={styles.messageAvatar} aria-hidden="true">
-        {event.role === 'user' ? <User size={14} weight="bold" /> : (agentInitials ?? 'S')}
+        {event.role === 'user' ? (
+          <User size={14} weight="bold" />
+        ) : (
+          <AgentForm identity={agentHue} size="small" />
+        )}
       </span>
       <header>
         <span>{event.role === 'user' ? 'You' : 'Sia'}</span>
         <time dateTime={event.timestamp}>{formatTime(event.timestamp)}</time>
+        <CopyMessageButton content={event.content} />
         {event.role === 'assistant' && onToggleSpeech ? (
           <button
             type="button"
-            className={styles.messageSpeakButton}
+            className={styles.messageActionButton}
             onClick={() => void onToggleSpeech(event.content)}
             aria-label={
               speechPhase === 'playing'
@@ -601,6 +609,45 @@ function EventView({
         ) : null}
       </div>
     </article>
+  );
+}
+
+function CopyMessageButton({ content }: { content: string }) {
+  const [copied, setCopied] = useState(false);
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(
+    () => () => {
+      if (resetTimer.current) clearTimeout(resetTimer.current);
+    },
+    [],
+  );
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      if (resetTimer.current) clearTimeout(resetTimer.current);
+      resetTimer.current = setTimeout(() => setCopied(false), 1_600);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      className={styles.messageActionButton}
+      onClick={() => void copy()}
+      aria-label={copied ? 'Message copied' : 'Copy message'}
+      title={copied ? 'Copied' : 'Copy message'}
+    >
+      {copied ? (
+        <Check size={14} weight="bold" aria-hidden="true" />
+      ) : (
+        <Copy size={14} aria-hidden="true" />
+      )}
+    </button>
   );
 }
 

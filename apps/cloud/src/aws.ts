@@ -1,4 +1,5 @@
 import {
+  AdminAddUserToGroupCommand,
   AdminCreateUserCommand,
   AdminDeleteUserCommand,
   AdminGetUserCommand,
@@ -1074,6 +1075,18 @@ export class CognitoIdentity implements IdentityProvider {
         true,
       );
     return { subject };
+  }
+  async addUserToGroup(
+    email: string,
+    group: 'Participants' | 'ConnectorTesters',
+  ): Promise<void> {
+    await this.client.send(
+      new AdminAddUserToGroupCommand({
+        UserPoolId: this.userPoolId,
+        Username: email,
+        GroupName: group,
+      }),
+    );
   }
   async deleteUser(subject: string): Promise<void> {
     const result = await this.client.send(

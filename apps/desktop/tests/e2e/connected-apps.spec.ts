@@ -13,10 +13,14 @@ test('configured first run offers Sia sign-in before local setup', async () => {
   });
 
   try {
-    await expect(harness.page.getByRole('dialog', { name: 'Sign in to Sia' })).toBeVisible();
-    await expect(harness.page.getByRole('textbox', { name: 'Invited email' })).toBeVisible();
-    await harness.page.getByRole('button', { name: 'Continue locally' }).click();
-    await expect(harness.page.getByRole('heading', { name: 'Choose an agent' })).toBeVisible();
+    await expect(
+      harness.page.getByRole('dialog', { name: 'Choose how Sia starts' }),
+    ).toBeVisible();
+    await expect(harness.page.getByRole('textbox', { name: 'Email' })).toBeVisible();
+    await harness.page.getByRole('button', { name: 'Start in local mode' }).click();
+    await expect(
+      harness.page.getByRole('heading', { name: 'Make space for focused work.' }),
+    ).toBeVisible();
     expect(harness.rendererErrors).toEqual([]);
   } finally {
     await harness.close();
@@ -39,7 +43,9 @@ test('core Sia opens first and optional setup connects every work app later', as
     await expect(
       harness.page.getByRole('dialog', { name: 'Connect your work apps' }),
     ).toHaveCount(0);
-    await expect(harness.page.getByRole('heading', { name: 'Choose an agent' })).toBeVisible();
+    await expect(
+      harness.page.getByRole('heading', { name: 'Make space for focused work.' }),
+    ).toBeVisible();
     await expect(
       harness.page.getByRole('button', { name: 'Connect work apps later' }),
     ).toBeVisible();
@@ -66,7 +72,9 @@ test('core Sia opens first and optional setup connects every work app later', as
     await expect(
       harness.page.getByRole('button', { name: 'Connect Slack', exact: true }),
     ).toHaveCount(0);
-    await expect(harness.page.getByRole('button', { name: 'Disconnect Google' })).toBeVisible();
+    await expect(
+      harness.page.getByRole('button', { name: 'Disconnect Google Workspace' }),
+    ).toBeVisible();
     await expect(harness.page.getByRole('button', { name: 'Disconnect Slack' })).toBeVisible();
     await expect
       .poll(async () => {
@@ -109,7 +117,10 @@ test('a user can connect only a selected set of work apps later', async () => {
     ).toHaveCount(0);
     await harness.page.getByRole('button', { name: 'Settings' }).click();
     await harness.page.getByRole('button', { name: 'Apps' }).click();
-    await harness.page.getByRole('button', { name: 'Connect Google Docs' }).click();
+    await harness.page.getByRole('button', { name: 'Connect Google', exact: true }).click();
+    for (const appName of ['Gmail', 'Google Drive', 'Google Sheets', 'Google Slides']) {
+      await harness.page.getByRole('button', { name: `Disable ${appName}` }).click();
+    }
     await harness.page
       .getByRole('button', { name: 'Connect Slack', exact: true })
       .first()

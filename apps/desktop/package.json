@@ -1,6 +1,6 @@
 {
   "name": "@sia/desktop",
-  "version": "0.1.0-alpha.9",
+  "version": "0.1.0-alpha.11",
   "private": true,
   "description": "A local-first personal computer assistant for macOS.",
   "author": "Lawrence Jang",

@@ -32,10 +32,12 @@ describe('cloud account settings', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Email' }), {
       target: { value: '  LAWRENCE@EXAMPLE.COM  ' },
     });
-    const submit = screen.getByRole('button', { name: 'Join & email me a code' });
+    const submit = screen.getByRole('button', { name: 'Email me a sign-in code' });
     expect((submit as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(
-      screen.getByRole('checkbox', { name: /18 or older and joining the Sia research alpha/i }),
+      screen.getByRole('checkbox', {
+        name: /18 or older and received a named Sia research invitation/i,
+      }),
     );
     expect((submit as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(submit);
@@ -145,14 +147,7 @@ describe('cloud account settings', () => {
     );
     expect(screen.getByText(/^Signed in as lawrence@example\.com\./)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
-    for (const name of [
-      'Connect Gmail',
-      'Connect Google Drive',
-      'Connect Google Docs',
-      'Connect Google Sheets',
-      'Connect Google Slides',
-      'Connect Slack',
-    ]) {
+    for (const name of ['Connect Google', 'Connect Slack']) {
       for (const button of screen.getAllByRole('button', { name })) {
         expect((button as HTMLButtonElement).disabled).toBe(false);
       }

@@ -229,6 +229,7 @@ export class ActionGateway {
   readonly #grants: OneShotGrantStore;
   readonly #onInvocation: ActionInvocationObserver | undefined;
   readonly #onResult: ActionResultObserver | undefined;
+  readonly #isToolAvailable: ((name: ActionToolName) => boolean) | undefined;
 
   constructor(options: {
     readonly backend: ActionBackend;
@@ -237,6 +238,7 @@ export class ActionGateway {
     readonly grants?: OneShotGrantStore;
     readonly onInvocation?: ActionInvocationObserver;
     readonly onResult?: ActionResultObserver;
+    readonly isToolAvailable?: (name: ActionToolName) => boolean;
   }) {
     this.#backend = options.backend;
     this.#policy = options.policy ?? new DefaultActionAuthorizationPolicy();
@@ -244,20 +246,28 @@ export class ActionGateway {
     this.#grants = options.grants ?? new OneShotGrantStore();
     this.#onInvocation = options.onInvocation;
     this.#onResult = options.onResult;
+    this.#isToolAvailable = options.isToolAvailable;
   }
 
   listTools(): readonly ToolDescriptor[] {
-    return ACTION_TOOL_DESCRIPTORS;
+    return this.#isToolAvailable
+      ? ACTION_TOOL_DESCRIPTORS.filter(({ name }) =>
+          this.#isToolAvailable!(name as ActionToolName),
+        )
+      : ACTION_TOOL_DESCRIPTORS;
   }
 
   async invoke(invocation: ActionInvocation): Promise<ActionExecutionResult> {
+    if (!isActionToolName(invocation.name))
+      return refused(`Tool ${invocation.name} is not exposed by Sia`);
+    if (this.#isToolAvailable && !this.#isToolAvailable(invocation.name)) {
+      return refused(`Tool ${invocation.name} is unavailable for this account`);
+    }
     try {
       await this.#onInvocation?.({ name: invocation.name, context: invocation.context });
     } catch {
       return refused('Action invocation could not be recorded safely');
     }
-    if (!isActionToolName(invocation.name))
-      return refused(`Tool ${invocation.name} is not exposed by Sia`);
     const descriptor = getActionToolDescriptor(invocation.name)!;
     let parsed: Readonly<Record<string, unknown>>;
     try {

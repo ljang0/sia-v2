@@ -36,6 +36,32 @@ const renderConversation = (thread: ThreadDetail) => {
 };
 
 describe('Conversation waiting controls', () => {
+  it('copies a message without changing the transcript', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    renderConversation(
+      baseThread({
+        status: 'idle',
+        events: [
+          {
+            id: 'reply-copy',
+            type: 'message',
+            role: 'assistant',
+            content: 'Copy this exact reply.',
+            timestamp: '2026-08-13T00:00:00.000Z',
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy message' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('Copy this exact reply.'));
+    expect(screen.getByRole('button', { name: 'Message copied' })).toBeTruthy();
+  });
+
   it('keeps a pending approval cancellable and prevents an invalid text reply', () => {
     const { onStop } = renderConversation(
       baseThread({

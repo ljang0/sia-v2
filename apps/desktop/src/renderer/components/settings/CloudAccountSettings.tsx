@@ -134,7 +134,7 @@ export function CloudAccountSettings({
             className={styles.primaryButton}
             disabled={Boolean(pending) || !researchEnrollmentAcknowledged}
           >
-            {pending === 'auth-start' ? 'Sending...' : 'Join & email me a code'}
+            {pending === 'auth-start' ? 'Sending...' : 'Email me a sign-in code'}
           </button>
           <label className={styles.researchEnrollmentOption}>
             <input
@@ -145,10 +145,11 @@ export function CloudAccountSettings({
               required
             />
             <span>
-              <strong>I’m 18 or older and joining the Sia research alpha.</strong>
+              <strong>I’m 18 or older and received a named Sia research invitation.</strong>
               <small>
-                After verification, Sia will show the full research-data consent before any
-                research capture starts. I agree to the{' '}
+                Sia will only send a code to an invited address. After verification, you will
+                review the full research-data consent before any research capture starts. I
+                agree to the{' '}
                 <a
                   href="https://superintelligentagents.ai/terms/"
                   target="_blank"
@@ -506,7 +507,7 @@ function DeleteCloudAccountDialog({
 
 function accountDescription(cloudAuth: CloudAuth) {
   if (cloudAuth.state === 'signed-in') {
-    return `Signed in as ${cloudAuth.email ?? 'your invited account'}. Signing out turns research capture off and clears local research records; connected apps stay linked and locked until this account signs in again.`;
+    return `Signed in as ${cloudAuth.email ?? 'your invited account'}. ${cloudAuth.participant ? 'Invited participant access is active. ' : ''}Signing out turns research capture off and clears local research records; connected apps stay linked and locked until this account signs in again.`;
   }
   if (cloudAuth.state === 'unconfigured') {
     return 'Optional cloud sync and connected apps can be added later.';
@@ -520,5 +521,5 @@ function accountDescription(cloudAuth: CloudAuth) {
   if (cloudAuth.state === 'mfa-required') {
     return 'This admin account also requires its authenticator code.';
   }
-  return 'Create or sign in to your research-alpha account, then connect Google Workspace or Slack.';
+  return 'Use the email named in your research invitation. Local work remains available without signing in.';
 }

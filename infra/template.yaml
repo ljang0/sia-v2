@@ -232,6 +232,52 @@ Resources:
               Bool:
                 aws:SecureTransport: false
 
+  ReleaseArtifactsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireSupersededAndIncompleteArtifacts
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+
+  ReleaseArtifactsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ReleaseArtifactsBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !GetAtt ReleaseArtifactsBucket.Arn
+              - !Sub ${ReleaseArtifactsBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
   AuditBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
@@ -681,6 +727,22 @@ Resources:
       Description: May manage alpha invitations and inspect the audited research archive
       Precedence: 0
 
+  ParticipantsGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: Participants
+      Description: May use the invited Sia research release and upload consented research data
+      Precedence: 10
+
+  ConnectorTestersGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: ConnectorTesters
+      Description: May exercise staged Google Workspace and Slack connector capabilities
+      Precedence: 5
+
   BootstrapAdmin:
     Type: AWS::Cognito::UserPoolUser
     Condition: HasBootstrapAdmin
@@ -761,7 +823,12 @@ Resources:
                   - !GetAtt DeletionQueue.Arn
                   - !GetAtt ResearchExportQueue.Arn
               - Effect: Allow
-                Action: [cognito-idp:AdminCreateUser, cognito-idp:AdminGetUser]
+                Action:
+                  [
+                    cognito-idp:AdminCreateUser,
+                    cognito-idp:AdminGetUser,
+                    cognito-idp:AdminAddUserToGroup,
+                  ]
                 Resource: !GetAtt UserPool.Arn
               - Effect: Allow
                 Action: [kms:Decrypt, kms:Encrypt, kms:GenerateDataKey]
@@ -1219,3 +1286,5 @@ Outputs:
         - !Ref DeletionFunctionErrorAlarm
         - !Ref DeletionFunctionThrottleAlarm
         - !Ref ControlTableThrottleAlarm
+  ReleaseArtifactsBucketName:
+    Value: !Ref ReleaseArtifactsBucket

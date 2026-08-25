@@ -11,24 +11,24 @@
   --font-display:
     'Bricolage Grotesque', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-sans: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --page: #090b0a;
-  --surface: #0f1210;
-  --surface-raised: #151916;
-  --surface-soft: #111512;
-  --ink: #f0f2ed;
-  --ink-secondary: #a4aca5;
-  --ink-tertiary: #6f7871;
-  --line: #252b27;
-  --line-strong: #4d5850;
-  --signal: #8fd6ab;
-  --signal-bright: #baf4ce;
-  --signal-muted: #273b2e;
+  --page: #0b2723;
+  --surface: #102f2a;
+  --surface-raised: #183a33;
+  --surface-soft: #12332d;
+  --ink: #f2f6f2;
+  --ink-secondary: #c1cec6;
+  --ink-tertiary: #9fb1a7;
+  --line: #294b43;
+  --line-strong: #52756b;
+  --signal: #d29b3d;
+  --signal-bright: #efbd63;
+  --signal-muted: #493b24;
   --on-signal: #07110b;
   --focus: #a8efc0;
   --danger: #e8907c;
-  --radius-small: 3px;
-  --radius-control: 5px;
-  --radius-surface: 10px;
+  --radius-small: 6px;
+  --radius-control: 10px;
+  --radius-surface: 14px;
   --shadow-control: 0 1px 1px rgb(0 0 0 / 32%);
   --shadow-float: 0 26px 80px rgb(0 0 0 / 36%);
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -39,18 +39,18 @@
 
 html[data-theme='light'] {
   color-scheme: light;
-  --page: #eeefe9;
-  --surface: #e7e9e2;
-  --surface-raised: #f7f7f2;
-  --surface-soft: #e2e5dd;
-  --ink: #111512;
-  --ink-secondary: #505951;
-  --ink-tertiary: #6c756d;
-  --line: #cdd2ca;
-  --line-strong: #899389;
-  --signal: #1f6a42;
-  --signal-bright: #155332;
-  --signal-muted: #c8dbce;
+  --page: #f4f6f2;
+  --surface: #e9ede8;
+  --surface-raised: #fbfcf9;
+  --surface-soft: #e4e9e4;
+  --ink: #1c2924;
+  --ink-secondary: #4f5d56;
+  --ink-tertiary: #56625c;
+  --line: #d3dad4;
+  --line-strong: #79837d;
+  --signal: #8a601b;
+  --signal-bright: #6d4910;
+  --signal-muted: #ead8b7;
   --on-signal: #f4f6f1;
   --focus: #1e7044;
   --danger: #a64230;
@@ -173,11 +173,18 @@ a {
 
 .mark {
   position: relative;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   display: inline-block;
-  border: 1px solid var(--line-strong);
-  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--signal) 72%, var(--ink));
+  border-radius: 42% 58% 54% 46% / 52% 42% 58% 48%;
+  background: var(--signal);
+  box-shadow: 0 4px 13px color-mix(in srgb, var(--signal) 24%, transparent);
+  transform: rotate(-5deg);
+  transition:
+    border-radius 300ms var(--ease),
+    transform 300ms var(--ease);
 }
 
 .mark::before,
@@ -188,24 +195,19 @@ a {
 }
 
 .mark::before {
-  inset: 5px;
-  background: var(--signal);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--signal) 70%, transparent);
+  inset: 5px 3px;
+  border: 1px solid color-mix(in srgb, var(--on-signal) 48%, transparent);
+  transform: rotate(-24deg);
 }
 
 .mark::after {
-  inset: -4px;
-  border: 1px solid color-mix(in srgb, var(--signal) 18%, transparent);
-  opacity: 0;
-  transform: scale(0.7);
-  transition:
-    opacity 300ms var(--ease),
-    transform 500ms var(--ease);
+  inset: 7px;
+  background: var(--on-signal);
 }
 
-.wordmark:hover .mark::after {
-  opacity: 1;
-  transform: scale(1);
+.wordmark:hover .mark {
+  border-radius: 56% 44% 39% 61% / 45% 56% 44% 55%;
+  transform: rotate(5deg) scale(1.04);
 }
 
 .nav-links {

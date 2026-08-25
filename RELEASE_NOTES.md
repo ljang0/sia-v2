@@ -1,8 +1,37 @@
-# Sia 0.1.0-alpha.9
+# Sia 0.1.0-alpha.11
 
 Sia is a private macOS 14+ alpha for local-first agent work. This build supports Codex through the
 official CLI already installed and authenticated on the Mac, plus hosted Meta access for signed-in
 research-alpha participants.
+
+## Alpha.11 changes
+
+- Research account activation is now limited to named invitations. Unknown addresses receive the
+  same generic registration response but no Cognito identity is created.
+- Ordinary invited participants and connected-app acceptance testers are separate cohorts. Core
+  research/Meta/schedule access requires `Participants`; Google and Slack setup/execution also
+  requires `ConnectorTesters`. Existing grants can always be inspected and disconnected.
+- The desktop has been rebuilt around persistent agent rooms: abstract living identity forms, a
+  stronger room header, clearer conversation hierarchy, a more intentional composer, and a
+  flatter settings control center.
+- First run is explicitly local-first and keeps **Start in local mode** visible before the invited
+  research form. Google Workspace is presented as one grant with five service switches.
+- The light interface uses clean mineral-white and sage-neutral surfaces instead of the previous
+  yellow paperback tint. The deep evergreen dock and four agent accent hues remain.
+- The public home, research, support, privacy, and terms chrome now matches the desktop identity and
+  consistently explains named invitations and the smaller connector-testing cohort.
+- Nine real macOS screenshot baselines now protect workspace, quick switcher, settings, apps,
+  activity, agent, dark/compact, sign-in, and local-first states.
+
+## Alpha.10 changes
+
+- Enabling Google editing now retires only Sia's superseded encrypted read credential. It no longer
+  revokes the shared Google authorization grant and accidentally expires the verified editor token.
+- The cloud verifies that the replacement is a connected editor grant for the same Sia user and
+  Google account before removing the old credential. The normal Disconnect action still revokes
+  Google access when a person intentionally disconnects Workspace.
+- Alpha.10 carries forward the progressive Google connection, URL handling, connected-app UX, and
+  site polish introduced in Alpha.9.
 
 ## Alpha.9 changes
 
@@ -42,7 +71,7 @@ research-alpha participants.
   existing macOS account without database access, while Chrome still requires one explicit window;
 - direct Gmail, Drive, Docs, Sheets, and Slides adapters use stable Google REST endpoints with
   bounded inputs and outputs; Slack continues through its audited Composio action schemas;
-- self-service passwordless research-release sign-up, durable raw research sync, asynchronous complete export,
+- named-invitation passwordless research-release sign-in, durable raw research sync, asynchronous complete export,
   and deletion when the signed release is configured for the deployed control plane. Research
   admins can still send and review participant invitations directly from the MFA-protected archive;
 - public account bootstrap is enumeration-resistant and protected by API Gateway plus short-lived,
@@ -75,17 +104,21 @@ research-alpha participants.
 
 ## Visual identity
 
-- Alpha.9 carries forward the warm-neutral workspace rail introduced in Alpha.4,
-  quiets agent colors into mineral identity accents, removes colorful provider tiles, and uses one
-  muted evergreen action color. Dark mode remains neutral charcoal rather than green-black.
-- Native display typography now carries names and headings; bundled Bricolage Grotesque (OFL) is
-  reserved for the Sia wordmark. Tighter radii, editorial settings tabs, quieter avatars, lighter
-  outlines, and a smaller brand mark replace the prior rounded, game-like component language.
+- Alpha.11 replaces the yellowed paper cast with mineral-white, faint sage-neutral rooms beside a
+  deep-evergreen dock. Saffron, coral, sky, and mint remain agent identity accents rather than page
+  backgrounds. Dark mode remains neutral charcoal rather than green-black.
+- Bundled Bricolage Grotesque (OFL) carries the wordmark and selected display headings, while native
+  text faces keep dense controls readable. Persistent room identity, abstract living agent forms,
+  tighter radii, editorial settings tabs, and lighter outlines replace the prior generic shell.
+- A `Cmd/Ctrl+K` quick switcher moves among threads, agents, and core actions. Standard desktop
+  shortcuts expose transcript search, new-thread creation, Settings, and sidebar visibility; message
+  copy is available directly from the transcript.
 - Motion favors opacity and color with restrained 140/190/240ms timing. Buttons and navigation no
   longer lift or slide on hover, dialogs settle by six pixels without zooming, and neutral blur
   replaces the dramatic tinted overlay. Reduced-motion and visible keyboard-focus policies remain.
-- The deterministic screenshot audit covers the core, settings, apps, agent, activity, sign-in,
-  local-choice, compact, dark, keyboard-focus, overflow, font, transition, and reduced-motion states.
+- The deterministic screenshot audit covers the core, quick switcher, settings, apps, agent,
+  activity, sign-in, local-choice, compact, dark, keyboard-focus, overflow, font, transition, and
+  reduced-motion states.
 
 ## Alpha boundaries
 
@@ -107,8 +140,9 @@ research-alpha participants.
   production project, but sensitive/restricted-scope review and CASA remain external distribution
   gates; organization policies may also require administrator approval. Remote/offline execution is
   not part of this alpha.
-- The release stack rehearsal and fresh signed/notarized artifact are complete. Distribution still
-  requires the named human approvals and final artifact-only checks in the release evidence.
+- The `alpha.11` source candidate is locally verified, but its cohort-aware stack deployment,
+  signed/notarized artifact, live service rehearsal, and named human approvals remain required in
+  the release evidence before participant distribution.
 
 Read `PRIVACY.md` before enabling research capture or connecting an app. Report problems through the
 private alpha support channel described in `SUPPORT.md`.

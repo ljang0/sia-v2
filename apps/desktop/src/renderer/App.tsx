@@ -1,9 +1,21 @@
-import { SlidersHorizontal, X, WarningCircle } from '@phosphor-icons/react';
-import { lazy, Suspense } from 'react';
+import {
+  Archive,
+  ChatCircle,
+  GearSix,
+  MagnifyingGlass,
+  Plus,
+  Pulse,
+  SlidersHorizontal,
+  X,
+  WarningCircle,
+} from '@phosphor-icons/react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { AgentDialog } from './components/AgentDialog';
 import { AppSkeleton, WorkspaceNotice } from './components/AppStates';
 import { Conversation } from './components/Conversation';
 import { Inspector } from './components/Inspector';
+import { RoomHeader } from './components/RoomHeader';
+import { QuickSwitcher, type QuickSwitcherAction } from './components/QuickSwitcher';
 import { Settings } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
 import { ResearchConsentDialog } from './components/settings/ResearchConsentDialog';
@@ -19,6 +31,7 @@ import type { AgentDraft, RendererApi } from './types';
 import { useAppController } from './useAppController';
 import { RESEARCH_CONSENT_VERSION } from '../shared/bridge';
 import './tokens.css';
+import companion from './companion.module.css';
 import styles from './ui.module.css';
 
 const AuditGallery = lazy(() => import('./audit/AuditGallery'));
@@ -35,6 +48,40 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     Boolean(
       import.meta.env?.DEV && typeof location !== 'undefined' && location.hash === '#audit',
     );
+  const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
+
+  useEffect(() => {
+    if (auditMode) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+      const key = event.key.toLocaleLowerCase();
+      if (key === 'k') {
+        event.preventDefault();
+        setQuickSwitcherOpen((current) => !current);
+      } else if (key === 'f') {
+        event.preventDefault();
+        setQuickSwitcherOpen(false);
+        app.openActivity('search');
+      } else if (key === 'b') {
+        event.preventDefault();
+        setQuickSwitcherOpen(false);
+        app.toggleSidebar();
+      } else if (key === ',') {
+        event.preventDefault();
+        setQuickSwitcherOpen(false);
+        app.openSettings();
+      } else if (key === 'n' && app.snapshot?.selectedAgentId) {
+        event.preventDefault();
+        setQuickSwitcherOpen(false);
+        const agentId = app.snapshot.selectedAgentId;
+        app.closeSettings();
+        app.closeActivity();
+        void app.run(() => app.api.createThread(agentId));
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [app, auditMode]);
   if (auditMode) {
     return (
       <Suspense fallback={<div className={styles.auditLoading}>Loading UI audit...</div>}>
@@ -63,9 +110,71 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   const roomAgent =
     (activeThread && snapshot.agents.find((agent) => agent.id === activeThread.agentId)) ??
     selectedAgent;
+  const quickSwitcherActions: QuickSwitcherAction[] = [
+    ...(selectedAgent
+      ? [
+          {
+            id: 'new-thread',
+            label: 'Create a new thread',
+            detail: `Start in ${selectedAgent.name}`,
+            keywords: 'new chat task',
+            icon: <ChatCircle size={17} />,
+            run: () => {
+              app.closeSettings();
+              app.closeActivity();
+              void run(() => api.createThread(selectedAgent.id));
+            },
+          },
+        ]
+      : []),
+    {
+      id: 'new-agent',
+      label: 'Create a new agent',
+      detail: 'Start another kind of work',
+      keywords: 'new room assistant',
+      icon: <Plus size={17} />,
+      run: () => {
+        app.closeSettings();
+        app.closeActivity();
+        app.openNewAgent();
+      },
+    },
+    {
+      id: 'search-transcripts',
+      label: 'Search all transcripts',
+      detail: 'Includes archived threads',
+      keywords: 'find messages history',
+      icon: <MagnifyingGlass size={17} />,
+      run: () => app.openActivity('search'),
+    },
+    {
+      id: 'activity',
+      label: 'Open Activity',
+      detail: 'Running and unread work',
+      keywords: 'tasks status',
+      icon: <Pulse size={17} />,
+      run: () => app.openActivity('activity'),
+    },
+    {
+      id: 'archived',
+      label: 'Open archived threads',
+      detail: 'Restore or revisit a room',
+      keywords: 'history old',
+      icon: <Archive size={17} />,
+      run: () => app.openActivity('archived'),
+    },
+    {
+      id: 'settings',
+      label: 'Open Settings',
+      detail: 'Providers, apps, computer, voice, privacy',
+      keywords: 'preferences configuration',
+      icon: <GearSix size={17} />,
+      run: () => app.openSettings(),
+    },
+  ];
 
   return (
-    <div className={styles.appShell}>
+    <div className={`${styles.appShell} ${companion.companionShell}`}>
       <Sidebar
         agents={snapshot.agents}
         selectedAgentId={snapshot.selectedAgentId}
@@ -107,56 +216,81 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         onOpenActivity={() => app.openActivity('activity')}
         onOpenArchived={() => app.openActivity('archived')}
         onOpenSettings={() => app.openSettings()}
+        onOpenQuickSwitcher={() => setQuickSwitcherOpen(true)}
       />
 
-      <section className={styles.workspace} data-identity={roomAgent?.hue}>
+      <QuickSwitcher
+        open={quickSwitcherOpen}
+        agents={snapshot.agents}
+        selectedAgentId={snapshot.selectedAgentId}
+        selectedThreadId={snapshot.selectedThreadId}
+        actions={quickSwitcherActions}
+        onOpenChange={setQuickSwitcherOpen}
+        onSelectAgent={(agentId) => {
+          app.closeSettings();
+          app.closeActivity();
+          void run(() => api.selectAgent(agentId));
+        }}
+        onSelectThread={(threadId) => {
+          app.closeSettings();
+          app.closeActivity();
+          void run(() => api.selectThread(threadId));
+        }}
+      />
+
+      <section
+        className={styles.workspace}
+        data-identity={roomAgent?.hue}
+        data-companion-workspace
+      >
         {!app.settingsOpen ? (
-          <header className={styles.topbar}>
-            <div className={styles.threadIdentity}>
-              <strong>{activeThread?.title ?? selectedAgent?.name ?? 'Sia'}</strong>
-            </div>
-            <div className={styles.topbarActions}>
-              {activeThread ? (
-                <ThreadModelControls
-                  modelId={activeThread.model}
-                  reasoningId={activeThread.reasoningEffort ?? ''}
-                  models={modelOptions(snapshot, activeThread.provider, activeThread.model)}
-                  reasoningOptions={reasoningOptions(
-                    snapshot,
-                    activeThread.provider,
-                    activeThread.model,
-                    activeThread.reasoningEffort,
-                  )}
-                  disabled={activeThread.status !== 'idle' && activeThread.status !== 'error'}
-                  onChangeModel={(model) =>
-                    api.configureThread(
-                      activeThread.id,
-                      model,
-                      defaultReasoning(snapshot, activeThread.provider, model),
-                    )
-                  }
-                  onChangeReasoning={(reasoning) =>
-                    api.configureThread(
-                      activeThread.id,
+          <RoomHeader
+            agent={roomAgent}
+            thread={activeThread}
+            controls={
+              <div className={styles.topbarActions}>
+                {activeThread ? (
+                  <ThreadModelControls
+                    modelId={activeThread.model}
+                    reasoningId={activeThread.reasoningEffort ?? ''}
+                    models={modelOptions(snapshot, activeThread.provider, activeThread.model)}
+                    reasoningOptions={reasoningOptions(
+                      snapshot,
+                      activeThread.provider,
                       activeThread.model,
-                      reasoning || undefined,
-                    )
-                  }
-                />
-              ) : null}
-              <button
-                type="button"
-                className={`${styles.inspectorButton} ${app.inspectorOpen ? styles.inspectorButtonActive : ''}`}
-                onClick={app.toggleInspector}
-                aria-pressed={app.inspectorOpen}
-                aria-label="Access"
-                title="Access"
-              >
-                <SlidersHorizontal size={16} aria-hidden="true" />
-                <span>Access</span>
-              </button>
-            </div>
-          </header>
+                      activeThread.reasoningEffort,
+                    )}
+                    disabled={activeThread.status !== 'idle' && activeThread.status !== 'error'}
+                    onChangeModel={(model) =>
+                      api.configureThread(
+                        activeThread.id,
+                        model,
+                        defaultReasoning(snapshot, activeThread.provider, model),
+                      )
+                    }
+                    onChangeReasoning={(reasoning) =>
+                      api.configureThread(
+                        activeThread.id,
+                        activeThread.model,
+                        reasoning || undefined,
+                      )
+                    }
+                  />
+                ) : null}
+                <button
+                  type="button"
+                  className={`${styles.inspectorButton} ${app.inspectorOpen ? styles.inspectorButtonActive : ''}`}
+                  onClick={app.toggleInspector}
+                  aria-pressed={app.inspectorOpen}
+                  aria-label="Access"
+                  title="Access"
+                >
+                  <SlidersHorizontal size={16} aria-hidden="true" />
+                  <span>Access</span>
+                </button>
+              </div>
+            }
+          />
         ) : null}
 
         <WorkspaceNotice app={app} />
@@ -179,6 +313,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               </header>
               <div className={styles.activityPageContent}>
                 <TranscriptSearch
+                  focusOnMount={app.activityTarget === 'search'}
                   search={(query) => api.searchThreads(query)}
                   onOpen={(threadId, archived) => {
                     app.closeActivity();
@@ -263,6 +398,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               thread={activeThread}
               agentName={roomAgent?.name}
               agentInitials={roomAgent?.initials}
+              agentHue={roomAgent?.hue}
               loading={app.loading}
               attachments={app.attachments}
               acceptingAttachments={Boolean(activeThread)}

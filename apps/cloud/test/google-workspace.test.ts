@@ -306,4 +306,40 @@ describe('unified Google Workspace OAuth', () => {
       false,
     );
   });
+
+  it('retires a superseded credential locally without revoking its shared Google grant', async () => {
+    const state = new MemoryState();
+    const google = connector(state, async () => {
+      throw new Error('retiring a superseded credential must not call Google');
+    });
+    const createdAt = '2026-08-24T00:00:00.000Z';
+    await state.putGoogleToken({
+      connectionId: 'gw_reader',
+      userId: 'user-upgrade',
+      encryptedRefreshToken: 'sealed-reader',
+      accountLabel: 'person@example.com',
+      grantedScopes: [...GOOGLE_WORKSPACE_READ_SCOPES],
+      createdAt,
+      updatedAt: createdAt,
+    });
+    await state.putGoogleToken({
+      connectionId: 'gw_editor',
+      userId: 'user-upgrade',
+      encryptedRefreshToken: 'sealed-editor',
+      accountLabel: 'person@example.com',
+      grantedScopes: [...GOOGLE_WORKSPACE_WRITE_SCOPES],
+      createdAt,
+      updatedAt: createdAt,
+    });
+
+    await google.retireSuperseded('gw_reader');
+
+    assert.equal(await state.getGoogleToken('gw_reader'), undefined);
+    assert.ok(await state.getGoogleToken('gw_editor'));
+    assert.deepEqual(await google.connectionStatus('gw_editor'), {
+      status: 'connected',
+      accountLabel: 'person@example.com',
+      access: 'read_write',
+    });
+  });
 });

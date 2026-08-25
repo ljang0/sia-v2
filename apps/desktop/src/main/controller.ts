@@ -326,6 +326,10 @@ function isGoogleConnection(id: ConnectionView['id']): boolean {
   return id !== 'slack';
 }
 
+function isConnectorActionTool(name: string): boolean {
+  return /^(?:mail|drive|docs|sheets|slides|slack)_/.test(name);
+}
+
 const INITIAL_STATE: PersistedState = {
   agents: [],
   threads: [],
@@ -409,6 +413,7 @@ export class DesktopController {
   #browserAutoAttach: Promise<void> | undefined;
   #revision = 0;
   #accountDeletionInProgress = false;
+  #cloudParticipant = false;
 
   constructor(options: ControllerOptions) {
     this.#repository = options.repository;
@@ -480,6 +485,19 @@ export class DesktopController {
       });
       this.#stageResearchActionResult(notice);
     };
+  }
+
+  actionToolAvailable(name: string): boolean {
+    if (isConnectorActionTool(name)) {
+      return (
+        this.#fakeServices ||
+        (this.#cloud.configured &&
+          this.#identity.status().state === 'signed_in' &&
+          this.#state.cloudFeatures.connectors)
+      );
+    }
+    if (name.startsWith('schedule_')) return this.#schedulesAvailable();
+    return true;
   }
 
   /** 'auto' runs eligible actions without in-app approval. */
@@ -741,6 +759,7 @@ export class DesktopController {
         auth: this.#cloud.configured ? this.#identity.status().state : 'unconfigured',
         ...(this.#identity.status().email ? { account: this.#identity.status().email } : {}),
         ...(this.#identity.status().admin ? { admin: true } : {}),
+        ...(this.#cloudParticipant ? { participant: true } : {}),
         ...(this.#identity.status().adminMfa ? { adminMfa: true } : {}),
         features: structuredClone(this.#state.cloudFeatures),
       },
@@ -2981,8 +3000,13 @@ export class DesktopController {
     )
       return;
     try {
+      const previousToolAvailability = this.#toolAvailabilitySignature();
       const session = await this.#cloud.sessionStatus();
+      this.#cloudParticipant = session.participant;
       this.#state.cloudFeatures = structuredClone(session.features);
+      if (previousToolAvailability !== this.#toolAvailabilitySignature()) {
+        await this.#runtime?.resetSessions();
+      }
     } catch {
       // Keep the last signed operator policy while offline. Cloud endpoints enforce the current
       // policy independently, so a stale cache cannot re-enable a server-side capability.
@@ -2994,6 +3018,10 @@ export class DesktopController {
       this.#identity.status().state !== 'signed_in' ||
       this.#state.cloudFeatures?.schedules !== false
     );
+  }
+
+  #toolAvailabilitySignature(): string {
+    return `${this.actionToolAvailable('mail_search')}:${this.actionToolAvailable('schedule_list')}`;
   }
 
   async #signOut(): Promise<DesktopSnapshot> {
@@ -3013,7 +3041,9 @@ export class DesktopController {
     }
     await this.#clearResearchForIdentityBoundary();
     await this.#identity.signOut();
+    this.#cloudParticipant = false;
     this.#state.cloudFeatures = structuredClone(INITIAL_STATE.cloudFeatures);
+    await this.#runtime?.resetSessions();
     await this.#refreshMetaProviderState();
     this.#lockConnections('Sign in with the account that created this grant to manage it.');
     this.#commit();
@@ -3394,10 +3424,11 @@ export class DesktopController {
         const status = await this.#cloud.connectionStatus('gmail');
         const remote = status.connections.find(({ id }) => id === expectedId);
         if (remote?.status === 'connected' && remote.access === 'read_write') {
-          // The new grant is usable before the prior credential is removed. This keeps reads
-          // available during consent while ensuring Sia retains only the upgraded credential.
+          // Retire only Sia's encrypted copy of the prior credential. Do not disconnect it from
+          // Google: both refresh tokens may belong to the same authorization grant, so revoking
+          // the old token can invalidate the verified editor replacement as well.
           for (const previousId of previousIds) {
-            await this.#cloud.disconnect('gmail', previousId);
+            await this.#cloud.retireSupersededGoogleConnection(previousId, expectedId);
           }
           for (const id of GOOGLE_CONNECTION_IDS) {
             const connection = this.#state.connections.find((candidate) => candidate.id === id);

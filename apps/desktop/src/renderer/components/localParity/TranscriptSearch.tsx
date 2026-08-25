@@ -6,9 +6,14 @@ import styles from '../../ui.module.css';
 interface TranscriptSearchProps {
   search(query: string): Promise<TranscriptSearchResult[]>;
   onOpen(threadId: string, archived: boolean): void;
+  focusOnMount?: boolean | undefined;
 }
 
-export function TranscriptSearch({ search, onOpen }: TranscriptSearchProps) {
+export function TranscriptSearch({
+  search,
+  onOpen,
+  focusOnMount = false,
+}: TranscriptSearchProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<TranscriptSearchResult[]>([]);
   const labelId = useId();
@@ -37,6 +42,7 @@ export function TranscriptSearch({ search, onOpen }: TranscriptSearchProps) {
       <label className={styles.threadSearch}>
         <MagnifyingGlass size={14} aria-hidden="true" />
         <input
+          autoFocus={focusOnMount}
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}

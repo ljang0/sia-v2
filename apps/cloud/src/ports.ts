@@ -77,6 +77,12 @@ export interface ConnectorProvider {
   connectionStatus(connectionId: string): Promise<ConnectorStatus>;
   validateAccess?(userId: string, connectionId: string, tool: ToolName): Promise<void>;
   disconnect(connectionId: string): Promise<void>;
+  /**
+   * Deletes a superseded local credential without revoking the provider authorization grant.
+   * This is intentionally separate from disconnect: some providers bind multiple refresh tokens
+   * to one grant, so revoking the old token can also invalidate its verified replacement.
+   */
+  retireSuperseded?(connectionId: string): Promise<void>;
   requestFileUpload(
     connectionId: string,
     tool: 'drive.upload',
@@ -303,6 +309,7 @@ export interface IdentityProvider {
     email: string,
     options?: { suppressMessage?: boolean },
   ): Promise<{ subject: string }>;
+  addUserToGroup(email: string, group: 'Participants' | 'ConnectorTesters'): Promise<void>;
   deleteUser(subject: string): Promise<void>;
   hasMfa(email: string): Promise<boolean>;
 }
