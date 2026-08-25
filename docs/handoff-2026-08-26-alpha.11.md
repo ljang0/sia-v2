@@ -4,20 +4,22 @@ _Authoritative continuation state as of 2026-08-26 KST_
 
 ## Current state
 
-The source implementation for the internal research release is complete and locally verified.
+The source implementation for the internal research release is complete, frozen, deployed, and
+signed.
 `alpha.11` makes the release invite-only, separates ordinary participants from connected-app
 acceptance testers, and replaces the previous restrained-but-generic desktop with a more distinct
 companion/room system. The yellowed paper tint identified during visual review has been replaced by
 clean mineral-white surfaces.
 
-This is **not yet a distributable build**. The working tree is uncommitted on top of
-`5a673af48c14485f1b831ae5220b0b7043b02dda`, the AWS changes have not been deployed, cohort
-memberships have not been assigned, and no `alpha.11` app or DMG has been signed/notarized. The
-existing signed `alpha.10` artifact predates these changes.
+The exact source is `ad2c127480a7fb38dd7260b3d1a4ef65be5816d8`, published on `origin/main` and
+tagged `v0.1.0-alpha.11`. The `sia-alpha` stack is updated and drift-free, both release cohorts are
+live, and the universal DMG/ZIP are Developer-ID signed and Apple-notarized. The private,
+content-addressed distribution object was range-tested through a presigned URL.
 
-The live remote `main` is an ancestor of local `main`, which contains 30 unpublished commits before
-the current working-tree changes. Review and publish that complete fast-forward chain deliberately;
-do not pull/rebase the dirty release tree or assume the stale tracking ref proves publication.
+This is ready for operator-only Wave 0 and named internal QA, but it is **not yet approved for
+external research participants**. The release owner must supply the approved email list before any
+cohort assignment; SES production access, clean/upgrade-account acceptance, human voice checks if
+advertised, governance signatures, and the relevant live provider acceptance remain open.
 
 The full evidence and go/no-go list are in
 [`release-evidence-2026-08-26-alpha.11.md`](./release-evidence-2026-08-26-alpha.11.md).
@@ -40,12 +42,10 @@ The full evidence and go/no-go list are in
   [`grok-clean-room-audit-2026-08-26.md`](./grok-clean-room-audit-2026-08-26.md).
 - Palette: deep evergreen dock plus mineral white/sage-neutral rooms. Saffron, coral, sky, and mint
   are identity accents rather than page backgrounds.
-- Tests: real screenshot assertions and nine macOS baseline files replace the prior non-asserting
-  screenshot calls. The baselines are currently part of the uncommitted working tree and must be
-  included intentionally in the freeze commit.
+- Tests: real screenshot assertions and nine committed macOS baseline files replace the prior
+  non-asserting screenshot calls.
 
-The `alpha.10` Google superseded-token fix remains in this working tree and is still required. Do
-not discard it while reviewing or freezing `alpha.11`.
+The required `alpha.10` Google superseded-token fix is included in the frozen `alpha.11` source.
 
 ## Verification already complete
 
@@ -63,24 +63,29 @@ not discard it while reviewing or freezing `alpha.11`.
 - Read-only live probes: Codex isolation, Codex no-turn, and macOS computer-use permission checks
   passed. Signed-in Chrome attach remains open.
 - SAM lint: `infra/template.yaml` is valid.
+- AWS: `sia-alpha` is `UPDATE_COMPLETE`; drift detection reports `IN_SYNC` with zero drifted
+  resources; all 15 alarms are `OK` with actions enabled.
+- Invite boundary: an unknown-address production probe returned generic acceptance and created no
+  Cognito user.
+- Public site: synchronized to the private origin and invalidated through CloudFront.
+- Exact artifact: universal app and DMG passed deep code-sign verification, Gatekeeper, Apple
+  notarization, and staple validation. DMG SHA-256 is
+  `a53e767aa21917c6aeb12ee69f6bf4bef299a3073665e5e9dd4f96b652b147f8`; ZIP SHA-256 is
+  `6e9b1a7c8e79a4210b93ec1b3edbf08a04d079737eccd81bd571b7cc04abb96c`.
+- Distribution: private encrypted/versioned S3 object plus a tested seven-day presigned-link
+  workflow. The bearer URL is never committed.
 
 ## Next operator actions, in order
 
-1. Review `git diff` carefully because it combines the intended `alpha.10` Google fix and this
-   `alpha.11` release pass. Confirm no unrelated user changes are included.
-2. Freeze the exact source in the private repository and record the commit in the release evidence.
-   The current local history is 30 unpublished commits ahead of the live remote before the final
-   freeze commit; review and push that entire fast-forward chain.
-3. Review and deploy the CloudFormation change set. Confirm no retained resource replacement. The
-   current deployed stack has only `Admins`; the two release cohorts are not live.
-4. Assign the approved named recipients to `Participants`, and only the approved connector subset
+1. Obtain the approved named recipient list. Assign those recipients to `Participants`, and only
+   the separately approved connector subset
    to `ConnectorTesters`; run the disposable identity matrix in the evidence file.
-5. Close SES production delivery, admin/research lifecycle, alarms, clean-profile, and human
+2. Close SES production delivery, admin/research lifecycle, clean/upgrade-profile, and human
    sign-off gates before participant-only Wave 1. Close exact Google/Slack live acceptance before
    adding the separate ConnectorTester Wave 2 cohort.
-6. Package from the frozen source with `pnpm package:mac`; verify signing, notarization, stapling,
-   architecture, packaged cloud config, licenses, CUA, and MCP bridge. Record final hashes.
-7. Run wave 0, then the participant-only wave 1. Do not open connector access until its separate
+3. Send only the private expiring link and recorded SHA-256 through the approved participant
+   channel. Rotate the link if it escapes the recipient list.
+4. Run wave 0, then the participant-only wave 1. Do not open connector access until its separate
    acceptance matrix passes.
 
 ## Important operational cautions
@@ -97,10 +102,10 @@ not discard it while reviewing or freezing `alpha.11`.
   macOS computer-use permissions passed; signed-in Chrome attach and the real capability turn
   remain open.
 - Do not use the manual GitHub signed-release job until an administrator creates/protects its
-  missing `alpha-release` environment and installs the required environment secrets. The secured
-  local Mac remains a viable explicit release path.
-- Do not claim `alpha.11` is signed, notarized, deployed, or institutionally approved until the
-  corresponding evidence exists.
+  missing `alpha-release` environment and installs the required environment secrets. This release
+  deliberately used the secured local Mac.
+- Do not claim `alpha.11` is institutionally or participant-approved until the signed human records
+  exist, even though its source, cloud stack, artifact, and private delivery path are now complete.
 
 ## Useful references
 

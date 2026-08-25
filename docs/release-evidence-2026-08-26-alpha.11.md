@@ -4,27 +4,47 @@ _Prepared 2026-08-26 KST_
 
 ## Decision
 
-The `alpha.11` source candidate is ready for controlled internal QA, but it is **not yet approved
-for participant distribution**. Local builds, unit/integration checks, the fake-service Electron
-suite, accessibility checks, visual regression, strict parity, and SAM lint all pass. The deployed
-AWS stack, named Cognito cohort memberships, signed/notarized artifact, live provider checks, and
-human research approvals have not been refreshed for this source and remain hard gates.
+The exact `alpha.11` source is frozen, published, tagged, deployed, signed, notarized, stapled,
+Gatekeeper-assessed, and available through a tested private expiring-link path. Automated local and
+cloud engineering gates pass. The build is ready for operator-only Wave 0 and for named internal QA
+after the release owner supplies the approved recipient list.
 
-Do not distribute an older `alpha.10` artifact as `alpha.11`; it does not contain the cohort
-enforcement or the redesigned interface described below.
+It is **not yet approved for external research-participant distribution**. Cohort membership must
+not be inferred from existing accounts, SES production access remains denied, the exact approved
+recipient list has not been supplied, and the human research/governance and advertised-capability
+checks remain unsigned. Google and Slack acceptance remain separate gates for ConnectorTester Wave
+2, not for participant-only Wave 1.
 
 ## Source state
 
 - Version: `0.1.0-alpha.11` in the root and desktop package manifests.
-- Base commit: `5a673af48c14485f1b831ae5220b0b7043b02dda`.
-- Exact source identity: **not frozen**. The intended `alpha.10` work and the `alpha.11` changes are
-  still uncommitted in this working tree.
-- Publication: local `main` contains 30 commits not present on the live remote `main`; the remote is
-  an ancestor, so the reviewed history plus the eventual freeze commit must be pushed as one
-  intentional fast-forward. Do not rely on the stale tracking-ref status alone.
-- Distribution artifact: **not built or signed** for `alpha.11`.
+- Exact source identity: `ad2c127480a7fb38dd7260b3d1a4ef65be5816d8`.
+- Publication: source is on `origin/main`; annotated tag `v0.1.0-alpha.11` points to that exact
+  commit and records both distribution hashes.
+- Packaging path: secured local Mac, using the Developer ID identity and Keychain-held
+  `notarytool-profile`. The absent GitHub `alpha-release` environment is therefore not part of this
+  release's trust path.
 - Previous signed rollback artifact: `0.1.0-alpha.10`; its hashes and notarization records remain in
   [`handoff-2026-08-26-alpha.10.md`](./handoff-2026-08-26-alpha.10.md).
+
+## Signed distribution artifacts
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `Sia-0.1.0-alpha.11-universal.dmg` | 257,703,747 | `a53e767aa21917c6aeb12ee69f6bf4bef299a3073665e5e9dd4f96b652b147f8` |
+| `Sia-0.1.0-alpha.11-universal.zip` | 257,030,917 | `6e9b1a7c8e79a4210b93ec1b3edbf08a04d079737eccd81bd571b7cc04abb96c` |
+
+- Signing identity: `Developer ID Application: Lawrence Jang (DXYJ578DD4)`.
+- App bundle identifier: `ai.sia.desktop`; signed app CDHash
+  `fcf2f3341d5ce782f0da36883bcc9b39bd34168b`.
+- App notarization: `47daf657-1355-49d5-8ccd-f38751804ed2`, accepted.
+- DMG notarization: `99f239e5-6544-4b7f-a31a-a363775757c9`, accepted.
+- Deep codesign validation, app and DMG Gatekeeper assessment, DMG staple validation, universal
+  architecture, packaged cloud configuration, license inventory, CUA packaging, and MCP bridge
+  verification passed.
+- Both immutable content-addressed objects are stored in the private, encrypted, versioned release
+  bucket. A seven-day DMG URL was generated and a separate short-lived URL returned HTTP 206 for a
+  1,024-byte range. The bearer URL is deliberately not committed to this repository.
 
 ## Implemented release boundary
 
@@ -111,48 +131,49 @@ Current reproducible Lambda bundle hashes:
 | deletion | `f20b37a3566f709f0bfade155ce09ccdd965702570445a8c4e68ffdfa89c98de` |
 | export | `d5c2d631eeb1f8320fa62fc0dc2752106e4a851b425fc1b3d64dcd5b7bb30077` |
 
-These hashes describe local bundles only; they are not a claim about the currently deployed stack.
+These hashes describe the reproducible Lambda inputs packaged from the frozen source.
 
-## Read-only live environment observations
+## Live environment evidence
 
-Observed on 2026-08-26 KST without changing AWS or GitHub state:
+Observed and exercised on 2026-08-26 KST:
 
-- CloudFormation stack `sia-alpha` reports `UPDATE_COMPLETE`, and all 15 CloudWatch alarms are `OK`
-  with actions enabled. The alarm topic has a confirmed email subscription.
-- The deployed stack predates `alpha.11`: Cognito contains `Admins`, but neither `Participants` nor
-  `ConnectorTesters`; deployed control IAM also lacks `AdminAddUserToGroup`. Three enabled users
-  exist and none has the new cohort assignment.
+- CloudFormation stack `sia-alpha` reports `UPDATE_COMPLETE`. The reviewed change set added
+  `Participants`, `ConnectorTesters`, the private release bucket and bucket policy, plus the narrow
+  `AdminAddUserToGroup` permission without replacing retained resources.
+- Drift detection `b0d44670-a0c1-11f1-bf29-129b37054889` completed `IN_SYNC` with zero drifted
+  resources.
+- The deployed control role limits `AdminCreateUser`, `AdminGetUser`, and `AdminAddUserToGroup` to
+  Cognito pool `us-east-1_D3F7ENYT5`.
+- All 15 CloudWatch alarms are `OK` with actions enabled. The alarm topic has a confirmed email
+  subscription.
+- A unique unknown-address registration probe returned the enumeration-resistant `202`
+  `{ "accepted": true }` response, while `AdminGetUser` failed before and after the request: no
+  Cognito identity was created.
+- The release bucket blocks all public access, reports `IsPublic: false`, uses AES-256 encryption,
+  has versioning enabled, expires superseded versions after 30 days, and aborts incomplete uploads.
 - SES reports `ProductionAccessEnabled: false`; the stack uses `COGNITO_DEFAULT`, with no configured
-  SES source ARN or From address. This does not satisfy the monitored delivery gate.
-- The local Developer ID identity and `notarytool-profile` are usable. Release preflight passes when
-  supplied the known cloud outputs, and the preserved signed `alpha.10` rollback artifacts still
-  pass hash, codesign, Gatekeeper, and stapling checks. No `alpha.11` artifact has been created.
-- The workflow references a protected `alpha-release` GitHub environment, but the repository
-  currently has no environments or environment-scoped release secrets. The manual signed-release
-  job will fail preflight until an administrator creates/protects that environment and adds the
-  seven required secrets, or the release is explicitly run on the secured local Mac.
+  SES source ARN or From address. The verified `superintelligentagents.ai` identity is healthy, but
+  AWS previously denied production access; a repeat CLI request returned `ConflictException`.
+- The coordinated public site was rebuilt, synchronized to its private origin, and invalidated
+  through CloudFront distribution `E3MFZH4OWO2B9C`.
 - Real no-turn probes passed for Codex authentication and macOS computer-use permissions. Real
   Codex runtime isolation also passed. Signed-in Chrome attach remains unrun because no intended
   visible Chrome window was selected.
 
 ## Required deployment and cohort rehearsal
 
-Complete these steps against the intended AWS account before packaging:
+Complete the remaining human/cohort steps against the deployed stack before participant release:
 
-1. Review the CloudFormation change set. It must add the two Cognito groups and the single
-   `cognito-idp:AdminAddUserToGroup` permission without replacing the user pool or retained data.
-2. Deploy the validated template with `InviteLimit=20`. Confirm stack `UPDATE_COMPLETE`, drift
-   `IN_SYNC`, all alarm actions enabled, and every alarm `OK` after the observation window.
-3. Add every approved named recipient to `Participants`. Add only the smaller acceptance list to
+1. Add every approved named recipient to `Participants`. Add only the smaller acceptance list to
    `ConnectorTesters`. Do not infer cohort membership from an existing account.
-4. Using disposable addresses, verify:
-   - an unknown email receives the generic registration response and creates no Cognito user;
+2. Using disposable approved addresses, verify:
+   - the already-passing unknown-email no-identity result remains stable;
    - a named invitation activates and receives `Participants`;
    - a participant can use core research/Meta/schedules but cannot start Google or Slack;
    - a connector tester can start and execute connectors;
    - removing `ConnectorTesters` removes connector tools on the next session refresh;
    - both cohorts can still disconnect an existing grant.
-5. Re-run admin MFA, invite, archive, export, research deletion, account deletion, outbox recovery,
+3. Re-run admin MFA, invite, archive, export, research deletion, account deletion, outbox recovery,
    feature-switch, and alarm probes on the deployed source.
 
 ## Rollout shape
@@ -169,12 +190,16 @@ Complete these steps against the intended AWS account before packaging:
 
 ## Open gates before participant distribution
 
-- **Source/artifact:** review and commit the exact source, record the commit, build `alpha.11` with
-  the release cloud configuration, then sign, notarize, staple, Gatekeeper-assess, and hash both the
-  app and DMG. Test the exact artifact on clean and upgrade macOS profiles.
-- **AWS/cohorts:** deploy this template and complete the cohort rehearsal above.
+- **Approved recipients/cohorts:** supply the exact approved email list, assign only those people,
+  and complete the named-invite/participant/connector-tester/removal matrix. Existing accounts are
+  not evidence of approval.
+- **Exact artifact profiles:** install the signed DMG on clean and upgrade macOS accounts and run the
+  short acceptance pass. Packaging, signing, notarization, Gatekeeper, stapling, cloud config and
+  the private download path already pass.
 - **Email:** Cognito still needs monitored SES production delivery plus an unrelated-domain
-  passwordless-code test. A default-sender success is not broad-release evidence.
+  passwordless-code test. AWS denied the prior production-access request and a new CLI request
+  conflicts with that closed request, so this now requires AWS support/console review rather than a
+  repository change.
 - **Google, before ConnectorTester Wave 2:** finish fresh read-only consent, bounded reads, editor
   upgrade, draft/Doc/Sheet/Slides write and read-back, revoke/reconnect, metadata-only audit review,
   reviewer video, verification, and any required CASA work. Never bypass Google's warning through
@@ -186,12 +211,13 @@ Complete these steps against the intended AWS account before packaging:
   [`research-release-signoff.md`](./research-release-signoff.md) is still blank.
 - **Voice:** complete a human microphone/playback check on the exact signed artifact. Voice is not a
   release gate unless it is advertised to the participant cohort; otherwise label it experimental.
-- **Live probes:** Codex isolation, Codex no-turn, and macOS permission probes pass on this Mac.
-  Re-run them against the frozen build; signed-in Chrome attach and the real capability turn remain
-  open. Deterministic-suite skips are intentional and are not evidence of completion.
-- **Release automation:** create and protect the `alpha-release` GitHub environment with its seven
-  signing/cloud secrets, or record the explicit decision to package on the already-provisioned
-  secured local Mac. Do not remove the workflow environment boundary to make the job green.
+- **Live probes:** Codex isolation, Codex no-turn, and macOS permission probes pass against the
+  frozen source on this Mac. Signed-in Chrome attach remains open because Chrome currently has no
+  visible window to select; the real capability turn also remains open. Deterministic-suite skips
+  are intentional and are not evidence of completion.
+- **Release automation follow-up:** the secured-local-Mac path produced this exact release. Create
+  and protect the GitHub `alpha-release` environment before relying on CI for a later release; do
+  not remove the workflow environment boundary to make the job green.
 
-Until those gates close, describe `alpha.11` as a locally verified internal QA candidate—not a
-signed, deployed, or participant-approved release.
+Until the human and recipient-specific gates close, describe `alpha.11` as a signed, deployed
+operator/internal-QA build—not a participant-approved research release.
