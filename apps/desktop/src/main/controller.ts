@@ -95,6 +95,8 @@ interface ControllerOptions {
   trajectory?: TrajectoryRecorder;
   /** Runs a read-only shell command (lsof); injectable for tests. */
   runCommand?: (file: string, args: readonly string[]) => Promise<string>;
+  /** Provider discovery boundary; production uses the real CLI probe. */
+  providerProbe?: typeof probeProviders;
   /** One-click capability unlock helpers; absent in unit tests that do not use them. */
   capabilitySetup?: {
     messagesStatus(): 'ready' | 'needs_full_disk_access' | 'unavailable';
@@ -430,6 +432,7 @@ export class DesktopController {
   readonly #trajectory: TrajectoryRecorder | undefined;
   readonly #capabilitySetup: ControllerOptions['capabilitySetup'];
   readonly #runCommand: (file: string, args: readonly string[]) => Promise<string>;
+  readonly #providerProbe: typeof probeProviders;
   #messagesAccess: 'ready' | 'needs_full_disk_access' | 'unavailable' | undefined;
   #chromeConnection: 'enabled' | 'off' | 'unavailable' | undefined;
   readonly #revealDirectory: ((path: string) => Promise<void>) | undefined;
@@ -450,6 +453,7 @@ export class DesktopController {
     this.#trajectory = options.trajectory;
     this.#capabilitySetup = options.capabilitySetup;
     this.#runCommand = options.runCommand ?? defaultRunCommand;
+    this.#providerProbe = options.providerProbe ?? probeProviders;
     this.#revealDirectory = options.revealDirectory;
     this.#openMessages = options.openMessages;
     this.#chooseDirectory = options.chooseDirectory;
@@ -773,7 +777,7 @@ export class DesktopController {
       // Fake-services mode must not inspect or depend on host CLI installs or
       // authentication. An empty PATH produces deterministic placeholder views;
       // Codex is replaced with the explicit fake runtime below.
-      this.#fakeServices ? probeProviders(undefined, { PATH: '' }) : probeProviders(),
+      this.#fakeServices ? probeProviders(undefined, { PATH: '' }) : this.#providerProbe(),
       this.#computer.permissions(),
       this.#identity.initialize(),
     ]);
@@ -2600,7 +2604,7 @@ export class DesktopController {
   }
 
   async #probeProviders(providerId?: ProviderId): Promise<DesktopSnapshot> {
-    const updated = await probeProviders(providerId);
+    const updated = await this.#providerProbe(providerId);
     if (providerId) {
       const value = updated[0];
       if (value) {

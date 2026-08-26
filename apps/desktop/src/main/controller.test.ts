@@ -3,6 +3,7 @@ import { ActionGateway, getActionToolDescriptor } from '@sia/action-gateway';
 
 import { CloudClient } from './cloud-client.js';
 import { DesktopController } from './controller.js';
+import { probeProviders } from './provider-probe.js';
 import {
   PlaintextTestCipher,
   type RecordRepository,
@@ -47,6 +48,7 @@ async function createHarness(
     identity?: ConstructorParameters<typeof DesktopController>[0]['identity'];
     computer?: ConstructorParameters<typeof DesktopController>[0]['computer'];
     runCommand?: (file: string, args: readonly string[]) => Promise<string>;
+    providerProbe?: ConstructorParameters<typeof DesktopController>[0]['providerProbe'];
     openExternal?: (url: string) => Promise<void>;
     openMessages?: () => Promise<void>;
     repository?: RecordRepository;
@@ -89,12 +91,31 @@ async function createHarness(
     exportJson: async () => '/tmp/export.json',
     ...(options.capabilitySetup ? { capabilitySetup: options.capabilitySetup } : {}),
     ...(options.runCommand ? { runCommand: options.runCommand } : {}),
+    ...(options.providerProbe
+      ? { providerProbe: options.providerProbe }
+      : options.fakeServices === false
+        ? { providerProbe: deterministicProviderProbe }
+        : {}),
     ...(options.trajectory ? { trajectory: options.trajectory } : {}),
   });
   await controller.initialize();
   await controller.invoke('settings.openDirectory', undefined);
   if (options.runtime) controller.attachRuntime(options.runtime as never);
   return { controller, repository };
+}
+
+async function deterministicProviderProbe(providerId?: Parameters<typeof probeProviders>[0]) {
+  const providers = await probeProviders(providerId, { PATH: '' });
+  return providers.map((provider) =>
+    provider.id === 'codex'
+      ? {
+          ...provider,
+          status: 'ready' as const,
+          version: '0.147.0',
+          account: 'Authenticated test account',
+        }
+      : provider,
+  );
 }
 
 async function createController(): Promise<DesktopController> {

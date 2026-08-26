@@ -21,8 +21,10 @@ download path.
 - Exact signed application source: `0ec2e8422b2a45d422d9a2e83c2b20665d8d413e`.
 - Publication: pushed to `origin/main`; annotated tag `v0.1.0-alpha.13` points to the exact signed
   application source and records both distribution hashes.
-- A later documentation/workflow-only commit installs Electron explicitly on fresh GitHub runners.
-  It does not change the packaged application runtime represented by the tag.
+- Later follow-up commits install Electron explicitly on fresh GitHub runners and expose provider
+  discovery as a test boundary so unit tests do not depend on the runner's Codex installation.
+  Production still defaults to the real CLI probe; the signed application runtime is represented by
+  the tag above.
 - Clean-room boundary and adopted interaction patterns are recorded in
   [`grok-clean-room-audit-2026-08-26.md`](./grok-clean-room-audit-2026-08-26.md).
 
