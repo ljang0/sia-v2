@@ -65,6 +65,8 @@ export interface ScheduleActionHost {
 export interface DesktopActionBackendOptions {
   readonly cua: CuaToolCaller;
   readonly cloud?: CloudActionClient;
+  /** Opens one explicitly supported non-sensitive macOS application. */
+  readonly openApplication?: (application: 'notes') => Promise<void>;
   /** Must match the trusted browser-attachment session owned by the controller. */
   readonly browserSessionId?: string;
   /** Optional host policy layered on top of the CUA attachment grant. */
@@ -271,6 +273,7 @@ export async function sweepStaleBrowserVaults(
 export class DesktopActionBackend implements ActionBackend {
   readonly #cua: CuaToolCaller;
   readonly #cloud: CloudActionClient | undefined;
+  readonly #openApplication: DesktopActionBackendOptions['openApplication'];
   #browserSessionId: string;
   readonly #isBrowserOriginAllowed: ((origin: string) => boolean) | undefined;
   readonly #ensureBrowserAttached: (() => Promise<string | undefined>) | undefined;
@@ -302,6 +305,7 @@ export class DesktopActionBackend implements ActionBackend {
   constructor(options: DesktopActionBackendOptions) {
     this.#cua = options.cua;
     this.#cloud = options.cloud;
+    this.#openApplication = options.openApplication;
     this.#browserSessionId = options.browserSessionId ?? 'sia-browser';
     this.#isBrowserOriginAllowed = options.isBrowserOriginAllowed;
     this.#ensureBrowserAttached = options.ensureBrowserAttached;
@@ -416,6 +420,8 @@ export class DesktopActionBackend implements ActionBackend {
       switch (request.name) {
         case 'computer_list':
           return await this.#computerList(request);
+        case 'computer_open_app':
+          return await this.#computerOpenApp(request);
         case 'computer_snapshot':
           return await this.#computerSnapshot(request);
         case 'computer_action':
@@ -679,6 +685,21 @@ export class DesktopActionBackend implements ActionBackend {
       verification: {
         evidence: 'Read directly from the current WindowServer and app inventory.',
       },
+    };
+  }
+
+  async #computerOpenApp(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
+    const application = requiredString(request.arguments.application, 'application');
+    if (application !== 'notes' || !this.#openApplication) {
+      return refused('Apple Notes cannot be opened in this build.');
+    }
+    await this.#openApplication(application);
+    this.#resetComputerCapabilities();
+    return {
+      outcome: 'verified',
+      summary:
+        'Opened Apple Notes. Call computer_list for a fresh window grant before continuing.',
+      verification: { evidence: 'The trusted desktop host launched com.apple.Notes.' },
     };
   }
 

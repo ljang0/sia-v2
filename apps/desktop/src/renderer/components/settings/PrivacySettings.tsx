@@ -32,17 +32,21 @@ export function PrivacySettings({
   const [error, setError] = useState<string>();
   const paused = snapshot.research.capture === 'paused';
   const blocked = snapshot.research.capture === 'blocked';
-  const researchRequired = snapshot.cloudAuth.state === 'signed-in';
+  const researchRequired =
+    snapshot.cloudAuth.state === 'signed-in' &&
+    snapshot.cloudAuth.features?.researchUploads !== false;
   const uploadsPaused = snapshot.cloudAuth.features?.researchUploads === false;
-  const captureLabel = !snapshot.research.consented
-    ? 'Not enabled'
-    : snapshot.research.capture === 'sync-pending'
-      ? 'Sync pending'
-      : blocked
-        ? 'Action required'
-        : paused
-          ? 'Paused'
-          : 'Recording';
+  const captureLabel = uploadsPaused
+    ? 'Not available'
+    : !snapshot.research.consented
+      ? 'Not enabled'
+      : snapshot.research.capture === 'sync-pending'
+        ? 'Sync pending'
+        : blocked
+          ? 'Action required'
+          : paused
+            ? 'Paused'
+            : 'Recording';
 
   const run = async (kind: 'capture' | 'export', action: () => Promise<void>) => {
     setPending(kind);
@@ -66,10 +70,10 @@ export function PrivacySettings({
         <div className={styles.inlineWarning} role="status">
           <WarningCircle size={15} aria-hidden="true" />
           <div>
-            <strong>Cloud research uploads are paused</strong>
+            <strong>Research is not enabled for this account</strong>
             <p>
-              New records remain encrypted on this Mac and will sync after the service is
-              re-enabled.
+              Sia does not record or upload research while this operator or model-tester account
+              is signed in.
             </p>
           </div>
         </div>
@@ -96,7 +100,9 @@ export function PrivacySettings({
             is not used for model training.
           </p>
         </div>
-        {!snapshot.research.consented ? (
+        {uploadsPaused ? (
+          <span className={styles.stateLabel}>Not enabled for this account</span>
+        ) : !snapshot.research.consented ? (
           <ResearchConsentDialog
             cloudAvailable={snapshot.cloudAuth.state !== 'unconfigured'}
             researchRequired={researchRequired}

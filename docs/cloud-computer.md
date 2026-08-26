@@ -26,7 +26,7 @@ Remote execution is a separate product boundary, not a deployment toggle. The fi
 - Preserve one encrypted workcell per user across tasks. A task may stop compute, but stopping must not silently erase project files or the approved browser profile.
 - Give the cloud browser its own profile. It must never copy cookies or credentials from local Chrome. The user signs into each approved site once through a short-lived, authenticated viewing session.
 - Keep credentials behind a host-side broker. Providers and model-visible tools receive scoped capabilities, never cloud credentials, cookie stores, or a generic secret API.
-- Reuse the same 26 canonical action tools and approval semantics. Do not expose a VM shell, raw browser protocol, cookie API, arbitrary JavaScript execution, or visualization tool as a Sia action.
+- Reuse the same canonical action tools and approval semantics. Do not expose a VM shell, raw browser protocol, cookie API, arbitrary JavaScript execution, or visualization tool as a Sia action.
 - Make background and foreground behavior explicit. Scheduled work may use connectors and verified background browser actions; a step that needs visible takeover waits for the user instead of guessing.
 - Provide pause, resume, export, and verified deletion for the workcell, disk snapshots, browser profile, logs, backups, connected apps, and identity.
 - Meter compute time, persistent storage, browser streaming, egress, connector calls, and model usage separately. Show an estimated ceiling before enabling an always-on or scheduled workcell.

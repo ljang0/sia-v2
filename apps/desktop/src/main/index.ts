@@ -250,6 +250,10 @@ async function performApplicationCreation(): Promise<void> {
     const actionBackend = new DesktopActionBackend({
       cua: computer,
       cloud,
+      openApplication: async (application) => {
+        const bundleId = { notes: 'com.apple.Notes' }[application];
+        await execFileAsync('/usr/bin/open', ['-b', bundleId]);
+      },
       messages: messagesService,
       openFullDiskAccessSettings: async () => {
         await shell.openExternal(

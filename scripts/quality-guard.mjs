@@ -12,6 +12,7 @@ const expectedActionTools = [
   'computer_list',
   'computer_snapshot',
   'computer_action',
+  'computer_open_app',
   'browser_tabs',
   'browser_snapshot',
   'browser_navigate',

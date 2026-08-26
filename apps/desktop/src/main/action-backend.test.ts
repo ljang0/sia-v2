@@ -76,6 +76,22 @@ async function grantedComputerTarget(
 }
 
 describe('DesktopActionBackend computer boundary', () => {
+  it('opens Apple Notes through the trusted host before requesting fresh window ids', async () => {
+    const openApplication = vi.fn(async () => undefined);
+    const backend = new DesktopActionBackend({
+      cua: fakeCua(async () => ({})),
+      openApplication,
+    });
+
+    const result = await backend.invoke(request('computer_open_app', { application: 'notes' }));
+
+    expect(result).toMatchObject({
+      outcome: 'verified',
+      summary: expect.stringContaining('Opened Apple Notes'),
+    });
+    expect(openApplication).toHaveBeenCalledWith('notes');
+  });
+
   it('keeps a live computer grant usable for a slow model turn and expires it after ten minutes', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     try {

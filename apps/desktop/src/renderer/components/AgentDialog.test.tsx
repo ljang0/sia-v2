@@ -71,6 +71,52 @@ describe('agent defaults', () => {
     );
   });
 
+  it('moves an untouched new agent to Meta when cloud access becomes ready', async () => {
+    const unavailable = demoSnapshot.providers.map((provider) => ({
+      ...provider,
+      status:
+        provider.id === 'codex'
+          ? ('needs-install' as const)
+          : provider.id === 'meta'
+            ? ('needs-login' as const)
+            : ('disabled' as const),
+    }));
+    const view = render(
+      <AgentDialog
+        open
+        providers={unavailable}
+        onOpenChange={vi.fn()}
+        onPickWorkspace={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+
+    expect(
+      (screen.getByRole('combobox', { name: 'Provider' }) as HTMLSelectElement).value,
+    ).toBe('codex');
+
+    view.rerender(
+      <AgentDialog
+        open
+        providers={unavailable.map((provider) =>
+          provider.id === 'meta' ? { ...provider, status: 'ready' as const } : provider,
+        )}
+        onOpenChange={vi.fn()}
+        onPickWorkspace={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(
+        (screen.getByRole('combobox', { name: 'Provider' }) as HTMLSelectElement).value,
+      ).toBe('meta'),
+    );
+    expect((screen.getByRole('textbox', { name: /^Model\b/ }) as HTMLInputElement).value).toBe(
+      'super_nova_ext',
+    );
+  });
+
   it('blocks agent creation until a missing provider is installed and rechecked', () => {
     const providers = demoSnapshot.providers.map((provider) => ({
       ...provider,
@@ -90,7 +136,7 @@ describe('agent defaults', () => {
     expect(screen.getByText('Not installed')).toBeTruthy();
     expect(screen.getByText(/Install Codex, then recheck/)).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Open install guide' }).getAttribute('href')).toBe(
-      'https://developers.openai.com/codex/cli/',
+      'https://learn.chatgpt.com/docs/codex/cli',
     );
     expect(
       (screen.getByRole('button', { name: 'Set up provider first' }) as HTMLButtonElement)

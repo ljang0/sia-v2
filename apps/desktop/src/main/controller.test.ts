@@ -1442,6 +1442,112 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('keeps internal operators out of research capture and leaves hosted Meta usable', async () => {
+    const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+    const acceptedAt = new Date().toISOString();
+    repository.put('desktop', 'state', {
+      agents: [],
+      threads: [],
+      timeline: [],
+      approvals: [],
+      connections: [],
+      capture: {
+        status: 'recording',
+        pendingCount: 1,
+        consentVersion: 'alpha-research-v3-raw',
+        consentAcceptedAt: acceptedAt,
+        promptReviewedVersion: 'alpha-research-v3-raw',
+      },
+      browser: { status: 'detached', grantedOrigins: [] },
+      connectionOwners: {},
+      schedules: [],
+      cloudFeatures: {
+        researchUploads: true,
+        researchArchive: false,
+        connectors: true,
+        schedules: true,
+      },
+      preferences: { completionSound: false },
+      usageByTurn: {},
+    });
+    repository.put('research', 'operator-batch', {
+      batchId: 'operator-batch',
+      syncEligible: true,
+      format: 'raw_v1',
+      consent: {
+        version: 'alpha-research-v3-raw',
+        acceptedAt,
+        purpose: 'research_evaluation_debugging',
+      },
+      events: [],
+    });
+    repository.put('research_sync', 'operator-batch', {
+      batchId: 'operator-batch',
+      synced: false,
+    });
+    const uploadResearchBatch = vi.fn(async () => undefined);
+    const cloud = {
+      configured: true,
+      sessionStatus: async () => ({
+        admin: false,
+        participant: false,
+        features: {
+          researchUploads: false,
+          researchArchive: false,
+          connectors: false,
+          schedules: false,
+        },
+      }),
+      capabilities: async () => ({
+        available: true,
+        models: ['super_nova_ext'],
+        streaming: true,
+        tools: true,
+      }),
+      uploadResearchBatch,
+    } as unknown as CloudClient;
+    const identity = {
+      initialize: async () => ({ state: 'signed_in' as const, email: 'operator@example.com' }),
+      status: () => ({ state: 'signed_in' as const, email: 'operator@example.com' }),
+      startEmailSignIn: async () => ({ state: 'signed_in' as const }),
+      completeEmailSignIn: async () => ({ state: 'signed_in' as const }),
+      signOut: async () => ({ state: 'signed_out' as const }),
+    } satisfies ConstructorParameters<typeof DesktopController>[0]['identity'];
+
+    const { controller } = await createHarness({
+      cloud,
+      identity,
+      fakeServices: false,
+      repository,
+    });
+
+    expect(controller.snapshot().capture).toEqual({ status: 'not_consented', pendingCount: 0 });
+    expect(repository.list<ResearchBatchView>('research')).toMatchObject([
+      { batchId: 'operator-batch', syncEligible: false },
+    ]);
+    expect(uploadResearchBatch).not.toHaveBeenCalled();
+    expect(controller.snapshot().providers.find(({ id }) => id === 'meta')).toMatchObject({
+      status: 'ready',
+      model: 'super_nova_ext',
+    });
+    await expect(
+      controller.invoke('research.setCapture', {
+        enabled: true,
+        consentVersion: 'alpha-research-v3-raw',
+      }),
+    ).rejects.toThrow('not enabled for this Sia account');
+    await expect(
+      controller.invoke('agents.save', {
+        name: 'Internal model tester',
+        instructions: '',
+        provider: 'meta',
+        model: 'super_nova_ext',
+        workspace: '/tmp/sia-workspace',
+      }),
+    ).resolves.toMatchObject({ agentId: expect.any(String) });
+    await controller.shutdown();
+  });
+
   it('persists a completed local text turn without making it cloud-sync eligible', async () => {
     const { controller, repository } = await createHarness();
     await controller.invoke('research.setCapture', {
@@ -3716,6 +3822,10 @@ describe('DesktopController', () => {
 
   it('marks Meta ready only after an authenticated live capability probe', async () => {
     let state: 'signed_out' | 'signed_in' = 'signed_out';
+    const refreshSession = vi.fn(async () => ({
+      state: 'signed_in' as const,
+      email: 'person@example.com',
+    }));
     const identity = {
       initialize: async () => ({ state }),
       status: () =>
@@ -3725,6 +3835,7 @@ describe('DesktopController', () => {
         state = 'signed_in';
         return { state, email: 'person@example.com' };
       },
+      refreshSession,
       signOut: async () => {
         state = 'signed_out';
         return { state };
@@ -3775,6 +3886,8 @@ describe('DesktopController', () => {
           headers: expect.objectContaining({ authorization: 'Bearer test-id-token' }),
         }),
       );
+      await controller.invoke('providers.probe', { providerId: 'meta' });
+      expect(refreshSession).toHaveBeenCalledOnce();
       await controller.shutdown();
     } finally {
       vi.unstubAllGlobals();

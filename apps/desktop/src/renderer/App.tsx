@@ -114,6 +114,9 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   const { api, snapshot, run } = app;
   const selectedAgent = snapshot.agents.find((agent) => agent.id === snapshot.selectedAgentId);
   const activeThread = snapshot.activeThread;
+  const signedInResearchRequired =
+    snapshot.cloudAuth.state === 'signed-in' &&
+    snapshot.cloudAuth.features?.researchUploads !== false;
   // The room belongs to whoever owns the visible thread; otherwise to the selected agent.
   const roomAgent =
     (activeThread && snapshot.agents.find((agent) => agent.id === activeThread.agentId)) ??
@@ -601,19 +604,19 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
           onDelete={(confirmation) => api.deleteCloudAccount(confirmation)}
         />
       ) : null}
-      {(snapshot.cloudAuth.state === 'signed-in' ||
+      {(signedInResearchRequired ||
         (snapshot.cloudAuth.state === 'unconfigured' && snapshot.agents.length > 0)) &&
       !snapshot.research.consented &&
       snapshot.research.promptReviewedVersion !== RESEARCH_CONSENT_VERSION ? (
         <ResearchConsentDialog
           autoOpen
           cloudAvailable={snapshot.cloudAuth.state !== 'unconfigured'}
-          researchRequired={snapshot.cloudAuth.state === 'signed-in'}
+          researchRequired={signedInResearchRequired}
           showTrigger={false}
           onAccept={() => api.setCapturePaused(false)}
           onDecline={async () => {
             await api.declineResearchConsent();
-            if (snapshot.cloudAuth.state === 'signed-in') await api.signOutCloud();
+            if (signedInResearchRequired) await api.signOutCloud();
           }}
         />
       ) : null}

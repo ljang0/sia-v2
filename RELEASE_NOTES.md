@@ -1,8 +1,22 @@
-# Sia 0.1.0-alpha.14
+# Sia 0.1.0-alpha.15
 
 Sia is a private macOS 14+ alpha for local-first agent work. This build supports Codex through the
-official CLI already installed and authenticated on the Mac, plus hosted Meta access for signed-in
-research-alpha participants.
+official CLI already installed and authenticated on the Mac, plus hosted Meta access for approved
+signed-in model testers. Codex is not required to use hosted Meta.
+
+## Alpha.15 changes
+
+- New Cognito group membership is refreshed at app launch and when provider access is rechecked, so
+  an approved operator does not need to wait for an older one-hour ID token to expire.
+- New-agent setup automatically selects hosted Meta when it becomes available and no provider was
+  manually chosen. A missing local Codex installation no longer blocks approved Meta testers.
+- Internal operators and model testers who are not research participants no longer see participant
+  consent gates, capture raw research events, retry research uploads, or hit participant-only cloud
+  endpoints.
+- Sia can now launch Apple Notes through a narrowly bounded, approval-aware computer action before
+  inspecting its windows. It no longer treats an unopened Notes process as proof that the app is not
+  installed.
+- The Codex setup link now points to the current official installation documentation.
 
 ## Alpha.14 changes
 
@@ -117,7 +131,8 @@ research-alpha participants.
   process/window/snapshot checks remain mandatory; confirmation before mutations is optional; Chrome detach and
   explicit reattach now use distinct driver sessions without requiring an app restart;
 - configured builds offer Sia account sign-in before first-agent setup with a visible local escape;
-  signed-in onboarding then requires the raw-research choice and opens the core app immediately;
+  participant onboarding then requires the raw-research choice and opens the core app immediately;
+  non-participant operators and model testers remain outside research capture;
   work-app connections remain optional under Settings;
 - separate Gmail, Drive, Docs, Sheets, Slides, Slack, signed-in Chrome, and Apple Messages controls.
   The agent has bounded native tools to create/read/append Docs, create/read/update/append Sheets,
@@ -176,9 +191,9 @@ research-alpha participants.
 
 ## Alpha boundaries
 
-- Meta is included for signed-in research-alpha accounts through Sia's live-verified AWS relay. No
-  participant Meta key is needed; shared preview limits and upstream availability apply. It is not
-  represented as permanently free API access.
+- Meta is included for approved model testers and research-alpha participants through Sia's
+  live-verified AWS relay. No personal Meta key is needed; shared preview limits and upstream
+  availability apply. It is not represented as permanently free API access.
 - Codex uses the participant's existing ChatGPT Codex plan—including Free when available—or their
   OpenAI API account. Sia detects official CLI authentication and never imports credentials.
 - Grok, Gemini, and Claude are not enabled shipping providers.
@@ -189,13 +204,14 @@ research-alpha participants.
 - Direct programmatic browser downloads are not available in this alpha; downloads remain a normal
   Chrome action. Sia supports autonomous browser click, type, and upload, with optional confirmation.
 - Updates are manual by default; no persistent signed update manifest is configured for this build.
-- A Sia sign-in is explicitly a research-release enrollment. The person must accept the raw consent
-  or decline and sign out. Local-only use remains available without sharing.
+- A Sia sign-in can represent a separately scoped operator, model tester, connector tester, or
+  research participant. Only participants are offered raw-research consent and capture. Local-only
+  use remains available without sharing.
 - Slack is enabled for unlisted cross-workspace alpha installation. Google OAuth is published in the
   production project, but sensitive/restricted-scope review and CASA remain external distribution
   gates; organization policies may also require administrator approval. Remote/offline execution is
   not part of this alpha.
-- The `alpha.13` operator/internal-QA build is signed, notarized, privately published, and backed by
+- The previous `alpha.14` operator/internal-QA build is signed, notarized, privately published, and backed by
   an in-sync cohort-aware stack. Named recipients, production email delivery, exact-artifact human
   acceptance, and research/governance approvals remain required before participant distribution.
 

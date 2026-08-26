@@ -170,6 +170,42 @@ describe('CognitoIdentityManager', () => {
     repository.close();
   });
 
+  it('refreshes an unexpired token on launch so new tester groups take effect', async () => {
+    const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+    repository.put('auth', 'cognito', {
+      idToken: idToken({ 'cognito:groups': ['Operators'] }),
+      refreshToken: 'refresh-token',
+      expiresAt: Date.now() + 45 * 60_000,
+      email: 'operator@example.com',
+    });
+    const refreshedIdToken = idToken({
+      'cognito:groups': ['Operators', 'MetaTesters'],
+    });
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        AuthenticationResult: {
+          AccessToken: 'refreshed-access-token',
+          IdToken: refreshedIdToken,
+          ExpiresIn: 3600,
+        },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const identity = new CognitoIdentityManager({
+      region: 'us-east-1',
+      clientId: 'clientid123456789',
+      repository,
+    });
+
+    await expect(identity.initialize()).resolves.toMatchObject({
+      state: 'signed_in',
+      email: 'operator@example.com',
+    });
+    await expect(identity.read()).resolves.toBe(refreshedIdToken);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    repository.close();
+  });
+
   it('keeps an expired stored session when refresh fails transiently', async () => {
     const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
     repository.put('auth', 'cognito', expiredTokens());

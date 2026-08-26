@@ -36,7 +36,7 @@ export function providerSetupHref(provider: ProviderSetup) {
   if (provider.id === 'codex') {
     return provider.status === 'needs-login'
       ? 'https://learn.chatgpt.com/docs/auth'
-      : 'https://developers.openai.com/codex/cli/';
+      : 'https://learn.chatgpt.com/docs/codex/cli';
   }
   if (provider.id === 'gemini') {
     return provider.status === 'needs-login'

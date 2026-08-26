@@ -89,6 +89,7 @@ export function AgentDialog({
   const [saving, setSaving] = useState(false);
   const [checking, setChecking] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [providerChosen, setProviderChosen] = useState(false);
   const formId = useId();
 
   useEffect(() => {
@@ -114,7 +115,17 @@ export function AgentDialog({
     setError(undefined);
     setChecking(false);
     setConfirmingDelete(false);
+    setProviderChosen(false);
   }, [agent, open]);
+
+  useEffect(() => {
+    if (!open || agent || providerChosen) return;
+    const selected = providers.find((provider) => provider.id === draft.provider);
+    if (selected?.status === 'ready') return;
+    const ready = providers.find((provider) => provider.status === 'ready');
+    if (!ready) return;
+    setDraft((current) => ({ ...current, provider: ready.id, model: ready.model }));
+  }, [agent, draft.provider, open, providerChosen, providers]);
 
   // Until the person picks a color, the swatch follows the name — a new agent arrives with a hue.
   const effectiveHue = draft.hue ?? agentIdentity(draft.name.trim());
@@ -250,6 +261,7 @@ export function AgentDialog({
                   onChange={(event) => {
                     const provider = event.target.value as ProviderId;
                     const setup = providers.find((item) => item.id === provider);
+                    setProviderChosen(true);
                     update('provider', provider);
                     if (setup) update('model', setup.model || defaultModel(provider));
                   }}

@@ -54,6 +54,7 @@ const sheetWriteInputSchema = (append: boolean): Record<string, unknown> =>
   );
 
 const computerList = z.object({}).strict();
+const computerOpenApp = z.object({ application: z.literal('notes') }).strict();
 const computerSnapshot = z.object({ app_id: id, window_id: id }).strict();
 const computerAction = z
   .object({
@@ -325,6 +326,7 @@ const scheduleDelete = z.object({ schedule_id: id }).strict();
 
 export const actionInputSchemas = {
   computer_list: computerList,
+  computer_open_app: computerOpenApp,
   computer_snapshot: computerSnapshot,
   computer_action: computerAction,
   browser_tabs: browserTabs,
@@ -376,6 +378,18 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
       'List permitted applications and windows without changing them. Browsers (Chrome) are intentionally excluded here; use the browser_* tools to see or read the browser.',
     inputSchema: object({}),
     annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
+  },
+  computer_open_app: {
+    name: 'computer_open_app',
+    description:
+      'Open a supported non-sensitive macOS app that is not currently running. Currently supports Apple Notes. After it opens, call computer_list to obtain fresh app and window ids before inspecting or acting.',
+    inputSchema: object(
+      {
+        application: string('Supported application', { enum: ['notes'] }),
+      },
+      ['application'],
+    ),
+    annotations: { readOnly: false, requiresApproval: true, takesForeground: true },
   },
   computer_snapshot: {
     name: 'computer_snapshot',

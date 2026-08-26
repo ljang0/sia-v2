@@ -153,6 +153,40 @@ describe('app privacy routing', () => {
     });
   });
 
+  it('does not enroll an internal operator or model tester in research', async () => {
+    const snapshot: RendererSnapshot = {
+      ...structuredClone(demoSnapshot),
+      agents: [],
+      selectedAgentId: undefined,
+      selectedThreadId: undefined,
+      activeThread: undefined,
+      cloudAuth: {
+        state: 'signed-in',
+        email: 'operator@example.com',
+        participant: false,
+        features: {
+          researchUploads: false,
+          researchArchive: false,
+          connectors: false,
+          schedules: false,
+        },
+      },
+      research: {
+        ...structuredClone(demoSnapshot.research),
+        consented: false,
+        capture: 'paused',
+        promptReviewedVersion: undefined,
+      },
+    };
+
+    render(<App api={createDemoRendererApi(snapshot)} />);
+
+    expect(await screen.findByRole('button', { name: 'Create your first agent' })).toBeTruthy();
+    expect(
+      screen.queryByRole('alertdialog', { name: 'Join the Sia research release?' }),
+    ).toBeNull();
+  });
+
   it('opens core Sia immediately after research consent and keeps work apps optional', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),

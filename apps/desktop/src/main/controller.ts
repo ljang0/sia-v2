@@ -80,6 +80,7 @@ interface ControllerOptions {
   identity: {
     initialize(): Promise<CloudIdentityStatus>;
     read?(): Promise<string | undefined>;
+    refreshSession?(): Promise<CloudIdentityStatus>;
     status(): CloudIdentityStatus;
     startEmailSignIn(email: string): Promise<CloudIdentityStatus>;
     completeEmailSignIn(code: string): Promise<CloudIdentityStatus>;
@@ -730,6 +731,7 @@ export class DesktopController {
       if (!this.#updateManifestPublicKey) {
         throw new Error('The release feed does not have a pinned signing key.');
       }
+      await this.#identity.refreshSession?.();
       const token = await this.#identity.read?.();
       if (!token) throw new Error('Sign in with an approved Sia account to check for updates.');
       const response = await fetch(this.#updateManifestUrl, {
@@ -1966,8 +1968,7 @@ export class DesktopController {
       );
     }
     if (
-      this.#cloud.configured &&
-      this.#identity.status().state === 'signed_in' &&
+      this.#researchRequiredForCurrentAccount() &&
       (this.#state.capture.consentVersion !== RESEARCH_CONSENT_VERSION ||
         !this.#researchCaptureActive())
     ) {
@@ -2633,6 +2634,10 @@ export class DesktopController {
   }
 
   async #probeProviders(providerId?: ProviderId): Promise<DesktopSnapshot> {
+    if (providerId === 'meta' && this.#identity.status().state === 'signed_in') {
+      await this.#identity.refreshSession?.();
+      await this.#refreshCloudSession();
+    }
     const updated = await this.#providerProbe(providerId);
     if (providerId) {
       const value = updated[0];
@@ -3369,6 +3374,7 @@ export class DesktopController {
       const session = await this.#cloud.sessionStatus();
       this.#cloudParticipant = session.participant;
       this.#state.cloudFeatures = structuredClone(session.features);
+      if (!session.features.researchUploads) this.#disableResearchForCurrentAccessPolicy();
       if (previousToolAvailability !== this.#toolAvailabilitySignature()) {
         await this.#runtime?.resetSessions();
       }
@@ -3832,11 +3838,14 @@ export class DesktopController {
       throw new Error('Finish or retry research deletion before enabling capture.');
     }
     if (
-      !input.enabled &&
-      !input.consentVersion &&
+      input.enabled &&
       this.#cloud.configured &&
-      this.#identity.status().state === 'signed_in'
+      this.#identity.status().state === 'signed_in' &&
+      this.#state.cloudFeatures.researchUploads === false
     ) {
+      throw new Error('Research capture is not enabled for this Sia account.');
+    }
+    if (!input.enabled && !input.consentVersion && this.#researchRequiredForCurrentAccount()) {
       throw new Error(
         'Research capture is required while signed in. Sign out to stop capture.',
       );
@@ -3911,11 +3920,7 @@ export class DesktopController {
   }
 
   async #exportResearch(): Promise<BridgeResultMap['research.export']> {
-    if (
-      !this.#fakeServices &&
-      this.#cloud.configured &&
-      this.#identity.status().state === 'signed_in'
-    ) {
+    if (!this.#fakeServices && this.#researchRequiredForCurrentAccount()) {
       const { downloadUrl } = await this.#cloud.requestResearchExport();
       await this.#openExternal(downloadUrl);
       return { path: null };
@@ -3946,11 +3951,7 @@ export class DesktopController {
         this.#researchRetryTimer = undefined;
       }
       await inFlightResearchSync?.catch(() => undefined);
-      if (
-        !this.#fakeServices &&
-        this.#cloud.configured &&
-        this.#identity.status().state === 'signed_in'
-      ) {
+      if (!this.#fakeServices && this.#researchRequiredForCurrentAccount()) {
         try {
           await this.#cloud.deleteResearchData();
         } catch {
@@ -4121,11 +4122,7 @@ export class DesktopController {
     });
 
     if (!this.#rawResearchEnabled()) {
-      if (
-        options.requireResearch &&
-        this.#cloud.configured &&
-        this.#identity.status().state === 'signed_in'
-      ) {
+      if (options.requireResearch && this.#researchRequiredForCurrentAccount()) {
         throw new Error(
           this.#state.capture.blockedReason ??
             'Raw research recording must be active before connecting an app.',
@@ -4373,6 +4370,13 @@ export class DesktopController {
   }
 
   #researchCaptureActive(): boolean {
+    if (
+      this.#cloud.configured &&
+      this.#identity.status().state === 'signed_in' &&
+      this.#state.cloudFeatures.researchUploads === false
+    ) {
+      return false;
+    }
     return (
       this.#state.capture.status === 'recording' ||
       this.#state.capture.status === 'sync_pending'
@@ -4487,7 +4491,8 @@ export class DesktopController {
     if (
       this.#state.capture.status === 'deleting' ||
       this.#state.capture.pendingCount === 0 ||
-      this.#researchSync
+      this.#researchSync ||
+      this.#state.cloudFeatures.researchUploads === false
     )
       return;
     if (
@@ -4555,7 +4560,8 @@ export class DesktopController {
     if (
       this.#state.capture.status === 'deleting' ||
       this.#researchRetryTimer ||
-      this.#state.capture.pendingCount === 0
+      this.#state.capture.pendingCount === 0 ||
+      this.#state.cloudFeatures.researchUploads === false
     )
       return;
     const delay = this.#researchRetryDelayMs;
@@ -4565,6 +4571,35 @@ export class DesktopController {
       this.#scheduleResearchSync();
     }, delay);
     this.#researchRetryTimer.unref();
+  }
+
+  #researchRequiredForCurrentAccount(): boolean {
+    return (
+      this.#cloud.configured &&
+      this.#identity.status().state === 'signed_in' &&
+      this.#state.cloudFeatures.researchUploads !== false
+    );
+  }
+
+  #disableResearchForCurrentAccessPolicy(): void {
+    this.#researchGeneration += 1;
+    if (this.#researchRetryTimer) {
+      clearTimeout(this.#researchRetryTimer);
+      this.#researchRetryTimer = undefined;
+    }
+    for (const staged of this.#researchStaging.values()) {
+      staged.tainted = true;
+      staged.events = [];
+      staged.rawEvents = [];
+      staged.eventByMessageId.clear();
+    }
+    this.#researchStaging.clear();
+    for (const batch of this.#researchBatches()) {
+      if (batch.syncEligible === false || this.#researchBatchSynced(batch.batchId)) continue;
+      this.#repository.put('research', batch.batchId, { ...batch, syncEligible: false });
+    }
+    this.#state.capture = { status: 'not_consented', pendingCount: 0 };
+    this.#refreshResearchPendingCount();
   }
 
   #researchBatchSynced(batchId: string): boolean {
@@ -6213,6 +6248,7 @@ const RUNTIME_TOOL_LABELS: Record<string, string> = {
   browser_action: 'Acting in the browser',
   browser_upload: 'Uploading a file',
   computer_list: 'Checking open apps',
+  computer_open_app: 'Opening Apple Notes',
   computer_snapshot: 'Looking at a window',
   computer_action: 'Acting on the Mac',
 };

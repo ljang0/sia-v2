@@ -78,9 +78,11 @@ export class CognitoIdentityManager implements IdTokenSource {
       if (this.#tokens) this.#repository.put('auth', 'cognito', this.#tokens);
       else this.#repository.remove('auth', 'cognito');
     }
-    if (this.#tokens && this.#tokens.expiresAt <= Date.now() + 60_000) {
-      await this.#refresh().catch(() => undefined);
-    }
+    // Refresh once on every launch even when the cached ID token has not expired.
+    // Cognito group changes are reflected only in newly issued tokens; keeping a
+    // still-valid token can otherwise leave the desktop on stale access policy
+    // for up to an hour after an approved tester is enrolled.
+    if (this.#tokens) await this.#refresh().catch(() => undefined);
     return this.status();
   }
 
@@ -125,6 +127,14 @@ export class CognitoIdentityManager implements IdTokenSource {
     return await (this.#refreshing ??= this.#refresh().finally(() => {
       this.#refreshing = undefined;
     }));
+  }
+
+  async refreshSession(): Promise<CloudIdentityStatus> {
+    if (this.#developmentIdToken || !this.#tokens) return this.status();
+    await (this.#refreshing ??= this.#refresh().finally(() => {
+      this.#refreshing = undefined;
+    }));
+    return this.status();
   }
 
   async startEmailSignIn(emailValue: string): Promise<CloudIdentityStatus> {
