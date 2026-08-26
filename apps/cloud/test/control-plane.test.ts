@@ -48,6 +48,11 @@ const operator: AuthContext = {
   email: 'operator@example.com',
   groups: ['Operators'],
 };
+const metaTester: AuthContext = {
+  subject: 'meta-tester-1',
+  email: 'meta-tester@example.com',
+  groups: ['MetaTesters'],
+};
 const legacyUser: AuthContext = {
   subject: user.subject,
   email: 'user@example.com',
@@ -81,6 +86,16 @@ describe('release cohorts', () => {
         schedules: false,
       },
     });
+    assert.deepEqual(fixture.services.session.status(metaTester), {
+      admin: false,
+      participant: false,
+      features: {
+        researchUploads: false,
+        researchArchive: false,
+        connectors: false,
+        schedules: false,
+      },
+    });
     assert.deepEqual(fixture.services.session.status(admin), {
       admin: true,
       participant: true,
@@ -93,7 +108,7 @@ describe('release cohorts', () => {
     });
   });
 
-  it('serves the signed private update manifest only to operators, participants, and admins', async () => {
+  it('serves the signed private update manifest only to approved release cohorts', async () => {
     const fixture = makeFixture();
     await assert.rejects(
       fixture.services.releases.latestMac(legacyUser),
@@ -102,6 +117,10 @@ describe('release cohorts', () => {
     );
     assert.equal(
       (await fixture.services.releases.latestMac(operator)).payload.version,
+      '0.1.0-alpha.13',
+    );
+    assert.equal(
+      (await fixture.services.releases.latestMac(metaTester)).payload.version,
       '0.1.0-alpha.13',
     );
     const release = await fixture.services.releases.latestMac(participant);
@@ -121,7 +140,7 @@ describe('release cohorts', () => {
     );
     await assert.rejects(
       fixture.services.meta.capabilities(legacyUser),
-      hasCode('participant_access_required'),
+      hasCode('meta_tester_required'),
     );
     await assert.rejects(
       fixture.services.connections.start(participant, 'slack'),
@@ -1214,6 +1233,25 @@ describe('Meta relay service', () => {
       ['started', 'delta', 'done'],
     );
     assert.equal(events[0]?.type === 'started' ? events[0].model : undefined, 'meta-test');
+  });
+
+  it('allows a model tester without granting participant or connector access', async () => {
+    const fixture = makeFixture();
+
+    assert.deepEqual(await fixture.services.meta.capabilities(metaTester), {
+      available: true,
+      models: ['meta-test'],
+      streaming: true,
+      tools: true,
+    });
+    await assert.rejects(
+      fixture.services.research.upload(metaTester, validBatch()),
+      hasCode('participant_access_required'),
+    );
+    await assert.rejects(
+      fixture.services.connections.start(metaTester, 'slack'),
+      hasCode('participant_access_required'),
+    );
   });
 });
 

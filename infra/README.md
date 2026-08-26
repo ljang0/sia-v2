@@ -13,10 +13,13 @@ Configure the desktop with the complete API output URL, including its stage path
 5. Revoke and rotate the Meta credential that was previously pasted into chat before enabling the relay.
 6. Map the deployed outputs exactly: `ApiBaseUrl` to `SIA_RELEASE_API_BASE_URL`, `CognitoRegion` to `SIA_RELEASE_COGNITO_REGION`, and `DesktopClientId` to `SIA_RELEASE_COGNITO_CLIENT_ID`. After the first signed manifest is published, map `${ApiBaseUrl}/v1/releases/macos` to `SIA_RELEASE_UPDATE_MANIFEST_URL` and its Ed25519 public key to `SIA_RELEASE_UPDATE_MANIFEST_PUBLIC_KEY`. A packaged app ignores mutable `SIA_API_*` environment values and accepts cloud destinations only from its code-signed `sia-cloud.json` resource.
 
-The update route is authenticated and limited to `Operators`, `Participants`, and `Admins`.
-`Operators` can retrieve the private release but do not receive participant, research-upload,
-schedule, connector, or research-archive capabilities. Lambda can read only `manifests/macos/*` and
-`releases/*` from the private release bucket, and returned artifact URLs expire after 15 minutes.
+The update route is authenticated and limited to `Operators`, `MetaTesters`, `Participants`, and
+`Admins`. `Operators` can retrieve the private release but do not receive participant,
+research-upload, schedule, connector, hosted-model, or research-archive capabilities.
+`MetaTesters` can additionally use the hosted Meta preview, but remain non-participants with every
+research, schedule, connector, and archive capability denied. Lambda can read only
+`manifests/macos/*` and `releases/*` from the private release bucket, and returned artifact URLs
+expire after 15 minutes.
 The published stable manifest is signed; the desktop pins the signing key and rejects a URL whose
 decoded S3 object path differs from the signed artifact key.
 

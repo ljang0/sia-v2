@@ -59,9 +59,10 @@ needs an approved user's completed email-code session.
 - The signed DMG key and hash match S3's content length and `sha256` metadata exactly. The ZIP's
   length and metadata also match.
 - An unauthenticated live request returned HTTP 403. Cloud tests prove only `Operators`,
-  `Participants`, and `Admins` receive the manifest and authenticated non-cohort users are rejected.
-  Operators receive no participant, research-upload, schedule, connector, or archive capability. A
-  positive live request remains pending until the approved operator completes email-code sign-in.
+  `MetaTesters`, `Participants`, and `Admins` receive the manifest and authenticated non-cohort users
+  are rejected. Operators receive no participant, research-upload, schedule, connector, hosted
+  model, or archive capability. `MetaTesters` add only hosted Meta access. A positive live request
+  remains pending until the approved operator completes email-code sign-in.
 - After restarting the exact signed `alpha.14` app, the existing local profile, agents, threads,
   cloud sign-in, and provider configuration survived. Its **Check now** control made a live request
   with the pre-existing acceptance account and displayed `Release feed returned HTTP 403.` That
@@ -107,8 +108,26 @@ needs an approved user's completed email-code session.
 - All 17 `sia-alpha-*` CloudWatch alarms are `OK`, have actions enabled, and include bounce and
   complaint monitoring.
 - The release bucket remains private. Lambda can read only `manifests/macos/*` and `releases/*`.
-- `Operators`: 1 confirmed internal cofounder account. `Participants`: 0. `ConnectorTesters`: 0.
-  The operator is not a research participant or archive administrator.
+- `Operators`: 1 confirmed internal cofounder account. `MetaTesters`: the same 1 account.
+  `Participants`: 0. `ConnectorTesters`: 0. The operator is not a research participant, connector
+  tester, or archive administrator.
+
+## Post-release Meta tester isolation
+
+- Change set
+  `arn:aws:cloudformation:us-east-1:677513020767:changeSet/samcli-deploy1787731126/d3d85d81-f37d-4137-8005-7246802a2a2b`
+  added `MetaTesters` and updated Lambda code/API wiring in place. Every modified resource reported
+  `Replacement: false`; the new Cognito group was the only added resource.
+- The stack completed `UPDATE_COMPLETE` at `2026-08-26T07:59:56Z`. A subsequent drift detection
+  completed `IN_SYNC` with zero drifted resources, and all 17 `sia-alpha-*` alarms remained `OK`
+  with actions enabled.
+- The post-update `pnpm check` passed with 492 runnable tests; cloud tests passed 116/116, and SAM
+  lint passed. The deployed `MetaTesters` capability probe returned the configured model with
+  streaming and tools enabled. The deployed session probe returned `participant: false` with
+  research uploads, research archive, connectors, and schedules all false.
+- The internal cofounder remains in `Operators` and is additionally in `MetaTesters`. Both
+  `Participants` and `ConnectorTesters` remain empty. A fresh Cognito sign-in is required before an
+  already-issued ID token reflects the new group.
 
 ## AWS email evidence
 

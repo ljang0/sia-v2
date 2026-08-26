@@ -13,6 +13,9 @@ Provider availability is a legal and product boundary as well as an engineering 
   The participant-facing contract is **included for invited Sia alpha accounts**, with a two-turn
   per-account concurrency limit plus any upstream preview limits. Do not market the hosted API as
   permanently free; the participant supplies no Meta key, but Sia owns the shared provider account.
+  Internal model acceptance uses the separate `MetaTesters` Cognito group. That group grants the
+  signed release and Meta relay only; it must not imply participant, research-upload, schedule,
+  connector, or archive access.
 - **Google Workspace:** use Sia's production Web OAuth client with authorization code + PKCE.
   Connect Google with the fixed read-only Gmail/Drive/Docs/Sheets/Slides scopes first; request the
   fixed editor/sender scopes only after the person chooses **Enable editing**. Encrypt refresh

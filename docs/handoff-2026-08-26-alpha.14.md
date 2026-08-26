@@ -28,17 +28,18 @@ Describe it as ready for operator/internal QA, not as participant-approved.
 - The DMG and ZIP are private S3 objects under immutable, content-addressed keys. The signed latest
   manifest is also private and byte-identical to its immutable versioned copy.
 - The desktop calls `GET /v1/releases/macos` with its Cognito ID token. The cloud allows only
-  `Operators`, `Participants`, or `Admins`, creates a 15-minute S3 URL, and returns a signed
-  manifest. `Operators` have no participant, research-upload, schedule, connector, or archive
-  capability. The desktop verifies the Ed25519 signature, exact version/size/hash, and decoded S3
-  object key before opening the URL. It does not silently install an update.
+  `Operators`, `MetaTesters`, `Participants`, or `Admins`, creates a 15-minute S3 URL, and returns a
+  signed manifest. `Operators` have no participant, research-upload, schedule, connector, hosted
+  model, or archive capability. `MetaTesters` add only the hosted Meta preview while remaining
+  non-participants. The desktop verifies the Ed25519 signature, exact version/size/hash, and decoded
+  S3 object key before opening the URL. It does not silently install an update.
 - For a recipient's first install, the release owner can use the seven-day operator URL in the
   mode-`0600` local record `/Users/lawrencejang/.sia-release/alpha14-publish.json`. Do not copy that
   URL into Git, a public page, analytics, or a broad channel. Generate a fresh URL for each approved
   invitation batch.
-- One confirmed internal cofounder account is enrolled only in `Operators`. `Participants` and
-  `ConnectorTesters` remain empty, so no research participant or external connector tester has been
-  enrolled.
+- One confirmed internal cofounder account is enrolled in `Operators` and the separately scoped
+  `MetaTesters` cohort. `Participants` and `ConnectorTesters` remain empty, so the internal model
+  test does not grant research, schedule, connector, or archive access.
 
 ## AWS and email state
 
@@ -46,9 +47,9 @@ Describe it as ready for operator/internal QA, not as participant-approved.
 - All 17 `sia-alpha-*` alarms are `OK`, have actions enabled, and include the new SES bounce and
   complaint reputation alarms.
 - The release route returns HTTP 403 without a Cognito bearer token. Unit/integration coverage
-  proves `Operators`, `Participants`, and `Admins` can receive it while an authenticated user outside
-  those groups is denied. The operator's session capability response remains non-participant with
-  every research/connector feature disabled.
+  proves `Operators`, `MetaTesters`, `Participants`, and `Admins` can receive it while an
+  authenticated user outside those groups is denied. The model tester's deployed session response
+  remains non-participant with research uploads, schedules, connectors, and archive disabled.
 - The exact `auth@superintelligentagents.ai` address forwards through Namecheap to the operator
   Gmail account. A dedicated control message and the fresh SES verification message both arrived;
   the exact address now reports SES `VerificationStatus: SUCCESS` and
@@ -82,9 +83,13 @@ Describe it as ready for operator/internal QA, not as participant-approved.
   were recomputed after download and passed. Both S3 artifact sizes and SHA-256 metadata match.
 - The protected route, narrow S3 IAM access, immutable publisher, downgrade/conflict refusal,
   release-key pinning, and inert attachment previews have regression coverage.
+- A no-replacement post-release stack update created `MetaTesters` and changed only Lambda code and
+  API wiring in place. Cloud tests passed 116/116. A deployed capability probe for that group
+  returned the configured Meta model with streaming and tools enabled, while the deployed session
+  response remained non-participant with all research, schedule, connector, and archive flags off.
 - The exact signed app was restarted through Computer Use; the ordinary profile survived and its
-  updater returned live HTTP 403 for the signed-in acceptance account outside all three allowed
-  groups. This closes the authenticated non-cohort branch while preserving the empty research
+  updater returned live HTTP 403 for the signed-in acceptance account outside every allowed release
+  cohort. This closes the authenticated non-cohort branch while preserving the empty research
   cohorts.
 
 ## Remaining human/external gates

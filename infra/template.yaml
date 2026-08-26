@@ -786,6 +786,14 @@ Resources:
       Description: May install and update the private build without research-participant access
       Precedence: 1
 
+  MetaTestersGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: MetaTesters
+      Description: May install the private build and use the hosted Meta preview without research-participant access
+      Precedence: 2
+
   ParticipantsGroup:
     Type: AWS::Cognito::UserPoolGroup
     Properties:

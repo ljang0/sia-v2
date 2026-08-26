@@ -1146,7 +1146,7 @@ export class MetaService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async capabilities(user: AuthContext) {
-    requireParticipant(user);
+    requireMetaAccess(user);
     const config = await this.deps.secrets.meta();
     if (!config.enabled) {
       return {
@@ -1172,7 +1172,7 @@ export class MetaService {
   }
 
   async *stream(user: AuthContext, request: MetaTurnRequest): AsyncIterable<MetaStreamEvent> {
-    requireParticipant(user);
+    requireMetaAccess(user);
     validateMetaRequest(request);
     const config = await this.deps.secrets.meta();
     if (!config.enabled)
@@ -1578,6 +1578,10 @@ function isReleaseOperator(user: AuthContext): boolean {
   return user.groups.includes('Operators');
 }
 
+function isMetaTester(user: AuthContext): boolean {
+  return user.groups.includes('MetaTesters');
+}
+
 function isConnectorTester(user: AuthContext): boolean {
   return isParticipant(user) && (isAdmin(user) || user.groups.includes('ConnectorTesters'));
 }
@@ -1593,11 +1597,21 @@ function requireParticipant(user: AuthContext): void {
 }
 
 function requireReleaseRecipient(user: AuthContext): void {
-  if (!isParticipant(user) && !isReleaseOperator(user)) {
+  if (!isParticipant(user) && !isReleaseOperator(user) && !isMetaTester(user)) {
     throw new CloudError(
       403,
       'release_access_required',
-      'This private release is available to approved operators and participants only',
+      'This private release is available to approved operators, model testers, and participants only',
+    );
+  }
+}
+
+function requireMetaAccess(user: AuthContext): void {
+  if (!isParticipant(user) && !isMetaTester(user)) {
+    throw new CloudError(
+      403,
+      'meta_tester_required',
+      'The hosted Meta preview is available to approved model testers and participants only',
     );
   }
 }
