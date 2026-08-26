@@ -64,12 +64,13 @@ const PROVIDERS: Record<ProviderId, ProviderCommand> = {
   claude: {
     executable: 'claude',
     versionArgs: ['--version'],
-    model: 'claude-sonnet-4-5',
+    model: 'sonnet',
     label: 'Claude',
-    billing: 'API or supported cloud billing only after product clearance.',
-    detail: 'Adapter is available for development protocol tests.',
-    restriction: 'Disabled in the external alpha pending written Anthropic clearance.',
-    disabled: true,
+    billing: 'Uses your existing Claude Code subscription, API, or supported cloud account.',
+    detail:
+      'Official Claude Code CLI with isolated Sia tools and non-persistent provider sessions.',
+    minimumVersion: '2.1.238',
+    maximumExclusiveVersion: '2.2.0',
   },
 };
 
@@ -188,6 +189,51 @@ async function probeProvider(
           'Sign in with the Codex CLI, then check again.',
         );
       }
+      return view(id, definition, 'ready', version, undefined, account);
+    }
+    if (id === 'claude') {
+      const auth = await runner.run(
+        executable,
+        ['auth', 'status', '--json'],
+        environment,
+        true,
+      );
+      let status: Record<string, unknown> = {};
+      try {
+        const output = auth.stdout.trim() || auth.stderr.trim();
+        let value: unknown;
+        try {
+          value = JSON.parse(output) as unknown;
+        } catch {
+          const start = output.indexOf('{');
+          const end = output.lastIndexOf('}');
+          value =
+            start >= 0 && end > start
+              ? (JSON.parse(output.slice(start, end + 1)) as unknown)
+              : {};
+        }
+        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+          status = value as Record<string, unknown>;
+        }
+      } catch {
+        // A successful auth command must still return the documented JSON shape.
+      }
+      if (auth.code !== 0 || status.loggedIn !== true) {
+        return view(
+          id,
+          definition,
+          'needs_login',
+          version,
+          'Sign in with the Claude CLI, then check again.',
+        );
+      }
+      const subscription =
+        typeof status.subscriptionType === 'string' ? status.subscriptionType.trim() : '';
+      const account = subscription
+        ? `Authenticated with Claude ${subscription
+            .replace(/[._-]+/g, ' ')
+            .replace(/\b\w/g, (character) => character.toUpperCase())}`
+        : 'Authenticated with Claude';
       return view(id, definition, 'ready', version, undefined, account);
     }
     return view(id, definition, 'ready', version);

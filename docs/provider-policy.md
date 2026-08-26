@@ -26,7 +26,7 @@ Provider availability is a legal and product boundary as well as an engineering 
   uploads.
 - **Grok Build:** protocol tests only in the external alpha. The official ACP process currently has no comprehensive, auth-preserving switch to exclude inherited plugins, skills/instructions, and MCP servers. Do not redirect `GROK_HOME`, copy credentials, or start it from production until upstream offers a verifiable isolation boundary.
 - **Gemini CLI:** paid Gemini API, Vertex AI, or organizational Code Assist only, using a CLI release that advertises standard ACP session config options. Leave authentication inside the CLI; fail closed if the requested model cannot be selected and confirmed.
-- **Claude:** adapter development and protocol tests only until Anthropic gives written product clearance. Consumer Claude.ai credentials must not be routed through Sia.
+- **Claude:** enabled through the user's installed, authenticated Claude Code CLI. Sia requires a pinned CLI release, checks `claude auth status --json`, starts non-persistent print-mode sessions, ignores inherited settings and MCP configuration, disables provider-native tools/skills/Chrome, and exposes only the short-lived Sia MCP capability. Credentials remain owned by Claude Code and are never imported by Sia.
 - **Slack:** use the Sia-owned manifest in `infra/slack-app-manifest.yaml`, never Composio's broad
   managed Slack grant. The user-token scopes are limited to workspace search (`search:read`), person
   lookup without email access (`users:read`), opening one-to-one DMs (`im:write`), reviewed sends

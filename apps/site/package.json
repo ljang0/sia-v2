@@ -1,6 +1,6 @@
 {
   "name": "@sia/site",
-  "version": "0.1.0-alpha.16",
+  "version": "0.1.0-alpha.17",
   "private": true,
   "description": "Public site and participant policies for the Sia research alpha.",
   "type": "module",

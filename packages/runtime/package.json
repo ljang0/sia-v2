@@ -16,6 +16,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "test:claude-isolation:real": "SIA_CLAUDE_REAL_SMOKE=1 vitest run src/claude-isolation.smoke.test.ts",
     "test:codex-isolation:real": "SIA_CODEX_REAL_SMOKE=1 vitest run src/codex-isolation.smoke.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"

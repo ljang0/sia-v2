@@ -31,9 +31,11 @@ This repository is the clean v2 implementation. It intentionally does not contai
   `>=0.147.0 <0.150.0`; inherited extensions are disabled and verified before a thread starts.
 - Meta is included for signed-in invited alpha accounts through the Sia-owned AWS relay, so a
   participant does not enter a Meta key. It is a shared preview service with per-account concurrency
-  limits and upstream availability limits, not a promise of permanently free API access. Gemini,
-  Grok, and Claude remain production-disabled until their compatibility, isolation, and product-
-  policy gates are satisfied.
+  limits and upstream availability limits, not a promise of permanently free API access. Claude is
+  also available through the person's installed and authenticated Claude Code CLI. Sia checks its
+  machine-readable auth state, runs non-persistent sessions, ignores inherited settings and MCP,
+  and exposes only Sia's short-lived tool capability. Gemini and Grok remain production-disabled
+  until their compatibility and isolation gates are satisfied.
 - Apple Messages works locally: reading recent iMessages needs Full Disk Access; sending is bound to
   an exact recipient and message. WhatsApp can use granted computer control. Slack uses its connected
   app path for dependable person lookup, DM resolution, message search, thread reads, and reviewed
@@ -67,11 +69,12 @@ This repository is the clean v2 implementation. It intentionally does not contai
   uploaded archive, while local-only export contains locally retained batches. Research deletion
   removes the active cloud copy when configured, clears the local copy, and resets consent.
 - Signed-in users can delete their Sia cloud account directly from Connected apps. Sia requires the exact phrase `DELETE ACCOUNT`, waits for the account-scope cloud job to report `completed`, and only then clears local Sia state and sign-in. It does not delete workspace files, provider CLI accounts, or macOS permissions.
-- Provider CLIs such as Codex are separately installed and authenticated by the user; they are not
-  bundled with Sia. Sia detects the official login and does not copy it. The optional hosted Meta
-  provider instead requires a signed-in invited Sia account and no participant API key. Sia does not
-  inject a visualization or canvas tool into the prime agent. Its added surface is the fixed browser,
-  computer, Gmail, Drive, Docs, Sheets, Slides, Slack, Messages, and scheduling gateway.
+- Provider CLIs such as Codex and Claude Code are separately installed and authenticated by the
+  user; they are not bundled with Sia. Sia detects the official login and does not copy it. The
+  optional hosted Meta provider instead requires a signed-in invited Sia account and no participant
+  API key. Sia does not inject a visualization or canvas tool into the prime agent. Its added surface
+  is the fixed browser, computer, Gmail, Drive, Docs, Sheets, Slides, Slack, Messages, and scheduling
+  gateway.
 - The Apps page also exposes local Chrome and Apple Messages entry points. Chrome reuses only an
   explicitly selected signed-in window and never copies cookies. The Messages button opens the
   account already configured in Apple Messages; Sia does not read `chat.db`, copy message history,

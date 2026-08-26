@@ -15,7 +15,7 @@ describe('RuntimeCoordinator', () => {
     expect(value).toContain('<restored_conversation>');
   });
 
-  it('keeps Meta credentials and unpinned providers outside local provider startup', async () => {
+  it('keeps Meta credentials and unpinned ACP providers outside local provider startup', async () => {
     const runtime = new RuntimeCoordinator(
       new ActionGateway({
         backend: {
@@ -39,21 +39,6 @@ describe('RuntimeCoordinator', () => {
         // no-op
       }
     }).rejects.toThrow('cloud relay');
-    await expect(async () => {
-      for await (const _event of runtime.runTurn({
-        thread: {
-          id: 'thread-claude',
-          provider: 'claude',
-          model: 'claude',
-          workspace: '/tmp',
-          instructions: '',
-        },
-        turnId: 'turn',
-        text: 'hello',
-      })) {
-        // no-op
-      }
-    }).rejects.toThrow('disabled');
     await expect(async () => {
       for await (const _event of runtime.runTurn({
         thread: {

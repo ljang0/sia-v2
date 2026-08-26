@@ -219,11 +219,12 @@ export const demoSnapshot: RendererSnapshot = {
     {
       id: 'claude',
       name: 'Claude',
-      model: 'claude-sonnet-4-5',
-      description: 'Anthropic Agent SDK integration.',
-      status: 'disabled',
-      billedBy: 'API or supported cloud billing only after product clearance.',
-      restriction: 'Not available in the external alpha pending provider clearance.',
+      model: 'sonnet',
+      description: 'Claude Code CLI with isolated Sia tools and non-persistent sessions.',
+      status: 'ready',
+      account: 'Authenticated with Claude',
+      version: '2.1.238',
+      billedBy: 'Uses your existing Claude Code subscription, API, or supported cloud account.',
     },
   ],
   apps: [
@@ -355,7 +356,7 @@ export const demoSnapshot: RendererSnapshot = {
   preferences: { completionSound: false },
   updates: {
     status: 'unconfigured',
-    currentVersion: '0.1.0-alpha.16',
+    currentVersion: '0.1.0-alpha.17',
     detail: 'This preview build does not have a persistent signed update feed configured.',
   },
   research: {

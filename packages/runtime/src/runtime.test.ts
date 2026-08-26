@@ -22,7 +22,12 @@ import {
   createGrokAdapter,
   defaultAcpCommandArgs,
 } from './providers/acp.js';
-import { ClaudeDisabledAdapter } from './providers/claude.js';
+import {
+  claudeCliArgs,
+  claudeMcpConfig,
+  ClaudeCliAdapter,
+  parseClaudeAuthStatus,
+} from './providers/claude.js';
 import {
   MetaStreamingAdapter,
   type MetaStreamEvent,
@@ -960,9 +965,94 @@ describe('Meta streaming adapter', () => {
     });
   });
 
-  it('keeps Claude production-disabled', async () => {
-    const adapter = new ClaudeDisabledAdapter();
-    expect(adapter.productionEnabled).toBe(false);
-    await expect(adapter.createSession(sessionOptions)).rejects.toThrow(/disabled/);
+  it('isolates Claude Code while retaining only the short-lived Sia MCP bridge', async () => {
+    const args = claudeCliArgs({
+      model: 'claude-sonnet-4-5',
+      systemPromptPath: '/private/session/system-prompt.txt',
+      mcpConfigPath: '/private/session/mcp.json',
+      mcpServerNames: ['sia'],
+    });
+    expect(args).toEqual(
+      expect.arrayContaining([
+        '--no-session-persistence',
+        '--setting-sources',
+        '--strict-mcp-config',
+        '--disable-slash-commands',
+        '--no-chrome',
+        '--tools',
+        'mcp__sia__*',
+        '--permission-mode',
+        'dontAsk',
+        '--allowedTools',
+        '--system-prompt-file',
+      ]),
+    );
+    expect(args[args.indexOf('--setting-sources') + 1]).toBe('');
+    expect(args[args.indexOf('--model') + 1]).toBe('sonnet');
+    expect(args.join(' ')).not.toContain('Be useful');
+
+    expect(
+      claudeMcpConfig([
+        {
+          name: 'sia',
+          command: '/Applications/Sia.app/Contents/MacOS/Sia',
+          args: ['--capability', 'opaque'],
+          env: [{ name: 'ELECTRON_RUN_AS_NODE', value: '1' }],
+        },
+      ]),
+    ).toEqual({
+      mcpServers: {
+        sia: {
+          type: 'stdio',
+          command: '/Applications/Sia.app/Contents/MacOS/Sia',
+          args: ['--capability', 'opaque'],
+          env: { ELECTRON_RUN_AS_NODE: '1' },
+        },
+      },
+    });
+  });
+
+  it('uses Claude machine-readable auth state instead of credential-file presence', async () => {
+    expect(
+      parseClaudeAuthStatus(
+        JSON.stringify({
+          loggedIn: true,
+          authMethod: 'claude.ai',
+          apiProvider: 'firstParty',
+          subscriptionType: 'max',
+        }),
+      ),
+    ).toEqual({ state: 'authenticated', label: 'Claude Max', billing: 'subscription' });
+    expect(parseClaudeAuthStatus('{"loggedIn":false}')).toEqual({
+      state: 'unauthenticated',
+      billing: 'unknown',
+    });
+    expect(
+      parseClaudeAuthStatus('Update notice\n{"loggedIn":true,"authMethod":"console"}\n'),
+    ).toEqual({ state: 'authenticated', label: 'Claude (Console)', billing: 'api' });
+
+    const runner = {
+      run: vi.fn(async (_command: string, args: readonly string[]) => ({
+        code: 0,
+        stdout:
+          args[0] === '--version'
+            ? '2.1.238 (Claude Code)'
+            : '{"loggedIn":true,"subscriptionType":"pro"}',
+        stderr: '',
+      })),
+    };
+    const adapter = new ClaudeCliAdapter({ commandRunner: runner });
+    expect(adapter.productionEnabled).toBe(true);
+    await expect(adapter.probe()).resolves.toMatchObject({
+      available: true,
+      supported: true,
+      version: '2.1.238',
+    });
+    await expect(adapter.account()).resolves.toEqual({
+      state: 'authenticated',
+      label: 'Claude Pro',
+      billing: 'subscription',
+    });
+    await adapter.dispose();
   });
 });

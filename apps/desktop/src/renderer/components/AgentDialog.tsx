@@ -493,6 +493,6 @@ function defaultModel(provider: ProviderId) {
     meta: 'super_nova_ext',
     grok: 'grok-code-fast',
     gemini: 'gemini-2.5-pro',
-    claude: 'claude-sonnet-4-5',
+    claude: 'sonnet',
   }[provider];
 }

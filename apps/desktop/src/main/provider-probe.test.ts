@@ -15,7 +15,7 @@ describe('probeProviders', () => {
       detail: expect.stringContaining('protocol testing'),
       restriction: expect.stringContaining('inherited plugins, skills, and MCP'),
     });
-    expect(providers.find(({ id }) => id === 'claude')?.status).toBe('disabled');
+    expect(providers.find(({ id }) => id === 'claude')?.status).toBe('needs_install');
     expect(providers.find(({ id }) => id === 'gemini')?.restriction).toContain(
       'standard ACP model configuration',
     );
@@ -154,6 +154,69 @@ describe('probeProviders', () => {
         version: '0.149.1',
         account: 'Authenticated with Codex',
       });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('uses Claude auth status JSON and strips ambient provider credentials', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sia-provider-claude-'));
+    const executable = join(directory, 'claude');
+    await writeFile(executable, '');
+    await chmod(executable, 0o700);
+    const run = vi.fn(
+      async (_executable: string, args: readonly string[], environment: NodeJS.ProcessEnv) => ({
+        code: 0,
+        stdout:
+          args[0] === '--version'
+            ? '2.1.238 (Claude Code)'
+            : '{"loggedIn":true,"subscriptionType":"max"}',
+        stderr: '',
+        environment,
+      }),
+    );
+    try {
+      const [claude] = await probeProviders(
+        'claude',
+        {
+          PATH: directory,
+          HOME: '/Users/person',
+          ANTHROPIC_API_KEY: 'must-not-cross-probe-boundary',
+          AWS_SECRET_ACCESS_KEY: 'must-not-cross-probe-boundary',
+        },
+        { run },
+      );
+      expect(claude).toMatchObject({
+        status: 'ready',
+        version: '2.1.238',
+        model: 'sonnet',
+        account: 'Authenticated with Claude Max',
+      });
+      expect(run).toHaveBeenCalledTimes(2);
+      for (const call of run.mock.calls) {
+        expect(call[2]).toEqual({ PATH: directory, HOME: '/Users/person' });
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('fails Claude authentication closed for stale or malformed status output', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sia-provider-claude-auth-'));
+    const executable = join(directory, 'claude');
+    await writeFile(executable, '');
+    await chmod(executable, 0o700);
+    const runner = {
+      run: vi.fn(async (_executable: string, args: readonly string[]) => ({
+        code: 0,
+        stdout: args[0] === '--version' ? '2.1.238 (Claude Code)' : 'signed in maybe',
+        stderr: '',
+      })),
+    };
+    try {
+      const [claude] = await probeProviders('claude', { PATH: directory }, runner);
+      expect(claude).toMatchObject({ status: 'needs_login', version: '2.1.238' });
+      expect(claude?.account).toBeUndefined();
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

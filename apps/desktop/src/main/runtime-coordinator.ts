@@ -78,7 +78,7 @@ export class RuntimeCoordinator {
     options: {
       metaTransport?: MetaTransport;
       acpMcpServerFactory?: (
-        provider: 'grok' | 'gemini',
+        provider: 'grok' | 'gemini' | 'claude',
         session: ProviderSessionOptions,
       ) => readonly AcpMcpServer[];
       onDispose?: () => Promise<void>;
@@ -121,7 +121,14 @@ export class RuntimeCoordinator {
           : {}),
       }),
     );
-    this.#adapters.set('claude', createClaudeAdapter());
+    this.#adapters.set(
+      'claude',
+      createClaudeAdapter({
+        ...(options.acpMcpServerFactory
+          ? { mcpServerFactory: (session) => options.acpMcpServerFactory!('claude', session) }
+          : {}),
+      }),
+    );
     if (options.metaTransport) {
       this.#adapters.set(
         'meta',
