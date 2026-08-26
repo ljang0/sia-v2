@@ -160,8 +160,15 @@ if (minimumSystemVersion !== '14.0') {
 }
 
 const cloudConfig = parseCloudConfig(await readFile(cloudConfigPath, 'utf8'));
-if (signingMode === 'release' && !cloudConfig.enabled) {
-  throw new Error('A signed alpha release must include enabled cloud configuration.');
+if (
+  signingMode === 'release' &&
+  (!cloudConfig.enabled ||
+    !cloudConfig.updateManifestUrl ||
+    !cloudConfig.updateManifestPublicKey)
+) {
+  throw new Error(
+    'A signed alpha release must include enabled cloud and signed-update configuration.',
+  );
 }
 
 const transportSecurity = readPlistJson('NSAppTransportSecurity');
@@ -412,10 +419,20 @@ function parseCloudConfig(raw) {
   if (value.schemaVersion !== 1 || typeof value.enabled !== 'boolean') {
     throw new Error('Packaged cloud configuration has an invalid schema version.');
   }
+  const hasUpdateManifestUrl = typeof value.updateManifestUrl === 'string';
+  const hasUpdateManifestPublicKey = typeof value.updateManifestPublicKey === 'string';
+  if (hasUpdateManifestUrl !== hasUpdateManifestPublicKey) {
+    throw new Error('Packaged signed-update configuration is incomplete.');
+  }
+  const updateKeys = hasUpdateManifestUrl
+    ? ['updateManifestPublicKey', 'updateManifestUrl']
+    : [];
   if (!value.enabled) {
-    if (JSON.stringify(keys) !== JSON.stringify(['enabled', 'schemaVersion'])) {
+    const expected = ['enabled', 'schemaVersion', ...updateKeys].sort();
+    if (JSON.stringify(keys) !== JSON.stringify(expected)) {
       throw new Error('Disabled packaged cloud configuration contains unexpected fields.');
     }
+    validateUpdateConfiguration(value);
     return value;
   }
   const expected = [
@@ -424,6 +441,7 @@ function parseCloudConfig(raw) {
     'cognitoRegion',
     'enabled',
     'schemaVersion',
+    ...updateKeys,
   ];
   if (JSON.stringify(keys) !== JSON.stringify(expected)) {
     throw new Error('Enabled packaged cloud configuration contains unexpected fields.');
@@ -445,7 +463,28 @@ function parseCloudConfig(raw) {
   ) {
     throw new Error('Enabled packaged cloud configuration is invalid.');
   }
+  validateUpdateConfiguration(value);
   return value;
+}
+
+function validateUpdateConfiguration(value) {
+  if (!value.updateManifestUrl && !value.updateManifestPublicKey) return;
+  let updateUrl;
+  try {
+    updateUrl = new URL(value.updateManifestUrl);
+  } catch {
+    throw new Error('Packaged signed-update URL is invalid.');
+  }
+  if (
+    updateUrl.protocol !== 'https:' ||
+    updateUrl.username ||
+    updateUrl.password ||
+    updateUrl.search ||
+    updateUrl.hash ||
+    !/^[A-Za-z0-9_-]{59}$/.test(value.updateManifestPublicKey)
+  ) {
+    throw new Error('Packaged signed-update configuration is invalid.');
+  }
 }
 
 function verifyReleaseSignature() {

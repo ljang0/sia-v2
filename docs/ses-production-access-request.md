@@ -58,7 +58,10 @@ FromEmail=
 On the managed path, the SES `SourceArn` must be the verified email-address identity that should
 appear as the sender. Do not set Cognito's separate `From` property; the service rejects that
 property with `COGNITO_DEFAULT`. Reserve `FromEmail` for the `DEVELOPER` configuration after SES
-production access is approved.
+production access is approved. Before setting `SesSourceArn`, require `get-email-identity` to report
+both `VerifiedForSendingStatus: true` and `VerificationStatus: SUCCESS` for that exact email address;
+inherited verification from the domain is not sufficient for Cognito. Leave both sender parameters
+empty and use Cognito's managed default sender until that check passes.
 
 This is a temporary delivery path, not SES production approval. Before relying on it, inspect a
 non-executed CloudFormation change set for replacement or deletion, then have a release owner send
