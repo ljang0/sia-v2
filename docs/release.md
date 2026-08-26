@@ -1,9 +1,9 @@
 # Release gate
 
-The current source-candidate evidence and remaining release gates are recorded in
-[`release-evidence-2026-08-26-alpha.11.md`](./release-evidence-2026-08-26-alpha.11.md). The last
-signed-artifact evidence remains historical and does not authorize distribution of the changed
-`alpha.11` source.
+The current signed-artifact evidence and remaining release gates are recorded in
+[`release-evidence-2026-08-26-alpha.13.md`](./release-evidence-2026-08-26-alpha.13.md). Signing and
+private publication authorize operator/internal QA only; they do not establish recipient or
+research approval.
 Named research, privacy, security, support, and release approval is recorded in
 [`research-release-signoff.md`](./research-release-signoff.md).
 
@@ -75,8 +75,8 @@ Meta and Composio secret values, verify the deletion alarm has a confirmed subsc
 
 Before distribution, install the signed artifact on both a clean macOS account and an account that
 has run the previous Sia build. Complete `docs/manual-acceptance.md`, prepare release notes, confirm
-the support path, and keep the prior signed artifact available for rollback. Alpha updates are manual;
-this repository does not ship an automatic-update feed.
+the support path, and keep the prior signed artifact available for rollback. Alpha updates remain
+manual until a persistent signed update-manifest endpoint and access policy are configured.
 
 The control-plane stack includes a separate private, encrypted, versioned release-artifact bucket.
 After the exact DMG and ZIP pass signed-package verification, publish them and create a seven-day

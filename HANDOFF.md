@@ -4,11 +4,13 @@ _Updated: 2026-08-26 KST_
 
 > **Current handoff:** [`docs/handoff-2026-08-26-alpha.13.md`](./docs/handoff-2026-08-26-alpha.13.md)
 >
-> That document is the authoritative continuation state for the locally verified `alpha.13` source
-> candidate and its clean-room Grok Bot interaction review. It is not signed, notarized, published,
-> or approved for a cohort. The last signed and published evidence remains `alpha.11`. The material
-> below is retained as historical context and contains stale release versions, artifact hashes,
-> test counts, and open-item descriptions. Do not use it to make a current distribution decision.
+> That document is the authoritative continuation state for the signed, notarized, privately
+> published `alpha.13` operator/internal-QA build and its clean-room Grok Bot interaction review. It
+> is not approved for a participant cohort. The exact evidence is in
+> [`docs/release-evidence-2026-08-26-alpha.13.md`](./docs/release-evidence-2026-08-26-alpha.13.md).
+> The material below is retained as historical context and contains stale release versions,
+> artifact hashes, test counts, and open-item descriptions. Do not use it to make a current
+> distribution decision.
 
 ## Read this first
 

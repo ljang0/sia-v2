@@ -1,12 +1,14 @@
-# Sia `0.1.0-alpha.13` internal-candidate handoff
+# Sia `0.1.0-alpha.13` operator/internal-QA handoff
 
-_Prepared 2026-08-26 KST. This is a source handoff, not signed release evidence._
+_Prepared 2026-08-26 KST. Signed release evidence is linked below._
 
 ## Outcome
 
 `alpha.13` closes the low-risk interaction gaps identified in the clean-room Grok Bot behavioral
-audit without importing reference code, assets, copy, or package dependencies. The room keeps
-Sia's cool mineral surfaces and evergreen navigation; no paper-yellow surface treatment was added.
+audit without importing reference code, assets, copy, or package dependencies. It is signed,
+Apple-notarized, stapled, pushed, tagged, privately published, and ready for operator/internal QA.
+The room keeps Sia's cool mineral surfaces and evergreen navigation; no paper-yellow surface
+treatment was added.
 
 The candidate adds room pin/duplicate/notification controls, manual read state, contextual starts,
 in-thread find, message/file/link search in the switcher, provider activity totals, bounded native
@@ -36,38 +38,39 @@ notifications, Dock unread badge, and an honest update-readiness state.
 - `pnpm check`: passed build, formatting, quality, types, and 482 runnable unit/integration tests;
   the credential-dependent Codex isolation smoke test remained skipped.
 - `pnpm test:e2e`: 26 runnable Electron scenarios passed, including strict parity behavior and the
-  refreshed visual baselines. Four real Codex/Chrome/macOS-permission probes remained opt-in.
+  refreshed visual baselines. Real Codex isolation/authentication and macOS permission probes also
+  passed separately. Chrome's real attachment probe failed closed at Chrome's disabled one-time
+  remote-debugging permission.
 - `pnpm package:mac:arm64:dir`: produced and verified an unsigned
   `apps/desktop/release/mac-arm64/Sia.app` with cloud services deliberately disabled.
-- `node apps/desktop/scripts/verify-release-environment.mjs`: correctly stopped before a signed
-  release because signing/notarization and production API/Cognito configuration are not present in
-  this shell.
+- `pnpm package:mac`: produced and verified the signed, notarized, stapled universal app, DMG, and
+  ZIP through the secured local-Mac Keychain path.
+- Private publication stored both artifacts under content-addressed keys, generated a seven-day DMG
+  link, and returned HTTP 206 for a 1,024-byte range request.
+- Exact hashes, notarization identifiers, stack evidence, and the remaining rollout gates are in
+  [`release-evidence-2026-08-26-alpha.13.md`](./release-evidence-2026-08-26-alpha.13.md).
 
 ### Still required for distribution
 
-The following can be completed from this source checkout:
-
-- workspace formatting, type, lint, unit, integration, quality, package, and Electron end-to-end
-  gates;
-- a fresh universal package, signature/notarization/stapling verification, and checksum evidence
-  when release credentials are present;
-- update-manifest endpoint configuration and validation if a durable feed is provisioned.
+Source verification, signed packaging, notarization, stapling, content-addressed private upload,
+presigned-link range testing, stack drift, and alarm checks are complete.
 
 The following still require a human or external system and must not be inferred from green tests:
 
 - recipient/cohort approval and the final participant list;
 - institutional research and privacy sign-off where applicable;
-- production signing/notarization identity (`CSC_NAME`, or `CSC_LINK` with
-  `CSC_KEY_PASSWORD`) and Apple notarization credentials/profile;
-- production `SIA_RELEASE_API_BASE_URL`, `SIA_RELEASE_COGNITO_REGION`, and
-  `SIA_RELEASE_COGNITO_CLIENT_ID` values;
+- production Cognito email delivery or a reviewed and tested alternative;
 - deployment of a durable update manifest, including its access and retention policy;
+- Chrome's one-time visible remote-debugging permission followed by the exact attachment probe;
 - an approved user's actual install/login/connect/voice/computer-use acceptance pass.
 
-Do not call `alpha.13` internally released until those recipient-specific and operational records
-are attached to fresh release evidence. The last signed and published evidence remains
-[`alpha.11`](./release-evidence-2026-08-26-alpha.11.md); `alpha.12` and `alpha.13` are later local
-source candidates unless separately published.
+The GitHub `alpha-release` environment now exists, is limited to `main`, and contains the three
+production API/Cognito values. It does not contain portable Apple signing secrets; signed builds
+continue to use the secured release Mac unless those secrets are deliberately provisioned.
+
+`alpha.13` is an operator/internal-QA release, but do not call it participant-approved until the
+recipient-specific, human, and operational records above are complete. The current signed evidence
+is [`release-evidence-2026-08-26-alpha.13.md`](./release-evidence-2026-08-26-alpha.13.md).
 
 ## Reference
 

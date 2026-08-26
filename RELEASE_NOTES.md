@@ -1,8 +1,26 @@
-# Sia 0.1.0-alpha.12
+# Sia 0.1.0-alpha.13
 
 Sia is a private macOS 14+ alpha for local-first agent work. This build supports Codex through the
 official CLI already installed and authenticated on the Mac, plus hosted Meta access for signed-in
 research-alpha participants.
+
+## Alpha.13 changes
+
+- Agent rooms can be pinned, duplicated, muted, and manually marked read or unread. Notifications
+  open the exact thread and the macOS Dock badge reflects unread, non-archived work.
+- Empty rooms offer role-aware starter tasks. `Cmd/Ctrl+F` finds and navigates matches in the active
+  thread, while the quick switcher also searches message text, attachment names, and HTTPS links.
+- Native drag/drop uses the same bounded limits as the picker. Common images have an in-app preview;
+  PDFs and other files open through the system handler and can be revealed in Finder. Short-lived
+  grants are never persisted.
+- Provider-reported token activity is aggregated by completed turn and explicitly labeled as usage,
+  not an invoice.
+- Feedback opens a reviewable mail draft and never uploads silently. Optional diagnostics omit
+  transcript and file contents.
+- Settings report the exact app version and update readiness. Update checking stays disabled until
+  a persistent signed HTTPS manifest is deliberately configured.
+- The approval accent moved from mustard to storm blue; warning surfaces use restrained plum-neutral
+  tones instead of recreating a yellow paper cast.
 
 ## Alpha.12 changes
 
@@ -144,19 +162,20 @@ research-alpha participants.
 - Grok, Gemini, and Claude are not enabled shipping providers.
 - Schedules do not run while Sia or the Mac is offline.
 - The terminal is not an interactive persistent PTY.
-- Attachments do not have a general artifact-preview viewer.
+- Attachments support bounded local image previews and external PDF/file opening; arbitrary rich
+  artifact rendering remains outside this alpha.
 - Direct programmatic browser downloads are not available in this alpha; downloads remain a normal
   Chrome action. Sia supports autonomous browser click, type, and upload, with optional confirmation.
-- Updates are manual; there is no automatic-update feed.
+- Updates are manual by default; no persistent signed update manifest is configured for this build.
 - A Sia sign-in is explicitly a research-release enrollment. The person must accept the raw consent
   or decline and sign out. Local-only use remains available without sharing.
 - Slack is enabled for unlisted cross-workspace alpha installation. Google OAuth is published in the
   production project, but sensitive/restricted-scope review and CASA remain external distribution
   gates; organization policies may also require administrator approval. Remote/offline execution is
   not part of this alpha.
-- The `alpha.11` source candidate is locally verified, but its cohort-aware stack deployment,
-  signed/notarized artifact, live service rehearsal, and named human approvals remain required in
-  the release evidence before participant distribution.
+- The `alpha.13` operator/internal-QA build is signed, notarized, privately published, and backed by
+  an in-sync cohort-aware stack. Named recipients, production email delivery, exact-artifact human
+  acceptance, and research/governance approvals remain required before participant distribution.
 
 Read `PRIVACY.md` before enabling research capture or connecting an app. Report problems through the
 private alpha support channel described in `SUPPORT.md`.
