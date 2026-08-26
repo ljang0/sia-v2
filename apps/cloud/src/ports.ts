@@ -278,6 +278,11 @@ export interface ResearchObjectStore {
   deleteAllForUser(userId: string): Promise<void>;
 }
 
+export interface ReleaseManifestStore {
+  readLatest(): Promise<unknown>;
+  createArtifactDownloadUrl(objectKey: string): Promise<string>;
+}
+
 export interface InviteRecord {
   email: string;
   invitedBy: string;

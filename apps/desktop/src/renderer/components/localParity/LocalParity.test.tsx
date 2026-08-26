@@ -194,6 +194,62 @@ describe('local parity renderer contracts', () => {
     expect(onDelete).toHaveBeenCalledWith('schedule-1');
   });
 
+  it('shows the latest schedule outcome and an expandable bounded run history', () => {
+    render(
+      <ScheduleControls
+        schedules={[
+          {
+            id: 'schedule-1',
+            label: 'Morning summary',
+            prompt: 'Summarize updates',
+            cadence: 'daily',
+            nextRunAt: '2026-08-16T09:00:00.000Z',
+            enabled: true,
+            runCount: 2,
+            lastRun: {
+              id: 'run-2',
+              startedAt: '2026-08-15T09:00:00.000Z',
+              finishedAt: '2026-08-15T09:01:00.000Z',
+              outcome: 'completed',
+            },
+            runHistory: [
+              {
+                id: 'run-2',
+                startedAt: '2026-08-15T09:00:00.000Z',
+                finishedAt: '2026-08-15T09:01:00.000Z',
+                outcome: 'completed',
+              },
+              {
+                id: 'run-1',
+                startedAt: '2026-08-14T09:00:00.000Z',
+                finishedAt: '2026-08-14T09:01:00.000Z',
+                outcome: 'failed',
+              },
+            ],
+          },
+        ]}
+        onCreate={vi.fn()}
+        onSetEnabled={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('schedule-next-run').textContent).toContain('Next');
+    expect(screen.getByText(/Last Completed/)).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show run history for Morning summary' }),
+    );
+
+    const history = screen.getByRole('list', { name: 'Run history for Morning summary' });
+    expect(history.textContent).toContain('Completed');
+    expect(history.textContent).toContain('Failed');
+    expect(
+      screen
+        .getByRole('button', { name: 'Hide run history for Morning summary' })
+        .getAttribute('aria-expanded'),
+    ).toBe('true');
+  });
+
   it('infers the first run when a recurring schedule omits it', async () => {
     const onCreate = vi.fn(async () => undefined);
     render(

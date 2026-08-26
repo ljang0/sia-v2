@@ -195,6 +195,12 @@ export interface RendererAttachment {
 
 export type AttachmentPreview =
   | { kind: 'image'; dataUrl: string }
+  | {
+      kind: 'text';
+      content: string;
+      format: 'text' | 'code' | 'diff' | 'csv';
+      language?: string;
+    }
   | { kind: 'pdf' }
   | { kind: 'unavailable'; detail: string };
 
@@ -247,12 +253,15 @@ export interface ThreadSchedule {
   lastRunAt?: string | undefined;
   runCount?: number | undefined;
   maxRuns?: number | undefined;
-  lastRun?: {
-    id: string;
-    startedAt: string;
-    finishedAt?: string;
-    outcome: 'started' | 'completed' | 'failed' | 'cancelled';
-  };
+  lastRun?: ScheduleRun;
+  runHistory?: ScheduleRun[];
+}
+
+export interface ScheduleRun {
+  id: string;
+  startedAt: string;
+  finishedAt?: string;
+  outcome: 'started' | 'completed' | 'failed' | 'cancelled';
 }
 
 export interface TranscriptSearchResult {

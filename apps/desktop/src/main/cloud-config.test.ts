@@ -14,6 +14,7 @@ const ENABLED_CONFIG = {
   cognitoRegion: 'us-east-1',
   cognitoClientId: 'clientid123456789',
 } as const;
+const UPDATE_PUBLIC_KEY = 'MCowBQYDK2VwAyEA6zvgdPmhF01rw0yEuXyMJwZ1e99HMdoWJIdKfv1TSqw';
 
 describe('cloud configuration', () => {
   it('accepts the strict enabled and disabled packaged schema', () => {
@@ -72,8 +73,12 @@ describe('cloud configuration', () => {
     expect(
       developmentCloudConfiguration({
         SIA_UPDATE_MANIFEST_URL: 'https://releases.example.test/latest-mac.json',
+        SIA_UPDATE_MANIFEST_PUBLIC_KEY: UPDATE_PUBLIC_KEY,
       }),
-    ).toEqual({ updateManifestUrl: 'https://releases.example.test/latest-mac.json' });
+    ).toEqual({
+      updateManifestUrl: 'https://releases.example.test/latest-mac.json',
+      updateManifestPublicKey: UPDATE_PUBLIC_KEY,
+    });
     expect(() =>
       developmentCloudConfiguration({
         SIA_UPDATE_MANIFEST_URL: 'http://releases.example.test',
@@ -92,10 +97,12 @@ describe('cloud configuration', () => {
             schemaVersion: 1,
             enabled: false,
             updateManifestUrl: 'https://releases.example.test/latest-mac.json',
+            updateManifestPublicKey: UPDATE_PUBLIC_KEY,
           }),
       }),
     ).resolves.toEqual({
       updateManifestUrl: 'https://releases.example.test/latest-mac.json',
+      updateManifestPublicKey: UPDATE_PUBLIC_KEY,
     });
   });
 

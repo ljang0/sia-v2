@@ -1,5 +1,6 @@
 import {
   CalendarDots,
+  CaretDown,
   CheckCircle,
   Clock,
   Flag,
@@ -10,7 +11,7 @@ import {
   X,
 } from '@phosphor-icons/react';
 import { useId, useState, type FormEvent } from 'react';
-import type { ThreadGoal } from '../../types';
+import type { ScheduleRun, ThreadGoal } from '../../types';
 import styles from '../../ui.module.css';
 
 interface SelectOption {
@@ -199,12 +200,8 @@ interface ThreadSchedule {
   enabled: boolean;
   runCount?: number | undefined;
   maxRuns?: number | undefined;
-  lastRun?:
-    | {
-        outcome: 'started' | 'completed' | 'failed' | 'cancelled';
-        finishedAt?: string;
-      }
-    | undefined;
+  lastRun?: ScheduleRun | undefined;
+  runHistory?: readonly ScheduleRun[] | undefined;
 }
 
 interface ScheduleDraft {
@@ -236,6 +233,7 @@ export function ScheduleControls({
   const [cadence, setCadence] = useState<ScheduleDraft['cadence']>('once');
   const [runAt, setRunAt] = useState('');
   const [maxRuns, setMaxRuns] = useState('');
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string>();
   const titleId = useId();
 
   const submit = (event: FormEvent) => {
@@ -355,56 +353,104 @@ export function ScheduleControls({
 
       <div className={styles.scheduleList}>
         {schedules.length ? (
-          schedules.map((schedule) => (
-            <article className={styles.scheduleRow} key={schedule.id}>
-              <CalendarDots size={17} aria-hidden="true" />
-              <div>
-                <strong>{schedule.label}</strong>
-                <span>
-                  <Clock size={12} aria-hidden="true" />
-                  <span data-testid="schedule-next-run">
-                    {schedule.enabled
-                      ? `Next run ${formatScheduleTime(schedule.nextRunAt)}`
-                      : 'Paused'}
-                  </span>
-                  {schedule.runCount ? (
-                    <span>
-                      {schedule.runCount} run{schedule.runCount === 1 ? '' : 's'}
-                      {schedule.maxRuns ? ` of ${schedule.maxRuns}` : ''}
-                      {schedule.lastRun ? ` · ${schedule.lastRun.outcome}` : ''}
+          schedules.map((schedule) => {
+            const runs = scheduleRuns(schedule);
+            const historyExpanded = expandedHistoryId === schedule.id;
+            return (
+              <article className={styles.scheduleRow} key={schedule.id}>
+                <CalendarDots className={styles.scheduleRowIcon} size={17} aria-hidden="true" />
+                <div className={styles.scheduleSummary}>
+                  <strong>{schedule.label}</strong>
+                  <div className={styles.scheduleMeta}>
+                    <span data-testid="schedule-next-run">
+                      <Clock size={12} aria-hidden="true" />
+                      {scheduleNextLabel(schedule)}
                     </span>
+                    <span>
+                      {(schedule.runCount ?? 0).toLocaleString()} run
+                      {schedule.runCount === 1 ? '' : 's'}
+                      {schedule.maxRuns ? ` of ${schedule.maxRuns.toLocaleString()}` : ''}
+                    </span>
+                  </div>
+                  <div className={styles.scheduleOutcomeSummary}>
+                    {schedule.lastRun ? (
+                      <span
+                        className={styles.scheduleOutcome}
+                        data-outcome={schedule.lastRun.outcome}
+                      >
+                        Last {scheduleOutcomeLabel(schedule.lastRun.outcome)} ·{' '}
+                        <time dateTime={scheduleRunTimestamp(schedule.lastRun)}>
+                          {formatScheduleTime(scheduleRunTimestamp(schedule.lastRun))}
+                        </time>
+                      </span>
+                    ) : (
+                      <span>Not run yet</span>
+                    )}
+                    {runs.length ? (
+                      <button
+                        type="button"
+                        className={styles.scheduleHistoryToggle}
+                        aria-expanded={historyExpanded}
+                        aria-label={`${historyExpanded ? 'Hide' : 'Show'} run history for ${schedule.label}`}
+                        onClick={() =>
+                          setExpandedHistoryId(historyExpanded ? undefined : schedule.id)
+                        }
+                      >
+                        {runs.length} recent
+                        <CaretDown size={12} weight="bold" aria-hidden="true" />
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+                <div className={styles.scheduleActions}>
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    disabled={busy}
+                    onClick={() => void onSetEnabled(schedule.id, !schedule.enabled)}
+                  >
+                    {schedule.enabled ? 'Pause' : 'Resume'}
+                  </button>
+                  {onRunNow ? (
+                    <button
+                      type="button"
+                      className={styles.secondaryButton}
+                      disabled={busy}
+                      onClick={() => void onRunNow(schedule.id)}
+                    >
+                      Run now
+                    </button>
                   ) : null}
-                </span>
-              </div>
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                disabled={busy}
-                onClick={() => void onSetEnabled(schedule.id, !schedule.enabled)}
-              >
-                {schedule.enabled ? 'Pause' : 'Resume'}
-              </button>
-              {onRunNow ? (
+                </div>
                 <button
                   type="button"
-                  className={styles.secondaryButton}
+                  className={styles.iconButtonSmall}
                   disabled={busy}
-                  onClick={() => void onRunNow(schedule.id)}
+                  onClick={() => void onDelete(schedule.id)}
+                  aria-label={`Delete ${schedule.label}`}
                 >
-                  Run now
+                  <Trash size={14} aria-hidden="true" />
                 </button>
-              ) : null}
-              <button
-                type="button"
-                className={styles.iconButtonSmall}
-                disabled={busy}
-                onClick={() => void onDelete(schedule.id)}
-                aria-label={`Delete ${schedule.label}`}
-              >
-                <Trash size={14} aria-hidden="true" />
-              </button>
-            </article>
-          ))
+                {historyExpanded ? (
+                  <ol
+                    className={styles.scheduleHistory}
+                    aria-label={`Run history for ${schedule.label}`}
+                  >
+                    {runs.map((run) => (
+                      <li key={run.id}>
+                        <span className={styles.scheduleOutcome} data-outcome={run.outcome}>
+                          {scheduleOutcomeLabel(run.outcome)}
+                        </span>
+                        <time dateTime={scheduleRunTimestamp(run)}>
+                          {formatScheduleTime(scheduleRunTimestamp(run))}
+                        </time>
+                      </li>
+                    ))}
+                  </ol>
+                ) : null}
+              </article>
+            );
+          })
         ) : (
           <p className={styles.localEmpty}>No scheduled work for this thread.</p>
         )}
@@ -420,6 +466,29 @@ function formatScheduleTime(value: string) {
     hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(value));
+}
+
+function scheduleRuns(schedule: ThreadSchedule): readonly ScheduleRun[] {
+  if (schedule.runHistory?.length) return schedule.runHistory;
+  return schedule.lastRun ? [schedule.lastRun] : [];
+}
+
+function scheduleNextLabel(schedule: ThreadSchedule): string {
+  if (schedule.enabled) return `Next ${formatScheduleTime(schedule.nextRunAt)}`;
+  if (schedule.maxRuns !== undefined && (schedule.runCount ?? 0) >= schedule.maxRuns) {
+    return 'Run limit reached';
+  }
+  if (schedule.cadence === 'once' && (schedule.runCount ?? 0) > 0) return 'Finished';
+  return 'Paused';
+}
+
+function scheduleOutcomeLabel(outcome: ScheduleRun['outcome']): string {
+  if (outcome === 'started') return 'Running';
+  return `${outcome[0]?.toUpperCase()}${outcome.slice(1)}`;
+}
+
+function scheduleRunTimestamp(run: ScheduleRun): string {
+  return run.finishedAt ?? run.startedAt;
 }
 
 function inferredFirstRun(cadence: ScheduleDraft['cadence']) {

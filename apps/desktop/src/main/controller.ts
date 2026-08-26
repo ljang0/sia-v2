@@ -49,7 +49,8 @@ import type { CloudIdentityStatus } from './identity.js';
 import type { CuaAuthorizationContext } from './cua-service.js';
 import type { VoiceOperations } from './voice-service.js';
 import type { TrajectoryRecorder } from './trajectory-recorder.js';
-import { RESEARCH_CONSENT_VERSION } from '../shared/bridge.js';
+import { RESEARCH_CONSENT_VERSION, SCHEDULE_RUN_HISTORY_LIMIT } from '../shared/bridge.js';
+import { verifyUpdateManifestResponse } from './update-manifest.js';
 
 interface ComputerAutomation {
   permissions(): Promise<ComputerPermissionsView>;
@@ -78,6 +79,7 @@ interface ControllerOptions {
   computer: ComputerAutomation;
   identity: {
     initialize(): Promise<CloudIdentityStatus>;
+    read?(): Promise<string | undefined>;
     status(): CloudIdentityStatus;
     startEmailSignIn(email: string): Promise<CloudIdentityStatus>;
     completeEmailSignIn(code: string): Promise<CloudIdentityStatus>;
@@ -114,6 +116,7 @@ interface ControllerOptions {
   composeFeedback?(subject: string, body: string): Promise<void>;
   appVersion?: string;
   updateManifestUrl?: string;
+  updateManifestPublicKey?: string;
   exportJson(value: unknown): Promise<string | null>;
   notify?(notice: { threadId: string; title: string; body: string }): void;
   workspaceOperations?: {
@@ -384,6 +387,7 @@ export class DesktopController {
   readonly #composeFeedback: ((subject: string, body: string) => Promise<void>) | undefined;
   readonly #appVersion: string;
   readonly #updateManifestUrl: string | undefined;
+  readonly #updateManifestPublicKey: string | undefined;
   readonly #exportJson: (value: unknown) => Promise<string | null>;
   readonly #notify:
     ((notice: { threadId: string; title: string; body: string }) => void) | undefined;
@@ -462,6 +466,7 @@ export class DesktopController {
     this.#composeFeedback = options.composeFeedback;
     this.#appVersion = options.appVersion ?? 'development';
     this.#updateManifestUrl = options.updateManifestUrl;
+    this.#updateManifestPublicKey = options.updateManifestPublicKey;
     this.#updates = {
       status: options.updateManifestUrl ? 'idle' : 'unconfigured',
       currentVersion: this.#appVersion,
@@ -722,17 +727,22 @@ export class DesktopController {
     };
     this.#emit();
     try {
+      if (!this.#updateManifestPublicKey) {
+        throw new Error('The release feed does not have a pinned signing key.');
+      }
+      const token = await this.#identity.read?.();
+      if (!token) throw new Error('Sign in with an approved Sia account to check for updates.');
       const response = await fetch(this.#updateManifestUrl, {
-        headers: { accept: 'application/json' },
+        headers: { accept: 'application/json', authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(10_000),
       });
       if (!response.ok) throw new Error(`Release feed returned HTTP ${response.status}.`);
-      const raw = (await response.json()) as Record<string, unknown>;
-      const latestVersion = typeof raw.version === 'string' ? raw.version.trim() : '';
-      const downloadUrl = typeof raw.downloadUrl === 'string' ? raw.downloadUrl.trim() : '';
-      if (!latestVersion || !isCleanHttpsUrl(downloadUrl)) {
-        throw new Error('Release feed response is missing a safe version or download URL.');
-      }
+      const verified = verifyUpdateManifestResponse(
+        await response.json(),
+        this.#updateManifestPublicKey,
+      );
+      const latestVersion = verified.payload.version;
+      const downloadUrl = verified.downloadUrl;
       const available = compareVersions(latestVersion, this.#appVersion) > 0;
       this.#updates = {
         status: available ? 'available' : 'current',
@@ -2241,12 +2251,30 @@ export class DesktopController {
   ): Promise<BridgeResultMap['attachments.preview']> {
     const grant = this.#requireAttachmentGrant(input.threadId, input.attachmentId);
     const path = grant.attachment.path;
-    if (extname(path).toLocaleLowerCase() === '.pdf') return { kind: 'pdf' };
+    const extension = extname(path).toLocaleLowerCase();
+    if (extension === '.pdf') return { kind: 'pdf' };
     const mimeType = previewImageMimeType(path);
-    if (!mimeType) {
-      return { kind: 'unavailable', detail: 'Preview is available for common image files.' };
-    }
     const info = await stat(path);
+    const textPreview = textAttachmentPreview(extension);
+    if (textPreview) {
+      if (info.size > 512 * 1024) {
+        return {
+          kind: 'unavailable',
+          detail: 'Open this file to view it. Text previews are limited to 512 KB.',
+        };
+      }
+      const content = await readFile(path, 'utf8');
+      if (content.includes('\u0000')) {
+        return { kind: 'unavailable', detail: 'This file does not contain previewable text.' };
+      }
+      return { kind: 'text', content, ...textPreview };
+    }
+    if (!mimeType) {
+      return {
+        kind: 'unavailable',
+        detail: 'Preview is available for images, PDF metadata, and common text files.',
+      };
+    }
     if (info.size > 8 * 1024 * 1024) {
       return { kind: 'unavailable', detail: 'Open this image to view the full-size file.' };
     }
@@ -2562,6 +2590,7 @@ export class DesktopController {
     const startedAt = dispatched?.timestamp ?? now.toISOString();
     schedule.lastRunAt = startedAt;
     schedule.lastRun = { id: claim.id, startedAt, outcome: 'started' };
+    upsertScheduleRun(schedule, schedule.lastRun);
     schedule.runCount = (schedule.runCount ?? 0) + 1;
     this.#advanceSchedule(schedule, now);
     if (schedule.maxRuns !== undefined && schedule.runCount >= schedule.maxRuns) {
@@ -4756,14 +4785,23 @@ export class DesktopController {
   ): void {
     if (!turn.scheduleRunId) return;
     const schedule = this.#state.schedules.find(
-      ({ lastRun }) => lastRun?.id === turn.scheduleRunId,
+      ({ lastRun, runHistory }) =>
+        lastRun?.id === turn.scheduleRunId ||
+        runHistory?.some(({ id }) => id === turn.scheduleRunId),
     );
-    if (!schedule?.lastRun) return;
-    schedule.lastRun = {
-      ...schedule.lastRun,
+    if (!schedule) return;
+    const startedRun =
+      schedule.lastRun?.id === turn.scheduleRunId
+        ? schedule.lastRun
+        : schedule.runHistory?.find(({ id }) => id === turn.scheduleRunId);
+    if (!startedRun) return;
+    const finishedRun = {
+      ...startedRun,
       outcome,
       finishedAt: new Date().toISOString(),
     };
+    if (schedule.lastRun?.id === turn.scheduleRunId) schedule.lastRun = finishedRun;
+    upsertScheduleRun(schedule, finishedRun);
   }
 
   #applyRuntimeEvent(event: ThreadEventEnvelope): void {
@@ -5684,10 +5722,16 @@ export class DesktopController {
   #recover(state: PersistedState): PersistedState {
     const recovered = structuredClone(state);
     recovered.connectionOwners = recovered.connectionOwners ?? {};
-    recovered.schedules = (recovered.schedules ?? []).map((schedule) => ({
-      ...schedule,
-      runCount: schedule.runCount ?? 0,
-    }));
+    recovered.schedules = (recovered.schedules ?? []).map((schedule) => {
+      const runHistory = (schedule.runHistory ?? (schedule.lastRun ? [schedule.lastRun] : []))
+        .filter((run, index, history) => history.findIndex(({ id }) => id === run.id) === index)
+        .slice(0, SCHEDULE_RUN_HISTORY_LIMIT);
+      return {
+        ...schedule,
+        runCount: schedule.runCount ?? 0,
+        ...(runHistory.length > 0 ? { runHistory } : {}),
+      };
+    });
     recovered.cloudFeatures =
       recovered.cloudFeatures ?? structuredClone(INITIAL_STATE.cloudFeatures);
     recovered.preferences = recovered.preferences ?? { completionSound: false };
@@ -6315,6 +6359,49 @@ function scheduleIntervalMs(cadence: ScheduleView['cadence']): number {
   if (cadence === 'daily') return 24 * 60 * 60_000;
   if (cadence === 'weekly') return 7 * 24 * 60 * 60_000;
   return 0;
+}
+
+function textAttachmentPreview(
+  extension: string,
+): { format: 'text' | 'code' | 'diff' | 'csv'; language?: string } | undefined {
+  if (extension === '.csv' || extension === '.tsv') {
+    return { format: 'csv', language: extension.slice(1).toUpperCase() };
+  }
+  if (extension === '.diff' || extension === '.patch') {
+    return { format: 'diff', language: 'Diff' };
+  }
+  const languages: Readonly<Record<string, string>> = {
+    '.css': 'CSS',
+    '.go': 'Go',
+    '.html': 'HTML',
+    '.js': 'JavaScript',
+    '.json': 'JSON',
+    '.jsx': 'JSX',
+    '.py': 'Python',
+    '.rb': 'Ruby',
+    '.rs': 'Rust',
+    '.sh': 'Shell',
+    '.sql': 'SQL',
+    '.toml': 'TOML',
+    '.ts': 'TypeScript',
+    '.tsx': 'TSX',
+    '.xml': 'XML',
+    '.yaml': 'YAML',
+    '.yml': 'YAML',
+  };
+  if (languages[extension]) return { format: 'code', language: languages[extension] };
+  if (['.log', '.md', '.txt'].includes(extension)) return { format: 'text' };
+  return undefined;
+}
+
+function upsertScheduleRun(
+  schedule: ScheduleView,
+  run: NonNullable<ScheduleView['lastRun']>,
+): void {
+  schedule.runHistory = [
+    run,
+    ...(schedule.runHistory ?? []).filter(({ id }) => id !== run.id),
+  ].slice(0, SCHEDULE_RUN_HISTORY_LIMIT);
 }
 
 function summarizeDataLeaving(

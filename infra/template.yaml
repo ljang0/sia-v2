@@ -68,11 +68,13 @@ Parameters:
   SesSourceArn:
     Type: String
     Default: ''
+    AllowedPattern: '^$|^arn:[a-z0-9-]+:ses:[a-z0-9-]+:[0-9]{12}:identity\/.+$'
     Description: Verified SES identity used for either a branded Cognito sender or SES delivery.
   FromEmail:
     Type: String
     Default: ''
-    Description: Branded From address used when EmailSendingAccount is DEVELOPER.
+    MaxLength: 320
+    Description: Branded From address used with a verified SesSourceArn for Cognito-managed or SES delivery.
   AlarmNotificationTopicArn:
     Type: String
     MinLength: 1
@@ -80,8 +82,26 @@ Parameters:
 
 Conditions:
   HasBootstrapAdmin: !Not [!Equals [!Ref BootstrapAdminEmail, '']]
-  UseSes: !Equals [!Ref EmailSendingAccount, DEVELOPER]
   HasCustomEmailSender: !Not [!Equals [!Ref SesSourceArn, '']]
+
+Rules:
+  SesSourceRequiresFrom:
+    RuleCondition: !Not [!Equals [!Ref SesSourceArn, '']]
+    Assertions:
+      - Assert: !Not [!Equals [!Ref FromEmail, '']]
+        AssertDescription: FromEmail is required when SesSourceArn is configured.
+  FromRequiresSesSource:
+    RuleCondition: !Not [!Equals [!Ref FromEmail, '']]
+    Assertions:
+      - Assert: !Not [!Equals [!Ref SesSourceArn, '']]
+        AssertDescription: SesSourceArn is required when FromEmail is configured.
+  DeveloperEmailRequiresVerifiedSender:
+    RuleCondition: !Equals [!Ref EmailSendingAccount, DEVELOPER]
+    Assertions:
+      - Assert: !Not [!Equals [!Ref SesSourceArn, '']]
+        AssertDescription: SES developer delivery requires a verified SES source ARN.
+      - Assert: !Not [!Equals [!Ref FromEmail, '']]
+        AssertDescription: SES developer delivery requires a branded From address.
 
 Globals:
   Function:
@@ -94,6 +114,7 @@ Globals:
         TABLE_NAME: !Ref ControlTable
         RESEARCH_BUCKET: !Ref ResearchBucket
         AUDIT_BUCKET: !Ref AuditBucket
+        RELEASE_BUCKET: !Ref ReleaseArtifactsBucket
         KMS_KEY_ARN: !GetAtt DataKey.Arn
         DELETION_QUEUE_URL: !Ref DeletionQueue
         EXPORT_QUEUE_URL: !Ref ResearchExportQueue
@@ -491,6 +512,36 @@ Resources:
       TreatMissingData: notBreaching
       AlarmActions: [!Ref AlarmNotificationTopicArn]
 
+  SesBounceRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: SES account bounce rate exceeds the operator review threshold.
+      Namespace: AWS/SES
+      MetricName: Reputation.BounceRate
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 0.05
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmNotificationTopicArn]
+
+  SesComplaintRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: SES account complaint rate exceeds the operator review threshold.
+      Namespace: AWS/SES
+      MetricName: Reputation.ComplaintRate
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 0.001
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmNotificationTopicArn]
+
   ControlFunctionThrottleAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -696,7 +747,7 @@ Resources:
       EmailConfiguration:
         EmailSendingAccount: !Ref EmailSendingAccount
         SourceArn: !If [HasCustomEmailSender, !Ref SesSourceArn, !Ref AWS::NoValue]
-        From: !If [UseSes, !Ref FromEmail, !Ref AWS::NoValue]
+        From: !If [HasCustomEmailSender, !Ref FromEmail, !Ref AWS::NoValue]
       EmailAuthenticationSubject: Your Sia sign-in code
       EmailAuthenticationMessage: Your Sia sign-in code is {####}.
 
@@ -810,6 +861,11 @@ Resources:
               - Effect: Allow
                 Action: s3:PutObject
                 Resource: !Sub ${AuditBucket.Arn}/audit/*
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource:
+                  - !Sub ${ReleaseArtifactsBucket.Arn}/manifests/macos/*
+                  - !Sub ${ReleaseArtifactsBucket.Arn}/releases/*
               - Effect: Allow
                 Action: secretsmanager:GetSecretValue
                 Resource:
@@ -1119,6 +1175,15 @@ Resources:
                 httpMethod: POST
                 credentials: !GetAtt ApiGatewayInvokeRole.Arn
                 uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
+          /v1/releases/macos:
+            get:
+              responses:
+                '200': { description: Signed private macOS release manifest }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
           /v1/meta/turns:
             post:
               responses:
@@ -1286,5 +1351,7 @@ Outputs:
         - !Ref DeletionFunctionErrorAlarm
         - !Ref DeletionFunctionThrottleAlarm
         - !Ref ControlTableThrottleAlarm
+        - !Ref SesBounceRateAlarm
+        - !Ref SesComplaintRateAlarm
   ReleaseArtifactsBucketName:
     Value: !Ref ReleaseArtifactsBucket

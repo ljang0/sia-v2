@@ -12,6 +12,7 @@ const values = {
   cognitoClientId: process.env.SIA_RELEASE_COGNITO_CLIENT_ID,
 };
 const updateManifestUrl = process.env.SIA_RELEASE_UPDATE_MANIFEST_URL;
+const updateManifestPublicKey = process.env.SIA_RELEASE_UPDATE_MANIFEST_PUBLIC_KEY;
 const supplied = Object.values(values).filter(Boolean).length;
 let config;
 if (supplied === 0 && mode === '--allow-disabled') {
@@ -19,6 +20,7 @@ if (supplied === 0 && mode === '--allow-disabled') {
     schemaVersion: 1,
     enabled: false,
     ...(updateManifestUrl ? { updateManifestUrl } : {}),
+    ...(updateManifestPublicKey ? { updateManifestPublicKey } : {}),
   };
 } else {
   if (supplied !== 3) {
@@ -32,10 +34,21 @@ if (supplied === 0 && mode === '--allow-disabled') {
     enabled: true,
     ...values,
     ...(updateManifestUrl ? { updateManifestUrl } : {}),
+    ...(updateManifestPublicKey ? { updateManifestPublicKey } : {}),
   };
 }
 
+if (Boolean(updateManifestUrl) !== Boolean(updateManifestPublicKey)) {
+  throw new Error(
+    'Release update configuration requires SIA_RELEASE_UPDATE_MANIFEST_URL and SIA_RELEASE_UPDATE_MANIFEST_PUBLIC_KEY together.',
+  );
+}
 if (updateManifestUrl) validateHttpsUrl(updateManifestUrl, 'SIA_RELEASE_UPDATE_MANIFEST_URL');
+if (updateManifestPublicKey && !/^[A-Za-z0-9_-]{59}$/.test(updateManifestPublicKey)) {
+  throw new Error(
+    'SIA_RELEASE_UPDATE_MANIFEST_PUBLIC_KEY must be a base64url Ed25519 SPKI key.',
+  );
+}
 
 const desktopRoot = resolve(import.meta.dirname, '..');
 const output = join(desktopRoot, 'build', 'sia-cloud.json');

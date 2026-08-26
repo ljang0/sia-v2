@@ -24,10 +24,10 @@ notifications, Dock unread badge, and an honest update-readiness state.
   renderer; it opens in the default system reader.
 - Feedback is not silently uploaded. Sia opens a mail draft for review. Optional diagnostics do not
   contain transcript or file contents.
-- Update checks require a clean HTTPS manifest. Development can use `SIA_UPDATE_MANIFEST_URL`; a
-  packaged release receives the URL through signed configuration prepared from
-  `SIA_RELEASE_UPDATE_MANIFEST_URL`. No feed is configured by default, and the app does not claim
-  automatic installation.
+- The follow-up source now requires an authenticated private manifest route and a pinned Ed25519
+  public key. The desktop verifies the signature and binds the presigned AWS S3 URL to the exact
+  signed object key. No feed is embedded in the already-signed `alpha.13` artifact, and the app does
+  not claim automatic installation.
 - Shared rooms, plugin marketplaces, VNC, password-vault integration, and webhook automation remain
   outside the internal candidate because they change the security and operating model.
 
@@ -59,8 +59,10 @@ The following still require a human or external system and must not be inferred 
 
 - recipient/cohort approval and the final participant list;
 - institutional research and privacy sign-off where applicable;
-- production Cognito email delivery or a reviewed and tested alternative;
-- deployment of a durable update manifest, including its access and retention policy;
+- production Cognito email delivery or the reviewed Cognito-managed custom-sender alternative,
+  followed by an unrelated-domain human delivery test;
+- deployment and first offline-key publication of the implemented signed update manifest, then a
+  new signed desktop package containing its API URL and pinned public key;
 - Chrome's one-time visible remote-debugging permission followed by the exact attachment probe;
 - an approved user's actual install/login/connect/voice/computer-use acceptance pass.
 

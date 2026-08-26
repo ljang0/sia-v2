@@ -87,6 +87,7 @@ import type {
   ResearchExportState,
   ResearchObjectStore,
   ResearchRepository,
+  ReleaseManifestStore,
   SecretProvider,
   TokenCipher,
 } from './ports.js';
@@ -114,6 +115,7 @@ export interface RuntimeConfig {
   tableName: string;
   bucketName: string;
   auditBucketName: string;
+  releaseBucketName: string;
   kmsKeyArn: string;
   deletionQueueUrl: string;
   exportQueueUrl: string;
@@ -139,6 +141,7 @@ export function loadRuntimeConfig(environment: NodeJS.ProcessEnv = process.env):
     tableName: requiredEnv(environment, 'TABLE_NAME'),
     bucketName: requiredEnv(environment, 'RESEARCH_BUCKET'),
     auditBucketName: requiredEnv(environment, 'AUDIT_BUCKET'),
+    releaseBucketName: requiredEnv(environment, 'RELEASE_BUCKET'),
     kmsKeyArn: requiredEnv(environment, 'KMS_KEY_ARN'),
     deletionQueueUrl: requiredEnv(environment, 'DELETION_QUEUE_URL'),
     exportQueueUrl: requiredEnv(environment, 'EXPORT_QUEUE_URL'),
@@ -1000,6 +1003,38 @@ export class S3ResearchObjects implements ResearchObjectStore {
   }
 }
 
+export class S3ReleaseManifests implements ReleaseManifestStore {
+  constructor(
+    private readonly client: S3Client,
+    private readonly bucketName: string,
+  ) {}
+
+  async readLatest(): Promise<unknown> {
+    const result = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucketName, Key: 'manifests/macos/latest.json' }),
+    );
+    if (!result.Body) throw new Error('The release manifest object is missing');
+    const bytes = await result.Body.transformToByteArray();
+    if (bytes.byteLength > 16_384) throw new Error('The release manifest is too large');
+    return JSON.parse(Buffer.from(bytes).toString('utf8')) as unknown;
+  }
+
+  async createArtifactDownloadUrl(objectKey: string): Promise<string> {
+    if (
+      !/^releases\/[0-9A-Za-z.-]+\/[a-f0-9]{16}\/Sia-[0-9A-Za-z.-]+-universal\.dmg$/.test(
+        objectKey,
+      )
+    ) {
+      throw new Error('The release artifact key is outside the private release prefix');
+    }
+    return await getSignedUrl(
+      this.client,
+      new GetObjectCommand({ Bucket: this.bucketName, Key: objectKey }),
+      { expiresIn: 15 * 60 },
+    );
+  }
+}
+
 export class AwsDeletionQueue implements DeletionQueue {
   constructor(
     private readonly client: SQSClient,
@@ -1633,6 +1668,7 @@ export function createAwsDependencies(config = loadRuntimeConfig()): ServiceDepe
     researchExports: state,
     researchExportQueue: new AwsResearchExportQueue(sqs, config.exportQueueUrl),
     researchObjects: new S3ResearchObjects(s3, config.bucketName, config.kmsKeyArn),
+    releaseManifests: new S3ReleaseManifests(s3, config.releaseBucketName),
     invites: state,
     registrationLimits: state,
     identity: new CognitoIdentity(new CognitoIdentityProviderClient({}), config.userPoolId),

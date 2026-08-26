@@ -49,6 +49,7 @@ import type {
   ResearchExportRepository,
   ResearchExportState,
   ResearchObjectStore,
+  ReleaseManifestStore,
   ResearchRepository,
   SecretProvider,
 } from './ports.js';
@@ -544,6 +545,16 @@ export class MemoryResearchExportQueue implements ResearchExportQueue {
   readonly messages: Array<{ id: string; userId: string }> = [];
   async enqueue(job: { id: string; userId: string }): Promise<void> {
     this.messages.push(structuredClone(job));
+  }
+}
+
+export class MemoryReleaseManifests implements ReleaseManifestStore {
+  constructor(public latest: unknown) {}
+  async readLatest(): Promise<unknown> {
+    return structuredClone(this.latest);
+  }
+  async createArtifactDownloadUrl(objectKey: string): Promise<string> {
+    return `https://release-download.invalid/${objectKey}?signed=yes`;
   }
 }
 

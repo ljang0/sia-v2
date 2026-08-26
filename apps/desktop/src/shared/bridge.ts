@@ -96,6 +96,12 @@ export interface AttachmentView {
 
 export type AttachmentPreviewView =
   | { kind: 'image'; dataUrl: string }
+  | {
+      kind: 'text';
+      content: string;
+      format: 'text' | 'code' | 'diff' | 'csv';
+      language?: string;
+    }
   | { kind: 'pdf' }
   | { kind: 'unavailable'; detail: string };
 
@@ -241,6 +247,15 @@ export interface BackgroundTerminalView {
   truncated: boolean;
 }
 
+export const SCHEDULE_RUN_HISTORY_LIMIT = 8;
+
+export interface ScheduleRunView {
+  id: string;
+  startedAt: string;
+  finishedAt?: string;
+  outcome: 'started' | 'completed' | 'failed' | 'cancelled';
+}
+
 export interface ScheduleView {
   id: string;
   threadId: string;
@@ -257,12 +272,9 @@ export interface ScheduleView {
     dueAt: string;
     claimedAt: string;
   };
-  lastRun?: {
-    id: string;
-    startedAt: string;
-    finishedAt?: string;
-    outcome: 'started' | 'completed' | 'failed' | 'cancelled';
-  };
+  lastRun?: ScheduleRunView;
+  /** Newest first; bounded by SCHEDULE_RUN_HISTORY_LIMIT in the local controller. */
+  runHistory?: ScheduleRunView[];
 }
 
 export type ApprovalKind =

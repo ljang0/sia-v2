@@ -1,9 +1,15 @@
+import { generateKeyPairSync, sign } from 'node:crypto';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 import { ActionGateway, getActionToolDescriptor } from '@sia/action-gateway';
 
 import { CloudClient } from './cloud-client.js';
 import { DesktopController } from './controller.js';
 import { probeProviders } from './provider-probe.js';
+import { canonicalJson } from './update-manifest.js';
 import {
   PlaintextTestCipher,
   type RecordRepository,
@@ -60,6 +66,7 @@ async function createHarness(
     composeFeedback?: (subject: string, body: string) => Promise<void>;
     appVersion?: string;
     updateManifestUrl?: string;
+    updateManifestPublicKey?: string;
   } = {},
 ): Promise<{
   controller: DesktopController;
@@ -73,6 +80,7 @@ async function createHarness(
     computer: options.computer ?? computer,
     identity: options.identity ?? {
       initialize: async () => ({ state: 'unconfigured' as const }),
+      read: async () => undefined,
       status: () => ({ state: 'unconfigured' as const }),
       startEmailSignIn: async () => ({ state: 'unconfigured' as const }),
       completeEmailSignIn: async () => ({ state: 'unconfigured' as const }),
@@ -88,6 +96,9 @@ async function createHarness(
     ...(options.composeFeedback ? { composeFeedback: options.composeFeedback } : {}),
     ...(options.appVersion ? { appVersion: options.appVersion } : {}),
     ...(options.updateManifestUrl ? { updateManifestUrl: options.updateManifestUrl } : {}),
+    ...(options.updateManifestPublicKey
+      ? { updateManifestPublicKey: options.updateManifestPublicKey }
+      : {}),
     exportJson: async () => '/tmp/export.json',
     ...(options.capabilitySetup ? { capabilitySetup: options.capabilitySetup } : {}),
     ...(options.runCommand ? { runCommand: options.runCommand } : {}),
@@ -174,12 +185,35 @@ describe('DesktopController', () => {
   });
 
   it('checks a clean update feed and opens only its HTTPS download', async () => {
+    const keys = generateKeyPairSync('ed25519');
+    const publicKey = keys.publicKey
+      .export({ format: 'der', type: 'spki' })
+      .toString('base64url');
+    const payload = {
+      schemaVersion: 1,
+      channel: 'internal',
+      platform: 'macos',
+      architecture: 'universal',
+      version: '0.1.0-alpha.15',
+      publishedAt: '2026-08-26T12:00:00.000Z',
+      minimumSystemVersion: '14.0',
+      artifact: {
+        key: 'releases/0.1.0-alpha.15/aaaaaaaaaaaaaaaa/Sia-0.1.0-alpha.15-universal.dmg',
+        sha256: 'a'.repeat(64),
+        bytes: 250_000_000,
+      },
+    } as const;
     const openExternal = vi.fn().mockResolvedValue(undefined);
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
-          version: '0.1.0-alpha.14',
-          downloadUrl: 'https://releases.example.test/Sia-alpha.14.dmg',
+          payload,
+          keyId: 'sia-release-2026-01',
+          signature: sign(null, Buffer.from(canonicalJson(payload)), keys.privateKey).toString(
+            'base64url',
+          ),
+          downloadUrl:
+            'https://sia-alpha-releases.s3.us-east-1.amazonaws.com/releases/0.1.0-alpha.15/aaaaaaaaaaaaaaaa/Sia-0.1.0-alpha.15-universal.dmg?X-Amz-Signature=test',
         }),
         { status: 200, headers: { 'content-type': 'application/json' } },
       ),
@@ -187,23 +221,71 @@ describe('DesktopController', () => {
     vi.stubGlobal('fetch', fetchMock);
     const { controller } = await createHarness({
       openExternal,
-      appVersion: '0.1.0-alpha.13',
+      appVersion: '0.1.0-alpha.14',
       updateManifestUrl: 'https://releases.example.test/latest-mac.json',
+      updateManifestPublicKey: publicKey,
+      identity: {
+        initialize: async () => ({ state: 'signed_in' as const }),
+        read: async () => 'signed-id-token',
+        status: () => ({ state: 'signed_in' as const }),
+        startEmailSignIn: async () => ({ state: 'signed_in' as const }),
+        completeEmailSignIn: async () => ({ state: 'signed_in' as const }),
+        signOut: async () => ({ state: 'signed_out' as const }),
+      },
     });
 
     await expect(controller.invoke('updates.check', undefined)).resolves.toMatchObject({
       status: 'available',
-      latestVersion: '0.1.0-alpha.14',
+      latestVersion: '0.1.0-alpha.15',
     });
     await controller.invoke('updates.openDownload', undefined);
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://releases.example.test/latest-mac.json',
-      expect.objectContaining({ headers: { accept: 'application/json' } }),
+      expect.objectContaining({
+        headers: { accept: 'application/json', authorization: 'Bearer signed-id-token' },
+      }),
     );
-    expect(openExternal).toHaveBeenCalledWith('https://releases.example.test/Sia-alpha.14.dmg');
+    expect(openExternal).toHaveBeenCalledWith(
+      'https://sia-alpha-releases.s3.us-east-1.amazonaws.com/releases/0.1.0-alpha.15/aaaaaaaaaaaaaaaa/Sia-0.1.0-alpha.15-universal.dmg?X-Amz-Signature=test',
+    );
     vi.unstubAllGlobals();
     await controller.shutdown();
+  });
+
+  it('previews bounded text and code locally without treating markup as active content', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sia-attachment-preview-'));
+    const path = join(directory, 'release-plan.md');
+    await writeFile(path, '# Release plan\n\n<script>never execute</script>\n', 'utf8');
+    const { controller } = await createHarness({ chooseFiles: async () => [path] });
+    try {
+      const agent = await controller.invoke('agents.save', {
+        name: 'Release partner',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: agent.agentId,
+      });
+      const picked = await controller.invoke('attachments.pick', { threadId });
+      const attachment = picked.attachments[0]!;
+
+      await expect(
+        controller.invoke('attachments.preview', {
+          threadId,
+          attachmentId: attachment.id,
+        }),
+      ).resolves.toEqual({
+        kind: 'text',
+        format: 'text',
+        content: '# Release plan\n\n<script>never execute</script>\n',
+      });
+    } finally {
+      await controller.shutdown();
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it('keeps the latest provider usage event once per turn', async () => {
@@ -441,6 +523,68 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('keeps the eight most recent outcomes for repeated schedule runs', async () => {
+    let runtimeThreadId = '';
+    const runtime = {
+      async *runTurn(input: { turnId: string }) {
+        yield {
+          id: crypto.randomUUID(),
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller, repository } = await createHarness({ fakeServices: false, runtime });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Schedule history',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const thread = await controller.invoke('threads.create', { agentId: agent.agentId });
+    runtimeThreadId = thread.threadId;
+    const schedule = controller.createScheduleFromAction(thread.threadId, {
+      task: 'Record this check.',
+      cadence: 'daily',
+      firstRunAt: '2030-08-21T03:00:00.000Z',
+    });
+
+    for (let runCount = 1; runCount <= 10; runCount += 1) {
+      await controller.invoke('schedules.runNow', { scheduleId: schedule.id });
+      await vi.waitFor(() => {
+        expect(controller.snapshot().schedules?.[0]).toMatchObject({
+          runCount,
+          lastRun: { outcome: 'completed', finishedAt: expect.any(String) },
+        });
+      });
+    }
+
+    const persistedSchedule = repository
+      .get<{ schedules: Array<{ runHistory?: Array<{ id: string; outcome: string }> }> }>(
+        'desktop',
+        'state',
+      )
+      ?.schedules.at(0);
+    expect(persistedSchedule?.runHistory).toHaveLength(8);
+    expect(persistedSchedule?.runHistory?.every(({ outcome }) => outcome === 'completed')).toBe(
+      true,
+    );
+    expect(new Set(persistedSchedule?.runHistory?.map(({ id }) => id)).size).toBe(8);
+    expect(persistedSchedule?.runHistory?.[0]?.id).toBe(
+      controller.snapshot().schedules?.[0]?.lastRun?.id,
+    );
+    await controller.shutdown();
+  });
+
   it('recovers a claimed schedule without dispatching its persisted turn twice', async () => {
     const initial = await createHarness();
     const agent = await initial.controller.invoke('agents.save', {
@@ -506,6 +650,7 @@ describe('DesktopController', () => {
       runCount: 1,
       maxRuns: 2,
       lastRun: { id: claimId, outcome: 'started' },
+      runHistory: [{ id: claimId, outcome: 'started' }],
     });
     await recovered.controller.shutdown();
   });

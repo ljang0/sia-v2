@@ -355,7 +355,7 @@ export const demoSnapshot: RendererSnapshot = {
   preferences: { completionSound: false },
   updates: {
     status: 'unconfigured',
-    currentVersion: '0.1.0-alpha.13',
+    currentVersion: '0.1.0-alpha.14',
     detail: 'This preview build does not have a persistent signed update feed configured.',
   },
   research: {

@@ -222,7 +222,10 @@ async function performApplicationCreation(): Promise<void> {
       },
       appVersion: app.getVersion(),
       ...(cloudConfiguration.updateManifestUrl
-        ? { updateManifestUrl: cloudConfiguration.updateManifestUrl }
+        ? {
+            updateManifestUrl: cloudConfiguration.updateManifestUrl,
+            updateManifestPublicKey: cloudConfiguration.updateManifestPublicKey,
+          }
         : {}),
       notify: ({ threadId, title, body }) => {
         if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()) return;

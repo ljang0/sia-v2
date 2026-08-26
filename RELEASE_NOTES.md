@@ -1,8 +1,29 @@
-# Sia 0.1.0-alpha.13
+# Sia 0.1.0-alpha.14
 
 Sia is a private macOS 14+ alpha for local-first agent work. This build supports Codex through the
 official CLI already installed and authenticated on the Mac, plus hosted Meta access for signed-in
 research-alpha participants.
+
+## Alpha.14 changes
+
+- Every active room now has a compact outline for messages, plans, tool activity, and subagents.
+  It opens from the thread edge, preserves keyboard focus, and navigates directly to the source
+  event without adding a permanent third panel.
+- Scheduled work now keeps the eight most recent local run outcomes. The schedule surface shows its
+  next state, latest result and time, run count, run limit, and an expandable history.
+- Short-lived attachment grants can preview bounded plain text, source code, diffs, CSV, and TSV as
+  inert local text. PDFs remain in the system reader and no active document content is embedded.
+- Update checks now require a participant/admin session, a private manifest endpoint, and a pinned
+  Ed25519 public key. The app verifies canonical signed metadata and binds the 15-minute AWS URL to
+  the exact content-addressed DMG key before it can open the download.
+- Release publishing refuses artifact conflicts, downgrades, and same-version replacement. The
+  control plane grants Lambda read access only to release and manifest prefixes in the private
+  bucket.
+- The internal-email stack can use Cognito-managed delivery with the verified Sia domain while SES
+  production access is pending. Bounce and complaint reputation alarms notify the existing
+  operator topic. The 20-person cohort remains separate from connector access.
+- The interface keeps Sia's cool mineral canvas and evergreen navigation; no yellow paperback tint
+  or reconstructed GrokBot visual assets were introduced.
 
 ## Alpha.13 changes
 

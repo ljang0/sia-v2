@@ -12,6 +12,7 @@ import {
   MemoryDeletionQueue,
   MemoryIdentity,
   MemoryQuota,
+  MemoryReleaseManifests,
   MemoryResearchObjects,
   MemoryResearchExportQueue,
   MemoryState,
@@ -75,6 +76,22 @@ describe('release cohorts', () => {
         schedules: true,
       },
     });
+  });
+
+  it('serves the signed private update manifest only to participants and admins', async () => {
+    const fixture = makeFixture();
+    await assert.rejects(
+      fixture.services.releases.latestMac(legacyUser),
+      (error: unknown) =>
+        error instanceof CloudError && error.code === 'participant_access_required',
+    );
+    const release = await fixture.services.releases.latestMac(participant);
+    assert.equal(release.payload.version, '0.1.0-alpha.13');
+    assert.match(release.downloadUrl, /^https:\/\/release-download\.invalid\//);
+    assert.equal(
+      (await fixture.services.releases.latestMac(admin)).keyId,
+      'sia-release-2026-01',
+    );
   });
 
   it('enforces cohorts on core and connector operations while leaving cleanup available', async () => {
@@ -1188,6 +1205,24 @@ function makeFixture(overrides: { inviteLimit?: number } = {}) {
   const identity = new MemoryIdentity();
   const queue = new MemoryDeletionQueue();
   const exportQueue = new MemoryResearchExportQueue();
+  const releaseManifests = new MemoryReleaseManifests({
+    payload: {
+      schemaVersion: 1,
+      channel: 'internal',
+      platform: 'macos',
+      architecture: 'universal',
+      version: '0.1.0-alpha.13',
+      publishedAt: '2026-08-26T12:00:00.000Z',
+      minimumSystemVersion: '14.0',
+      artifact: {
+        key: 'releases/0.1.0-alpha.13/aaaaaaaaaaaaaaaa/Sia-0.1.0-alpha.13-universal.dmg',
+        sha256: 'a'.repeat(64),
+        bytes: 250_000_000,
+      },
+    },
+    keyId: 'sia-release-2026-01',
+    signature: 'A'.repeat(86),
+  });
   const audit = new MemoryAudit();
   const clock = new FixedClock(new Date('2026-08-13T00:00:00.000Z'));
   const metaConfig: MetaConfig = {
@@ -1222,6 +1257,7 @@ function makeFixture(overrides: { inviteLimit?: number } = {}) {
     researchExports: state,
     researchExportQueue: exportQueue,
     researchObjects: objects,
+    releaseManifests,
     invites: state,
     registrationLimits: state,
     identity,

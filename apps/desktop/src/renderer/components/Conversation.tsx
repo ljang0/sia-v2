@@ -30,6 +30,7 @@ import { ActivityRow } from './ActivityRow';
 import { AgentForm } from './AgentForm';
 import { ApprovalCard } from './ApprovalCard';
 import { Composer } from './Composer';
+import { ConversationOutline, hasConversationOutline } from './ConversationOutline';
 import { SafeMarkdown } from './SafeMarkdown';
 
 interface ConversationProps {
@@ -363,6 +364,7 @@ export function Conversation({
     lastAssistantEventIndex > lastUserEventIndex
       ? thread.events[lastAssistantEventIndex]?.id
       : undefined;
+  const outlineAvailable = hasConversationOutline(thread.events);
 
   return (
     <main
@@ -528,6 +530,7 @@ export function Conversation({
                     else eventRefs.current.delete(event.id);
                   }}
                   className={styles.eventSearchAnchor}
+                  tabIndex={-1}
                   data-find-match={matchingEventIds.includes(event.id) ? 'true' : undefined}
                   data-find-current={
                     matchingEventIds[findIndex] === event.id ? 'true' : undefined
@@ -578,7 +581,7 @@ export function Conversation({
         </div>
       </div>
 
-      {showJumpToLatest || workspaceTools ? (
+      {showJumpToLatest || workspaceTools || outlineAvailable ? (
         <div className={styles.threadWorkspaceBar}>
           {showJumpToLatest ? (
             <button type="button" className={styles.jumpToLatest} onClick={jumpToLatest}>
@@ -587,6 +590,21 @@ export function Conversation({
             </button>
           ) : null}
           {workspaceTools}
+          {outlineAvailable ? (
+            <ConversationOutline
+              key={thread.id}
+              events={thread.events}
+              agentName={agentName}
+              onNavigate={(eventId) => {
+                const target = eventRefs.current.get(eventId);
+                if (!target) return;
+                pinnedToLatestRef.current = false;
+                setShowJumpToLatest(true);
+                target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                target.focus({ preventScroll: true });
+              }}
+            />
+          ) : null}
         </div>
       ) : null}
 
@@ -883,6 +901,18 @@ function AttachmentPreviewDialog({
               <SpinnerGap className={styles.spin} size={22} aria-label="Loading preview" />
             ) : preview.result.kind === 'image' ? (
               <img src={preview.result.dataUrl} alt={preview.attachment.name} />
+            ) : preview.result.kind === 'text' ? (
+              <div className={styles.attachmentTextPreview} data-format={preview.result.format}>
+                <header>
+                  <span>{preview.result.language ?? 'Plain text'}</span>
+                  <small>
+                    {preview.result.content.split('\n').length.toLocaleString()} lines
+                  </small>
+                </header>
+                <pre>
+                  <code>{preview.result.content}</code>
+                </pre>
+              </div>
             ) : preview.result.kind === 'pdf' ? (
               <p>
                 PDFs open in your default reader so Sia does not add an unsafe document frame.

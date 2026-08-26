@@ -101,8 +101,16 @@ download path.
    then rerun attachment and real capability checks against a disposable page.
 6. Keep Google Workspace and Slack limited to approved connector testers until their separate
    provider acceptance matrices pass.
-7. Provision a persistent signed update-manifest endpoint and access policy before enabling update
-   checks. `alpha.13` truthfully reports that no feed is configured.
+7. The post-`alpha.13` source implements a participant/admin-only manifest endpoint, Ed25519
+   publisher and desktop verification, narrow S3 read policy, and 15-minute artifact URLs. It is not
+   yet deployed or published, and the signed `alpha.13` package does not pin its URL/key. Validate a
+   no-replacement change set, publish the first manifest with the offline key, and build a new signed
+   package before enabling this path.
+8. SES production access remains denied. The post-`alpha.13` template supports the reviewed
+   `COGNITO_DEFAULT` custom verified sender and adds operator-notified bounce/complaint alarms, but
+   those changes are not deployed evidence. Follow
+   [`ses-production-access-request.md`](./ses-production-access-request.md), then perform the
+   unrelated-domain human delivery test without enrolling an unapproved participant.
 
 Until these gates close, describe `alpha.13` as a signed, privately published operator/internal-QA
 build—not as participant-approved or connector-general-availability software.
