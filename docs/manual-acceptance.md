@@ -172,11 +172,11 @@ not replace the mutation checks below. When several Chrome windows are open, set
 
 ## External alpha release gates
 
-- [ ] In the exact signed `alpha.16` artifact, connect the restricted ElevenLabs key, select a default voice,
+- [ ] In the exact signed `alpha.17` artifact, connect the restricted ElevenLabs key, select a default voice,
       restart and refresh, exercise cancellable Read aloud, and verify no audio file is persisted.
 - [x] Rotate/disable the exposed ElevenLabs predecessors and verify the replacement is restricted,
       KMS-vaulted for operator handoff, and stored locally only through Keychain-backed encryption.
-- [ ] Complete the packaged `alpha.16` local computer-use mutation pass: native ref-bound edit, foreground
+- [ ] Complete the packaged `alpha.17` local computer-use mutation pass: native ref-bound edit, foreground
       restoration, Chrome click/type/upload, cancellation, detach, and restart capability loss. The
       exact final artifact independently passed the approved 35-byte localhost upload plus zero-tab
       restart and post-detach checks; click/type/denial passed in the immediately preceding signed
@@ -237,7 +237,7 @@ connectors out-of-the-box ready until that checklist passes.
 
 - [x] Rotate the exposed Composio key, verify its least-privilege scope, update the KMS-encrypted
       `AWSCURRENT` secret, revoke the exposed predecessor, and smoke the deployed cutover.
-- [ ] Validate the `alpha.16` client against the deployed release cloud, deletion worker, dead-letter queue, and
+- [ ] Validate the `alpha.17` client against the deployed release cloud, deletion worker, dead-letter queue, and
       monitored alarms. Confirm every alarm subscription, exercise a synthetic alarm, and verify
       recovery before treating deletion as release-ready. The reused `alpha.14` stack deployment, drift,
       17 enabled alarm actions, and signed update route are verified; a source-specific synthetic
