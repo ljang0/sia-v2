@@ -21,10 +21,10 @@ download path.
 - Exact signed application source: `0ec2e8422b2a45d422d9a2e83c2b20665d8d413e`.
 - Publication: pushed to `origin/main`; annotated tag `v0.1.0-alpha.13` points to the exact signed
   application source and records both distribution hashes.
-- Later follow-up commits install Electron explicitly on fresh GitHub runners and expose provider
-  discovery as a test boundary so unit tests do not depend on the runner's Codex installation.
-  Production still defaults to the real CLI probe; the signed application runtime is represented by
-  the tag above.
+- Later follow-up commits install Electron explicitly on fresh GitHub runners, expose provider
+  discovery as a test boundary so unit tests do not depend on the runner's Codex installation, and
+  make visual tolerances proportional across macOS rasterizers. Production still defaults to the
+  real CLI probe; the signed application runtime is represented by the tag above.
 - Clean-room boundary and adopted interaction patterns are recorded in
   [`grok-clean-room-audit-2026-08-26.md`](./grok-clean-room-audit-2026-08-26.md).
 
@@ -56,6 +56,10 @@ download path.
 - `pnpm test:e2e`: **26 passed, 4 opt-in real-environment probes skipped**. The runnable suite
   includes strict parity, persistence, research consent, CSP/window lifecycle, accessibility,
   minimum viewport, and all committed visual baselines.
+- GitHub Actions [CI run 32917906770](https://github.com/ljang0/sia-v2/actions/runs/32917906770)
+  passed commit `bf4707bf27453471459a45a2ee85b38b41e0b133` on a clean `macos-15` runner:
+  dependency and Electron installation, the complete build and quality gates, Electron E2E, and
+  unsigned universal package verification all succeeded.
 - `pnpm test:codex-isolation:real`: passed with the existing ChatGPT authentication retained and no
   inherited apps, plugins, skills, hooks, or MCP tools.
 - Real no-turn probes: Codex authentication and macOS Accessibility/Screen Recording passed. Chrome
