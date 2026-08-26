@@ -69,12 +69,12 @@ Parameters:
     Type: String
     Default: ''
     AllowedPattern: '^$|^arn:[a-z0-9-]+:ses:[a-z0-9-]+:[0-9]{12}:identity\/.+$'
-    Description: Verified SES identity used for either a branded Cognito sender or SES delivery.
+    Description: Verified SES email identity used for either a branded Cognito sender or SES delivery.
   FromEmail:
     Type: String
     Default: ''
     MaxLength: 320
-    Description: Branded From address used with a verified SesSourceArn for Cognito-managed or SES delivery.
+    Description: Branded From address used only with DEVELOPER SES delivery. Leave empty for COGNITO_DEFAULT.
   AlarmNotificationTopicArn:
     Type: String
     MinLength: 1
@@ -83,18 +83,18 @@ Parameters:
 Conditions:
   HasBootstrapAdmin: !Not [!Equals [!Ref BootstrapAdminEmail, '']]
   HasCustomEmailSender: !Not [!Equals [!Ref SesSourceArn, '']]
+  HasDeveloperFrom: !And
+    - !Equals [!Ref EmailSendingAccount, DEVELOPER]
+    - !Not [!Equals [!Ref FromEmail, '']]
 
 Rules:
-  SesSourceRequiresFrom:
-    RuleCondition: !Not [!Equals [!Ref SesSourceArn, '']]
-    Assertions:
-      - Assert: !Not [!Equals [!Ref FromEmail, '']]
-        AssertDescription: FromEmail is required when SesSourceArn is configured.
   FromRequiresSesSource:
     RuleCondition: !Not [!Equals [!Ref FromEmail, '']]
     Assertions:
       - Assert: !Not [!Equals [!Ref SesSourceArn, '']]
         AssertDescription: SesSourceArn is required when FromEmail is configured.
+      - Assert: !Equals [!Ref EmailSendingAccount, DEVELOPER]
+        AssertDescription: FromEmail is only valid with DEVELOPER SES delivery.
   DeveloperEmailRequiresVerifiedSender:
     RuleCondition: !Equals [!Ref EmailSendingAccount, DEVELOPER]
     Assertions:
@@ -747,7 +747,7 @@ Resources:
       EmailConfiguration:
         EmailSendingAccount: !Ref EmailSendingAccount
         SourceArn: !If [HasCustomEmailSender, !Ref SesSourceArn, !Ref AWS::NoValue]
-        From: !If [HasCustomEmailSender, !Ref FromEmail, !Ref AWS::NoValue]
+        From: !If [HasDeveloperFrom, !Ref FromEmail, !Ref AWS::NoValue]
       EmailAuthenticationSubject: Your Sia sign-in code
       EmailAuthenticationMessage: Your Sia sign-in code is {####}.
 

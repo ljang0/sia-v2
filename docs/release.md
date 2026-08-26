@@ -58,9 +58,11 @@ sam deploy \
     EnableSchedules=true \
     EmailSendingAccount=COGNITO_DEFAULT \
     SesSourceArn="$SIA_SES_SOURCE_ARN" \
-    FromEmail="$SIA_FROM_EMAIL"
+    FromEmail=
 ```
 
+For `COGNITO_DEFAULT`, `SIA_SES_SOURCE_ARN` must identify the verified sender email address itself;
+the `FromEmail` property is omitted because Cognito rejects it on the managed delivery path.
 `COGNITO_DEFAULT` with the verified custom sender is the reviewed small-cohort alternative while
 SES production access remains pending. Switch to `DEVELOPER` only after SES reports
 `ProductionAccessEnabled: true` in `us-east-1`. See

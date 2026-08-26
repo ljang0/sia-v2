@@ -51,9 +51,14 @@ the lower managed-delivery quota. For an internal cohort of at most 20 people, d
 
 ```sh
 EmailSendingAccount=COGNITO_DEFAULT
-SesSourceArn=arn:aws:ses:us-east-1:677513020767:identity/superintelligentagents.ai
-FromEmail=noreply@superintelligentagents.ai
+SesSourceArn=arn:aws:ses:us-east-1:677513020767:identity/auth@superintelligentagents.ai
+FromEmail=
 ```
+
+On the managed path, the SES `SourceArn` must be the verified email-address identity that should
+appear as the sender. Do not set Cognito's separate `From` property; the service rejects that
+property with `COGNITO_DEFAULT`. Reserve `FromEmail` for the `DEVELOPER` configuration after SES
+production access is approved.
 
 This is a temporary delivery path, not SES production approval. Before relying on it, inspect a
 non-executed CloudFormation change set for replacement or deletion, then have a release owner send
