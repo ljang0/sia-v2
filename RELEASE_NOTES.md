@@ -1,8 +1,18 @@
-# Sia 0.1.0-alpha.15
+# Sia 0.1.0-alpha.16
 
 Sia is a private macOS 14+ alpha for local-first agent work. This build supports Codex through the
 official CLI already installed and authenticated on the Mac, plus hosted Meta access for approved
 signed-in model testers. Codex is not required to use hosted Meta.
+
+## Alpha.16 changes
+
+- Finder-launched Sia now discovers Codex and other supported CLIs installed through common `nvm`,
+  `fnm`, Volta, `asdf`, `nodenv`, Mise, Bun, pnpm, npm-global, Homebrew, and standalone locations.
+  Discovery is bounded to known per-user layouts and does not execute shell startup files.
+- Codex authentication follows the successful exit status of `codex login status` instead of
+  requiring one exact English response. Explicit logged-out and authentication-required responses
+  still fail closed.
+- The real authenticated Codex probe passes inside Electron without starting a model turn.
 
 ## Alpha.15 changes
 
@@ -212,9 +222,10 @@ signed-in model testers. Codex is not required to use hosted Meta.
   production project, but sensitive/restricted-scope review and CASA remain external distribution
   gates; organization policies may also require administrator approval. Remote/offline execution is
   not part of this alpha.
-- The previous `alpha.14` operator/internal-QA build is signed, notarized, privately published, and backed by
-  an in-sync cohort-aware stack. Named recipients, production email delivery, exact-artifact human
-  acceptance, and research/governance approvals remain required before participant distribution.
+- The previous `alpha.15` operator/internal-QA build is signed, notarized, privately published, and
+  backed by an in-sync cohort-aware stack. Named recipients, production email delivery,
+  exact-artifact human acceptance, and research/governance approvals remain required before
+  participant distribution.
 
 Read `PRIVACY.md` before enabling research capture or connecting an app. Report problems through the
 private alpha support channel described in `SUPPORT.md`.

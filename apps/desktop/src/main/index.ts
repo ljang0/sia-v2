@@ -1,5 +1,5 @@
 import { writeFile } from 'node:fs/promises';
-import { basename, delimiter, join } from 'node:path';
+import { basename, join } from 'node:path';
 
 import {
   app,
@@ -42,6 +42,7 @@ import {
 import { RuntimeCoordinator } from './runtime-coordinator.js';
 import { CognitoIdentityManager } from './identity.js';
 import { configureMetaCloudAvailability } from './provider-probe.js';
+import { macProviderPath } from './provider-path.js';
 import { WorkspaceOperationsService } from './workspace-operations.js';
 import { ElevenLabsVoiceService } from './voice-service.js';
 
@@ -134,7 +135,7 @@ function createApplication(): Promise<void> {
 async function performApplicationCreation(): Promise<void> {
   installApplicationMenu();
   configureSessionSecurity();
-  configureProviderPath();
+  await configureProviderPath();
   const developmentMode = !app.isPackaged;
   const fakeServices = developmentMode && process.env.SIA_FAKE_SERVICES === '1';
   const rendererDevUrl = developmentMode ? process.env.ELECTRON_RENDERER_URL : undefined;
@@ -441,19 +442,9 @@ function openApplicationRepository(
   };
 }
 
-function configureProviderPath(): void {
+async function configureProviderPath(): Promise<void> {
   if (process.platform !== 'darwin') return;
-  const userDirectory = app.getPath('home');
-  const candidates = [
-    '/opt/homebrew/bin',
-    '/usr/local/bin',
-    join(userDirectory, '.local/bin'),
-    join(userDirectory, '.npm-global/bin'),
-    join(userDirectory, 'Library/pnpm'),
-    join(userDirectory, '.bun/bin'),
-  ];
-  const current = (process.env.PATH ?? '').split(delimiter).filter(Boolean);
-  process.env.PATH = [...new Set([...candidates, ...current])].join(delimiter);
+  process.env.PATH = await macProviderPath(app.getPath('home'), process.env.PATH);
 }
 
 function configureSessionSecurity(): void {

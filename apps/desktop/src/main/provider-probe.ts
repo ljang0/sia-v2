@@ -165,12 +165,21 @@ async function probeProvider(
     if (id === 'codex') {
       const auth = await runner.run(executable, ['login', 'status'], environment, true);
       const normalized = `${auth.stdout}\n${auth.stderr}`.toLowerCase();
-      const account = normalized.includes('logged in using chatgpt')
+      const explicitlyLoggedOut =
+        /\bnot logged in\b|\bnot authenticated\b|authentication (?:is )?required|sign[ -]?in required|api key not found/.test(
+          normalized,
+        );
+      const account = normalized.includes('chatgpt')
         ? 'Authenticated with ChatGPT'
-        : /logged in using (?:an? )?api key/.test(normalized)
+        : /\bapi[ -]?key\b/.test(normalized)
           ? 'Authenticated with API key'
-          : undefined;
-      if (auth.code !== 0 || !account) {
+          : 'Authenticated with Codex';
+      // `codex login status` uses its exit status as the stable authentication
+      // signal. Its human-readable wording has changed across releases, so do
+      // not turn a successful authenticated probe into a false logged-out state
+      // merely because that prose changed. Explicit negative output still fails
+      // closed even if a future CLI accidentally returns zero for it.
+      if (auth.code !== 0 || explicitlyLoggedOut) {
         return view(
           id,
           definition,

@@ -131,4 +131,31 @@ describe('probeProviders', () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  it('accepts a successful Codex login status without depending on exact prose', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sia-provider-auth-success-'));
+    const executable = join(directory, 'codex');
+    await writeFile(executable, '');
+    await chmod(executable, 0o700);
+    const runner = {
+      run: vi.fn(async (_executable: string, args: readonly string[]) => ({
+        code: 0,
+        stdout:
+          args[0] === '--version'
+            ? 'codex-cli 0.149.1'
+            : 'An authenticated Codex session is active.',
+        stderr: '',
+      })),
+    };
+    try {
+      const [codex] = await probeProviders('codex', { PATH: directory }, runner);
+      expect(codex).toMatchObject({
+        status: 'ready',
+        version: '0.149.1',
+        account: 'Authenticated with Codex',
+      });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });
