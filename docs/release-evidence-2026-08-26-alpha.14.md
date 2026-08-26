@@ -11,8 +11,8 @@ pins the release Ed25519 public key.
 
 This closes the prior signed-update deployment blocker and is ready for operator/internal QA. It is
 **not approved for external research-participant distribution**: both recipient cohorts remain
-empty, named research/privacy approval is absent, inbox receipt has not been human-observed, and the
-positive live manifest request still needs an approved user's completed email-code session.
+empty, named research/privacy approval is absent, and the positive live manifest request still
+needs an approved user's completed email-code session.
 
 ## Source identity
 
@@ -58,15 +58,16 @@ positive live manifest request still needs an approved user's completed email-co
   the key pinned in the app.
 - The signed DMG key and hash match S3's content length and `sha256` metadata exactly. The ZIP's
   length and metadata also match.
-- An unauthenticated live request returned HTTP 403. Cloud tests prove only `Participants` and
-  `Admins` receive the manifest and authenticated non-cohort users are rejected. A positive live
-  request remains intentionally pending until an approved user's OTP is observed and completed.
+- An unauthenticated live request returned HTTP 403. Cloud tests prove only `Operators`,
+  `Participants`, and `Admins` receive the manifest and authenticated non-cohort users are rejected.
+  Operators receive no participant, research-upload, schedule, connector, or archive capability. A
+  positive live request remains pending until the approved operator completes email-code sign-in.
 - After restarting the exact signed `alpha.14` app, the existing local profile, agents, threads,
   cloud sign-in, and provider configuration survived. Its **Check now** control made a live request
   with the pre-existing acceptance account and displayed `Release feed returned HTTP 403.` That
-  account is outside `Participants` and `Admins`, so this closes the live authenticated non-cohort
-  denial branch without enrolling a test identity. It does not replace the approved-cohort positive
-  path.
+  account is outside `Operators`, `Participants`, and `Admins`, so this closes the live authenticated
+  non-cohort denial branch without enrolling a test identity. It does not replace the approved
+  operator positive path.
 
 ## Automated and real-runtime evidence
 
@@ -82,6 +83,10 @@ positive live manifest request still needs an approved user's completed email-co
   in a verified ephemeral session.
 - `SIA_REAL_CODEX_E2E=1 SIA_REAL_CUA_E2E=1 pnpm test:e2e:real:no-turn`: **2 passed, 1 Chrome probe
   skipped**. Real Codex authentication and real macOS CUA permissions passed without a model turn.
+- In a follow-up pass, the exact signed `alpha.14` app attached to the explicitly selected
+  disposable Chrome window, reported `Attached to Chrome window 2`, navigated only that window from
+  the dated Example Domain probe ending in `20260817` to `20260826`, and detached cleanly. Chrome's
+  visible automation banner and Sia's ready/attached state were observed throughout.
 - `sam validate --lint --template-file infra/template.yaml --region us-east-1`: passed.
 - The production renderer build transformed 4,688 modules; the main renderer chunk is 1,548.38 kB.
 - The visual suite protects the cool mineral/evergreen system, compact/minimum layouts, keyboard
@@ -90,57 +95,61 @@ positive live manifest request still needs an approved user's completed email-co
 ## Live infrastructure evidence
 
 - AWS account `677513020767`, region `us-east-1`; stack `sia-alpha` is `UPDATE_COMPLETE`.
-- Final deployment change set:
+- The original release deployment used change set
   `arn:aws:cloudformation:us-east-1:677513020767:changeSet/samcli-deploy1787710053/2aa4b723-232a-4ff6-9d23-8fae80573e50`.
-- The executed change set replaced no persistent resource. It added the two SES alarms and a new API
-  deployment, modified Lambda/API/IAM resources in place, and removed only the superseded API
-  Gateway deployment resource.
+  The reviewed follow-up change set `branded-cognito-sender-20260826-0514` updated the user pool in
+  place to the exact verified sender; every listed resource had `Replacement: false`.
+- Change set
+  `arn:aws:cloudformation:us-east-1:677513020767:changeSet/samcli-deploy1787722342/f4e7ec23-2728-4246-8e88-61650d3c9486`
+  added the narrow `Operators` group and updated release authorization in place; every existing
+  resource again had `Replacement: false`.
 - Drift detection completed `IN_SYNC` with zero drifted resources.
 - All 17 `sia-alpha-*` CloudWatch alarms are `OK`, have actions enabled, and include bounce and
   complaint monitoring.
 - The release bucket remains private. Lambda can read only `manifests/macos/*` and `releases/*`.
-- `Participants`: 0. `ConnectorTesters`: 0. This is safe pre-cohort state, not approval evidence.
+- `Operators`: 1 confirmed internal cofounder account. `Participants`: 0. `ConnectorTesters`: 0.
+  The operator is not a research participant or archive administrator.
 
 ## AWS email evidence
 
-- Cognito is deliberately deployed with `EmailSendingAccount=COGNITO_DEFAULT`, no `SourceArn`, and
-  no `From` override.
+- Namecheap now has the dedicated forwarder
+  `auth@superintelligentagents.ai` → `superintelligentagents@gmail.com`. A separately generated SES
+  control message sent to the exact `auth@` address arrived in the destination Gmail inbox, proving
+  the forwarding path rather than inferring it from DNS or configuration.
+- The fresh SES verification message arrived addressed to `auth@superintelligentagents.ai`; its
+  exact-identity link was opened and the AWS success page was observed. SES now reports
+  `VerificationStatus: SUCCESS`, `VerifiedForSendingStatus: true`, and a narrowly scoped
+  `CognitoSend` policy for only the production account and user pool.
+- Cognito is deployed with `EmailSendingAccount=COGNITO_DEFAULT`,
+  `SourceArn=arn:aws:ses:us-east-1:677513020767:identity/auth@superintelligentagents.ai`, and no
+  `From` override. The reviewed change set completed at `2026-08-26T05:14:28Z`; the stack returned
+  to `UPDATE_COMPLETE` without failed events or replacement, and a subsequent drift detection
+  completed `IN_SYNC` with zero drifted resources.
 - A live `USER_AUTH` request with preferred `EMAIL_OTP` for the pre-existing acceptance alias
-  returned `ChallengeName: EMAIL_OTP` and `AvailableChallenges: [EMAIL_OTP]`. The session was stored
-  only in a mode-`0600` local evidence file; no code or token is recorded here.
+  returned `ChallengeName: EMAIL_OTP` and `AvailableChallenges: [EMAIL_OTP]`. The new message arrived
+  in Gmail from `auth@superintelligentagents.ai` with subject `Your authentication code`; Gmail
+  reported `mailed-by: amazonses.com`, `signed-by: superintelligentagents.ai`, and TLS. No code,
+  token, or Cognito session is recorded here.
 - SES reports `ProductionAccessEnabled: false`, `SendingEnabled: true`, enforcement `HEALTHY`, a
   sandbox quota of 200 messages/day and 1 message/second, and account suppression for bounces and
   complaints.
 - The production-access resubmission API returned `ConflictException`; the previous case remains
   denied and programmatic Support case creation requires a paid support subscription.
-- The Sia domain and DKIM are verified. The exact `auth@superintelligentagents.ai` email identity is
-  `VerifiedForSendingStatus: true` but `VerificationStatus: PENDING`; Cognito rejected the inherited
-  domain verification for a managed custom sender. A new verification message was requested and its
-  sending-authorization policy now uses `email.cognito-idp.amazonaws.com` with exact account and
-  user-pool conditions.
-- A fresh verification message was requested again at `2026-08-26T04:28:08Z`. The domain's MX
-  records point to Namecheap email forwarding; the destination operator Google account was not
-  signed into the available Chrome session, so no link was clicked or receipt inferred. A dedicated
-  Google account-chooser tab was left ready for the release owner to sign in without exposing a
-  password to automation.
-- The local Mail app has no configured account. The release process did not take over the user's
-  active Chrome session, so human inbox receipt, verification-link activation, sender/header review,
-  and OTP completion remain open evidence rather than inferred success.
+- Both the Sia domain and the exact sender identity report SES DKIM `SUCCESS` with signing enabled.
+  The live Gmail message's aligned `signed-by` result provides delivered-message DKIM evidence;
+  Gmail's explicit raw SPF/DMARC result panel was not archived in this pass.
 
 ## Remaining distribution gates
 
 1. Approve the exact named recipient list and complete all named owners/signatures in
    [`research-release-signoff.md`](./research-release-signoff.md).
-2. Human-observe the verification email and OTP, complete exact sender verification, record delivery
-   and SPF/DKIM/DMARC results, then deploy the branded Cognito `SourceArn` only through another
-   reviewed no-replacement change set.
-3. Complete one approved account's OTP and the positive live manifest/download request. Do not add
-   a test identity to `Participants` merely to manufacture this evidence.
-4. Complete clean-account and prior-build installer acceptance, voice checks, and exact signed-app
-   computer/browser mutation acceptance with a human observer.
-5. Enable Chrome's one-time visible remote-debugging permission only with release-owner intent, then
-   rerun the exact-window attachment probe against disposable content.
-6. Keep Google Workspace and Slack limited to an approved `ConnectorTesters` subset until their
+2. Have the approved operator complete OTP sign-in, then verify the live protected update route and
+   its working 15-minute artifact URL. Do not add the operator to `Participants` or `Admins` merely
+   to manufacture this evidence.
+3. Complete clean-account and prior-build installer acceptance, advertised voice checks, and the
+   remaining exact signed-app computer-use mutation cases with a human observer. The disposable
+   exact-window Chrome attach/navigation/detach gate is closed.
+4. Keep Google Workspace and Slack limited to an approved `ConnectorTesters` subset until their
    external provider and unrelated-account/workspace acceptance gates pass.
 
 Until these gates close, describe `alpha.14` as a signed, privately published operator/internal-QA

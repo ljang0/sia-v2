@@ -144,7 +144,7 @@ export class ReleaseService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async latestMac(user: AuthContext) {
-    requireParticipant(user);
+    requireReleaseRecipient(user);
     const manifest = validateStoredReleaseManifest(
       await this.deps.releaseManifests.readLatest(),
     );
@@ -1574,6 +1574,10 @@ function isParticipant(user: AuthContext): boolean {
   return isAdmin(user) || user.groups.includes('Participants');
 }
 
+function isReleaseOperator(user: AuthContext): boolean {
+  return user.groups.includes('Operators');
+}
+
 function isConnectorTester(user: AuthContext): boolean {
   return isParticipant(user) && (isAdmin(user) || user.groups.includes('ConnectorTesters'));
 }
@@ -1584,6 +1588,16 @@ function requireParticipant(user: AuthContext): void {
       403,
       'participant_access_required',
       'This research release is available to invited participants only',
+    );
+  }
+}
+
+function requireReleaseRecipient(user: AuthContext): void {
+  if (!isParticipant(user) && !isReleaseOperator(user)) {
+    throw new CloudError(
+      403,
+      'release_access_required',
+      'This private release is available to approved operators and participants only',
     );
   }
 }

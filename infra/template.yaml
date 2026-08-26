@@ -778,6 +778,14 @@ Resources:
       Description: May manage alpha invitations and inspect the audited research archive
       Precedence: 0
 
+  OperatorsGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: Operators
+      Description: May install and update the private build without research-participant access
+      Precedence: 1
+
   ParticipantsGroup:
     Type: AWS::Cognito::UserPoolGroup
     Properties:

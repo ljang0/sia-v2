@@ -43,6 +43,11 @@ const participant: AuthContext = {
   email: 'participant@example.com',
   groups: ['Participants'],
 };
+const operator: AuthContext = {
+  subject: 'operator-1',
+  email: 'operator@example.com',
+  groups: ['Operators'],
+};
 const legacyUser: AuthContext = {
   subject: user.subject,
   email: 'user@example.com',
@@ -66,6 +71,16 @@ describe('release cohorts', () => {
     assert.equal(fixture.services.session.status(participant).participant, true);
     assert.equal(fixture.services.session.status(participant).features.connectors, false);
     assert.equal(fixture.services.session.status(user).features.connectors, true);
+    assert.deepEqual(fixture.services.session.status(operator), {
+      admin: false,
+      participant: false,
+      features: {
+        researchUploads: false,
+        researchArchive: false,
+        connectors: false,
+        schedules: false,
+      },
+    });
     assert.deepEqual(fixture.services.session.status(admin), {
       admin: true,
       participant: true,
@@ -78,12 +93,16 @@ describe('release cohorts', () => {
     });
   });
 
-  it('serves the signed private update manifest only to participants and admins', async () => {
+  it('serves the signed private update manifest only to operators, participants, and admins', async () => {
     const fixture = makeFixture();
     await assert.rejects(
       fixture.services.releases.latestMac(legacyUser),
       (error: unknown) =>
-        error instanceof CloudError && error.code === 'participant_access_required',
+        error instanceof CloudError && error.code === 'release_access_required',
+    );
+    assert.equal(
+      (await fixture.services.releases.latestMac(operator)).payload.version,
+      '0.1.0-alpha.13',
     );
     const release = await fixture.services.releases.latestMac(participant);
     assert.equal(release.payload.version, '0.1.0-alpha.13');

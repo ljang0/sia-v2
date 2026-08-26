@@ -101,9 +101,10 @@ The script uses content-addressed artifact and manifest keys, refuses conflictin
 same-version feed replacement, verifies the uploaded size and SHA-256 metadata, and signs canonical
 manifest payload bytes. It returns the stable authenticated API URL and pinned public key for the
 next signed desktop package, plus a seven-day operator distribution URL. The API serves the manifest
-only to `Participants` or `Admins` and creates a fresh 15-minute S3 URL. The desktop verifies the
-Ed25519 signature and requires that URL's AWS S3 object path to equal the signed artifact key before
-opening it. It does not install updates automatically.
+only to `Operators`, `Participants`, or `Admins` and creates a fresh 15-minute S3 URL. `Operators`
+receive no research-participant or research-archive capability. The desktop verifies the Ed25519
+signature and requires that URL's AWS S3 object path equal the signed artifact key before opening
+it. It does not install updates automatically.
 
 Never place the private signing key or a bearer URL in Git, a public site, analytics, CI output, or a
 shared channel. Generate a fresh operator URL only for an approved invitation batch and send it only

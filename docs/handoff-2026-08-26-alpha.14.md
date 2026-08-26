@@ -28,15 +28,17 @@ Describe it as ready for operator/internal QA, not as participant-approved.
 - The DMG and ZIP are private S3 objects under immutable, content-addressed keys. The signed latest
   manifest is also private and byte-identical to its immutable versioned copy.
 - The desktop calls `GET /v1/releases/macos` with its Cognito ID token. The cloud allows only
-  `Participants` or `Admins`, creates a 15-minute S3 URL, and returns a signed manifest. The desktop
-  verifies the Ed25519 signature, exact version/size/hash, and decoded S3 object key before opening
-  the URL. It does not silently install an update.
+  `Operators`, `Participants`, or `Admins`, creates a 15-minute S3 URL, and returns a signed
+  manifest. `Operators` have no participant, research-upload, schedule, connector, or archive
+  capability. The desktop verifies the Ed25519 signature, exact version/size/hash, and decoded S3
+  object key before opening the URL. It does not silently install an update.
 - For a recipient's first install, the release owner can use the seven-day operator URL in the
   mode-`0600` local record `/Users/lawrencejang/.sia-release/alpha14-publish.json`. Do not copy that
   URL into Git, a public page, analytics, or a broad channel. Generate a fresh URL for each approved
   invitation batch.
-- `Participants` and `ConnectorTesters` both remain empty. No recipient was invited or enrolled
-  during release verification.
+- One confirmed internal cofounder account is enrolled only in `Operators`. `Participants` and
+  `ConnectorTesters` remain empty, so no research participant or external connector tester has been
+  enrolled.
 
 ## AWS and email state
 
@@ -44,17 +46,23 @@ Describe it as ready for operator/internal QA, not as participant-approved.
 - All 17 `sia-alpha-*` alarms are `OK`, have actions enabled, and include the new SES bounce and
   complaint reputation alarms.
 - The release route returns HTTP 403 without a Cognito bearer token. Unit/integration coverage
-  proves `Participants` and `Admins` can receive it while an authenticated user outside those groups
-  is denied.
-- Cognito remains on `COGNITO_DEFAULT`. A real `EMAIL_OTP` challenge was accepted for the existing
-  acceptance alias; no new Cognito identity or group membership was created.
+  proves `Operators`, `Participants`, and `Admins` can receive it while an authenticated user outside
+  those groups is denied. The operator's session capability response remains non-participant with
+  every research/connector feature disabled.
+- The exact `auth@superintelligentagents.ai` address forwards through Namecheap to the operator
+  Gmail account. A dedicated control message and the fresh SES verification message both arrived;
+  the exact address now reports SES `VerificationStatus: SUCCESS` and
+  `VerifiedForSendingStatus: true`.
+- Cognito remains on managed `COGNITO_DEFAULT` delivery and now uses the verified exact
+  `auth@superintelligentagents.ai` `SourceArn`, with no `From` override. A reviewed no-replacement
+  change set completed successfully, and post-change drift detection is `IN_SYNC`.
+- A new real `EMAIL_OTP` challenge arrived from `auth@superintelligentagents.ai` at the existing
+  acceptance alias. Gmail reported `mailed-by: amazonses.com`,
+  `signed-by: superintelligentagents.ai`, and TLS; no code or session was retained and no Cognito
+  identity or group membership was created.
 - SES production access is still denied. The account is healthy and sending-enabled, but remains in
-  the sandbox. The internal cohort can continue using Cognito-managed delivery within Cognito's
-  lower daily quota.
-- `auth@superintelligentagents.ai` is verified for SES sending through the domain, but its exact
-  email-address verification is still `PENDING`. Cognito will not accept it as a managed custom
-  sender until the exact identity reports `VerificationStatus: SUCCESS`. Until then the deployed
-  user pool deliberately uses Cognito's default sender.
+  the sandbox. This is an external scale gate rather than an internal-cohort blocker: the live
+  Cognito-managed branded email path is working inside the current service limits.
 
 ## Closed engineering gates
 
@@ -64,8 +72,9 @@ Describe it as ready for operator/internal QA, not as participant-approved.
 - Post-release test-only commit `3029846` corrected the stale compact outline baseline and its full
   hosted-macOS workflow (`32931248588`) passed quality, Electron E2E, and unsigned universal
   packaging. The signed app remains the exact `d9dfb52` artifact.
-- Real Codex isolation passed. The real no-turn Codex and CUA probes passed; the Chrome probe stayed
-  skipped because the user-controlled browser permission was not enabled.
+- Real Codex isolation passed. The real no-turn Codex and CUA probes passed. The initially skipped
+  Chrome path was then exercised manually with the exact signed app: it attached to the explicitly
+  selected disposable window, performed the requested dated navigation only there, and detached.
 - `sam validate --lint`: passed.
 - Signed universal app and DMG: Apple accepted both submissions; codesign, Gatekeeper, stapling,
   universal-native, cloud-config, CUA, MCP bridge, and license checks passed.
@@ -74,25 +83,23 @@ Describe it as ready for operator/internal QA, not as participant-approved.
 - The protected route, narrow S3 IAM access, immutable publisher, downgrade/conflict refusal,
   release-key pinning, and inert attachment previews have regression coverage.
 - The exact signed app was restarted through Computer Use; the ordinary profile survived and its
-  updater returned live HTTP 403 for the signed-in acceptance account outside both allowed groups.
-  This closes the authenticated non-cohort branch while preserving the empty-cohort state.
+  updater returned live HTTP 403 for the signed-in acceptance account outside all three allowed
+  groups. This closes the authenticated non-cohort branch while preserving the empty research
+  cohorts.
 
 ## Remaining human/external gates
 
 1. Fill the named owners and signatures in
    [`research-release-signoff.md`](./research-release-signoff.md), approve the exact recipient list,
    and only then add those people to `Participants`.
-2. Observe the requested SES verification and Cognito OTP in the intended inbox, record delivery
-   time and sender/authentication headers, and complete the exact email-address verification. Then
-   deploy the branded `SourceArn` through another reviewed no-replacement change set.
-3. With one approved account, complete the OTP and verify the live protected update route returns a
-   signed manifest and working 15-minute artifact URL. The live unauthenticated denial and both
-   access-policy branches are already automated; this final positive path requires the inbox code.
-4. Complete clean-account and prior-build install/upgrade acceptance, advertised voice checks, and
-   the exact packaged computer-use mutation pass with a human observer.
-5. Enable Chrome's one-time visible remote-debugging control only if the release owner accepts that
-   test, then rerun the exact-window attachment probe against a disposable page.
-6. Keep Google Workspace and Slack limited to a separately approved `ConnectorTesters` cohort until
+2. Have the approved operator complete OTP sign-in, then verify the live protected update route
+   returns a signed manifest and working 15-minute artifact URL. The live unauthenticated denial and
+   all access-policy branches are automated; this final positive path requires the operator's inbox
+   code.
+3. Complete clean-account and prior-build install/upgrade acceptance, advertised voice checks, and
+   the remaining exact packaged computer-use mutation cases with a human observer. The disposable
+   Chrome attach/navigation/detach gate is closed.
+4. Keep Google Workspace and Slack limited to a separately approved `ConnectorTesters` cohort until
    their provider-specific acceptance matrix and external review are complete.
 
 ## Reference
