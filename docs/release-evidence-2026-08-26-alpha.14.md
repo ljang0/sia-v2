@@ -61,12 +61,23 @@ positive live manifest request still needs an approved user's completed email-co
 - An unauthenticated live request returned HTTP 403. Cloud tests prove only `Participants` and
   `Admins` receive the manifest and authenticated non-cohort users are rejected. A positive live
   request remains intentionally pending until an approved user's OTP is observed and completed.
+- After restarting the exact signed `alpha.14` app, the existing local profile, agents, threads,
+  cloud sign-in, and provider configuration survived. Its **Check now** control made a live request
+  with the pre-existing acceptance account and displayed `Release feed returned HTTP 403.` That
+  account is outside `Participants` and `Admins`, so this closes the live authenticated non-cohort
+  denial branch without enrolling a test identity. It does not replace the approved-cohort positive
+  path.
 
 ## Automated and real-runtime evidence
 
 - `pnpm check`: build, formatting, quality guard, type checks, and **491 runnable tests passed**;
   one opt-in credential-dependent Codex isolation test was skipped in this aggregate invocation.
 - `pnpm test:e2e`: **26 passed, 4 opt-in real-environment probes skipped**.
+- A post-release test-only correction at `30298466b805bfa5e5e7b5f84a922ecdfa50b415`
+  waits for the released thread-outline control before the compact visual baseline. GitHub Actions
+  run `32931248588` then passed the complete quality, Electron E2E, and unsigned universal-package
+  job on hosted macOS. This correction changes no application source and does not supersede the
+  signed `d9dfb52` artifact or tag.
 - `pnpm test:codex-isolation:real`: **1 passed** with the existing ChatGPT authentication retained
   in a verified ephemeral session.
 - `SIA_REAL_CODEX_E2E=1 SIA_REAL_CUA_E2E=1 pnpm test:e2e:real:no-turn`: **2 passed, 1 Chrome probe
@@ -107,6 +118,11 @@ positive live manifest request still needs an approved user's completed email-co
   domain verification for a managed custom sender. A new verification message was requested and its
   sending-authorization policy now uses `email.cognito-idp.amazonaws.com` with exact account and
   user-pool conditions.
+- A fresh verification message was requested again at `2026-08-26T04:28:08Z`. The domain's MX
+  records point to Namecheap email forwarding; the destination operator Google account was not
+  signed into the available Chrome session, so no link was clicked or receipt inferred. A dedicated
+  Google account-chooser tab was left ready for the release owner to sign in without exposing a
+  password to automation.
 - The local Mail app has no configured account. The release process did not take over the user's
   active Chrome session, so human inbox receipt, verification-link activation, sender/header review,
   and OTP completion remain open evidence rather than inferred success.

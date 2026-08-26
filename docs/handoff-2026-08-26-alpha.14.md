@@ -61,6 +61,9 @@ Describe it as ready for operator/internal QA, not as participant-approved.
 - `pnpm check`: complete build, formatting, quality, type, and 491 runnable tests passed; the
   credential-dependent isolation smoke is opt-in and passed separately.
 - `pnpm test:e2e`: 26 passed, four opt-in real probes skipped.
+- Post-release test-only commit `3029846` corrected the stale compact outline baseline and its full
+  hosted-macOS workflow (`32931248588`) passed quality, Electron E2E, and unsigned universal
+  packaging. The signed app remains the exact `d9dfb52` artifact.
 - Real Codex isolation passed. The real no-turn Codex and CUA probes passed; the Chrome probe stayed
   skipped because the user-controlled browser permission was not enabled.
 - `sam validate --lint`: passed.
@@ -70,6 +73,9 @@ Describe it as ready for operator/internal QA, not as participant-approved.
   were recomputed after download and passed. Both S3 artifact sizes and SHA-256 metadata match.
 - The protected route, narrow S3 IAM access, immutable publisher, downgrade/conflict refusal,
   release-key pinning, and inert attachment previews have regression coverage.
+- The exact signed app was restarted through Computer Use; the ordinary profile survived and its
+  updater returned live HTTP 403 for the signed-in acceptance account outside both allowed groups.
+  This closes the authenticated non-cohort branch while preserving the empty-cohort state.
 
 ## Remaining human/external gates
 
