@@ -203,7 +203,8 @@ signed-in model testers. Codex is not required to use hosted Meta.
   artifact rendering remains outside this alpha.
 - Direct programmatic browser downloads are not available in this alpha; downloads remain a normal
   Chrome action. Sia supports autonomous browser click, type, and upload, with optional confirmation.
-- Updates are manual by default; no persistent signed update manifest is configured for this build.
+- Updates are manually initiated. The signed internal package uses an authenticated manifest whose
+  Ed25519 key and exact AWS endpoint are pinned inside the app.
 - A Sia sign-in can represent a separately scoped operator, model tester, connector tester, or
   research participant. Only participants are offered raw-research consent and capture. Local-only
   use remains available without sharing.
