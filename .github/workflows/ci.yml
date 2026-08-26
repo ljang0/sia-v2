@@ -42,6 +42,17 @@ jobs:
       - name: Run Electron E2E
         run: pnpm test:e2e
 
+      - name: Upload Electron E2E failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-e2e-failure-${{ github.run_attempt }}
+          path: |
+            apps/desktop/test-results
+            apps/desktop/playwright-report
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Package and verify unsigned universal app
         run: pnpm package:mac:dir
 

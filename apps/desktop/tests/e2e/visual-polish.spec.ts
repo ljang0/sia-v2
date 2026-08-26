@@ -4,7 +4,10 @@ import { createAgentAndThread, launchIsolatedSia } from '../support/electron-har
 
 test.describe.configure({ timeout: 60_000 });
 
-const stableScreenshot = { animations: 'disabled' as const, maxDiffPixels: 50 };
+// GPU/font rasterization differs slightly between local Macs and GitHub's hosted
+// macOS images. Keep the allowance proportional (and below one percent) so the
+// gate still catches layout, spacing, and palette regressions at both viewports.
+const stableScreenshot = { animations: 'disabled' as const, maxDiffPixelRatio: 0.006 };
 
 async function stabilizeTranscriptTimes(page: Page) {
   await page.locator('time').evaluateAll((elements) => {
