@@ -5,9 +5,9 @@ the implementation was verified; it is not legal or institutional approval.
 
 ## Release boundary
 
-- Release: Sia `0.1.0-alpha.13`
+- Release: Sia `0.1.0-alpha.14`
 - Consent version: `alpha-research-v3-raw`
-- Evidence: [`release-evidence-2026-08-26-alpha.13.md`](./release-evidence-2026-08-26-alpha.13.md)
+- Evidence: [`release-evidence-2026-08-26-alpha.14.md`](./release-evidence-2026-08-26-alpha.14.md)
 - Invite copy: [`alpha-invite-template.md`](./alpha-invite-template.md)
 - Intended population: named, invited adults on the approved research-recipient list
 - Local alternative: **Start in local mode** without signing in or uploading research data

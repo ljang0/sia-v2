@@ -19,9 +19,10 @@ research-alpha participants.
 - Release publishing refuses artifact conflicts, downgrades, and same-version replacement. The
   control plane grants Lambda read access only to release and manifest prefixes in the private
   bucket.
-- The internal-email stack can use Cognito-managed delivery with the verified Sia domain while SES
-  production access is pending. Bounce and complaint reputation alarms notify the existing
-  operator topic. The 20-person cohort remains separate from connector access.
+- The internal-email stack can use Cognito-managed delivery with an explicitly verified Sia email
+  identity while SES production access is pending. Until that exact address finishes verification,
+  it safely retains Cognito's default sender. Bounce and complaint reputation alarms notify the
+  existing operator topic. The 20-person cohort remains separate from connector access.
 - The interface keeps Sia's cool mineral canvas and evergreen navigation; no yellow paperback tint
   or reconstructed GrokBot visual assets were introduced.
 
