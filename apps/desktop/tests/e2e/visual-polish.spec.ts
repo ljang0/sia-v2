@@ -38,6 +38,10 @@ test('core surfaces retain the visual-system and motion contract', async () => {
         return snapshot.threads.find((thread) => thread.id === threadId)?.status;
       })
       .toBe('idle');
+    // The bridge can report the completed turn before React has committed the
+    // corresponding event list. Wait for a released, event-derived control so
+    // every visual baseline captures the same post-turn UI.
+    await expect(sia.page.getByRole('button', { name: 'Thread outline' })).toBeVisible();
     await sia.page.waitForTimeout(300);
 
     const visualSystem = await sia.page.evaluate(() => {
