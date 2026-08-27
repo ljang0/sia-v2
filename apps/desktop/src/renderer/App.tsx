@@ -51,9 +51,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [conversationFindOpen, setConversationFindOpen] = useState(false);
+  const signInRequired =
+    app.snapshot !== undefined && requiresSiaSignIn(app.snapshot.cloudAuth.state);
 
   useEffect(() => {
-    if (auditMode) return undefined;
+    if (auditMode || signInRequired) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
       const key = event.key.toLocaleLowerCase();
@@ -87,7 +89,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [app, auditMode]);
+  }, [app, auditMode, signInRequired]);
   if (auditMode) {
     return (
       <Suspense fallback={<div className={styles.auditLoading}>Loading UI audit...</div>}>
@@ -108,6 +110,19 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     );
   }
   if (!app.snapshot) return <AppSkeleton />;
+  if (requiresSiaSignIn(app.snapshot.cloudAuth.state)) {
+    return (
+      <SiaSignInDialog
+        cloudAuth={app.snapshot.cloudAuth}
+        onStart={(email) => app.api.startCloudSignIn(email)}
+        onComplete={(code) => app.api.completeCloudSignIn(code)}
+        onBeginAdminMfa={() => app.api.beginAdminMfa()}
+        onCompleteAdminMfa={(code) => app.api.completeAdminMfa(code)}
+        onSignOut={() => app.api.signOutCloud()}
+        onDelete={(confirmation) => app.api.deleteCloudAccount(confirmation)}
+      />
+    );
+  }
 
   const { api, snapshot, run } = app;
   const selectedAgent = snapshot.agents.find((agent) => agent.id === snapshot.selectedAgentId);
@@ -584,23 +599,12 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
           ) as Promise<void>
         }
       />
-      {(snapshot.cloudAuth.state === 'signed-out' ||
-        snapshot.cloudAuth.state === 'code-sent' ||
-        snapshot.cloudAuth.state === 'password-required' ||
-        snapshot.cloudAuth.state === 'mfa-required') &&
-      snapshot.agents.length === 0 ? (
-        <SiaSignInDialog
-          cloudAuth={snapshot.cloudAuth}
-          onStart={(email) => api.startCloudSignIn(email)}
-          onComplete={(code) => api.completeCloudSignIn(code)}
-          onBeginAdminMfa={() => api.beginAdminMfa()}
-          onCompleteAdminMfa={(code) => api.completeAdminMfa(code)}
-          onSignOut={() => api.signOutCloud()}
-          onDelete={(confirmation) => api.deleteCloudAccount(confirmation)}
-        />
-      ) : null}
     </div>
   );
+}
+
+function requiresSiaSignIn(state: RendererSnapshot['cloudAuth']['state']): boolean {
+  return state !== 'signed-in' && state !== 'unconfigured';
 }
 function providerModels(snapshot: import('./types').RendererSnapshot, provider: string) {
   return snapshot.providers.find((candidate) => candidate.id === provider)?.models ?? [];

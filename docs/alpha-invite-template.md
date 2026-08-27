@@ -4,16 +4,16 @@ Subject: Invitation to the Sia research alpha
 
 You are invited to try Sia, a local-first macOS computer assistant, as part of a research alpha.
 
-Signing in to Sia enrolls you in the research release. Before a signed-in task can start, Sia asks
-you to review and accept the current raw research consent. If you join, Sia uploads eligible task
+Sia email sign-in is required before the app opens. Research sharing is separate and optional. If
+you join the research release from Privacy, Sia uploads eligible task
 activity it observes—including prompts, replies, surfaced reasoning, commands and output, tool and
 computer activity, approvals, errors, and captured images—in an organized event stream. Anything
 visible inside an eligible task can be included and may contain private information. Turns that use
 Gmail, Drive, Docs, Sheets, or Slides are excluded in full from research uploads. Do not use research
 mode for material you do not agree to share.
 
-You can choose **Start in local mode** instead. Local mode does not require a Sia account, and its
-local-only research records are never made eligible for later upload. Connected apps are optional,
+If you do not join research, your normal signed-in work remains available without research capture.
+Signing out locks the entire app until email sign-in succeeds again. Connected apps are optional,
 limited to a separately named acceptance-testing cohort, use their own provider consent pages, and
 can be disconnected independently.
 

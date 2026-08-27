@@ -2,9 +2,9 @@
 
 Automated tests exercise the renderer, host policy, driver contracts, persistence, approvals, and the packaged CUA runtime. Before each external build, also run this local macOS pass with disposable test accounts and non-sensitive sample data.
 
-The invite alpha has two explicit paths. **Start in local mode** remains a no-sharing mode. Signing
-in enrolls the person in the research release and requires the current raw consent before a task can
-start. Complete the local, research-cloud, archive, export, deletion, security, upgrade, and artifact
+The invite alpha requires Sia email sign-in before any app surface, local record, provider, or
+computer capability is available. Research participation remains a separate opt-in choice. Complete
+the authentication, research-cloud, archive, export, deletion, security, upgrade, and artifact
 checks below before participant-only Wave 1. Gmail, Drive, Docs, Sheets, Slides, and Slack are
 limited to the separately named `ConnectorTesters` cohort; complete their provider acceptance gates
 before ConnectorTester Wave 2, not by expanding ordinary participant access.
@@ -23,12 +23,13 @@ It observes real authentication/attachment/permission state without starting a m
 not replace the mutation checks below. When several Chrome windows are open, set
 `SIA_REAL_BROWSER_WINDOW_MATCH` to a unique part of the intended window title.
 
-## Local mode
+## Authentication boundary
 
 1. Launch a cloud-enabled build with a fresh profile. Confirm **Sign in to Sia** appears before
-   first-agent setup, email-code sign-in works, and **Start in local mode** reaches agent setup without
-   creating an account. Then launch a cloud-disabled build with a fresh profile and confirm it does
-   not request a Sia
+   any app navigation or first-agent setup and email-code sign-in works. Create an agent, sign out,
+   relaunch, and confirm the same sign-in screen hides the existing agent and blocks app, provider,
+   schedule, browser, and computer bridge calls. Sign in again and confirm the local agent returns.
+   Then launch a cloud-disabled development build with a fresh profile and confirm it does not request a Sia
    account, cloud configuration, or billing information and that Settings → Apps says **Local mode
    is ready** without disabled connection buttons.
 2. On the cloud-enabled profile, sign in with a disposable participant. Confirm raw-research consent
@@ -39,9 +40,9 @@ not replace the mutation checks below. When several Chrome windows are open, set
    Slack separately. Confirm the
    one Google grant is visible for all five services while only Docs is switched on; enabling Gmail
    later must not open another OAuth page.
-3. Create an agent and confirm the research choice appears only after the agent is saved. Choose
-   **Use without sharing**, create a thread, and verify Codex, files, Git, terminal, schedules,
-   signed-in Chrome attachment, and granted computer use remain reachable.
+3. Create an agent, open Privacy, and leave research sharing off. Create a thread and verify Codex,
+   files, Git, terminal, schedules, signed-in Chrome attachment, and granted computer use remain
+   reachable while the Sia account stays signed in.
 4. Repeat with **Join research release**, complete one eligible local turn, and export it. Confirm it
    is encrypted locally, reports no pending cloud upload, and survives relaunch.
 5. In a test build configured for the release cloud, sign in after step 4. Confirm the pre-existing
@@ -118,10 +119,10 @@ not replace the mutation checks below. When several Chrome windows are open, set
 
 ## Privacy and research capture
 
-1. In local mode, create the first agent and confirm the v3 raw consent gate opens automatically.
-   Confirm **Use without sharing** continues locally and the decision remains remembered for that
-   version. Sign in with a fresh disposable identity and confirm the person must choose **Join
-   research release** or **Decline & sign out** before signed-in use continues.
+1. Sign in with a fresh disposable identity, create the first agent, and confirm research remains off
+   until the person opens Privacy and explicitly chooses **Join research release**. Decline once and
+   confirm normal signed-in use continues without capture and the reviewed choice remains remembered
+   for that consent version.
 2. Join with disposable, non-sensitive fixtures and complete successful, failed, and cancelled turns
    containing a provider-native command, plan, usage, subagent event, Sia action, approval, and image.
    Inspect the local bundles and confirm exact prompts/replies, surfaced reasoning, arguments,
@@ -189,8 +190,8 @@ not replace the mutation checks below. When several Chrome windows are open, set
 - [ ] Complete Dictate transcript insertion with a human speaker, the microphone-deny path, and the
       audible two-agent/default-voice comparison. The allow/start/stop/no-speech path passes, and
       Alice/Bella/Default agent assignments plus Alice/Bella synthesis have been verified.
-- [ ] On a fresh isolated profile of the newly signed artifact, verify cloud first run, **Continue
-      locally**, first-agent setup, the 960x640 Apps and archive layouts, and Light/Dark appearance.
+- [ ] On a fresh isolated profile of the newly signed artifact, verify email sign-in is the only
+      route into first-agent setup, then check the 960x640 Apps and archive layouts and Light/Dark appearance.
       Confirm the restrained palette, tighter controls, MFA setup, outbox states, event pagination,
       reduced motion, keyboard focus, and no clipping. Restore the original system appearance and
       ordinary Sia profile afterward. On 2026-08-22 the final signed artifact passed isolated cloud
@@ -222,10 +223,9 @@ not replace the mutation checks below. When several Chrome windows are open, set
       The exact final artifact additionally preserved the ordinary prior-build profile's agents,
       threads, Sia sign-in, Gmail/Drive grants, and completed a read-only Gmail workflow after the
       one-time guided-setup migration. A separate disposable macOS account remains required.
-- [ ] Confirm the intended alpha recipient list outside the repository. Tell recipients that sign-in
-      is research-release enrollment with raw task-surface upload, that **Start in local mode** remains
-      available without sharing, and that Google Workspace and Slack each require their own provider
-      consent. Do
+- [ ] Confirm the intended alpha recipient list outside the repository. Tell recipients that Sia
+      email sign-in is required, research sharing is a separate opt-in, and Google Workspace and Slack
+      each require their own provider consent. Do
       not offer connectors to external recipients until the scope audit below is complete.
 - [ ] Deploy this source template, complete `docs/release.md`'s live research rehearsal, and attach
       the private evidence record to the release decision. The 2026-08-22 stack deployment,

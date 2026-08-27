@@ -10,7 +10,7 @@ the implementation was verified; it is not legal or institutional approval.
 - Evidence: [`release-evidence-2026-08-26-alpha.14.md`](./release-evidence-2026-08-26-alpha.14.md)
 - Invite copy: [`alpha-invite-template.md`](./alpha-invite-template.md)
 - Intended population: named, invited adults on the approved research-recipient list
-- Local alternative: **Start in local mode** without signing in or uploading research data
+- Base access: Sia email sign-in is required; research capture is separately optional
 - Connector policy: Gmail, Drive, Docs, Sheets, Slides, and Slack are limited to the separately
   named `ConnectorTesters` acceptance cohort. Participant-only Wave 1 does not expose those tools;
   distribution to `ConnectorTesters` remains gated on
@@ -18,8 +18,8 @@ the implementation was verified; it is not legal or institutional approval.
 
 ## Participant-facing facts to approve
 
-- Signing in enrolls the person in the research release; the current raw consent must be
-  accepted before a task can start.
+- Email sign-in is required before any app access. Research participation requires a separate,
+  explicit acceptance of the current raw consent in Privacy.
 - Captured data includes exact prompts, replies, surfaced reasoning, commands and output, tool and
   action arguments/results, approvals, errors, paths/diffs, browser/computer events, and captured
   images visible inside the eligible task surface. Raw task-visible strings can themselves contain
@@ -66,8 +66,8 @@ Fill every field; do not use a shared inbox without a named accountable owner.
 - [ ] Support owner has a tested process for sign-in, export, deletion, withdrawal, and incident
       requests, including response-time targets.
 - [ ] Release owner confirms the recipient list is limited to the approved population and sends the
-      exact notice that sign-in means research enrollment, Start in local mode is available, eligible
-      raw task-surface data uploads, Google Workspace turns are excluded, and connected-app access
+      exact notice that email sign-in is required, research sharing is optional, eligible raw
+      task-surface data uploads only after opt-in, Google Workspace turns are excluded, and connected-app access
       is optional and separately consented.
 - [ ] Release owner confirms the exact artifact hashes and committed source identity match the final
       distribution decision.

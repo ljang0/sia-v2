@@ -116,7 +116,12 @@ async function createHarness(
     ...(options.trajectory ? { trajectory: options.trajectory } : {}),
   });
   await controller.initialize();
-  await controller.invoke('settings.openDirectory', undefined);
+  if (
+    controller.snapshot().cloud.auth === 'signed_in' ||
+    controller.snapshot().cloud.auth === 'unconfigured'
+  ) {
+    await controller.invoke('settings.openDirectory', undefined);
+  }
   if (options.runtime) controller.attachRuntime(options.runtime as never);
   return { controller, repository };
 }
@@ -1712,7 +1717,7 @@ describe('DesktopController', () => {
       { batchId: 'local-before-cloud', syncEligible: false },
     ]);
     expect(controller.snapshot().capture).toMatchObject({
-      status: 'recording',
+      status: 'not_consented',
       pendingCount: 0,
     });
 
@@ -1720,6 +1725,10 @@ describe('DesktopController', () => {
     expect(repository.list<ResearchBatchView>('research')).toMatchObject([
       { batchId: 'local-before-cloud', syncEligible: false },
     ]);
+    expect(controller.snapshot().capture).toMatchObject({
+      status: 'recording',
+      pendingCount: 0,
+    });
     expect(uploadResearchBatch).not.toHaveBeenCalled();
     await controller.shutdown();
   });
@@ -3901,17 +3910,111 @@ describe('DesktopController', () => {
       }),
       identity,
     });
-    expect(controller.snapshot().providers.find(({ id }) => id === 'meta')).toMatchObject({
-      status: 'needs_login',
+    expect(controller.snapshot()).toMatchObject({
+      agents: [],
+      threads: [],
+      providers: [],
+      cloud: { auth: 'signed_out' },
     });
     await controller.invoke('auth.complete', { code: '123456' });
     expect(controller.snapshot().providers.find(({ id }) => id === 'meta')).toMatchObject({
       status: 'unavailable',
     });
     await controller.invoke('auth.signOut', undefined);
-    expect(controller.snapshot().providers.find(({ id }) => id === 'meta')).toMatchObject({
-      status: 'needs_login',
+    expect(controller.snapshot()).toMatchObject({
+      agents: [],
+      threads: [],
+      providers: [],
+      cloud: { auth: 'signed_out' },
     });
+    await controller.shutdown();
+  });
+
+  it('locks every app bridge and local record until email sign-in succeeds', async () => {
+    type IdentityState = 'signed_in' | 'signed_out' | 'code_sent';
+    let state: IdentityState = 'signed_in';
+    let email = 'person@example.com';
+    const status = () =>
+      state === 'signed_out'
+        ? ({ state } as const)
+        : ({ state, email } as { state: Exclude<IdentityState, 'signed_out'>; email: string });
+    const identity = {
+      initialize: async () => status(),
+      status,
+      startEmailSignIn: async (nextEmail: string) => {
+        email = nextEmail;
+        state = 'code_sent';
+        return status();
+      },
+      completeEmailSignIn: async () => {
+        state = 'signed_in';
+        return status();
+      },
+      signOut: async () => {
+        state = 'signed_out';
+        return status();
+      },
+    } satisfies ConstructorParameters<typeof DesktopController>[0]['identity'];
+    const registerAccount = vi.fn(async () => undefined);
+    const cloud = {
+      configured: true,
+      registerAccount,
+      sessionStatus: async () => ({
+        admin: false,
+        participant: false,
+        features: {
+          researchUploads: true,
+          researchArchive: false,
+          connectors: true,
+          schedules: true,
+        },
+      }),
+    } as unknown as CloudClient;
+    const { controller } = await createHarness({
+      cloud,
+      identity,
+      defaultWorkspaceRoot: '/tmp/Sia/Agents',
+      createDirectory: async () => undefined,
+    });
+    const created = await controller.invoke('agents.save', {
+      name: 'Private release work',
+      instructions: 'Keep this behind Sia sign-in.',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+    });
+    expect(created.snapshot.agents).toHaveLength(1);
+
+    await controller.invoke('auth.signOut', undefined);
+
+    await expect(controller.invoke('bootstrap', undefined)).resolves.toMatchObject({
+      agents: [],
+      threads: [],
+      timeline: [],
+      providers: [],
+      schedules: [],
+      cloud: { auth: 'signed_out' },
+    });
+    await expect(controller.invoke('settings.openDirectory', undefined)).rejects.toThrow(
+      'Sign in to Sia to continue.',
+    );
+    await expect(controller.invoke('providers.probe', { providerId: 'codex' })).rejects.toThrow(
+      'Sign in to Sia to continue.',
+    );
+    await expect(controller.invoke('computer.permissions', undefined)).rejects.toThrow(
+      'Sign in to Sia to continue.',
+    );
+    expect(controller.actionToolAvailable('computer_snapshot')).toBe(false);
+
+    await controller.invoke('auth.start', { email: 'person@example.com' });
+    expect(registerAccount).toHaveBeenCalledWith('person@example.com');
+    expect(controller.snapshot().cloud.auth).toBe('code_sent');
+    await controller.invoke('auth.complete', { code: '12345678' });
+
+    expect(controller.snapshot()).toMatchObject({
+      agents: [expect.objectContaining({ name: 'Private release work' })],
+      cloud: { auth: 'signed_in', account: 'person@example.com' },
+    });
+    expect(controller.actionToolAvailable('computer_snapshot')).toBe(true);
     await controller.shutdown();
   });
 

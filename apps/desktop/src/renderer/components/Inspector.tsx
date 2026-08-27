@@ -511,7 +511,7 @@ function describeCloud(
     return {
       connected: false,
       label: 'Signed out',
-      detail: 'Local work remains available.',
+      detail: 'Sign in to access Sia.',
     } as const;
   }
   if (auth.state === 'code-sent') {

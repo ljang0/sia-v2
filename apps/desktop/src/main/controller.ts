@@ -302,6 +302,12 @@ interface StagedResearchTurn {
 }
 
 const SAFE_RESEARCH_ACTIONS = new Set(['computer_list', 'computer_snapshot']);
+const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
+  'bootstrap',
+  'auth.start',
+  'auth.complete',
+  'auth.signOut',
+]);
 const GOOGLE_WORKSPACE_ACTION = /^(?:mail|drive|docs|sheets|slides)_/;
 const MAX_LOCAL_RESEARCH_BATCH_BYTES = 3 * 1024 * 1024;
 const MAX_RESEARCH_SCREENSHOT_BASE64_BYTES = 1_500_000;
@@ -452,6 +458,7 @@ export class DesktopController {
   #browserAutoAttach: Promise<void> | undefined;
   #revision = 0;
   #accountDeletionInProgress = false;
+  #signOutInProgress = false;
   #cloudParticipant = false;
   #updates: UpdateView;
 
@@ -549,6 +556,7 @@ export class DesktopController {
   }
 
   actionToolAvailable(name: string): boolean {
+    if (this.#releaseAccessLocked()) return false;
     if (isConnectorActionTool(name)) {
       return (
         this.#fakeServices ||
@@ -813,6 +821,7 @@ export class DesktopController {
     await this.#refreshCapabilityStatuses().catch(() => undefined);
     if (
       !this.#fakeServices &&
+      this.#identity.status().state === 'signed_in' &&
       computer.status === 'needs_permission' &&
       this.computerTrust() === 'auto' &&
       !this.#state.preferences.permissionsPromptedAt
@@ -877,6 +886,53 @@ export class DesktopController {
   }
 
   snapshot(): DesktopSnapshot {
+    const identity = this.#identity.status();
+    const cloud: DesktopSnapshot['cloud'] = {
+      status:
+        this.#cloud.configured && identity.state === 'signed_in' && !this.#signOutInProgress
+          ? 'online'
+          : 'offline',
+      auth: this.#cloud.configured
+        ? this.#signOutInProgress || identity.state === 'unconfigured'
+          ? 'signed_out'
+          : identity.state
+        : 'unconfigured',
+      ...(identity.email ? { account: identity.email } : {}),
+      ...(identity.admin ? { admin: true } : {}),
+      ...(this.#cloudParticipant ? { participant: true } : {}),
+      ...(identity.adminMfa ? { adminMfa: true } : {}),
+      features: structuredClone(this.#state.cloudFeatures),
+    };
+    if (this.#releaseAccessLocked()) {
+      return {
+        revision: this.#revision,
+        agents: [],
+        threads: [],
+        timeline: [],
+        approvals: [],
+        providers: [],
+        connections: structuredClone(EMPTY_CONNECTIONS),
+        capture: { status: 'not_consented', pendingCount: 0 },
+        computer: {
+          status: 'unavailable',
+          accessibility: false,
+          screenRecording: false,
+          trust: 'ask',
+          trajectoryLog: false,
+          detail: 'Sign in to Sia to use computer access.',
+        },
+        browser: { status: 'detached', grantedOrigins: [] },
+        voice: { status: 'disconnected', voices: [] },
+        preferences: { completionSound: false },
+        providerUsage: [],
+        schedules: [],
+        cloud: {
+          status: 'offline',
+          auth: cloud.auth,
+          ...(cloud.account ? { account: cloud.account } : {}),
+        },
+      };
+    }
     return {
       revision: this.#revision,
       agents: structuredClone(this.#state.agents),
@@ -904,18 +960,7 @@ export class DesktopController {
       schedules: structuredClone(this.#state.schedules),
       ...(this.#state.activeAgentId ? { activeAgentId: this.#state.activeAgentId } : {}),
       ...(this.#state.activeThreadId ? { activeThreadId: this.#state.activeThreadId } : {}),
-      cloud: {
-        status:
-          this.#cloud.configured && this.#identity.status().state === 'signed_in'
-            ? 'online'
-            : 'offline',
-        auth: this.#cloud.configured ? this.#identity.status().state : 'unconfigured',
-        ...(this.#identity.status().email ? { account: this.#identity.status().email } : {}),
-        ...(this.#identity.status().admin ? { admin: true } : {}),
-        ...(this.#cloudParticipant ? { participant: true } : {}),
-        ...(this.#identity.status().adminMfa ? { adminMfa: true } : {}),
-        features: structuredClone(this.#state.cloudFeatures),
-      },
+      cloud,
       ...(this.#startupNotice ? { startupNotice: structuredClone(this.#startupNotice) } : {}),
     };
   }
@@ -955,6 +1000,7 @@ export class DesktopController {
     selector: string,
     approvalId?: string,
   ): string | undefined {
+    if (this.#releaseAccessLocked()) return undefined;
     const connection = this.#state.connections.find((candidate) => candidate.id === app);
     if (
       !connection?.connectionId ||
@@ -1009,6 +1055,12 @@ export class DesktopController {
   ): Promise<BridgeResultMap[M]> {
     if (this.#accountDeletionInProgress && method !== 'bootstrap') {
       throw new Error('Sia account deletion is in progress. Wait for it to finish.');
+    }
+    if (this.#signOutInProgress && method !== 'bootstrap') {
+      throw new Error('Sia sign-out is in progress. Wait for it to finish.');
+    }
+    if (this.#releaseAccessLocked() && !SIGN_IN_BRIDGE_METHODS.has(method)) {
+      throw new Error('Sign in to Sia to continue.');
     }
     switch (method) {
       case 'bootstrap':
@@ -1396,6 +1448,7 @@ export class DesktopController {
     },
     context: CuaAuthorizationContext,
   ): Promise<'allow' | 'deny' | 'cancel'> {
+    if (this.#releaseAccessLocked()) return 'deny';
     if (context.kind === 'direct_user') return 'allow';
     const active = this.#activeTurnId(context.threadId);
     if (active !== context.turnId) return 'cancel';
@@ -3494,10 +3547,8 @@ export class DesktopController {
   }
 
   #schedulesAvailable(): boolean {
-    return (
-      this.#identity.status().state !== 'signed_in' ||
-      this.#state.cloudFeatures?.schedules !== false
-    );
+    if (this.#releaseAccessLocked()) return false;
+    return this.#state.cloudFeatures?.schedules !== false;
   }
 
   #toolAvailabilitySignature(): string {
@@ -3505,29 +3556,73 @@ export class DesktopController {
   }
 
   async #signOut(): Promise<DesktopSnapshot> {
-    this.#connectionSetup?.controller.abort();
-    if (this.#cloud.configured) {
-      await this.#researchSync?.catch(() => undefined);
-      this.#refreshResearchPendingCount();
-      if (this.#state.capture.pendingCount > 0) {
-        await this.#syncResearchBatches(this.#researchGeneration);
+    this.#signOutInProgress = true;
+    this.#emit();
+    try {
+      this.#connectionSetup?.controller.abort();
+      await this.#stopAllWorkForAuthenticationBoundary();
+      if (this.#cloud.configured) {
+        await this.#researchSync?.catch(() => undefined);
         this.#refreshResearchPendingCount();
+        if (this.#state.capture.pendingCount > 0) {
+          await this.#syncResearchBatches(this.#researchGeneration);
+          this.#refreshResearchPendingCount();
+        }
+        if (this.#state.capture.pendingCount > 0) {
+          throw new Error(
+            'Sia still has raw research waiting for AWS. Reconnect and retry, or delete the research data before signing out.',
+          );
+        }
       }
-      if (this.#state.capture.pendingCount > 0) {
-        throw new Error(
-          'Sia still has raw research waiting for AWS. Reconnect and retry, or delete the research data before signing out.',
-        );
+      await this.#clearResearchForIdentityBoundary();
+      await this.#identity.signOut();
+      this.#cloudParticipant = false;
+      this.#state.cloudFeatures = structuredClone(INITIAL_STATE.cloudFeatures);
+      await this.#runtime?.resetSessions();
+      await this.#refreshMetaProviderState();
+      this.#lockConnections('Sign in with the account that created this grant to manage it.');
+      this.#commit();
+      return this.snapshot();
+    } finally {
+      this.#signOutInProgress = false;
+      this.#emit();
+    }
+  }
+
+  async #stopAllWorkForAuthenticationBoundary(): Promise<void> {
+    const queuedTurnIds = this.#queuedTurns.map(({ id }) => id);
+    const affectedThreadIds = new Set(this.#queuedTurns.map(({ threadId }) => threadId));
+    this.#queuedTurns = [];
+    for (const turnId of queuedTurnIds) this.#discardResearchTurn(turnId);
+
+    for (const [threadId, running] of this.#runningTurns) {
+      affectedThreadIds.add(threadId);
+      const thread = this.#state.threads.find(({ id }) => id === threadId);
+      const turnId = thread ? this.#workspaceLeases.get(thread.workspace) : undefined;
+      running.abort(new Error('Sia signed out.'));
+      if (turnId) {
+        this.#revokeApprovalsForTurn(threadId, turnId);
+        void this.#runtime?.cancel(threadId, turnId).catch(() => undefined);
       }
     }
-    await this.#clearResearchForIdentityBoundary();
-    await this.#identity.signOut();
-    this.#cloudParticipant = false;
-    this.#state.cloudFeatures = structuredClone(INITIAL_STATE.cloudFeatures);
-    await this.#runtime?.resetSessions();
-    await this.#refreshMetaProviderState();
-    this.#lockConnections('Sign in with the account that created this grant to manage it.');
-    this.#commit();
-    return this.snapshot();
+    for (const [threadId, question] of this.#pendingQuestions) {
+      affectedThreadIds.add(threadId);
+      void this.#runtime
+        ?.respondToRequest(threadId, { requestId: question.requestId })
+        .catch(() => undefined);
+    }
+    this.#pendingQuestions.clear();
+    for (const [approvalId, pending] of [...this.#pendingApprovals]) {
+      this.#revokeApproval(approvalId, pending);
+    }
+    for (const threadId of affectedThreadIds) {
+      const thread = this.#state.threads.find(({ id }) => id === threadId);
+      if (thread) {
+        thread.status = 'idle';
+        delete thread.queueReason;
+      }
+    }
+    await Promise.allSettled([...this.#turnTasks.values()]);
   }
 
   async #deleteCloudAccount(confirmation: 'DELETE ACCOUNT'): Promise<DesktopSnapshot> {
@@ -5875,10 +5970,15 @@ export class DesktopController {
   }
 
   #requireSignedInReleaseAccount(): void {
-    if (this.#fakeServices || !this.#cloud.configured) return;
-    if (this.#identity.status().state !== 'signed_in') {
-      throw new Error('Sign in to Sia before creating an agent or starting a task.');
-    }
+    if (!this.#releaseAccessLocked()) return;
+    throw new Error('Sign in to Sia to continue.');
+  }
+
+  #releaseAccessLocked(): boolean {
+    return (
+      this.#cloud.configured &&
+      (this.#signOutInProgress || this.#identity.status().state !== 'signed_in')
+    );
   }
 
   #providerForModel(model: string): ProviderId {

@@ -9,9 +9,9 @@ is the "Sia Demo Runbook" artifact.
 
 - `cd ~/sia_new && pnpm dev` (don't demo the stale notarized DMG).
 - `codex --version` signed in; accepted range `>=0.147.0 <0.150.0`; no auto-updates demo morning.
-- For the research-release path, use a designated disposable participant. Sign in, accept **Sia
-  research alpha**, and show that the core app opens without a connector prompt. For a local demo,
-  choose **Start in local mode** instead. If demonstrating integrations, open **Settings → Apps** after
+- Use a designated disposable participant and complete Sia email sign-in before the demo. Research
+  sharing is optional; enable **Sia research alpha** from Privacy only for an approved research demo.
+  If demonstrating integrations, open **Settings → Apps** after
   the core task and press **Connect Google** or **Connect Slack**. Google uses one grant for Gmail,
   Drive, Docs, Sheets, and Slides; Google and Slack still confirm separately in the browser.
 - **Settings → Computer → Unlock everything**: one card shows every capability (Mac control,

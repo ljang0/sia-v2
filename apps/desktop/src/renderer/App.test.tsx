@@ -24,13 +24,9 @@ describe('app privacy routing', () => {
     expect(screen.queryByRole('dialog', { name: 'Move through Sia' })).toBeNull();
   });
 
-  it('requires email sign-in before first-run setup when cloud is configured', async () => {
+  it('requires email sign-in before any app access when cloud is configured', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),
-      agents: [],
-      selectedAgentId: undefined,
-      selectedThreadId: undefined,
-      activeThread: undefined,
       cloudAuth: { state: 'signed-out' },
     };
 
@@ -41,6 +37,8 @@ describe('app privacy routing', () => {
     expect(screen.getByText(/Sia's included model/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Start in local mode' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Create your first agent' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Access' })).toBeNull();
+    expect(screen.queryByText(demoSnapshot.agents[0]!.name)).toBeNull();
   });
 
   it('moves directly from email verification into the minimal first-agent form', async () => {
@@ -89,7 +87,7 @@ describe('app privacy routing', () => {
     expect(screen.getByText('Previous release notes')).toBeTruthy();
   });
 
-  it('keeps cloud and research controls in Access without treating signed-out as an outage', async () => {
+  it('keeps existing local work locked while signed out', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),
       connection: 'offline',
@@ -103,16 +101,9 @@ describe('app privacy routing', () => {
 
     render(<App api={createDemoRendererApi(snapshot)} />);
 
-    expect(screen.queryByText(/Cloud features are offline/)).toBeNull();
-    expect(screen.queryByRole('status', { name: 'Cloud signed out' })).toBeNull();
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Access' }));
-    fireEvent.click(await screen.findByRole('tab', { name: 'Data' }));
-    expect(screen.getByText(/Signed out. Local work remains available/)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Review' }));
-
-    expect(await screen.findByRole('heading', { name: 'Privacy & research' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Review & enable' })).toBeTruthy();
+    expect(await screen.findByRole('dialog', { name: 'Sign in to Sia' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Access' })).toBeNull();
+    expect(screen.queryByText(demoSnapshot.agents[0]!.name)).toBeNull();
   });
 
   it('does not gate signed-in users behind research enrollment', async () => {

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { rm } from 'node:fs/promises';
 
 import { dismissFirstAgentPrompt, launchIsolatedSia } from '../support/electron-harness';
 
@@ -22,6 +23,67 @@ test('configured first run requires Sia sign-in before setup', async () => {
     expect(harness.rendererErrors).toEqual([]);
   } finally {
     await harness.close();
+  }
+});
+
+test('a signed-out relaunch locks persisted agents and every app surface', async () => {
+  const releaseEnvironment = {
+    SIA_API_BASE_URL: 'https://cloud.example.test/alpha',
+    SIA_COGNITO_REGION: 'us-east-1',
+    SIA_COGNITO_CLIENT_ID: 'deterministicclientid',
+  };
+  const signedIn = await launchIsolatedSia({
+    prefix: 'sia-account-relaunch-lock-',
+    environment: {
+      ...releaseEnvironment,
+      SIA_DEV_ID_TOKEN: 'deterministic-development-token',
+    },
+  });
+  let signedInClosed = false;
+  let signedOut: Awaited<ReturnType<typeof launchIsolatedSia>> | undefined;
+
+  try {
+    await signedIn.page.evaluate(async () => {
+      await window.sia.agents.save({
+        name: 'Persisted private agent',
+        instructions: 'Remain inaccessible until Sia email sign-in succeeds.',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+      });
+    });
+    await expect(
+      signedIn.page.getByText('Persisted private agent', { exact: true }),
+    ).toBeVisible();
+    await signedIn.close({ removeTestRoot: false });
+    signedInClosed = true;
+
+    signedOut = await launchIsolatedSia({
+      testRoot: signedIn.testRoot,
+      environment: releaseEnvironment,
+    });
+
+    await expect(signedOut.page.getByRole('dialog', { name: 'Sign in to Sia' })).toBeVisible();
+    await expect(signedOut.page.getByRole('button', { name: 'Access' })).toHaveCount(0);
+    await expect(
+      signedOut.page.getByText('Persisted private agent', { exact: true }),
+    ).toHaveCount(0);
+    const locked = await signedOut.page.evaluate(async () => await window.sia.bootstrap());
+    expect(locked).toMatchObject({
+      agents: [],
+      threads: [],
+      timeline: [],
+      providers: [],
+      schedules: [],
+      cloud: { auth: 'signed_out' },
+    });
+    await expect(
+      signedOut.page.evaluate(async () => await window.sia.computer.permissions()),
+    ).rejects.toThrow('Sign in to Sia to continue.');
+    expect(signedOut.rendererErrors).toEqual([]);
+  } finally {
+    if (!signedInClosed) await signedIn.close({ removeTestRoot: false });
+    await signedOut?.close({ removeTestRoot: false });
+    await rm(signedIn.testRoot, { recursive: true, force: true });
   }
 });
 
