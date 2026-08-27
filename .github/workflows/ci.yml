@@ -71,6 +71,8 @@ jobs:
       SIA_RELEASE_API_BASE_URL: ${{ secrets.SIA_RELEASE_API_BASE_URL }}
       SIA_RELEASE_COGNITO_REGION: ${{ secrets.SIA_RELEASE_COGNITO_REGION }}
       SIA_RELEASE_COGNITO_CLIENT_ID: ${{ secrets.SIA_RELEASE_COGNITO_CLIENT_ID }}
+      SIA_RELEASE_UPDATE_MANIFEST_URL: ${{ secrets.SIA_RELEASE_UPDATE_MANIFEST_URL }}
+      SIA_RELEASE_UPDATE_MANIFEST_PUBLIC_KEY: ${{ secrets.SIA_RELEASE_UPDATE_MANIFEST_PUBLIC_KEY }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

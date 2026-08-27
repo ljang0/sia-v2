@@ -307,6 +307,164 @@ describe('Codex app-server adapter', () => {
     expect(args.at(-1)).toBe('--strict-config');
   });
 
+  it('runs an included model through a scoped Responses provider without Codex-plan login', async () => {
+    const peers = linkedPeers();
+    let threadStartParams: unknown;
+    peers.server.onRequest(async (method, params) => {
+      if (method === 'initialize') return { userAgent: 'fake' };
+      if (method === 'account/read') throw new Error('native account must not be read');
+      if (method === 'thread/start') {
+        threadStartParams = params;
+        return { thread: { id: 'native-meta-thread' } };
+      }
+      if (method === 'experimentalFeature/list') {
+        return {
+          data: Object.entries({ ...isolatedCodexFeatures, multi_agent: false }).map(
+            ([name, enabled]) => ({ name, enabled }),
+          ),
+          nextCursor: null,
+        };
+      }
+      const isolationResponse = codexIsolationResponse(method, params);
+      if (isolationResponse !== undefined) return isolationResponse;
+      throw new Error(`unexpected ${method}`);
+    });
+    const adapter = new CodexAppServerAdapter({
+      providerId: 'meta',
+      accountOverride: {
+        state: 'authenticated',
+        billing: 'included',
+        label: 'Included with Sia',
+      },
+      customModelProvider: async (session) => ({
+        id: 'sia_included',
+        name: 'Sia included models',
+        baseUrl: 'http://127.0.0.1:43210/v1',
+        bearerToken: `scoped-${session.model}`,
+      }),
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+
+    expect(adapter.id).toBe('meta');
+    await expect(adapter.account()).resolves.toEqual({
+      state: 'authenticated',
+      billing: 'included',
+      label: 'Included with Sia',
+    });
+    await adapter.createSession({ ...sessionOptions, model: 'meta/spark' });
+    expect(threadStartParams).toMatchObject({
+      model: 'meta/spark',
+      config: {
+        features: { ...isolatedCodexFeatures, multi_agent: false },
+        web_search: 'disabled',
+        model_provider: 'sia_included',
+        model_providers: {
+          sia_included: {
+            name: 'Sia included models',
+            base_url: 'http://127.0.0.1:43210/v1',
+            wire_api: 'responses',
+            experimental_bearer_token: 'scoped-meta/spark',
+            supports_standalone_web_search: false,
+          },
+        },
+      },
+    });
+    await adapter.dispose();
+  });
+
+  it('runs the official Codex ChatGPT browser login and verifies the connected plan', async () => {
+    const peers = linkedPeers();
+    const requests: Array<{ method: string; params: unknown }> = [];
+    peers.server.onRequest(async (method, params) => {
+      requests.push({ method, params });
+      if (method === 'initialize') return { userAgent: 'fake' };
+      if (method === 'account/login/start') {
+        return {
+          type: 'chatgpt',
+          loginId: 'login-1',
+          authUrl: 'https://auth.openai.com/authorize?client_id=sia-test',
+        };
+      }
+      if (method === 'account/read') {
+        return { account: { email: 'person@example.com', type: 'chatgpt' } };
+      }
+      throw new Error(`unexpected ${method}`);
+    });
+    const adapter = new CodexAppServerAdapter({
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+
+    const login = await adapter.startChatGptLogin();
+    expect(login).toEqual({
+      loginId: 'login-1',
+      authUrl: 'https://auth.openai.com/authorize?client_id=sia-test',
+    });
+    expect(requests).toContainEqual({
+      method: 'account/login/start',
+      params: {
+        type: 'chatgpt',
+        useHostedLoginSuccessPage: true,
+        appBrand: 'chatgpt',
+      },
+    });
+
+    const completed = adapter.waitForChatGptLogin(login.loginId);
+    await peers.server.notify('account/login/completed', {
+      loginId: login.loginId,
+      success: true,
+      error: null,
+    });
+    await expect(completed).resolves.toEqual({
+      state: 'authenticated',
+      label: 'person@example.com',
+      billing: 'subscription',
+    });
+    expect(requests).toContainEqual({
+      method: 'account/read',
+      params: { refreshToken: true },
+    });
+    await adapter.dispose();
+  });
+
+  it('refuses a Codex login URL outside OpenAI and ChatGPT', async () => {
+    const peers = linkedPeers();
+    peers.server.onRequest(async (method) => {
+      if (method === 'initialize') return { userAgent: 'fake' };
+      if (method === 'account/login/start') {
+        return {
+          type: 'chatgpt',
+          loginId: 'login-unsafe',
+          authUrl: 'https://example.com/steal-session',
+        };
+      }
+      throw new Error(`unexpected ${method}`);
+    });
+    const adapter = new CodexAppServerAdapter({
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+
+    await expect(adapter.startChatGptLogin()).rejects.toThrow('untrusted sign-in link');
+    await adapter.dispose();
+  });
+
   it('performs handshake/account/session/turn and dynamic tool callbacks', async () => {
     const peers = linkedPeers();
     const methods: string[] = [];

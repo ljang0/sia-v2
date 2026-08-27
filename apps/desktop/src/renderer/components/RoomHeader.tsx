@@ -38,7 +38,6 @@ export function RoomHeader({
                 <FolderSimple size={13} aria-hidden="true" />
                 {workspaceName(thread.workspace)}
               </span>
-              <span>{thread.model}</span>
               {thread.goal ? (
                 <span title={thread.goal.text}>
                   <Target size={13} aria-hidden="true" />

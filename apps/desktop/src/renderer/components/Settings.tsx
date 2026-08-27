@@ -1,16 +1,18 @@
 import {
-  ArrowClockwise,
   CheckSquareOffset,
   Database,
   Desktop,
+  Info,
   PlugsConnected,
   ShieldCheck,
+  Sparkle,
   SpeakerHigh,
   X,
 } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import type { AppConnection, ProviderId, RendererApi, RendererSnapshot } from '../types';
 import styles from '../ui.module.css';
+import { AboutSettings } from './settings/AboutSettings';
 import { AppsSettings } from './settings/AppsSettings';
 import { ComputerSettings } from './settings/ComputerSettings';
 import { PrivacySettings } from './settings/PrivacySettings';
@@ -20,13 +22,14 @@ import { ProvidersSettings } from './settings/ProvidersSettings';
 import { VoiceSettings } from './settings/VoiceSettings';
 
 export type SettingsSection =
-  'providers' | 'apps' | 'computer' | 'voice' | 'privacy' | 'release' | 'research';
+  'providers' | 'apps' | 'computer' | 'voice' | 'privacy' | 'about' | 'release' | 'research';
 
 interface SettingsProps {
   snapshot: RendererSnapshot;
   initialSection?: SettingsSection | undefined;
   onClose(): void;
   onProbeProvider(provider: ProviderId): Promise<void>;
+  onOpenProviderSetup(provider: ProviderId): Promise<void>;
   onCheckForUpdates(): Promise<void>;
   onOpenUpdateDownload(): Promise<void>;
   onConnectGoogleApps(): Promise<void>;
@@ -49,7 +52,7 @@ interface SettingsProps {
   onSetTrajectoryLog(enabled: boolean): Promise<void>;
   onRevealTrajectories(): Promise<void>;
   onOpenMessages(): Promise<void>;
-  onConfigureVoice(apiKey: string): Promise<void>;
+  onConfigureVoice(): Promise<void>;
   onRefreshVoices(): Promise<void>;
   onSelectVoice(voiceId: string): Promise<void>;
   onDisconnectVoice(): Promise<void>;
@@ -69,6 +72,7 @@ export function Settings({
   initialSection = 'providers',
   onClose,
   onProbeProvider,
+  onOpenProviderSetup,
   onCheckForUpdates,
   onOpenUpdateDownload,
   onConnectGoogleApps,
@@ -125,7 +129,7 @@ export function Settings({
       <header className={styles.settingsTopbar}>
         <div>
           <h1>Settings</h1>
-          <p>Accounts, capabilities, and data controls</p>
+          <p>Accounts and permissions</p>
         </div>
         <button
           type="button"
@@ -142,14 +146,14 @@ export function Settings({
         <nav className={styles.settingsNav} aria-label="Settings sections">
           <SettingsNavButton
             active={section === 'providers'}
-            icon={<ArrowClockwise size={17} aria-hidden="true" />}
-            label="Providers"
+            icon={<Sparkle size={17} aria-hidden="true" />}
+            label="AI"
             onClick={() => setSection('providers')}
           />
           <SettingsNavButton
             active={section === 'apps'}
             icon={<PlugsConnected size={17} aria-hidden="true" />}
-            label="Apps"
+            label="Connections"
             onClick={() => setSection('apps')}
           />
           <SettingsNavButton
@@ -169,6 +173,12 @@ export function Settings({
             icon={<ShieldCheck size={17} aria-hidden="true" />}
             label="Privacy"
             onClick={() => setSection('privacy')}
+          />
+          <SettingsNavButton
+            active={section === 'about'}
+            icon={<Info size={17} aria-hidden="true" />}
+            label="About"
+            onClick={() => setSection('about')}
           />
           {canReviewRelease ? (
             <SettingsNavButton
@@ -193,10 +203,8 @@ export function Settings({
             <ProvidersSettings
               providers={snapshot.providers}
               onProbe={onProbeProvider}
+              onOpenProviderSetup={onOpenProviderSetup}
               onOpenCloudSettings={() => setSection('apps')}
-              updates={snapshot.updates}
-              onCheckForUpdates={onCheckForUpdates}
-              onOpenUpdateDownload={onOpenUpdateDownload}
             />
           ) : null}
           {section === 'apps' ? (
@@ -249,6 +257,13 @@ export function Settings({
               onSetCapturePaused={onSetCapturePaused}
               onExport={onExport}
               onDelete={onDelete}
+            />
+          ) : null}
+          {section === 'about' ? (
+            <AboutSettings
+              updates={snapshot.updates}
+              onCheckForUpdates={onCheckForUpdates}
+              onOpenUpdateDownload={onOpenUpdateDownload}
             />
           ) : null}
           {section === 'release' && canReviewRelease ? (

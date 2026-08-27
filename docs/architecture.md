@@ -6,8 +6,9 @@ Renderer (sandboxed)
  typed contextBridge
         |
 Electron main -------------- Sia cloud API
-  |       |       |             |-- invite auth
-  |       |       |             |-- Meta relay (authenticated live capability probe)
+  |       |       |             |-- base account + optional research entitlements
+  |       |       |             |-- Model-lab catalog/relay + per-user daily quotas
+  |       |       |             |-- managed voice catalog + one-time token broker
   |       |       |             |-- connector gateway
   |       |       |             |-- consented raw research sync + queued export
   |       |       |             `-- MFA-gated, audited admin research archive
@@ -18,12 +19,14 @@ Electron main -------------- Sia cloud API
   |       `---------- encrypted local SQLite + macOS Keychain
   |                    |-- app-open schedules + Activity
   |                    |-- scoped Git/worktree/terminal operations
-  |                    `-- user-invoked ElevenLabs speech
+  |                    `-- user-invoked ElevenLabs speech via one-time tokens
   `------------------ supervised provider utility processes
                          |-- Codex app-server + dynamic tools
+                         |    |-- included Meta via model-scoped loopback Responses relay
+                         |    `-- user's native ChatGPT Codex plan
                          |-- Grok ACP protocol tests (production-disabled)
                          |-- Gemini ACP protocol tests (production-disabled)
-                         `-- Meta streaming tool loop (signed-in, authenticated live probe)
+                         `-- legacy included-model direct adapter (persisted threads only)
 ```
 
 The provider runtime can propose a Sia action, but only the main-process ActionGateway can authorize it. In autonomous mode (`computer.trust === 'auto'`, the default), the controller silently authorizes eligible computer, browser, connector, message, upload, and schedule actions after capability and input validation; confirmation mode renders a request tied to the exact action digest. Eligible action results, timeline items, and automatic authorizations are appended to the always-on local `TrajectoryRecorder` (`<userData>/trajectories/<threadId>/events.jsonl` plus image files). A Google Workspace invocation atomically removes earlier diagnostic rows for that turn and suppresses later rows; only the normal local user-facing transcript remains. Complete thread directories roll off after 90 days or when the local trajectory store exceeds 128 MiB, oldest first; this is separate from the encrypted consented-research outbox. The model-visible schedule surface is limited to create/list/update/delete for controller-owned once/hourly/daily/weekly tasks in the current thread; it cannot write an OS crontab or arbitrary shell schedule. Codex provider-native work uses `approvalPolicy: never` inside the verified workspace-write sandbox, while host-side effects still cross the ActionGateway.
@@ -43,8 +46,9 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   attaches to a signed-in window without copying cookies. Messages read capabilities access bounded
   local `chat.db` rows only with Full Disk Access, and exact sends follow the autonomous/confirmation setting.
 - Provider authentication stays in each official CLI. Sia does not inspect, copy, or store provider API keys or consumer-login files.
-- ElevenLabs is an optional speech service, not a model provider. Its restricted API key is encrypted
-  in the Keychain-backed repository, never returned to the renderer, and never exposed to an agent.
+- ElevenLabs is an included speech service, not a model provider. Its restricted API key stays in
+  AWS Secrets Manager; the main process requests a purpose-bound single-use token when needed. A
+  legacy locally stored key is deleted during migration and no key-entry IPC remains.
   Recorded and generated audio stays in memory and is sent only after the user presses Dictate or
   Read aloud; it is not added to transcripts or persisted by Sia. Read aloud uses an optional
   per-agent voice with the global voice as fallback, permits only one playback session, omits code,

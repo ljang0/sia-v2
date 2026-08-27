@@ -180,7 +180,18 @@ export interface InviteRequest {
 
 export interface RegistrationRequest {
   email: string;
-  researchEnrollmentAcknowledged: true;
+  /**
+   * Legacy clients may still send this flag. Account creation is no longer coupled to
+   * research enrollment; research consent is collected independently at upload time.
+   */
+  researchEnrollmentAcknowledged?: boolean;
+}
+
+export const VOICE_TOKEN_TYPES = ['realtime_scribe', 'batch_scribe', 'tts_websocket'] as const;
+export type VoiceTokenType = (typeof VOICE_TOKEN_TYPES)[number];
+
+export interface VoiceTokenRequest {
+  type: VoiceTokenType;
 }
 
 export type DeletionScope = 'research' | 'account';

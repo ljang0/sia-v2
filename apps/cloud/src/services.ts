@@ -1,4 +1,5 @@
 import { createHash, createHmac } from 'node:crypto';
+import type { HostedCatalogRoute } from '@sia/protocol';
 import {
   LEGACY_GOOGLE_APP_IDS,
   TOOL_POLICIES,
@@ -14,6 +15,7 @@ import {
   type PrepareActionRequest,
   type ResearchBatchRequest,
   type RegistrationRequest,
+  type VoiceTokenRequest,
 } from './contracts.js';
 import {
   CloudError,
@@ -44,6 +46,9 @@ import type {
   IdGenerator,
   IdentityProvider,
   InviteRepository,
+  HostedLabConfig,
+  MetaConfig,
+  MetaTokenUsage,
   RegistrationRateLimitRepository,
   QuotaGate,
   ResearchBatchMetadata,
@@ -54,6 +59,7 @@ import type {
   ResearchRepository,
   SecretProvider,
   MetaProvider,
+  VoiceProvider,
 } from './ports.js';
 
 const MAX_CONNECTOR_INPUT_BYTES = 256 * 1024;
@@ -61,6 +67,7 @@ const MAX_CONNECTOR_UPLOAD_BYTES = 5_000_000;
 const CONNECTOR_UPLOAD_TTL_SECONDS = 15 * 60;
 const MAX_RESEARCH_BATCH_BYTES = 4 * 1024 * 1024;
 const MAX_RESEARCH_EVENTS = 2_000;
+const QUOTA_RETENTION_DAYS = 8;
 const CONNECTOR_UPLOAD_MIME_TYPES = new Set([
   'application/json',
   'application/msword',
@@ -106,17 +113,23 @@ export interface ServiceDependencies {
   deletionQueue: DeletionQueue;
   secrets: SecretProvider;
   metaProvider: MetaProvider;
+  voiceProvider: VoiceProvider;
   quota: QuotaGate;
   audit: AuditSink;
   config: {
     actionTtlSeconds: number;
     consentVersion: string;
     inviteLimit: number;
+    metaDailyRequestLimit: number;
+    metaDailyTokenLimit: number;
+    voiceDailyTokenMintLimit: number;
     features: {
       researchUploads: boolean;
       researchArchive: boolean;
       connectors: boolean;
       schedules: boolean;
+      hostedModels: boolean;
+      hostedVoice: boolean;
     };
   };
 }
@@ -127,13 +140,27 @@ export class SessionService {
   status(user: AuthContext) {
     const admin = isAdmin(user);
     const participant = isParticipant(user);
+    const baseUser = isBaseUser(user);
+    const connectors = this.deps.config.features.connectors && isConnectorTester(user);
     return {
+      user: baseUser,
       admin,
       participant,
+      account: {
+        subject: user.subject,
+        ...(user.email === undefined ? {} : { email: user.email }),
+      },
+      entitlements: {
+        base: baseUser,
+        hostedModels: this.deps.config.features.hostedModels && baseUser,
+        hostedVoice: this.deps.config.features.hostedVoice && baseUser,
+        research: participant,
+        connectors,
+      },
       features: {
         researchUploads: this.deps.config.features.researchUploads && participant,
         researchArchive: this.deps.config.features.researchArchive && admin,
-        connectors: this.deps.config.features.connectors && isConnectorTester(user),
+        connectors,
         schedules: this.deps.config.features.schedules && participant,
       },
     };
@@ -1041,6 +1068,7 @@ export class InvitesService {
     const email = normalizeEmail(request.email);
     const existing = await this.deps.invites.getInvite(email);
     if (existing) {
+      await this.deps.identity.addUserToGroup(email, 'Users');
       await this.deps.identity.addUserToGroup(email, 'Participants');
       return existing;
     }
@@ -1052,6 +1080,7 @@ export class InvitesService {
       );
     }
     const created = await this.deps.identity.createPasswordlessUser(email);
+    await this.deps.identity.addUserToGroup(email, 'Users');
     await this.deps.identity.addUserToGroup(email, 'Participants');
     const record = {
       email,
@@ -1078,18 +1107,11 @@ const REGISTRATION_NETWORK_WINDOW_SECONDS = 60 * 60;
 const REGISTRATION_EMAIL_LIMIT = 4;
 const REGISTRATION_NETWORK_LIMIT = 20;
 
-/** Public, enumeration-resistant account bootstrap for the passwordless research release. */
+/** Public, enumeration-resistant account bootstrap for passwordless Sia accounts. */
 export class RegistrationService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async create(request: RegistrationRequest, sourceIp: string) {
-    if (request.researchEnrollmentAcknowledged !== true) {
-      throw new CloudError(
-        400,
-        'research_enrollment_required',
-        'Acknowledge the research release before creating an account',
-      );
-    }
     const email = normalizeEmail(request.email);
     const salt = await this.deps.secrets.registrationSalt();
     const now = Math.floor(this.deps.clock.now().getTime() / 1_000);
@@ -1121,22 +1143,29 @@ export class RegistrationService {
     }
 
     const existing = await this.deps.invites.getInvite(email);
-    // Keep this endpoint enumeration-resistant: uninvited and invited addresses receive
-    // exactly the same response, but only an existing named invite can reach Cognito.
-    if (!existing || existing.status === 'failed') return { accepted: true as const };
-
-    // Suppress Cognito's separate welcome message. The desktop immediately starts
-    // EMAIL_OTP after this returns, so an invited participant receives exactly one email.
+    // Account creation is public and independent of the research cohort. Suppress Cognito's
+    // welcome message because the desktop immediately starts EMAIL_OTP after this returns.
     const created = await this.deps.identity.createPasswordlessUser(email, {
       suppressMessage: true,
     });
-    await this.deps.identity.addUserToGroup(email, 'Participants');
-    if (existing.subject !== created.subject || existing.status !== 'active')
+    await this.deps.identity.addUserToGroup(email, 'Users');
+
+    // Named research invitations retain their existing behavior, but are now an additive
+    // entitlement rather than a prerequisite for creating the base account.
+    if (existing && existing.status !== 'failed') {
+      await this.deps.identity.addUserToGroup(email, 'Participants');
+    }
+    if (
+      existing &&
+      existing.status !== 'failed' &&
+      (existing.subject !== created.subject || existing.status !== 'active')
+    ) {
       await this.deps.invites.putInvite({
         ...existing,
         subject: created.subject,
         status: 'active',
       });
+    }
     // New and existing addresses deliberately receive the same response.
     return { accepted: true as const };
   }
@@ -1147,46 +1176,231 @@ export class MetaService {
 
   async capabilities(user: AuthContext) {
     requireMetaAccess(user);
+    if (!this.deps.config.features.hostedModels) {
+      return unavailableMetaCapabilities('Hosted models are temporarily unavailable');
+    }
     const config = await this.deps.secrets.meta();
-    if (!config.enabled) {
-      return {
-        available: false,
-        models: [] as string[],
-        streaming: false,
-        tools: false,
-        reason: 'Meta is temporarily unavailable',
-      };
+    const labs = hostedLabConfigs(config).filter(({ enabled }) => enabled);
+    if (labs.length === 0) {
+      return unavailableMetaCapabilities('Hosted models are temporarily unavailable');
     }
-    try {
-      const capabilities = await this.deps.metaProvider.capabilities(config);
-      return { available: true, ...capabilities };
-    } catch (error) {
-      return {
-        available: false,
-        models: [] as string[],
-        streaming: false,
-        tools: false,
-        reason: error instanceof CloudError ? error.message : 'Meta capability check failed',
-      };
+    const capabilities = await Promise.all(
+      labs.map((lab) => this.deps.metaProvider.capabilities(lab).catch(() => undefined)),
+    );
+    const available = capabilities.filter((value) => value !== undefined);
+    if (available.length === 0) {
+      return unavailableMetaCapabilities('Hosted model capability check failed');
     }
+    return {
+      available: true,
+      models: [...new Set(available.flatMap(({ models }) => models))],
+      streaming: available.every(({ streaming }) => streaming),
+      tools: available.every(({ tools }) => tools),
+    };
+  }
+
+  async catalog(user: AuthContext) {
+    requireMetaAccess(user);
+    if (!this.deps.config.features.hostedModels) {
+      return { schemaVersion: 1 as const, providers: [] };
+    }
+    const config = await this.deps.secrets.meta();
+    const providers = await Promise.all(
+      hostedLabConfigs(config).map(async (lab) => {
+        const id = lab.catalogId ?? 'meta';
+        const name = lab.displayName ?? 'Included model';
+        const limits = metaLimits(this.deps, lab);
+        if (!lab.enabled) {
+          return hostedModelCatalogEntry(lab, id, name, limits, false, []);
+        }
+        try {
+          const capabilities = await this.deps.metaProvider.capabilities(lab);
+          return hostedModelCatalogEntry(
+            lab,
+            id,
+            name,
+            limits,
+            true,
+            capabilities.models,
+            capabilities,
+          );
+        } catch {
+          return hostedModelCatalogEntry(lab, id, name, limits, false, []);
+        }
+      }),
+    );
+    return { schemaVersion: 1 as const, providers };
+  }
+
+  async usage(user: AuthContext) {
+    requireMetaAccess(user);
+    if (!this.deps.config.features.hostedModels) {
+      return { schemaVersion: 1 as const, providers: [] };
+    }
+    const config = await this.deps.secrets.meta();
+    const window = dailyQuotaWindow(this.deps.clock.now());
+    const usage = await this.deps.quota.getMetaUsage(user.subject, window.period);
+    return {
+      schemaVersion: 1 as const,
+      providers: hostedLabConfigs(config).map((lab) => {
+        const limits = metaLimits(this.deps, lab);
+        return {
+          id: lab.catalogId ?? 'meta',
+          period: {
+            startsAt: `${window.period}T00:00:00.000Z`,
+            endsAt: nextUtcDay(window.period),
+          },
+          usage,
+          limits: {
+            requests: limits.requestLimit,
+            tokens: limits.tokenLimit,
+          },
+          remaining: {
+            requests: Math.max(0, limits.requestLimit - usage.requests),
+            tokens: Math.max(0, limits.tokenLimit - usage.totalTokens),
+          },
+        };
+      }),
+    };
   }
 
   async *stream(user: AuthContext, request: MetaTurnRequest): AsyncIterable<MetaStreamEvent> {
     requireMetaAccess(user);
+    requireFeature(this.deps.config.features.hostedModels, 'hosted_models_disabled');
     validateMetaRequest(request);
-    const config = await this.deps.secrets.meta();
-    if (!config.enabled)
-      throw new CloudError(503, 'meta_disabled', 'Meta is temporarily unavailable', true);
-    const model = request.model ?? config.model;
+    const rootConfig = await this.deps.secrets.meta();
+    const requestedModel = request.model?.trim();
+    const config = hostedLabConfigs(rootConfig).find((lab) => {
+      if (!lab.enabled) return false;
+      const models = lab.allowedModels ?? [lab.model];
+      return requestedModel ? models.includes(requestedModel) : lab === rootConfig;
+    });
+    if (!config)
+      throw new CloudError(
+        503,
+        'meta_disabled',
+        requestedModel
+          ? 'That hosted model is unavailable'
+          : 'Hosted models are temporarily unavailable',
+        true,
+      );
+    const model = requestedModel ?? config.model;
     if (config.allowedModels && !config.allowedModels.includes(model)) {
-      throw new CloudError(400, 'meta_model_not_allowed', 'That Meta model is not enabled');
+      throw new CloudError(400, 'meta_model_not_allowed', 'That hosted model is not enabled');
     }
-    const lease = await this.deps.quota.acquireMeta(user.subject);
+    const window = dailyQuotaWindow(this.deps.clock.now());
+    const limits = metaLimits(this.deps, config);
+    const lease = await this.deps.quota.acquireMeta(user.subject, {
+      ...window,
+      requestLimit: limits.requestLimit,
+      tokenLimit: limits.tokenLimit,
+    });
+    let usage: MetaTokenUsage | undefined;
+    let usageRecorded = false;
+    let doneEvent: Extract<MetaStreamEvent, { type: 'done' }> | undefined;
     try {
-      yield* this.deps.metaProvider.stream(config, { ...request, model });
+      const upstreamSessionId = scopedProviderSessionId(user.subject, request);
+      for await (const event of this.deps.metaProvider.stream(
+        { ...config, maxOutputTokens: limits.maxOutputTokens },
+        {
+          ...request,
+          model,
+          sessionId: upstreamSessionId,
+        },
+      )) {
+        if (event.type === 'usage') usage = parseMetaTokenUsage(event.usage);
+        if (event.type === 'done') doneEvent = event;
+        else yield event;
+      }
+      if (usage) {
+        await this.deps.quota.recordMetaUsage(user.subject, window, usage);
+        usageRecorded = true;
+      }
+      if (doneEvent) yield doneEvent;
     } finally {
-      await lease.release();
+      try {
+        if (usage && !usageRecorded) {
+          await this.deps.quota.recordMetaUsage(user.subject, window, usage);
+        }
+      } finally {
+        await lease.release();
+      }
     }
+  }
+}
+
+export class VoiceService {
+  constructor(private readonly deps: ServiceDependencies) {}
+
+  async catalog(user: AuthContext) {
+    requireBaseUser(user);
+    if (!this.deps.config.features.hostedVoice) {
+      return unavailableVoiceCatalog();
+    }
+    const config = await this.deps.secrets.elevenLabs();
+    if (!config.enabled) return unavailableVoiceCatalog(config.displayName);
+    try {
+      const voices = await this.deps.voiceProvider.catalog(config);
+      return {
+        schemaVersion: 1 as const,
+        provider: {
+          id: 'elevenlabs',
+          name: config.displayName ?? 'Included voice',
+          credentialMode: 'managed' as const,
+          available: true,
+          voices,
+          tokenTypes: config.allowedTokenTypes ?? [
+            'realtime_scribe',
+            'batch_scribe',
+            'tts_websocket',
+          ],
+        },
+      };
+    } catch {
+      return unavailableVoiceCatalog(config.displayName);
+    }
+  }
+
+  async mintToken(user: AuthContext, request: VoiceTokenRequest) {
+    requireBaseUser(user);
+    requireFeature(this.deps.config.features.hostedVoice, 'hosted_voice_disabled');
+    const config = await this.deps.secrets.elevenLabs();
+    if (!config.enabled) {
+      throw new CloudError(503, 'hosted_voice_disabled', 'Hosted voice is unavailable', true);
+    }
+    const allowedTokenTypes = config.allowedTokenTypes ?? [
+      'realtime_scribe',
+      'batch_scribe',
+      'tts_websocket',
+    ];
+    if (!allowedTokenTypes.includes(request.type)) {
+      throw new CloudError(
+        400,
+        'voice_token_type_not_allowed',
+        'That voice capability is not enabled',
+      );
+    }
+    const window = dailyQuotaWindow(this.deps.clock.now());
+    const tokenMintLimit =
+      config.dailyTokenMintLimit ?? this.deps.config.voiceDailyTokenMintLimit;
+    await this.deps.quota.consumeVoiceToken(user.subject, {
+      ...window,
+      tokenMintLimit,
+    });
+    const minted = await this.deps.voiceProvider.mintSingleUseToken(config, request.type);
+    const expiresAt = new Date(this.deps.clock.now().getTime() + 15 * 60_000).toISOString();
+    await this.deps.audit.write({
+      userId: user.subject,
+      action: 'voice.token_mint',
+      outcome: 'allowed',
+      occurredAt: this.deps.clock.now().toISOString(),
+    });
+    return {
+      token: minted.token,
+      type: request.type,
+      expiresAt,
+      singleUse: true as const,
+    };
   }
 }
 
@@ -1294,6 +1508,7 @@ export class DeletionWorker {
           now(),
         );
         await this.deps.invites.deleteInvitesForSubject(userId);
+        await this.deps.quota.deleteUserUsage(userId);
         await this.deps.identity.deleteUser(userId);
         await this.deps.deletions.transitionDeletion(
           userId,
@@ -1333,6 +1548,7 @@ export class DeletionWorker {
 }
 
 export function createServices(deps: ServiceDependencies) {
+  const meta = new MetaService(deps);
   return {
     session: new SessionService(deps),
     releases: new ReleaseService(deps),
@@ -1344,7 +1560,9 @@ export function createServices(deps: ServiceDependencies) {
     researchExportWorker: new ResearchExportWorker(deps),
     invites: new InvitesService(deps),
     registration: new RegistrationService(deps),
-    meta: new MetaService(deps),
+    meta,
+    hostedModels: meta,
+    voice: new VoiceService(deps),
     deletionWorker: new DeletionWorker(deps),
   };
 }
@@ -1570,6 +1788,10 @@ function isAdmin(user: AuthContext): boolean {
   return user.groups.includes('Admins');
 }
 
+function isBaseUser(user: AuthContext): boolean {
+  return user.groups.includes('Users') || isParticipant(user) || isMetaTester(user);
+}
+
 function isParticipant(user: AuthContext): boolean {
   return isAdmin(user) || user.groups.includes('Participants');
 }
@@ -1597,22 +1819,28 @@ function requireParticipant(user: AuthContext): void {
 }
 
 function requireReleaseRecipient(user: AuthContext): void {
-  if (!isParticipant(user) && !isReleaseOperator(user) && !isMetaTester(user)) {
+  if (!isBaseUser(user) && !isReleaseOperator(user)) {
     throw new CloudError(
       403,
       'release_access_required',
-      'This private release is available to approved operators, model testers, and participants only',
+      'This release is available to Sia users and approved release operators only',
     );
   }
 }
 
 function requireMetaAccess(user: AuthContext): void {
-  if (!isParticipant(user) && !isMetaTester(user)) {
+  if (!isBaseUser(user)) {
     throw new CloudError(
       403,
-      'meta_tester_required',
-      'The hosted Meta preview is available to approved model testers and participants only',
+      'user_access_required',
+      'A Sia user account is required for hosted models',
     );
+  }
+}
+
+function requireBaseUser(user: AuthContext): void {
+  if (!isBaseUser(user)) {
+    throw new CloudError(403, 'user_access_required', 'A Sia user account is required');
   }
 }
 
@@ -1853,4 +2081,150 @@ function validateMetaRequest(request: MetaTurnRequest): void {
   const bytes = Buffer.byteLength(canonicalJson(request));
   if (bytes > 2 * 1024 * 1024)
     throw new CloudError(413, 'meta_turn_too_large', 'Meta turn exceeds 2 MiB');
+}
+
+function unavailableMetaCapabilities(reason: string) {
+  return {
+    available: false,
+    models: [] as string[],
+    streaming: false,
+    tools: false,
+    reason,
+  };
+}
+
+function metaLimits(deps: ServiceDependencies, config: HostedLabConfig) {
+  return {
+    requestLimit: config.dailyRequestLimit ?? deps.config.metaDailyRequestLimit,
+    tokenLimit: config.dailyTokenLimit ?? deps.config.metaDailyTokenLimit,
+    maxOutputTokens: config.maxOutputTokens ?? 4_096,
+  };
+}
+
+function hostedModelCatalogEntry(
+  config: HostedLabConfig,
+  id: string,
+  name: string,
+  limits: ReturnType<typeof metaLimits>,
+  available: boolean,
+  models: readonly string[],
+  capabilities: { streaming: boolean; tools: boolean } = {
+    streaming: false,
+    tools: false,
+  },
+) {
+  const routeByModelAndHarness = new Map<string, HostedCatalogRoute>(
+    models.map((model) => {
+      const route = {
+        model,
+        harnessId: 'codex_app_server' as const,
+        harnessModelId: model,
+        credentialSource: 'sia_managed' as const,
+        apiProtocol: 'openai_responses' as const,
+      };
+      return [`${route.model}\0${route.harnessId}`, route] as const;
+    }),
+  );
+  for (const route of config.harnessRoutes ?? []) {
+    if (models.includes(route.model)) {
+      routeByModelAndHarness.set(`${route.model}\0${route.harnessId}`, route);
+    }
+  }
+  const routes = [...routeByModelAndHarness.values()];
+  const defaultHarnessId = config.defaultHarnessId ?? ('codex_app_server' as const);
+  return {
+    id,
+    name,
+    kind: 'hosted' as const,
+    credentialMode: 'managed' as const,
+    available,
+    defaultModel: config.model,
+    models: models.map((model) => ({
+      id: model,
+      name: config.modelLabels?.[model] ?? model,
+      apiProtocols: [
+        ...new Set(
+          routes
+            .filter((route) => route.model === model)
+            .map(({ apiProtocol: routeProtocol }) => routeProtocol),
+        ),
+      ],
+    })),
+    capabilities: {
+      streaming: capabilities.streaming,
+      tools: capabilities.tools,
+    },
+    execution: {
+      defaultHarnessId,
+      routes,
+    },
+    limits: {
+      dailyRequests: limits.requestLimit,
+      dailyTokens: limits.tokenLimit,
+      maxOutputTokens: limits.maxOutputTokens,
+    },
+  };
+}
+
+function hostedLabConfigs(config: MetaConfig): readonly HostedLabConfig[] {
+  return [config, ...(config.additionalLabs ?? [])];
+}
+
+function dailyQuotaWindow(now: Date) {
+  const period = now.toISOString().slice(0, 10);
+  return {
+    period,
+    expiresAt: Math.floor(now.getTime() / 1_000) + QUOTA_RETENTION_DAYS * 24 * 60 * 60,
+  };
+}
+
+function nextUtcDay(period: string): string {
+  const start = new Date(`${period}T00:00:00.000Z`);
+  start.setUTCDate(start.getUTCDate() + 1);
+  return start.toISOString();
+}
+
+function scopedProviderSessionId(userId: string, request: MetaTurnRequest): string {
+  return createHash('sha256')
+    .update('sia-hosted-model\0')
+    .update(userId)
+    .update('\0')
+    .update(request.sessionId ?? request.turnId)
+    .digest('base64url');
+}
+
+function parseMetaTokenUsage(value: Record<string, unknown>): MetaTokenUsage | undefined {
+  const inputTokens = nonNegativeUsageInteger(value.input_tokens ?? value.prompt_tokens);
+  const outputTokens = nonNegativeUsageInteger(value.output_tokens ?? value.completion_tokens);
+  const suppliedTotal = nonNegativeUsageInteger(value.total_tokens);
+  if (inputTokens === undefined && outputTokens === undefined && suppliedTotal === undefined) {
+    return undefined;
+  }
+  const input = inputTokens ?? 0;
+  const output = outputTokens ?? 0;
+  return {
+    inputTokens: input,
+    outputTokens: output,
+    totalTokens: Math.max(suppliedTotal ?? 0, input + output),
+  };
+}
+
+function nonNegativeUsageInteger(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+function unavailableVoiceCatalog(displayName?: string) {
+  return {
+    schemaVersion: 1 as const,
+    provider: {
+      id: 'elevenlabs',
+      name: displayName ?? 'Included voice',
+      credentialMode: 'managed' as const,
+      available: false,
+      voices: [] as Array<{ id: string; name: string; category?: string }>,
+      tokenTypes: [] as string[],
+    },
+  };
 }

@@ -153,7 +153,7 @@ const api: DesktopBridgeApi = {
     detach: () => invoke('browser.detach', undefined),
   },
   voice: {
-    configure: (apiKey) => invoke('voice.configure', { apiKey }),
+    configure: () => invoke('voice.configure', undefined),
     refresh: () => invoke('voice.refresh', undefined),
     select: (voiceId) => invoke('voice.select', { voiceId }),
     disconnect: () => invoke('voice.disconnect', undefined),

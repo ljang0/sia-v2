@@ -1,6 +1,7 @@
 import type {
   ProviderAccount,
   ProviderAdapter,
+  ProviderId,
   ProviderProbeResult,
   ProviderModelOption,
   ProviderRequestResponse,
@@ -38,6 +39,33 @@ export type DynamicToolHandler = (
   call: DynamicToolCall,
   signal?: AbortSignal,
 ) => Promise<DynamicToolCallResult>;
+
+export interface CodexCustomModelProvider {
+  readonly id: string;
+  readonly name: string;
+  readonly baseUrl: string;
+  /** A narrow local capability, never a provider or Sia account credential. */
+  readonly bearerToken: string;
+}
+
+export type CodexCustomModelProviderResolver = (
+  session: ProviderSessionOptions,
+) => Promise<CodexCustomModelProvider>;
+
+export interface CodexChatGptLogin {
+  readonly loginId: string;
+  readonly authUrl: string;
+}
+
+interface CodexLoginOutcome {
+  readonly success: boolean;
+  readonly error?: string;
+}
+
+interface CodexLoginWaiter {
+  readonly resolve: (outcome: CodexLoginOutcome) => void;
+  readonly reject: (error: Error) => void;
+}
 
 /**
  * Provider-native extension surfaces that Sia replaces with its own audited dynamic tools.
@@ -94,6 +122,7 @@ export interface CodexPeerHandle {
 }
 
 export interface CodexAppServerOptions {
+  readonly providerId?: ProviderId;
   readonly command?: string;
   readonly commandArgs?: readonly string[];
   readonly supportedVersions?: SupportedVersionRange;
@@ -101,6 +130,8 @@ export interface CodexAppServerOptions {
   readonly supervisor?: ProcessSupervisor;
   readonly peerFactory?: () => Promise<CodexPeerHandle>;
   readonly dynamicToolHandler?: DynamicToolHandler;
+  readonly customModelProvider?: CodexCustomModelProviderResolver;
+  readonly accountOverride?: ProviderAccount;
   readonly requestTimeoutMs?: number;
   /** Creates non-persisted threads for opt-in real-binary smoke tests. */
   readonly sessionEphemeral?: boolean;
@@ -127,7 +158,7 @@ interface DeferredRequest {
 }
 
 export class CodexAppServerAdapter implements ProviderAdapter {
-  readonly id = 'codex' as const;
+  readonly id: ProviderId;
   readonly productionEnabled = true;
   readonly #options: CodexAppServerOptions;
   readonly #supervisor: ProcessSupervisor;
@@ -136,11 +167,14 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   readonly #activeByThread = new Map<string, ActiveTurn>();
   readonly #activeByNativeTurn = new Map<string, ActiveTurn>();
   readonly #pendingRequests = new Map<string, DeferredRequest>();
+  readonly #loginWaiters = new Map<string, CodexLoginWaiter>();
+  readonly #completedLogins = new Map<string, CodexLoginOutcome>();
   #peerHandle: CodexPeerHandle | undefined;
   #initializing: Promise<JsonRpcPeer> | undefined;
 
   constructor(options: CodexAppServerOptions = {}) {
     this.#options = options;
+    this.id = options.providerId ?? 'codex';
     this.#supervisor = options.supervisor ?? new ProcessSupervisor();
   }
 
@@ -149,7 +183,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       command: this.#options.command ?? 'codex',
       range: this.#options.supportedVersions ?? {
         minimum: '0.147.0',
-        maximumExclusive: '0.150.0',
+        maximumExclusive: '0.151.0',
       },
       ...(this.#options.commandRunner ? { runner: this.#options.commandRunner } : {}),
       ...(signal ? { signal } : {}),
@@ -157,13 +191,65 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   }
 
   async account(signal?: AbortSignal): Promise<ProviderAccount> {
+    if (this.#options.accountOverride) return this.#options.accountOverride;
+    return await this.#readAccount(false, signal);
+  }
+
+  /** Starts Codex's provider-owned ChatGPT browser flow without handling credentials in Sia. */
+  async startChatGptLogin(signal?: AbortSignal): Promise<CodexChatGptLogin> {
     const peer = await this.#peer();
     const result = record(
       await peer.request(
-        'account/read',
-        {},
+        'account/login/start',
+        {
+          type: 'chatgpt',
+          useHostedLoginSuccessPage: true,
+          appBrand: 'chatgpt',
+        },
         { ...(signal ? { signal } : {}), timeoutMs: this.#timeout },
       ),
+    );
+    const loginId = stringAt(result, ['loginId']);
+    const authUrl = stringAt(result, ['authUrl']);
+    if (!loginId || !authUrl) throw new Error('Codex did not return a usable sign-in link.');
+    assertTrustedCodexAuthUrl(authUrl);
+    this.#completedLogins.delete(loginId);
+    return { loginId, authUrl };
+  }
+
+  /** Waits for the official browser flow and verifies the resulting ChatGPT account. */
+  async waitForChatGptLogin(
+    loginId: string,
+    signal?: AbortSignal,
+    timeoutMs = 10 * 60_000,
+  ): Promise<ProviderAccount> {
+    if (!loginId) throw new Error('Codex sign-in is missing its login identifier.');
+    const completed = this.#completedLogins.get(loginId);
+    const outcome = completed ?? (await this.#waitForLoginOutcome(loginId, signal, timeoutMs));
+    this.#completedLogins.delete(loginId);
+    if (!outcome.success) {
+      throw new Error(outcome.error ?? 'Codex sign-in was not completed.');
+    }
+    const account = await this.#readAccount(true, signal);
+    if (account.state !== 'authenticated' || account.billing !== 'subscription') {
+      throw new Error('Codex did not verify a ChatGPT plan after sign-in.');
+    }
+    return account;
+  }
+
+  async cancelChatGptLogin(loginId: string): Promise<void> {
+    if (!loginId) return;
+    const peer = await this.#peer();
+    await peer.request('account/login/cancel', { loginId }, { timeoutMs: this.#timeout });
+  }
+
+  async #readAccount(refreshToken: boolean, signal?: AbortSignal): Promise<ProviderAccount> {
+    const peer = await this.#peer();
+    const result = record(
+      await peer.request('account/read', refreshToken ? { refreshToken: true } : {}, {
+        ...(signal ? { signal } : {}),
+        timeoutMs: this.#timeout,
+      }),
     );
     const account = record(result.account ?? result);
     const email = stringAt(account, ['email'], ['label']);
@@ -217,6 +303,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   ): Promise<ProviderSession> {
     const peer = await this.#peer();
     const inventory = await this.#readIsolationInventory(peer, options.workspace, signal);
+    const customProvider = await this.#options.customModelProvider?.(options);
     let result: unknown;
     try {
       result = await peer.request(
@@ -233,7 +320,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
           sandbox: 'workspace-write',
           serviceName: 'sia',
           ...(this.#options.sessionEphemeral ? { ephemeral: true } : {}),
-          config: this.#isolationConfig(inventory),
+          config: this.#isolationConfig(inventory, customProvider),
           dynamicTools: options.tools.map((tool) => ({
             name: tool.name,
             description: tool.description,
@@ -249,7 +336,14 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     if (!nativeId)
       throw isolationFailure('Codex did not create a verifiable isolated session.');
     try {
-      await this.#verifyIsolation(peer, options.workspace, nativeId, inventory, signal);
+      await this.#verifyIsolation(
+        peer,
+        options.workspace,
+        nativeId,
+        inventory,
+        Boolean(customProvider),
+        signal,
+      );
       if (options.history?.length) {
         await peer.request(
           'thread/inject_items',
@@ -402,6 +496,10 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     for (const request of this.#pendingRequests.values())
       request.reject(new Error('Codex adapter disposed'));
     this.#pendingRequests.clear();
+    for (const waiter of this.#loginWaiters.values())
+      waiter.reject(new Error('Codex adapter disposed'));
+    this.#loginWaiters.clear();
+    this.#completedLogins.clear();
     for (const active of this.#activeByThread.values())
       active.queue.fail(new Error('Codex adapter disposed'));
     this.#activeByThread.clear();
@@ -521,13 +619,23 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     }
   }
 
-  #isolationConfig(inventory: CodexIsolationInventory): Readonly<Record<string, unknown>> {
+  #isolationConfig(
+    inventory: CodexIsolationInventory,
+    customProvider?: CodexCustomModelProvider,
+  ): Readonly<Record<string, unknown>> {
+    const features = Object.fromEntries([
+      ...SIA_CODEX_DISABLED_FEATURES.map((feature) => [feature, false] as const),
+      ...SIA_CODEX_ENABLED_FEATURES.map((feature) => [feature, true] as const),
+    ]);
+    // Codex serializes multi-agent as a namespaced Responses tool. Model-lab
+    // providers use the portable function-tool subset, so keep that namespace
+    // on the native Codex-plan path only.
+    if (customProvider) features.multi_agent = false;
     return {
-      features: Object.fromEntries([
-        ...SIA_CODEX_DISABLED_FEATURES.map((feature) => [feature, false] as const),
-        ...SIA_CODEX_ENABLED_FEATURES.map((feature) => [feature, true] as const),
-      ]),
-      web_search: 'live',
+      features,
+      // Custom labs receive computer/browser/search through Sia's audited
+      // dynamic tools; only the user's native Codex plan uses provider search.
+      web_search: customProvider ? 'disabled' : 'live',
       notify: [],
       orchestrator: {
         skills: { enabled: false },
@@ -541,6 +649,20 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       mcp_servers: Object.fromEntries(
         inventory.mcpServerNames.map((name) => [name, { enabled: false }]),
       ),
+      ...(customProvider
+        ? {
+            model_provider: customProvider.id,
+            model_providers: {
+              [customProvider.id]: {
+                name: customProvider.name,
+                base_url: customProvider.baseUrl,
+                wire_api: 'responses',
+                experimental_bearer_token: customProvider.bearerToken,
+                supports_standalone_web_search: false,
+              },
+            },
+          }
+        : {}),
     };
   }
 
@@ -549,6 +671,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     workspace: string,
     threadId: string,
     expectedInventory: CodexIsolationInventory,
+    customProvider: boolean,
     signal?: AbortSignal,
   ): Promise<void> {
     const [features, apps, pluginsResult, mcpServers, currentInventory] = await Promise.all([
@@ -574,10 +697,16 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       const name = stringAt(feature, ['name']);
       if (name) featureStates.set(name, feature.enabled);
     }
-    if (SIA_CODEX_DISABLED_FEATURES.some((feature) => featureStates.get(feature) !== false)) {
+    const disabledFeatures = customProvider
+      ? [...SIA_CODEX_DISABLED_FEATURES, 'multi_agent']
+      : SIA_CODEX_DISABLED_FEATURES;
+    const enabledFeatures = customProvider
+      ? SIA_CODEX_ENABLED_FEATURES.filter((feature) => feature !== 'multi_agent')
+      : SIA_CODEX_ENABLED_FEATURES;
+    if (disabledFeatures.some((feature) => featureStates.get(feature) !== false)) {
       throw new Error('a provider-native feature remains enabled');
     }
-    if (SIA_CODEX_ENABLED_FEATURES.some((feature) => featureStates.get(feature) !== true)) {
+    if (enabledFeatures.some((feature) => featureStates.get(feature) !== true)) {
       throw new Error('a required native feature is unavailable');
     }
     if (apps.length !== 0) throw new Error('provider apps remain visible');
@@ -651,6 +780,24 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   }
 
   #onNotification(method: string, params: unknown): void {
+    if (method === 'account/login/completed') {
+      const value = record(params);
+      const loginId = stringAt(value, ['loginId']);
+      if (!loginId) return;
+      const error = stringAt(value, ['error'], ['error', 'message']);
+      const outcome: CodexLoginOutcome = {
+        success: value.success === true,
+        ...(error ? { error } : {}),
+      };
+      const waiter = this.#loginWaiters.get(loginId);
+      if (waiter) {
+        this.#loginWaiters.delete(loginId);
+        waiter.resolve(outcome);
+      } else {
+        this.#completedLogins.set(loginId, outcome);
+      }
+      return;
+    }
     const active = this.#findActive(params);
     if (!active) return;
     const value = record(params);
@@ -799,6 +946,47 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       active.queue.close();
       this.#removeActive(active);
     }
+  }
+
+  async #waitForLoginOutcome(
+    loginId: string,
+    signal: AbortSignal | undefined,
+    timeoutMs: number,
+  ): Promise<CodexLoginOutcome> {
+    if (this.#loginWaiters.has(loginId)) {
+      throw new Error('This Codex sign-in is already being completed.');
+    }
+    return await new Promise<CodexLoginOutcome>((resolve, reject) => {
+      let settled = false;
+      const finish = (callback: () => void): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        signal?.removeEventListener('abort', onAbort);
+        callback();
+      };
+      const timeout = setTimeout(() => {
+        finish(() => reject(new Error('Codex sign-in timed out. Try again.')));
+      }, timeoutMs);
+      timeout.unref?.();
+      const onAbort = (): void => {
+        finish(() =>
+          reject(
+            signal?.reason instanceof Error
+              ? signal.reason
+              : new Error('Codex sign-in was cancelled.'),
+          ),
+        );
+      };
+      this.#loginWaiters.set(loginId, {
+        resolve: (outcome) => finish(() => resolve(outcome)),
+        reject: (error) => finish(() => reject(error)),
+      });
+      if (signal?.aborted) onAbort();
+      else signal?.addEventListener('abort', onAbort, { once: true });
+    }).finally(() => {
+      this.#loginWaiters.delete(loginId);
+    });
   }
 
   async #onRequest(method: string, params: unknown): Promise<unknown> {
@@ -1119,6 +1307,23 @@ function isTextOnlyCodexItem(itemType: string | undefined): boolean {
 
 export function createCodexAdapter(options: CodexAppServerOptions = {}): CodexAppServerAdapter {
   return new CodexAppServerAdapter(options);
+}
+
+function assertTrustedCodexAuthUrl(value: string): void {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error('Codex returned an invalid sign-in link.');
+  }
+  const trustedHost =
+    url.hostname === 'openai.com' ||
+    url.hostname.endsWith('.openai.com') ||
+    url.hostname === 'chatgpt.com' ||
+    url.hostname.endsWith('.chatgpt.com');
+  if (url.protocol !== 'https:' || !trustedHost || url.username || url.password) {
+    throw new Error('Codex returned an untrusted sign-in link.');
+  }
 }
 
 function isolationFailure(detail: string): Error {

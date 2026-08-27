@@ -1,5 +1,17 @@
 export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude';
 
+/** Safe catalog id. Executability still requires an audited runtime registration. */
+export type HarnessId = string;
+
+export interface ResolvedExecutionTargetView {
+  provider: ProviderId;
+  model: string;
+  harnessId: HarnessId;
+  harnessModelId: string;
+  credentialSource: 'provider_subscription' | 'provider_api' | 'sia_managed';
+  resolutionSource: 'user' | 'backend_default' | 'legacy_default';
+}
+
 export type ProviderStatus =
   'ready' | 'needs_install' | 'needs_login' | 'incompatible' | 'disabled' | 'unavailable';
 
@@ -31,6 +43,8 @@ export interface AgentView {
   provider: ProviderId;
   model: string;
   workspace: string;
+  /** Backend/catalog harness preference. Automatic resolves when a thread is created. */
+  harnessPreference?: { mode: 'automatic' } | { mode: 'explicit'; harnessId: HarnessId };
   /** Optional ElevenLabs voice used for this agent's read-aloud control. */
   voiceId?: string;
   /** Hue slot (0-3) that tints this agent's room; unset falls back to a stable id-derived slot. */
@@ -54,6 +68,10 @@ export interface ThreadView {
   model: string;
   reasoningEffort?: string;
   workspace: string;
+  /** Immutable harness chosen when this thread was created. */
+  harnessId?: HarnessId;
+  /** Canonical immutable route selected when this thread was created. */
+  resolvedExecutionTarget?: ResolvedExecutionTargetView;
   agentRevision: string;
   /** Immutable agent instructions captured when this thread was created. */
   instructionsSnapshot: string;
@@ -462,9 +480,11 @@ export interface SaveAgentInput {
   id?: string;
   name: string;
   instructions: string;
-  provider: ProviderId;
+  provider?: ProviderId;
   model: string;
-  workspace: string;
+  /** Omit to create a private workspace under ~/Sia/Agents. */
+  workspace?: string;
+  harnessPreference?: { mode: 'automatic' } | { mode: 'explicit'; harnessId: HarnessId };
   voiceId?: string;
   hue?: number;
   pinned?: boolean;
@@ -584,7 +604,7 @@ export interface BridgeRequestMap {
   'browser.attach': { windowId?: number };
   'browser.open': { url: string };
   'browser.detach': undefined;
-  'voice.configure': { apiKey: string };
+  'voice.configure': undefined;
   'voice.refresh': undefined;
   'voice.select': { voiceId: string };
   'voice.disconnect': undefined;
@@ -856,7 +876,7 @@ export interface DesktopBridgeApi {
     detach(): Promise<DesktopSnapshot>;
   };
   voice: {
-    configure(apiKey: string): Promise<DesktopSnapshot>;
+    configure(): Promise<DesktopSnapshot>;
     refresh(): Promise<DesktopSnapshot>;
     select(voiceId: string): Promise<DesktopSnapshot>;
     disconnect(): Promise<DesktopSnapshot>;

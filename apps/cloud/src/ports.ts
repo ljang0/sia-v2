@@ -6,6 +6,7 @@ import type {
   MetaStreamEvent,
   MetaTurnRequest,
   ToolName,
+  VoiceTokenType,
 } from './contracts.js';
 import type { LegacyGoogleAppId } from './contracts.js';
 
@@ -314,7 +315,10 @@ export interface IdentityProvider {
     email: string,
     options?: { suppressMessage?: boolean },
   ): Promise<{ subject: string }>;
-  addUserToGroup(email: string, group: 'Participants' | 'ConnectorTesters'): Promise<void>;
+  addUserToGroup(
+    email: string,
+    group: 'Users' | 'Participants' | 'ConnectorTesters',
+  ): Promise<void>;
   deleteUser(subject: string): Promise<void>;
   hasMfa(email: string): Promise<boolean>;
 }
@@ -356,13 +360,42 @@ export interface DeletionQueue {
   enqueue(job: { id: string; userId: string; scope: DeletionScope }): Promise<void>;
 }
 
-export interface MetaConfig {
+export interface HostedLabConfig {
   apiKey: string;
   endpoint: string;
   model: string;
   enabled: boolean;
   sessionHeader?: string;
   allowedModels?: string[];
+  catalogId?: string;
+  displayName?: string;
+  modelLabels?: Record<string, string>;
+  dailyRequestLimit?: number;
+  dailyTokenLimit?: number;
+  maxOutputTokens?: number;
+  /** Protocol spoken by this lab endpoint. Legacy secrets default to Chat Completions. */
+  apiProtocol?: ModelApiProtocol;
+  /** Catalog routes are data; the desktop still requires a registered release adapter. */
+  harnessRoutes?: HostedCatalogRoute[];
+  defaultHarnessId?: HarnessId;
+}
+
+/**
+ * The existing secret remains a valid single-lab config. Add `additionalLabs`
+ * to onboard more labs without a deployment or code change.
+ */
+export interface MetaConfig extends HostedLabConfig {
+  additionalLabs?: HostedLabConfig[];
+}
+
+export interface ElevenLabsConfig {
+  apiKey: string;
+  baseUrl: string;
+  enabled: boolean;
+  displayName?: string;
+  allowedVoiceIds?: string[];
+  allowedTokenTypes?: VoiceTokenType[];
+  dailyTokenMintLimit?: number;
 }
 
 export interface ComposioConfig {
@@ -381,26 +414,79 @@ export interface GoogleOAuthConfig {
 
 export interface SecretProvider {
   meta(): Promise<MetaConfig>;
+  elevenLabs(): Promise<ElevenLabsConfig>;
   composio(): Promise<ComposioConfig>;
   google(): Promise<GoogleOAuthConfig>;
   registrationSalt(): Promise<string>;
 }
 
 export interface MetaProvider {
-  capabilities(config: MetaConfig): Promise<{
+  capabilities(config: HostedLabConfig): Promise<{
     models: string[];
     streaming: boolean;
     tools: boolean;
   }>;
-  stream(config: MetaConfig, request: MetaTurnRequest): AsyncIterable<MetaStreamEvent>;
+  stream(config: HostedLabConfig, request: MetaTurnRequest): AsyncIterable<MetaStreamEvent>;
+}
+
+export interface VoiceCatalogEntry {
+  id: string;
+  name: string;
+  category?: string;
+}
+
+export interface VoiceProvider {
+  catalog(config: ElevenLabsConfig): Promise<VoiceCatalogEntry[]>;
+  mintSingleUseToken(
+    config: ElevenLabsConfig,
+    type: VoiceTokenType,
+  ): Promise<{ token: string }>;
 }
 
 export interface ConcurrencyLease {
   release(): Promise<void>;
 }
 
+export interface DailyQuotaWindow {
+  /** UTC calendar day in YYYY-MM-DD form. */
+  period: string;
+  /** DynamoDB TTL used only for quota-record cleanup. */
+  expiresAt: number;
+}
+
+export interface MetaQuotaPolicy extends DailyQuotaWindow {
+  requestLimit: number;
+  tokenLimit: number;
+}
+
+export interface MetaUsageSnapshot {
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
+
+export interface MetaTokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
+
+export interface VoiceTokenQuotaPolicy extends DailyQuotaWindow {
+  tokenMintLimit: number;
+}
+
 export interface QuotaGate {
-  acquireMeta(userId: string): Promise<ConcurrencyLease>;
+  acquireMeta(userId: string, policy: MetaQuotaPolicy): Promise<ConcurrencyLease>;
+  getMetaUsage(userId: string, period: string): Promise<MetaUsageSnapshot>;
+  recordMetaUsage(
+    userId: string,
+    window: DailyQuotaWindow,
+    usage: MetaTokenUsage,
+  ): Promise<void>;
+  consumeVoiceToken(userId: string, policy: VoiceTokenQuotaPolicy): Promise<void>;
+  getVoiceTokenUsage(userId: string, period: string): Promise<number>;
+  deleteUserUsage(userId: string): Promise<void>;
 }
 
 export interface AuditEvent {
@@ -418,3 +504,4 @@ export interface AuditEvent {
 export interface AuditSink {
   write(event: AuditEvent): Promise<void>;
 }
+import type { HarnessId, HostedCatalogRoute, ModelApiProtocol } from '@sia/protocol';

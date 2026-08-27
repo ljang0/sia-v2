@@ -1,7 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { PlaintextTestCipher, SqliteRecordRepository } from './persistence.js';
-import { ElevenLabsVoiceService, type RealtimeSocket } from './voice-service.js';
+import {
+  ElevenLabsVoiceService,
+  type ManagedVoiceGateway,
+  type RealtimeSocket,
+} from './voice-service.js';
+
+const VOICES = [
+  { id: 'voice-1', name: 'Aria', category: 'premade' },
+  { id: 'voice-2', name: 'Milo', category: 'professional' },
+];
 
 class FakeRealtimeSocket implements RealtimeSocket {
   readyState = 0;
@@ -39,8 +48,23 @@ class FakeRealtimeSocket implements RealtimeSocket {
     this.#emit('close');
   }
 
+  protected emitMessage(value: unknown) {
+    this.#emit('message', Buffer.from(JSON.stringify(value)));
+  }
+
   #emit(event: string, value?: unknown) {
     for (const listener of this.#listeners.get(event) ?? []) listener(value);
+  }
+}
+
+class FakeSpeechSocket extends FakeRealtimeSocket {
+  override send(data: string) {
+    super.send(data);
+    const message = JSON.parse(data) as { text?: string };
+    if (message.text === '') {
+      this.emitMessage({ audio: Buffer.from([1, 2, 3]).toString('base64') });
+      this.emitMessage({ is_final: true });
+    }
   }
 }
 
@@ -48,62 +72,87 @@ function repository() {
   return new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
 }
 
-describe('ElevenLabsVoiceService', () => {
-  it('validates, persists, selects, and removes a credential without exposing it', async () => {
-    const records = repository();
-    const fetchMock = vi.fn<typeof fetch>(async () =>
-      Response.json({
-        voices: [
-          { voice_id: 'voice-1', name: 'Aria', category: 'premade' },
-          { voice_id: 'voice-2', name: 'Milo', category: 'professional' },
-        ],
-      }),
-    );
-    const service = new ElevenLabsVoiceService({ repository: records, fetch: fetchMock });
+function gateway() {
+  const voiceCatalog = vi.fn<ManagedVoiceGateway['voiceCatalog']>(async () => ({
+    provider: {
+      available: true,
+      voices: VOICES,
+      tokenTypes: ['realtime_scribe', 'batch_scribe', 'tts_websocket'],
+    },
+  }));
+  const mintVoiceToken = vi.fn<ManagedVoiceGateway['mintVoiceToken']>(async (type) => ({
+    token: `one-time-${type}`,
+    type,
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    singleUse: true,
+  }));
+  return {
+    configured: true,
+    voiceCatalog,
+    mintVoiceToken,
+  } satisfies ManagedVoiceGateway;
+}
 
-    expect(service.view()).toEqual({ status: 'disconnected', voices: [] });
-    await service.configure('sk_123456789012345678901234');
+describe('ElevenLabsVoiceService', () => {
+  it('persists only a managed voice preference and removes a legacy API key', async () => {
+    const records = repository();
+    records.put('credentials', 'elevenlabs', {
+      apiKey: 'sk_legacy-secret-that-must-be-deleted',
+      voiceId: 'voice-2',
+      voiceName: 'Milo',
+      voices: VOICES,
+    });
+    const managedGateway = gateway();
+    const service = new ElevenLabsVoiceService({
+      repository: records,
+      gateway: managedGateway,
+    });
+
+    expect(records.get('credentials', 'elevenlabs')).toBeUndefined();
+    await service.configure();
     expect(service.view()).toMatchObject({
       status: 'connected',
-      selectedVoiceId: 'voice-1',
-      selectedVoiceName: 'Aria',
-    });
-    expect(JSON.stringify(service.view())).not.toContain('sk_');
-
-    await service.select('voice-2');
-    const restored = new ElevenLabsVoiceService({ repository: records, fetch: fetchMock });
-    expect(restored.view()).toMatchObject({
       selectedVoiceId: 'voice-2',
       selectedVoiceName: 'Milo',
     });
+    expect(JSON.stringify(records.get('voice', 'managed'))).not.toContain('sk_');
 
+    await service.select('voice-1');
+    const restored = new ElevenLabsVoiceService({
+      repository: records,
+      gateway: managedGateway,
+    });
+    expect(restored.view()).toMatchObject({ selectedVoiceId: 'voice-1' });
     restored.disconnect();
-    expect(records.get('credentials', 'elevenlabs')).toBeUndefined();
+    expect(records.get('voice', 'managed')).toBeUndefined();
     records.close();
   });
 
-  it('transcribes recorded audio and creates bounded speech through fixed endpoints', async () => {
+  it('uses a batch token for transcription and a separate WebSocket token for speech', async () => {
     const records = repository();
+    const managedGateway = gateway();
+    const websocketUrls: string[] = [];
+    const sockets: FakeSpeechSocket[] = [];
     const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
-      const url = String(input);
-      if (url.includes('/v2/voices')) {
-        return Response.json({ voices: [{ voice_id: 'voice-1', name: 'Aria' }] });
-      }
-      if (url.endsWith('/v1/speech-to-text')) {
-        expect(init?.body).toBeInstanceOf(FormData);
-        return Response.json({ text: '  dictated request  ' });
-      }
-      expect(url).toContain('/v1/text-to-speech/voice-1');
-      expect(init?.headers).toMatchObject({
-        'content-type': 'application/json',
-        'xi-api-key': 'sk_123456789012345678901234',
-      });
-      return new Response(Uint8Array.from([1, 2, 3]), {
-        headers: { 'content-type': 'audio/mpeg' },
-      });
+      expect(String(input)).toContain('/v1/speech-to-text?token=one-time-batch_scribe');
+      expect(init?.body).toBeInstanceOf(FormData);
+      expect(JSON.stringify(init?.headers ?? {})).not.toContain('xi-api-key');
+      return Response.json({ text: '  dictated request  ' });
     });
-    const service = new ElevenLabsVoiceService({ repository: records, fetch: fetchMock });
-    await service.configure('sk_123456789012345678901234');
+    const service = new ElevenLabsVoiceService({
+      repository: records,
+      gateway: managedGateway,
+      fetch: fetchMock,
+      websocketFactory: (url, options) => {
+        expect(options.headers).toEqual({});
+        websocketUrls.push(url);
+        const socket = new FakeSpeechSocket();
+        sockets.push(socket);
+        queueMicrotask(() => socket.open());
+        return socket;
+      },
+    });
+    await service.configure();
 
     await expect(
       service.transcribe(Buffer.from('audio').toString('base64'), 'audio/webm;codecs=opus'),
@@ -112,70 +161,89 @@ describe('ElevenLabsVoiceService', () => {
       audioBase64: Buffer.from([1, 2, 3]).toString('base64'),
       mimeType: 'audio/mpeg',
     });
+    expect(websocketUrls[0]).toContain('/v1/text-to-speech/voice-1/stream-input');
+    expect(websocketUrls[0]).toContain('single_use_token=one-time-tts_websocket');
+    expect(sockets[0]?.sent.map((value) => JSON.parse(value))).toMatchObject([
+      { text: ' ' },
+      { text: 'Hello there. ' },
+      { text: '' },
+    ]);
+    expect(managedGateway.mintVoiceToken.mock.calls.map(([type]) => type)).toEqual([
+      'batch_scribe',
+      'tts_websocket',
+    ]);
     records.close();
   });
 
-  it('uses stable errors for rejected keys and invalid renderer payloads', async () => {
+  it('fails safely when managed voice is unavailable or a token is rejected', async () => {
     const records = repository();
+    const unavailable = gateway();
+    unavailable.voiceCatalog.mockResolvedValue({
+      provider: { available: false, voices: [], tokenTypes: [] },
+    });
+    const unavailableService = new ElevenLabsVoiceService({
+      repository: records,
+      gateway: unavailable,
+    });
+    await expect(unavailableService.configure()).rejects.toThrow('temporarily unavailable');
+
     const service = new ElevenLabsVoiceService({
       repository: records,
-      fetch: vi.fn<typeof fetch>(async () => new Response('secret detail', { status: 401 })),
+      gateway: gateway(),
+      fetch: vi.fn<typeof fetch>(async () => new Response('private detail', { status: 401 })),
     });
-    await expect(service.configure('short')).rejects.toThrow('valid ElevenLabs API key');
-    await expect(service.configure('sk_123456789012345678901234')).rejects.toThrow(
-      'rejected or lacks voice access',
+    await service.configure();
+    await expect(service.transcribe('@@@', 'audio/webm')).rejects.toThrow(
+      'recording is invalid',
     );
-    await expect(service.transcribe('@@@', 'audio/webm')).rejects.toThrow('Connect ElevenLabs');
+    await expect(
+      service.transcribe(Buffer.from('audio').toString('base64'), 'audio/webm'),
+    ).rejects.toThrow('voice session expired');
     records.close();
   });
 
   it('uses an agent voice and ends long narration cleanly instead of truncating it', async () => {
     const records = repository();
-    let spokenText = '';
-    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
-      const url = String(input);
-      if (url.includes('/v2/voices')) {
-        return Response.json({
-          voices: [
-            { voice_id: 'voice-1', name: 'Aria' },
-            { voice_id: 'voice-2', name: 'Milo' },
-          ],
-        });
-      }
-      expect(url).toContain('/v1/text-to-speech/voice-2');
-      spokenText = (JSON.parse(String(init?.body)) as { text: string }).text;
-      return new Response(Uint8Array.from([1, 2, 3]));
+    const sockets: FakeSpeechSocket[] = [];
+    const service = new ElevenLabsVoiceService({
+      repository: records,
+      gateway: gateway(),
+      websocketFactory: () => {
+        const socket = new FakeSpeechSocket();
+        sockets.push(socket);
+        queueMicrotask(() => socket.open());
+        return socket;
+      },
     });
-    const service = new ElevenLabsVoiceService({ repository: records, fetch: fetchMock });
-    await service.configure('sk_123456789012345678901234');
+    await service.configure();
 
     const longReply = Array.from(
       { length: 12 },
       (_, index) => `Sentence ${index + 1} explains one useful detail.`,
     ).join(' ');
     await service.speak(`${longReply}\n\n\`\`\`ts\nconst hidden = true;\n\`\`\``, 'voice-2');
+    const spokenText =
+      (JSON.parse(sockets[0]?.sent[1] ?? '{}') as { text?: string }).text ?? '';
 
     expect(spokenText).toContain('Sentence 1 explains one useful detail.');
     expect(spokenText).not.toContain('const hidden');
-    expect(spokenText).toMatch(/I’ve left the remaining details on screen\.$/);
-    expect(spokenText.length).toBeLessThanOrEqual(1_900);
+    expect(spokenText.trim()).toMatch(/I’ve left the remaining details on screen\.$/);
+    expect(spokenText.length).toBeLessThanOrEqual(1_901);
     await expect(service.speak('Hello.', 'missing-voice')).rejects.toThrow(
       'voice is no longer available',
     );
     records.close();
   });
 
-  it('streams PCM through a credentialed main-process socket and commits once', async () => {
+  it('streams PCM with a realtime single-use token and commits once', async () => {
     const records = repository();
+    const managedGateway = gateway();
     const sockets: FakeRealtimeSocket[] = [];
     let websocketUrl = '';
     let websocketHeaders: Record<string, string> = {};
-    const fetchMock = vi.fn<typeof fetch>(async () =>
-      Response.json({ voices: [{ voice_id: 'voice-1', name: 'Aria' }] }),
-    );
     const service = new ElevenLabsVoiceService({
       repository: records,
-      fetch: fetchMock,
+      gateway: managedGateway,
       websocketFactory: (url, options) => {
         websocketUrl = url;
         websocketHeaders = options.headers;
@@ -185,7 +253,7 @@ describe('ElevenLabsVoiceService', () => {
         return socket;
       },
     });
-    await service.configure('sk_123456789012345678901234');
+    await service.configure();
 
     const { sessionId } = await service.startRealtime();
     const audio = Buffer.from([1, 0, 2, 0]).toString('base64');
@@ -195,7 +263,12 @@ describe('ElevenLabsVoiceService', () => {
     expect(websocketUrl).toContain('/v1/speech-to-text/realtime');
     expect(websocketUrl).toContain('model_id=scribe_v2_realtime');
     expect(websocketUrl).toContain('audio_format=pcm_16000');
-    expect(websocketHeaders).toEqual({ 'xi-api-key': 'sk_123456789012345678901234' });
+    expect(websocketUrl).toContain('token=one-time-realtime_scribe');
+    expect(websocketHeaders).toEqual({});
+    expect(managedGateway.mintVoiceToken).toHaveBeenCalledWith(
+      'realtime_scribe',
+      expect.any(AbortSignal),
+    );
     expect(sockets[0]?.sent.map((message) => JSON.parse(message))).toEqual([
       {
         message_type: 'input_audio_chunk',

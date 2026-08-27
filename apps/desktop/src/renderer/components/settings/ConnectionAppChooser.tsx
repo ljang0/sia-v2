@@ -54,7 +54,7 @@ export function ConnectionAppChooser({
       <div className={styles.connectionChoiceHeader}>
         <div>
           <strong>Select apps</strong>
-          <p>Connected apps stay checked. You can change this later in Settings.</p>
+          <p>Connected services stay checked. You can change this later in Connections.</p>
         </div>
         {selectable.length > 0 ? (
           <button

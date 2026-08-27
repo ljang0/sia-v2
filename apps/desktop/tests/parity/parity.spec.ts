@@ -279,9 +279,9 @@ test('Changes review stages and restores a real temporary git change', async ({}
   requireFeature('gitChanges', testInfo);
   const harness = await launchParityFixture('gitChanges');
   try {
-    await initializeGitWorkspace(harness.workspace);
-    await createAgentAndThread(harness.page);
-    const changedFile = join(harness.workspace, 'notes.txt');
+    const { workspace } = await createAgentAndThread(harness.page);
+    await initializeGitWorkspace(workspace);
+    const changedFile = join(workspace, 'notes.txt');
     await writeFile(changedFile, 'changed by parity fixture\n', 'utf8');
 
     await harness.page.getByTestId(parityContract.gitChanges.testIds[0]).click();
@@ -293,15 +293,15 @@ test('Changes review stages and restores a real temporary git change', async ({}
     await expect(harness.page.getByTestId(parityContract.gitChanges.testIds[3])).toContainText(
       'notes.txt',
     );
-    expect(
-      (await git(harness.workspace, ['diff', '--cached', '--name-only'])).stdout,
-    ).toContain('notes.txt');
+    expect((await git(workspace, ['diff', '--cached', '--name-only'])).stdout).toContain(
+      'notes.txt',
+    );
 
     await harness.page.getByTestId(parityContract.gitChanges.testIds[4]).click();
     await harness.page.getByRole('button', { name: 'Restore file' }).click();
     await expect.poll(async () => await readFile(changedFile, 'utf8')).toBe('baseline\n');
     await expect
-      .poll(async () => (await git(harness.workspace, ['status', '--porcelain'])).stdout)
+      .poll(async () => (await git(workspace, ['status', '--porcelain'])).stdout)
       .toBe('');
     expect(harness.rendererErrors).toEqual([]);
   } finally {
@@ -313,14 +313,14 @@ test('terminal commands remain scoped to the granted workspace', async ({}, test
   requireFeature('scopedTerminal', testInfo);
   const harness = await launchParityFixture('scopedTerminal');
   try {
-    await createAgentAndThread(harness.page);
+    const { workspace } = await createAgentAndThread(harness.page);
     await harness.page.getByTestId(parityContract.scopedTerminal.testIds[0]).click();
     const command = harness.page.getByTestId(parityContract.scopedTerminal.testIds[1]);
     await command.fill('pwd');
     await harness.page.getByTestId(parityContract.scopedTerminal.testIds[2]).click();
     await expect(
       harness.page.getByTestId(parityContract.scopedTerminal.testIds[3]),
-    ).toContainText(harness.workspace);
+    ).toContainText(workspace);
 
     await command.fill('printf %s "${SIA_PARITY_EPHEMERAL-unset}"');
     await harness.page.getByTestId(parityContract.scopedTerminal.testIds[2]).click();
@@ -371,9 +371,9 @@ test('workspace snapshots preserve and restore tracked changes without hiding th
   requireFeature('workspaceSnapshots', testInfo);
   const harness = await launchParityFixture('workspaceSnapshots');
   try {
-    await initializeGitWorkspace(harness.workspace);
-    await createAgentAndThread(harness.page);
-    const changedFile = join(harness.workspace, 'notes.txt');
+    const { workspace } = await createAgentAndThread(harness.page);
+    await initializeGitWorkspace(workspace);
+    const changedFile = join(workspace, 'notes.txt');
     await writeFile(changedFile, 'saved workspace state\n', 'utf8');
 
     await harness.page.getByTestId(parityContract.workspaceSnapshots.testIds[0]).click();
@@ -405,8 +405,8 @@ test('two worktrees can run independent deterministic tasks concurrently', async
   requireFeature('worktreeParallelism', testInfo);
   const harness = await launchParityFixture('worktreeParallelism');
   try {
-    await initializeGitWorkspace(harness.workspace);
-    const { threadId: sourceThreadId } = await createAgentAndThread(harness.page);
+    const { threadId: sourceThreadId, workspace } = await createAgentAndThread(harness.page);
+    await initializeGitWorkspace(workspace);
     for (const name of ['parity-alpha', 'parity-beta']) {
       if (name === 'parity-beta') {
         await harness.page.evaluate((id) => window.sia.threads.select(id), sourceThreadId);
@@ -435,8 +435,7 @@ test('two worktrees can run independent deterministic tasks concurrently', async
         .getByTestId(parityContract.worktreeParallelism.testIds[4])
         .filter({ hasText: /complete/i }),
     ).toHaveCount(2);
-    const worktrees = (await git(harness.workspace, ['worktree', 'list', '--porcelain']))
-      .stdout;
+    const worktrees = (await git(workspace, ['worktree', 'list', '--porcelain'])).stdout;
     expect(worktrees).toContain('parity-alpha');
     expect(worktrees).toContain('parity-beta');
     expect(harness.rendererErrors).toEqual([]);
@@ -449,8 +448,8 @@ test('a clean linked worktree can hand off to main and be removed explicitly', a
   requireFeature('worktreeLifecycle', testInfo);
   const harness = await launchParityFixture('worktreeLifecycle');
   try {
-    await initializeGitWorkspace(harness.workspace);
-    const { threadId } = await createAgentAndThread(harness.page);
+    const { threadId, workspace } = await createAgentAndThread(harness.page);
+    await initializeGitWorkspace(workspace);
     const fork = await harness.page.evaluate(
       async ({ sourceThreadId }) =>
         await window.sia.threads.fork(sourceThreadId, true, 'Lifecycle worktree'),
@@ -468,7 +467,7 @@ test('a clean linked worktree can hand off to main and be removed explicitly', a
     );
     const primary = handoff.snapshot.threads.find(({ id }) => id === handoff.threadId);
     expect(primary).toMatchObject({
-      workspace: harness.workspace,
+      workspace,
       sourceThreadId: fork.threadId,
       worktree: { kind: 'primary' },
     });

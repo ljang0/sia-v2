@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { launchIsolatedSia } from '../support/electron-harness';
+import { dismissFirstAgentPrompt, launchIsolatedSia } from '../support/electron-harness';
 
 const cloudEnvironment = {
   SIA_API_BASE_URL: 'https://cloud.example.test/alpha',
@@ -9,7 +9,7 @@ const cloudEnvironment = {
   SIA_DEV_ID_TOKEN: 'deterministic-development-token',
 };
 
-test('signed-in users join the research release once before capture starts', async () => {
+test('signed-in users can opt into research from Privacy without an onboarding gate', async () => {
   let harness = await launchIsolatedSia({
     prefix: 'sia-research-consent-',
     environment: cloudEnvironment,
@@ -17,11 +17,19 @@ test('signed-in users join the research release once before capture starts', asy
   const testRoot = harness.testRoot;
 
   try {
+    await dismissFirstAgentPrompt(harness.page);
+    await expect(
+      harness.page.getByRole('alertdialog', { name: 'Join the Sia research release?' }),
+    ).toHaveCount(0);
+    await harness.page.getByRole('button', { name: 'Settings' }).click();
+    await harness.page.getByRole('button', { name: 'Privacy' }).click();
+    await harness.page.getByRole('button', { name: 'Review & enable' }).click();
+
     const dialog = harness.page.getByRole('alertdialog', {
       name: 'Join the Sia research release?',
     });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole('button', { name: 'Decline & sign out' })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Use without sharing' })).toBeVisible();
     await expect(dialog.getByRole('button', { name: 'Join research release' })).toBeVisible();
 
     await dialog.getByRole('button', { name: 'Join research release' }).click();
@@ -48,6 +56,7 @@ test('signed-in users join the research release once before capture starts', asy
 
     await harness.close({ removeTestRoot: false });
     harness = await launchIsolatedSia({ testRoot, environment: cloudEnvironment });
+    await dismissFirstAgentPrompt(harness.page);
 
     await expect(
       harness.page.getByRole('alertdialog', { name: 'Join the Sia research release?' }),

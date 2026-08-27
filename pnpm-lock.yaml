@@ -26,6 +26,9 @@ importers:
 
   apps/cloud:
     dependencies:
+      '@sia/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@aws-sdk/client-cognito-identity-provider':
         specifier: ^3.850.0
         version: 3.1107.0

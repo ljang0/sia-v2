@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import App from './App';
 import { createDemoRendererApi, demoSnapshot } from './demo';
@@ -24,7 +24,7 @@ describe('app privacy routing', () => {
     expect(screen.queryByRole('dialog', { name: 'Move through Sia' })).toBeNull();
   });
 
-  it('offers Sia sign-in before first-run setup when cloud is configured', async () => {
+  it('requires email sign-in before first-run setup when cloud is configured', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),
       agents: [],
@@ -36,12 +36,36 @@ describe('app privacy routing', () => {
 
     render(<App api={createDemoRendererApi(snapshot)} />);
 
-    expect(await screen.findByRole('dialog', { name: 'Choose how Sia starts' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Start in local mode' }));
-    await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: 'Choose how Sia starts' })).toBeNull(),
-    );
-    expect(screen.getByRole('button', { name: 'Create your first agent' })).toBeTruthy();
+    expect(await screen.findByRole('dialog', { name: 'Sign in to Sia' })).toBeTruthy();
+    expect(screen.getByRole('textbox', { name: 'Email' })).toBeTruthy();
+    expect(screen.getByText(/Sia's included model/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Start in local mode' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Create your first agent' })).toBeNull();
+  });
+
+  it('moves directly from email verification into the minimal first-agent form', async () => {
+    const snapshot: RendererSnapshot = {
+      ...structuredClone(demoSnapshot),
+      agents: [],
+      selectedAgentId: undefined,
+      selectedThreadId: undefined,
+      activeThread: undefined,
+      cloudAuth: { state: 'signed-out' },
+    };
+
+    render(<App api={createDemoRendererApi(snapshot)} />);
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Email' }), {
+      target: { value: 'jy@example.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Email me a sign-in code' }));
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Sign-in code' }), {
+      target: { value: '12345678' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Verify code' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'New agent' });
+    expect(within(dialog).getByRole('textbox', { name: 'Name' })).toBeTruthy();
+    expect(within(dialog).getByRole('textbox', { name: 'Instructions' })).toBeTruthy();
   });
 
   it('takes Archived navigation directly to the archive section', async () => {
@@ -91,7 +115,7 @@ describe('app privacy routing', () => {
     expect(screen.getByRole('button', { name: 'Review & enable' })).toBeTruthy();
   });
 
-  it('asks signed-in users to make an explicit research choice by default', async () => {
+  it('does not gate signed-in users behind research enrollment', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),
       cloudAuth: { state: 'signed-in', email: 'participant@example.com' },
@@ -102,30 +126,15 @@ describe('app privacy routing', () => {
         promptReviewedVersion: undefined,
       },
     };
-    const api = createDemoRendererApi(snapshot);
+    render(<App api={createDemoRendererApi(snapshot)} />);
 
-    render(<App api={api} />);
-
+    expect(await screen.findByRole('button', { name: 'Access' })).toBeTruthy();
     expect(
-      await screen.findByRole('alertdialog', { name: 'Join the Sia research release?' }),
-    ).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Decline & sign out' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Join research release' })).toBeTruthy();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Decline & sign out' }));
-    await waitFor(() =>
-      expect(
-        screen.queryByRole('alertdialog', { name: 'Join the Sia research release?' }),
-      ).toBeNull(),
-    );
-    expect((await api.getSnapshot()).research).toMatchObject({
-      consented: false,
-      capture: 'paused',
-      promptReviewedVersion: 'alpha-research-v3-raw',
-    });
+      screen.queryByRole('alertdialog', { name: 'Join the Sia research release?' }),
+    ).toBeNull();
   });
 
-  it('starts capture only after the user joins research', async () => {
+  it('starts capture only after the user opts in from Privacy', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),
       cloudAuth: { state: 'signed-in', email: 'participant@example.com' },
@@ -139,6 +148,10 @@ describe('app privacy routing', () => {
     const api = createDemoRendererApi(snapshot);
 
     render(<App api={api} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Access' }));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Data' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Review & enable' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Join research release' }));
 
     await waitFor(() =>
@@ -181,13 +194,13 @@ describe('app privacy routing', () => {
 
     render(<App api={createDemoRendererApi(snapshot)} />);
 
-    expect(await screen.findByRole('button', { name: 'Create your first agent' })).toBeTruthy();
+    expect(await screen.findByRole('dialog', { name: 'New agent' })).toBeTruthy();
     expect(
       screen.queryByRole('alertdialog', { name: 'Join the Sia research release?' }),
     ).toBeNull();
   });
 
-  it('opens core Sia immediately after research consent and keeps work apps optional', async () => {
+  it('opens core Sia immediately and keeps work apps optional', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),
       agents: [],
@@ -219,26 +232,20 @@ describe('app privacy routing', () => {
 
     render(<App api={api} />);
 
+    const firstAgentDialog = await screen.findByRole('dialog', { name: 'New agent' });
     expect(
-      await screen.findByRole('alertdialog', { name: 'Join the Sia research release?' }),
-    ).toBeTruthy();
-    expect(screen.getByText('Sia research alpha')).toBeTruthy();
+      screen.queryByRole('alertdialog', { name: 'Join the Sia research release?' }),
+    ).toBeNull();
     expect(screen.queryByRole('dialog', { name: 'Connect your work apps' })).toBeNull();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Join research release' }));
-
-    expect(await screen.findByRole('button', { name: 'Create your first agent' })).toBeTruthy();
-    expect(screen.queryByRole('dialog', { name: 'Connect your work apps' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Connect work apps later' })).toBeTruthy();
+    fireEvent.click(within(firstAgentDialog).getByRole('button', { name: 'Close' }));
+    expect(await screen.findByRole('button', { name: 'Connect work apps later' })).toBeTruthy();
     expect(
       (await api.getSnapshot()).apps.every(({ status }) => status === 'disconnected'),
     ).toBe(true);
 
     fireEvent.click(screen.getByRole('button', { name: 'Connect work apps later' }));
-    expect(await screen.findByRole('heading', { name: 'Connected apps' })).toBeTruthy();
-    expect(
-      screen.getByText(/Chat, web search, schedules, and computer use work without them/),
-    ).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Connections' })).toBeTruthy();
+    expect(screen.getByText(/Connect work apps, your browser/)).toBeTruthy();
   });
 
   it('connects Slack independently later from Settings', async () => {
@@ -270,7 +277,7 @@ describe('app privacy routing', () => {
 
     expect(screen.queryByRole('dialog', { name: 'Connect your work apps' })).toBeNull();
     fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Apps' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connections' }));
     fireEvent.click(screen.getAllByRole('button', { name: 'Connect Slack' })[0]!);
 
     await waitFor(async () =>
@@ -285,7 +292,7 @@ describe('app privacy routing', () => {
     );
   });
 
-  it('offers local-only research after the first local agent exists', async () => {
+  it('does not interrupt existing local work with research enrollment', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),
       cloudAuth: { state: 'unconfigured' },
@@ -299,14 +306,13 @@ describe('app privacy routing', () => {
 
     render(<App api={createDemoRendererApi(snapshot)} />);
 
-    const dialog = await screen.findByRole('alertdialog', {
-      name: 'Join the Sia research release?',
-    });
-    expect(dialog.textContent).toContain('captures stay encrypted on this Mac');
-    expect(dialog.textContent).not.toContain('Cloud copies expire');
+    expect(await screen.findByRole('button', { name: 'Access' })).toBeTruthy();
+    expect(
+      screen.queryByRole('alertdialog', { name: 'Join the Sia research release?' }),
+    ).toBeNull();
   });
 
-  it('offers an obvious first-run agent action without duplicating the sidebar label', async () => {
+  it('opens the minimal first-agent form automatically after sign-in', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),
       agents: [],
@@ -317,12 +323,10 @@ describe('app privacy routing', () => {
 
     render(<App api={createDemoRendererApi(snapshot)} />);
 
-    const firstAgent = await screen.findByRole('button', {
-      name: 'Create your first agent',
-    });
-    expect(screen.getByRole('button', { name: 'Create agent' })).toBeTruthy();
-    fireEvent.click(firstAgent);
-    expect(await screen.findByRole('dialog', { name: 'New agent' })).toBeTruthy();
+    const dialog = await screen.findByRole('dialog', { name: 'New agent' });
+    expect(within(dialog).getByRole('textbox', { name: 'Name' })).toBeTruthy();
+    expect(within(dialog).getByRole('textbox', { name: 'Instructions' })).toBeTruthy();
+    expect(within(dialog).getByText('Details').closest('details')?.open).toBe(false);
   });
 
   it('makes a signed-in cloud outage visible without disabling local work', async () => {

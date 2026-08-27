@@ -1,5 +1,5 @@
-import { ArrowClockwise, CheckCircle, Key, SpeakerHigh } from '@phosphor-icons/react';
-import { useState, type FormEvent } from 'react';
+import { ArrowClockwise, CheckCircle, ShieldCheck, SpeakerHigh } from '@phosphor-icons/react';
+import { useState } from 'react';
 import type { VoiceSettingsState } from '../../types';
 import styles from '../../ui.module.css';
 import { errorMessage, InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
@@ -7,7 +7,7 @@ import { errorMessage, InlineSettingsError, SettingsSectionHeader } from './Sett
 interface VoiceSettingsProps {
   voice: VoiceSettingsState;
   completionSound: boolean;
-  onConfigure(apiKey: string): Promise<void>;
+  onConfigure(): Promise<void>;
   onRefresh(): Promise<void>;
   onSelect(voiceId: string): Promise<void>;
   onDisconnect(): Promise<void>;
@@ -23,7 +23,6 @@ export function VoiceSettings({
   onDisconnect,
   onSetCompletionSound,
 }: VoiceSettingsProps) {
-  const [apiKey, setApiKey] = useState('');
   const [pending, setPending] = useState<
     'connect' | 'refresh' | 'select' | 'disconnect' | 'sound'
   >();
@@ -39,16 +38,6 @@ export function VoiceSettings({
     } finally {
       setPending(undefined);
     }
-  };
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    const value = apiKey.trim();
-    if (!value || pending) return;
-    void run('connect', async () => {
-      await onConfigure(value);
-      setApiKey('');
-    });
   };
 
   return (
@@ -79,7 +68,7 @@ export function VoiceSettings({
               <SpeakerHigh size={18} />
             </span>
             <div>
-              <strong>ElevenLabs connected</strong>
+              <strong>Included voice ready</strong>
               <span>
                 <CheckCircle size={13} aria-hidden="true" />
                 {voice.selectedVoiceName ?? 'Voice ready'}
@@ -121,51 +110,34 @@ export function VoiceSettings({
               disabled={Boolean(pending)}
               onClick={() => void run('disconnect', onDisconnect)}
             >
-              {pending === 'disconnect' ? 'Disconnecting…' : 'Disconnect'}
+              {pending === 'disconnect' ? 'Turning off…' : 'Turn off'}
             </button>
           </div>
         </div>
       ) : (
-        <form className={styles.voiceSetup} onSubmit={submit}>
+        <div className={styles.voiceSetup}>
           <span className={styles.voiceMark} aria-hidden="true">
-            <Key size={18} />
+            <ShieldCheck size={18} />
           </span>
           <div className={styles.voiceSetupBody}>
-            <strong>Connect your ElevenLabs account</strong>
-            <p>Use a restricted key with speech access and a credit limit in ElevenLabs.</p>
-            <label className={styles.voiceKeyField}>
-              <span>API key</span>
-              <div>
-                <input
-                  type="password"
-                  autoComplete="off"
-                  spellCheck={false}
-                  value={apiKey}
-                  placeholder="Paste API key"
-                  onChange={(event) => setApiKey(event.target.value)}
-                  disabled={Boolean(pending)}
-                />
-                <button
-                  type="submit"
-                  className={styles.primaryButton}
-                  disabled={!apiKey.trim() || Boolean(pending)}
-                >
-                  {pending === 'connect' ? 'Connecting…' : 'Connect'}
-                </button>
-              </div>
-            </label>
+            <strong>Voice is included with Sia</strong>
+            <p>
+              {voice.detail ?? 'Sign in to use dictation and read aloud. No API key is needed.'}
+            </p>
+            <button
+              type="button"
+              className={styles.primaryButton}
+              disabled={Boolean(pending)}
+              onClick={() => void run('connect', onConfigure)}
+            >
+              {pending === 'connect' ? 'Enabling…' : 'Enable voice'}
+            </button>
             <p className={styles.voicePrivacyNote}>
-              The key is encrypted on this Mac and never shown to an agent.{' '}
-              <a
-                href="https://elevenlabs.io/app/settings/api-keys"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Create a restricted key
-              </a>
+              Sia mints a single-use voice session only after you choose Dictate or Read aloud.
+              Long-lived provider credentials never reach this Mac or an agent.
             </p>
           </div>
-        </form>
+        </div>
       )}
     </SettingsSectionHeader>
   );

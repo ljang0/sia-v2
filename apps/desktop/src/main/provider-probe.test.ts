@@ -16,13 +16,15 @@ describe('probeProviders', () => {
       restriction: expect.stringContaining('inherited plugins, skills, and MCP'),
     });
     expect(providers.find(({ id }) => id === 'claude')?.status).toBe('needs_install');
-    expect(providers.find(({ id }) => id === 'gemini')?.restriction).toContain(
-      'standard ACP model configuration',
-    );
+    expect(providers.find(({ id }) => id === 'gemini')).toMatchObject({
+      status: 'disabled',
+      restriction: expect.stringContaining('Codex or Claude'),
+    });
     expect(providers.find(({ id }) => id === 'meta')).toMatchObject({
       status: 'unavailable',
-      detail: 'Meta requires a release build configured for Sia cloud.',
-      billing: 'Included for invited Sia alpha accounts; shared preview limits apply.',
+      detail: 'Included models require a release build configured for Sia cloud.',
+      label: 'Included models',
+      billing: 'Model-lab access is included with your Sia account; lab limits may apply.',
     });
   });
 
@@ -64,7 +66,7 @@ describe('probeProviders', () => {
       expect(codex).toMatchObject({
         status: 'ready',
         version: '0.149.0',
-        account: 'Authenticated with ChatGPT',
+        account: 'Connected to ChatGPT',
       });
       expect(run).toHaveBeenCalledTimes(2);
       for (const call of run.mock.calls) {
@@ -79,7 +81,7 @@ describe('probeProviders', () => {
     }
   });
 
-  it('fails closed for unsupported Codex and unpinned Gemini releases', async () => {
+  it('fails closed for unsupported Codex and legacy Gemini releases', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'sia-provider-compat-'));
     await Promise.all(
       ['codex', 'gemini'].map(async (name) => {
@@ -91,17 +93,17 @@ describe('probeProviders', () => {
     const runner = {
       run: vi.fn(async (executable: string) => ({
         code: 0,
-        stdout: executable.endsWith('codex') ? 'codex-cli 0.150.0' : 'gemini 1.2.3',
+        stdout: executable.endsWith('codex') ? 'codex-cli 0.151.0' : 'gemini 1.2.3',
         stderr: '',
       })),
     };
     try {
       const [codex] = await probeProviders('codex', { PATH: directory }, runner);
       const [gemini] = await probeProviders('gemini', { PATH: directory }, runner);
-      expect(codex).toMatchObject({ status: 'incompatible', version: '0.150.0' });
+      expect(codex).toMatchObject({ status: 'incompatible', version: '0.151.0' });
       expect(gemini).toMatchObject({
-        status: 'incompatible',
-        detail: expect.stringContaining('standard ACP'),
+        status: 'disabled',
+        detail: expect.stringContaining('Legacy adapter'),
       });
     } finally {
       await rm(directory, { recursive: true, force: true });
@@ -132,7 +134,7 @@ describe('probeProviders', () => {
     }
   });
 
-  it('accepts a successful Codex login status without depending on exact prose', async () => {
+  it('fails closed when a successful Codex status does not prove ChatGPT billing', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'sia-provider-auth-success-'));
     const executable = join(directory, 'codex');
     await writeFile(executable, '');
@@ -150,9 +152,9 @@ describe('probeProviders', () => {
     try {
       const [codex] = await probeProviders('codex', { PATH: directory }, runner);
       expect(codex).toMatchObject({
-        status: 'ready',
+        status: 'needs_login',
         version: '0.149.1',
-        account: 'Authenticated with Codex',
+        detail: expect.stringContaining('could not verify a ChatGPT subscription'),
       });
     } finally {
       await rm(directory, { recursive: true, force: true });

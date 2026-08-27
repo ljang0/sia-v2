@@ -102,15 +102,15 @@ not replace the mutation checks below. When several Chrome windows are open, set
 
 ## Voice
 
-1. Create a disposable ElevenLabs API key restricted to speech-to-text, text-to-speech, and voice
-   reading, with a low credit limit. Connect it under Settings → Voice, select a voice, restart Sia,
-   and confirm the selected voice remains while the key is never displayed again.
+1. Sign in with a disposable Sia account. Open Settings → Voice, enable included voice, select a
+   voice, restart Sia, and confirm the selection remains. Confirm there is no API-key input and no
+   long-lived ElevenLabs credential in renderer IPC or the local repository.
 2. Press Dictate, grant microphone access, speak a benign phrase, and stop. Confirm the transcript
    is inserted into the composer but is not sent until Enter or the send button is pressed. Deny
    microphone access once and confirm Sia gives a clear recovery message.
 3. Send the phrase, then press Read aloud on the assistant reply. Confirm playback can be stopped,
-   no audio file appears in the workspace or Sia data directory, and disconnecting ElevenLabs
-   removes both voice controls. Check the ElevenLabs usage page for only the actions you invoked.
+   no audio file appears in the workspace or Sia data directory, and turning voice off removes both
+   voice controls. Confirm each action mints the expected distinct single-use token type.
 4. Edit two agents and assign different Voice choices, leaving a third on Default. Confirm each
    explicit voice is used for Read aloud, Default follows Settings → Voice, starting a second reply
    stops the first, and a long reply ends with “remaining details on screen” instead of stopping
@@ -155,25 +155,30 @@ not replace the mutation checks below. When several Chrome windows are open, set
 
 ## Provider, account, and optional connectors
 
-1. Run `pnpm test:codex-isolation:real`; it must retain the current Codex account while reporting zero inherited apps, plugins, skills, hooks, or MCP tools.
-2. With the release stack and designated disposable Google/Slack accounts, press **Connect Google**
+1. With a disposable logged-out Codex profile, open **Settings → AI** and press **Sign in with
+   ChatGPT**. Confirm the browser opens an `https://auth.openai.com` or `https://chatgpt.com` page,
+   completion returns Sia to **Connected**, and no authorization URL, code, or token appears in Sia
+   storage or logs. Cancel once and retry. Repeat with an API-key-billed Codex login and confirm Sia
+   refuses it as a connected plan.
+2. Run `pnpm test:codex-isolation:real`; it must retain the current Codex account while reporting zero inherited apps, plugins, skills, hooks, or MCP tools.
+3. With the release stack and designated disposable Google/Slack accounts, press **Connect Google**
    once. Confirm one Google-owned consent covers Gmail, Drive, Docs, Sheets, and Slides, then turn at
    least two service switches off and verify their tools are unavailable. Press **Connect Slack**
    separately and choose the intended workspace. Cancel and retry each provider once; the other
    provider's completed grant must remain unchanged.
-3. Confirm Settings reports the exact connected identity for all six apps and says that data remains
+4. Confirm Settings reports the exact connected identity for all six apps and says that data remains
    in each service. Exercise search/read in Gmail, Drive, Docs, Sheets, Slides, and Slack, then create
    or append only non-sensitive fixtures with every write tool. Verify Sia creates no local content
    mirror and rejects raw Slides batch-update requests and over-5,000-cell Sheets writes. Confirm
    Slack actions are recorded under research consent while Google Workspace action turns follow the
    exclusion above. Disconnect every grant and verify remote provider access is revoked.
-4. From Settings → Apps, open Delete account. Confirm the destructive button stays disabled until the exact case-sensitive phrase `DELETE ACCOUNT` is entered. Submit with a disposable signed-in account and confirm the accepted account-scope job reaches `completed`, connected access and the cloud identity are gone, local Sia agents/threads/auth are cleared, and the deletion dead-letter alarm remains clear. Workspace files, provider CLI accounts, and macOS permissions must remain.
-5. Repeat against a test deletion worker that fails or never completes. Confirm Sia reports the error, retains local Sia data and sign-in so the request can be retried, and never presents a local-only wipe as successful account deletion.
+5. From Settings → Apps, open Delete account. Confirm the destructive button stays disabled until the exact case-sensitive phrase `DELETE ACCOUNT` is entered. Submit with a disposable signed-in account and confirm the accepted account-scope job reaches `completed`, connected access and the cloud identity are gone, local Sia agents/threads/auth are cleared, and the deletion dead-letter alarm remains clear. Workspace files, provider CLI accounts, and macOS permissions must remain.
+6. Repeat against a test deletion worker that fails or never completes. Confirm Sia reports the error, retains local Sia data and sign-in so the request can be retried, and never presents a local-only wipe as successful account deletion.
 
 ## External alpha release gates
 
-- [ ] In the exact signed `alpha.17` artifact, connect the restricted ElevenLabs key, select a default voice,
-      restart and refresh, exercise cancellable Read aloud, and verify no audio file is persisted.
+- [ ] In the exact signed artifact, enable included voice, select a default voice, restart and
+      refresh, exercise cancellable Read aloud, and verify no audio file or provider key is persisted.
 - [x] Rotate/disable the exposed ElevenLabs predecessors and verify the replacement is restricted,
       KMS-vaulted for operator handoff, and stored locally only through Keychain-backed encryption.
 - [ ] Complete the packaged `alpha.17` local computer-use mutation pass: native ref-bound edit, foreground

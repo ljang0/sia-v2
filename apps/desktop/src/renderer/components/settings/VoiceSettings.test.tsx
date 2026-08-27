@@ -7,7 +7,7 @@ import { VoiceSettings } from './VoiceSettings';
 afterEach(cleanup);
 
 describe('voice settings', () => {
-  it('connects without rendering the key back into the page', async () => {
+  it('enables included voice without asking for a provider key', async () => {
     const configure = vi.fn(async () => undefined);
     render(
       <VoiceSettings
@@ -21,12 +21,10 @@ describe('voice settings', () => {
       />,
     );
 
-    const key = 'sk_123456789012345678901234';
-    fireEvent.change(screen.getByLabelText('API key'), { target: { value: key } });
-    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+    expect(screen.queryByLabelText('API key')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Enable voice' }));
 
-    await waitFor(() => expect(configure).toHaveBeenCalledWith(key));
-    expect(screen.queryByDisplayValue(key)).toBeNull();
+    await waitFor(() => expect(configure).toHaveBeenCalledWith());
   });
 
   it('selects and disconnects a connected voice', async () => {
@@ -54,7 +52,7 @@ describe('voice settings', () => {
 
     fireEvent.change(screen.getByLabelText('Voice'), { target: { value: 'voice-2' } });
     await waitFor(() => expect(select).toHaveBeenCalledWith('voice-2'));
-    fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Turn off' }));
     await waitFor(() => expect(disconnect).toHaveBeenCalledOnce());
   });
 

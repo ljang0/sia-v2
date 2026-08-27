@@ -14,7 +14,7 @@ afterEach(() => {
 });
 
 describe('cloud account settings', () => {
-  it('requires research-alpha acknowledgment, submits a normalized email, and focuses errors', async () => {
+  it('submits a normalized email without a research gate and focuses errors', async () => {
     const onStart = vi.fn().mockRejectedValue(new Error('Sia could not start email sign-in.'));
     render(
       <AppsSettings
@@ -33,13 +33,8 @@ describe('cloud account settings', () => {
       target: { value: '  LAWRENCE@EXAMPLE.COM  ' },
     });
     const submit = screen.getByRole('button', { name: 'Email me a sign-in code' });
-    expect((submit as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.click(
-      screen.getByRole('checkbox', {
-        name: /18 or older and received a named Sia research invitation/i,
-      }),
-    );
     expect((submit as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByRole('checkbox')).toBeNull();
     fireEvent.click(submit);
 
     await waitFor(() => expect(onStart).toHaveBeenCalledWith('lawrence@example.com'));
@@ -107,7 +102,7 @@ describe('cloud account settings', () => {
     expect(screen.getByText(/password, then an authenticator code/)).toBeTruthy();
   });
 
-  it('explains local mode without showing unusable app connection controls', () => {
+  it('explains unavailable cloud connections without showing unusable controls', () => {
     render(
       <AppsSettings
         snapshot={withCloud('unconfigured')}
@@ -121,11 +116,9 @@ describe('cloud account settings', () => {
       />,
     );
 
-    expect(screen.getByText('Local mode is ready')).toBeTruthy();
-    expect(screen.getByText(/work without a Sia account or cloud credits/)).toBeTruthy();
-    expect(
-      screen.getByText(/will appear here after a cloud service is configured/),
-    ).toBeTruthy();
+    expect(screen.getByText('Cloud connections unavailable')).toBeTruthy();
+    expect(screen.getByText(/does not have a Sia cloud service configured/)).toBeTruthy();
+    expect(screen.getByText(/will appear after cloud service is configured/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Connect' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Connect work apps' })).toBeNull();
     expect(screen.getByText('Signed-in Chrome')).toBeTruthy();
@@ -206,9 +199,8 @@ describe('cloud account settings', () => {
       />,
     );
 
-    expect(screen.getByText(/Google starts read-only for Gmail and files/i)).toBeTruthy();
+    expect(screen.getByText(/Google starts read-only/i)).toBeTruthy();
     expect(screen.getByText(/one secure Google approval, read-only by default/i)).toBeTruthy();
-    expect(screen.getByText(/nothing is bulk copied into Sia/i)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Connect Google' }));
     await waitFor(() => expect(onConnectGoogle).toHaveBeenCalledOnce());
   });
@@ -242,7 +234,7 @@ describe('cloud account settings', () => {
       />,
     );
 
-    expect(screen.getByText(/5 of 5 services available, read-only/i)).toBeTruthy();
+    expect(screen.getByText('Read-only access')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Enable editing' }));
     await waitFor(() => expect(onUpgradeGoogle).toHaveBeenCalledOnce());
   });
@@ -308,7 +300,7 @@ describe('cloud account settings', () => {
       />,
     );
 
-    expect(screen.getByText(/1 of 5 services available, editing enabled/i)).toBeTruthy();
+    expect(screen.getByText('Editing enabled')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Enable Gmail' }));
     await waitFor(() => expect(onSetEnabled).toHaveBeenCalledWith('gmail', true));
     fireEvent.click(screen.getByRole('button', { name: 'Disable Google Docs' }));
@@ -405,7 +397,7 @@ describe('cloud account settings', () => {
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('Cloud account deletion did not complete.');
     expect(onDelete).toHaveBeenCalledWith('DELETE ACCOUNT');
-    expect(document.activeElement).toBe(alert);
+    await waitFor(() => expect(document.activeElement).toBe(alert));
     expect(document.body.contains(dialog)).toBe(true);
 
     fireEvent.click(deleteButton);
@@ -477,7 +469,7 @@ describe('research consent settings', () => {
     await waitFor(() => expect(onDelete).toHaveBeenCalledOnce());
   });
 
-  it('does not offer a capture pause while a research-release account is signed in', () => {
+  it('keeps research capture optional while an account is signed in', () => {
     render(
       <PrivacySettings
         snapshot={structuredClone(demoSnapshot)}
@@ -487,9 +479,8 @@ describe('research consent settings', () => {
       />,
     );
 
-    expect(screen.getByText('Required while signed in')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
-    expect(screen.getByText(/Sign out to stop new collection/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy();
+    expect(screen.getByText(/Pause collection, export local records/)).toBeTruthy();
   });
 });
 

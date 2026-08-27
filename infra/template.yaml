@@ -37,6 +37,29 @@ Parameters:
     Type: String
     Default: 'true'
     AllowedValues: ['true', 'false']
+  EnableHostedModels:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+  EnableHostedVoice:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+  MetaDailyRequestLimit:
+    Type: Number
+    Default: 100
+    MinValue: 1
+    MaxValue: 10000
+  MetaDailyTokenLimit:
+    Type: Number
+    Default: 250000
+    MinValue: 1
+    MaxValue: 100000000
+  VoiceDailyTokenMintLimit:
+    Type: Number
+    Default: 20
+    MinValue: 1
+    MaxValue: 1000
   ControlReservedConcurrency:
     Type: Number
     Default: 20
@@ -120,6 +143,7 @@ Globals:
         EXPORT_QUEUE_URL: !Ref ResearchExportQueue
         USER_POOL_ID: !Ref UserPool
         META_SECRET_ARN: !Ref MetaSecret
+        ELEVENLABS_SECRET_ARN: !Ref ElevenLabsSecret
         COMPOSIO_SECRET_ARN: !Ref ComposioSecret
         GOOGLE_SECRET_ARN: !Ref GoogleSecret
         REGISTRATION_SECRET_ARN: !Ref RegistrationSecret
@@ -127,10 +151,15 @@ Globals:
         ACTION_TTL_SECONDS: '600'
         INVITE_LIMIT: !Ref InviteLimit
         META_CONCURRENCY: '2'
+        META_DAILY_REQUEST_LIMIT: !Ref MetaDailyRequestLimit
+        META_DAILY_TOKEN_LIMIT: !Ref MetaDailyTokenLimit
+        VOICE_DAILY_TOKEN_MINT_LIMIT: !Ref VoiceDailyTokenMintLimit
         ENABLE_RESEARCH_UPLOADS: !Ref EnableResearchUploads
         ENABLE_RESEARCH_ARCHIVE: !Ref EnableResearchArchive
         ENABLE_CONNECTORS: !Ref EnableConnectors
         ENABLE_SCHEDULES: !Ref EnableSchedules
+        ENABLE_HOSTED_MODELS: !Ref EnableHostedModels
+        ENABLE_HOSTED_VOICE: !Ref EnableHostedVoice
 
 Resources:
   DataKey:
@@ -358,7 +387,15 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      Description: Operator-managed Meta private API configuration; populate after deployment
+      Description: Operator-managed model-lab catalog and API credentials; populate after deployment
+      KmsKeyId: !GetAtt DataKey.Arn
+
+  ElevenLabsSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: Operator-managed ElevenLabs key, voice allowlist, and single-use-token policy
       KmsKeyId: !GetAtt DataKey.Arn
 
   ComposioSecret:
@@ -802,6 +839,14 @@ Resources:
       Description: May use the invited Sia research release and upload consented research data
       Precedence: 10
 
+  UsersGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: Users
+      Description: Base Sia account entitlement for managed hosted capabilities
+      Precedence: 20
+
   ConnectorTestersGroup:
     Type: AWS::Cognito::UserPoolGroup
     Properties:
@@ -887,6 +932,7 @@ Resources:
                 Resource:
                   - !Ref ComposioSecret
                   - !Ref MetaSecret
+                  - !Ref ElevenLabsSecret
                   - !Ref GoogleSecret
                   - !Ref RegistrationSecret
               - Effect: Allow
@@ -1153,6 +1199,13 @@ Resources:
           MetricsEnabled: true
           ThrottlingBurstLimit: 5
           ThrottlingRateLimit: 2
+        - ResourcePath: /v1/voice/tokens
+          HttpMethod: POST
+          LoggingLevel: ERROR
+          DataTraceEnabled: false
+          MetricsEnabled: true
+          ThrottlingBurstLimit: 5
+          ThrottlingRateLimit: 2
       DefinitionBody:
         openapi: '3.0.1'
         info:
@@ -1191,6 +1244,42 @@ Resources:
                 httpMethod: POST
                 credentials: !GetAtt ApiGatewayInvokeRole.Arn
                 uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
+          /v1/catalog:
+            get:
+              responses:
+                '200': { description: Sanitized hosted model catalog }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
+          /v1/usage:
+            get:
+              responses:
+                '200': { description: Current user's hosted model usage }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
+          /v1/voice/catalog:
+            get:
+              responses:
+                '200': { description: Sanitized hosted voice catalog }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
+          /v1/voice/tokens:
+            post:
+              responses:
+                '201': { description: Native provider single-use voice token }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
           /v1/releases/macos:
             get:
               responses:
@@ -1204,6 +1293,18 @@ Resources:
             post:
               responses:
                 '200': { description: SSE stream }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2021-11-15/functions/${MetaFunction.Arn}/response-streaming-invocations
+                timeoutInMillis: 300000
+                responseTransferMode: STREAM
+          /v1/responses:
+            post:
+              responses:
+                '200':
+                  { description: OpenAI Responses-compatible SSE stream for the Codex harness }
               x-amazon-apigateway-integration:
                 type: aws_proxy
                 httpMethod: POST
@@ -1346,6 +1447,8 @@ Outputs:
     Value: !Ref AWS::Region
   MetaSecretArn:
     Value: !Ref MetaSecret
+  ElevenLabsSecretArn:
+    Value: !Ref ElevenLabsSecret
   ComposioSecretArn:
     Value: !Ref ComposioSecret
   GoogleSecretArn:

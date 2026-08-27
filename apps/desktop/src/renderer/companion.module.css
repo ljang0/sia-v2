@@ -318,6 +318,10 @@
   color: var(--text-secondary);
 }
 
+.onboardingSignIn {
+  width: min(100%, 560px);
+}
+
 .onboardingModes {
   display: grid;
   gap: 12px;
@@ -576,10 +580,6 @@
 @media (max-width: 920px) {
   .onboardingDialog {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .roomMeta span:nth-child(2) {
-    display: none;
   }
 
   .onboardingVisual {

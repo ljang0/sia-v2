@@ -32,16 +32,12 @@ test('saved agents, threads, transcripts, and drafts survive a full app relaunch
     await firstPage
       .getByLabel('Instructions')
       .fill('Keep the saved thread available after Sia restarts.');
-    await firstPage.getByRole('button', { name: 'Choose' }).click();
     await firstPage
       .getByRole('dialog', { name: 'New agent' })
       .getByRole('button', {
         name: 'Create agent',
       })
       .click();
-    await firstPage.getByRole('button', { name: 'Use without sharing' }).click();
-
-    await firstPage.getByRole('button', { name: 'New thread' }).click();
     const prompt = 'Remember this completed task after the app restarts.';
     await firstPage.getByRole('textbox', { name: 'Message' }).fill(prompt);
     await firstPage.getByRole('textbox', { name: 'Message' }).press('Enter');
@@ -121,7 +117,8 @@ test('first-run actions and the Access surface remain usable by keyboard at 200%
     await expect(page.getByRole('button', { name: 'Computer' })).toBeVisible();
     await page.getByRole('button', { name: 'Voice' }).click();
     await expect(page.getByRole('heading', { name: 'Voice' })).toBeVisible();
-    await expect(page.getByLabel('API key')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Enable voice' })).toBeVisible();
+    await expect(page.getByLabel('API key')).toHaveCount(0);
     await expect
       .poll(() =>
         page.evaluate(() => {

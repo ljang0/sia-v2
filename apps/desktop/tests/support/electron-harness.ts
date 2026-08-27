@@ -66,12 +66,29 @@ export async function launchIsolatedSia(
     workspace,
     rendererErrors,
     async close(closeOptions = {}) {
-      await application.close().catch(() => undefined);
+      if (!page.isClosed()) await page.close({ runBeforeUnload: false }).catch(() => undefined);
+      await closeElectronApplication(application);
       if (closeOptions.removeTestRoot !== false) {
         await rm(testRoot, { recursive: true, force: true });
       }
     },
   };
+}
+
+async function closeElectronApplication(application: ElectronApplication): Promise<void> {
+  const child = application.process();
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
+  await delay(2_000, () => child.exitCode !== null || child.signalCode !== null);
+  if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+  await delay(1_000, () => child.exitCode !== null || child.signalCode !== null);
+}
+
+async function delay(maximumMs: number, done: () => boolean): Promise<void> {
+  const started = Date.now();
+  while (!done() && Date.now() - started < maximumMs) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
 }
 
 export async function readyPage(application: ElectronApplication): Promise<Page> {
@@ -89,10 +106,17 @@ export function collectRendererErrors(page: Page): string[] {
   return errors;
 }
 
+export async function dismissFirstAgentPrompt(page: Page): Promise<void> {
+  const dialog = page.getByRole('dialog', { name: 'New agent' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  await expect(dialog).toBeHidden();
+}
+
 export async function createAgentAndThread(
   page: Page,
   options: { name?: string; instructions?: string } = {},
-): Promise<{ agentId: string; threadId: string }> {
+): Promise<{ agentId: string; threadId: string; workspace: string }> {
   const name = options.name ?? 'Parity helper';
   await page
     .getByRole('complementary', { name: 'Agent navigation' })
@@ -102,26 +126,21 @@ export async function createAgentAndThread(
   await page
     .getByLabel('Instructions')
     .fill(options.instructions ?? 'Run deterministic parity fixtures without external access.');
-  await page.getByRole('button', { name: 'Choose' }).click();
   await page
     .getByRole('dialog', { name: 'New agent' })
     .getByRole('button', { name: 'Create agent' })
     .click();
-  const joinResearch = page.getByRole('button', { name: 'Join research release' });
-  const localOnly = page.getByRole('button', { name: 'Use without sharing' });
-  await Promise.race([
-    joinResearch.waitFor({ state: 'visible', timeout: 3_000 }),
-    localOnly.waitFor({ state: 'visible', timeout: 3_000 }),
-  ]).catch(() => undefined);
-  if (await joinResearch.isVisible().catch(() => false)) await joinResearch.click();
-  else if (await localOnly.isVisible().catch(() => false)) await localOnly.click();
-  await page.getByRole('button', { name: 'New thread' }).click();
-
   const snapshot = await page.evaluate(async () => await window.sia.bootstrap());
   if (!snapshot.activeAgentId || !snapshot.activeThreadId) {
     throw new Error('The deterministic fixture did not create an active agent and thread.');
   }
-  return { agentId: snapshot.activeAgentId, threadId: snapshot.activeThreadId };
+  const thread = snapshot.threads.find(({ id }) => id === snapshot.activeThreadId);
+  if (!thread) throw new Error('The deterministic fixture did not expose its workspace.');
+  return {
+    agentId: snapshot.activeAgentId,
+    threadId: snapshot.activeThreadId,
+    workspace: thread.workspace,
+  };
 }
 
 export async function reopenClosedWindow(application: ElectronApplication): Promise<Page> {

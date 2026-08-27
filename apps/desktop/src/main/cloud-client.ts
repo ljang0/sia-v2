@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { hostedCatalogSchema, type HostedCatalog } from '@sia/protocol';
 
 import type {
   MetaCapabilities,
@@ -12,6 +13,29 @@ import type { CloudFeatureFlags, ConnectionId } from '../shared/bridge.js';
 export interface IdTokenSource {
   read(): Promise<string | undefined>;
 }
+
+export type ManagedVoiceTokenType = 'realtime_scribe' | 'batch_scribe' | 'tts_websocket';
+
+export interface ManagedVoiceCatalog {
+  schemaVersion: 1;
+  provider: {
+    id: 'elevenlabs';
+    name: string;
+    credentialMode: 'managed';
+    available: boolean;
+    voices: Array<{ id: string; name: string; category?: string }>;
+    tokenTypes: ManagedVoiceTokenType[];
+  };
+}
+
+export interface ManagedVoiceToken {
+  token: string;
+  type: ManagedVoiceTokenType;
+  expiresAt: string;
+  singleUse: true;
+}
+
+export type { HostedCatalog } from '@sia/protocol';
 
 export interface ConnectionStartResult {
   redirectUrl: string;
@@ -186,16 +210,51 @@ export class CloudClient implements MetaTransport {
   async registerAccount(email: string): Promise<void> {
     await this.#request('/v1/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, researchEnrollmentAcknowledged: true }),
+      body: JSON.stringify({ email }),
     });
   }
 
   async sessionStatus(): Promise<{
+    user?: boolean;
     admin: boolean;
     participant: boolean;
+    account?: { subject: string; email?: string };
+    entitlements?: {
+      base: boolean;
+      hostedModels: boolean;
+      hostedVoice: boolean;
+      research: boolean;
+      connectors: boolean;
+    };
     features: CloudFeatureFlags;
   }> {
     return this.#request('/v1/session', { method: 'GET' });
+  }
+
+  async hostedCatalog(signal?: AbortSignal): Promise<HostedCatalog> {
+    const value = await this.#request<unknown>('/v1/catalog', {
+      method: 'GET',
+      ...(signal ? { signal } : {}),
+    });
+    return hostedCatalogSchema.parse(value);
+  }
+
+  async voiceCatalog(signal?: AbortSignal): Promise<ManagedVoiceCatalog> {
+    return this.#request('/v1/voice/catalog', {
+      method: 'GET',
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  async mintVoiceToken(
+    type: ManagedVoiceTokenType,
+    signal?: AbortSignal,
+  ): Promise<ManagedVoiceToken> {
+    return this.#request('/v1/voice/tokens', {
+      method: 'POST',
+      body: JSON.stringify({ type }),
+      ...(signal ? { signal } : {}),
+    });
   }
 
   async capabilities(signal?: AbortSignal): Promise<MetaCapabilities> {
@@ -263,7 +322,7 @@ export class CloudClient implements MetaTransport {
         : AbortSignal.timeout(10 * 60_000),
     });
     if (!response.ok || !response.body) {
-      throw new Error(`Meta relay failed (${response.status}).`);
+      throw new Error(`Hosted model relay failed (${response.status}).`);
     }
 
     const calls = new Map<number, PendingToolCall>();
@@ -295,7 +354,8 @@ export class CloudClient implements MetaTransport {
         yield {
           type: 'error',
           code: typeof event.code === 'string' ? event.code : 'meta_relay_error',
-          message: typeof event.message === 'string' ? event.message : 'Meta relay failed.',
+          message:
+            typeof event.message === 'string' ? event.message : 'Hosted model relay failed.',
           recoverable: true,
         };
       }
@@ -311,7 +371,7 @@ export class CloudClient implements MetaTransport {
         yield {
           type: 'error',
           code: 'invalid_tool_arguments',
-          message: `Meta returned invalid arguments for ${call.name || `tool ${index}`}.`,
+          message: `The hosted model returned invalid arguments for ${call.name || `tool ${index}`}.`,
           recoverable: true,
         };
         continue;
@@ -339,6 +399,25 @@ export class CloudClient implements MetaTransport {
       stopReason:
         completedCalls.length > 0 || finishReason === 'tool_calls' ? 'tool_calls' : 'complete',
     };
+  }
+
+  /**
+   * Forwards only the Responses route used by the local Codex harness. The caller
+   * supplies opaque JSON; Sia identity is attached here and never enters Codex config.
+   */
+  async forwardHostedResponses(body: string, signal?: AbortSignal): Promise<Response> {
+    if (!this.#baseUrl) throw new Error('Sia cloud services are not configured.');
+    const token = await this.#idTokens.read();
+    return await fetch(resolveCloudUrl(this.#baseUrl, '/v1/responses'), {
+      method: 'POST',
+      headers: {
+        accept: 'text/event-stream',
+        'content-type': 'application/json',
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      body,
+      signal: withTimeout(signal, 10 * 60_000),
+    });
   }
 
   async startConnection(

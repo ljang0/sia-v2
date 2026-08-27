@@ -28,7 +28,6 @@ export function CloudAccountSettings({
 }) {
   const [email, setEmail] = useState(cloudAuth.email ?? '');
   const [code, setCode] = useState('');
-  const [researchEnrollmentAcknowledged, setResearchEnrollmentAcknowledged] = useState(false);
   const [pending, setPending] = useState<string>();
   const [error, setError] = useState<string>();
   const codeInput = useRef<HTMLInputElement>(null);
@@ -93,25 +92,35 @@ export function CloudAccountSettings({
   };
 
   return (
-    <div className={styles.cloudIdentity} aria-labelledby={`${formId}-title`}>
-      <div className={styles.cloudIdentityHeader}>
-        <div>
-          <strong id={`${formId}-title`}>Sia cloud account</strong>
-          <p>{accountDescription(cloudAuth)}</p>
+    <div
+      className={styles.cloudIdentity}
+      aria-labelledby={
+        !autoFocusEmail || cloudAuth.state === 'signed-in' ? `${formId}-title` : undefined
+      }
+      aria-label={
+        autoFocusEmail && cloudAuth.state !== 'signed-in' ? 'Sign in to Sia' : undefined
+      }
+    >
+      {!autoFocusEmail || cloudAuth.state === 'signed-in' ? (
+        <div className={styles.cloudIdentityHeader}>
+          <div>
+            <strong id={`${formId}-title`}>Sia cloud account</strong>
+            <p>{accountDescription(cloudAuth)}</p>
+          </div>
+          {cloudAuth.state === 'signed-in' ? (
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              disabled={Boolean(pending)}
+              onClick={() =>
+                void run('sign-out', onSignOutCloud, 'Sia could not sign out safely.')
+              }
+            >
+              {pending === 'sign-out' ? 'Signing out...' : 'Sign out'}
+            </button>
+          ) : null}
         </div>
-        {cloudAuth.state === 'signed-in' ? (
-          <button
-            type="button"
-            className={styles.secondaryButton}
-            disabled={Boolean(pending)}
-            onClick={() =>
-              void run('sign-out', onSignOutCloud, 'Sia could not sign out safely.')
-            }
-          >
-            {pending === 'sign-out' ? 'Signing out...' : 'Sign out'}
-          </button>
-        ) : null}
-      </div>
+      ) : null}
 
       {cloudAuth.state === 'signed-out' ? (
         <form className={styles.cloudIdentityForm} onSubmit={start}>
@@ -129,46 +138,24 @@ export function CloudAccountSettings({
               required
             />
           </label>
-          <button
-            type="submit"
-            className={styles.primaryButton}
-            disabled={Boolean(pending) || !researchEnrollmentAcknowledged}
-          >
+          <button type="submit" className={styles.primaryButton} disabled={Boolean(pending)}>
             {pending === 'auth-start' ? 'Sending...' : 'Email me a sign-in code'}
           </button>
-          <label className={styles.researchEnrollmentOption}>
-            <input
-              type="checkbox"
-              checked={researchEnrollmentAcknowledged}
-              onChange={(event) => setResearchEnrollmentAcknowledged(event.target.checked)}
-              disabled={Boolean(pending)}
-              required
-            />
-            <span>
-              <strong>I’m 18 or older and received a named Sia research invitation.</strong>
-              <small>
-                Sia will only send a code to an invited address. After verification, you will
-                review the full research-data consent before any research capture starts. I
-                agree to the{' '}
-                <a
-                  href="https://superintelligentagents.ai/terms/"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Terms
-                </a>{' '}
-                and acknowledge the{' '}
-                <a
-                  href="https://superintelligentagents.ai/privacy/"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Privacy Policy
-                </a>
-                .
-              </small>
-            </span>
-          </label>
+          <p className={styles.accountTerms}>
+            By continuing, you agree to the{' '}
+            <a href="https://superintelligentagents.ai/terms/" target="_blank" rel="noreferrer">
+              Terms
+            </a>{' '}
+            and acknowledge the{' '}
+            <a
+              href="https://superintelligentagents.ai/privacy/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Privacy Policy
+            </a>
+            .
+          </p>
         </form>
       ) : null}
 
@@ -507,10 +494,10 @@ function DeleteCloudAccountDialog({
 
 function accountDescription(cloudAuth: CloudAuth) {
   if (cloudAuth.state === 'signed-in') {
-    return `Signed in as ${cloudAuth.email ?? 'your invited account'}. ${cloudAuth.participant ? 'Invited participant access is active. ' : ''}Signing out turns research capture off and clears local research records; connected apps stay linked and locked until this account signs in again.`;
+    return `Signed in as ${cloudAuth.email ?? 'your Sia account'}.`;
   }
   if (cloudAuth.state === 'unconfigured') {
-    return 'Optional cloud sync and connected apps can be added later.';
+    return 'Cloud accounts are unavailable in this build.';
   }
   if (cloudAuth.state === 'code-sent') {
     return 'A one-time code will arrive shortly. Check spam or request a new code.';
@@ -521,5 +508,5 @@ function accountDescription(cloudAuth: CloudAuth) {
   if (cloudAuth.state === 'mfa-required') {
     return 'This admin account also requires its authenticator code.';
   }
-  return 'Use the email named in your research invitation. Local work remains available without signing in.';
+  return "Sign in with your email to use Sia's included services and cloud connections.";
 }

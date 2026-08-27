@@ -20,7 +20,6 @@ import { RoomHeader } from './components/RoomHeader';
 import { QuickSwitcher, type QuickSwitcherAction } from './components/QuickSwitcher';
 import { Settings } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
-import { ResearchConsentDialog } from './components/settings/ResearchConsentDialog';
 import { SiaSignInDialog } from './components/settings/SiaSignInDialog';
 import {
   ActivityDashboard,
@@ -31,7 +30,6 @@ import {
 } from './components/localParity';
 import type { AgentDraft, AgentSummary, RendererApi, RendererSnapshot } from './types';
 import { useAppController } from './useAppController';
-import { RESEARCH_CONSENT_VERSION } from '../shared/bridge';
 import './tokens.css';
 import companion from './companion.module.css';
 import styles from './ui.module.css';
@@ -114,9 +112,6 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   const { api, snapshot, run } = app;
   const selectedAgent = snapshot.agents.find((agent) => agent.id === snapshot.selectedAgentId);
   const activeThread = snapshot.activeThread;
-  const signedInResearchRequired =
-    snapshot.cloudAuth.state === 'signed-in' &&
-    snapshot.cloudAuth.features?.researchUploads !== false;
   // The room belongs to whoever owns the visible thread; otherwise to the selected agent.
   const roomAgent =
     (activeThread && snapshot.agents.find((agent) => agent.id === activeThread.agentId)) ??
@@ -185,7 +180,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     {
       id: 'settings',
       label: 'Open Settings',
-      detail: 'Providers, apps, computer, voice, privacy',
+      detail: 'AI, connections, computer, voice, privacy',
       keywords: 'preferences configuration',
       icon: <GearSix size={17} />,
       run: () => app.openSettings(),
@@ -391,6 +386,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               initialSection={app.settingsSection}
               onClose={app.closeSettings}
               onProbeProvider={(provider) => api.refreshProvider(provider)}
+              onOpenProviderSetup={(provider) => api.openProviderSetup(provider)}
               onCheckForUpdates={() => api.checkForUpdates()}
               onOpenUpdateDownload={() => api.openUpdateDownload()}
               onConnectGoogleApps={() => api.connectGoogleApps()}
@@ -415,7 +411,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onSetTrajectoryLog={(enabled) => api.setTrajectoryLog(enabled)}
               onRevealTrajectories={() => api.revealTrajectories()}
               onOpenMessages={() => api.openMessages()}
-              onConfigureVoice={(apiKey) => api.configureVoice(apiKey)}
+              onConfigureVoice={() => api.configureVoice()}
               onRefreshVoices={() => api.refreshVoices()}
               onSelectVoice={(voiceId) => api.selectVoice(voiceId)}
               onDisconnectVoice={() => api.disconnectVoice()}
@@ -562,10 +558,9 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         voice={snapshot.voice}
         onOpenChange={app.setAgentDialogOpen}
         onPickWorkspace={() => api.pickWorkspace()}
-        onProbeProvider={(provider) => api.refreshProvider(provider)}
-        onOpenCloudSettings={() => {
+        onOpenModelSettings={() => {
           app.setAgentDialogOpen(false);
-          app.openSettings('apps');
+          app.openSettings('providers');
         }}
         onSave={(draft: AgentDraft) =>
           (app.editingAgent
@@ -602,22 +597,6 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
           onCompleteAdminMfa={(code) => api.completeAdminMfa(code)}
           onSignOut={() => api.signOutCloud()}
           onDelete={(confirmation) => api.deleteCloudAccount(confirmation)}
-        />
-      ) : null}
-      {(signedInResearchRequired ||
-        (snapshot.cloudAuth.state === 'unconfigured' && snapshot.agents.length > 0)) &&
-      !snapshot.research.consented &&
-      snapshot.research.promptReviewedVersion !== RESEARCH_CONSENT_VERSION ? (
-        <ResearchConsentDialog
-          autoOpen
-          cloudAvailable={snapshot.cloudAuth.state !== 'unconfigured'}
-          researchRequired={signedInResearchRequired}
-          showTrigger={false}
-          onAccept={() => api.setCapturePaused(false)}
-          onDecline={async () => {
-            await api.declineResearchConsent();
-            if (signedInResearchRequired) await api.signOutCloud();
-          }}
         />
       ) : null}
     </div>

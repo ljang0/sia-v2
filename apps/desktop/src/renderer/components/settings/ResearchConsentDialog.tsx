@@ -37,7 +37,7 @@ export function ResearchConsentDialog({
       if (decision === 'accept') await onAccept();
       else if (onDecline) await onDecline();
       else if (researchRequired) {
-        throw new Error('Sign out from Connected apps to decline the research release.');
+        throw new Error('Sign out from Connections to decline the research release.');
       }
       setOpen(false);
     } catch (cause) {

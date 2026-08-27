@@ -3,90 +3,104 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { demoSnapshot } from '../../demo';
-import type { ProviderSetup } from '../../types';
+import { AboutSettings } from './AboutSettings';
 import { ProvidersSettings } from './ProvidersSettings';
 
 afterEach(cleanup);
 
-describe('provider setup actions', () => {
-  it('distinguishes install guidance from provider rechecks', async () => {
+describe('AI access settings', () => {
+  it('shows only the two release access choices with user-facing copy', () => {
+    renderSettings();
+
+    expect(screen.getByRole('heading', { name: 'AI access' })).toBeTruthy();
+    expect(screen.getByText('Included model')).toBeTruthy();
+    expect(screen.getByText('Codex plan')).toBeTruthy();
+    expect(screen.queryByText('Claude')).toBeNull();
+    expect(screen.queryByText('Grok')).toBeNull();
+    expect(screen.queryByText('Gemini')).toBeNull();
+    expect(screen.queryByText('super_nova_ext')).toBeNull();
+    expect(screen.queryByText('Desktop updates')).toBeNull();
+  });
+
+  it('keeps diagnostics and recheck controls out of the connected state', () => {
+    renderSettings();
+
+    expect(screen.queryByText('Technical details')).toBeNull();
+    expect(screen.queryByText('Uses your existing ChatGPT Codex subscription.')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Recheck' })).toBeNull();
+  });
+
+  it('can retry a temporarily unavailable plan', async () => {
     const onProbe = vi.fn().mockResolvedValue(undefined);
-    const needsInstall: ProviderSetup = {
-      ...demoSnapshot.providers.find((provider) => provider.id === 'gemini')!,
-      status: 'needs-install',
-    };
-    const unavailable: ProviderSetup = {
-      ...demoSnapshot.providers.find((provider) => provider.id === 'meta')!,
-      status: 'unavailable',
-    };
-    render(
-      <ProvidersSettings
-        providers={[demoSnapshot.providers[0]!, needsInstall, unavailable]}
-        onProbe={onProbe}
-        onOpenCloudSettings={vi.fn()}
-      />,
-    );
+    renderSettings({
+      providers: demoSnapshot.providers.map((provider) =>
+        provider.id === 'codex' ? { ...provider, status: 'unavailable' as const } : provider,
+      ),
+      onProbe,
+    });
 
-    expect(screen.getByText('Installed')).toBeTruthy();
-    expect(screen.getByText('Not installed')).toBeTruthy();
-    const guide = screen.getByRole('link', { name: 'Open install guide' });
-    expect(guide.getAttribute('href')).toContain('/installation/');
-
-    fireEvent.click(screen.getAllByRole('button', { name: 'Recheck' })[0]!);
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(onProbe).toHaveBeenCalledWith('codex'));
-
-    fireEvent.click(guide);
-    fireEvent.click(screen.getAllByRole('button', { name: 'Recheck' })[1]!);
-    await waitFor(() => expect(onProbe).toHaveBeenCalledWith('gemini'));
   });
 
-  it('routes Meta sign-in to the Sia cloud account instead of meta.ai', () => {
+  it('opens the provider-owned setup flow for a disconnected plan', async () => {
+    const onOpenProviderSetup = vi.fn().mockResolvedValue(undefined);
+    renderSettings({
+      providers: demoSnapshot.providers.map((provider) =>
+        provider.id === 'codex' ? { ...provider, status: 'needs-login' as const } : provider,
+      ),
+      onOpenProviderSetup,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with ChatGPT' }));
+    await waitFor(() => expect(onOpenProviderSetup).toHaveBeenCalledWith('codex'));
+  });
+
+  it('routes included-model access to Sia sign-in', () => {
     const onOpenCloudSettings = vi.fn();
-    const meta = {
-      ...demoSnapshot.providers.find((provider) => provider.id === 'meta')!,
-      status: 'needs-login' as const,
-    };
-    render(
-      <ProvidersSettings
-        providers={[meta]}
-        onProbe={vi.fn()}
-        onOpenCloudSettings={onOpenCloudSettings}
-      />,
-    );
+    renderSettings({
+      providers: demoSnapshot.providers.map((provider) =>
+        provider.id === 'meta' ? { ...provider, status: 'needs-login' as const } : provider,
+      ),
+      onOpenCloudSettings,
+    });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in to Sia cloud' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
     expect(onOpenCloudSettings).toHaveBeenCalledOnce();
-    expect(screen.queryByRole('link')).toBeNull();
-  });
-
-  it('renders the provider billing statement without adding a false prefix', () => {
-    render(
-      <ProvidersSettings
-        providers={[demoSnapshot.providers[0]!]}
-        onProbe={vi.fn()}
-        onOpenCloudSettings={vi.fn()}
-      />,
-    );
-
-    expect(
-      screen.getByText('Uses your existing ChatGPT Codex plan or OpenAI API account.'),
-    ).toBeTruthy();
-    expect(screen.queryByText(/Billed by Uses/)).toBeNull();
-  });
-
-  it('keeps production-disabled providers visible without offering setup', () => {
-    render(
-      <ProvidersSettings
-        providers={[demoSnapshot.providers.find((provider) => provider.id === 'grok')!]}
-        onProbe={vi.fn()}
-        onOpenCloudSettings={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByText('Not in alpha')).toBeTruthy();
-    expect(screen.getByText(/inherited plugins, skills, and MCP/i)).toBeTruthy();
-    expect(
-      (screen.getByRole('button', { name: 'Unavailable' }) as HTMLButtonElement).disabled,
-    ).toBe(true);
   });
 });
+
+describe('about settings', () => {
+  it('owns desktop update controls', () => {
+    render(
+      <AboutSettings
+        updates={{
+          status: 'available',
+          currentVersion: '0.1.0',
+          latestVersion: '0.2.0',
+          detail: 'A newer version is ready.',
+        }}
+        onCheckForUpdates={vi.fn()}
+        onOpenUpdateDownload={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'About Sia' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Download' })).toBeTruthy();
+    expect(screen.getByText('Latest release: 0.2.0')).toBeTruthy();
+  });
+});
+
+function renderSettings(
+  overrides: Partial<React.ComponentProps<typeof ProvidersSettings>> = {},
+) {
+  return render(
+    <ProvidersSettings
+      providers={demoSnapshot.providers}
+      onProbe={vi.fn().mockResolvedValue(undefined)}
+      onOpenProviderSetup={vi.fn().mockResolvedValue(undefined)}
+      onOpenCloudSettings={vi.fn()}
+      {...overrides}
+    />,
+  );
+}

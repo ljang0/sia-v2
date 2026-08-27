@@ -67,6 +67,8 @@ async function createHarness(
     appVersion?: string;
     updateManifestUrl?: string;
     updateManifestPublicKey?: string;
+    defaultWorkspaceRoot?: string;
+    createDirectory?: (path: string) => Promise<void>;
   } = {},
 ): Promise<{
   controller: DesktopController;
@@ -90,6 +92,10 @@ async function createHarness(
     openExternal: options.openExternal ?? (async () => undefined),
     openMessages: options.openMessages ?? (async () => undefined),
     chooseDirectory: async () => '/tmp/sia-workspace',
+    ...(options.defaultWorkspaceRoot
+      ? { defaultWorkspaceRoot: options.defaultWorkspaceRoot }
+      : {}),
+    ...(options.createDirectory ? { createDirectory: options.createDirectory } : {}),
     ...(options.chooseFiles ? { chooseFiles: options.chooseFiles } : {}),
     ...(options.openPath ? { openPath: options.openPath } : {}),
     ...(options.revealDirectory ? { revealDirectory: options.revealDirectory } : {}),
@@ -134,6 +140,45 @@ async function createController(): Promise<DesktopController> {
 }
 
 describe('DesktopController', () => {
+  it('creates a private default workspace, color, and first thread for a new agent', async () => {
+    const createDirectory = vi.fn(async () => undefined);
+    const { controller } = await createHarness({
+      defaultWorkspaceRoot: '/tmp/Sia/Agents',
+      createDirectory,
+    });
+
+    const created = await controller.invoke('agents.save', {
+      name: 'Release Partner',
+      instructions: 'Keep release work focused.',
+      model: 'gpt-5.6-sol',
+    });
+    const agent = created.snapshot.agents.find(({ id }) => id === created.agentId)!;
+
+    expect(createDirectory).toHaveBeenCalledWith(
+      expect.stringMatching(/^\/tmp\/Sia\/Agents\/release-partner-[a-f0-9]{8}$/),
+    );
+    expect(agent).toMatchObject({
+      provider: 'codex',
+      hue: 0,
+      harnessPreference: { mode: 'automatic' },
+    });
+    expect(agent.threadIds).toHaveLength(1);
+    expect(created.snapshot.activeThreadId).toBe(agent.threadIds[0]);
+    expect(created.snapshot.threads.find(({ id }) => id === agent.threadIds[0])).toMatchObject({
+      workspace: agent.workspace,
+      harnessId: 'codex_app_server',
+      resolvedExecutionTarget: {
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        harnessId: 'codex_app_server',
+        harnessModelId: 'gpt-5.6-sol',
+        credentialSource: 'provider_subscription',
+        resolutionSource: 'legacy_default',
+      },
+    });
+    await controller.shutdown();
+  });
+
   it('persists room controls, duplicates a clean room, and marks threads unread', async () => {
     const controller = await createController();
     const created = await controller.invoke('agents.save', {
@@ -707,7 +752,7 @@ describe('DesktopController', () => {
         model: 'gemini-2.5-pro',
         workspace: '/tmp/sia-workspace',
       }),
-    ).rejects.toThrow(/Gemini is not ready \(needs_install\)/);
+    ).rejects.toThrow(/Gemini is not ready \(disabled\)/);
     await controller.shutdown();
 
     let identityState: 'signed_in' | 'signed_out' = 'signed_in';
@@ -744,7 +789,7 @@ describe('DesktopController', () => {
         model: 'super_nova_ext',
         workspace: '/tmp/sia-workspace',
       }),
-    ).rejects.toThrow(/Meta is not ready \(unavailable\)/);
+    ).rejects.toThrow(/Included models is not ready \(unavailable\)/);
     expect(runtime.runTurn).not.toHaveBeenCalled();
     await cloudController.shutdown();
   });
@@ -2715,7 +2760,7 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
-  it('records connector setup locally and in the raw AWS research stream', async () => {
+  it('allows connector setup without research and copies lifecycle events only after opt-in', async () => {
     const uploadResearchBatch = vi.fn(async () => undefined);
     const startConnection = vi.fn(async () => ({
       redirectUrl: 'https://connect.example.test/docs',
@@ -2773,10 +2818,13 @@ describe('DesktopController', () => {
       trajectory,
     });
 
-    await expect(
-      controller.invoke('connections.start', { connectionId: 'docs' }),
-    ).rejects.toThrow('Raw research recording must be active');
-    expect(startConnection).not.toHaveBeenCalled();
+    await controller.invoke('connections.start', { connectionId: 'docs' });
+    expect(startConnection).toHaveBeenCalledOnce();
+    expect(repository.list('research')).toHaveLength(0);
+    await controller.invoke('connections.disconnect', {
+      connectionId: 'docs',
+      expectedConnectionId: 'grant-docs',
+    });
 
     await controller.invoke('research.setCapture', {
       enabled: true,
@@ -3345,13 +3393,60 @@ describe('DesktopController', () => {
       account: 'Deterministic test runtime',
     });
     await controller.invoke('providers.login', { providerId: 'codex' });
-    expect(openExternal).toHaveBeenCalledWith('https://learn.chatgpt.com/docs/codex/auth');
+    expect(openExternal).toHaveBeenCalledWith('https://developers.openai.com/codex/auth/');
     await expect(controller.invoke('providers.login', { providerId: 'meta' })).rejects.toThrow(
       'configured Sia cloud',
     );
     await expect(controller.invoke('providers.login', { providerId: 'grok' })).rejects.toThrow(
       'external alpha',
     );
+    await controller.shutdown();
+  });
+
+  it('opens and completes the managed Codex ChatGPT login before marking it connected', async () => {
+    let signedIn = false;
+    const providerProbe = vi.fn(async (providerId?: Parameters<typeof probeProviders>[0]) =>
+      (await deterministicProviderProbe(providerId)).map((provider) => {
+        if (provider.id !== 'codex') return provider;
+        const { account: _account, ...withoutAccount } = provider;
+        return signedIn
+          ? { ...provider, status: 'ready' as const, account: 'Connected to ChatGPT' }
+          : { ...withoutAccount, status: 'needs_login' as const };
+      }),
+    );
+    const openExternal = vi.fn(async () => undefined);
+    const runtime = {
+      startCodexChatGptLogin: vi.fn(async () => ({
+        loginId: 'login-1',
+        authUrl: 'https://auth.openai.com/authorize?client_id=sia-test',
+      })),
+      waitForCodexChatGptLogin: vi.fn(async () => {
+        signedIn = true;
+      }),
+      cancelCodexChatGptLogin: vi.fn(async () => undefined),
+      listModels: vi.fn(async () => []),
+      resetSessions: vi.fn(async () => undefined),
+      dispose: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({
+      fakeServices: false,
+      providerProbe,
+      openExternal,
+      runtime,
+    });
+
+    const result = await controller.invoke('providers.login', { providerId: 'codex' });
+
+    expect(runtime.startCodexChatGptLogin).toHaveBeenCalledOnce();
+    expect(openExternal).toHaveBeenCalledWith(
+      'https://auth.openai.com/authorize?client_id=sia-test',
+    );
+    expect(runtime.waitForCodexChatGptLogin).toHaveBeenCalledWith('login-1');
+    expect(result.snapshot.providers.find(({ id }) => id === 'codex')).toMatchObject({
+      status: 'ready',
+      account: 'Connected to ChatGPT',
+    });
+    expect(runtime.cancelCodexChatGptLogin).not.toHaveBeenCalled();
     await controller.shutdown();
   });
 
@@ -3862,12 +3957,50 @@ describe('DesktopController', () => {
           tools: true,
         });
       }
+      if (url.endsWith('/v1/catalog')) {
+        return Response.json({
+          schemaVersion: 1,
+          providers: [
+            {
+              id: 'meta',
+              name: 'Muse Spark',
+              kind: 'hosted',
+              credentialMode: 'managed',
+              available: true,
+              defaultModel: 'super_nova_ext',
+              models: [
+                {
+                  id: 'super_nova_ext',
+                  name: 'Muse Spark',
+                  apiProtocols: ['openai_chat_completions'],
+                },
+              ],
+              capabilities: { streaming: true, tools: true },
+              execution: {
+                defaultHarnessId: 'sia_direct',
+                routes: [
+                  {
+                    model: 'super_nova_ext',
+                    harnessId: 'sia_direct',
+                    harnessModelId: 'super_nova_ext',
+                    credentialSource: 'sia_managed',
+                    apiProtocol: 'openai_chat_completions',
+                  },
+                ],
+              },
+              limits: { dailyRequests: 100, dailyTokens: 250_000, maxOutputTokens: 4_096 },
+            },
+          ],
+        });
+      }
       throw new Error(`Unexpected cloud request: ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
     try {
       const { controller } = await createHarness({
         fakeServices: false,
+        defaultWorkspaceRoot: '/tmp/Sia/Agents',
+        createDirectory: async () => undefined,
         cloud: new CloudClient('https://api.example.test', {
           read: async () => 'test-id-token',
         }),
@@ -3879,6 +4012,20 @@ describe('DesktopController', () => {
       expect(controller.snapshot().providers.find(({ id }) => id === 'meta')).toMatchObject({
         status: 'ready',
         model: 'super_nova_ext',
+      });
+      const created = await controller.invoke('agents.save', {
+        name: 'Included model tester',
+        instructions: '',
+        provider: 'meta',
+        model: 'super_nova_ext',
+      });
+      expect(
+        created.snapshot.threads.find(({ id }) => id === created.snapshot.activeThreadId),
+      ).toMatchObject({
+        resolvedExecutionTarget: {
+          harnessId: 'sia_direct',
+          resolutionSource: 'backend_default',
+        },
       });
       expect(fetchMock).toHaveBeenCalledWith(
         new URL('https://api.example.test/v1/meta/capabilities'),

@@ -3,6 +3,7 @@ import { createAwsDependencies } from './aws.js';
 import type { MetaMessage, MetaTool, MetaToolCall, MetaTurnRequest } from './contracts.js';
 import { CloudError, isRecord, requireString } from './domain.js';
 import { authFromEvent, normalizeError, parseBody } from './router.js';
+import { parseResponsesTurn, responsesSse } from './responses-relay.js';
 import { createServices } from './services.js';
 
 declare const awslambda: {
@@ -24,8 +25,14 @@ export const handler = awslambda.streamifyResponse(async (event, rawStream) => {
   let stream = rawStream;
   try {
     const user = authFromEvent(event);
-    const request = parseMetaTurn(parseBody(event));
-    const iterator = getServices().meta.stream(user, request)[Symbol.asyncIterator]();
+    const responsesRoute = event.path.endsWith('/v1/responses');
+    const request = responsesRoute
+      ? parseResponsesTurn(parseBody(event))
+      : parseMetaTurn(parseBody(event));
+    const source = getServices().meta.stream(user, request);
+    const iterator = (responsesRoute ? responsesSse(source) : legacySse(source))[
+      Symbol.asyncIterator
+    ]();
     const first = await iterator.next();
     stream = awslambda.HttpResponseStream.from(stream, {
       statusCode: 200,
@@ -37,16 +44,20 @@ export const handler = awslambda.streamifyResponse(async (event, rawStream) => {
         'x-content-type-options': 'nosniff',
       },
     });
-    if (!first.done) stream.write(sse(first.value));
+    if (!first.done) stream.write(first.value);
     try {
       while (true) {
         const item = await iterator.next();
         if (item.done) break;
-        stream.write(sse(item.value));
+        stream.write(item.value);
       }
     } catch (error) {
       const normalized = normalizeError(error);
-      stream.write(sse({ type: 'error', code: normalized.code, message: normalized.message }));
+      stream.write(
+        responsesRoute
+          ? `event: error\ndata: ${JSON.stringify({ type: 'error', code: normalized.code, message: normalized.message })}\n\n`
+          : sse({ type: 'error', code: normalized.code, message: normalized.message }),
+      );
     } finally {
       await iterator.return?.();
     }
@@ -150,4 +161,8 @@ function parseTools(value: unknown): MetaTool[] {
 
 function sse(event: { type: string; [key: string]: unknown }): string {
   return `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
+}
+
+async function* legacySse(events: AsyncIterable<{ type: string; [key: string]: unknown }>) {
+  for await (const event of events) yield sse(event);
 }

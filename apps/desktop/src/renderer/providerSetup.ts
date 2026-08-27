@@ -13,12 +13,15 @@ export function providerStatusLabel(provider: ProviderSetup) {
 
 export function providerSetupLabel(provider: ProviderSetup) {
   if (provider.id === 'meta' && provider.status === 'needs-login') {
-    return 'Sign in to Sia cloud';
+    return 'Sign in to Sia';
+  }
+  if (provider.id === 'codex' && provider.status === 'needs-login') {
+    return 'Sign in with ChatGPT';
   }
   return {
     ready: 'Recheck',
     'needs-install': 'Open install guide',
-    'needs-login': 'Open sign-in guide',
+    'needs-login': 'Sign in',
     incompatible: 'Open compatibility guide',
     unavailable: 'Recheck',
     disabled: 'Unavailable',
@@ -53,7 +56,9 @@ export function providerReadinessMessage(provider: ProviderSetup) {
     'needs-login':
       provider.id === 'meta'
         ? 'Sign in to Sia cloud before creating a Meta agent.'
-        : `Sign in through ${provider.name}'s official client, then recheck.`,
+        : provider.id === 'codex'
+          ? 'Sign in with ChatGPT before creating a Codex agent.'
+          : `Sign in through ${provider.name}'s official client, then recheck.`,
     incompatible: `Update ${provider.name} to a compatible release, then recheck.`,
     unavailable: `${provider.name} is not available in this build or environment.`,
     disabled: `${provider.name} is not available in this alpha.`,

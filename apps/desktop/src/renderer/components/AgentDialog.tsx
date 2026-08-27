@@ -1,12 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { ArrowClockwise, FolderSimple, WarningCircle, X } from '@phosphor-icons/react';
-import { type FormEvent, useEffect, useId, useState } from 'react';
-import {
-  providerReadinessMessage,
-  providerSetupHref,
-  providerSetupLabel,
-  providerStatusLabel,
-} from '../providerSetup';
+import { FolderSimple, X } from '@phosphor-icons/react';
+import { type FormEvent, useEffect, useId, useMemo, useState } from 'react';
 import type {
   AgentDraft,
   AgentSummary,
@@ -15,7 +9,6 @@ import type {
   VoiceSettingsState,
 } from '../types';
 import styles from '../ui.module.css';
-import { agentIdentity } from '../agentIdentity';
 
 interface AgentDialogProps {
   open: boolean;
@@ -24,51 +17,25 @@ interface AgentDialogProps {
   voice?: VoiceSettingsState | undefined;
   onOpenChange(open: boolean): void;
   onPickWorkspace(): Promise<string | undefined>;
-  onProbeProvider?(provider: ProviderId): Promise<void>;
-  onOpenCloudSettings?(): void;
+  onOpenModelSettings?(): void;
   onSave(draft: AgentDraft): Promise<void>;
   onDelete?(): Promise<void>;
 }
 
-const HUES = [
-  { slot: 0, name: 'Saffron' },
-  { slot: 1, name: 'Coral' },
-  { slot: 2, name: 'Sky' },
-  { slot: 3, name: 'Mint' },
-] as const;
+interface ModelChoice {
+  provider: ProviderId;
+  model: string;
+  label: string;
+  ready: boolean;
+}
 
-const STARTER_PRESETS = [
-  {
-    name: 'Research partner',
-    summary: 'Compare sources, expose uncertainty, and keep a decision trail.',
-    instructions:
-      'Help me investigate questions carefully. Compare primary sources, distinguish evidence from inference, surface uncertainty, and finish with the decisions or open questions that matter.',
-  },
-  {
-    name: 'Release partner',
-    summary: 'Track gates, test risky paths, and prepare a clear handoff.',
-    instructions:
-      'Help me prepare dependable releases. Keep source, tests, deployment state, artifacts, rollback, and human approvals distinct. Prioritize hard blockers and leave a concise evidence-backed handoff.',
-  },
-  {
-    name: 'Workspace maintainer',
-    summary: 'Understand the repository before making focused repairs.',
-    instructions:
-      'Maintain this workspace with small, reviewable changes. Read local conventions first, preserve unrelated work, test in proportion to risk, and explain any remaining operational tradeoffs.',
-  },
-  {
-    name: 'Briefing partner',
-    summary: 'Turn scattered updates into a short, useful briefing.',
-    instructions:
-      'Turn new information into concise briefings. Separate changes, decisions, risks, owners, and next actions. Keep source links and dates when they affect confidence or urgency.',
-  },
-] as const;
+const RELEASE_PROVIDER_ORDER: ProviderId[] = ['meta', 'codex'];
 
 const emptyDraft: AgentDraft = {
   name: '',
   instructions: '',
-  provider: 'codex',
-  model: 'gpt-5.6-sol',
+  provider: 'meta',
+  model: 'super_nova_ext',
   workspace: '',
 };
 
@@ -79,18 +46,24 @@ export function AgentDialog({
   voice = { status: 'disconnected', voices: [] },
   onOpenChange,
   onPickWorkspace,
-  onProbeProvider,
-  onOpenCloudSettings,
+  onOpenModelSettings,
   onSave,
   onDelete,
 }: AgentDialogProps) {
   const [draft, setDraft] = useState<AgentDraft>(emptyDraft);
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
-  const [checking, setChecking] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [providerChosen, setProviderChosen] = useState(false);
+  const [modelChosen, setModelChosen] = useState(false);
   const formId = useId();
+  const choices = useMemo(
+    () =>
+      modelChoices(
+        providers,
+        agent ? { provider: agent.provider, model: agent.model } : undefined,
+      ),
+    [agent, providers],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -101,34 +74,38 @@ export function AgentDialog({
         provider: agent.provider,
         model: agent.model,
         workspace: agent.workspace,
+        ...(agent.harnessPreference
+          ? { harnessPreference: structuredClone(agent.harnessPreference) }
+          : {}),
         hue: agent.hue,
         ...(agent.voiceId ? { voiceId: agent.voiceId } : {}),
       });
     } else {
-      const provider =
-        providers.find((candidate) => candidate.status === 'ready') ??
-        providers.find((candidate) => candidate.status !== 'disabled');
+      const first = firstReadyModel(providers);
       setDraft(
-        provider ? { ...emptyDraft, provider: provider.id, model: provider.model } : emptyDraft,
+        first ? { ...emptyDraft, provider: first.provider, model: first.model } : emptyDraft,
       );
     }
     setError(undefined);
-    setChecking(false);
     setConfirmingDelete(false);
-    setProviderChosen(false);
+    setModelChosen(false);
   }, [agent, open]);
 
   useEffect(() => {
-    if (!open || agent || providerChosen) return;
-    const selected = providers.find((provider) => provider.id === draft.provider);
-    if (selected?.status === 'ready') return;
-    const ready = providers.find((provider) => provider.status === 'ready');
-    if (!ready) return;
-    setDraft((current) => ({ ...current, provider: ready.id, model: ready.model }));
-  }, [agent, draft.provider, open, providerChosen, providers]);
-
-  // Until the person picks a color, the swatch follows the name — a new agent arrives with a hue.
-  const effectiveHue = draft.hue ?? agentIdentity(draft.name.trim());
+    if (!open || agent || modelChosen) return;
+    const selected = choices.find(
+      (choice) => choice.provider === draft.provider && choice.model === draft.model,
+    );
+    if (selected?.ready) return;
+    const first = choices.find((choice) => choice.ready);
+    if (first) {
+      setDraft((current) => ({
+        ...current,
+        provider: first.provider,
+        model: first.model,
+      }));
+    }
+  }, [agent, choices, draft.model, draft.provider, modelChosen, open]);
 
   const update = <K extends keyof AgentDraft>(key: K, value: AgentDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -136,32 +113,30 @@ export function AgentDialog({
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    const provider = providers.find((candidate) => candidate.id === draft.provider);
-    if (!provider || provider.status !== 'ready') {
-      setError(
-        provider
-          ? providerReadinessMessage(provider)
-          : 'Choose an available provider before saving.',
-      );
-      return;
-    }
     if (!draft.name.trim()) {
       setError('Give this agent a name.');
       return;
     }
-    if (!draft.workspace.trim()) {
-      setError('Choose a workspace before saving.');
+
+    const selected = choices.find(
+      (choice) => choice.provider === draft.provider && choice.model === draft.model,
+    );
+    if (!selected?.ready) {
+      setError('Choose an available model before saving.');
       return;
     }
+
     setSaving(true);
     setError(undefined);
     try {
-      await onSave({
+      const payload: AgentDraft = {
         ...draft,
         name: draft.name.trim(),
         instructions: draft.instructions.trim(),
-        hue: draft.hue ?? agentIdentity(draft.name.trim()),
-      });
+        workspace: draft.workspace.trim(),
+      };
+      if (!agent) delete payload.hue;
+      await onSave(payload);
       onOpenChange(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The agent could not be saved.');
@@ -170,9 +145,11 @@ export function AgentDialog({
     }
   };
 
-  const selectedProvider = providers.find((provider) => provider.id === draft.provider);
-  const providerReady = selectedProvider?.status === 'ready';
-  const setupHref = selectedProvider ? providerSetupHref(selectedProvider) : undefined;
+  const selectedChoice = choices.find(
+    (choice) => choice.provider === draft.provider && choice.model === draft.model,
+  );
+  const readyChoices = choices.filter((choice) => choice.ready);
+  const selectionValue = modelValue(draft.provider, draft.model);
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -186,7 +163,7 @@ export function AgentDialog({
             <div>
               <Dialog.Title>{agent ? 'Edit agent' : 'New agent'}</Dialog.Title>
               <Dialog.Description id={`${formId}-description`}>
-                These defaults are copied into each new thread and stay pinned there.
+                Name it and describe the work. Sia handles the setup.
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
@@ -202,225 +179,147 @@ export function AgentDialog({
           </div>
 
           <form className={styles.agentForm} onSubmit={(event) => void submit(event)}>
-            {!agent ? (
-              <fieldset className={styles.starterPresets}>
-                <legend>Start with a role</legend>
-                <div>
-                  {STARTER_PRESETS.map((preset) => {
-                    const selected =
-                      draft.name === preset.name && draft.instructions === preset.instructions;
-                    return (
-                      <button
-                        key={preset.name}
-                        type="button"
-                        aria-pressed={selected}
-                        onClick={() =>
-                          setDraft((current) => ({
-                            ...current,
-                            name: preset.name,
-                            instructions: preset.instructions,
-                          }))
-                        }
-                      >
-                        <strong>{preset.name}</strong>
-                        <span>{preset.summary}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </fieldset>
-            ) : null}
-
-            <label className={styles.field}>
+            <label className={styles.field} htmlFor={`${formId}-name`}>
               <span>Name</span>
               <input
+                id={`${formId}-name`}
                 value={draft.name}
                 onChange={(event) => update('name', event.target.value)}
                 placeholder="Research partner"
                 autoFocus
-                aria-invalid={Boolean(error && !draft.name.trim())}
+                required
+                aria-invalid={error === 'Give this agent a name.'}
               />
             </label>
 
-            <label className={styles.field}>
-              <span>Instructions</span>
+            <div className={styles.field}>
+              <label htmlFor={`${formId}-instructions`}>Instructions</label>
               <textarea
+                id={`${formId}-instructions`}
                 value={draft.instructions}
                 onChange={(event) => update('instructions', event.target.value)}
-                rows={5}
-                placeholder="Describe how this agent should work and what it should protect."
+                rows={3}
+                placeholder="What should this agent do, prioritize, and protect?"
               />
-              <small>Keep this durable. Put one-time task details in the thread.</small>
-            </label>
-
-            <div className={styles.formColumns}>
-              <label className={styles.field}>
-                <span>Provider</span>
-                <select
-                  value={draft.provider}
-                  onChange={(event) => {
-                    const provider = event.target.value as ProviderId;
-                    const setup = providers.find((item) => item.id === provider);
-                    setProviderChosen(true);
-                    update('provider', provider);
-                    if (setup) update('model', setup.model || defaultModel(provider));
-                  }}
-                >
-                  {providers.map((provider) => (
-                    <option
-                      key={provider.id}
-                      value={provider.id}
-                      disabled={provider.status === 'disabled'}
-                    >
-                      {provider.name}
-                      {provider.status === 'ready'
-                        ? ''
-                        : ` (${providerStatusLabel(provider).toLowerCase()})`}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className={styles.field}>
-                <span>Model</span>
-                <input value={draft.model} readOnly aria-readonly="true" />
-                <small>Pinned by this alpha&apos;s verified provider configuration.</small>
-              </label>
             </div>
 
-            <div className={styles.field}>
-              <span id={`${formId}-hue`}>Color</span>
-              <div
-                className={styles.hueSwatches}
-                role="radiogroup"
-                aria-labelledby={`${formId}-hue`}
-              >
-                {HUES.map((hue) => (
+            {readyChoices.length === 0 || !selectedChoice?.ready ? (
+              <div className={styles.modelSetupNotice} role="status">
+                <span>No usable model is connected.</span>
+                {onOpenModelSettings ? (
                   <button
-                    key={hue.slot}
                     type="button"
-                    role="radio"
-                    aria-checked={effectiveHue === hue.slot}
-                    aria-label={hue.name}
-                    title={hue.name}
-                    className={styles.hueSwatch}
-                    data-identity={hue.slot}
-                    onClick={() => update('hue', hue.slot)}
-                  />
-                ))}
-              </div>
-              <small>Tints this agent&apos;s room, avatar, and approvals.</small>
-            </div>
-
-            {voice.status === 'connected' ? (
-              <label className={styles.field}>
-                <span>Voice</span>
-                <select
-                  aria-label="Voice"
-                  value={draft.voiceId ?? ''}
-                  onChange={(event) => update('voiceId', event.target.value || undefined)}
-                >
-                  <option value="">
-                    Default{voice.selectedVoiceName ? ` (${voice.selectedVoiceName})` : ''}
-                  </option>
-                  {voice.voices.map((candidate) => (
-                    <option key={candidate.id} value={candidate.id}>
-                      {candidate.name}
-                      {candidate.category ? ` · ${candidate.category}` : ''}
-                    </option>
-                  ))}
-                </select>
-                <small>Used only when you choose Read aloud.</small>
-              </label>
-            ) : null}
-
-            {selectedProvider && !providerReady ? (
-              <div className={styles.providerSetupNotice} role="status">
-                <WarningCircle size={17} aria-hidden="true" />
-                <div>
-                  <strong>{providerStatusLabel(selectedProvider)}</strong>
-                  <p>{providerReadinessMessage(selectedProvider)}</p>
-                  <div className={styles.providerSetupActions}>
-                    {selectedProvider.id === 'meta' &&
-                    selectedProvider.status === 'needs-login' &&
-                    onOpenCloudSettings ? (
-                      <button
-                        type="button"
-                        className={styles.secondaryButton}
-                        onClick={onOpenCloudSettings}
-                      >
-                        {providerSetupLabel(selectedProvider)}
-                      </button>
-                    ) : setupHref ? (
-                      <a
-                        className={`${styles.secondaryButton} ${styles.externalSetupLink}`}
-                        href={setupHref}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {providerSetupLabel(selectedProvider)}
-                      </a>
-                    ) : null}
-                    {selectedProvider.status !== 'disabled' && onProbeProvider ? (
-                      <button
-                        type="button"
-                        className={styles.textButton}
-                        disabled={checking}
-                        onClick={async () => {
-                          setChecking(true);
-                          setError(undefined);
-                          try {
-                            await onProbeProvider(selectedProvider.id);
-                          } catch (cause) {
-                            setError(
-                              cause instanceof Error
-                                ? cause.message
-                                : 'The provider could not be checked.',
-                            );
-                          } finally {
-                            setChecking(false);
-                          }
-                        }}
-                      >
-                        <ArrowClockwise size={14} aria-hidden="true" />
-                        {checking ? 'Checking...' : 'Recheck'}
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
+                    className={styles.textButton}
+                    onClick={onOpenModelSettings}
+                  >
+                    Open AI settings
+                  </button>
+                ) : null}
               </div>
             ) : null}
 
-            <div className={styles.field}>
-              <label htmlFor={`${formId}-workspace`}>Workspace</label>
-              <div className={styles.workspacePicker}>
-                <input
-                  id={`${formId}-workspace`}
-                  value={draft.workspace}
-                  readOnly
-                  placeholder="Choose a folder"
-                />
-                <button
-                  type="button"
-                  className={styles.secondaryButton}
-                  onClick={async () => {
-                    setError(undefined);
-                    try {
-                      const workspace = await onPickWorkspace();
-                      if (workspace) update('workspace', workspace);
-                    } catch (cause) {
-                      setError(
-                        cause instanceof Error
-                          ? cause.message
-                          : 'The workspace picker could not be opened.',
+            <details className={styles.agentAdvanced}>
+              <summary>
+                <span>Details</span>
+                <small>
+                  {draft.workspace
+                    ? workspaceName(draft.workspace)
+                    : (selectedChoice?.label ?? 'Automatic model and folder')}
+                </small>
+              </summary>
+              <div className={styles.agentAdvancedBody}>
+                <label className={styles.field} htmlFor={`${formId}-model`}>
+                  <span>Model</span>
+                  <select
+                    id={`${formId}-model`}
+                    value={selectionValue}
+                    disabled={readyChoices.length === 0}
+                    onChange={(event) => {
+                      const choice = choices.find(
+                        (candidate) =>
+                          modelValue(candidate.provider, candidate.model) ===
+                          event.target.value,
                       );
-                    }
-                  }}
-                >
-                  <FolderSimple size={16} aria-hidden="true" />
-                  Choose
-                </button>
+                      if (!choice) return;
+                      setModelChosen(true);
+                      setDraft((current) => ({
+                        ...current,
+                        provider: choice.provider,
+                        model: choice.model,
+                        harnessPreference: { mode: 'automatic' },
+                      }));
+                    }}
+                  >
+                    {choices.length === 0 ? (
+                      <option value={selectionValue}>No model ready</option>
+                    ) : null}
+                    {choices.map((choice) => (
+                      <option
+                        key={modelValue(choice.provider, choice.model)}
+                        value={modelValue(choice.provider, choice.model)}
+                        disabled={!choice.ready}
+                      >
+                        {choice.label}
+                        {choice.ready ? '' : ' — unavailable'}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className={styles.field}>
+                  <label htmlFor={`${formId}-workspace`}>Working folder</label>
+                  <div className={styles.workspacePicker}>
+                    <input
+                      id={`${formId}-workspace`}
+                      value={draft.workspace}
+                      readOnly
+                      placeholder="Choose when you create"
+                    />
+                    <button
+                      type="button"
+                      className={styles.secondaryButton}
+                      onClick={async () => {
+                        setError(undefined);
+                        try {
+                          const workspace = await onPickWorkspace();
+                          if (workspace) update('workspace', workspace);
+                        } catch (cause) {
+                          setError(
+                            cause instanceof Error
+                              ? cause.message
+                              : 'The workspace picker could not be opened.',
+                          );
+                        }
+                      }}
+                    >
+                      <FolderSimple size={16} aria-hidden="true" />
+                      Choose
+                    </button>
+                  </div>
+                  <small>Agents can work only inside a folder you approve.</small>
+                </div>
+
+                {voice.status === 'connected' ? (
+                  <label className={styles.field}>
+                    <span>Voice</span>
+                    <select
+                      value={draft.voiceId ?? ''}
+                      onChange={(event) => update('voiceId', event.target.value || undefined)}
+                    >
+                      <option value="">
+                        Default{voice.selectedVoiceName ? ` (${voice.selectedVoiceName})` : ''}
+                      </option>
+                      {voice.voices.map((candidate) => (
+                        <option key={candidate.id} value={candidate.id}>
+                          {candidate.name}
+                          {candidate.category ? ` · ${candidate.category}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
               </div>
-            </div>
+            </details>
 
             {error ? <p className={styles.formError}>{error}</p> : null}
 
@@ -469,15 +368,9 @@ export function AgentDialog({
               <button
                 type="submit"
                 className={styles.primaryButton}
-                disabled={saving || !providerReady}
+                disabled={saving || !selectedChoice?.ready}
               >
-                {saving
-                  ? 'Saving...'
-                  : !providerReady
-                    ? 'Set up provider first'
-                    : agent
-                      ? 'Save changes'
-                      : 'Create agent'}
+                {saving ? 'Saving...' : agent ? 'Save changes' : 'Create agent'}
               </button>
             </div>
           </form>
@@ -487,12 +380,66 @@ export function AgentDialog({
   );
 }
 
-function defaultModel(provider: ProviderId) {
-  return {
-    codex: 'gpt-5.6-sol',
-    meta: 'super_nova_ext',
-    grok: 'grok-code-fast',
-    gemini: 'gemini-2.5-pro',
-    claude: 'sonnet',
-  }[provider];
+function firstReadyModel(providers: ProviderSetup[]): ModelChoice | undefined {
+  return modelChoices(providers).find((choice) => choice.ready);
+}
+
+function modelChoices(
+  providers: ProviderSetup[],
+  current?: { provider: ProviderId; model: string },
+): ModelChoice[] {
+  const choices = RELEASE_PROVIDER_ORDER.flatMap((providerId) => {
+    const provider = providers.find((candidate) => candidate.id === providerId);
+    if (!provider) return [];
+    const models = provider.models?.length
+      ? provider.models.map((model) => ({ id: model.id, label: model.label }))
+      : [{ id: provider.model, label: friendlyModelName(provider.id, provider.model) }];
+    return models.map((model) => ({
+      provider: provider.id,
+      model: model.id,
+      label:
+        provider.id === 'meta'
+          ? `${model.label} · Included`
+          : provider.id === 'codex'
+            ? `${model.label} · Codex plan`
+            : `${model.label} — ${provider.name}`,
+      ready: provider.status === 'ready',
+    }));
+  });
+
+  if (
+    current &&
+    !choices.some(
+      (choice) => choice.provider === current.provider && choice.model === current.model,
+    )
+  ) {
+    const provider = providers.find((candidate) => candidate.id === current.provider);
+    choices.push({
+      provider: current.provider,
+      model: current.model,
+      label: `${friendlyModelName(current.provider, current.model)} — ${provider?.name ?? 'Current plan'}`,
+      ready: provider?.status === 'ready',
+    });
+  }
+
+  return choices;
+}
+
+function friendlyModelName(provider: ProviderId, model: string): string {
+  if (provider === 'meta') return 'Included model';
+  if (model === 'gpt-5.6-sol') return 'GPT-5.6 Sol';
+  if (model === 'sonnet') return 'Sonnet';
+  return model
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => part[0]!.toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function modelValue(provider: ProviderId, model: string): string {
+  return `${provider}:${model}`;
+}
+
+function workspaceName(workspace: string): string {
+  return workspace.split(/[\\/]/).filter(Boolean).at(-1) ?? workspace;
 }

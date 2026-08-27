@@ -7,6 +7,7 @@ import type {
   ThreadDetail,
   ThreadEvent,
 } from './types';
+import { agentIdentity } from './agentIdentity';
 import { RESEARCH_CONSENT_VERSION } from '../shared/bridge';
 
 const iso = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
@@ -186,15 +187,15 @@ export const demoSnapshot: RendererSnapshot = {
         lastUsedAt: iso(1480),
         providerReported: true,
       },
-      billedBy: 'Uses your existing ChatGPT Codex plan or OpenAI API account.',
+      billedBy: 'Uses your existing ChatGPT Codex subscription.',
     },
     {
       id: 'meta',
-      name: 'Meta',
+      name: 'Included models',
       model: 'super_nova_ext',
       description: 'Hosted model access through the Sia cloud relay.',
       status: 'ready',
-      billedBy: 'Included for invited Sia alpha accounts; shared preview limits apply.',
+      billedBy: 'Provided by model labs through Sia; shared preview limits apply.',
     },
     {
       id: 'grok',
@@ -604,7 +605,7 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         ...draft,
         id,
         initials: initialsFor(draft.name),
-        hue: draft.hue ?? 0,
+        hue: draft.hue ?? agentIdentity(id),
         pinned: false,
         notificationsEnabled: true,
         threads: [],

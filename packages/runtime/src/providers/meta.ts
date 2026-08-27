@@ -129,7 +129,7 @@ export class MetaStreamingAdapter implements ProviderAdapter {
           ? {
               reason:
                 capabilities.reason ??
-                'Meta relay is missing required streaming or tool capabilities',
+                'Hosted model relay is missing required streaming or tool capabilities',
             }
           : {}),
       };
@@ -153,10 +153,10 @@ export class MetaStreamingAdapter implements ProviderAdapter {
     const capabilities = this.#capabilities ?? (await this.#transport.capabilities(signal));
     this.#capabilities = capabilities;
     if (!capabilities.available || !capabilities.streaming || !capabilities.tools) {
-      throw new Error(capabilities.reason ?? 'Meta relay is unavailable');
+      throw new Error(capabilities.reason ?? 'Hosted model relay is unavailable');
     }
     if (capabilities.models.length > 0 && !capabilities.models.includes(options.model)) {
-      throw new Error(`Meta model ${options.model} is not enabled by the relay`);
+      throw new Error(`Hosted model ${options.model} is not enabled by the relay`);
     }
     const session: ProviderSession = {
       id: options.threadId,

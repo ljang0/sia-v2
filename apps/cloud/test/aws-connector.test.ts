@@ -24,6 +24,9 @@ const secrets: SecretProvider = {
   meta: async () => {
     throw new Error('not used');
   },
+  elevenLabs: async () => {
+    throw new Error('not used');
+  },
   composio: async () => structuredClone(config),
   google: async () => {
     throw new Error('not used');

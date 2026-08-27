@@ -1,41 +1,41 @@
 # Sia
 
-Sia is a local-first personal computer assistant for macOS. Creating agents, running Codex, working
-with files and Git, using signed-in Chrome, controlling explicitly granted Mac apps, and running
-app-open background work require neither a Sia account nor cloud credits. It keeps the interface
-small while preserving the native strengths of supported provider CLIs. The invite-only research
-release uses an audited AWS control plane for identity, raw research sync, export, and deletion;
+Sia is a local-first personal computer assistant for macOS. A release build starts with email sign-in,
+then keeps agent history and local work available from the cached verified account while offline.
+Sia includes a daily allowance for catalog-driven model labs (Muse Spark is one example); people may
+alternatively use an existing Codex plan through Codex's official sign-in. Both choices run through
+the Codex App Server harness. The optional research program uses an
+audited AWS control plane for consented raw research sync, export, and deletion;
 Gmail, Drive, Docs, Sheets, Slides, and Slack remain separately gated optional capabilities.
 
-This repository is the clean v2 implementation. It intentionally does not contain the old visualization runtime, canvas, workflow engine, or provider-independent subagent system. Voice is a narrow, user-invoked ElevenLabs integration for dictation and concise read-aloud, with an optional voice per agent; it is not an autonomous voice-agent runtime.
+This repository is the clean v2 implementation. It intentionally does not contain the old visualization runtime, canvas, workflow engine, or provider-independent subagent system. Voice is a narrow, included, user-invoked ElevenLabs integration for dictation and concise read-aloud, with an optional voice per agent; it is not an autonomous voice-agent runtime and requires no user API key.
 
 ## Alpha contract
 
 - macOS 14 or newer.
-- When a release cloud is configured, first run offers Sia sign-in before agent setup and keeps a
-  clear **Continue locally** path. A cloud-disabled build goes directly to local setup and shows no
-  unusable account controls. After sign-in, Sia presents the required raw-research consent and then
-  opens the core app immediately. Google Workspace and Slack are optional Settings connections, not
+- When a release cloud is configured, first run requires Sia email sign-in before agent setup. A
+  cloud-disabled development build goes directly to local setup and shows no unusable account
+  controls. Research enrollment is optional and separate from the base account. Google Workspace
+  and Slack are optional Settings connections, not
   an onboarding gate. **Connect Google** performs one Google-owned OAuth approval for Gmail, Drive,
   Docs, Sheets, and Slides; **Connect Slack** performs one separate Slack-owned approval. People can
   still choose which connected services Sia may use and can reconnect or disconnect later.
 - Local execution requires Sia to be running and the Mac to remain awake.
 - Local turns keep running when the Sia window is closed on macOS, and the Activity view preserves their status when the window is reopened. The agent can create, list, update, and delete persisted once/hourly/daily/weekly schedules after approval. They run only while the Sia process is open and the Mac is awake; they are not an always-on daemon or OS cron job.
-- The cloud control plane handles sign-in, connected apps, the authenticated live-verified Meta relay,
-  and consented research sync. Meta is advertised only after a signed-in participant passes the live
-  model, streaming, and tool-capability check. The cloud does not yet provide a persistent remote
+- The cloud control plane handles sign-in, connected apps, authenticated live-verified model-lab relays,
+  and consented research sync. Included Meta is advertised only after a signed-in user passes the live
+  model, streaming, tool-capability, and local Codex-harness checks. The cloud does not yet provide a persistent remote
   computer, remote browser profile, or offline scheduled agent turns.
-- Codex is the default local provider through its official app-server protocol. It uses the person's
-  existing ChatGPT Codex entitlement—including Free when available—or their OpenAI API account. Sia
-  checks `codex login status` but never reads or imports Codex credentials. The alpha pins Codex CLI
-  `>=0.147.0 <0.150.0`; inherited extensions are disabled and verified before a thread starts.
-- Meta is included for signed-in invited alpha accounts through the Sia-owned AWS relay, so a
-  participant does not enter a Meta key. It is a shared preview service with per-account concurrency
-  limits and upstream availability limits, not a promise of permanently free API access. Claude is
-  also available through the person's installed and authenticated Claude Code CLI. Sia checks its
-  machine-readable auth state, runs non-persistent sessions, ignores inherited settings and MCP,
-  and exposes only Sia's short-lived tool capability. Gemini and Grok remain production-disabled
-  until their compatibility and isolation gates are satisfied.
+- Codex is a local provider through its official app-server protocol. It uses the person's existing
+  ChatGPT Codex entitlement; API-billed logins are rejected. **Settings → AI → Sign in with
+  ChatGPT** starts Codex App Server's official browser flow, then Sia checks `codex login status`.
+  Sia never reads or imports Codex credentials. The alpha pins Codex CLI
+  `>=0.147.0 <0.151.0`; inherited extensions are disabled and verified before a thread starts.
+- Lab-funded models are included for signed-in Sia accounts through the Sia-owned AWS relay, so a person
+  does not enter a model key. The desktop gives Codex only a random, model-scoped loopback capability;
+  Sia identity and the lab's permanent API key remain outside the Codex process. The relay has
+  per-account daily request/token limits, concurrency limits, and operator kill switches. Claude,
+  Gemini, Grok, OpenCode, and Pi are not offered as new-agent choices in this release.
 - Apple Messages works locally: reading recent iMessages needs Full Disk Access; sending is bound to
   an exact recipient and message. WhatsApp can use granted computer control. Slack uses its connected
   app path for dependable person lookup, DM resolution, message search, thread reads, and reviewed
@@ -53,8 +53,7 @@ This repository is the clean v2 implementation. It intentionally does not contai
   Connection setup, provider-page opening, success, failure, timeout, and
   disconnection are recorded in the local trajectory and the consented encrypted AWS research
   stream without retaining OAuth URLs, codes, or tokens.
-- Research capture is opt-in in local mode. A signed-in account is a research-release account and
-  must accept the current versioned consent to remain signed in. Under the v3 raw consent, Sia queues
+- Research capture is opt-in and separately entitled. Under the v3 raw consent, Sia queues
   the exact observed turn stream for AWS upload: prompts, responses, surfaced reasoning, provider
   events, commands and output, tool arguments/results, approvals, browser/computer events, connected-
   app results, paths/diffs, errors, and captured images. Bundles are organized by participant,
@@ -62,17 +61,16 @@ This repository is the clean v2 implementation. It intentionally does not contai
   archive. Sia still does not obtain provider credentials, Chrome cookies, Keychain contents, secure
   fields, or hidden credentials outside the task surface. Raw task content can contain private data
   or secrets, so the consent dialog must be read before joining. Alpha data is not used for training.
-- Local-only participants may pause research while retaining accepted consent. Signed-in
-  research-release accounts must sign out to stop new capture. Unsynced records remain in the
+- Research participants may pause research while retaining accepted consent. Unsynced records remain in the
   encrypted outbox until AWS acknowledges them; Sia will not silently discard them to satisfy a
   cache limit or during sign-out. Signed-in export is prepared asynchronously from the complete
   uploaded archive, while local-only export contains locally retained batches. Research deletion
   removes the active cloud copy when configured, clears the local copy, and resets consent.
 - Signed-in users can delete their Sia cloud account directly from Connected apps. Sia requires the exact phrase `DELETE ACCOUNT`, waits for the account-scope cloud job to report `completed`, and only then clears local Sia state and sign-in. It does not delete workspace files, provider CLI accounts, or macOS permissions.
-- Provider CLIs such as Codex and Claude Code are separately installed and authenticated by the
-  user; they are not bundled with Sia. Sia detects the official login and does not copy it. The
-  optional hosted Meta provider instead requires a signed-in invited Sia account and no participant
-  API key. Sia does not inject a visualization or canvas tool into the prime agent. Its added surface
+- The Codex CLI is separately installed and is not bundled with Sia. A personal Codex plan remains
+  authenticated by Codex; Sia detects the official login and does not copy it. The included model
+  catalog instead requires a signed-in Sia account but no ChatGPT login or user API key. Sia
+  does not inject a visualization or canvas tool into the prime agent. Its added surface
   is the fixed browser, computer, Gmail, Drive, Docs, Sheets, Slides, Slack, Messages, and scheduling
   gateway.
 - The Apps page also exposes local Chrome and Apple Messages entry points. Chrome reuses only an
@@ -130,7 +128,11 @@ manual acceptance pass below before an external alpha release.
 
 `pnpm package:mac` is the external-release gate, not a local development command. It requires an enabled packaged cloud configuration plus Apple Developer ID/notarization credentials, then verifies the hardened signature, Gatekeeper assessment, notarization staple, macOS 14 minimum, universal app/helper binaries, packaged CUA/UniFFI runtimes, license resources, and tool bridge. See [`docs/release.md`](./docs/release.md).
 
-Architecture, security boundaries, provider policy, the local/cloud product boundary, and manual acceptance checks are documented under [`docs/`](./docs/). Start with [`docs/cloud-computer.md`](./docs/cloud-computer.md) and the dated [`cloud-provider-decision.md`](./docs/cloud-provider-decision.md) before adding remote execution or an always-on cloud scheduler.
+Architecture, security boundaries, provider and [harness policy](./docs/harness-policy.md), the
+local/cloud product boundary, and manual acceptance checks are documented under [`docs/`](./docs/).
+Start with [`docs/cloud-computer.md`](./docs/cloud-computer.md) and the dated
+[`cloud-provider-decision.md`](./docs/cloud-provider-decision.md) before adding remote execution or
+an always-on cloud scheduler.
 
 Before inviting anyone, complete the authenticated-Chrome and deletion checklists in [`docs/manual-acceptance.md`](./docs/manual-acceptance.md). Account deletion is a signed-in, user-initiated flow under Settings → Apps; it does not require an operator to impersonate the user or submit the request for them.
 

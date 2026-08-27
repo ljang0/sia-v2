@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { readFile, stat } from 'node:fs/promises';
-import { basename, extname, isAbsolute, normalize, resolve } from 'node:path';
+import { mkdir, readFile, stat } from 'node:fs/promises';
+import { basename, extname, isAbsolute, join, normalize, resolve } from 'node:path';
 
 import { LocalLeaseCoordinator, type TurnLease } from '@sia/action-gateway';
 import type {
@@ -9,7 +9,8 @@ import type {
   ApprovalBroker,
   ApprovalRequest as GatewayApprovalRequest,
 } from '@sia/action-gateway';
-import type { ProviderAttachment, ThreadEventEnvelope } from '@sia/protocol';
+import type { ModelRoute, ProviderAttachment, ThreadEventEnvelope } from '@sia/protocol';
+import { admitHostedRoutes, legacyModelRoute, resolveExecutionTarget } from '@sia/runtime';
 
 import type { CloudClient } from './cloud-client.js';
 import type {
@@ -112,6 +113,9 @@ interface ControllerOptions {
   /** Reveals a directory in Finder; used for the trajectory log. */
   revealDirectory?(path: string): Promise<void>;
   chooseDirectory(): Promise<string | null>;
+  /** Visible app-managed root used when a new agent does not choose a custom folder. */
+  defaultWorkspaceRoot?: string;
+  createDirectory?(path: string): Promise<void>;
   chooseFiles?(): Promise<string[]>;
   openPath?(path: string): Promise<void>;
   composeFeedback?(subject: string, body: string): Promise<void>;
@@ -383,6 +387,8 @@ export class DesktopController {
   readonly #openExternal: (url: string) => Promise<void>;
   readonly #openMessages: (() => Promise<void>) | undefined;
   readonly #chooseDirectory: () => Promise<string | null>;
+  readonly #defaultWorkspaceRoot: string | undefined;
+  readonly #createDirectory: (path: string) => Promise<void>;
   readonly #chooseFiles: (() => Promise<string[]>) | undefined;
   readonly #openPath: ((path: string) => Promise<void>) | undefined;
   readonly #composeFeedback: ((subject: string, body: string) => Promise<void>) | undefined;
@@ -413,6 +419,8 @@ export class DesktopController {
   readonly #workspaceGrants = new Set<string>();
   readonly #attachmentGrants = new Map<string, AttachmentGrant>();
   readonly #failedTurnAttachments = new Map<string, readonly ProviderAttachment[]>();
+  readonly #backendModelRoutes = new Map<string, ModelRoute>();
+  readonly #allowedModelRoutes = new Map<string, readonly ModelRoute[]>();
   readonly #actionLeases = new LocalLeaseCoordinator(4);
   #queuedTurns: QueuedTurn[] = [];
   #researchSync: Promise<void> | undefined;
@@ -462,6 +470,14 @@ export class DesktopController {
     this.#revealDirectory = options.revealDirectory;
     this.#openMessages = options.openMessages;
     this.#chooseDirectory = options.chooseDirectory;
+    this.#defaultWorkspaceRoot = options.defaultWorkspaceRoot
+      ? normalizeWorkspace(options.defaultWorkspaceRoot)
+      : undefined;
+    this.#createDirectory =
+      options.createDirectory ??
+      (async (path) => {
+        await mkdir(path, { recursive: true, mode: 0o700 });
+      });
     this.#chooseFiles = options.chooseFiles;
     this.#openPath = options.openPath;
     this.#composeFeedback = options.composeFeedback;
@@ -848,6 +864,9 @@ export class DesktopController {
     await this.#reconcileIdentityBoundState();
     await this.#refreshCloudSession();
     await this.#refreshMetaProviderState();
+    if (this.#identity.status().state === 'signed_in') {
+      await this.#voice?.refresh().catch(() => undefined);
+    }
     this.#computerState = computer;
     this.#refreshResearchPendingCount();
     this.#persist();
@@ -995,7 +1014,9 @@ export class DesktopController {
       case 'bootstrap':
         return this.snapshot() as BridgeResultMap[M];
       case 'agents.save':
-        return this.#saveAgent(input as BridgeRequestMap['agents.save']) as BridgeResultMap[M];
+        return (await this.#saveAgent(
+          input as BridgeRequestMap['agents.save'],
+        )) as BridgeResultMap[M];
       case 'agents.delete':
         return this.#deleteAgent(
           (input as BridgeRequestMap['agents.delete']).agentId,
@@ -1243,9 +1264,7 @@ export class DesktopController {
       case 'browser.detach':
         return (await this.#detachBrowser()) as unknown as BridgeResultMap[M];
       case 'voice.configure':
-        return (await this.#configureVoice(
-          (input as BridgeRequestMap['voice.configure']).apiKey,
-        )) as unknown as BridgeResultMap[M];
+        return (await this.#configureVoice()) as unknown as BridgeResultMap[M];
       case 'voice.refresh':
         return (await this.#refreshVoice()) as unknown as BridgeResultMap[M];
       case 'voice.select':
@@ -1466,6 +1485,9 @@ export class DesktopController {
   }
 
   async shutdown(): Promise<void> {
+    // Quit must remain bounded even when an OS integration or provider subprocess
+    // stops responding. The app has already stopped accepting work at this point.
+    const shutdownDeadline = Date.now() + 8_000;
     if (this.#researchRetryTimer) clearTimeout(this.#researchRetryTimer);
     if (this.#scheduleTimer) clearInterval(this.#scheduleTimer);
     for (const controller of this.#runningTurns.values()) controller.abort();
@@ -1477,40 +1499,73 @@ export class DesktopController {
     this.#approvedConnectorBindings.clear();
     this.#connectionSetup?.controller.abort();
     this.#browserCapabilitySink?.resetBrowserCapabilities();
-    await Promise.allSettled([...this.#turnTasks.values()]);
-    await this.#connectionSetup?.task.catch(() => undefined);
-    await this.#researchSync?.catch(() => undefined);
-    await this.#runtime?.dispose();
+    await settleBeforeShutdown(
+      Promise.allSettled([...this.#turnTasks.values()]),
+      shutdownDeadline,
+    );
+    await settleBeforeShutdown(this.#connectionSetup?.task, shutdownDeadline);
+    await settleBeforeShutdown(this.#researchSync, shutdownDeadline);
+    await settleBeforeShutdown(this.#runtime?.dispose(), shutdownDeadline);
     this.#workspaceOperations?.dispose?.();
     this.#voice?.dispose?.();
-    await this.#computer.shutdown();
+    await settleBeforeShutdown(this.#computer.shutdown(), shutdownDeadline);
     this.#cancelStreamCommit();
     this.#persist();
     this.#repository.close();
   }
 
-  #saveAgent(input: BridgeRequestMap['agents.save']): BridgeResultMap['agents.save'] {
-    if (!isAbsolute(input.workspace))
-      throw new Error('Choose an absolute workspace directory.');
-    const workspace = normalizeWorkspace(input.workspace);
-    if (!this.#workspaceGrants.has(workspace)) {
-      throw new Error('Choose this workspace with the native folder picker before saving.');
-    }
-    this.#requireReadyProvider(input.provider, input.model.trim());
+  async #saveAgent(
+    input: BridgeRequestMap['agents.save'],
+  ): Promise<BridgeResultMap['agents.save']> {
+    this.#requireSignedInReleaseAccount();
     const now = new Date().toISOString();
     const existing = input.id
       ? this.#state.agents.find((candidate) => candidate.id === input.id)
       : undefined;
     const agentId = existing?.id ?? randomUUID();
+    const model = input.model.trim();
+    const provider = input.provider ?? existing?.provider ?? this.#providerForModel(model);
+    this.#requireReadyProvider(provider, model);
+    let workspace: string;
+    if (input.workspace?.trim()) {
+      if (!isAbsolute(input.workspace))
+        throw new Error('Choose an absolute workspace directory.');
+      workspace = normalizeWorkspace(input.workspace);
+      if (!this.#workspaceGrants.has(workspace)) {
+        throw new Error('Choose this workspace with the native folder picker before saving.');
+      }
+    } else if (existing) {
+      workspace = existing.workspace;
+    } else {
+      if (!this.#defaultWorkspaceRoot) {
+        throw new Error('Automatic workspaces are unavailable in this build. Choose a folder.');
+      }
+      workspace = join(
+        this.#defaultWorkspaceRoot,
+        `${workspaceSlug(input.name)}-${agentId.slice(0, 8)}`,
+      );
+      await this.#createDirectory(workspace);
+      this.#workspaceGrants.add(workspace);
+    }
+    const hue = input.hue ?? existing?.hue ?? this.#leastUsedHue();
     const agent: AgentView = {
       id: agentId,
       name: input.name.trim(),
       instructions: input.instructions.trim(),
-      provider: input.provider,
-      model: input.model.trim(),
+      provider,
+      model,
       workspace,
-      ...(input.voiceId ? { voiceId: input.voiceId.trim() } : {}),
-      ...(input.hue !== undefined ? { hue: input.hue } : {}),
+      ...(input.harnessPreference
+        ? { harnessPreference: structuredClone(input.harnessPreference) }
+        : existing?.harnessPreference
+          ? { harnessPreference: structuredClone(existing.harnessPreference) }
+          : { harnessPreference: { mode: 'automatic' } as const }),
+      ...(input.voiceId
+        ? { voiceId: input.voiceId.trim() }
+        : existing?.voiceId
+          ? { voiceId: existing.voiceId }
+          : {}),
+      hue,
       pinned: input.pinned ?? existing?.pinned ?? false,
       notificationsEnabled:
         input.notificationsEnabled ?? existing?.notificationsEnabled ?? true,
@@ -1522,6 +1577,10 @@ export class DesktopController {
     if (index >= 0) this.#state.agents[index] = agent;
     else this.#state.agents.push(agent);
     this.#state.activeAgentId = agentId;
+    if (!existing) {
+      const created = this.#createThread({ agentId });
+      return { agentId, snapshot: created.snapshot };
+    }
     this.#commit();
     return { agentId, snapshot: this.snapshot() };
   }
@@ -1597,15 +1656,40 @@ export class DesktopController {
   }
 
   #createThread(input: BridgeRequestMap['threads.create']): BridgeResultMap['threads.create'] {
+    this.#requireSignedInReleaseAccount();
     const agent = this.#requireAgent(input.agentId);
     const id = randomUUID();
     const now = new Date().toISOString();
+    const releaseRoute = legacyModelRoute(agent.provider, agent.model);
+    const backendDefault = this.#backendModelRoutes.get(
+      modelRouteKey(agent.provider, agent.model),
+    );
+    const allowedRoutes = this.#allowedModelRoutes.get(
+      modelRouteKey(agent.provider, agent.model),
+    ) ?? [releaseRoute];
+    const resolution = resolveExecutionTarget({
+      provider: agent.provider,
+      model: agent.model,
+      ...(agent.harnessPreference ? { preference: agent.harnessPreference } : {}),
+      ...(backendDefault ? { backendDefault } : {}),
+      allowedRoutes,
+    });
+    if (!resolution.ok) {
+      throw new Error(
+        resolution.harnessId === 'opencode_acp' || resolution.harnessId === 'pi_rpc'
+          ? 'That beta harness has not passed this release’s conformance and security checks.'
+          : resolution.message,
+      );
+    }
+    const resolvedExecutionTarget = resolution.target;
     const revision = createHash('sha256')
       .update(
         JSON.stringify({
           instructions: agent.instructions,
           provider: agent.provider,
           model: agent.model,
+          harnessPreference: agent.harnessPreference ?? { mode: 'automatic' },
+          resolvedExecutionTarget,
           workspace: agent.workspace,
           updatedAt: agent.updatedAt,
         }),
@@ -1620,6 +1704,8 @@ export class DesktopController {
       model: agent.model,
       ...(reasoningEffort ? { reasoningEffort } : {}),
       workspace: agent.workspace,
+      harnessId: resolvedExecutionTarget.harnessId,
+      resolvedExecutionTarget,
       agentRevision: revision,
       instructionsSnapshot: agent.instructions,
       agentNameSnapshot: agent.name,
@@ -1961,6 +2047,7 @@ export class DesktopController {
     reviewTarget?: QueuedTurn['reviewTarget'],
     scheduleRunId?: string,
   ): BridgeResultMap['threads.send'] {
+    this.#requireSignedInReleaseAccount();
     if (this.#state.capture.status === 'blocked') {
       throw new Error(
         this.#state.capture.blockedReason ??
@@ -2111,6 +2198,7 @@ export class DesktopController {
   }
 
   #retryTurn(threadId: string): BridgeResultMap['threads.retry'] {
+    this.#requireSignedInReleaseAccount();
     const thread = this.#requireThread(threadId);
     if (thread.status !== 'failed') throw new Error('Only a failed turn can be retried.');
     this.#requireReadyProvider(thread.provider, thread.model);
@@ -2681,22 +2769,47 @@ export class DesktopController {
     }
     if (providerId === 'meta') {
       if (provider.status === 'unavailable') {
-        throw new Error('Meta requires a configured Sia cloud deployment.');
+        throw new Error('Included models require a configured Sia cloud deployment.');
       }
       if (provider.status === 'needs_login') {
-        throw new Error('Sign in to Sia under Connected apps to use Meta.');
+        throw new Error('Sign in to Sia to use included lab models.');
       }
-      throw new Error('Meta is already available through your Sia account.');
+      throw new Error('Lab model access is already included with your Sia account.');
     }
     const installation =
       provider.status === 'needs_install' || provider.status === 'incompatible';
+    if (providerId === 'codex' && !installation) {
+      if (!this.#runtime) {
+        if (!this.#fakeServices) {
+          throw new Error(
+            'Codex sign-in is temporarily unavailable. Restart Sia and try again.',
+          );
+        }
+        await this.#openExternal('https://developers.openai.com/codex/auth/');
+        return { opened: true, snapshot: this.snapshot() };
+      }
+      const login = await this.#runtime.startCodexChatGptLogin();
+      try {
+        await this.#openExternal(login.authUrl);
+        await this.#runtime.waitForCodexChatGptLogin(login.loginId);
+      } catch (error) {
+        await this.#runtime.cancelCodexChatGptLogin(login.loginId).catch(() => undefined);
+        throw error;
+      }
+      const snapshot = await this.#probeProviders('codex');
+      const connected = snapshot.providers.find(({ id }) => id === 'codex');
+      if (connected?.status !== 'ready') {
+        throw new Error(
+          'ChatGPT sign-in finished, but Codex could not verify the connected plan.',
+        );
+      }
+      return { opened: true, snapshot };
+    }
     const urls: Partial<Record<ProviderId, string>> = {
       codex: installation
-        ? 'https://learn.chatgpt.com/docs/codex/cli'
-        : 'https://learn.chatgpt.com/docs/codex/auth',
-      gemini: installation
-        ? 'https://geminicli.com/docs/get-started/installation/'
-        : 'https://geminicli.com/docs/get-started/authentication/',
+        ? 'https://developers.openai.com/codex/cli/'
+        : 'https://developers.openai.com/codex/auth/',
+      claude: 'https://docs.anthropic.com/en/docs/claude-code/getting-started',
     };
     const url = urls[providerId];
     if (!url) throw new Error('This provider has no supported sign-in flow in the alpha.');
@@ -2973,8 +3086,8 @@ export class DesktopController {
     return this.snapshot();
   }
 
-  async #configureVoice(apiKey: string): Promise<DesktopSnapshot> {
-    await this.#requireVoice().configure(apiKey);
+  async #configureVoice(): Promise<DesktopSnapshot> {
+    await this.#requireVoice().configure();
     this.#emit();
     return this.snapshot();
   }
@@ -3159,11 +3272,7 @@ export class DesktopController {
       )
       .map((connection) => connection.id);
     if (pending.length === 0) return { opened: false, snapshot: this.snapshot() };
-    this.#recordLifecycleEvent(
-      'connector.guided_setup.started',
-      { apps: pending },
-      { requireResearch: true },
-    );
+    this.#recordLifecycleEvent('connector.guided_setup.started', { apps: pending });
 
     if (this.#fakeServices) {
       for (const connectionId of pending) {
@@ -3254,11 +3363,10 @@ export class DesktopController {
     if (!this.#fakeServices && !owner) {
       throw new Error('Sign in to Sia cloud before connecting an app.');
     }
-    this.#recordLifecycleEvent(
-      'connector.setup.started',
-      { app: connectionId, guided: Boolean(options.partOfBundle) },
-      { requireResearch: true },
-    );
+    this.#recordLifecycleEvent('connector.setup.started', {
+      app: connectionId,
+      guided: Boolean(options.partOfBundle),
+    });
     const affected = googleConnection ? GOOGLE_CONNECTION_IDS : [connectionId];
     for (const id of affected) {
       this.#connectorGenerations.set(id, (this.#connectorGenerations.get(id) ?? 0) + 1);
@@ -3348,6 +3456,7 @@ export class DesktopController {
     await this.#reconcileIdentityBoundState();
     await this.#refreshCloudSession();
     await this.#refreshMetaProviderState();
+    await this.#voice?.refresh().catch(() => undefined);
     this.#scheduleResearchSync();
     this.#commit();
     return this.snapshot();
@@ -3548,7 +3657,7 @@ export class DesktopController {
       this.#providers[index] = {
         ...current,
         status: 'unavailable',
-        detail: 'Meta requires a release build configured for Sia cloud.',
+        detail: 'Included models require a release build configured for Sia cloud.',
       };
       return;
     }
@@ -3556,7 +3665,7 @@ export class DesktopController {
       this.#providers[index] = {
         ...current,
         status: 'needs_login',
-        detail: 'Sign in to Sia cloud before using Meta.',
+        detail: 'Sign in to Sia before using included lab models.',
       };
       return;
     }
@@ -3564,39 +3673,109 @@ export class DesktopController {
       this.#providers[index] = {
         ...current,
         status: 'unavailable',
-        detail: 'Meta requires an authenticated live relay capability check.',
+        detail: 'Included models require an authenticated live capability check.',
+      };
+      return;
+    }
+    const codexHarness = this.#providers.find(({ id }) => id === 'codex');
+    if (
+      !codexHarness ||
+      codexHarness.status === 'needs_install' ||
+      codexHarness.status === 'incompatible' ||
+      codexHarness.status === 'disabled' ||
+      codexHarness.status === 'unavailable'
+    ) {
+      this.#providers[index] = {
+        ...current,
+        status: codexHarness?.status === 'incompatible' ? 'incompatible' : 'needs_install',
+        detail:
+          codexHarness?.status === 'incompatible'
+            ? 'Included models require the supported Codex harness version. Update Codex, then check again.'
+            : 'Included models require the Codex harness. Install Codex, then check again.',
       };
       return;
     }
     this.#providers[index] = {
       ...current,
       status: 'unavailable',
-      detail: 'Checking the authenticated Meta relay…',
+      detail: 'Checking included model labs…',
     };
     try {
       const capabilities = await this.#cloud.capabilities();
-      const model = capabilities.models.includes(current.model)
+      const catalog = await (typeof this.#cloud.hostedCatalog === 'function'
+        ? this.#cloud
+            .hostedCatalog()
+            .catch(() => ({ schemaVersion: 1 as const, providers: [] }))
+        : Promise.resolve({ schemaVersion: 1 as const, providers: [] }));
+      for (const key of this.#backendModelRoutes.keys()) {
+        if (key.startsWith('meta\u0000')) this.#backendModelRoutes.delete(key);
+      }
+      for (const key of this.#allowedModelRoutes.keys()) {
+        if (key.startsWith('meta\u0000')) this.#allowedModelRoutes.delete(key);
+      }
+      for (const hostedProvider of catalog.providers) {
+        if (!hostedProvider.execution) continue;
+        const admitted = admitHostedRoutes({
+          provider: 'meta',
+          defaultHarnessId: hostedProvider.execution.defaultHarnessId,
+          routes: hostedProvider.execution.routes,
+        });
+        const routesByModel = Map.groupBy(admitted.allowedRoutes, ({ model }) => model);
+        for (const [model, routes] of routesByModel) {
+          this.#allowedModelRoutes.set(modelRouteKey('meta', model), routes);
+        }
+        for (const route of admitted.allowedRoutes) {
+          if (route.harnessId !== hostedProvider.execution.defaultHarnessId) continue;
+          this.#backendModelRoutes.set(modelRouteKey('meta', route.model), route);
+        }
+      }
+      const availableHostedProviders = catalog.providers.filter(({ available }) => available);
+      const catalogModels = availableHostedProviders.flatMap(({ models }) =>
+        models.map(({ id }) => id),
+      );
+      const model = catalogModels.includes(current.model)
         ? current.model
-        : (capabilities.models[0] ?? current.model);
-      if (!capabilities.available || !capabilities.streaming || !capabilities.tools) {
+        : availableHostedProviders[0]?.defaultModel || capabilities.models[0] || current.model;
+      if (
+        (catalog.providers.length > 0 && availableHostedProviders.length === 0) ||
+        !capabilities.available ||
+        !capabilities.streaming ||
+        !capabilities.tools
+      ) {
         this.#providers[index] = {
           ...current,
           status: 'unavailable',
-          detail: capabilities.reason ?? 'Meta relay capabilities are incomplete.',
+          detail:
+            capabilities.reason ?? 'The included model relay is missing required capabilities.',
         };
         return;
       }
       this.#providers[index] = {
         ...current,
         model,
+        ...(availableHostedProviders.length > 0
+          ? {
+              models: availableHostedProviders.flatMap((hostedProvider) =>
+                hostedProvider.models.map(({ id, name }) => ({
+                  id,
+                  label: name,
+                  description: `${hostedProvider.name} · included with Sia · up to ${hostedProvider.limits.maxOutputTokens.toLocaleString()} output tokens per turn`,
+                  reasoningEfforts: [],
+                })),
+              ),
+            }
+          : {}),
         status: 'ready',
-        detail: 'Authenticated Meta relay verified live; local tools remain on this Mac.',
+        detail:
+          availableHostedProviders.length > 0
+            ? `${availableHostedProviders.length} model lab${availableHostedProviders.length === 1 ? '' : 's'} verified live`
+            : 'Included model verified live; local tools remain on this Mac.',
       };
     } catch {
       this.#providers[index] = {
         ...current,
         status: 'unavailable',
-        detail: 'Sia could not verify the authenticated Meta relay.',
+        detail: 'Sia could not verify the authenticated model relay.',
       };
     }
   }
@@ -4104,13 +4283,9 @@ export class DesktopController {
 
   /**
    * Records non-turn product activity without ever retaining an OAuth URL, code, or token.
-   * Signed-in connector setup is fail-closed unless the current raw research stream is active.
+   * Research is optional; lifecycle telemetry is copied only while capture is active.
    */
-  #recordLifecycleEvent(
-    eventType: string,
-    data: Record<string, unknown>,
-    options: { requireResearch?: boolean } = {},
-  ): void {
+  #recordLifecycleEvent(eventType: string, data: Record<string, unknown>): void {
     const occurredAt = new Date().toISOString();
     const threadId = 'app-lifecycle';
     const turnId = `lifecycle-${randomUUID()}`;
@@ -4122,12 +4297,6 @@ export class DesktopController {
     });
 
     if (!this.#rawResearchEnabled()) {
-      if (options.requireResearch && this.#researchRequiredForCurrentAccount()) {
-        throw new Error(
-          this.#state.capture.blockedReason ??
-            'Raw research recording must be active before connecting an app.',
-        );
-      }
       return;
     }
 
@@ -4139,12 +4308,6 @@ export class DesktopController {
       occurredAt,
     });
     this.#persistRawResearchTurn(turnId, 'completed');
-    if (options.requireResearch && this.#state.capture.status === 'blocked') {
-      throw new Error(
-        this.#state.capture.blockedReason ??
-          'Sia could not durably queue the connection record.',
-      );
-    }
   }
 
   #stageRawResearchEvent(input: {
@@ -4694,6 +4857,9 @@ export class DesktopController {
           id: thread.id,
           provider: thread.provider,
           model: thread.model,
+          ...(thread.resolvedExecutionTarget
+            ? { resolvedExecutionTarget: thread.resolvedExecutionTarget }
+            : {}),
           workspace: thread.workspace,
           instructions: thread.instructionsSnapshot,
           priorMessages: this.#state.timeline
@@ -5708,6 +5874,36 @@ export class DesktopController {
     return this.#providers.find(({ id }) => id === providerId)!;
   }
 
+  #requireSignedInReleaseAccount(): void {
+    if (this.#fakeServices || !this.#cloud.configured) return;
+    if (this.#identity.status().state !== 'signed_in') {
+      throw new Error('Sign in to Sia before creating an agent or starting a task.');
+    }
+  }
+
+  #providerForModel(model: string): ProviderId {
+    const matches = this.#providers.filter(
+      (provider) =>
+        provider.status === 'ready' &&
+        (provider.model === model ||
+          provider.models?.some((candidate) => candidate.id === model)),
+    );
+    if (matches.length !== 1) {
+      throw new Error('Choose an available model before saving this agent.');
+    }
+    return matches[0]!.id;
+  }
+
+  #leastUsedHue(): number {
+    const counts = [0, 0, 0, 0];
+    for (const agent of this.#state.agents) {
+      const slot =
+        Number.isInteger(agent.hue) && agent.hue! >= 0 && agent.hue! <= 3 ? agent.hue! : 0;
+      counts[slot] = (counts[slot] ?? 0) + 1;
+    }
+    return counts.reduce((best, count, index) => (count < counts[best]! ? index : best), 0);
+  }
+
   #requireThread(id: string): ThreadView {
     const thread = this.#state.threads.find((candidate) => candidate.id === id);
     if (!thread) throw new Error('Thread not found.');
@@ -5773,6 +5969,7 @@ export class DesktopController {
     recovered.usageByTurn = recovered.usageByTurn ?? {};
     recovered.agents = recovered.agents.map((agent) => ({
       ...agent,
+      harnessPreference: agent.harnessPreference ?? { mode: 'automatic' },
       pinned: agent.pinned ?? false,
       notificationsEnabled: agent.notificationsEnabled ?? true,
     }));
@@ -5797,8 +5994,12 @@ export class DesktopController {
     });
     recovered.threads = recovered.threads.map((thread) => {
       const agent = recovered.agents.find(({ id }) => id === thread.agentId);
+      const resolvedExecutionTarget =
+        thread.resolvedExecutionTarget ?? legacyResolvedExecutionTarget(thread);
       const restored: ThreadView = {
         ...thread,
+        harnessId: resolvedExecutionTarget.harnessId,
+        resolvedExecutionTarget,
         instructionsSnapshot: thread.instructionsSnapshot ?? agent?.instructions ?? '',
         agentNameSnapshot: thread.agentNameSnapshot ?? agent?.name ?? 'Agent',
         unread: thread.unread ?? false,
@@ -5889,6 +6090,26 @@ export class DesktopController {
   }
 }
 
+async function settleBeforeShutdown(
+  operation: PromiseLike<unknown> | undefined,
+  deadline: number,
+): Promise<void> {
+  if (!operation) return;
+  const remaining = Math.max(0, deadline - Date.now());
+  if (remaining === 0) return;
+  let timeout: NodeJS.Timeout | undefined;
+  await Promise.race([
+    Promise.resolve(operation).then(
+      () => undefined,
+      () => undefined,
+    ),
+    new Promise<void>((resolve) => {
+      timeout = setTimeout(resolve, remaining);
+    }),
+  ]);
+  if (timeout) clearTimeout(timeout);
+}
+
 function summarizeTitle(value: string): string {
   const words = value.trim().replace(/\s+/g, ' ').split(' ').slice(0, 7).join(' ');
   return words.length > 52 ? `${words.slice(0, 49)}...` : words || 'New thread';
@@ -5902,6 +6123,52 @@ function isStreamingDelta(event: ThreadEventEnvelope): boolean {
 
 function normalizeWorkspace(value: string): string {
   return normalize(resolve(value));
+}
+
+function workspaceSlug(value: string): string {
+  const slug = value
+    .trim()
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48);
+  return slug || 'agent';
+}
+
+function modelRouteKey(provider: ProviderId, model: string): string {
+  return `${provider}\u0000${model}`;
+}
+
+function legacyHarnessForProvider(
+  provider: ProviderId,
+): import('../shared/bridge.js').HarnessId {
+  if (provider === 'codex') return 'codex_app_server';
+  if (provider === 'claude') return 'claude_code';
+  if (provider === 'meta') return 'sia_direct';
+  return 'legacy_acp';
+}
+
+function legacyResolvedExecutionTarget(
+  thread: Pick<ThreadView, 'provider' | 'model' | 'harnessId'>,
+): NonNullable<ThreadView['resolvedExecutionTarget']> {
+  const route = legacyModelRoute(thread.provider, thread.model);
+  const storedHarness = (thread as { harnessId?: string }).harnessId;
+  const harnessId =
+    storedHarness === 'sia_default'
+      ? 'sia_direct'
+      : storedHarness &&
+          [
+            'codex_app_server',
+            'claude_code',
+            'legacy_acp',
+            'opencode_acp',
+            'pi_rpc',
+            'sia_direct',
+          ].includes(storedHarness)
+        ? (storedHarness as NonNullable<ThreadView['harnessId']>)
+        : legacyHarnessForProvider(thread.provider);
+  return { ...route, harnessId, resolutionSource: 'legacy_default' };
 }
 
 function abortableDelay(milliseconds: number, signal?: AbortSignal): Promise<void> {

@@ -32,9 +32,6 @@ export function PrivacySettings({
   const [error, setError] = useState<string>();
   const paused = snapshot.research.capture === 'paused';
   const blocked = snapshot.research.capture === 'blocked';
-  const researchRequired =
-    snapshot.cloudAuth.state === 'signed-in' &&
-    snapshot.cloudAuth.features?.researchUploads !== false;
   const uploadsPaused = snapshot.cloudAuth.features?.researchUploads === false;
   const captureLabel = uploadsPaused
     ? 'Not available'
@@ -63,7 +60,7 @@ export function PrivacySettings({
   return (
     <SettingsSectionHeader
       title="Privacy & research"
-      description="Research capture is visible and separate from provider or connected-app permissions."
+      description="Research participation is optional and separate from model or connection permissions."
     >
       <InlineSettingsError message={error} />
       {uploadsPaused ? (
@@ -105,7 +102,6 @@ export function PrivacySettings({
         ) : !snapshot.research.consented ? (
           <ResearchConsentDialog
             cloudAvailable={snapshot.cloudAuth.state !== 'unconfigured'}
-            researchRequired={researchRequired}
             onAccept={() => onSetCapturePaused(false)}
           />
         ) : blocked ? (
@@ -118,8 +114,6 @@ export function PrivacySettings({
             <ArrowClockwise size={15} aria-hidden="true" />
             {pending === 'capture' ? 'Checking storage…' : 'Retry capture'}
           </button>
-        ) : researchRequired ? (
-          <span className={styles.stateLabel}>Required while signed in</span>
         ) : (
           <button
             type="button"
@@ -155,9 +149,7 @@ export function PrivacySettings({
           <div>
             <strong>Your controls</strong>
             <p>
-              {researchRequired
-                ? 'Sign out to stop new collection. You can export local records or delete your research data. '
-                : 'Pause collection, export local records, or delete your research data. '}
+              Pause collection, export local records, or delete your research data.{' '}
               {snapshot.cloudAuth.state === 'signed-in'
                 ? 'Deletion also requests removal of active cloud research copies. '
                 : 'While signed out, captures stay encrypted on this Mac. '}
@@ -211,11 +203,7 @@ export function PrivacySettings({
           onClick={() => void run('export', onExport)}
         >
           <DownloadSimple size={16} aria-hidden="true" />
-          {pending === 'export'
-            ? 'Preparing export…'
-            : researchRequired
-              ? 'Export all research data'
-              : 'Export local records'}
+          {pending === 'export' ? 'Preparing export…' : 'Export research data'}
         </button>
         <DeleteResearchDialog
           cloudAvailable={snapshot.cloudAuth.state !== 'unconfigured'}

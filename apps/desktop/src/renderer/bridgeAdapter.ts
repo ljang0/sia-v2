@@ -369,8 +369,8 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async openMessages() {
       publish(await bridge.computer.openMessages());
     },
-    async configureVoice(apiKey) {
-      publish(await bridge.voice.configure(apiKey));
+    async configureVoice() {
+      publish(await bridge.voice.configure());
     },
     async refreshVoices() {
       publish(await bridge.voice.refresh());
@@ -446,6 +446,9 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
     provider: agent.provider,
     model: agent.model,
     workspace: agent.workspace,
+    ...(agent.harnessPreference
+      ? { harnessPreference: structuredClone(agent.harnessPreference) }
+      : {}),
     ...(agent.voiceId ? { voiceId: agent.voiceId } : {}),
     threads: agent.threadIds
       .map((threadId) => threadMap.get(threadId))

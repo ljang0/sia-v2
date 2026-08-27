@@ -1,16 +1,25 @@
 import { randomUUID } from 'node:crypto';
-import type { ProviderId, ThreadEventEnvelope } from '@sia/protocol';
+import type {
+  ExecutionAttribution,
+  HarnessId,
+  ProviderId,
+  ThreadEventEnvelope,
+} from '@sia/protocol';
 
 type EventByType<T extends ThreadEventEnvelope['type']> = Extract<
   ThreadEventEnvelope,
   { type: T }
 >;
 
+export type EventFactoryAttribution = Omit<ExecutionAttribution, 'provider'>;
+
 export class EventFactory {
   readonly #provider: ProviderId;
   readonly #threadId: string;
   readonly #turnId: string;
   readonly #now: () => Date;
+  readonly #harnessId: HarnessId | undefined;
+  readonly #model: string | undefined;
   #sequence = 0;
 
   constructor(
@@ -18,11 +27,14 @@ export class EventFactory {
     threadId: string,
     turnId: string,
     now: () => Date = () => new Date(),
+    attribution: EventFactoryAttribution = {},
   ) {
     this.#provider = provider;
     this.#threadId = threadId;
     this.#turnId = turnId;
     this.#now = now;
+    this.#harnessId = attribution.harnessId;
+    this.#model = attribution.model;
   }
 
   create<T extends ThreadEventEnvelope['type']>(
@@ -36,6 +48,8 @@ export class EventFactory {
       sequence: this.#sequence++,
       timestamp: this.#now().toISOString(),
       provider: this.#provider,
+      ...(this.#harnessId ? { harnessId: this.#harnessId } : {}),
+      ...(this.#model ? { model: this.#model } : {}),
       type,
       payload,
     } as EventByType<T>;

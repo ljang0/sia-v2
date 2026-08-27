@@ -26,6 +26,7 @@ const execFileAsync = promisify(execFile);
 import { MessagesService } from './messages-service.js';
 
 import { CloudClient } from './cloud-client.js';
+import { HostedResponsesProxy } from './hosted-responses-proxy.js';
 import { loadCloudConfiguration } from './cloud-config.js';
 import { DesktopController } from './controller.js';
 import { CuaService } from './cua-service.js';
@@ -96,7 +97,7 @@ if (!gotLock) {
       unregisterIpc = undefined;
       const closingController = controller;
       controller = undefined;
-      void closingController.shutdown().finally(() => app.quit());
+      void completeShutdown(closingController).finally(() => app.quit());
       return;
     }
     unregisterIpc?.();
@@ -104,6 +105,17 @@ if (!gotLock) {
   });
 
   void app.whenReady().then(createApplication).catch(reportStartupFailure);
+}
+
+async function completeShutdown(closingController: DesktopController): Promise<void> {
+  let timeout: NodeJS.Timeout | undefined;
+  await Promise.race([
+    closingController.shutdown().catch(() => undefined),
+    new Promise<void>((resolve) => {
+      timeout = setTimeout(resolve, 10_000);
+    }),
+  ]);
+  if (timeout) clearTimeout(timeout);
 }
 
 function showOrCreateApplicationWindow(): void {
@@ -165,6 +177,7 @@ async function performApplicationCreation(): Promise<void> {
         : {}),
     });
     const cloud = new CloudClient(cloudConfiguration.apiBaseUrl, identity);
+    const hostedResponsesProxy = fakeServices ? undefined : new HostedResponsesProxy(cloud);
     let activeController!: DesktopController;
     const computer = new CuaService({
       authorize: (request, context) => activeController.authorizeComputer(request, context),
@@ -209,6 +222,10 @@ async function performApplicationCreation(): Promise<void> {
       openExternal: openSafeExternal,
       openMessages: () => shell.openExternal('sms:', { activate: true }),
       chooseDirectory,
+      defaultWorkspaceRoot:
+        !app.isPackaged && process.env.SIA_TEST_WORKSPACE
+          ? process.env.SIA_TEST_WORKSPACE
+          : join(app.getPath('home'), 'Sia', 'Agents'),
       chooseFiles,
       exportJson,
       openPath: async (path) => {
@@ -245,7 +262,7 @@ async function performApplicationCreation(): Promise<void> {
       workspaceOperations: new WorkspaceOperationsService({
         privateWorktreeRoot: join(app.getPath('userData'), 'worktrees'),
       }),
-      voice: new ElevenLabsVoiceService({ repository }),
+      voice: new ElevenLabsVoiceService({ repository, gateway: cloud }),
       ...(startupNotice ? { startupNotice } : {}),
     });
     const actionBackend = new DesktopActionBackend({
@@ -304,12 +321,27 @@ async function performApplicationCreation(): Promise<void> {
     }
     activeRuntime = new RuntimeCoordinator(gateway, {
       metaTransport: cloud,
+      ...(hostedResponsesProxy
+        ? {
+            hostedCodexProvider: (providerSession) =>
+              hostedResponsesProxy.issue(providerSession.model),
+          }
+        : {}),
       ...(capabilityHost
         ? {
             acpMcpServerFactory: (_provider, session) => [
               capabilityHost!.mint(session.threadId),
             ],
-            onDispose: () => capabilityHost!.stop(),
+          }
+        : {}),
+      ...(hostedResponsesProxy || capabilityHost
+        ? {
+            onDispose: async () => {
+              await Promise.all([
+                hostedResponsesProxy?.dispose() ?? Promise.resolve(),
+                capabilityHost ? capabilityHost.stop() : Promise.resolve(),
+              ]);
+            },
           }
         : {}),
     });

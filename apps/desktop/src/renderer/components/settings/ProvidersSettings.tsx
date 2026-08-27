@@ -1,51 +1,41 @@
-import {
-  ArrowClockwise,
-  CheckCircle,
-  DownloadSimple,
-  WarningCircle,
-} from '@phosphor-icons/react';
+import { CheckCircle } from '@phosphor-icons/react';
 import { useState } from 'react';
-import {
-  providerSetupHref,
-  providerSetupLabel,
-  providerStatusLabel,
-} from '../../providerSetup';
+import { providerStatusLabel } from '../../providerSetup';
 import type { ProviderId, ProviderSetup } from '../../types';
 import styles from '../../ui.module.css';
 import { errorMessage, InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
 
+const RELEASE_PROVIDERS: ProviderId[] = ['meta', 'codex'];
+
 export function ProvidersSettings({
   providers,
   onProbe,
+  onOpenProviderSetup = onProbe,
   onOpenCloudSettings,
-  updates = DEFAULT_UPDATES,
-  onCheckForUpdates = async () => undefined,
-  onOpenUpdateDownload = async () => undefined,
 }: {
   providers: ProviderSetup[];
   onProbe(provider: ProviderId): Promise<void>;
+  onOpenProviderSetup?(provider: ProviderId): Promise<void>;
   onOpenCloudSettings(): void;
-  updates?: import('../../types').RendererSnapshot['updates'] | undefined;
-  onCheckForUpdates?: (() => Promise<void>) | undefined;
-  onOpenUpdateDownload?: (() => Promise<void>) | undefined;
 }) {
   const [pending, setPending] = useState<ProviderId>();
   const [error, setError] = useState<string>();
-  const [setupOpened, setSetupOpened] = useState<Set<ProviderId>>(() => new Set());
-  const [updatePending, setUpdatePending] = useState(false);
+  const visibleProviders = RELEASE_PROVIDERS.flatMap((providerId) => {
+    const provider = providers.find((candidate) => candidate.id === providerId);
+    return provider ? [provider] : [];
+  });
 
-  const probe = async (provider: ProviderSetup) => {
+  const run = async (
+    provider: ProviderSetup,
+    action: (provider: ProviderId) => Promise<void>,
+    fallback: string,
+  ) => {
     setPending(provider.id);
     setError(undefined);
     try {
-      await onProbe(provider.id);
-      setSetupOpened((current) => {
-        const next = new Set(current);
-        next.delete(provider.id);
-        return next;
-      });
+      await action(provider.id);
     } catch (cause) {
-      setError(errorMessage(cause, 'The provider could not be checked.'));
+      setError(errorMessage(cause, fallback));
     } finally {
       setPending(undefined);
     }
@@ -53,158 +43,135 @@ export function ProvidersSettings({
 
   return (
     <SettingsSectionHeader
-      title="Providers"
-      description="Sia detects official clients and service availability. Authentication stays in each provider's own flow."
+      title="AI access"
+      description="Use the included model, or connect your ChatGPT plan for Codex."
     >
       <InlineSettingsError message={error} />
       <div className={styles.settingsList}>
-        {providers.map((provider) => {
-          const href = providerSetupHref(provider);
-          const opened = setupOpened.has(provider.id);
-          return (
-            <div className={styles.settingsRow} key={provider.id}>
-              <div
-                className={styles.providerGlyph}
-                data-provider={provider.id}
-                aria-hidden="true"
+        {visibleProviders.map((provider) => (
+          <div className={styles.settingsRow} key={provider.id}>
+            <div
+              className={styles.providerGlyph}
+              data-provider={provider.id}
+              aria-hidden="true"
+            >
+              {providerMonogram(provider.id)}
+            </div>
+            <div className={styles.settingsRowBody}>
+              <div className={styles.rowTitleLine}>
+                <strong>{providerName(provider)}</strong>
+                <ProviderStatusLabel provider={provider} />
+              </div>
+              <p>{providerDescription(provider)}</p>
+            </div>
+            {provider.id === 'meta' && provider.status === 'needs-login' ? (
+              <button
+                type="button"
+                className={styles.primaryButton}
+                disabled={Boolean(pending)}
+                onClick={onOpenCloudSettings}
               >
-                {providerMonogram(provider.id)}
-              </div>
-              <div className={styles.settingsRowBody}>
-                <div className={styles.rowTitleLine}>
-                  <strong>{provider.name}</strong>
-                  <ProviderStatusLabel provider={provider} />
-                </div>
-                <p>{provider.description}</p>
-                <div className={styles.rowMeta}>
-                  <span>{provider.billedBy}</span>
-                  {provider.account ? <span>{provider.account}</span> : null}
-                  {provider.version ? <span>CLI {provider.version}</span> : null}
-                </div>
-                {provider.usage ? (
-                  <div className={styles.providerUsage}>
-                    <strong>{provider.usage.requests} requests</strong>
-                    <span>{compactNumber(provider.usage.inputTokens)} in</span>
-                    <span>{compactNumber(provider.usage.outputTokens)} out</span>
-                    <span>{compactNumber(provider.usage.cachedInputTokens)} cached</span>
-                    <small>Provider-reported activity · not an invoice</small>
-                  </div>
-                ) : null}
-                {provider.restriction ? (
-                  <div className={styles.inlineWarning}>
-                    <WarningCircle size={15} aria-hidden="true" />
-                    {provider.restriction}
-                  </div>
-                ) : null}
-              </div>
-              {provider.id === 'meta' && provider.status === 'needs-login' ? (
-                <button
-                  type="button"
-                  className={styles.secondaryButton}
-                  disabled={Boolean(pending)}
-                  onClick={onOpenCloudSettings}
-                >
-                  {providerSetupLabel(provider)}
-                </button>
-              ) : href && !opened ? (
-                <a
-                  className={`${styles.secondaryButton} ${styles.externalSetupLink}`}
-                  href={href}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => setSetupOpened((current) => new Set(current).add(provider.id))}
-                >
-                  {providerSetupLabel(provider)}
-                </a>
-              ) : (
-                <button
-                  type="button"
-                  className={styles.secondaryButton}
-                  disabled={provider.status === 'disabled' || Boolean(pending)}
-                  onClick={() => void probe(provider)}
-                >
-                  {pending === provider.id
-                    ? 'Checking...'
-                    : opened
-                      ? 'Recheck'
-                      : providerSetupLabel(provider)}
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      <div className={styles.settingsList}>
-        <div className={styles.settingsRow}>
-          <div className={styles.providerGlyph} aria-hidden="true">
-            <ArrowClockwise size={18} />
+                Sign in
+              </button>
+            ) : provider.id === 'meta' &&
+              (provider.status === 'needs-install' || provider.status === 'incompatible') ? (
+              <button
+                type="button"
+                className={styles.primaryButton}
+                disabled={Boolean(pending)}
+                onClick={() =>
+                  void run(
+                    provider,
+                    () => onOpenProviderSetup('codex'),
+                    'Codex harness setup could not be opened.',
+                  )
+                }
+              >
+                {pending === provider.id
+                  ? 'Opening…'
+                  : provider.status === 'incompatible'
+                    ? 'Update Codex harness'
+                    : 'Install Codex harness'}
+              </button>
+            ) : provider.status === 'ready' ||
+              provider.status === 'disabled' ? null : provider.status === 'unavailable' ? (
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                disabled={Boolean(pending)}
+                onClick={() =>
+                  void run(provider, onProbe, `${providerName(provider)} could not be checked.`)
+                }
+              >
+                {pending === provider.id ? 'Checking…' : 'Try again'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={styles.primaryButton}
+                disabled={Boolean(pending)}
+                onClick={() =>
+                  void run(
+                    provider,
+                    onOpenProviderSetup,
+                    `${providerName(provider)} setup could not be opened.`,
+                  )
+                }
+              >
+                {pending === provider.id ? pendingAction(provider) : setupAction(provider)}
+              </button>
+            )}
           </div>
-          <div className={styles.settingsRowBody}>
-            <div className={styles.rowTitleLine}>
-              <strong>Desktop updates</strong>
-              <span className={styles.stateLabel}>v{updates.currentVersion}</span>
-            </div>
-            <p>{updates.detail}</p>
-            {updates.latestVersion ? (
-              <div className={styles.rowMeta}>Latest release: {updates.latestVersion}</div>
-            ) : null}
-          </div>
-          {updates.status === 'available' ? (
-            <button
-              type="button"
-              className={styles.primaryButton}
-              onClick={() => void onOpenUpdateDownload()}
-            >
-              <DownloadSimple size={15} aria-hidden="true" />
-              Download
-            </button>
-          ) : (
-            <button
-              type="button"
-              className={styles.secondaryButton}
-              disabled={updates.status === 'unconfigured' || updatePending}
-              onClick={() => {
-                setUpdatePending(true);
-                void onCheckForUpdates().finally(() => setUpdatePending(false));
-              }}
-            >
-              {updatePending ? 'Checking…' : 'Check now'}
-            </button>
-          )}
-        </div>
+        ))}
       </div>
     </SettingsSectionHeader>
   );
 }
 
-const DEFAULT_UPDATES: import('../../types').RendererSnapshot['updates'] = {
-  status: 'unconfigured',
-  currentVersion: 'unknown',
-  detail: 'This build does not expose an update feed.',
-};
-
-function compactNumber(value: number): string {
-  return new Intl.NumberFormat(undefined, {
-    notation: value >= 1_000 ? 'compact' : 'standard',
-    maximumFractionDigits: 1,
-  }).format(value);
+function providerName(provider: ProviderSetup): string {
+  if (provider.id === 'meta') return 'Included model';
+  if (provider.id === 'codex') return 'Codex plan';
+  return provider.name;
 }
 
-function providerMonogram(provider: ProviderId) {
-  return {
-    codex: 'Cx',
-    meta: 'M',
-    grok: 'G',
-    gemini: 'Ge',
-    claude: 'Cl',
-  }[provider];
+function providerDescription(provider: ProviderSetup): string {
+  if (provider.id === 'meta')
+    return 'Ready with your Sia account. No API key or ChatGPT login needed.';
+  if (provider.id === 'codex') return 'Use the Codex access included with your ChatGPT plan.';
+  if (provider.id === 'claude')
+    return 'Use the Claude plan already connected to this computer.';
+  return provider.description;
+}
+
+function providerMonogram(provider: ProviderId): string {
+  return { meta: 'M', codex: 'C', claude: 'Cl', grok: 'G', gemini: 'Ge' }[provider];
+}
+
+function setupAction(provider: ProviderSetup): string {
+  if (provider.status === 'needs-install') return 'Install Codex';
+  if (provider.status === 'incompatible') return 'Update Codex';
+  if (provider.id === 'codex' && provider.status === 'needs-login')
+    return 'Sign in with ChatGPT';
+  return 'Connect';
+}
+
+function pendingAction(provider: ProviderSetup): string {
+  return provider.id === 'codex' && provider.status === 'needs-login'
+    ? 'Waiting for sign-in…'
+    : 'Opening…';
 }
 
 function ProviderStatusLabel({ provider }: { provider: ProviderSetup }) {
+  const label =
+    provider.status === 'ready'
+      ? provider.id === 'meta'
+        ? 'Ready'
+        : 'Connected'
+      : providerStatusLabel(provider);
   return (
     <span className={`${styles.stateLabel} ${styles[`state_${provider.status}`]}`}>
       {provider.status === 'ready' ? <CheckCircle size={14} aria-hidden="true" /> : null}
-      {providerStatusLabel(provider)}
+      {label}
     </span>
   );
 }

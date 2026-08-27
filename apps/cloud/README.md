@@ -7,6 +7,8 @@ Routes:
 - `GET /v1/session` — authenticated operator feature policy for research uploads/archive,
   connectors, and schedules.
 - `POST /v1/meta/turns` — authenticated OpenAI-compatible Meta relay as SSE. Prompt/tool payloads are streamed and never persisted or logged.
+- `POST /v1/responses` — authenticated Responses-compatible stream consumed by the desktop's
+  model-scoped Codex loopback proxy. The model-lab key remains server-side.
 - `POST|GET|DELETE /v1/connections/{app}` — managed Gmail, Drive, Docs, Sheets, Slides, and Slack links.
 - `POST /v1/actions/prepare` — executes reviewed reads immediately; mutation tools return an expiring preview and digest.
 - `POST /v1/actions/commit` — resubmits the exact input. The digest must match and an atomic one-shot claim prevents automatic duplicate writes. No mutation body is stored.

@@ -1,4 +1,8 @@
 export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude';
+/** Safe catalog id. The main process decides whether the corresponding adapter is admitted. */
+export type HarnessId = string;
+export type HarnessPreference =
+  { mode: 'automatic' } | { mode: 'explicit'; harnessId: HarnessId };
 
 export type ThreadStatus = 'idle' | 'running' | 'queued' | 'waiting' | 'error';
 
@@ -16,6 +20,7 @@ export interface AgentSummary {
   provider: ProviderId;
   model: string;
   workspace: string;
+  harnessPreference?: HarnessPreference;
   voiceId?: string;
   initials: string;
   /** Resolved hue slot 0-3 (explicit choice or stable id-derived default). */
@@ -439,6 +444,7 @@ export interface AgentDraft {
   provider: ProviderId;
   model: string;
   workspace: string;
+  harnessPreference?: HarnessPreference;
   voiceId?: string;
   hue?: number;
 }
@@ -586,7 +592,7 @@ export interface RendererApi {
   setTrajectoryLog(enabled: boolean): Promise<void>;
   revealTrajectories(): Promise<void>;
   openMessages(): Promise<void>;
-  configureVoice(apiKey: string): Promise<void>;
+  configureVoice(): Promise<void>;
   refreshVoices(): Promise<void>;
   selectVoice(voiceId: string): Promise<void>;
   disconnectVoice(): Promise<void>;

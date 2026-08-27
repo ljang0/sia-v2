@@ -31,16 +31,23 @@ import {
   UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import {
+  harnessIdSchema,
+  hostedCatalogRouteSchema,
+  modelApiProtocolSchema,
+} from '@sia/protocol';
 import { createHash, randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
 import {
   LEGACY_GOOGLE_APP_IDS,
   TOOL_POLICIES,
+  VOICE_TOKEN_TYPES,
   type AppId,
   type DeletionScope,
   type MetaStreamEvent,
   type MetaTurnRequest,
   type ToolName,
+  type VoiceTokenType,
 } from './contracts.js';
 import { assertComposioContract } from './connector-contract.js';
 import { CloudError, isRecord } from './domain.js';
@@ -64,10 +71,12 @@ import type {
   ConnectorUploadRecord,
   ConnectorUploadRepository,
   ConsentReceipt,
+  DailyQuotaWindow,
   DeletionJob,
   DeletionQueue,
   DeletionRepository,
   DeletionState,
+  ElevenLabsConfig,
   GoogleCredentialRepository,
   GoogleOAuthConfig,
   GoogleOAuthStateRecord,
@@ -75,8 +84,12 @@ import type {
   IdentityProvider,
   InviteRecord,
   InviteRepository,
+  HostedLabConfig,
   MetaConfig,
   MetaProvider,
+  MetaQuotaPolicy,
+  MetaTokenUsage,
+  MetaUsageSnapshot,
   PreparedActionRecord,
   QuotaGate,
   RegistrationRateLimitRepository,
@@ -90,6 +103,9 @@ import type {
   ReleaseManifestStore,
   SecretProvider,
   TokenCipher,
+  VoiceCatalogEntry,
+  VoiceProvider,
+  VoiceTokenQuotaPolicy,
 } from './ports.js';
 import type { ServiceDependencies } from './services.js';
 
@@ -121,6 +137,7 @@ export interface RuntimeConfig {
   exportQueueUrl: string;
   userPoolId: string;
   metaSecretArn: string;
+  elevenLabsSecretArn: string;
   composioSecretArn: string;
   googleSecretArn: string;
   registrationSecretArn: string;
@@ -128,11 +145,16 @@ export interface RuntimeConfig {
   actionTtlSeconds: number;
   inviteLimit: number;
   metaConcurrency: number;
+  metaDailyRequestLimit: number;
+  metaDailyTokenLimit: number;
+  voiceDailyTokenMintLimit: number;
   features: {
     researchUploads: boolean;
     researchArchive: boolean;
     connectors: boolean;
     schedules: boolean;
+    hostedModels: boolean;
+    hostedVoice: boolean;
   };
 }
 
@@ -147,6 +169,7 @@ export function loadRuntimeConfig(environment: NodeJS.ProcessEnv = process.env):
     exportQueueUrl: requiredEnv(environment, 'EXPORT_QUEUE_URL'),
     userPoolId: requiredEnv(environment, 'USER_POOL_ID'),
     metaSecretArn: requiredEnv(environment, 'META_SECRET_ARN'),
+    elevenLabsSecretArn: requiredEnv(environment, 'ELEVENLABS_SECRET_ARN'),
     composioSecretArn: requiredEnv(environment, 'COMPOSIO_SECRET_ARN'),
     googleSecretArn: requiredEnv(environment, 'GOOGLE_SECRET_ARN'),
     registrationSecretArn: requiredEnv(environment, 'REGISTRATION_SECRET_ARN'),
@@ -157,11 +180,25 @@ export function loadRuntimeConfig(environment: NodeJS.ProcessEnv = process.env):
     ),
     inviteLimit: positiveInteger(environment.INVITE_LIMIT ?? '20', 'INVITE_LIMIT'),
     metaConcurrency: positiveInteger(environment.META_CONCURRENCY ?? '2', 'META_CONCURRENCY'),
+    metaDailyRequestLimit: positiveInteger(
+      environment.META_DAILY_REQUEST_LIMIT ?? '100',
+      'META_DAILY_REQUEST_LIMIT',
+    ),
+    metaDailyTokenLimit: positiveInteger(
+      environment.META_DAILY_TOKEN_LIMIT ?? '250000',
+      'META_DAILY_TOKEN_LIMIT',
+    ),
+    voiceDailyTokenMintLimit: positiveInteger(
+      environment.VOICE_DAILY_TOKEN_MINT_LIMIT ?? '20',
+      'VOICE_DAILY_TOKEN_MINT_LIMIT',
+    ),
     features: {
       researchUploads: booleanEnv(environment.ENABLE_RESEARCH_UPLOADS ?? 'true'),
       researchArchive: booleanEnv(environment.ENABLE_RESEARCH_ARCHIVE ?? 'true'),
       connectors: booleanEnv(environment.ENABLE_CONNECTORS ?? 'true'),
       schedules: booleanEnv(environment.ENABLE_SCHEDULES ?? 'true'),
+      hostedModels: booleanEnv(environment.ENABLE_HOSTED_MODELS ?? 'true'),
+      hostedVoice: booleanEnv(environment.ENABLE_HOSTED_VOICE ?? 'false'),
     },
   };
 }
@@ -1113,7 +1150,7 @@ export class CognitoIdentity implements IdentityProvider {
   }
   async addUserToGroup(
     email: string,
-    group: 'Participants' | 'ConnectorTesters',
+    group: 'Users' | 'Participants' | 'ConnectorTesters',
   ): Promise<void> {
     await this.client.send(
       new AdminAddUserToGroupCommand({
@@ -1150,6 +1187,7 @@ export class SecretsManagerProvider implements SecretProvider {
   constructor(
     private readonly client: SecretsManagerClient,
     private readonly metaSecretArn: string,
+    private readonly elevenLabsSecretArn: string,
     private readonly composioSecretArn: string,
     private readonly googleSecretArn: string,
     private readonly registrationSecretArn: string,
@@ -1159,6 +1197,11 @@ export class SecretsManagerProvider implements SecretProvider {
   async meta(): Promise<MetaConfig> {
     const value = await this.read(this.metaSecretArn);
     return parseMetaConfig(value);
+  }
+
+  async elevenLabs(): Promise<ElevenLabsConfig> {
+    const value = await this.read(this.elevenLabsSecretArn);
+    return parseElevenLabsConfig(value);
   }
 
   async composio(): Promise<ComposioConfig> {
@@ -1379,7 +1422,7 @@ export class ComposioConnector implements ConnectorProvider {
 }
 
 export class OpenAiCompatibleMetaProvider implements MetaProvider {
-  async capabilities(config: MetaConfig): Promise<{
+  async capabilities(config: HostedLabConfig): Promise<{
     models: string[];
     streaming: boolean;
     tools: boolean;
@@ -1399,7 +1442,7 @@ export class OpenAiCompatibleMetaProvider implements MetaProvider {
       throw new CloudError(
         502,
         'meta_upstream_error',
-        `Meta returned HTTP ${response.status}`,
+        `Hosted model lab returned HTTP ${response.status}`,
         response.status >= 500,
       );
     }
@@ -1410,23 +1453,28 @@ export class OpenAiCompatibleMetaProvider implements MetaProvider {
         isRecord(entry) && typeof entry.id === 'string' ? [entry.id] : [],
       ),
     );
-    const configuredModels = config.allowedModels?.length
-      ? config.allowedModels
-      : [config.model];
+    const configuredModels = config.allowedModels ?? [config.model];
     const models = configuredModels.filter((model) => upstreamModels.has(model));
     if (!models.length) {
       throw new CloudError(
         503,
         'meta_model_unavailable',
-        'The configured Meta model is not available',
+        'The configured hosted model is not available',
         true,
       );
     }
     return { models, streaming: true, tools: true };
   }
 
-  async *stream(config: MetaConfig, request: MetaTurnRequest): AsyncIterable<MetaStreamEvent> {
-    const endpoint = new URL('chat/completions', ensureTrailingSlash(config.endpoint));
+  async *stream(
+    config: HostedLabConfig,
+    request: MetaTurnRequest,
+  ): AsyncIterable<MetaStreamEvent> {
+    const apiProtocol = config.apiProtocol ?? 'openai_chat_completions';
+    const endpoint = new URL(
+      apiProtocol === 'openai_responses' ? 'responses' : 'chat/completions',
+      ensureTrailingSlash(config.endpoint),
+    );
     if (endpoint.protocol !== 'https:')
       throw new CloudError(503, 'meta_config_invalid', 'Meta endpoint must use HTTPS');
     const sessionId = request.sessionId ?? randomUUID();
@@ -1438,19 +1486,17 @@ export class OpenAiCompatibleMetaProvider implements MetaProvider {
         accept: 'text/event-stream',
         [config.sessionHeader ?? 'x-session-id']: sessionId,
       },
-      body: JSON.stringify({
-        model: request.model ?? config.model,
-        messages: request.messages,
-        stream: true,
-        stream_options: { include_usage: true },
-        ...(request.tools === undefined ? {} : { tools: request.tools, tool_choice: 'auto' }),
-      }),
+      body: JSON.stringify(
+        apiProtocol === 'openai_responses'
+          ? responsesRequestBody(config, request)
+          : chatCompletionsRequestBody(config, request),
+      ),
     });
     if (!response.ok || !response.body) {
       throw new CloudError(
         502,
         'meta_upstream_error',
-        `Meta returned HTTP ${response.status}`,
+        `Hosted model lab returned HTTP ${response.status}`,
         response.status >= 500,
       );
     }
@@ -1460,36 +1506,290 @@ export class OpenAiCompatibleMetaProvider implements MetaProvider {
       sessionId: response.headers.get(config.sessionHeader ?? 'x-session-id') ?? sessionId,
       model: request.model ?? config.model,
     };
-    let finishReason: string | undefined;
-    for await (const data of sseData(response.body)) {
-      if (data === '[DONE]') {
-        yield { type: 'done', ...(finishReason === undefined ? {} : { finishReason }) };
-        return;
-      }
-      let chunk: unknown;
-      try {
-        chunk = JSON.parse(data);
-      } catch {
-        continue;
-      }
-      if (!isRecord(chunk)) continue;
-      if (isRecord(chunk.usage)) yield { type: 'usage', usage: chunk.usage };
-      const choices = Array.isArray(chunk.choices) ? chunk.choices : [];
-      for (const choice of choices) {
-        if (!isRecord(choice)) continue;
-        const delta = isRecord(choice.delta) ? choice.delta : undefined;
-        if (delta && typeof delta.content === 'string' && delta.content.length > 0) {
-          yield { type: 'delta', text: delta.content };
-        }
-        if (delta && delta.tool_calls !== undefined) {
-          yield { type: 'tool_call_delta', delta: delta.tool_calls };
-        }
-        if (typeof choice.finish_reason === 'string') {
-          finishReason = choice.finish_reason;
-        }
-      }
+    yield* apiProtocol === 'openai_responses'
+      ? readResponsesEvents(response.body)
+      : readChatCompletionEvents(response.body);
+  }
+}
+
+function chatCompletionsRequestBody(config: HostedLabConfig, request: MetaTurnRequest) {
+  return {
+    model: request.model ?? config.model,
+    messages: request.messages,
+    stream: true,
+    stream_options: { include_usage: true },
+    ...(config.maxOutputTokens === undefined ? {} : { max_tokens: config.maxOutputTokens }),
+    ...(request.tools === undefined ? {} : { tools: request.tools, tool_choice: 'auto' }),
+  };
+}
+
+function responsesRequestBody(config: HostedLabConfig, request: MetaTurnRequest) {
+  const input: unknown[] = [];
+  for (const message of request.messages) {
+    if (message.role === 'tool') {
+      input.push({
+        type: 'function_call_output',
+        call_id: message.tool_call_id,
+        output: message.content,
+      });
+      continue;
     }
-    yield { type: 'done', ...(finishReason === undefined ? {} : { finishReason }) };
+    if (
+      (typeof message.content === 'string' && message.content.length > 0) ||
+      (Array.isArray(message.content) && message.content.length > 0)
+    ) {
+      input.push({ role: message.role, content: message.content });
+    }
+    for (const call of message.tool_calls ?? []) {
+      input.push({
+        type: 'function_call',
+        call_id: call.id,
+        name: call.function.name,
+        arguments: call.function.arguments,
+      });
+    }
+  }
+  return {
+    model: request.model ?? config.model,
+    input,
+    stream: true,
+    ...(config.maxOutputTokens === undefined
+      ? {}
+      : { max_output_tokens: config.maxOutputTokens }),
+    ...(request.tools === undefined
+      ? {}
+      : {
+          tools: request.tools.map(({ function: tool }) => ({
+            type: 'function',
+            name: tool.name,
+            ...(tool.description ? { description: tool.description } : {}),
+            parameters: tool.parameters,
+          })),
+          tool_choice: 'auto',
+        }),
+  };
+}
+
+async function* readChatCompletionEvents(
+  body: ReadableStream<Uint8Array>,
+): AsyncIterable<MetaStreamEvent> {
+  let finishReason: string | undefined;
+  for await (const data of sseData(body)) {
+    if (data === '[DONE]') {
+      yield { type: 'done', ...(finishReason === undefined ? {} : { finishReason }) };
+      return;
+    }
+    const chunk = parseSseRecord(data);
+    if (!chunk) continue;
+    if (isRecord(chunk.usage)) yield { type: 'usage', usage: chunk.usage };
+    const choices = Array.isArray(chunk.choices) ? chunk.choices : [];
+    for (const choice of choices) {
+      if (!isRecord(choice)) continue;
+      const delta = isRecord(choice.delta) ? choice.delta : undefined;
+      if (delta && typeof delta.content === 'string' && delta.content.length > 0) {
+        yield { type: 'delta', text: delta.content };
+      }
+      if (delta && delta.tool_calls !== undefined) {
+        yield { type: 'tool_call_delta', delta: delta.tool_calls };
+      }
+      if (typeof choice.finish_reason === 'string') finishReason = choice.finish_reason;
+    }
+  }
+  yield { type: 'done', ...(finishReason === undefined ? {} : { finishReason }) };
+}
+
+async function* readResponsesEvents(
+  body: ReadableStream<Uint8Array>,
+): AsyncIterable<MetaStreamEvent> {
+  let sawToolCall = false;
+  let completed = false;
+  for await (const data of sseData(body)) {
+    if (data === '[DONE]') break;
+    const event = parseSseRecord(data);
+    if (!event || typeof event.type !== 'string') continue;
+    if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') {
+      yield { type: 'delta', text: event.delta };
+      continue;
+    }
+    if (event.type === 'response.output_item.added' && isRecord(event.item)) {
+      if (event.item.type !== 'function_call') continue;
+      sawToolCall = true;
+      yield {
+        type: 'tool_call_delta',
+        delta: [
+          {
+            index: responseOutputIndex(event),
+            id:
+              typeof event.item.call_id === 'string'
+                ? event.item.call_id
+                : typeof event.item.id === 'string'
+                  ? event.item.id
+                  : '',
+            function: {
+              name: typeof event.item.name === 'string' ? event.item.name : '',
+              arguments: typeof event.item.arguments === 'string' ? event.item.arguments : '',
+            },
+          },
+        ],
+      };
+      continue;
+    }
+    if (
+      event.type === 'response.function_call_arguments.delta' &&
+      typeof event.delta === 'string'
+    ) {
+      sawToolCall = true;
+      yield {
+        type: 'tool_call_delta',
+        delta: [
+          {
+            index: responseOutputIndex(event),
+            function: { name: '', arguments: event.delta },
+          },
+        ],
+      };
+      continue;
+    }
+    if (event.type === 'response.completed' && isRecord(event.response)) {
+      if (isRecord(event.response.usage)) {
+        const usage = event.response.usage;
+        const inputDetails = isRecord(usage.input_tokens_details)
+          ? usage.input_tokens_details
+          : {};
+        yield {
+          type: 'usage',
+          usage: {
+            prompt_tokens: usage.input_tokens,
+            completion_tokens: usage.output_tokens,
+            total_tokens: usage.total_tokens,
+            prompt_tokens_details: { cached_tokens: inputDetails.cached_tokens },
+          },
+        };
+      }
+      completed = true;
+      yield { type: 'done', finishReason: sawToolCall ? 'tool_calls' : 'stop' };
+      continue;
+    }
+    if (event.type === 'error') {
+      yield {
+        type: 'error',
+        code: typeof event.code === 'string' ? event.code : 'hosted_model_error',
+        message: typeof event.message === 'string' ? event.message : 'Hosted model failed',
+      };
+    }
+  }
+  if (!completed) yield { type: 'done', finishReason: sawToolCall ? 'tool_calls' : 'stop' };
+}
+
+function parseSseRecord(data: string): Record<string, unknown> | undefined {
+  try {
+    const value: unknown = JSON.parse(data);
+    return isRecord(value) ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function responseOutputIndex(event: Record<string, unknown>): number {
+  return typeof event.output_index === 'number' && Number.isSafeInteger(event.output_index)
+    ? event.output_index
+    : 0;
+}
+
+export class ElevenLabsHttpProvider implements VoiceProvider {
+  async catalog(config: ElevenLabsConfig): Promise<VoiceCatalogEntry[]> {
+    const url = elevenLabsUrl(
+      config,
+      'v2/voices?page_size=50&sort=name&sort_direction=asc&include_total_count=false',
+    );
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { accept: 'application/json', 'xi-api-key': config.apiKey },
+      signal: AbortSignal.timeout(10_000),
+    }).catch(() => {
+      throw new CloudError(
+        502,
+        'voice_upstream_unavailable',
+        'Hosted voice is temporarily unavailable',
+        true,
+      );
+    });
+    if (!response.ok) {
+      throw new CloudError(
+        502,
+        'voice_upstream_error',
+        `Hosted voice returned HTTP ${response.status}`,
+        response.status === 429 || response.status >= 500,
+      );
+    }
+    const body: unknown = await response.json().catch(() => undefined);
+    const voices = isRecord(body) && Array.isArray(body.voices) ? body.voices : [];
+    const allowed = config.allowedVoiceIds ? new Set(config.allowedVoiceIds) : undefined;
+    return voices
+      .flatMap((voice): VoiceCatalogEntry[] => {
+        if (
+          !isRecord(voice) ||
+          typeof voice.voice_id !== 'string' ||
+          voice.voice_id.length === 0 ||
+          voice.voice_id.length > 256 ||
+          typeof voice.name !== 'string' ||
+          voice.name.trim().length === 0
+        ) {
+          return [];
+        }
+        if (allowed && !allowed.has(voice.voice_id)) return [];
+        const category =
+          typeof voice.category === 'string' && voice.category.length > 0
+            ? voice.category.slice(0, 80)
+            : undefined;
+        return [
+          {
+            id: voice.voice_id,
+            name: voice.name.trim().slice(0, 120),
+            ...(category === undefined ? {} : { category }),
+          },
+        ];
+      })
+      .slice(0, 50);
+  }
+
+  async mintSingleUseToken(
+    config: ElevenLabsConfig,
+    type: VoiceTokenType,
+  ): Promise<{ token: string }> {
+    const response = await fetch(
+      elevenLabsUrl(config, `v1/single-use-token/${encodeURIComponent(type)}`),
+      {
+        method: 'POST',
+        headers: { accept: 'application/json', 'xi-api-key': config.apiKey },
+        signal: AbortSignal.timeout(10_000),
+      },
+    ).catch(() => {
+      throw new CloudError(
+        502,
+        'voice_upstream_unavailable',
+        'Hosted voice is temporarily unavailable',
+        true,
+      );
+    });
+    if (!response.ok) {
+      throw new CloudError(
+        502,
+        'voice_upstream_error',
+        `Hosted voice returned HTTP ${response.status}`,
+        response.status === 429 || response.status >= 500,
+      );
+    }
+    const body: unknown = await response.json().catch(() => undefined);
+    const token = isRecord(body) ? body.token : undefined;
+    if (typeof token !== 'string' || token.length < 16 || token.length > 4_096) {
+      throw new CloudError(
+        502,
+        'voice_invalid_response',
+        'Hosted voice returned an invalid token',
+      );
+    }
+    return { token };
   }
 }
 
@@ -1499,7 +1799,163 @@ export class DynamoMetaQuota implements QuotaGate {
     private readonly tableName: string,
     private readonly limit: number,
   ) {}
-  async acquireMeta(userId: string): Promise<ConcurrencyLease> {
+  async acquireMeta(userId: string, policy: MetaQuotaPolicy): Promise<ConcurrencyLease> {
+    const lease = await this.acquireConcurrency(userId);
+    try {
+      await this.client.send(
+        new UpdateCommand({
+          TableName: this.tableName,
+          Key: { PK: userPk(userId), SK: `USAGE#META#${policy.period}` },
+          UpdateExpression:
+            'SET #type = if_not_exists(#type, :type), expiresAt = :ttl ADD #requests :one',
+          ConditionExpression:
+            '(attribute_not_exists(#requests) OR #requests < :requestLimit) AND (attribute_not_exists(#totalTokens) OR #totalTokens < :tokenLimit)',
+          ExpressionAttributeNames: {
+            '#type': 'Type',
+            '#requests': 'requests',
+            '#totalTokens': 'totalTokens',
+          },
+          ExpressionAttributeValues: {
+            ':type': 'MetaDailyUsage',
+            ':ttl': policy.expiresAt,
+            ':one': 1,
+            ':requestLimit': policy.requestLimit,
+            ':tokenLimit': policy.tokenLimit,
+          },
+        }),
+      );
+      return lease;
+    } catch (error) {
+      await lease.release();
+      if (error instanceof ConditionalCheckFailedException) {
+        throw new CloudError(
+          429,
+          'hosted_model_daily_limit',
+          'The daily hosted model allowance has been reached',
+          true,
+        );
+      }
+      throw error;
+    }
+  }
+
+  async getMetaUsage(userId: string, period: string): Promise<MetaUsageSnapshot> {
+    const result = await this.client.send(
+      new GetCommand({
+        TableName: this.tableName,
+        Key: { PK: userPk(userId), SK: `USAGE#META#${period}` },
+        ConsistentRead: true,
+      }),
+    );
+    return {
+      requests: safeCounter(result.Item?.requests),
+      inputTokens: safeCounter(result.Item?.inputTokens),
+      outputTokens: safeCounter(result.Item?.outputTokens),
+      totalTokens: safeCounter(result.Item?.totalTokens),
+    };
+  }
+
+  async recordMetaUsage(
+    userId: string,
+    window: DailyQuotaWindow,
+    usage: MetaTokenUsage,
+  ): Promise<void> {
+    await this.client.send(
+      new UpdateCommand({
+        TableName: this.tableName,
+        Key: { PK: userPk(userId), SK: `USAGE#META#${window.period}` },
+        UpdateExpression:
+          'SET #type = if_not_exists(#type, :type), expiresAt = :ttl ADD #inputTokens :input, #outputTokens :output, #totalTokens :total',
+        ExpressionAttributeNames: {
+          '#type': 'Type',
+          '#inputTokens': 'inputTokens',
+          '#outputTokens': 'outputTokens',
+          '#totalTokens': 'totalTokens',
+        },
+        ExpressionAttributeValues: {
+          ':type': 'MetaDailyUsage',
+          ':ttl': window.expiresAt,
+          ':input': usage.inputTokens,
+          ':output': usage.outputTokens,
+          ':total': usage.totalTokens,
+        },
+      }),
+    );
+  }
+
+  async consumeVoiceToken(userId: string, policy: VoiceTokenQuotaPolicy): Promise<void> {
+    try {
+      await this.client.send(
+        new UpdateCommand({
+          TableName: this.tableName,
+          Key: { PK: userPk(userId), SK: `USAGE#VOICE#${policy.period}` },
+          UpdateExpression:
+            'SET #type = if_not_exists(#type, :type), expiresAt = :ttl ADD #tokenMints :one',
+          ConditionExpression:
+            'attribute_not_exists(#tokenMints) OR #tokenMints < :tokenMintLimit',
+          ExpressionAttributeNames: { '#type': 'Type', '#tokenMints': 'tokenMints' },
+          ExpressionAttributeValues: {
+            ':type': 'VoiceDailyUsage',
+            ':ttl': policy.expiresAt,
+            ':one': 1,
+            ':tokenMintLimit': policy.tokenMintLimit,
+          },
+        }),
+      );
+    } catch (error) {
+      if (error instanceof ConditionalCheckFailedException) {
+        throw new CloudError(
+          429,
+          'voice_token_daily_limit',
+          'The daily voice token allowance has been reached',
+          true,
+        );
+      }
+      throw error;
+    }
+  }
+
+  async getVoiceTokenUsage(userId: string, period: string): Promise<number> {
+    const result = await this.client.send(
+      new GetCommand({
+        TableName: this.tableName,
+        Key: { PK: userPk(userId), SK: `USAGE#VOICE#${period}` },
+        ConsistentRead: true,
+      }),
+    );
+    return safeCounter(result.Item?.tokenMints);
+  }
+
+  async deleteUserUsage(userId: string): Promise<void> {
+    for (const prefix of ['USAGE#', 'QUOTA#']) {
+      let cursor: Record<string, unknown> | undefined;
+      do {
+        const result = await this.client.send(
+          new QueryCommand({
+            TableName: this.tableName,
+            KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+            ExpressionAttributeValues: { ':pk': userPk(userId), ':prefix': prefix },
+            ProjectionExpression: 'PK, SK',
+            ExclusiveStartKey: cursor,
+            ConsistentRead: true,
+          }),
+        );
+        for (const item of result.Items ?? []) {
+          if (typeof item.PK === 'string' && typeof item.SK === 'string') {
+            await this.client.send(
+              new DeleteCommand({
+                TableName: this.tableName,
+                Key: { PK: item.PK, SK: item.SK },
+              }),
+            );
+          }
+        }
+        cursor = result.LastEvaluatedKey;
+      } while (cursor);
+    }
+  }
+
+  private async acquireConcurrency(userId: string): Promise<ConcurrencyLease> {
     const key = { PK: userPk(userId), SK: 'QUOTA#META' };
     try {
       await this.client.send(
@@ -1646,6 +2102,7 @@ export function createAwsDependencies(config = loadRuntimeConfig()): ServiceDepe
   const secrets = new SecretsManagerProvider(
     new SecretsManagerClient({}),
     config.metaSecretArn,
+    config.elevenLabsSecretArn,
     config.composioSecretArn,
     config.googleSecretArn,
     config.registrationSecretArn,
@@ -1676,12 +2133,16 @@ export function createAwsDependencies(config = loadRuntimeConfig()): ServiceDepe
     deletionQueue: new AwsDeletionQueue(sqs, config.deletionQueueUrl),
     secrets,
     metaProvider: new OpenAiCompatibleMetaProvider(),
+    voiceProvider: new ElevenLabsHttpProvider(),
     quota: new DynamoMetaQuota(documentClient, config.tableName, config.metaConcurrency),
     audit: new MetadataAuditSink(s3, config.auditBucketName, config.kmsKeyArn),
     config: {
       actionTtlSeconds: config.actionTtlSeconds,
       consentVersion: config.consentVersion,
       inviteLimit: config.inviteLimit,
+      metaDailyRequestLimit: config.metaDailyRequestLimit,
+      metaDailyTokenLimit: config.metaDailyTokenLimit,
+      voiceDailyTokenMintLimit: config.voiceDailyTokenMintLimit,
       features: { ...config.features },
     },
   };
@@ -1723,18 +2184,186 @@ function positiveInteger(value: string, name: string): number {
 }
 
 function parseMetaConfig(value: unknown): MetaConfig {
+  const primary = parseHostedLabConfig(value);
+  const additionalLabs =
+    isRecord(value) && Array.isArray(value.additionalLabs)
+      ? value.additionalLabs.map((lab) => parseHostedLabConfig(lab))
+      : undefined;
+  const ids = new Set<string>();
+  const models = new Set<string>();
+  for (const lab of [primary, ...(additionalLabs ?? [])]) {
+    const id = lab.catalogId ?? 'meta';
+    if (ids.has(id)) {
+      throw new CloudError(503, 'secret_invalid', 'Hosted model lab ids must be unique');
+    }
+    ids.add(id);
+    for (const model of lab.allowedModels ?? [lab.model]) {
+      if (models.has(model)) {
+        throw new CloudError(
+          503,
+          'secret_invalid',
+          'Hosted model ids must be unique across labs',
+        );
+      }
+      models.add(model);
+    }
+  }
+  return {
+    ...primary,
+    ...(additionalLabs?.length ? { additionalLabs } : {}),
+  };
+}
+
+function parseHostedLabConfig(value: unknown): HostedLabConfig {
   if (!isRecord(value))
     throw new CloudError(503, 'secret_invalid', 'Meta configuration is invalid');
   const allowedModels = Array.isArray(value.allowedModels)
-    ? value.allowedModels.filter((item): item is string => typeof item === 'string')
+    ? uniqueConfigStrings(value.allowedModels, 'allowedModels')
     : undefined;
+  const modelLabels = isRecord(value.modelLabels)
+    ? Object.fromEntries(
+        Object.entries(value.modelLabels).map(([model, label]) => [
+          configIdentifier(model, 'modelLabels model'),
+          boundedConfigString(label, `modelLabels.${model}`, 120),
+        ]),
+      )
+    : undefined;
+  const apiProtocolResult = modelApiProtocolSchema.safeParse(
+    value.apiProtocol ?? 'openai_chat_completions',
+  );
+  if (!apiProtocolResult.success) {
+    throw new CloudError(503, 'secret_invalid', 'Hosted model apiProtocol is invalid');
+  }
+  const harnessRoutes = Array.isArray(value.harnessRoutes)
+    ? value.harnessRoutes.map((route, index) => {
+        const parsed = hostedCatalogRouteSchema.safeParse(route);
+        if (!parsed.success) {
+          throw new CloudError(
+            503,
+            'secret_invalid',
+            `Hosted model harnessRoutes[${index}] is invalid`,
+          );
+        }
+        return parsed.data;
+      })
+    : undefined;
+  const defaultHarnessResult =
+    value.defaultHarnessId === undefined
+      ? undefined
+      : harnessIdSchema.safeParse(value.defaultHarnessId);
+  if (defaultHarnessResult && !defaultHarnessResult.success) {
+    throw new CloudError(503, 'secret_invalid', 'Hosted model defaultHarnessId is invalid');
+  }
+  const enabledModels = new Set(allowedModels ?? [configString(value.model, 'model')]);
+  for (const route of harnessRoutes ?? []) {
+    if (!enabledModels.has(route.model) || route.apiProtocol !== apiProtocolResult.data) {
+      throw new CloudError(
+        503,
+        'secret_invalid',
+        'Hosted model routes must reference an allowed model and its configured API protocol',
+      );
+    }
+  }
+  if (
+    defaultHarnessResult?.success &&
+    harnessRoutes &&
+    !harnessRoutes.some(({ harnessId }) => harnessId === defaultHarnessResult.data)
+  ) {
+    throw new CloudError(
+      503,
+      'secret_invalid',
+      'Hosted model defaultHarnessId does not have a configured route',
+    );
+  }
   return {
     apiKey: secretString(value.apiKey),
     endpoint: configString(value.endpoint, 'endpoint'),
     model: configString(value.model, 'model'),
     enabled: value.enabled === true,
+    apiProtocol: apiProtocolResult.data,
     ...(typeof value.sessionHeader === 'string' ? { sessionHeader: value.sessionHeader } : {}),
     ...(allowedModels === undefined ? {} : { allowedModels }),
+    ...(value.catalogId === undefined
+      ? {}
+      : { catalogId: configIdentifier(value.catalogId, 'catalogId') }),
+    ...(value.displayName === undefined
+      ? {}
+      : { displayName: boundedConfigString(value.displayName, 'displayName', 120) }),
+    ...(modelLabels === undefined ? {} : { modelLabels }),
+    ...(value.dailyRequestLimit === undefined
+      ? {}
+      : {
+          dailyRequestLimit: configPositiveInteger(
+            value.dailyRequestLimit,
+            'dailyRequestLimit',
+          ),
+        }),
+    ...(value.dailyTokenLimit === undefined
+      ? {}
+      : { dailyTokenLimit: configPositiveInteger(value.dailyTokenLimit, 'dailyTokenLimit') }),
+    ...(value.maxOutputTokens === undefined
+      ? {}
+      : { maxOutputTokens: configPositiveInteger(value.maxOutputTokens, 'maxOutputTokens') }),
+    ...(harnessRoutes === undefined ? {} : { harnessRoutes }),
+    ...(defaultHarnessResult?.success ? { defaultHarnessId: defaultHarnessResult.data } : {}),
+  };
+}
+
+function parseElevenLabsConfig(value: unknown): ElevenLabsConfig {
+  if (!isRecord(value)) {
+    throw new CloudError(503, 'secret_invalid', 'ElevenLabs configuration is invalid');
+  }
+  const baseUrl =
+    value.baseUrl === undefined
+      ? 'https://api.elevenlabs.io/'
+      : configString(value.baseUrl, 'baseUrl');
+  let endpoint: URL;
+  try {
+    endpoint = new URL(baseUrl);
+  } catch {
+    throw new CloudError(503, 'secret_invalid', 'ElevenLabs base URL is invalid');
+  }
+  if (
+    endpoint.protocol !== 'https:' ||
+    endpoint.username ||
+    endpoint.password ||
+    endpoint.search ||
+    endpoint.hash
+  ) {
+    throw new CloudError(503, 'secret_invalid', 'ElevenLabs base URL is not allowed');
+  }
+  const allowedVoiceIds = Array.isArray(value.allowedVoiceIds)
+    ? uniqueConfigStrings(value.allowedVoiceIds, 'allowedVoiceIds')
+    : undefined;
+  const allowedTokenTypes = Array.isArray(value.allowedTokenTypes)
+    ? uniqueConfigStrings(value.allowedTokenTypes, 'allowedTokenTypes').map((type) => {
+        if (!(VOICE_TOKEN_TYPES as readonly string[]).includes(type)) {
+          throw new CloudError(
+            503,
+            'secret_invalid',
+            'ElevenLabs allowedTokenTypes contains an unsupported value',
+          );
+        }
+        return type as VoiceTokenType;
+      })
+    : undefined;
+  return {
+    apiKey: secretString(value.apiKey),
+    baseUrl: ensureTrailingSlash(endpoint.toString()),
+    enabled: value.enabled === true,
+    ...(value.displayName === undefined
+      ? {}
+      : { displayName: boundedConfigString(value.displayName, 'displayName', 120) }),
+    ...(allowedVoiceIds === undefined ? {} : { allowedVoiceIds }),
+    ...(allowedTokenTypes === undefined ? {} : { allowedTokenTypes }),
+    ...(value.dailyTokenMintLimit === undefined
+      ? {}
+      : {
+          dailyTokenMintLimit: configPositiveInteger(
+            value.dailyTokenMintLimit,
+            'dailyTokenMintLimit',
+          ),
+        }),
   };
 }
 
@@ -1823,6 +2452,36 @@ function configString(value: unknown, label: string): string {
     throw new CloudError(503, 'secret_invalid', `Provider ${label} is missing`);
   }
   return value;
+}
+
+function boundedConfigString(value: unknown, label: string, maximum: number): string {
+  const text = configString(value, label).trim();
+  if (text.length > maximum) {
+    throw new CloudError(503, 'secret_invalid', `Provider ${label} is too long`);
+  }
+  return text;
+}
+
+function configIdentifier(value: unknown, label: string): string {
+  const identifier = boundedConfigString(value, label, 128);
+  if (!/^[A-Za-z0-9._/-]+$/.test(identifier)) {
+    throw new CloudError(503, 'secret_invalid', `Provider ${label} is invalid`);
+  }
+  return identifier;
+}
+
+function configPositiveInteger(value: unknown, label: string): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
+    throw new CloudError(503, 'secret_invalid', `Provider ${label} must be a positive integer`);
+  }
+  return value;
+}
+
+function uniqueConfigStrings(value: unknown[], label: string): string[] {
+  const strings = value.map((item, index) =>
+    boundedConfigString(item, `${label}[${index}]`, 256),
+  );
+  return [...new Set(strings)];
 }
 
 async function composioRequest(
@@ -1936,6 +2595,25 @@ function httpsUrlField(record: Record<string, unknown>, field: string): string {
 
 function ensureTrailingSlash(value: string): string {
   return value.endsWith('/') ? value : `${value}/`;
+}
+
+function elevenLabsUrl(config: ElevenLabsConfig, path: string): URL {
+  const base = new URL(ensureTrailingSlash(config.baseUrl));
+  const url = new URL(path.replace(/^\//, ''), base);
+  if (
+    base.protocol !== 'https:' ||
+    url.protocol !== 'https:' ||
+    url.origin !== base.origin ||
+    url.username ||
+    url.password
+  ) {
+    throw new CloudError(503, 'voice_config_invalid', 'Hosted voice endpoint is invalid');
+  }
+  return url;
+}
+
+function safeCounter(value: unknown): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
 
 async function* sseData(stream: ReadableStream<Uint8Array>): AsyncIterable<string> {

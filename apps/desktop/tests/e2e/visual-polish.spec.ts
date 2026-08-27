@@ -111,7 +111,7 @@ test('core surfaces retain the visual-system and motion contract', async () => {
     await sia.page.waitForTimeout(300);
     await expect(sia.page).toHaveScreenshot('providers-light.png', stableScreenshot);
 
-    await sia.page.getByRole('button', { name: 'Apps' }).click();
+    await sia.page.getByRole('button', { name: 'Connections' }).click();
     await sia.page.waitForTimeout(300);
     await expect(sia.page).toHaveScreenshot('apps-light.png', stableScreenshot);
 
@@ -161,7 +161,7 @@ test('core surfaces retain the visual-system and motion contract', async () => {
   }
 });
 
-test('first-run account and local-choice surfaces stay composed', async () => {
+test('first-run account surface stays composed', async () => {
   const sia = await launchIsolatedSia({
     prefix: 'sia-visual-onboarding-',
     environment: {
@@ -174,7 +174,7 @@ test('first-run account and local-choice surfaces stay composed', async () => {
   try {
     await sia.page.emulateMedia({ colorScheme: 'light', reducedMotion: 'no-preference' });
     await sia.page.setViewportSize({ width: 960, height: 640 });
-    const dialog = sia.page.getByRole('dialog', { name: 'Choose how Sia starts' });
+    const dialog = sia.page.getByRole('dialog', { name: 'Sign in to Sia' });
     await expect(dialog).toBeVisible();
     await expect(sia.page.getByRole('textbox', { name: 'Email' })).toBeFocused();
     expect(
@@ -189,13 +189,6 @@ test('first-run account and local-choice surfaces stay composed', async () => {
       }),
     ).toBe(true);
     await expect(sia.page).toHaveScreenshot('sign-in-light-compact.png', stableScreenshot);
-
-    await sia.page.getByRole('button', { name: 'Start in local mode' }).click();
-    await expect(
-      sia.page.getByRole('heading', { name: 'Make space for focused work.' }),
-    ).toBeVisible();
-    await sia.page.waitForTimeout(300);
-    await expect(sia.page).toHaveScreenshot('local-choice-light-compact.png', stableScreenshot);
     expect(sia.rendererErrors).toEqual([]);
   } finally {
     await sia.close();

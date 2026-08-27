@@ -317,13 +317,8 @@ export function Conversation({
           <p>
             {agentName
               ? 'Each thread keeps its own goal, model, and workspace together—so you can leave and return without rebuilding context.'
-              : 'Create a distinct agent for a kind of work. Each one keeps its own voice, workspace, and trail of threads.'}
+              : 'Create one agent for each kind of work. Its role stays consistent across every thread.'}
           </p>
-          <div className={styles.emptyStateNotes} aria-hidden="true">
-            <span>one agent, one way of working</span>
-            <span>threads keep their context</span>
-            <span>you stay in control</span>
-          </div>
           {onCreateThread ? (
             <button className={styles.primaryButton} type="button" onClick={onCreateThread}>
               New thread
@@ -614,7 +609,7 @@ export function Conversation({
         disabled={queued || waitingForApproval}
         running={running || queued || waitingForApproval}
         stoppable={running || queued || waiting}
-        executionLabel={executionLabel(thread.provider, thread.model)}
+        executionLabel={providerName(thread.provider)}
         attachments={attachments?.map((attachment) => ({
           id: attachment.id,
           name: attachment.name,
@@ -997,10 +992,6 @@ function ConversationSkeleton() {
 
 function providerName(provider: string) {
   return provider.charAt(0).toUpperCase() + provider.slice(1);
-}
-
-function executionLabel(provider: string, model: string) {
-  return `${providerName(provider)} · ${model}`;
 }
 
 function base64Bytes(value: string): Uint8Array {

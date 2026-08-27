@@ -43,23 +43,8 @@ test('first run creates an agent, starts a thread, and completes a deterministic
     await page
       .getByLabel('Instructions')
       .fill('Work carefully inside the selected workspace and explain completed actions.');
-    await page.getByRole('button', { name: 'Choose' }).click();
-    await expect(page.getByRole('textbox', { name: 'Workspace', exact: true })).toHaveValue(
-      workspace,
-    );
     await page.getByRole('button', { name: 'Create agent' }).click();
 
-    const researchDialog = page.getByRole('alertdialog', {
-      name: 'Join the Sia research release?',
-    });
-    await expect(researchDialog).toBeVisible();
-    await expect(researchDialog).toContainText('captures stay encrypted on this Mac');
-    await researchDialog.getByRole('button', { name: 'Use without sharing' }).click();
-
-    await expect(
-      page.getByRole('heading', { name: 'Open a room with Local helper.' }),
-    ).toBeVisible();
-    await page.getByRole('button', { name: 'New thread' }).click();
     await expect(
       page.getByRole('heading', { name: 'What deserves your attention?' }),
     ).toBeVisible();

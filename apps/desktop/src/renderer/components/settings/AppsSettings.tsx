@@ -64,15 +64,8 @@ export function AppsSettings({
 }) {
   const [pending, setPending] = useState<string>();
   const [error, setError] = useState<string>();
-  const connectedCount = snapshot.apps.filter(
-    ({ id, status, enabled }) =>
-      status === 'connected' && (id === 'slack' || enabled !== false),
-  ).length;
   const googleApps = snapshot.apps.filter(({ id }) => id !== 'slack');
   const slack = snapshot.apps.find(({ id }) => id === 'slack');
-  const googleEnabledCount = googleApps.filter(
-    ({ status, enabled }) => status === 'connected' && enabled !== false,
-  ).length;
   const activeGoogleGrants = new Set(
     googleApps
       .filter(({ status, connectionId }) => status === 'connected' && Boolean(connectionId))
@@ -111,22 +104,18 @@ export function AppsSettings({
   if (snapshot.cloudAuth.state === 'unconfigured') {
     return (
       <SettingsSectionHeader
-        title="Connected apps"
-        description="Optional cloud connections can be added later. They are not required for local work."
+        title="Connections"
+        description="Browser and device connections are managed here. Work apps require Sia cloud."
       >
         <div className={styles.cloudLocalSummary}>
           <div className={styles.cloudIdentityHeader}>
             <div>
-              <strong>Local mode is ready</strong>
-              <p>
-                Codex, workspace files, signed-in Chrome, computer use, Git, terminals, and
-                schedules work without a Sia account or cloud credits.
-              </p>
+              <strong>Cloud connections unavailable</strong>
+              <p>This build does not have a Sia cloud service configured.</p>
             </div>
           </div>
           <div className={styles.cloudUnavailable} role="status">
-            Gmail, Drive, Docs, Sheets, Slides, Slack, and cloud sync will appear here after a
-            cloud service is configured.
+            Google Workspace and Slack will appear after cloud service is configured.
           </div>
         </div>
         <LocalIntegrations
@@ -144,8 +133,8 @@ export function AppsSettings({
 
   return (
     <SettingsSectionHeader
-      title="Connected apps"
-      description="Optional API connections make background work faster and more reliable. Chat, web search, schedules, and computer use work without them."
+      title="Connections"
+      description="Connect work apps, your browser, and tools on this computer."
     >
       <CloudAccountSettings
         cloudAuth={snapshot.cloudAuth}
@@ -158,8 +147,8 @@ export function AppsSettings({
       />
       {!connectorsEnabled ? (
         <div className={styles.inlineWarning} role="status">
-          Connected apps are in a limited acceptance test. This account does not have tester
-          access yet; any existing grants can still be disconnected.
+          Work app connections are not enabled for this account yet. Existing connections can
+          still be disconnected.
         </div>
       ) : null}
       <LocalIntegrations
@@ -174,15 +163,11 @@ export function AppsSettings({
       <div className={styles.connectionSetup}>
         <div className={styles.connectionSetupIntro}>
           <div className={styles.connectionSetupHeader}>
-            <strong>Optional API connections</strong>
-            <span className={styles.connectionSetupProgress}>
-              {connectedCount} of {snapshot.apps.length} ready
-            </span>
+            <strong>Work apps</strong>
           </div>
           <p>
-            Google starts read-only for Gmail and files. Sending and editing are optional and
-            use a separate approval. Slack uses one workspace approval. Nothing is bulk copied
-            into Sia.
+            Google starts read-only. Sending and editing use a separate approval. Slack uses one
+            workspace approval.
           </p>
         </div>
         <div className={styles.connectionGroups}>
@@ -202,8 +187,8 @@ export function AppsSettings({
                   ? googleUpgrading
                     ? 'Read access stays on. Finish editor approval in your browser'
                     : googleAccess === 'read_write'
-                      ? `${googleEnabledCount} of ${googleApps.length} services available, editing enabled`
-                      : `${googleEnabledCount} of ${googleApps.length} services available, read-only`
+                      ? 'Editing enabled'
+                      : 'Read-only access'
                   : googleError
                     ? 'Needs attention'
                     : googleNeedsUpgrade
@@ -342,8 +327,8 @@ export function AppsSettings({
       {googleConnected ? (
         <div className={styles.googleServiceAccess} aria-label="Google Workspace services">
           <div>
-            <strong>Available to this agent</strong>
-            <span>Turn individual Google services on or off without changing the grant.</span>
+            <strong>Available to agents</strong>
+            <span>Turn Google services on or off without changing the connection.</span>
           </div>
           <div className={styles.googleServiceToggles}>
             {googleApps.map((app) => {

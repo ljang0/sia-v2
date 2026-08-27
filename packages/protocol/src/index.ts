@@ -6,6 +6,202 @@ export const isoDateSchema = z.string().datetime({ offset: true });
 export const providerIdSchema = z.enum(['codex', 'claude', 'grok', 'gemini', 'meta']);
 export type ProviderId = z.infer<typeof providerIdSchema>;
 
+/**
+ * Identifies the process/runtime that executes a model turn. This is deliberately
+ * separate from ProviderId: one provider/model may be usable through multiple
+ * harnesses without changing its billing or account attribution.
+ */
+export const BUILTIN_HARNESS_IDS = [
+  'codex_app_server',
+  'claude_code',
+  'legacy_acp',
+  'opencode_acp',
+  'pi_rpc',
+  'sia_direct',
+] as const;
+
+/**
+ * Harness ids are catalog data, not a closed product enum. A newly admitted lab
+ * harness can therefore be added without changing every persisted-data schema.
+ * Runtime registration is still required before an id is executable.
+ */
+export const harnessIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z][a-z0-9_]*$/, 'Harness ids must be lowercase identifiers');
+export type HarnessId = z.infer<typeof harnessIdSchema>;
+export type BuiltinHarnessId = (typeof BUILTIN_HARNESS_IDS)[number];
+
+export const harnessPreferenceSchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('automatic') }),
+  z.object({ mode: z.literal('explicit'), harnessId: harnessIdSchema }),
+]);
+export type HarnessPreference = z.infer<typeof harnessPreferenceSchema>;
+
+export const credentialSourceSchema = z.enum([
+  'provider_subscription',
+  'provider_api',
+  'sia_managed',
+]);
+export type CredentialSource = z.infer<typeof credentialSourceSchema>;
+
+/** Model wire protocols that a lab may expose independently of its harness. */
+export const modelApiProtocolSchema = z.enum([
+  'openai_responses',
+  'openai_chat_completions',
+  'anthropic_messages',
+]);
+export type ModelApiProtocol = z.infer<typeof modelApiProtocolSchema>;
+
+export const hostedCatalogRouteSchema = z
+  .object({
+    model: z.string().trim().min(1).max(256),
+    harnessId: harnessIdSchema,
+    harnessModelId: z.string().trim().min(1).max(256),
+    credentialSource: credentialSourceSchema,
+    apiProtocol: modelApiProtocolSchema,
+  })
+  .strict();
+export type HostedCatalogRoute = z.infer<typeof hostedCatalogRouteSchema>;
+
+export const hostedCatalogSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    providers: z
+      .array(
+        z
+          .object({
+            id: z
+              .string()
+              .trim()
+              .min(1)
+              .max(64)
+              .regex(/^[a-z][a-z0-9_-]*$/),
+            name: z.string().trim().min(1).max(120),
+            kind: z.literal('hosted'),
+            credentialMode: z.literal('managed'),
+            available: z.boolean(),
+            defaultModel: z.string().trim().min(1).max(256),
+            models: z.array(
+              z
+                .object({
+                  id: z.string().trim().min(1).max(256),
+                  name: z.string().trim().min(1).max(120),
+                  apiProtocols: z.array(modelApiProtocolSchema).min(1),
+                })
+                .strict(),
+            ),
+            capabilities: z.object({ streaming: z.boolean(), tools: z.boolean() }).strict(),
+            execution: z
+              .object({
+                defaultHarnessId: harnessIdSchema,
+                routes: z.array(hostedCatalogRouteSchema),
+              })
+              .strict()
+              .optional(),
+            limits: z
+              .object({
+                dailyRequests: z.number().int().positive(),
+                dailyTokens: z.number().int().positive(),
+                maxOutputTokens: z.number().int().positive(),
+              })
+              .strict(),
+          })
+          .strict(),
+      )
+      .max(64),
+  })
+  .strict()
+  .superRefine((catalog, context) => {
+    const providerIds = new Set<string>();
+    const canonicalModels = new Set<string>();
+    for (const [providerIndex, provider] of catalog.providers.entries()) {
+      if (providerIds.has(provider.id)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['providers', providerIndex, 'id'],
+          message: 'Hosted provider ids must be unique',
+        });
+      }
+      providerIds.add(provider.id);
+      const modelProtocols = new Map(
+        provider.models.map((model) => [model.id, new Set(model.apiProtocols)] as const),
+      );
+      if (provider.available && !modelProtocols.has(provider.defaultModel)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['providers', providerIndex, 'defaultModel'],
+          message: 'The default model must be present in the provider model list',
+        });
+      }
+      for (const [modelIndex, model] of provider.models.entries()) {
+        if (canonicalModels.has(model.id)) {
+          context.addIssue({
+            code: 'custom',
+            path: ['providers', providerIndex, 'models', modelIndex, 'id'],
+            message: 'Canonical hosted model ids must be unique across labs',
+          });
+        }
+        canonicalModels.add(model.id);
+      }
+      for (const [routeIndex, route] of provider.execution?.routes.entries() ?? []) {
+        if (!modelProtocols.get(route.model)?.has(route.apiProtocol)) {
+          context.addIssue({
+            code: 'custom',
+            path: ['providers', providerIndex, 'execution', 'routes', routeIndex],
+            message: 'A route must use a protocol advertised by its model',
+          });
+        }
+      }
+      if (
+        provider.execution &&
+        provider.execution.routes.length > 0 &&
+        !provider.execution.routes.some(
+          (route) => route.harnessId === provider.execution?.defaultHarnessId,
+        )
+      ) {
+        context.addIssue({
+          code: 'custom',
+          path: ['providers', providerIndex, 'execution', 'defaultHarnessId'],
+          message: 'The default harness must have at least one route',
+        });
+      }
+    }
+  });
+export type HostedCatalog = z.infer<typeof hostedCatalogSchema>;
+
+export const executionResolutionSourceSchema = z.enum([
+  'user',
+  'backend_default',
+  'legacy_default',
+]);
+export type ExecutionResolutionSource = z.infer<typeof executionResolutionSourceSchema>;
+
+const modelRouteShape = {
+  provider: providerIdSchema,
+  /** Canonical model id shown and persisted by Sia. */
+  model: z.string().trim().min(1).max(256),
+  harnessId: harnessIdSchema,
+  /** Exact model selector sent to this harness; never inferred at execution time. */
+  harnessModelId: z.string().trim().min(1).max(256),
+  credentialSource: credentialSourceSchema,
+} as const;
+
+/** One allowlisted way to run a canonical provider/model through a harness. */
+export const modelRouteSchema = z.object(modelRouteShape).readonly();
+export type ModelRoute = z.infer<typeof modelRouteSchema>;
+
+/** Immutable route selected for a thread before any provider process is started. */
+export const resolvedExecutionTargetSchema = z
+  .object({
+    ...modelRouteShape,
+    resolutionSource: executionResolutionSourceSchema,
+  })
+  .readonly();
+export type ResolvedExecutionTarget = z.infer<typeof resolvedExecutionTargetSchema>;
+
 export const providerModelSchema = z.object({
   provider: providerIdSchema,
   model: z.string().trim().min(1).max(256),
@@ -19,6 +215,8 @@ export const agentSchema = z.object({
   instructions: z.string().max(100_000),
   defaultProvider: providerIdSchema,
   defaultModel: z.string().trim().min(1).max(256),
+  /** Missing on legacy agents and interpreted as { mode: 'automatic' } by the resolver. */
+  harnessPreference: harnessPreferenceSchema.optional(),
   defaultWorkspace: z.string().min(1),
   revision: z.number().int().positive(),
   createdAt: isoDateSchema,
@@ -36,8 +234,37 @@ export const agentRevisionSnapshotSchema = z
     instructions: z.string().max(100_000),
     provider: providerIdSchema,
     model: z.string().trim().min(1).max(256),
+    /** Missing on snapshots created before harness-aware execution was introduced. */
+    resolvedExecutionTarget: resolvedExecutionTargetSchema.optional(),
+    /** @deprecated Migration read only; new snapshots persist resolvedExecutionTarget. */
+    harnessId: harnessIdSchema.optional(),
     workspace: z.string().min(1),
     capturedAt: isoDateSchema,
+  })
+  .superRefine((snapshot, context) => {
+    const target = snapshot.resolvedExecutionTarget;
+    if (!target) return;
+    if (target.provider !== snapshot.provider) {
+      context.addIssue({
+        code: 'custom',
+        path: ['resolvedExecutionTarget', 'provider'],
+        message: 'Resolved provider must match the snapshot provider',
+      });
+    }
+    if (target.model !== snapshot.model) {
+      context.addIssue({
+        code: 'custom',
+        path: ['resolvedExecutionTarget', 'model'],
+        message: 'Resolved model must match the snapshot model',
+      });
+    }
+    if (snapshot.harnessId && target.harnessId !== snapshot.harnessId) {
+      context.addIssue({
+        code: 'custom',
+        path: ['harnessId'],
+        message: 'Legacy harnessId must match the resolved execution target',
+      });
+    }
   })
   .readonly();
 export type AgentRevisionSnapshot = z.infer<typeof agentRevisionSnapshotSchema>;
@@ -52,19 +279,49 @@ export const threadStatusSchema = z.enum([
 ]);
 export type ThreadStatus = z.infer<typeof threadStatusSchema>;
 
-export const threadSchema = z.object({
-  id: idSchema,
-  agentId: idSchema,
-  agentRevisionId: idSchema,
-  title: z.string().trim().min(1).max(200),
-  provider: providerIdSchema,
-  model: z.string().trim().min(1).max(256),
-  workspace: z.string().min(1),
-  providerSessionId: z.string().min(1).optional(),
-  status: threadStatusSchema,
-  createdAt: isoDateSchema,
-  updatedAt: isoDateSchema,
-});
+export const threadSchema = z
+  .object({
+    id: idSchema,
+    agentId: idSchema,
+    agentRevisionId: idSchema,
+    title: z.string().trim().min(1).max(200),
+    provider: providerIdSchema,
+    model: z.string().trim().min(1).max(256),
+    /** Pinned for new threads; absent on legacy records until recovery resolves it. */
+    resolvedExecutionTarget: resolvedExecutionTargetSchema.optional(),
+    /** @deprecated Migration read only; new threads persist resolvedExecutionTarget. */
+    harnessId: harnessIdSchema.optional(),
+    workspace: z.string().min(1),
+    providerSessionId: z.string().min(1).optional(),
+    status: threadStatusSchema,
+    createdAt: isoDateSchema,
+    updatedAt: isoDateSchema,
+  })
+  .superRefine((thread, context) => {
+    const target = thread.resolvedExecutionTarget;
+    if (!target) return;
+    if (target.provider !== thread.provider) {
+      context.addIssue({
+        code: 'custom',
+        path: ['resolvedExecutionTarget', 'provider'],
+        message: 'Resolved provider must match the thread provider',
+      });
+    }
+    if (target.model !== thread.model) {
+      context.addIssue({
+        code: 'custom',
+        path: ['resolvedExecutionTarget', 'model'],
+        message: 'Resolved model must match the thread model',
+      });
+    }
+    if (thread.harnessId && target.harnessId !== thread.harnessId) {
+      context.addIssue({
+        code: 'custom',
+        path: ['harnessId'],
+        message: 'Legacy harnessId must match the resolved execution target',
+      });
+    }
+  });
 export type Thread = z.infer<typeof threadSchema>;
 
 export const messageRoleSchema = z.enum(['user', 'assistant', 'system']);
@@ -80,13 +337,24 @@ export const contentPartSchema = z.discriminatedUnion('kind', [
 ]);
 export type ContentPart = z.infer<typeof contentPartSchema>;
 
+const executionAttributionShape = {
+  provider: providerIdSchema,
+  /** Optional while legacy adapters are migrated; provider remains authoritative. */
+  harnessId: harnessIdSchema.optional(),
+  /** Exact canonical model, when known at the event-producing boundary. */
+  model: z.string().trim().min(1).max(256).optional(),
+} as const;
+
+export const executionAttributionSchema = z.object(executionAttributionShape).readonly();
+export type ExecutionAttribution = z.infer<typeof executionAttributionSchema>;
+
 const envelopeBase = {
   id: idSchema,
   threadId: idSchema,
   turnId: idSchema,
   sequence: z.number().int().nonnegative(),
   timestamp: isoDateSchema,
-  provider: providerIdSchema,
+  ...executionAttributionShape,
 } as const;
 
 export const messageEventSchema = z.object({
@@ -313,6 +581,8 @@ export interface ProviderAccount {
 export interface ProviderSessionOptions {
   readonly threadId: string;
   readonly model: string;
+  /** Optional during migration; harness-aware callers should provide the pinned target. */
+  readonly resolvedExecutionTarget?: ResolvedExecutionTarget;
   readonly workspace: string;
   readonly instructions: string;
   /** Private, role-preserving history to restore into a newly created provider session. */
@@ -329,6 +599,9 @@ export interface ProviderHistoryMessage {
 export interface ProviderSession {
   readonly id: string;
   readonly provider: ProviderId;
+  /** Optional until each legacy ProviderAdapter is wrapped by a HarnessAdapter. */
+  readonly harnessId?: HarnessId;
+  readonly resolvedExecutionTarget?: ResolvedExecutionTarget;
   readonly nativeId: string;
   readonly threadId: string;
 }
@@ -392,6 +665,47 @@ export interface ProviderAdapter {
   ): AsyncIterable<ThreadEventEnvelope>;
   cancelTurn(session: ProviderSession, turnId: string): Promise<void>;
   respondToRequest(session: ProviderSession, response: ProviderRequestResponse): Promise<void>;
+  dispose(): Promise<void>;
+}
+
+/**
+ * Harness-facing equivalent of ProviderSessionOptions. Provider account and model
+ * discovery intentionally remain outside this interface.
+ */
+export interface HarnessSessionOptions extends Omit<
+  ProviderSessionOptions,
+  'model' | 'resolvedExecutionTarget'
+> {
+  readonly target: ResolvedExecutionTarget;
+}
+
+export interface HarnessSession {
+  readonly id: string;
+  readonly harnessId: HarnessId;
+  readonly target: ResolvedExecutionTarget;
+  readonly nativeId: string;
+  readonly threadId: string;
+}
+
+/** Runtime contract for provider-independent harnesses such as OpenCode and Pi. */
+export interface HarnessAdapter {
+  readonly id: HarnessId;
+  readonly productionEnabled: boolean;
+  readonly supportedProviders: readonly ProviderId[];
+  probe(signal?: AbortSignal): Promise<ProviderProbeResult>;
+  createSession(options: HarnessSessionOptions, signal?: AbortSignal): Promise<HarnessSession>;
+  sendTurn(
+    session: HarnessSession,
+    input: ProviderTurnInput,
+    signal?: AbortSignal,
+  ): AsyncIterable<ThreadEventEnvelope>;
+  startReview?(
+    session: HarnessSession,
+    input: ProviderReviewInput,
+    signal?: AbortSignal,
+  ): AsyncIterable<ThreadEventEnvelope>;
+  cancelTurn(session: HarnessSession, turnId: string): Promise<void>;
+  respondToRequest(session: HarnessSession, response: ProviderRequestResponse): Promise<void>;
   dispose(): Promise<void>;
 }
 

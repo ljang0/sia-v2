@@ -9,7 +9,9 @@ import type {
   ResearchBatchRequest,
   ResearchEvent,
   RegistrationRequest,
+  VoiceTokenRequest,
 } from './contracts.js';
+import { VOICE_TOKEN_TYPES } from './contracts.js';
 import {
   CloudError,
   isRecord,
@@ -45,16 +47,11 @@ export async function routeControlRequest(
 
     if (method === 'POST' && path === '/v1/auth/register') {
       const body = parseBody(event);
-      if (body.researchEnrollmentAcknowledged !== true) {
-        throw new CloudError(
-          400,
-          'research_enrollment_required',
-          'Acknowledge the research release before creating an account',
-        );
-      }
       const request: RegistrationRequest = {
         email: requireString(body.email, 'email', { max: 254 }),
-        researchEnrollmentAcknowledged: true,
+        ...(typeof body.researchEnrollmentAcknowledged === 'boolean'
+          ? { researchEnrollmentAcknowledged: body.researchEnrollmentAcknowledged }
+          : {}),
       };
       const sourceIp = requireString(event.requestContext.identity?.sourceIp, 'sourceIp', {
         max: 64,
@@ -72,6 +69,18 @@ export async function routeControlRequest(
     }
     if (method === 'GET' && path === '/v1/meta/capabilities') {
       return json(200, await services.meta.capabilities(user));
+    }
+    if (method === 'GET' && path === '/v1/catalog') {
+      return json(200, await services.hostedModels.catalog(user));
+    }
+    if (method === 'GET' && path === '/v1/usage') {
+      return json(200, await services.hostedModels.usage(user));
+    }
+    if (method === 'GET' && path === '/v1/voice/catalog') {
+      return json(200, await services.voice.catalog(user));
+    }
+    if (method === 'POST' && path === '/v1/voice/tokens') {
+      return json(201, await services.voice.mintToken(user, parseVoiceToken(parseBody(event))));
     }
 
     const retireGoogleMatch = /^\/v1\/connections\/([^/]+)\/retire-superseded$/.exec(path);
@@ -448,6 +457,14 @@ function parseDeletionScope(value: unknown): DeletionScope {
     'invalid_deletion_scope',
     'Deletion scope must be research or account',
   );
+}
+
+function parseVoiceToken(body: Record<string, unknown>): VoiceTokenRequest {
+  const type = requireString(body.type, 'type', { max: 64 });
+  if (!(VOICE_TOKEN_TYPES as readonly string[]).includes(type)) {
+    throw new CloudError(400, 'invalid_voice_token_type', 'Voice token type is invalid');
+  }
+  return { type: type as VoiceTokenRequest['type'] };
 }
 
 function requireInteger(value: unknown, label: string): number {

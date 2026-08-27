@@ -10,6 +10,9 @@ const requestedArch = process.argv
 const signingMode = process.argv
   .find((argument) => argument.startsWith('--signing='))
   ?.slice('--signing='.length);
+const requestedOutput = process.argv
+  .find((argument) => argument.startsWith('--output='))
+  ?.slice('--output='.length);
 
 if (
   !requestedArch ||
@@ -18,7 +21,7 @@ if (
   !['unsigned', 'release'].includes(signingMode)
 ) {
   throw new Error(
-    'Usage: verify-packaged-app.mjs --arch=arm64|x64|universal --signing=unsigned|release',
+    'Usage: verify-packaged-app.mjs --arch=arm64|x64|universal --signing=unsigned|release [--output=directory]',
   );
 }
 
@@ -29,11 +32,13 @@ const outputDirectory =
     : requestedArch === 'arm64'
       ? 'mac-arm64'
       : 'mac';
-const appPath = join(desktopRoot, 'release', outputDirectory, 'Sia.app');
+const releaseDirectory = requestedOutput
+  ? resolve(desktopRoot, requestedOutput)
+  : join(desktopRoot, 'release');
+const appPath = join(releaseDirectory, outputDirectory, 'Sia.app');
 const desktopPackage = JSON.parse(await readFile(join(desktopRoot, 'package.json'), 'utf8'));
 const dmgPath = join(
-  desktopRoot,
-  'release',
+  releaseDirectory,
   `Sia-${String(desktopPackage.version)}-${requestedArch}.dmg`,
 );
 const contentsPath = join(appPath, 'Contents');

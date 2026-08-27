@@ -16,6 +16,7 @@ import {
   MemoryResearchObjects,
   MemoryResearchExportQueue,
   MemoryState,
+  MemoryVoiceProvider,
   SequenceIds,
 } from '../src/memory.js';
 import { ConnectorReconnectRequiredError } from '../src/ports.js';
@@ -53,6 +54,11 @@ const metaTester: AuthContext = {
   email: 'meta-tester@example.com',
   groups: ['MetaTesters'],
 };
+const baseUser: AuthContext = {
+  subject: 'base-user-1',
+  email: 'base@example.com',
+  groups: ['Users'],
+};
 const legacyUser: AuthContext = {
   subject: user.subject,
   email: 'user@example.com',
@@ -64,8 +70,36 @@ describe('release cohorts', () => {
     const fixture = makeFixture();
 
     assert.deepEqual(fixture.services.session.status(legacyUser), {
+      user: false,
       admin: false,
       participant: false,
+      account: { subject: 'user-1', email: 'user@example.com' },
+      entitlements: {
+        base: false,
+        hostedModels: false,
+        hostedVoice: false,
+        research: false,
+        connectors: false,
+      },
+      features: {
+        researchUploads: false,
+        researchArchive: false,
+        connectors: false,
+        schedules: false,
+      },
+    });
+    assert.deepEqual(fixture.services.session.status(baseUser), {
+      user: true,
+      admin: false,
+      participant: false,
+      account: { subject: 'base-user-1', email: 'base@example.com' },
+      entitlements: {
+        base: true,
+        hostedModels: true,
+        hostedVoice: true,
+        research: false,
+        connectors: false,
+      },
       features: {
         researchUploads: false,
         researchArchive: false,
@@ -76,36 +110,10 @@ describe('release cohorts', () => {
     assert.equal(fixture.services.session.status(participant).participant, true);
     assert.equal(fixture.services.session.status(participant).features.connectors, false);
     assert.equal(fixture.services.session.status(user).features.connectors, true);
-    assert.deepEqual(fixture.services.session.status(operator), {
-      admin: false,
-      participant: false,
-      features: {
-        researchUploads: false,
-        researchArchive: false,
-        connectors: false,
-        schedules: false,
-      },
-    });
-    assert.deepEqual(fixture.services.session.status(metaTester), {
-      admin: false,
-      participant: false,
-      features: {
-        researchUploads: false,
-        researchArchive: false,
-        connectors: false,
-        schedules: false,
-      },
-    });
-    assert.deepEqual(fixture.services.session.status(admin), {
-      admin: true,
-      participant: true,
-      features: {
-        researchUploads: true,
-        researchArchive: true,
-        connectors: true,
-        schedules: true,
-      },
-    });
+    assert.equal(fixture.services.session.status(operator).user, false);
+    assert.equal(fixture.services.session.status(metaTester).user, true);
+    assert.equal(fixture.services.session.status(admin).admin, true);
+    assert.equal(fixture.services.session.status(admin).features.researchArchive, true);
   });
 
   it('serves the signed private update manifest only to approved release cohorts', async () => {
@@ -140,7 +148,7 @@ describe('release cohorts', () => {
     );
     await assert.rejects(
       fixture.services.meta.capabilities(legacyUser),
-      hasCode('meta_tester_required'),
+      hasCode('user_access_required'),
     );
     await assert.rejects(
       fixture.services.connections.start(participant, 'slack'),
@@ -1099,10 +1107,10 @@ describe('invites and deletion', () => {
     assert.equal(fixture.identity.creations[0]?.email, 'person@example.com');
     assert.equal(fixture.identity.creations[0]?.suppressMessage, true);
     assert.equal((await fixture.state.getInvite('person@example.com'))?.status, 'active');
-    assert.deepEqual(fixture.identity.groupAdditions[0], {
-      email: 'person@example.com',
-      group: 'Participants',
-    });
+    assert.deepEqual(fixture.identity.groupAdditions.slice(0, 2), [
+      { email: 'person@example.com', group: 'Users' },
+      { email: 'person@example.com', group: 'Participants' },
+    ]);
     await fixture.services.registration.create(request, '203.0.113.10');
     await fixture.services.registration.create(request, '203.0.113.10');
     await assert.rejects(
@@ -1111,7 +1119,7 @@ describe('invites and deletion', () => {
     );
   });
 
-  it('returns the generic registration response without creating an unknown identity', async () => {
+  it('creates a base account without requiring a research invitation', async () => {
     const fixture = makeFixture();
     assert.deepEqual(
       await fixture.services.registration.create(
@@ -1120,24 +1128,25 @@ describe('invites and deletion', () => {
       ),
       { accepted: true },
     );
-    assert.equal(fixture.identity.creations.length, 0);
-    assert.equal(fixture.identity.groupAdditions.length, 0);
+    assert.equal(fixture.identity.creations.length, 1);
+    assert.deepEqual(fixture.identity.groupAdditions, [
+      { email: 'unknown@example.net', group: 'Users' },
+    ]);
     assert.equal(await fixture.state.getInvite('unknown@example.net'), undefined);
   });
 
-  it('requires the research-release acknowledgment before public registration', async () => {
+  it('accepts legacy registration payloads without coupling account access to research', async () => {
     const fixture = makeFixture();
-    await assert.rejects(
-      fixture.services.registration.create(
-        {
-          email: 'person@example.com',
-          researchEnrollmentAcknowledged: false as never,
-        },
+    assert.deepEqual(
+      await fixture.services.registration.create(
+        { email: 'person@example.com', researchEnrollmentAcknowledged: false },
         '203.0.113.10',
       ),
-      hasCode('research_enrollment_required'),
+      { accepted: true },
     );
-    assert.equal(fixture.identity.users.size, 0);
+    assert.deepEqual(fixture.identity.groupAdditions, [
+      { email: 'person@example.com', group: 'Users' },
+    ]);
   });
 
   it('requires Admins membership and enforces the invitation cap', async () => {
@@ -1150,10 +1159,10 @@ describe('invites and deletion', () => {
       email: 'Person@Example.com',
     });
     assert.equal(created.email, 'person@example.com');
-    assert.deepEqual(fixture.identity.groupAdditions[0], {
-      email: 'person@example.com',
-      group: 'Participants',
-    });
+    assert.deepEqual(fixture.identity.groupAdditions.slice(0, 2), [
+      { email: 'person@example.com', group: 'Users' },
+      { email: 'person@example.com', group: 'Participants' },
+    ]);
     const idempotent = await fixture.services.invites.create(admin, {
       email: 'person@example.com',
     });
@@ -1194,12 +1203,18 @@ describe('invites and deletion', () => {
       subject: user.subject,
       status: 'active',
     });
+    await fixture.quota.consumeVoiceToken(user.subject, {
+      period: '2026-08-13',
+      expiresAt: 123456,
+      tokenMintLimit: 20,
+    });
     const requested = await fixture.services.research.requestDeletion(user, 'account');
     await fixture.services.deletionWorker.process(user.subject, requested.id, 'account');
     assert.equal(fixture.connector.statuses.get('connection-1')?.status, 'disconnected');
     assert.equal(fixture.state.connectionRecords.size, 0);
     assert.equal(fixture.identity.users.has(user.subject), false);
     assert.equal(await fixture.state.getInvite(user.email!), undefined);
+    assert.equal(await fixture.quota.getVoiceTokenUsage(user.subject, '2026-08-13'), 0);
     assert.equal(
       (await fixture.state.getDeletion(user.subject, requested.id))?.state,
       'completed',
@@ -1224,15 +1239,176 @@ describe('Meta relay service', () => {
     const events = [];
     for await (const event of fixture.services.meta.stream(user, {
       turnId: 'turn-1',
+      sessionId: 'client-selected-session',
       messages: [{ role: 'user', content: 'hello' }],
     })) {
       events.push(event);
     }
     assert.deepEqual(
       events.map((event) => event.type),
-      ['started', 'delta', 'done'],
+      ['started', 'delta', 'usage', 'done'],
     );
     assert.equal(events[0]?.type === 'started' ? events[0].model : undefined, 'meta-test');
+    assert.match(
+      events[0]?.type === 'started' ? events[0].sessionId : '',
+      /^[A-Za-z0-9_-]{43}$/,
+    );
+    assert.notEqual(
+      events[0]?.type === 'started' ? events[0].sessionId : undefined,
+      'client-selected-session',
+    );
+    const usage = await fixture.services.hostedModels.usage(user);
+    assert.deepEqual(usage.providers[0]?.usage, {
+      requests: 1,
+      inputTokens: 10,
+      outputTokens: 5,
+      totalTokens: 15,
+    });
+  });
+
+  it('publishes a sanitized included-model catalog to base users', async () => {
+    const fixture = makeFixture();
+    const catalog = await fixture.services.hostedModels.catalog(baseUser);
+
+    assert.deepEqual(catalog, {
+      schemaVersion: 1,
+      providers: [
+        {
+          id: 'meta',
+          name: 'Included model',
+          kind: 'hosted',
+          credentialMode: 'managed',
+          available: true,
+          defaultModel: 'meta-test',
+          models: [
+            {
+              id: 'meta-test',
+              name: 'meta-test',
+              apiProtocols: ['openai_responses'],
+            },
+          ],
+          capabilities: { streaming: true, tools: true },
+          execution: {
+            defaultHarnessId: 'codex_app_server',
+            routes: [
+              {
+                model: 'meta-test',
+                harnessId: 'codex_app_server',
+                harnessModelId: 'meta-test',
+                credentialSource: 'sia_managed',
+                apiProtocol: 'openai_responses',
+              },
+            ],
+          },
+          limits: {
+            dailyRequests: 100,
+            dailyTokens: 250_000,
+            maxOutputTokens: 4_096,
+          },
+        },
+      ],
+    });
+    assert.doesNotMatch(JSON.stringify(catalog), /apiKey|endpoint|test-meta-key/);
+    assert.equal((await fixture.services.meta.capabilities(baseUser)).available, true);
+  });
+
+  it('onboards additional model labs from secret configuration without exposing keys', async () => {
+    const fixture = makeFixture({
+      metaConfig: {
+        apiKey: 'first-lab-key-with-enough-characters',
+        endpoint: 'https://first-lab.invalid/v1',
+        model: 'first/spark',
+        enabled: true,
+        catalogId: 'first-lab',
+        displayName: 'First Lab',
+        allowedModels: ['first/spark'],
+        additionalLabs: [
+          {
+            apiKey: 'second-lab-key-with-enough-characters',
+            endpoint: 'https://second-lab.invalid/v1',
+            model: 'second/fast',
+            enabled: true,
+            catalogId: 'second-lab',
+            displayName: 'Second Lab',
+            allowedModels: ['second/fast'],
+            defaultHarnessId: 'second_lab_harness',
+            harnessRoutes: [
+              {
+                model: 'second/fast',
+                harnessId: 'second_lab_harness',
+                harnessModelId: 'fast-v2',
+                credentialSource: 'provider_api',
+                apiProtocol: 'openai_responses',
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const catalog = await fixture.services.hostedModels.catalog(baseUser);
+    assert.deepEqual(
+      catalog.providers.map(({ id, name, models }) => ({ id, name, models })),
+      [
+        {
+          id: 'first-lab',
+          name: 'First Lab',
+          models: [
+            {
+              id: 'first/spark',
+              name: 'first/spark',
+              apiProtocols: ['openai_responses'],
+            },
+          ],
+        },
+        {
+          id: 'second-lab',
+          name: 'Second Lab',
+          models: [
+            {
+              id: 'second/fast',
+              name: 'second/fast',
+              apiProtocols: ['openai_responses'],
+            },
+          ],
+        },
+      ],
+    );
+    assert.deepEqual(catalog.providers[1]?.execution, {
+      defaultHarnessId: 'second_lab_harness',
+      routes: [
+        {
+          model: 'second/fast',
+          harnessId: 'codex_app_server',
+          harnessModelId: 'second/fast',
+          credentialSource: 'sia_managed',
+          apiProtocol: 'openai_responses',
+        },
+        {
+          model: 'second/fast',
+          harnessId: 'second_lab_harness',
+          harnessModelId: 'fast-v2',
+          credentialSource: 'provider_api',
+          apiProtocol: 'openai_responses',
+        },
+      ],
+    });
+    assert.doesNotMatch(JSON.stringify(catalog), /first-lab-key|second-lab-key|endpoint/);
+    const events = [];
+    for await (const event of fixture.services.hostedModels.stream(baseUser, {
+      turnId: 'second-lab-turn',
+      model: 'second/fast',
+      messages: [{ role: 'user', content: 'hello' }],
+    })) {
+      events.push(event);
+    }
+    assert.equal(events[0]?.type, 'started');
+    assert.equal(events[0]?.turnId, 'second-lab-turn');
+    assert.equal(events[0]?.model, 'second/fast');
+    assert.match(
+      events[0]?.type === 'started' ? events[0].sessionId : '',
+      /^[A-Za-z0-9_-]{43}$/,
+    );
   });
 
   it('allows a model tester without granting participant or connector access', async () => {
@@ -1255,7 +1431,51 @@ describe('Meta relay service', () => {
   });
 });
 
-function makeFixture(overrides: { inviteLimit?: number } = {}) {
+describe('hosted voice service', () => {
+  it('returns a sanitized voice catalog and native single-use token', async () => {
+    const fixture = makeFixture();
+    const catalog = await fixture.services.voice.catalog(baseUser);
+    assert.deepEqual(catalog.provider.voices, [
+      { id: 'voice-1', name: 'Aria', category: 'premade' },
+    ]);
+    assert.equal(catalog.provider.credentialMode, 'managed');
+    assert.doesNotMatch(JSON.stringify(catalog), /apiKey|test-elevenlabs-key/);
+
+    const token = await fixture.services.voice.mintToken(baseUser, {
+      type: 'realtime_scribe',
+    });
+    assert.deepEqual(token, {
+      token: 'sutkn_realtime_scribe_1',
+      type: 'realtime_scribe',
+      expiresAt: '2026-08-13T00:15:00.000Z',
+      singleUse: true,
+    });
+    assert.deepEqual(fixture.voiceProvider.tokenRequests, ['realtime_scribe']);
+    assert.deepEqual(fixture.audit.events.at(-1), {
+      userId: baseUser.subject,
+      action: 'voice.token_mint',
+      outcome: 'allowed',
+      occurredAt: '2026-08-13T00:00:00.000Z',
+    });
+  });
+
+  it('enforces the server-side daily token mint limit', async () => {
+    const fixture = makeFixture({ voiceDailyTokenMintLimit: 1 });
+    await fixture.services.voice.mintToken(baseUser, { type: 'tts_websocket' });
+    await assert.rejects(
+      fixture.services.voice.mintToken(baseUser, { type: 'tts_websocket' }),
+      hasCode('voice_token_daily_limit'),
+    );
+  });
+});
+
+function makeFixture(
+  overrides: {
+    inviteLimit?: number;
+    voiceDailyTokenMintLimit?: number;
+    metaConfig?: MetaConfig;
+  } = {},
+) {
   const state = new MemoryState();
   const connector = new MemoryConnector();
   const objects = new MemoryResearchObjects();
@@ -1281,8 +1501,10 @@ function makeFixture(overrides: { inviteLimit?: number } = {}) {
     signature: 'A'.repeat(86),
   });
   const audit = new MemoryAudit();
+  const voiceProvider = new MemoryVoiceProvider();
+  const quota = new MemoryQuota();
   const clock = new FixedClock(new Date('2026-08-13T00:00:00.000Z'));
-  const metaConfig: MetaConfig = {
+  const metaConfig: MetaConfig = overrides.metaConfig ?? {
     apiKey: 'test-meta-key-with-enough-characters',
     endpoint: 'https://meta.invalid/v1',
     model: 'meta-test',
@@ -1322,17 +1544,23 @@ function makeFixture(overrides: { inviteLimit?: number } = {}) {
     deletionQueue: queue,
     secrets: new FixedSecrets(metaConfig, composioConfig),
     metaProvider: new EchoMetaProvider(),
-    quota: new MemoryQuota(),
+    voiceProvider,
+    quota,
     audit,
     config: {
       actionTtlSeconds: 600,
       consentVersion: 'alpha-1',
       inviteLimit: overrides.inviteLimit ?? 20,
+      metaDailyRequestLimit: 100,
+      metaDailyTokenLimit: 250_000,
+      voiceDailyTokenMintLimit: overrides.voiceDailyTokenMintLimit ?? 20,
       features: {
         researchUploads: true,
         researchArchive: true,
         connectors: true,
         schedules: true,
+        hostedModels: true,
+        hostedVoice: true,
       },
     },
   };
@@ -1344,6 +1572,8 @@ function makeFixture(overrides: { inviteLimit?: number } = {}) {
     queue,
     exportQueue,
     audit,
+    voiceProvider,
+    quota,
     clock,
     services: createServices(deps),
   };

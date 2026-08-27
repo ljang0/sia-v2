@@ -26,18 +26,19 @@ const PROVIDERS: Record<ProviderId, ProviderCommand> = {
     versionArgs: ['--version'],
     model: 'gpt-5.6-sol',
     label: 'Codex',
-    billing: 'Uses your existing ChatGPT Codex plan or OpenAI API account.',
-    detail: 'Official app server; Sia detects your Codex login without importing credentials.',
+    billing: 'Uses your existing ChatGPT Codex subscription.',
+    detail: 'Official app server; Sia verifies ChatGPT sign-in without importing credentials.',
     minimumVersion: '0.147.0',
-    maximumExclusiveVersion: '0.150.0',
+    maximumExclusiveVersion: '0.151.0',
   },
   meta: {
     executable: '',
     versionArgs: [],
     model: 'super_nova_ext',
-    label: 'Meta',
-    billing: 'Included for invited Sia alpha accounts; shared preview limits apply.',
-    detail: 'No Meta key needed. Sia uses its cloud relay; local tools remain on this Mac.',
+    label: 'Included models',
+    billing: 'Model-lab access is included with your Sia account; lab limits may apply.',
+    detail:
+      'Included Meta access runs through the Codex harness. Lab API keys never enter the desktop app.',
   },
   grok: {
     executable: 'grok',
@@ -55,18 +56,17 @@ const PROVIDERS: Record<ProviderId, ProviderCommand> = {
     versionArgs: ['--version'],
     model: 'gemini-2.5-pro',
     label: 'Gemini',
-    billing: 'Requires paid Gemini API, Vertex AI, or organizational Code Assist.',
-    detail: 'Official Gemini CLI ACP runtime with verified per-session model selection.',
-    restriction:
-      'Requires a CLI release that advertises standard ACP model configuration. Consumer AI Pro and Ultra login is not supported.',
-    compatibleReleasePinned: false,
+    billing: 'Not available as a user-connected plan.',
+    detail: 'Legacy adapter retained so existing threads remain readable.',
+    restriction: 'Connect Codex or Claude, or use a model included with Sia.',
+    disabled: true,
   },
   claude: {
     executable: 'claude',
     versionArgs: ['--version'],
     model: 'sonnet',
     label: 'Claude',
-    billing: 'Uses your existing Claude Code subscription, API, or supported cloud account.',
+    billing: 'Uses your existing Claude Code subscription.',
     detail:
       'Official Claude Code CLI with isolated Sia tools and non-persistent provider sessions.',
     minimumVersion: '2.1.238',
@@ -85,7 +85,7 @@ export interface ProviderProbeRunner {
   ): Promise<ProbeCommandResult>;
 }
 
-/** Pins Meta availability to the validated desktop configuration. */
+/** Pins hosted-lab availability to the validated desktop configuration. */
 export function configureMetaCloudAvailability(available: boolean): void {
   metaCloudAvailable = available;
 }
@@ -115,7 +115,9 @@ async function probeProvider(
       definition,
       configured ? 'ready' : 'unavailable',
       undefined,
-      configured ? undefined : 'Meta requires a release build configured for Sia cloud.',
+      configured
+        ? undefined
+        : 'Included models require a release build configured for Sia cloud.',
     );
   }
 
@@ -170,16 +172,11 @@ async function probeProvider(
         /\bnot logged in\b|\bnot authenticated\b|authentication (?:is )?required|sign[ -]?in required|api key not found/.test(
           normalized,
         );
-      const account = normalized.includes('chatgpt')
-        ? 'Authenticated with ChatGPT'
-        : /\bapi[ -]?key\b/.test(normalized)
-          ? 'Authenticated with API key'
-          : 'Authenticated with Codex';
-      // `codex login status` uses its exit status as the stable authentication
-      // signal. Its human-readable wording has changed across releases, so do
-      // not turn a successful authenticated probe into a false logged-out state
-      // merely because that prose changed. Explicit negative output still fails
-      // closed even if a future CLI accidentally returns zero for it.
+      const chatGptSubscription = normalized.includes('chatgpt');
+      const apiKeyAccount = /\bapi[ -]?key\b/.test(normalized);
+      // The release supports only the provider-owned ChatGPT plan flow. Exit
+      // status proves authentication; the output must additionally identify
+      // ChatGPT so an API-billed login cannot be mistaken for a connected plan.
       if (auth.code !== 0 || explicitlyLoggedOut) {
         return view(
           id,
@@ -189,7 +186,18 @@ async function probeProvider(
           'Sign in with the Codex CLI, then check again.',
         );
       }
-      return view(id, definition, 'ready', version, undefined, account);
+      if (!chatGptSubscription) {
+        return view(
+          id,
+          definition,
+          'needs_login',
+          version,
+          apiKeyAccount
+            ? 'This Codex login uses API billing. Sign in with ChatGPT to connect your plan.'
+            : 'Sia could not verify a ChatGPT subscription. Sign in with ChatGPT, then check again.',
+        );
+      }
+      return view(id, definition, 'ready', version, undefined, 'Connected to ChatGPT');
     }
     if (id === 'claude') {
       const auth = await runner.run(
@@ -229,11 +237,27 @@ async function probeProvider(
       }
       const subscription =
         typeof status.subscriptionType === 'string' ? status.subscriptionType.trim() : '';
+      const authMethod =
+        typeof status.authMethod === 'string' ? status.authMethod.trim().toLowerCase() : '';
+      const apiProvider =
+        typeof status.apiProvider === 'string' ? status.apiProvider.trim().toLowerCase() : '';
+      const subscriptionLogin =
+        Boolean(subscription) ||
+        /claude\.ai|oauth|subscription/.test(`${authMethod} ${apiProvider}`);
+      if (!subscriptionLogin) {
+        return view(
+          id,
+          definition,
+          'needs_login',
+          version,
+          'This Claude login is not a Claude.ai subscription. Sign in with a Claude plan, then check again.',
+        );
+      }
       const account = subscription
         ? `Authenticated with Claude ${subscription
             .replace(/[._-]+/g, ' ')
             .replace(/\b\w/g, (character) => character.toUpperCase())}`
-        : 'Authenticated with Claude';
+        : 'Connected to Claude';
       return view(id, definition, 'ready', version, undefined, account);
     }
     return view(id, definition, 'ready', version);

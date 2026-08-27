@@ -13,6 +13,12 @@ const providerId = z.enum(['codex', 'meta', 'grok', 'gemini', 'claude']);
 const connectionId = z.enum(['gmail', 'drive', 'docs', 'sheets', 'slides', 'slack']);
 const identifier = z.string().uuid();
 const relativePath = z.string().trim().min(1).max(4_096);
+const harnessId = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z][a-z0-9_]*$/);
 
 const inputSchemas = {
   bootstrap: z.undefined(),
@@ -21,9 +27,20 @@ const inputSchemas = {
       id: identifier.optional(),
       name: z.string().trim().min(1).max(80),
       instructions: z.string().trim().max(20_000),
-      provider: providerId,
+      provider: providerId.optional(),
       model: z.string().trim().min(1).max(160),
-      workspace: z.string().trim().min(1).max(4_096),
+      workspace: z.string().trim().max(4_096).optional(),
+      harnessPreference: z
+        .discriminatedUnion('mode', [
+          z.object({ mode: z.literal('automatic') }).strict(),
+          z
+            .object({
+              mode: z.literal('explicit'),
+              harnessId,
+            })
+            .strict(),
+        ])
+        .optional(),
       voiceId: z.string().trim().min(1).max(200).optional(),
       hue: z.number().int().min(0).max(3).optional(),
       pinned: z.boolean().optional(),
@@ -193,9 +210,7 @@ const inputSchemas = {
     .strict(),
   'browser.open': z.object({ url: z.string().trim().min(1).max(2_048) }).strict(),
   'browser.detach': z.undefined(),
-  'voice.configure': z
-    .object({ apiKey: z.string().trim().min(20).max(256).regex(/^\S+$/) })
-    .strict(),
+  'voice.configure': z.undefined(),
   'voice.refresh': z.undefined(),
   'voice.select': z.object({ voiceId: z.string().trim().min(1).max(200) }).strict(),
   'voice.disconnect': z.undefined(),

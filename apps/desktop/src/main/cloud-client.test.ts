@@ -9,7 +9,7 @@ import {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('CloudClient', () => {
-  it('requests idempotent public research-alpha registration before Cognito sign-in', async () => {
+  it('requests idempotent public base-account registration before Cognito sign-in', async () => {
     const fetchMock = vi.fn(async (_input: URL | RequestInfo, _init?: RequestInit) =>
       Response.json({ accepted: true }, { status: 202 }),
     );
@@ -25,10 +25,7 @@ describe('CloudClient', () => {
     );
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
       method: 'POST',
-      body: JSON.stringify({
-        email: 'person@example.com',
-        researchEnrollmentAcknowledged: true,
-      }),
+      body: JSON.stringify({ email: 'person@example.com' }),
     });
     expect(fetchMock.mock.calls[0]?.[1]?.headers).not.toHaveProperty('authorization');
   });
@@ -77,6 +74,108 @@ describe('CloudClient', () => {
     const tokens = { read: async () => 'secret-relay-token' };
     expect(() => new CloudClient('http://sia.test', tokens)).toThrow(/HTTPS/);
     expect(() => new CloudClient('https://user:pass@sia.test', tokens)).toThrow(/HTTPS/);
+  });
+
+  it('attaches Sia identity only while forwarding the Codex Responses request', async () => {
+    const fetchMock = vi.fn(
+      async (_input: URL | RequestInfo, _init?: RequestInit) =>
+        new Response('data: [DONE]\n\n', {
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' },
+        }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new CloudClient('https://api.example.test/alpha', {
+      read: async () => 'private-sia-id-token',
+    });
+    const body = JSON.stringify({ model: 'meta/spark', stream: true, input: 'hello' });
+
+    const response = await client.forwardHostedResponses(body);
+
+    expect(response.status).toBe(200);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      'https://api.example.test/alpha/v1/responses',
+    );
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      method: 'POST',
+      body,
+      headers: {
+        accept: 'text/event-stream',
+        'content-type': 'application/json',
+        authorization: 'Bearer private-sia-id-token',
+      },
+    });
+    expect(body).not.toContain('private-sia-id-token');
+  });
+
+  it('validates hosted lab catalogs before routes reach the runtime', async () => {
+    const catalog = {
+      schemaVersion: 1,
+      providers: [
+        {
+          id: 'example-lab',
+          name: 'Example Lab',
+          kind: 'hosted',
+          credentialMode: 'managed',
+          available: true,
+          defaultModel: 'example/spark',
+          models: [
+            {
+              id: 'example/spark',
+              name: 'Spark',
+              apiProtocols: ['openai_responses'],
+            },
+          ],
+          capabilities: { streaming: true, tools: true },
+          execution: {
+            defaultHarnessId: 'example_lab_harness',
+            routes: [
+              {
+                model: 'example/spark',
+                harnessId: 'example_lab_harness',
+                harnessModelId: 'spark',
+                credentialSource: 'sia_managed',
+                apiProtocol: 'openai_responses',
+              },
+            ],
+          },
+          limits: { dailyRequests: 100, dailyTokens: 250_000, maxOutputTokens: 4_096 },
+        },
+      ],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json(catalog)),
+    );
+    const client = new CloudClient('https://api.example.test', {
+      read: async () => 'test-id-token',
+    });
+
+    await expect(client.hostedCatalog()).resolves.toEqual(catalog);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({
+          ...catalog,
+          providers: [
+            {
+              ...catalog.providers[0],
+              execution: {
+                ...catalog.providers[0]!.execution,
+                routes: [
+                  {
+                    ...catalog.providers[0]!.execution.routes[0],
+                    apiProtocol: 'openai_chat_completions',
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      ),
+    );
+    await expect(client.hostedCatalog()).rejects.toThrow(/route must use a protocol/i);
   });
 
   it('preserves only the safe reconnect code from a failed cloud response', async () => {
@@ -546,7 +645,9 @@ describe('CloudClient', () => {
       tools: [],
     };
 
-    await expect(consume(client.stream(request))).rejects.toThrow('Meta relay failed (503)');
+    await expect(consume(client.stream(request))).rejects.toThrow(
+      'Hosted model relay failed (503)',
+    );
     await consume(client.stream(request));
 
     expect(submitted).toHaveLength(2);

@@ -6,6 +6,7 @@ import type {
   MetaStreamEvent,
   MetaTurnRequest,
   ToolName,
+  VoiceTokenType,
 } from './contracts.js';
 import { CloudError } from './domain.js';
 import type {
@@ -26,10 +27,12 @@ import type {
   ConnectorUploadRecord,
   ConnectorUploadRepository,
   ConsentReceipt,
+  DailyQuotaWindow,
   DeletionJob,
   DeletionQueue,
   DeletionRepository,
   DeletionState,
+  ElevenLabsConfig,
   GoogleCredentialRepository,
   GoogleOAuthConfig,
   GoogleOAuthStateRecord,
@@ -38,8 +41,12 @@ import type {
   IdentityProvider,
   InviteRecord,
   InviteRepository,
+  HostedLabConfig,
   MetaConfig,
   MetaProvider,
+  MetaQuotaPolicy,
+  MetaTokenUsage,
+  MetaUsageSnapshot,
   PreparedActionRecord,
   QuotaGate,
   RegistrationRateLimitRepository,
@@ -52,6 +59,9 @@ import type {
   ReleaseManifestStore,
   ResearchRepository,
   SecretProvider,
+  VoiceCatalogEntry,
+  VoiceProvider,
+  VoiceTokenQuotaPolicy,
 } from './ports.js';
 
 export class SystemClock implements Clock {
@@ -509,7 +519,7 @@ export class MemoryIdentity implements IdentityProvider {
   readonly creations: Array<{ email: string; suppressMessage: boolean }> = [];
   readonly groupAdditions: Array<{
     email: string;
-    group: 'Participants' | 'ConnectorTesters';
+    group: 'Users' | 'Participants' | 'ConnectorTesters';
   }> = [];
   async createPasswordlessUser(
     email: string,
@@ -522,7 +532,7 @@ export class MemoryIdentity implements IdentityProvider {
   }
   async addUserToGroup(
     email: string,
-    group: 'Participants' | 'ConnectorTesters',
+    group: 'Users' | 'Participants' | 'ConnectorTesters',
   ): Promise<void> {
     this.groupAdditions.push({ email, group });
   }
@@ -574,12 +584,20 @@ export class FixedSecrets implements SecretProvider {
       clientSecret: 'test-google-client-secret',
       redirectUri: 'https://api.example.test/v1/oauth/google/callback',
     },
+    private readonly elevenLabsConfig: ElevenLabsConfig = {
+      apiKey: 'test-elevenlabs-key-with-enough-characters',
+      baseUrl: 'https://api.elevenlabs.invalid',
+      enabled: true,
+    },
   ) {}
   async meta(): Promise<MetaConfig> {
     return structuredClone(this.metaConfig);
   }
   async composio(): Promise<ComposioConfig> {
     return structuredClone(this.composioConfig);
+  }
+  async elevenLabs(): Promise<ElevenLabsConfig> {
+    return structuredClone(this.elevenLabsConfig);
   }
   async google(): Promise<GoogleOAuthConfig> {
     return structuredClone(this.googleConfig);
@@ -590,19 +608,22 @@ export class FixedSecrets implements SecretProvider {
 }
 
 export class EchoMetaProvider implements MetaProvider {
-  async capabilities(config: MetaConfig): Promise<{
+  async capabilities(config: HostedLabConfig): Promise<{
     models: string[];
     streaming: boolean;
     tools: boolean;
   }> {
     return {
-      models: config.allowedModels?.length ? [...config.allowedModels] : [config.model],
+      models: config.allowedModels ? [...config.allowedModels] : [config.model],
       streaming: true,
       tools: true,
     };
   }
 
-  async *stream(config: MetaConfig, request: MetaTurnRequest): AsyncIterable<MetaStreamEvent> {
+  async *stream(
+    config: HostedLabConfig,
+    request: MetaTurnRequest,
+  ): AsyncIterable<MetaStreamEvent> {
     const sessionId = request.sessionId ?? `session-${request.turnId}`;
     yield {
       type: 'started',
@@ -611,17 +632,57 @@ export class EchoMetaProvider implements MetaProvider {
       model: request.model ?? config.model,
     };
     yield { type: 'delta', text: 'test' };
+    yield {
+      type: 'usage',
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+    };
     yield { type: 'done', finishReason: 'stop' };
+  }
+}
+
+export class MemoryVoiceProvider implements VoiceProvider {
+  readonly tokenRequests: VoiceTokenType[] = [];
+  constructor(
+    readonly voices: VoiceCatalogEntry[] = [
+      { id: 'voice-1', name: 'Aria', category: 'premade' },
+    ],
+  ) {}
+  async catalog(config: ElevenLabsConfig): Promise<VoiceCatalogEntry[]> {
+    const allowed = config.allowedVoiceIds ? new Set(config.allowedVoiceIds) : undefined;
+    return structuredClone(
+      allowed ? this.voices.filter((voice) => allowed.has(voice.id)) : this.voices,
+    );
+  }
+  async mintSingleUseToken(
+    _config: ElevenLabsConfig,
+    type: VoiceTokenType,
+  ): Promise<{ token: string }> {
+    this.tokenRequests.push(type);
+    return { token: `sutkn_${type}_${this.tokenRequests.length}` };
   }
 }
 
 export class MemoryQuota implements QuotaGate {
   private readonly active = new Map<string, number>();
+  private readonly metaUsage = new Map<string, MetaUsageSnapshot>();
+  private readonly voiceTokenUsage = new Map<string, number>();
   constructor(private readonly limit = 2) {}
-  async acquireMeta(userId: string): Promise<ConcurrencyLease> {
+  async acquireMeta(userId: string, policy: MetaQuotaPolicy): Promise<ConcurrencyLease> {
     const count = this.active.get(userId) ?? 0;
     if (count >= this.limit)
       throw new CloudError(429, 'meta_concurrency_limit', 'Too many active Meta turns', true);
+    const usageKey = key(userId, policy.period);
+    const usage = this.metaUsage.get(usageKey) ?? emptyMetaUsage();
+    if (usage.requests >= policy.requestLimit || usage.totalTokens >= policy.tokenLimit) {
+      throw new CloudError(
+        429,
+        'hosted_model_daily_limit',
+        'The daily hosted model allowance has been reached',
+        true,
+      );
+    }
+    usage.requests += 1;
+    this.metaUsage.set(usageKey, usage);
     this.active.set(userId, count + 1);
     let released = false;
     return {
@@ -634,6 +695,56 @@ export class MemoryQuota implements QuotaGate {
       },
     };
   }
+
+  async getMetaUsage(userId: string, period: string): Promise<MetaUsageSnapshot> {
+    return structuredClone(this.metaUsage.get(key(userId, period)) ?? emptyMetaUsage());
+  }
+
+  async recordMetaUsage(
+    userId: string,
+    window: DailyQuotaWindow,
+    usage: MetaTokenUsage,
+  ): Promise<void> {
+    const usageKey = key(userId, window.period);
+    const current = this.metaUsage.get(usageKey) ?? emptyMetaUsage();
+    current.inputTokens += usage.inputTokens;
+    current.outputTokens += usage.outputTokens;
+    current.totalTokens += usage.totalTokens;
+    this.metaUsage.set(usageKey, current);
+  }
+
+  async consumeVoiceToken(userId: string, policy: VoiceTokenQuotaPolicy): Promise<void> {
+    const usageKey = key(userId, policy.period);
+    const current = this.voiceTokenUsage.get(usageKey) ?? 0;
+    if (current >= policy.tokenMintLimit) {
+      throw new CloudError(
+        429,
+        'voice_token_daily_limit',
+        'The daily voice token allowance has been reached',
+        true,
+      );
+    }
+    this.voiceTokenUsage.set(usageKey, current + 1);
+  }
+
+  async getVoiceTokenUsage(userId: string, period: string): Promise<number> {
+    return this.voiceTokenUsage.get(key(userId, period)) ?? 0;
+  }
+
+  async deleteUserUsage(userId: string): Promise<void> {
+    const prefix = `${userId}\u0000`;
+    for (const usageKey of [...this.metaUsage.keys()]) {
+      if (usageKey.startsWith(prefix)) this.metaUsage.delete(usageKey);
+    }
+    for (const usageKey of [...this.voiceTokenUsage.keys()]) {
+      if (usageKey.startsWith(prefix)) this.voiceTokenUsage.delete(usageKey);
+    }
+    this.active.delete(userId);
+  }
+}
+
+function emptyMetaUsage(): MetaUsageSnapshot {
+  return { requests: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 }
 
 function clone<T>(value: T | undefined): T | undefined {
