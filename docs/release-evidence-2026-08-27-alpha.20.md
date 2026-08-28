@@ -1,5 +1,9 @@
 # Sia 0.1.0-alpha.20 release evidence
 
+> Superseded by [`alpha.22`](./release-evidence-2026-08-27-alpha.22.md). A deeper live inference
+> probe found that Meta's upstream returned no bytes; do not use this document's earlier
+> included-model readiness statement.
+
 _Prepared 2026-08-27 ET_
 
 ## Decision

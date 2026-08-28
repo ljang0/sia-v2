@@ -1,5 +1,8 @@
 # Sia `0.1.0-alpha.20` JY handoff
 
+> Superseded. Give JY [`alpha.22`](./handoff-2026-08-27-alpha.22.md), which safely handles the
+> hosted-model upstream timeout. Do not distribute this build.
+
 _Prepared 2026-08-27 ET_
 
 ## Outcome
