@@ -11,7 +11,6 @@ export function ComputerSettings({
   onOpenBrowserSite,
   onDetachBrowser,
   onRequestPermissions,
-  onUnlockComputer,
   onSetComputerTrust,
   onSetTrajectoryLog,
   onRevealTrajectories,
@@ -26,41 +25,8 @@ export function ComputerSettings({
   onSetTrajectoryLog(enabled: boolean): Promise<void>;
   onRevealTrajectories(): Promise<void>;
 }) {
-  const [pending, setPending] = useState<
-    'computer' | 'browser' | 'site' | 'trust' | 'log' | 'unlock'
-  >();
+  const [pending, setPending] = useState<'computer' | 'browser' | 'site' | 'trust' | 'log'>();
   const trusted = snapshot.computer.trust === 'auto';
-  const capabilities = [
-    {
-      key: 'control',
-      label: 'See and control this Mac',
-      done:
-        snapshot.computer.accessibility === 'allowed' &&
-        snapshot.computer.screenRecording === 'allowed',
-      hint: 'Accessibility + Screen Recording',
-    },
-    {
-      key: 'chrome',
-      label: 'Connect your signed-in Chrome',
-      done: snapshot.browser.attached,
-      hint:
-        snapshot.computer.chromeConnection === 'unavailable'
-          ? 'Chrome not found'
-          : snapshot.computer.chromeConnection === 'enabled'
-            ? 'Choose a window; approve Chrome once'
-            : 'Choose a window to finish setup',
-    },
-    {
-      key: 'messages',
-      label: 'Read your Messages',
-      done: snapshot.computer.messagesAccess === 'ready',
-      hint:
-        snapshot.computer.messagesAccess === 'unavailable'
-          ? 'Messages not found'
-          : 'Full Disk Access — flip the switch in the pane that opens',
-    },
-  ];
-  const locked = capabilities.filter((capability) => !capability.done).length;
   const [error, setError] = useState<string>();
   const [site, setSite] = useState('');
   const computerReady =
@@ -68,7 +34,7 @@ export function ComputerSettings({
     snapshot.computer.screenRecording === 'allowed';
 
   const run = async (
-    kind: 'computer' | 'browser' | 'site' | 'trust' | 'log' | 'unlock',
+    kind: 'computer' | 'browser' | 'site' | 'trust' | 'log',
     action: () => Promise<void>,
   ) => {
     setPending(kind);
@@ -95,45 +61,9 @@ export function ComputerSettings({
   return (
     <SettingsSectionHeader
       title="Computer access"
-      description="After the one-time macOS grants, Sia works autonomously across your Mac and connected apps. Every action stays in the local log for review."
+      description="Grant only what a task needs. Changes ask for confirmation by default, and every computer action stays reviewable."
     >
       <InlineSettingsError message={error} />
-      <div className={styles.unlockCard} data-ready={locked === 0} data-testid="unlock-card">
-        <div className={styles.unlockHeader}>
-          <div>
-            <strong>
-              {locked === 0
-                ? 'Everything is unlocked'
-                : `${locked} of ${capabilities.length} still locked`}
-            </strong>
-            <p>
-              {locked === 0
-                ? 'Sia can see the screen, use Chrome, and read Messages on this Mac.'
-                : 'One click requests every permission and opens the panes macOS keeps manual.'}
-            </p>
-          </div>
-          {locked > 0 ? (
-            <button
-              type="button"
-              className={styles.primaryButton}
-              disabled={Boolean(pending)}
-              onClick={() => void run('unlock', onUnlockComputer)}
-              data-testid="unlock-everything"
-            >
-              {pending === 'unlock' ? 'Unlocking…' : 'Unlock everything'}
-            </button>
-          ) : null}
-        </div>
-        <ul className={styles.unlockList}>
-          {capabilities.map((capability) => (
-            <li key={capability.key} data-done={capability.done}>
-              <span className={styles.unlockDot} aria-hidden="true" />
-              <span>{capability.label}</span>
-              <small>{capability.done ? 'Ready' : capability.hint}</small>
-            </li>
-          ))}
-        </ul>
-      </div>
       {!snapshot.browser.attached &&
       snapshot.browser.status === 'error' &&
       snapshot.browser.snapshotLabel ? (
@@ -169,7 +99,7 @@ export function ComputerSettings({
                   ? snapshot.computer.chromeConnection === 'enabled'
                     ? 'Choose a window to finish setup. Chrome may ask you once to Allow remote debugging; that browser security step cannot be skipped.'
                     : 'Choose a window to finish setup. If Sia just enabled Chrome access, restart Chrome once before connecting.'
-                  : 'Open the signed-in Chrome window you want. If several are open, Sia lets you choose one.'}
+                  : 'Choose a signed-in Chrome window; approve Chrome once if it asks. That browser security step cannot be skipped.'}
             </p>
           </div>
           <button
@@ -240,7 +170,10 @@ export function ComputerSettings({
         <div className={styles.accessRow}>
           <ShieldCheck size={20} aria-hidden="true" />
           <div>
-            <strong>Confirm before changes</strong>
+            <div className={styles.rowTitleLine}>
+              <strong>Confirm before changes</strong>
+              {!trusted ? <span className={styles.stateLabel}>Recommended</span> : null}
+            </div>
             <p>
               {trusted
                 ? 'Off — Sia can click, type, send, post, upload, and schedule without interrupting the run.'

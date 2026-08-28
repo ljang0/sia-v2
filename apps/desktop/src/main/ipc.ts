@@ -177,6 +177,7 @@ const inputSchemas = {
       prompt: z.string().trim().min(1).max(200_000),
       cadence: z.enum(['once', 'hourly', 'daily', 'weekly']),
       nextRunAt: z.string().datetime({ offset: true }),
+      maxRuns: z.number().int().min(1).max(10_000).optional(),
     })
     .strict(),
   'schedules.setEnabled': z.object({ scheduleId: identifier, enabled: z.boolean() }).strict(),

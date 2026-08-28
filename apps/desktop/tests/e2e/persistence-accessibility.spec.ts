@@ -21,7 +21,7 @@ test('saved agents, threads, transcripts, and drafts survive a full app relaunch
     const firstPage = await readyPage(electronApp);
     const firstErrors = collectRendererErrors(firstPage);
     await expect(
-      firstPage.getByRole('heading', { name: 'Make space for focused work.' }),
+      firstPage.getByRole('heading', { name: 'Create your first agent.' }),
     ).toBeVisible();
 
     await firstPage
@@ -80,9 +80,7 @@ test('first-run actions and the Access surface remain usable by keyboard at 200%
   try {
     const page = await readyPage(electronApp);
     const rendererErrors = collectRendererErrors(page);
-    await expect(
-      page.getByRole('heading', { name: 'Make space for focused work.' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Create your first agent.' })).toBeVisible();
     await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
 
     await expect(page.getByRole('button', { name: 'Create your first agent' })).toBeVisible();

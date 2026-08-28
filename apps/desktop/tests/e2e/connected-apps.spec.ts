@@ -19,7 +19,7 @@ test('configured first run requires Sia sign-in before setup', async () => {
     await expect(harness.page.getByRole('button', { name: 'Start in local mode' })).toHaveCount(
       0,
     );
-    await expect(harness.page.getByText(/Sia's included model/)).toBeVisible();
+    await expect(harness.page.getByText(/email invited to the pilot/)).toBeVisible();
     expect(harness.rendererErrors).toEqual([]);
   } finally {
     await harness.close();
@@ -104,7 +104,7 @@ test('core Sia opens first and optional setup connects every work app later', as
       harness.page.getByRole('dialog', { name: 'Connect your work apps' }),
     ).toHaveCount(0);
     await expect(
-      harness.page.getByRole('heading', { name: 'Make space for focused work.' }),
+      harness.page.getByRole('heading', { name: 'Create your first agent.' }),
     ).toBeVisible();
     await expect(
       harness.page.getByRole('button', { name: 'Connect work apps later' }),
@@ -113,7 +113,7 @@ test('core Sia opens first and optional setup connects every work app later', as
     await harness.page.getByRole('button', { name: 'Settings' }).click();
     await harness.page.getByRole('button', { name: 'Connections' }).click();
     await expect(
-      harness.page.getByText(/Connect work apps, your browser, and tools on this computer/),
+      harness.page.getByText(/Google Workspace and Slack are optional/),
     ).toBeVisible();
     await expect(harness.page.getByText('Work apps', { exact: true })).toBeVisible();
     await harness.page.getByRole('button', { name: 'Connect Google', exact: true }).click();

@@ -323,7 +323,7 @@ export const demoSnapshot: RendererSnapshot = {
   computer: {
     accessibility: 'allowed',
     screenRecording: 'allowed',
-    trust: 'auto',
+    trust: 'ask',
     messagesAccess: 'ready',
     chromeConnection: 'enabled',
     trajectoryLog: true,

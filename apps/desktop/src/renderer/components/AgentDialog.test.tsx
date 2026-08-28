@@ -29,7 +29,7 @@ describe('agent dialog', () => {
     expect(screen.queryByText(/Gemini/)).toBeNull();
   });
 
-  it('defaults to the included model and lets the backend create a private workspace', async () => {
+  it('defaults to Codex when it is ready and lets the backend create a private workspace', async () => {
     const onPickWorkspace = vi.fn().mockResolvedValue('/Users/example/Work');
     const onSave = vi.fn().mockResolvedValue(undefined);
     renderDialog({ onPickWorkspace, onSave });
@@ -47,10 +47,23 @@ describe('agent dialog', () => {
     expect(onSave).toHaveBeenCalledWith({
       name: 'Research partner',
       instructions: 'Compare sources and explain uncertainty.',
-      provider: 'meta',
-      model: 'super_nova_ext',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
       workspace: '',
     });
+  });
+
+  it('requires a short instruction so a new agent has a clear role', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    renderDialog({ onSave });
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), {
+      target: { value: 'Research partner' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create agent' }));
+
+    expect(screen.getByText('Add a short instruction for this agent.')).toBeTruthy();
+    expect(onSave).not.toHaveBeenCalled();
   });
 
   it('maps a friendly model choice to the provider and protocol model ID', async () => {
@@ -62,6 +75,9 @@ describe('agent dialog', () => {
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), {
       target: { value: 'Builder' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Instructions' }), {
+      target: { value: 'Build carefully and ask before making external changes.' },
     });
     fireEvent.click(screen.getByText('Details'));
     fireEvent.change(screen.getByRole('combobox', { name: 'Model' }), {
@@ -97,6 +113,9 @@ describe('agent dialog', () => {
     renderDialog({ onSave });
     fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), {
       target: { value: 'Builder' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Instructions' }), {
+      target: { value: 'Work inside the private folder and explain changes.' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Create agent' }));
 

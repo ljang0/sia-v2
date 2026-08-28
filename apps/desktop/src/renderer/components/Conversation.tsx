@@ -309,15 +309,15 @@ export function Conversation({
         <div className={styles.emptyState} data-companion-empty>
           <AgentForm identity={agentHue ?? 0} size="large" />
           <span className={styles.emptyStateKicker}>
-            {agentName ? `${agentName} is ready` : 'A thoughtful place to begin'}
+            {agentName ? `${agentName} is ready` : 'Start here'}
           </span>
           <h1>
-            {agentName ? `Open a room with ${agentName}.` : 'Make space for focused work.'}
+            {agentName ? `Start a thread with ${agentName}.` : 'Create your first agent.'}
           </h1>
           <p>
             {agentName
-              ? 'Each thread keeps its own goal, model, and workspace together—so you can leave and return without rebuilding context.'
-              : 'Create one agent for each kind of work. Its role stays consistent across every thread.'}
+              ? 'A thread keeps its goal, files, and history together so you can return without starting over.'
+              : 'Give it a name and one short instruction. Sia chooses a model, color, and private folder.'}
           </p>
           {onCreateThread ? (
             <button className={styles.primaryButton} type="button" onClick={onCreateThread}>
@@ -494,11 +494,8 @@ export function Conversation({
             <div className={styles.threadEmpty} data-companion-thread-empty>
               <AgentForm identity={agentHue} size="large" />
               <span className={styles.emptyStateKicker}>{agentName ?? 'Sia'} is listening</span>
-              <h2>What deserves your attention?</h2>
-              <p>
-                Start with an outcome, a rough idea, or the thing you have been avoiding. You
-                can refine the route together.
-              </p>
+              <h2>What would you like to do?</h2>
+              <p>Describe the outcome, attach any useful files, or choose a suggested start.</p>
               {onOpenApps ? (
                 <button className={styles.textButton} type="button" onClick={onOpenApps}>
                   Connect work apps

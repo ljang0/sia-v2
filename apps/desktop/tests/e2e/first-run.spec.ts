@@ -32,9 +32,7 @@ test('first run creates an agent, starts a thread, and completes a deterministic
     page.on('pageerror', (error) => rendererErrors.push(error.message));
 
     await expect.poll(() => page.evaluate(() => Boolean(window.sia))).toBe(true);
-    await expect(
-      page.getByRole('heading', { name: 'Make space for focused work.' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Create your first agent.' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Create agent' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Create agent' }).click();
@@ -46,7 +44,7 @@ test('first run creates an agent, starts a thread, and completes a deterministic
     await page.getByRole('button', { name: 'Create agent' }).click();
 
     await expect(
-      page.getByRole('heading', { name: 'What deserves your attention?' }),
+      page.getByRole('heading', { name: 'What would you like to do?' }),
     ).toBeVisible();
 
     const prompt = 'Summarize this workspace without changing any files.';

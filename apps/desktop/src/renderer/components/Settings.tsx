@@ -129,7 +129,7 @@ export function Settings({
       <header className={styles.settingsTopbar}>
         <div>
           <h1>Settings</h1>
-          <p>Accounts and permissions</p>
+          <p>Choose what Sia can use</p>
         </div>
         <button
           type="button"

@@ -34,19 +34,16 @@ export function SiaSignInDialog({
               <span>Sia</span>
             </div>
             <div>
-              <h2>A companion for the work between ideas and done.</h2>
-              <p>
-                Give each kind of work its own agent, its own room, and a thread you can return
-                to without starting over.
-              </p>
+              <h2>One place to ask, review, and keep going.</h2>
+              <p>Keep each kind of work with the instructions, files, and history it needs.</p>
             </div>
           </aside>
           <section className={companion.onboardingPanel}>
             <header>
               <Dialog.Title>Sign in to Sia</Dialog.Title>
               <Dialog.Description>
-                Start with Sia&apos;s included model. You can connect a ChatGPT plan for Codex
-                later.
+                Enter the email invited to the pilot. We&apos;ll send a one-time code—no
+                password required.
               </Dialog.Description>
             </header>
             <div className={companion.onboardingSignIn}>

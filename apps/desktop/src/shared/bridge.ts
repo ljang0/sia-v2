@@ -396,7 +396,7 @@ export interface ComputerView extends ComputerPermissionsView {
   /** Chrome's persistent remote-debugging toggle for silent attachment. */
   chromeConnection?: 'enabled' | 'off' | 'unavailable';
   /**
-   * 'auto' (default): computer and browser actions run without per-action approval and Chrome
+   * 'auto': computer and browser actions run without per-action approval and Chrome
    * attaches to the frontmost window on demand. 'ask' restores confirmation previews.
    */
   trust: 'auto' | 'ask';

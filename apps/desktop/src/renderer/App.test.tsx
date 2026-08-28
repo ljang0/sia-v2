@@ -34,7 +34,7 @@ describe('app privacy routing', () => {
 
     expect(await screen.findByRole('dialog', { name: 'Sign in to Sia' })).toBeTruthy();
     expect(screen.getByRole('textbox', { name: 'Email' })).toBeTruthy();
-    expect(screen.getByText(/Sia's included model/)).toBeTruthy();
+    expect(screen.getByText(/email invited to the pilot/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Start in local mode' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Create your first agent' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Access' })).toBeNull();
@@ -236,7 +236,7 @@ describe('app privacy routing', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Connect work apps later' }));
     expect(await screen.findByRole('heading', { name: 'Connections' })).toBeTruthy();
-    expect(screen.getByText(/Connect work apps, your browser/)).toBeTruthy();
+    expect(screen.getByText(/Google Workspace and Slack are optional/)).toBeTruthy();
   });
 
   it('connects Slack independently later from Settings', async () => {

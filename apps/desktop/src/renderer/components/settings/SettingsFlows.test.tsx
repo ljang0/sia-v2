@@ -138,6 +138,7 @@ describe('cloud account settings', () => {
         onDeleteCloudAccount={vi.fn()}
       />,
     );
+    fireEvent.click(screen.getByText('Account', { selector: 'span' }));
     expect(screen.getByText(/^Signed in as lawrence@example\.com\./)).toBeTruthy();
     expect(screen.getByText('Available for this account')).toBeTruthy();
     expect(screen.getByText(/workspace administrator may need to approve/i)).toBeTruthy();
@@ -420,6 +421,7 @@ describe('cloud account settings', () => {
       />,
     );
 
+    fireEvent.click(screen.getByText('Account', { selector: 'span' }));
     fireEvent.click(screen.getByRole('button', { name: 'Delete account' }));
     const dialog = screen.getByRole('alertdialog', {
       name: 'Delete your Sia cloud account?',
@@ -547,12 +549,12 @@ describe('computer access settings', () => {
       />,
     );
 
-    expect(screen.getByText(/Every action stays in the local log for review/)).toBeTruthy();
+    expect(screen.getByText(/every computer action stays reviewable/i)).toBeTruthy();
     expect(
       screen
         .getByRole('switch', { name: 'Confirm before changes' })
         .getAttribute('aria-checked'),
-    ).toBe('false');
+    ).toBe('true');
     expect(
       screen
         .getByRole('switch', { name: 'Keep a full local log' })
@@ -594,9 +596,11 @@ describe('computer access settings', () => {
   it('flips trust and the local log through the switches', async () => {
     const onSetComputerTrust = vi.fn(async () => undefined);
     const onSetTrajectoryLog = vi.fn(async () => undefined);
+    const snapshot = structuredClone(demoSnapshot);
+    snapshot.computer.trust = 'auto';
     render(
       <ComputerSettings
-        snapshot={structuredClone(demoSnapshot)}
+        snapshot={snapshot}
         onAttachBrowser={vi.fn()}
         onOpenBrowserSite={vi.fn()}
         onDetachBrowser={vi.fn()}

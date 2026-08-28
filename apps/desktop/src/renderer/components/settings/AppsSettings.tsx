@@ -139,32 +139,26 @@ export function AppsSettings({
   return (
     <SettingsSectionHeader
       title="Connections"
-      description="Connect work apps, your browser, and tools on this computer."
+      description="Google Workspace and Slack are optional. Google starts read-only."
     >
-      <CloudAccountSettings
-        cloudAuth={snapshot.cloudAuth}
-        onStartCloudSignIn={onStartCloudSignIn}
-        onCompleteCloudSignIn={onCompleteCloudSignIn}
-        onBeginAdminMfa={onBeginAdminMfa}
-        onCompleteAdminMfa={onCompleteAdminMfa}
-        onSignOutCloud={onSignOutCloud}
-        onDeleteCloudAccount={onDeleteCloudAccount}
-      />
+      {snapshot.cloudAuth.state !== 'signed-in' ? (
+        <CloudAccountSettings
+          cloudAuth={snapshot.cloudAuth}
+          onStartCloudSignIn={onStartCloudSignIn}
+          onCompleteCloudSignIn={onCompleteCloudSignIn}
+          onBeginAdminMfa={onBeginAdminMfa}
+          onCompleteAdminMfa={onCompleteAdminMfa}
+          onSignOutCloud={onSignOutCloud}
+          onDeleteCloudAccount={onDeleteCloudAccount}
+        />
+      ) : null}
       {!connectorsEnabled ? (
         <div className={styles.inlineWarning} role="status">
           Work app connections are not enabled for this account yet. Existing connections can
           still be disconnected.
         </div>
       ) : null}
-      <LocalIntegrations
-        snapshot={snapshot}
-        pending={pending}
-        run={run}
-        onAttachBrowser={onAttachBrowser}
-        onDetachBrowser={onDetachBrowser}
-        onOpenMessages={onOpenMessages}
-        onReviewComputerAccess={onReviewComputerAccess}
-      />
+      <InlineSettingsError message={error} />
       <div className={styles.connectionSetup}>
         <div className={styles.connectionSetupIntro}>
           <div className={styles.connectionSetupHeader}>
@@ -174,8 +168,8 @@ export function AppsSettings({
             </span>
           </div>
           <p>
-            Google starts read-only; Slack connects one workspace. Your workspace administrator
-            may need to approve either connection.
+            Connect only what you need. Your workspace administrator may need to approve either
+            connection.
           </p>
         </div>
         <div className={styles.connectionGroups}>
@@ -331,7 +325,6 @@ export function AppsSettings({
           ) : null}
         </div>
       </div>
-      <InlineSettingsError message={error} />
       {googleConnected ? (
         <div className={styles.googleServiceAccess} aria-label="Google Workspace services">
           <div>
@@ -411,6 +404,42 @@ export function AppsSettings({
         You can disconnect any app without affecting core Sia features. OAuth opens in your
         browser, and Sia never places connector keys or account tokens in the renderer.
       </div>
+      <details className={styles.settingsDisclosure}>
+        <summary>
+          <span>Other ways to connect</span>
+          <small>Chrome and Messages on this Mac</small>
+        </summary>
+        <div className={styles.settingsDisclosureBody}>
+          <LocalIntegrations
+            snapshot={snapshot}
+            pending={pending}
+            run={run}
+            onAttachBrowser={onAttachBrowser}
+            onDetachBrowser={onDetachBrowser}
+            onOpenMessages={onOpenMessages}
+            onReviewComputerAccess={onReviewComputerAccess}
+          />
+        </div>
+      </details>
+      {snapshot.cloudAuth.state === 'signed-in' ? (
+        <details className={styles.settingsDisclosure}>
+          <summary>
+            <span>Account</span>
+            <small>{snapshot.cloudAuth.email ?? 'Signed in'}</small>
+          </summary>
+          <div className={styles.settingsDisclosureBody}>
+            <CloudAccountSettings
+              cloudAuth={snapshot.cloudAuth}
+              onStartCloudSignIn={onStartCloudSignIn}
+              onCompleteCloudSignIn={onCompleteCloudSignIn}
+              onBeginAdminMfa={onBeginAdminMfa}
+              onCompleteAdminMfa={onCompleteAdminMfa}
+              onSignOutCloud={onSignOutCloud}
+              onDeleteCloudAccount={onDeleteCloudAccount}
+            />
+          </div>
+        </details>
+      ) : null}
     </SettingsSectionHeader>
   );
 }

@@ -232,7 +232,7 @@ export function ScheduleControls({
   const [prompt, setPrompt] = useState('');
   const [cadence, setCadence] = useState<ScheduleDraft['cadence']>('once');
   const [runAt, setRunAt] = useState('');
-  const [maxRuns, setMaxRuns] = useState('');
+  const [maxRuns, setMaxRuns] = useState('1');
   const [expandedHistoryId, setExpandedHistoryId] = useState<string>();
   const titleId = useId();
 
@@ -248,8 +248,9 @@ export function ScheduleControls({
       }),
     ).then(() => {
       setPrompt('');
+      setCadence('once');
       setRunAt('');
-      setMaxRuns('');
+      setMaxRuns('1');
       setExpanded(false);
     });
   };
@@ -258,7 +259,7 @@ export function ScheduleControls({
     <section className={styles.scheduleControl} aria-labelledby={titleId}>
       <div className={styles.localSurfaceHeader}>
         <div>
-          <span className={styles.sectionLabel}>Background work</span>
+          <span className={styles.sectionLabel}>Runs while Sia is open</span>
           <h2 id={titleId}>Schedules</h2>
         </div>
         <button
@@ -296,7 +297,11 @@ export function ScheduleControls({
               <select
                 data-testid="schedule-cadence-select"
                 value={cadence}
-                onChange={(event) => setCadence(event.target.value as ScheduleDraft['cadence'])}
+                onChange={(event) => {
+                  const next = event.target.value as ScheduleDraft['cadence'];
+                  setCadence(next);
+                  setMaxRuns(next === 'once' ? '1' : '10');
+                }}
                 disabled={busy}
               >
                 <option value="once">Once</option>
@@ -306,9 +311,7 @@ export function ScheduleControls({
               </select>
             </label>
             <label className={styles.localField}>
-              <span>
-                Run limit <small>optional</small>
-              </span>
+              <span>Stops after</span>
               <input
                 type="number"
                 min="1"
@@ -317,7 +320,6 @@ export function ScheduleControls({
                 inputMode="numeric"
                 value={maxRuns}
                 onChange={(event) => setMaxRuns(event.target.value)}
-                placeholder="No limit"
                 disabled={busy}
               />
             </label>

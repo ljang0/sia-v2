@@ -5,7 +5,7 @@ import type { ProviderId, ProviderSetup } from '../../types';
 import styles from '../../ui.module.css';
 import { errorMessage, InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
 
-const RELEASE_PROVIDERS: ProviderId[] = ['meta', 'codex'];
+const RELEASE_PROVIDERS: ProviderId[] = ['codex', 'meta'];
 
 export function ProvidersSettings({
   providers,
@@ -44,7 +44,7 @@ export function ProvidersSettings({
   return (
     <SettingsSectionHeader
       title="AI access"
-      description="Use the included model, or connect your ChatGPT plan for Codex."
+      description="Codex is recommended for the pilot. The included model is available when its provider is healthy."
     >
       <InlineSettingsError message={error} />
       <div className={styles.settingsList}>
@@ -136,8 +136,9 @@ function providerName(provider: ProviderSetup): string {
 
 function providerDescription(provider: ProviderSetup): string {
   if (provider.id === 'meta')
-    return 'Ready with your Sia account. No API key or ChatGPT login needed.';
-  if (provider.id === 'codex') return 'Use the Codex access included with your ChatGPT plan.';
+    return 'Provided with your Sia account. No API key needed; availability may vary during the pilot.';
+  if (provider.id === 'codex')
+    return 'Recommended for the pilot. Uses the Codex access in your ChatGPT plan.';
   if (provider.id === 'claude')
     return 'Use the Claude plan already connected to this computer.';
   return provider.description;

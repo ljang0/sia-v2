@@ -176,7 +176,7 @@ interface PersistedState {
   cloudFeatures: CloudFeatureFlags;
   preferences: {
     completionSound: boolean;
-    /** All eligible actions run without in-app approval when 'auto' (default). */
+    /** All eligible actions run without in-app approval only when explicitly set to 'auto'. */
     computerTrust?: 'auto' | 'ask';
     /** Eligible local trajectory log; Google Workspace connector turns are excluded. */
     trajectoryLog?: boolean;
@@ -571,7 +571,7 @@ export class DesktopController {
 
   /** 'auto' runs eligible actions without in-app approval. */
   computerTrust(): 'auto' | 'ask' {
-    return this.#state.preferences.computerTrust ?? 'auto';
+    return this.#state.preferences.computerTrust ?? 'ask';
   }
 
   trajectoryLogEnabled(): boolean {
@@ -2608,7 +2608,7 @@ export class DesktopController {
       enabled: true,
       createdAt: new Date().toISOString(),
       runCount: 0,
-      ...(input.maxRuns === undefined ? {} : { maxRuns: validScheduleRunLimit(input.maxRuns) }),
+      maxRuns: validScheduleRunLimit(input.maxRuns ?? defaultScheduleRunLimit(input.cadence)),
     };
     this.#state.schedules.push(schedule);
     this.#commit();
@@ -6755,6 +6755,10 @@ function validScheduleRunLimit(value: number): number {
     throw new Error('Schedule run limit must be between 1 and 10,000.');
   }
   return value;
+}
+
+function defaultScheduleRunLimit(cadence: ScheduleView['cadence']): number {
+  return cadence === 'once' ? 1 : 10;
 }
 
 function scheduleIntervalMs(cadence: ScheduleView['cadence']): number {

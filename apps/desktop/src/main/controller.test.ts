@@ -549,6 +549,7 @@ describe('DesktopController', () => {
       cadence: 'hourly',
       nextRunAt: '2030-08-21T03:00:00.000Z',
       enabled: true,
+      maxRuns: 10,
     });
     expect(controller.listSchedulesForAction(first.threadId)).toHaveLength(1);
     expect(controller.listSchedulesForAction(second.threadId)).toEqual([]);
@@ -2320,7 +2321,8 @@ describe('DesktopController', () => {
       computer: computer as never,
       runCommand: async () => 'p222\nf5\n',
     });
-    // Auto-attach (trusted default) tries the port owner first and needs no window pick.
+    await controller.invoke('computer.setTrust', { trust: 'auto' });
+    // Explicit trusted mode tries the port owner first and needs no window pick.
     await controller.ensureBrowserAttachedForActions();
     expect(controller.snapshot().browser.status).toBe('attached');
     expect(attachedPids[0]).toBe(222);
@@ -2356,6 +2358,7 @@ describe('DesktopController', () => {
 
   it('answers driver-level computer authorization automatically in trusted mode', async () => {
     const controller = await createController();
+    await controller.invoke('computer.setTrust', { trust: 'auto' });
     const agent = await controller.invoke('agents.save', {
       name: 'Personal',
       instructions: '',
@@ -2385,9 +2388,9 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
-  it('shows content-bounded, correctly classified computer approvals', async () => {
+  it('defaults to content-bounded, correctly classified computer approvals', async () => {
     const controller = await createController();
-    await controller.invoke('computer.setTrust', { trust: 'ask' });
+    expect(controller.snapshot().computer.trust).toBe('ask');
     const agent = await controller.invoke('agents.save', {
       name: 'Personal',
       instructions: '',
@@ -2475,6 +2478,7 @@ describe('DesktopController', () => {
 
   it('authorizes connector changes without an approval card in autonomous mode', async () => {
     const controller = await createController();
+    await controller.invoke('computer.setTrust', { trust: 'auto' });
     await controller.invoke('connections.start', { connectionId: 'slack' });
     const connectionId = controller
       .snapshot()

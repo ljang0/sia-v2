@@ -29,7 +29,7 @@ interface ModelChoice {
   ready: boolean;
 }
 
-const RELEASE_PROVIDER_ORDER: ProviderId[] = ['meta', 'codex'];
+const RELEASE_PROVIDER_ORDER: ProviderId[] = ['codex', 'meta'];
 
 const emptyDraft: AgentDraft = {
   name: '',
@@ -117,6 +117,10 @@ export function AgentDialog({
       setError('Give this agent a name.');
       return;
     }
+    if (!draft.instructions.trim()) {
+      setError('Add a short instruction for this agent.');
+      return;
+    }
 
     const selected = choices.find(
       (choice) => choice.provider === draft.provider && choice.model === draft.model,
@@ -199,7 +203,9 @@ export function AgentDialog({
                 value={draft.instructions}
                 onChange={(event) => update('instructions', event.target.value)}
                 rows={3}
-                placeholder="What should this agent do, prioritize, and protect?"
+                placeholder="Example: Help me compare sources. Ask before changing files or sending anything."
+                aria-required="true"
+                aria-invalid={error === 'Add a short instruction for this agent.'}
               />
             </div>
 
@@ -224,7 +230,9 @@ export function AgentDialog({
                 <small>
                   {draft.workspace
                     ? workspaceName(draft.workspace)
-                    : (selectedChoice?.label ?? 'Automatic model and folder')}
+                    : selectedChoice
+                      ? `${selectedChoice.provider === 'codex' ? 'Codex' : 'Included model'} · Private folder`
+                      : 'Automatic model and private folder'}
                 </small>
               </summary>
               <div className={styles.agentAdvancedBody}>

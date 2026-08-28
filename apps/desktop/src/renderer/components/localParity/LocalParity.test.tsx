@@ -186,6 +186,7 @@ describe('local parity renderer contracts', () => {
         prompt: 'Check release status',
         cadence: 'once',
         runAt: '2026-08-15T09:30',
+        maxRuns: 1,
       }),
     );
     fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
@@ -273,6 +274,7 @@ describe('local parity renderer contracts', () => {
       prompt: 'Check the web for new release notes',
       cadence: 'hourly',
       runAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+      maxRuns: 10,
     });
   });
 
