@@ -74,11 +74,12 @@ export const handler = awslambda.streamifyResponse(async (event, rawStream) => {
         'x-content-type-options': 'nosniff',
       },
     });
-    stream.end(
+    stream.write(
       responsesRoute
         ? `event: error\ndata: ${JSON.stringify({ type: 'error', code: normalized.code, message: normalized.message })}\n\n`
         : sse({ type: 'error', code: normalized.code, message: normalized.message }),
     );
+    stream.end();
   }
 });
 
