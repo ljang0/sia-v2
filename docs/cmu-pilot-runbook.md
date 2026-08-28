@@ -1,6 +1,6 @@
 # CMU pilot runbook
 
-This runbook is for the controlled `0.1.0-alpha.23` CMU pilot. It keeps the first session short,
+This runbook is for the controlled `0.1.0-alpha.24` CMU pilot. It keeps the first session short,
 safe, and easy to support. It is not approval for public distribution or a research launch.
 
 ## Five-minute first session
