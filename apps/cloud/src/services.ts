@@ -161,7 +161,7 @@ export class SessionService {
         researchUploads: this.deps.config.features.researchUploads && participant,
         researchArchive: this.deps.config.features.researchArchive && admin,
         connectors,
-        schedules: this.deps.config.features.schedules && participant,
+        schedules: this.deps.config.features.schedules && baseUser,
       },
     };
   }

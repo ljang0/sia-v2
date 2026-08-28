@@ -104,14 +104,17 @@ describe('release cohorts', () => {
         researchUploads: false,
         researchArchive: false,
         connectors: false,
-        schedules: false,
+        schedules: true,
       },
     });
     assert.equal(fixture.services.session.status(participant).participant, true);
     assert.equal(fixture.services.session.status(participant).features.connectors, false);
+    assert.equal(fixture.services.session.status(participant).features.schedules, true);
     assert.equal(fixture.services.session.status(user).features.connectors, true);
     assert.equal(fixture.services.session.status(operator).user, false);
+    assert.equal(fixture.services.session.status(operator).features.schedules, false);
     assert.equal(fixture.services.session.status(metaTester).user, true);
+    assert.equal(fixture.services.session.status(metaTester).features.schedules, true);
     assert.equal(fixture.services.session.status(admin).admin, true);
     assert.equal(fixture.services.session.status(admin).features.researchArchive, true);
   });

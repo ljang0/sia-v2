@@ -139,12 +139,59 @@ describe('cloud account settings', () => {
       />,
     );
     expect(screen.getByText(/^Signed in as lawrence@example\.com\./)).toBeTruthy();
+    expect(screen.getByText('Available for this account')).toBeTruthy();
+    expect(screen.getByText(/workspace administrator may need to approve/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
     for (const name of ['Connect Google', 'Connect Slack']) {
       for (const button of screen.getAllByRole('button', { name })) {
         expect((button as HTMLButtonElement).disabled).toBe(false);
       }
     }
+  });
+
+  it('keeps connector availability explicit before sign-in and for gated accounts', () => {
+    const { unmount } = render(
+      <AppsSettings
+        snapshot={withCloud('signed-out')}
+        onConnectAll={vi.fn()}
+        onConnect={vi.fn()}
+        onDisconnect={vi.fn()}
+        onStartCloudSignIn={vi.fn()}
+        onCompleteCloudSignIn={vi.fn()}
+        onSignOutCloud={vi.fn()}
+        onDeleteCloudAccount={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Sign in to connect')).toBeTruthy();
+    unmount();
+
+    const snapshot = withCloud('signed-in', 'tester@example.com');
+    snapshot.cloudAuth.features = {
+      researchUploads: false,
+      researchArchive: false,
+      connectors: false,
+      schedules: true,
+    };
+    render(
+      <AppsSettings
+        snapshot={snapshot}
+        onConnectAll={vi.fn()}
+        onConnect={vi.fn()}
+        onDisconnect={vi.fn()}
+        onStartCloudSignIn={vi.fn()}
+        onCompleteCloudSignIn={vi.fn()}
+        onSignOutCloud={vi.fn()}
+        onDeleteCloudAccount={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Not enabled for this account')).toBeTruthy();
+    expect(screen.getByText(/Existing connections can still be disconnected/)).toBeTruthy();
+    expect(
+      (screen.getByRole('button', { name: 'Connect Google' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByRole('button', { name: 'Connect Slack' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 
   it('puts signed-in Chrome and Apple Messages behind separate local buttons', async () => {

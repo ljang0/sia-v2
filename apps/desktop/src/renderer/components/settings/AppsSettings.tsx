@@ -88,6 +88,11 @@ export function AppsSettings({
   const connectorsEnabled = snapshot.cloudAuth.features?.connectors !== false;
   const accountReady = snapshot.cloudAuth.state === 'signed-in';
   const cloudReady = accountReady && connectorsEnabled;
+  const connectorAvailability = !connectorsEnabled
+    ? 'Not enabled for this account'
+    : accountReady
+      ? 'Available for this account'
+      : 'Sign in to connect';
   const run = async (key: string, action: () => Promise<void>, fallback: string) => {
     setPending(key);
     setError(undefined);
@@ -164,10 +169,13 @@ export function AppsSettings({
         <div className={styles.connectionSetupIntro}>
           <div className={styles.connectionSetupHeader}>
             <strong>Work apps</strong>
+            <span className={styles.connectionSetupProgress} role="status">
+              {connectorAvailability}
+            </span>
           </div>
           <p>
-            Google starts read-only. Sending and editing use a separate approval. Slack uses one
-            workspace approval.
+            Google starts read-only; Slack connects one workspace. Your workspace administrator
+            may need to approve either connection.
           </p>
         </div>
         <div className={styles.connectionGroups}>
