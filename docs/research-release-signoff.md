@@ -5,9 +5,9 @@ the implementation was verified; it is not legal or institutional approval.
 
 ## Release boundary
 
-- Release: Sia `0.1.0-alpha.22`
+- Release: Sia `0.1.0-alpha.24`
 - Consent version: `alpha-research-v3-raw`
-- Evidence: [`release-evidence-2026-08-27-alpha.22.md`](./release-evidence-2026-08-27-alpha.22.md)
+- Evidence: [`release-evidence-2026-08-28-alpha.24.md`](./release-evidence-2026-08-28-alpha.24.md)
 - Invite copy: [`alpha-invite-template.md`](./alpha-invite-template.md)
 - Intended population: named, invited adults on the approved research-recipient list
 - Base access: Sia email sign-in is required; research capture is separately optional

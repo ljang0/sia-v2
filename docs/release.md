@@ -1,7 +1,7 @@
 # Release gate
 
 The current signed-artifact evidence and remaining release gates are recorded in
-[`release-evidence-2026-08-27-alpha.22.md`](./release-evidence-2026-08-27-alpha.22.md). Signing and
+[`release-evidence-2026-08-28-alpha.24.md`](./release-evidence-2026-08-28-alpha.24.md). Signing and
 private publication authorize operator/internal QA only; they do not establish recipient or
 research approval.
 Named research, privacy, security, support, and release approval is recorded in
