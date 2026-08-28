@@ -29,6 +29,12 @@ A fresh invited participant, who has never been added to a provider test-user li
 Until every unchecked item below passes, describe connectors as **internal alpha only**, not as
 working out of the box for arbitrary users.
 
+Alpha.20 internal-test update (2026-08-27): JY is enrolled as a named `ConnectorTester`. A disposable
+production-stack smoke confirmed Google read-only consent-link creation, cancellation, and cleanup,
+plus Slack install-link creation and cleanup. No provider account was accessed. JY's fresh-account
+read, denial, disconnect, restart, and reconnect results remain required; this does not close any
+public-distribution checkbox below.
+
 ## Google Workspace production gate
 
 - [x] Deploy the Sia-owned authorization-code + PKCE callback and direct Google API adapter. Never
