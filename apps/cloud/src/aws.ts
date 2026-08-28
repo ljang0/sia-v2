@@ -1430,14 +1430,20 @@ export class OpenAiCompatibleMetaProvider implements MetaProvider {
     const endpoint = new URL('models', ensureTrailingSlash(config.endpoint));
     if (endpoint.protocol !== 'https:')
       throw new CloudError(503, 'meta_config_invalid', 'Meta endpoint must use HTTPS');
-    const response = await fetch(endpoint, {
-      method: 'GET',
-      headers: {
-        authorization: `Bearer ${config.apiKey}`,
-        accept: 'application/json',
-        [config.sessionHeader ?? 'x-session-id']: randomUUID(),
-      },
-    });
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${config.apiKey}`,
+          accept: 'application/json',
+          [config.sessionHeader ?? 'x-session-id']: randomUUID(),
+        },
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch (error) {
+      throw metaUpstreamFailure(error);
+    }
     if (!response.ok) {
       throw new CloudError(
         502,
@@ -1478,20 +1484,27 @@ export class OpenAiCompatibleMetaProvider implements MetaProvider {
     if (endpoint.protocol !== 'https:')
       throw new CloudError(503, 'meta_config_invalid', 'Meta endpoint must use HTTPS');
     const sessionId = request.sessionId ?? randomUUID();
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${config.apiKey}`,
-        'content-type': 'application/json',
-        accept: 'text/event-stream',
-        [config.sessionHeader ?? 'x-session-id']: sessionId,
-      },
-      body: JSON.stringify(
-        apiProtocol === 'openai_responses'
-          ? responsesRequestBody(config, request)
-          : chatCompletionsRequestBody(config, request),
-      ),
-    });
+    const signal = AbortSignal.timeout(45_000);
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${config.apiKey}`,
+          'content-type': 'application/json',
+          accept: 'text/event-stream',
+          [config.sessionHeader ?? 'x-session-id']: sessionId,
+        },
+        body: JSON.stringify(
+          apiProtocol === 'openai_responses'
+            ? responsesRequestBody(config, request)
+            : chatCompletionsRequestBody(config, request),
+        ),
+        signal,
+      });
+    } catch (error) {
+      throw metaUpstreamFailure(error);
+    }
     if (!response.ok || !response.body) {
       throw new CloudError(
         502,
@@ -1506,10 +1519,32 @@ export class OpenAiCompatibleMetaProvider implements MetaProvider {
       sessionId: response.headers.get(config.sessionHeader ?? 'x-session-id') ?? sessionId,
       model: request.model ?? config.model,
     };
-    yield* apiProtocol === 'openai_responses'
-      ? readResponsesEvents(response.body)
-      : readChatCompletionEvents(response.body);
+    try {
+      yield* apiProtocol === 'openai_responses'
+        ? readResponsesEvents(response.body)
+        : readChatCompletionEvents(response.body);
+    } catch (error) {
+      if (error instanceof CloudError) throw error;
+      throw metaUpstreamFailure(error);
+    }
   }
+}
+
+function metaUpstreamFailure(error: unknown): CloudError {
+  const name = error instanceof Error ? error.name : '';
+  return ['AbortError', 'TimeoutError'].includes(name)
+    ? new CloudError(
+        504,
+        'meta_upstream_timeout',
+        'The included model did not respond in time. Try again or use your Codex plan.',
+        true,
+      )
+    : new CloudError(
+        502,
+        'meta_upstream_unavailable',
+        'The included model is temporarily unavailable. Try again or use your Codex plan.',
+        true,
+      );
 }
 
 function chatCompletionsRequestBody(config: HostedLabConfig, request: MetaTurnRequest) {
@@ -1957,6 +1992,8 @@ export class DynamoMetaQuota implements QuotaGate {
 
   private async acquireConcurrency(userId: string): Promise<ConcurrencyLease> {
     const key = { PK: userPk(userId), SK: 'QUOTA#META' };
+    const now = Math.floor(Date.now() / 1000);
+    const expiresAt = now + 15 * 60;
     try {
       await this.client.send(
         new UpdateCommand({
@@ -1969,15 +2006,40 @@ export class DynamoMetaQuota implements QuotaGate {
             ':zero': 0,
             ':one': 1,
             ':limit': this.limit,
-            ':ttl': Math.floor(Date.now() / 1000) + 15 * 60,
+            ':ttl': expiresAt,
           },
         }),
       );
     } catch (error) {
       if (error instanceof ConditionalCheckFailedException) {
-        throw new CloudError(429, 'meta_concurrency_limit', 'Too many active Meta turns', true);
+        try {
+          await this.client.send(
+            new UpdateCommand({
+              TableName: this.tableName,
+              Key: key,
+              UpdateExpression: 'SET active = :one, expiresAt = :ttl',
+              ConditionExpression: 'expiresAt < :now',
+              ExpressionAttributeValues: {
+                ':one': 1,
+                ':ttl': expiresAt,
+                ':now': now,
+              },
+            }),
+          );
+        } catch (resetError) {
+          if (resetError instanceof ConditionalCheckFailedException) {
+            throw new CloudError(
+              429,
+              'meta_concurrency_limit',
+              'Too many active Meta turns',
+              true,
+            );
+          }
+          throw resetError;
+        }
+      } else {
+        throw error;
       }
-      throw error;
     }
     let released = false;
     return {

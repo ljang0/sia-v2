@@ -66,6 +66,36 @@ describe('Dynamo hosted-service quotas', () => {
     assert.equal(call, 3);
   });
 
+  it('replaces an expired concurrency lease after an interrupted model turn', async () => {
+    const updates: UpdateCommand[] = [];
+    let call = 0;
+    const client = {
+      async send(command: unknown) {
+        assert.ok(command instanceof UpdateCommand);
+        updates.push(command);
+        call += 1;
+        if (call === 1) {
+          throw new ConditionalCheckFailedException({ $metadata: {}, message: 'stale' });
+        }
+        return {};
+      },
+    } as unknown as DynamoDBDocumentClient;
+    const quota = new DynamoMetaQuota(client, 'table', 2);
+
+    const lease = await quota.acquireMeta('user-1', {
+      period: '2026-08-26',
+      expiresAt: 123456,
+      requestLimit: 100,
+      tokenLimit: 250_000,
+    });
+    await lease.release();
+
+    assert.equal(updates.length, 4);
+    assert.equal(updates[1]?.input.UpdateExpression, 'SET active = :one, expiresAt = :ttl');
+    assert.equal(updates[1]?.input.ConditionExpression, 'expiresAt < :now');
+    assert.equal(updates[1]?.input.ExpressionAttributeValues?.[':one'], 1);
+  });
+
   it('stores only numeric usage metadata for model and voice allowances', async () => {
     const commands: unknown[] = [];
     const client = {

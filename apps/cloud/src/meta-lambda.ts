@@ -23,9 +23,9 @@ const getServices = () => (services ??= createServices(createAwsDependencies()))
 
 export const handler = awslambda.streamifyResponse(async (event, rawStream) => {
   let stream = rawStream;
+  const responsesRoute = event.path.endsWith('/v1/responses');
   try {
     const user = authFromEvent(event);
-    const responsesRoute = event.path.endsWith('/v1/responses');
     const request = responsesRoute
       ? parseResponsesTurn(parseBody(event))
       : parseMetaTurn(parseBody(event));
@@ -65,15 +65,19 @@ export const handler = awslambda.streamifyResponse(async (event, rawStream) => {
   } catch (error) {
     const normalized = normalizeError(error);
     stream = awslambda.HttpResponseStream.from(stream, {
-      statusCode: normalized.status,
+      statusCode: 200,
       headers: {
-        'content-type': 'application/json; charset=utf-8',
-        'cache-control': 'no-store',
+        'content-type': 'text/event-stream; charset=utf-8',
+        'cache-control': 'no-store, no-cache',
+        connection: 'keep-alive',
+        'x-accel-buffering': 'no',
         'x-content-type-options': 'nosniff',
       },
     });
     stream.end(
-      JSON.stringify({ error: { code: normalized.code, message: normalized.message } }),
+      responsesRoute
+        ? `event: error\ndata: ${JSON.stringify({ type: 'error', code: normalized.code, message: normalized.message })}\n\n`
+        : sse({ type: 'error', code: normalized.code, message: normalized.message }),
     );
   }
 });

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { OpenAiCompatibleMetaProvider, SecretsManagerProvider } from '../src/aws.js';
+import { CloudError } from '../src/domain.js';
 import type { MetaConfig } from '../src/ports.js';
 
 const config: MetaConfig = {
@@ -88,6 +89,34 @@ describe('OpenAI-compatible Meta adapter', () => {
       assert.deepEqual(
         events.map(({ type }) => type),
         ['started', 'delta', 'done'],
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('fails a stalled hosted-model request with a recoverable timeout', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      throw new DOMException('timed out', 'TimeoutError');
+    }) as typeof fetch;
+
+    try {
+      await assert.rejects(
+        async () => {
+          for await (const _event of new OpenAiCompatibleMetaProvider().stream(config, {
+            turnId: 'turn-timeout',
+            sessionId: 'session-timeout',
+            model: 'super_nova_ext',
+            messages: [{ role: 'user', content: 'hello' }],
+          })) {
+            // The request must fail before emitting an event.
+          }
+        },
+        (error: unknown) =>
+          error instanceof CloudError &&
+          error.code === 'meta_upstream_timeout' &&
+          error.retryable,
       );
     } finally {
       globalThis.fetch = originalFetch;
