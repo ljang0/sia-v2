@@ -4,18 +4,18 @@ _Prepared 2026-08-28 ET_
 
 ## Outcome
 
-Use `alpha.24`. It supersedes `alpha.22` and the unpublished `alpha.23` candidate. This is the
+Use `alpha.24`. It supersedes `alpha.22` and the undistributed `alpha.23` candidate. This is the
 current signed, notarized, privately published CMU pilot build. Its clean-source CI, deterministic
 Electron flows, exact packaged-app authentication wall, real Codex login probe, real computer-use
-probe, and Codex custom-model harness smoke passed.
+probe, Codex custom-model harness smoke, and live included-model relay smoke passed.
 
 The technical build is ready for a small named CMU product pilot with research collection off.
 It is not approved for public distribution or external research recruitment. The pilot owner must
 still maintain the invited-recipient list and a support contact.
 
-Do not present the included Meta model as available. Its last live upstream sentinel timed out
-without model output. Codex is the recommended and tested pilot path until Meta passes a fresh live
-sentinel.
+The included Meta model passed a fresh direct-provider and deployed Sia-relay sentinel on
+2026-08-29 ET. It authenticated, streamed text, and completed normally. Treat it as a pilot preview
+whose availability can still vary; Codex remains the recommended fallback.
 
 ## Give JY the build
 
@@ -65,3 +65,19 @@ be completed by JY; Sia cannot bypass a CMU or workspace administrator approval.
   [`release-evidence-2026-08-28-alpha.24.md`](./release-evidence-2026-08-28-alpha.24.md).
 - Clean CI run `33217083496` passed quality gates, all default Electron flows, and unsigned
   universal package verification.
+
+## Remaining before broader release
+
+These are not blockers for the named CMU product pilot with research off:
+
+1. Rotate the Meta credential and Apple app-specific password that were previously pasted into
+   chat, then update AWS Secrets Manager and the release Mac's Keychain profile.
+2. Name the pilot support/incident owner and keep the approved recipient list outside the
+   repository.
+3. Complete JY's human acceptance pass for email OTP, OpenAI OAuth, Google/Slack read-only access,
+   denial/cancel/reconnect, and the macOS permission prompts.
+4. Before public connector distribution, complete Google's verification requirements, two fresh
+   Google domains, two unrelated Slack workspaces, and separately approved synthetic write tests.
+5. Before research recruitment, complete every owner/signature in
+   [`research-release-signoff.md`](./research-release-signoff.md) and the deployed research/alarm
+   rehearsal in [`release.md`](./release.md).

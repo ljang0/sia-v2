@@ -13,10 +13,13 @@ This is **not full public-release or research-participant approval**. The owners
 remain limited to named connector testers. The pilot owner must maintain the recipient list and
 support path.
 
-The included Meta model is not part of the pilot happy path. Its configured upstream most recently
-accepted a request but returned no model bytes before Sia's 45-second timeout. A fresh successful
-live sentinel is required before operators describe it as available. Codex is the recommended and
-tested pilot provider.
+The included Meta model passed a fresh live sentinel on 2026-08-29 ET. Direct model discovery
+authenticated with HTTP 200 and listed the configured model among three advertised models. Direct
+inference streamed text to a normal `stop` completion in about 1.8 seconds. A separate disposable
+identity then exercised the deployed Sia `/v1/responses` relay: it returned HTTP 200, streamed text,
+and completed without an error event in about 2.6 seconds. The disposable identity and its quota
+rows were removed. This establishes current pilot usability, not a permanent provider-availability
+guarantee; Codex remains the fallback.
 
 ## Pilot simplification and safety
 
@@ -73,8 +76,10 @@ tested pilot provider.
 - The real Codex isolation smoke passed authenticated ephemeral-session creation without starting a
   model turn.
 - The Codex custom Responses-provider smoke completed a tool call and result round trip through a
-  model-scoped relay. This verifies that hosted Meta-compatible models can use the Codex harness;
-  it does not certify Meta's currently stalled external inference endpoint.
+  model-scoped relay. This verifies that hosted Meta-compatible models can use the Codex harness.
+- A 2026-08-29 live sentinel separately verified the stored Meta credential and the complete deployed
+  Sia relay path. No provider key, token, prompt response, or disposable password was printed or
+  persisted in the repository.
 - Background Activity/relaunch recovery, finite app-open schedules, worktrees, connector UI,
   persisted-state isolation, keyboard use at 200% zoom, and visual baselines passed.
 
