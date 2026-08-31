@@ -48,7 +48,6 @@ interface SettingsProps {
   onDetachBrowser(): Promise<void>;
   onRequestPermissions(): Promise<void>;
   onSetComputerTrust(trust: 'auto' | 'ask'): Promise<void>;
-  onUnlockComputer(): Promise<void>;
   onSetTrajectoryLog(enabled: boolean): Promise<void>;
   onRevealTrajectories(): Promise<void>;
   onOpenMessages(): Promise<void>;
@@ -91,7 +90,6 @@ export function Settings({
   onDetachBrowser,
   onRequestPermissions,
   onSetComputerTrust,
-  onUnlockComputer,
   onSetTrajectoryLog,
   onRevealTrajectories,
   onOpenMessages,
@@ -235,7 +233,6 @@ export function Settings({
               onDetachBrowser={onDetachBrowser}
               onRequestPermissions={onRequestPermissions}
               onSetComputerTrust={onSetComputerTrust}
-              onUnlockComputer={onUnlockComputer}
               onSetTrajectoryLog={onSetTrajectoryLog}
               onRevealTrajectories={onRevealTrajectories}
             />

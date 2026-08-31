@@ -351,9 +351,6 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async detachBrowser() {
       publish(await bridge.browser.detach());
     },
-    async unlockComputer() {
-      publish(await bridge.computer.unlock());
-    },
     async setComputerTrust(trust) {
       publish(await bridge.computer.setTrust(trust));
     },

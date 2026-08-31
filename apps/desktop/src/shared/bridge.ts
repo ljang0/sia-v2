@@ -597,7 +597,6 @@ export interface BridgeRequestMap {
   'computer.permissions': undefined;
   'computer.requestPermissions': undefined;
   'computer.openMessages': undefined;
-  'computer.unlock': undefined;
   'computer.setTrust': { trust: 'auto' | 'ask' };
   'computer.setTrajectoryLog': { enabled: boolean };
   'computer.revealTrajectories': undefined;
@@ -699,7 +698,6 @@ export interface BridgeResultMap {
   'computer.permissions': DesktopSnapshot;
   'computer.requestPermissions': DesktopSnapshot;
   'computer.openMessages': DesktopSnapshot;
-  'computer.unlock': DesktopSnapshot;
   'computer.setTrust': DesktopSnapshot;
   'computer.setTrajectoryLog': DesktopSnapshot;
   'computer.revealTrajectories': DesktopSnapshot;
@@ -865,7 +863,6 @@ export interface DesktopBridgeApi {
     permissions(): Promise<DesktopSnapshot>;
     requestPermissions(): Promise<DesktopSnapshot>;
     openMessages(): Promise<DesktopSnapshot>;
-    unlock(): Promise<DesktopSnapshot>;
     setTrust(trust: 'auto' | 'ask'): Promise<DesktopSnapshot>;
     setTrajectoryLog(enabled: boolean): Promise<DesktopSnapshot>;
     revealTrajectories(): Promise<DesktopSnapshot>;

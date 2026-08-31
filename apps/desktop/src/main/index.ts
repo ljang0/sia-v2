@@ -201,20 +201,6 @@ async function performApplicationCreation(): Promise<void> {
       capabilitySetup: {
         messagesStatus: () => messagesService.status(),
         chromeDebugStatus: () => chromeRemoteDebuggingStatus(),
-        enableChromeDebug: () => ensureChromeRemoteDebuggingEnabled(),
-        openFullDiskAccess: async () => {
-          await shell.openExternal(
-            'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles',
-          );
-        },
-        prewarmMessagesAutomation: async () => {
-          // A read-only Apple event makes macOS raise the Automation consent right now,
-          // during setup, instead of mid-task on the first send.
-          await execFileAsync('osascript', [
-            '-e',
-            'tell application "Messages" to count of accounts',
-          ]);
-        },
       },
       revealDirectory: async (path) => {
         shell.showItemInFolder(path);

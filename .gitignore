@@ -19,6 +19,8 @@ test-results/
 *.sqlite-wal
 *.pem
 *.p12
+# Local diagnostic bundles can contain sensitive data.
+/codex_incident_*/
 cdk.out/
 .aws-sam/
 /apps/desktop/build/sia-cloud.json

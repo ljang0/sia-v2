@@ -588,7 +588,6 @@ export interface RendererApi {
   detachBrowser(): Promise<void>;
   requestComputerPermissions(): Promise<void>;
   setComputerTrust(trust: 'auto' | 'ask'): Promise<void>;
-  unlockComputer(): Promise<void>;
   setTrajectoryLog(enabled: boolean): Promise<void>;
   revealTrajectories(): Promise<void>;
   openMessages(): Promise<void>;

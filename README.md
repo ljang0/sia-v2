@@ -40,11 +40,11 @@ This repository is the clean v2 implementation. It intentionally does not contai
   an exact recipient and message. WhatsApp can use granted computer control. Slack uses its connected
   app path for dependable person lookup, DM resolution, message search, thread reads, and reviewed
   sends; desktop-window accessibility is not treated as a reliable Slack integration.
-- Sia runs autonomously by default after one-time OS and account grants. Computer, browser,
-  connector, message, upload, and schedule changes continue without in-app confirmation and are
-  written to a per-thread local trajectory log, bounded to 90 days or 128 MiB; `Settings → Computer
-→ Confirm before changes` restores exact, expiring approvals. Hard blocks for credential fields,
-  private browser surfaces, and sensitive apps remain in every mode.
+- Sia asks before host-side changes by default. A person can explicitly enable autonomous mode for
+  eligible computer, browser, connector, message, upload, and schedule actions; those actions remain
+  bounded to validated targets and are written to a per-thread local trajectory log for at most 90
+  days or 128 MiB. Hard blocks for credential fields, private browser surfaces, and sensitive apps
+  remain in every mode.
 - Gmail, Drive, Docs, Sheets, and Slides share one optional Google Workspace connection in Settings;
   Slack remains a separate connection. Service toggles and per-app controls determine which tools
   Sia may use after the account grant. If an optional connector is absent, Sia can continue in a
@@ -129,7 +129,8 @@ manual acceptance pass below before an external alpha release.
 `pnpm package:mac` is the external-release gate, not a local development command. It requires an enabled packaged cloud configuration plus Apple Developer ID/notarization credentials, then verifies the hardened signature, Gatekeeper assessment, notarization staple, macOS 14 minimum, universal app/helper binaries, packaged CUA/UniFFI runtimes, license resources, and tool bridge. See [`docs/release.md`](./docs/release.md).
 
 Architecture, security boundaries, provider and [harness policy](./docs/harness-policy.md), the
-local/cloud product boundary, and manual acceptance checks are documented under [`docs/`](./docs/).
+local/cloud product boundary, and manual acceptance checks are indexed in
+[`docs/README.md`](./docs/README.md).
 Start with [`docs/cloud-computer.md`](./docs/cloud-computer.md) and the dated
 [`cloud-provider-decision.md`](./docs/cloud-provider-decision.md) before adding remote execution or
 an always-on cloud scheduler.

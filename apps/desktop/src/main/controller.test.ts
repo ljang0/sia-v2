@@ -2329,33 +2329,6 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
-  it('unlocks every grantable capability with one call and opens the user-only panes', async () => {
-    const openFullDiskAccess = vi.fn(async () => undefined);
-    const enableChromeDebug = vi.fn(async () => 'enabled');
-    const prewarmMessagesAutomation = vi.fn(async () => undefined);
-    let messagesReady = false;
-    const { controller } = await createHarness({
-      capabilitySetup: {
-        messagesStatus: () => (messagesReady ? 'ready' : 'needs_full_disk_access'),
-        chromeDebugStatus: async () => 'enabled',
-        enableChromeDebug,
-        openFullDiskAccess,
-        prewarmMessagesAutomation,
-      },
-    });
-    const snapshot = await controller.invoke('computer.unlock', undefined);
-    expect(enableChromeDebug).toHaveBeenCalledOnce();
-    expect(prewarmMessagesAutomation).toHaveBeenCalledOnce();
-    expect(openFullDiskAccess).toHaveBeenCalledOnce();
-    expect(snapshot.computer.chromeConnection).toBe('enabled');
-    expect(snapshot.computer.messagesAccess).toBe('needs_full_disk_access');
-    messagesReady = true;
-    const again = await controller.invoke('computer.unlock', undefined);
-    expect(openFullDiskAccess).toHaveBeenCalledOnce();
-    expect(again.computer.messagesAccess).toBe('ready');
-    await controller.shutdown();
-  });
-
   it('answers driver-level computer authorization automatically in trusted mode', async () => {
     const controller = await createController();
     await controller.invoke('computer.setTrust', { trust: 'auto' });

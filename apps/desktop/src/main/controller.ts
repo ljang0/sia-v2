@@ -101,14 +101,10 @@ interface ControllerOptions {
   runCommand?: (file: string, args: readonly string[]) => Promise<string>;
   /** Provider discovery boundary; production uses the real CLI probe. */
   providerProbe?: typeof probeProviders;
-  /** One-click capability unlock helpers; absent in unit tests that do not use them. */
+  /** Capability status readers; absent in unit tests that do not use them. */
   capabilitySetup?: {
     messagesStatus(): 'ready' | 'needs_full_disk_access' | 'unavailable';
     chromeDebugStatus(): Promise<'enabled' | 'off' | 'unavailable'>;
-    enableChromeDebug(): Promise<unknown>;
-    openFullDiskAccess(): Promise<void>;
-    /** Fires one benign Apple event at Messages so macOS shows the Automation consent now. */
-    prewarmMessagesAutomation(): Promise<void>;
   };
   /** Reveals a directory in Finder; used for the trajectory log. */
   revealDirectory?(path: string): Promise<void>;
@@ -1286,8 +1282,6 @@ export class DesktopController {
         return (await this.#refreshComputer(true)) as unknown as BridgeResultMap[M];
       case 'computer.openMessages':
         return (await this.#openMessagesApp()) as unknown as BridgeResultMap[M];
-      case 'computer.unlock':
-        return (await this.#unlockComputerCapabilities()) as unknown as BridgeResultMap[M];
       case 'computer.setTrust':
         this.#state.preferences.computerTrust = (
           input as BridgeRequestMap['computer.setTrust']
@@ -2874,30 +2868,6 @@ export class DesktopController {
     if (!this.#capabilitySetup) return;
     this.#messagesAccess = this.#capabilitySetup.messagesStatus();
     this.#chromeConnection = await this.#capabilitySetup.chromeDebugStatus();
-  }
-
-  /** One click grants everything grantable and opens the panes for the user-only rest. */
-  async #unlockComputerCapabilities(): Promise<DesktopSnapshot> {
-    this.#computerState = await this.#computer.requestPermissions();
-    const setup = this.#capabilitySetup;
-    if (setup) {
-      await setup.enableChromeDebug().catch(() => undefined);
-      await setup.prewarmMessagesAutomation().catch(() => undefined);
-      if (setup.messagesStatus() === 'needs_full_disk_access') {
-        await setup.openFullDiskAccess().catch(() => undefined);
-      }
-      await this.#refreshCapabilityStatuses();
-    }
-    this.#trajectory?.record({
-      type: 'capability_unlock',
-      threadId: 'app',
-      accessibility: this.#computerState.accessibility,
-      screenRecording: this.#computerState.screenRecording,
-      messagesAccess: this.#messagesAccess,
-      chromeConnection: this.#chromeConnection,
-    });
-    this.#emit();
-    return this.snapshot();
   }
 
   async #refreshComputer(request: boolean): Promise<DesktopSnapshot> {
