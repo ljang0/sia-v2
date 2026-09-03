@@ -13,7 +13,7 @@ import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import styles from '../ui.module.css';
 import { SiaPresence, type SiaPresenceState } from './SiaPresence';
 
-export interface ComposerAttachment {
+interface ComposerAttachment {
   id: string;
   name: string;
   kind: 'file' | 'image';

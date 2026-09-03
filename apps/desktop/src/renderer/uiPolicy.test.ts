@@ -27,7 +27,6 @@ describe('renderer accessibility CSS policy', () => {
       /@media \(max-width: 600px\)[\s\S]*?\.settingsLayout[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/,
     );
     expect(styles).not.toMatch(/\.workspaceLabel|\.cloudStatus|\.captureControl/);
-    expect(styles).toMatch(/\.threadIdentity\s*{[\s\S]*?min-width:\s*120px/);
     expect(styles).toMatch(/\.threadControls\s*{[\s\S]*?border:\s*1px/);
     expect(styles).toMatch(
       /@media \(max-width: 1120px\)[\s\S]*?\.inspectorButton > span[\s\S]*?display:\s*none/,

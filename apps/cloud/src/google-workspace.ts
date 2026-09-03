@@ -59,8 +59,6 @@ export const GOOGLE_WORKSPACE_WRITE_SCOPES = [
 ] as const;
 
 /** Backward-compatible name for the legacy all-at-once grant. */
-export const GOOGLE_WORKSPACE_SCOPES = GOOGLE_WORKSPACE_WRITE_SCOPES;
-
 interface AccessTokenCacheEntry {
   token: string;
   expiresAt: number;

@@ -279,7 +279,7 @@ export function normalizeError(error: unknown): CloudError {
   return new CloudError(500, 'internal_error', 'The request could not be completed', true);
 }
 
-export function json(statusCode: number, body: unknown): APIGatewayProxyResult {
+function json(statusCode: number, body: unknown): APIGatewayProxyResult {
   return {
     statusCode,
     headers: {

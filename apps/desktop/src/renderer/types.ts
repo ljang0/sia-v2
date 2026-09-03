@@ -1,17 +1,16 @@
 export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude';
 /** Safe catalog id. The main process decides whether the corresponding adapter is admitted. */
-export type HarnessId = string;
-export type HarnessPreference =
-  { mode: 'automatic' } | { mode: 'explicit'; harnessId: HarnessId };
+type HarnessId = string;
+type HarnessPreference = { mode: 'automatic' } | { mode: 'explicit'; harnessId: HarnessId };
 
 export type ThreadStatus = 'idle' | 'running' | 'queued' | 'waiting' | 'error';
 
-export type CaptureState = 'recording' | 'paused' | 'sync-pending' | 'blocked';
+type CaptureState = 'recording' | 'paused' | 'sync-pending' | 'blocked';
 
 export type ProviderStatus =
   'ready' | 'needs-install' | 'needs-login' | 'incompatible' | 'unavailable' | 'disabled';
 
-export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected' | 'error';
+type ConnectionStatus = 'connected' | 'connecting' | 'disconnected' | 'error';
 
 export interface AgentSummary {
   id: string;
@@ -68,7 +67,7 @@ export interface ActivityEvent {
   presentation?: ActivityPresentation;
 }
 
-export type ActivityPresentation =
+type ActivityPresentation =
   | {
       kind: 'command';
       command: string;
@@ -110,7 +109,7 @@ export type ActivityPresentation =
       reasoningEffort?: string | undefined;
     };
 
-export interface ForegroundApproval {
+interface ForegroundApproval {
   id: string;
   kind: 'foreground';
   title: string;
@@ -120,7 +119,7 @@ export interface ForegroundApproval {
   restoresFocusTo: string;
 }
 
-export interface ConnectorApproval {
+interface ConnectorApproval {
   id: string;
   kind: 'connector';
   title: string;
@@ -132,7 +131,7 @@ export interface ConnectorApproval {
   expiresAt: string;
 }
 
-export interface ActionApproval {
+interface ActionApproval {
   id: string;
   kind: 'action';
   title: string;
@@ -144,7 +143,7 @@ export interface ActionApproval {
   reversible: boolean;
 }
 
-export type ApprovalRequest = ForegroundApproval | ConnectorApproval | ActionApproval;
+type ApprovalRequest = ForegroundApproval | ConnectorApproval | ActionApproval;
 
 export interface ApprovalEvent {
   id: string;
@@ -154,7 +153,7 @@ export interface ApprovalEvent {
   timestamp: string;
 }
 
-export interface NoticeEvent {
+interface NoticeEvent {
   id: string;
   type: 'notice';
   tone: 'info' | 'warning' | 'error';
@@ -163,7 +162,7 @@ export interface NoticeEvent {
   actionLabel?: string | undefined;
 }
 
-export interface QuestionEvent {
+interface QuestionEvent {
   id: string;
   type: 'question';
   prompt: string;
@@ -209,7 +208,7 @@ export type AttachmentPreview =
   | { kind: 'pdf' }
   | { kind: 'unavailable'; detail: string };
 
-export interface WorkspaceChange {
+interface WorkspaceChange {
   path: string;
   status: 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked' | 'conflicted';
   staged: boolean;
@@ -247,7 +246,7 @@ export interface BackgroundTerminal {
   truncated: boolean;
 }
 
-export interface ThreadSchedule {
+interface ThreadSchedule {
   id: string;
   threadId: string;
   prompt: string;
@@ -283,7 +282,7 @@ export interface TranscriptSearchResult {
   }>;
 }
 
-export interface BrowserTab {
+interface BrowserTab {
   id: string;
   title: string;
   origin: string;
@@ -315,7 +314,7 @@ export interface VoiceSettingsState {
   detail?: string | undefined;
 }
 
-export interface ComputerWindow {
+interface ComputerWindow {
   id: string;
   appName: string;
   title: string;
@@ -570,10 +569,8 @@ export interface RendererApi {
   declineResearchConsent(): Promise<void>;
   openProviderSetup(provider: ProviderId): Promise<void>;
   refreshProvider(provider: ProviderId): Promise<void>;
-  connectAllApps(): Promise<void>;
   connectGoogleApps(): Promise<void>;
   upgradeGoogleApps(): Promise<void>;
-  connectSelectedApps(apps: AppConnection['id'][]): Promise<void>;
   connectApp(app: AppConnection['id']): Promise<void>;
   setAppEnabled(app: AppConnection['id'], enabled: boolean): Promise<void>;
   disconnectApp(app: AppConnection['id'], expectedConnectionId?: string): Promise<void>;

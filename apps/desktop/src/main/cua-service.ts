@@ -69,7 +69,7 @@ interface CuaServiceOptions {
 
 const DEFAULT_CALL_TIMEOUT_MS = 60_000;
 
-export interface CuaDriverImage {
+interface CuaDriverImage {
   readonly mimeType: string;
   readonly dataBase64: string;
 }

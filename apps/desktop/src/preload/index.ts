@@ -166,10 +166,8 @@ const api: DesktopBridgeApi = {
       invoke('voice.speak', voiceId === undefined ? { text } : { text, voiceId }),
   },
   connections: {
-    startAll: () => invoke('connections.startAll', undefined),
     startGoogle: () => invoke('connections.startGoogle', undefined),
     upgradeGoogle: () => invoke('connections.upgradeGoogle', undefined),
-    startSelected: (connectionIds) => invoke('connections.startSelected', { connectionIds }),
     start: (connectionId) => invoke('connections.start', { connectionId }),
     setEnabled: (connectionId, enabled) =>
       invoke('connections.setEnabled', { connectionId, enabled }),

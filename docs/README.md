@@ -2,6 +2,7 @@
 
 ## Start here
 
+- [`ra-onboarding.md`](./ra-onboarding.md) — fresh-clone setup, first contribution, and safe testing.
 - [`cmu-pilot-runbook.md`](./cmu-pilot-runbook.md) — shortest tester setup and support procedure.
 - [`handoff-2026-08-28-alpha.24.md`](./handoff-2026-08-28-alpha.24.md) — current release state and
   operator handoff.

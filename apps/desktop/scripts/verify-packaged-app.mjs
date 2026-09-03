@@ -293,7 +293,6 @@ async function verifyLicenseResources() {
     '@radix-ui/react-alert-dialog',
     '@radix-ui/react-dialog',
     '@radix-ui/react-dropdown-menu',
-    '@radix-ui/react-tooltip',
     '@trycua/cua-driver',
     '@trycua/cua-driver-darwin-arm64',
     '@trycua/cua-driver-darwin-x64',

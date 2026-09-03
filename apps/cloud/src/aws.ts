@@ -127,7 +127,7 @@ export interface S3ResearchObjectOptions {
   sleep?: (milliseconds: number) => Promise<void>;
 }
 
-export interface RuntimeConfig {
+interface RuntimeConfig {
   tableName: string;
   bucketName: string;
   auditBucketName: string;
@@ -158,7 +158,7 @@ export interface RuntimeConfig {
   };
 }
 
-export function loadRuntimeConfig(environment: NodeJS.ProcessEnv = process.env): RuntimeConfig {
+function loadRuntimeConfig(environment: NodeJS.ProcessEnv = process.env): RuntimeConfig {
   return {
     tableName: requiredEnv(environment, 'TABLE_NAME'),
     bucketName: requiredEnv(environment, 'RESEARCH_BUCKET'),
@@ -1040,7 +1040,7 @@ export class S3ResearchObjects implements ResearchObjectStore {
   }
 }
 
-export class S3ReleaseManifests implements ReleaseManifestStore {
+class S3ReleaseManifests implements ReleaseManifestStore {
   constructor(
     private readonly client: S3Client,
     private readonly bucketName: string,
@@ -1072,7 +1072,7 @@ export class S3ReleaseManifests implements ReleaseManifestStore {
   }
 }
 
-export class AwsDeletionQueue implements DeletionQueue {
+class AwsDeletionQueue implements DeletionQueue {
   constructor(
     private readonly client: SQSClient,
     private readonly queueUrl: string,
@@ -1084,7 +1084,7 @@ export class AwsDeletionQueue implements DeletionQueue {
   }
 }
 
-export class AwsResearchExportQueue implements ResearchExportQueue {
+class AwsResearchExportQueue implements ResearchExportQueue {
   constructor(
     private readonly client: SQSClient,
     private readonly queueUrl: string,
@@ -1096,7 +1096,7 @@ export class AwsResearchExportQueue implements ResearchExportQueue {
   }
 }
 
-export class CognitoIdentity implements IdentityProvider {
+class CognitoIdentity implements IdentityProvider {
   constructor(
     private readonly client: CognitoIdentityProviderClient,
     private readonly userPoolId: string,
@@ -2064,7 +2064,7 @@ export class DynamoMetaQuota implements QuotaGate {
   }
 }
 
-export class MetadataAuditSink implements AuditSink {
+class MetadataAuditSink implements AuditSink {
   constructor(
     private readonly client?: S3Client,
     private readonly bucketName?: string,
@@ -2112,7 +2112,7 @@ export class MetadataAuditSink implements AuditSink {
   }
 }
 
-export class KmsTokenCipher implements TokenCipher {
+class KmsTokenCipher implements TokenCipher {
   constructor(
     private readonly client: KMSClient,
     private readonly keyArn: string,

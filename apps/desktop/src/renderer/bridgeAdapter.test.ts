@@ -166,22 +166,6 @@ describe('bridge renderer selection', () => {
 });
 
 describe('bridge renderer truthfulness', () => {
-  it('passes the exact selected app list through the typed bridge', async () => {
-    const initial = snapshot([]);
-    const startSelected = vi.fn(async () => ({ opened: true, snapshot: initial }));
-    const bridge = {
-      bootstrap: async () => initial,
-      connections: { startSelected },
-      subscribe: () => () => undefined,
-    } as unknown as DesktopBridgeApi;
-    const api = createBridgeRendererApi(bridge);
-    await api.getSnapshot();
-
-    await api.connectSelectedApps(['docs', 'slack']);
-
-    expect(startSelected).toHaveBeenCalledWith(['docs', 'slack']);
-  });
-
   it('passes the exact account-deletion confirmation through the typed bridge', async () => {
     const initial = snapshot([]);
     const deleted = structuredClone(initial);

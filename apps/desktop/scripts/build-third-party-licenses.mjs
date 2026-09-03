@@ -43,7 +43,6 @@ const requiredPackageGroups = {
     '@radix-ui/react-alert-dialog',
     '@radix-ui/react-dialog',
     '@radix-ui/react-dropdown-menu',
-    '@radix-ui/react-tooltip',
     'react',
     'react-dom',
     'zod',

@@ -298,20 +298,12 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async refreshProvider(provider) {
       publish(await bridge.providers.probe(provider));
     },
-    async connectAllApps() {
-      const result = await bridge.connections.startAll();
-      publish(result.snapshot);
-    },
     async connectGoogleApps() {
       const result = await bridge.connections.startGoogle();
       publish(result.snapshot);
     },
     async upgradeGoogleApps() {
       const result = await bridge.connections.upgradeGoogle();
-      publish(result.snapshot);
-    },
-    async connectSelectedApps(apps) {
-      const result = await bridge.connections.startSelected(apps);
       publish(result.snapshot);
     },
     async connectApp(app) {

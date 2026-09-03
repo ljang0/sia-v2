@@ -16,7 +16,7 @@ import styles from '../ui.module.css';
 
 type OutlineStatus = ActivityEvent['status'];
 
-export interface ConversationOutlineStep {
+interface ConversationOutlineStep {
   id: string;
   text: string;
   status: 'pending' | 'in_progress' | 'completed';

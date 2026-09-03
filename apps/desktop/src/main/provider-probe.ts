@@ -307,7 +307,7 @@ async function findExecutable(name: string, pathValue: string): Promise<string |
   return undefined;
 }
 
-export interface ProbeCommandResult {
+interface ProbeCommandResult {
   code: number | null;
   stdout: string;
   stderr: string;

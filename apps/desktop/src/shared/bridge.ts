@@ -612,10 +612,8 @@ export interface BridgeRequestMap {
   'voice.realtime.append': { sessionId: string; audioBase64: string };
   'voice.realtime.stop': { sessionId: string; commit: boolean };
   'voice.speak': { text: string; voiceId?: string };
-  'connections.startAll': undefined;
   'connections.startGoogle': undefined;
   'connections.upgradeGoogle': undefined;
-  'connections.startSelected': { connectionIds: ConnectionId[] };
   'connections.start': { connectionId: ConnectionId };
   'connections.setEnabled': { connectionId: ConnectionId; enabled: boolean };
   'connections.disconnect': { connectionId: ConnectionId; expectedConnectionId?: string };
@@ -713,10 +711,8 @@ export interface BridgeResultMap {
   'voice.realtime.append': undefined;
   'voice.realtime.stop': { text: string };
   'voice.speak': { audioBase64: string; mimeType: 'audio/mpeg' };
-  'connections.startAll': { opened: boolean; snapshot: DesktopSnapshot };
   'connections.startGoogle': { opened: boolean; snapshot: DesktopSnapshot };
   'connections.upgradeGoogle': { opened: boolean; snapshot: DesktopSnapshot };
-  'connections.startSelected': { opened: boolean; snapshot: DesktopSnapshot };
   'connections.start': { opened: boolean; snapshot: DesktopSnapshot };
   'connections.setEnabled': DesktopSnapshot;
   'connections.disconnect': DesktopSnapshot;
@@ -887,12 +883,8 @@ export interface DesktopBridgeApi {
     ): Promise<{ audioBase64: string; mimeType: 'audio/mpeg' }>;
   };
   connections: {
-    startAll(): Promise<BridgeResultMap['connections.startAll']>;
     startGoogle(): Promise<BridgeResultMap['connections.startGoogle']>;
     upgradeGoogle(): Promise<BridgeResultMap['connections.upgradeGoogle']>;
-    startSelected(
-      connectionIds: ConnectionId[],
-    ): Promise<BridgeResultMap['connections.startSelected']>;
     start(connectionId: ConnectionId): Promise<BridgeResultMap['connections.start']>;
     setEnabled(connectionId: ConnectionId, enabled: boolean): Promise<DesktopSnapshot>;
     disconnect(

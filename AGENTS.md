@@ -1,0 +1,76 @@
+# Working in Sia
+
+This repository is preparing a controlled CMU pilot of the macOS desktop app. Keep changes small,
+safe, and easy for a new contributor to verify.
+
+## First 15 minutes
+
+Requirements: macOS 14+, Node 24+, pnpm 11+, and Xcode command-line tools.
+
+```sh
+pnpm install --frozen-lockfile
+pnpm onboard:check
+SIA_FAKE_SERVICES=1 pnpm dev
+```
+
+Use `pnpm test:pilot` before handing off a pilot-facing change. It runs the build, formatting,
+quality, type, unit, and deterministic desktop E2E gates. See
+[`docs/ra-onboarding.md`](./docs/ra-onboarding.md) for the first-day walkthrough.
+
+## Product contract
+
+- A release with cloud configured has no private app access before email sign-in.
+- New agents offer an included model when live-verified or the user's existing Codex plan. Both use
+  the Codex App Server harness. Users never paste model API keys into Sia.
+- Google Workspace, Slack, signed-in Chrome, Apple Messages, and computer use are optional. They do
+  not block first-run setup.
+- Host-side actions ask for confirmation by default. Secure fields, authentication surfaces,
+  Keychain, and password managers stay blocked.
+- Local turns and schedules require the Sia process to remain open and the Mac to stay awake.
+- Research capture is off unless the user separately consents. A pilot is not a research release.
+
+## Repository map
+
+- `apps/desktop` — Electron main process, typed preload bridge, React renderer, and desktop tests.
+- `apps/cloud` — AWS control-plane handlers and connector/model relays.
+- `apps/site` — static public, privacy, support, and research pages.
+- `packages/runtime` — provider/harness resolution and supervised provider processes.
+- `packages/action-gateway` — the only model-visible host-action authorization boundary.
+- `packages/tool-bridge` — capability-scoped transport for approved tools.
+- `packages/protocol` — shared runtime event and request contracts.
+- `infra` — deployable AWS and connector configuration.
+- `docs` — current architecture, operations, pilot, and acceptance records.
+
+The Claude, Gemini, Grok, OpenCode, and Pi seams are deliberate compatibility or evaluation paths.
+They are not release choices. Do not delete them as “unused,” and do not expose them without the
+admission checks in [`docs/harness-policy.md`](./docs/harness-policy.md).
+
+## Change rules
+
+- Prefer deleting obsolete paths over adding compatibility shims. Keep one canonical route per UI
+  action and update its tests in the same change.
+- Keep secrets and provider credentials out of the renderer, IPC payloads, logs, fixtures, commits,
+  screenshots, and bug reports. Production secrets belong in AWS Secrets Manager or protected
+  release automation.
+- Extend the provider catalog, execution resolver, and signed harness registry when adding a model
+  or harness. Do not scatter provider-name conditionals through the UI.
+- All model-proposed browser, computer, connector, Messages, and schedule actions must pass through
+  `packages/action-gateway` and capability validation in the desktop main process.
+- The renderer must use the typed preload bridge. Do not add generic IPC, raw CDP/JavaScript,
+  cookie access, arbitrary shell tools, or a model-visible terminal.
+- Preserve encrypted local state migrations and existing-thread routes. A new thread pins its
+  resolved provider, model, harness, and credential source.
+- Keep documentation current instead of adding dated duplicates. Historical evidence belongs in
+  Git history or a release tag.
+
+## Verification ladder
+
+1. During development, run the nearest workspace test (`pnpm --filter <workspace> test`).
+2. Before review, run `pnpm check`.
+3. For pilot-facing behavior, run `pnpm test:pilot`.
+4. Run real-provider probes only with explicit environment flags and disposable test accounts. The
+   no-turn probe must not consume a model turn or mutate a web account.
+5. Packaging and notarization are release-operator tasks; follow [`docs/release.md`](./docs/release.md).
+
+A change is done when its focused behavior is tested, `pnpm check` passes, user-facing docs match,
+no credentials or generated release artifacts are staged, and the diff contains no unrelated churn.

@@ -8,7 +8,7 @@ import {
 } from '@phosphor-icons/react';
 import styles from '../ui.module.css';
 
-export type StatusTone = 'neutral' | 'active' | 'success' | 'warning' | 'danger';
+type StatusTone = 'neutral' | 'active' | 'success' | 'warning' | 'danger';
 
 interface StatusMarkProps {
   status: 'idle' | 'running' | 'queued' | 'waiting' | 'error' | 'complete';

@@ -87,7 +87,7 @@ export interface ConnectorUploadRequest {
   sha256: string;
 }
 
-export type CloudDeletionState =
+type CloudDeletionState =
   | 'requested'
   | 'processing'
   | 'research_deleted'

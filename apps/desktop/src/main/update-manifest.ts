@@ -13,7 +13,7 @@ const artifactKey = z
   .max(512)
   .regex(/^releases\/[0-9A-Za-z.-]+\/[a-f0-9]{16}\/Sia-[0-9A-Za-z.-]+-universal\.dmg$/);
 
-export const updateManifestPayloadSchema = z
+const updateManifestPayloadSchema = z
   .object({
     schemaVersion: z.literal(1),
     channel: z.literal('internal'),
@@ -32,7 +32,7 @@ export const updateManifestPayloadSchema = z
   })
   .strict();
 
-export const signedUpdateManifestResponseSchema = z
+const signedUpdateManifestResponseSchema = z
   .object({
     payload: updateManifestPayloadSchema,
     keyId: z

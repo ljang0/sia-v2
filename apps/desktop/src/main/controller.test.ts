@@ -2488,11 +2488,13 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
-  it('connects every work app from one guided request in fake-services mode', async () => {
+  it('connects Google Workspace and Slack through their focused actions', async () => {
     const controller = await createController();
 
-    const result = await controller.invoke('connections.startAll', undefined);
+    const google = await controller.invoke('connections.startGoogle', undefined);
+    const result = await controller.invoke('connections.start', { connectionId: 'slack' });
 
+    expect(google.opened).toBe(false);
     expect(result.opened).toBe(false);
     expect(result.snapshot.connections).toEqual([
       expect.objectContaining({ id: 'gmail', status: 'connected' }),
@@ -2673,12 +2675,11 @@ describe('DesktopController', () => {
     }
   });
 
-  it('treats any selected Google app as the unified Workspace grant', async () => {
+  it('treats any Google app reconnect as the unified Workspace grant', async () => {
     const controller = await createController();
 
-    const result = await controller.invoke('connections.startSelected', {
-      connectionIds: ['slack', 'docs', 'gmail'],
-    });
+    await controller.invoke('connections.start', { connectionId: 'docs' });
+    const result = await controller.invoke('connections.start', { connectionId: 'slack' });
 
     expect(result.opened).toBe(false);
     expect(
@@ -2688,7 +2689,7 @@ describe('DesktopController', () => {
         enabled: enabled !== false,
       })),
     ).toEqual([
-      { id: 'gmail', status: 'connected', enabled: true },
+      { id: 'gmail', status: 'connected', enabled: false },
       { id: 'drive', status: 'connected', enabled: false },
       { id: 'docs', status: 'connected', enabled: true },
       { id: 'sheets', status: 'connected', enabled: false },
@@ -2700,7 +2701,7 @@ describe('DesktopController', () => {
 
   it('enforces Google service switches in the connector action router', async () => {
     const controller = await createController();
-    await controller.invoke('connections.startSelected', { connectionIds: ['docs'] });
+    await controller.invoke('connections.start', { connectionId: 'docs' });
 
     expect(controller.connectionIdForAction('gmail', 'gmail')).toBeUndefined();
     expect(controller.connectionIdForAction('docs', 'docs')).toEqual(expect.any(String));
@@ -2920,7 +2921,7 @@ describe('DesktopController', () => {
     }
   });
 
-  it('opens each provider only after the previous grant is verified', async () => {
+  it('opens each provider only through its focused setup action', async () => {
     type TestConnectionId = 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack';
     const connectionOrder: TestConnectionId[] = ['gmail', 'slack'];
     const startConnection = vi.fn(async (connectionId: TestConnectionId) => ({
@@ -2982,18 +2983,16 @@ describe('DesktopController', () => {
     vi.useFakeTimers();
 
     try {
-      const result = await controller.invoke('connections.startAll', undefined);
+      const result = await controller.invoke('connections.startGoogle', undefined);
       expect(result.opened).toBe(true);
       expect(openExternal).toHaveBeenCalledTimes(1);
       expect(openExternal).toHaveBeenLastCalledWith('https://connect.example.test/gmail');
 
-      for (let index = 1; index < connectionOrder.length; index += 1) {
-        await vi.advanceTimersByTimeAsync(2_000);
-        expect(openExternal).toHaveBeenCalledTimes(index + 1);
-        expect(openExternal).toHaveBeenLastCalledWith(
-          `https://connect.example.test/${connectionOrder[index]}`,
-        );
-      }
+      await vi.advanceTimersByTimeAsync(2_000);
+      const slack = await controller.invoke('connections.start', { connectionId: 'slack' });
+      expect(slack.opened).toBe(true);
+      expect(openExternal).toHaveBeenCalledTimes(2);
+      expect(openExternal).toHaveBeenLastCalledWith('https://connect.example.test/slack');
       await vi.advanceTimersByTimeAsync(2_000);
       expect(startConnection.mock.calls.map(([id]) => id)).toEqual(connectionOrder);
       expect(connectionStatus.mock.calls.map(([id]) => id)).toEqual(connectionOrder);
@@ -3013,7 +3012,7 @@ describe('DesktopController', () => {
         }>;
       }>();
       connectionStatus.mockImplementationOnce(async () => await delayedStatus.promise);
-      await controller.invoke('connections.startAll', undefined);
+      await controller.invoke('connections.startGoogle', undefined);
       expect(openExternal).toHaveBeenCalledTimes(3);
       await vi.advanceTimersByTimeAsync(2_000);
       expect(connectionStatus).toHaveBeenCalledTimes(3);

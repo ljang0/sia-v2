@@ -22,7 +22,6 @@ export function AppsSettings({
   snapshot,
   onConnectGoogle,
   onUpgradeGoogle = async () => undefined,
-  onConnectAll,
   onConnect,
   onSetEnabled = async () => undefined,
   onDisconnect,
@@ -42,14 +41,10 @@ export function AppsSettings({
   onReviewComputerAccess = () => undefined,
 }: {
   snapshot: RendererSnapshot;
-  onConnectGoogle?(): Promise<void>;
+  onConnectGoogle(): Promise<void>;
   onUpgradeGoogle?(): Promise<void>;
-  /** Deprecated compatibility hook for pre-unified settings tests and embedders. */
-  onConnectAll?(): Promise<void>;
   onConnect(app: AppConnection['id']): Promise<void>;
   onSetEnabled?(app: AppConnection['id'], enabled: boolean): Promise<void>;
-  /** Deprecated: provider selection now happens through the Google and Slack buttons. */
-  onConnectSelected?(apps: AppConnection['id'][]): Promise<void>;
   onDisconnect(app: AppConnection['id'], expectedConnectionId?: string): Promise<void>;
   onStartCloudSignIn(email: string): Promise<void>;
   onCompleteCloudSignIn(code: string): Promise<void>;
@@ -104,8 +99,6 @@ export function AppsSettings({
       setPending(undefined);
     }
   };
-  const connectGoogle = onConnectGoogle ?? onConnectAll ?? (async () => undefined);
-
   if (snapshot.cloudAuth.state === 'unconfigured') {
     return (
       <SettingsSectionHeader
@@ -206,7 +199,7 @@ export function AppsSettings({
                 onClick={() =>
                   run(
                     'connect-google',
-                    googleError ? () => onConnect(googleError.id) : connectGoogle,
+                    googleError ? () => onConnect(googleError.id) : onConnectGoogle,
                     'Google Workspace could not be connected.',
                   )
                 }

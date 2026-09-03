@@ -134,7 +134,7 @@ export interface ServiceDependencies {
   };
 }
 
-export class SessionService {
+class SessionService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   status(user: AuthContext) {
@@ -167,7 +167,7 @@ export class SessionService {
   }
 }
 
-export class ReleaseService {
+class ReleaseService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async latestMac(user: AuthContext) {
@@ -184,7 +184,7 @@ export class ReleaseService {
   }
 }
 
-export class ConnectorFilesService {
+class ConnectorFilesService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async requestUpload(user: AuthContext, request: ConnectorUploadRequest) {
@@ -257,7 +257,7 @@ export class ConnectorFilesService {
   }
 }
 
-export class ConnectionsService {
+class ConnectionsService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async start(
@@ -483,7 +483,7 @@ export class ConnectionsService {
   }
 }
 
-export class ActionsService {
+class ActionsService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async prepare(user: AuthContext, request: PrepareActionRequest) {
@@ -725,7 +725,7 @@ async function markConnectionFailed(
   });
 }
 
-export class ResearchService {
+class ResearchService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async upload(user: AuthContext, request: ResearchBatchRequest) {
@@ -910,7 +910,7 @@ export class ResearchService {
   }
 }
 
-export class ResearchAdminService {
+class ResearchAdminService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async participants(user: AuthContext) {
@@ -1060,7 +1060,7 @@ export class ResearchAdminService {
   }
 }
 
-export class InvitesService {
+class InvitesService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async create(user: AuthContext, request: InviteRequest) {
@@ -1108,7 +1108,7 @@ const REGISTRATION_EMAIL_LIMIT = 4;
 const REGISTRATION_NETWORK_LIMIT = 20;
 
 /** Public, enumeration-resistant account bootstrap for passwordless Sia accounts. */
-export class RegistrationService {
+class RegistrationService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async create(request: RegistrationRequest, sourceIp: string) {
@@ -1171,7 +1171,7 @@ export class RegistrationService {
   }
 }
 
-export class MetaService {
+class MetaService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async capabilities(user: AuthContext) {
@@ -1329,7 +1329,7 @@ export class MetaService {
   }
 }
 
-export class VoiceService {
+class VoiceService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async catalog(user: AuthContext) {
@@ -1404,7 +1404,7 @@ export class VoiceService {
   }
 }
 
-export class ResearchExportWorker {
+class ResearchExportWorker {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async process(userId: string, exportId: string): Promise<void> {
@@ -1459,7 +1459,7 @@ export class ResearchExportWorker {
   }
 }
 
-export class DeletionWorker {
+class DeletionWorker {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async process(userId: string, jobId: string, scope: DeletionScope): Promise<void> {

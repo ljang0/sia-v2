@@ -234,20 +234,8 @@ const inputSchemas = {
       voiceId: z.string().trim().min(1).max(200).optional(),
     })
     .strict(),
-  'connections.startAll': z.undefined(),
   'connections.startGoogle': z.undefined(),
   'connections.upgradeGoogle': z.undefined(),
-  'connections.startSelected': z
-    .object({
-      connectionIds: z
-        .array(connectionId)
-        .min(1)
-        .max(6)
-        .refine((values) => new Set(values).size === values.length, {
-          message: 'Connection selection cannot contain duplicates.',
-        }),
-    })
-    .strict(),
   'connections.start': z.object({ connectionId }).strict(),
   'connections.setEnabled': z.object({ connectionId, enabled: z.boolean() }).strict(),
   'connections.disconnect': z

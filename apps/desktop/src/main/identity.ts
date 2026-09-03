@@ -1,7 +1,7 @@
 import type { IdTokenSource } from './cloud-client.js';
 import type { RecordRepository } from './persistence.js';
 
-export type CloudIdentityState =
+type CloudIdentityState =
   | 'unconfigured'
   | 'signed_out'
   | 'code_sent'

@@ -6,7 +6,6 @@ import { S3Client } from '@aws-sdk/client-s3';
 import { COMPOSIO_TOOL_SLUGS, COMPOSIO_TOOL_VERSIONS } from '../src/connector-contract.js';
 import {
   GOOGLE_WORKSPACE_READ_SCOPES,
-  GOOGLE_WORKSPACE_SCOPES,
   GOOGLE_WORKSPACE_WRITE_SCOPES,
   GoogleWorkspaceConnector,
 } from '../src/google-workspace.js';
@@ -268,7 +267,7 @@ describe('unified Google Workspace OAuth', () => {
   it('revokes a granular-consent grant when any required Workspace scope is missing', async () => {
     const state = new MemoryState();
     const calls: string[] = [];
-    const grantedScopes = GOOGLE_WORKSPACE_SCOPES.filter(
+    const grantedScopes = GOOGLE_WORKSPACE_WRITE_SCOPES.filter(
       (scope) => scope !== 'https://www.googleapis.com/auth/presentations',
     );
     const google = connector(state, (async (input: URL | RequestInfo) => {

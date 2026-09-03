@@ -837,15 +837,6 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
     async refreshProvider() {
       return Promise.resolve();
     },
-    async connectAllApps() {
-      mutate((current) => {
-        for (const app of current.apps) {
-          app.status = 'connected';
-          app.account = app.account ?? 'lawrence@example.com';
-          if (app.id !== 'slack') app.googleAccess = 'read_only';
-        }
-      });
-    },
     async connectGoogleApps() {
       mutate((current) => {
         for (const app of current.apps) {
@@ -862,17 +853,6 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
           if (app.id === 'slack') continue;
           app.googleAccess = 'read_write';
           app.upgrading = false;
-        }
-      });
-    },
-    async connectSelectedApps(apps) {
-      mutate((current) => {
-        const selected = new Set(apps);
-        for (const app of current.apps) {
-          if (!selected.has(app.id)) continue;
-          app.status = 'connected';
-          app.account = app.account ?? 'lawrence@example.com';
-          if (app.id !== 'slack') app.googleAccess = 'read_only';
         }
       });
     },

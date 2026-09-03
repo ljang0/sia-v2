@@ -1345,23 +1345,17 @@ export class DesktopController {
           value.voiceId,
         )) as unknown as BridgeResultMap[M];
       }
-      case 'connections.startAll':
-        return (await this.#startAllConnections()) as unknown as BridgeResultMap[M];
       case 'connections.startGoogle':
         return (await this.#startGoogleConnections()) as unknown as BridgeResultMap[M];
       case 'connections.upgradeGoogle':
         return (await this.#upgradeGoogleConnections()) as unknown as BridgeResultMap[M];
-      case 'connections.startSelected':
-        return (await this.#startSelectedConnections(
-          (input as BridgeRequestMap['connections.startSelected']).connectionIds,
-        )) as unknown as BridgeResultMap[M];
       case 'connections.start':
         return (await (isGoogleConnection(
           (input as BridgeRequestMap['connections.start']).connectionId,
         )
-          ? this.#startSelectedConnections([
+          ? this.#startGoogleConnection(
               (input as BridgeRequestMap['connections.start']).connectionId,
-            ])
+            )
           : this.#startConnection(
               (input as BridgeRequestMap['connections.start']).connectionId,
             ))) as unknown as BridgeResultMap[M];
@@ -3138,12 +3132,6 @@ export class DesktopController {
     return this.#voice;
   }
 
-  async #startAllConnections(): Promise<BridgeResultMap['connections.startAll']> {
-    await this.#removeLegacyGoogleConnections();
-    for (const id of GOOGLE_CONNECTION_IDS) this.#updateConnection(id, { enabled: true });
-    return await this.#startConnectionGroup(['gmail', 'slack']);
-  }
-
   async #startGoogleConnections(): Promise<BridgeResultMap['connections.startGoogle']> {
     await this.#removeLegacyGoogleConnections();
     for (const id of GOOGLE_CONNECTION_IDS) this.#updateConnection(id, { enabled: true });
@@ -3197,28 +3185,21 @@ export class DesktopController {
     return { opened: true, snapshot: this.snapshot() };
   }
 
-  async #startSelectedConnections(
-    connectionIds: BridgeRequestMap['connections.startSelected']['connectionIds'],
-  ): Promise<BridgeResultMap['connections.startSelected']> {
-    const selected = new Set(connectionIds);
-    const ordered: ConnectionView['id'][] = [];
-    const selectedGoogle = GOOGLE_CONNECTION_IDS.filter((id) => selected.has(id));
-    if (selectedGoogle.length > 0) {
-      await this.#removeLegacyGoogleConnections();
-      const googleAlreadyConnected = this.#state.connections.some(
-        ({ id, status, connectionId }) =>
-          isGoogleConnection(id) && status === 'connected' && Boolean(connectionId),
-      );
-      for (const id of GOOGLE_CONNECTION_IDS) {
-        if (selected.has(id) || !googleAlreadyConnected) {
-          this.#updateConnection(id, { enabled: selected.has(id) });
-        }
+  async #startGoogleConnection(
+    connectionId: ConnectionView['id'],
+  ): Promise<BridgeResultMap['connections.start']> {
+    await this.#removeLegacyGoogleConnections();
+    const googleAlreadyConnected = this.#state.connections.some(
+      ({ id, status, connectionId: grantId }) =>
+        isGoogleConnection(id) && status === 'connected' && Boolean(grantId),
+    );
+    for (const id of GOOGLE_CONNECTION_IDS) {
+      if (id === connectionId || !googleAlreadyConnected) {
+        this.#updateConnection(id, { enabled: id === connectionId });
       }
-      ordered.push(selectedGoogle[0]!);
     }
-    if (selected.has('slack')) ordered.push('slack');
     this.#commit();
-    return await this.#startConnectionGroup(ordered);
+    return await this.#startConnectionGroup([connectionId]);
   }
 
   #setConnectionEnabled(request: BridgeRequestMap['connections.setEnabled']): DesktopSnapshot {
@@ -3269,7 +3250,7 @@ export class DesktopController {
 
   async #startConnectionGroup(
     included: readonly ConnectionView['id'][],
-  ): Promise<BridgeResultMap['connections.startAll']> {
+  ): Promise<BridgeResultMap['connections.startGoogle']> {
     if (this.#connectionSetup) {
       throw new Error('Work-app setup is already waiting for provider approval.');
     }

@@ -91,7 +91,7 @@ async function delay(maximumMs: number, done: () => boolean): Promise<void> {
   }
 }
 
-export async function readyPage(application: ElectronApplication): Promise<Page> {
+async function readyPage(application: ElectronApplication): Promise<Page> {
   const page = await application.firstWindow();
   await expect.poll(() => page.evaluate(() => Boolean(window.sia))).toBe(true);
   return page;

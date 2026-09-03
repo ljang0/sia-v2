@@ -19,7 +19,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={withCloud('signed-out')}
-        onConnectAll={vi.fn()}
+        onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
         onStartCloudSignIn={onStart}
@@ -50,7 +50,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={withCloud('code-sent', 'lawrence@example.com')}
-        onConnectAll={vi.fn()}
+        onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
         onStartCloudSignIn={onStart}
@@ -79,7 +79,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={withCloud('password-required', 'admin@example.com')}
-        onConnectAll={vi.fn()}
+        onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
         onStartCloudSignIn={vi.fn()}
@@ -106,7 +106,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={withCloud('unconfigured')}
-        onConnectAll={vi.fn()}
+        onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
         onStartCloudSignIn={vi.fn()}
@@ -129,7 +129,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={withCloud('signed-in', 'lawrence@example.com')}
-        onConnectAll={vi.fn()}
+        onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
         onStartCloudSignIn={vi.fn()}
@@ -154,7 +154,7 @@ describe('cloud account settings', () => {
     const { unmount } = render(
       <AppsSettings
         snapshot={withCloud('signed-out')}
-        onConnectAll={vi.fn()}
+        onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
         onStartCloudSignIn={vi.fn()}
@@ -176,7 +176,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={snapshot}
-        onConnectAll={vi.fn()}
+        onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
         onStartCloudSignIn={vi.fn()}
@@ -212,7 +212,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={snapshot}
-        onConnectAll={vi.fn()}
+        onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
         onStartCloudSignIn={vi.fn()}
@@ -386,7 +386,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={snapshot}
-        onConnectAll={vi.fn()}
+        onConnectGoogle={vi.fn()}
         onConnect={onConnect}
         onDisconnect={onDisconnect}
         onStartCloudSignIn={vi.fn()}
@@ -411,7 +411,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={withCloud('signed-in', 'lawrence@example.com')}
-        onConnectAll={vi.fn()}
+        onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
         onStartCloudSignIn={vi.fn()}
