@@ -328,11 +328,23 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async completeAdminMfa(code) {
       publish(await bridge.auth.mfaComplete(code));
     },
+    async assistantLibrary(input) {
+      return bridge.assistantLibrary(input);
+    },
     async signOutCloud() {
       publish(await bridge.auth.signOut());
     },
     async deleteCloudAccount(confirmation) {
       publish(await bridge.auth.deleteAccount(confirmation));
+    },
+    async connectBrowserAndContinue(threadId, userMessageId, windowId) {
+      publish(
+        await bridge.browser.connectAndContinue({
+          threadId,
+          userMessageId,
+          ...(windowId === undefined ? {} : { windowId }),
+        }),
+      );
     },
     async attachBrowser(windowId) {
       publish(await bridge.browser.attach(windowId));
@@ -343,6 +355,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async detachBrowser() {
       publish(await bridge.browser.detach());
     },
+    async setComputerAccessMode(mode) {
+      publish(await bridge.computer.setAccessMode(mode));
+    },
     async setComputerTrust(trust) {
       publish(await bridge.computer.setTrust(trust));
     },
@@ -352,11 +367,26 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async revealTrajectories() {
       publish(await bridge.computer.revealTrajectories());
     },
+    async refreshComputerPermissions() {
+      publish(await bridge.computer.permissions());
+    },
+    async requestAutomationPermission(app) {
+      publish(await bridge.computer.requestAutomation(app));
+    },
     async requestComputerPermissions() {
       publish(await bridge.computer.requestPermissions());
     },
     async openMessages() {
       publish(await bridge.computer.openMessages());
+    },
+    async configurePushToTalk(enabled, agentId) {
+      publish(await bridge.voice.configurePushToTalk(enabled, agentId));
+    },
+    async acquireVoiceCapture() {
+      return (await bridge.voice.acquireCapture()).leaseId;
+    },
+    async releaseVoiceCapture(leaseId) {
+      await bridge.voice.releaseCapture(leaseId);
     },
     async configureVoice() {
       publish(await bridge.voice.configure());
@@ -369,6 +399,15 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     },
     async disconnectVoice() {
       publish(await bridge.voice.disconnect());
+    },
+    async restartForOnboarding() {
+      publish(await bridge.settings.restartForOnboarding());
+    },
+    async setupMessages() {
+      publish(await bridge.computer.setupMessages());
+    },
+    async setOnboarding(step) {
+      publish(await bridge.settings.setOnboarding(step));
     },
     async setCompletionSound(enabled) {
       publish(await bridge.settings.setCompletionSound(enabled));
@@ -444,6 +483,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
       .filter((thread): thread is NonNullable<typeof thread> =>
         Boolean(thread && !thread.archivedAt),
       )
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .map((thread) => ({
         id: thread.id,
         agentId: thread.agentId,
@@ -593,13 +633,21 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
       accessibility: source.computer.accessibility ? 'allowed' : 'not-requested',
       screenRecording: source.computer.screenRecording ? 'allowed' : 'not-requested',
       windows: [],
+      accessMode: source.computer.accessMode,
       trust: source.computer.trust,
       messagesAccess: source.computer.messagesAccess,
+      automation: source.computer.automation,
       chromeConnection: source.computer.chromeConnection,
       trajectoryLog: source.computer.trajectoryLog,
       trajectoryDirectory: source.computer.trajectoryDirectory,
     },
     voice: {
+      ...(source.voice.engine ? { engine: source.voice.engine } : {}),
+      ...(source.voice.dictationAvailable !== undefined
+        ? { dictationAvailable: source.voice.dictationAvailable }
+        : {}),
+      dictationDetail: source.voice.dictationDetail,
+      pushToTalk: source.voice.pushToTalk,
       status: source.voice.status,
       selectedVoiceId: source.voice.selectedVoiceId,
       selectedVoiceName: source.voice.selectedVoiceName,
@@ -728,6 +776,7 @@ function mapTimelineItem(item: TimelineItemView): ThreadEvent {
     id: item.id,
     type: 'activity',
     kind: inferActivityKind(item.toolName),
+    ...(item.toolName ? { toolName: item.toolName } : {}),
     title: item.title ?? item.text ?? 'Working',
     detail: item.detail,
     status,

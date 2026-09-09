@@ -1,3 +1,4 @@
+import type { AutomationApp } from '../../shared/mac-permissions';
 import {
   CheckSquareOffset,
   Database,
@@ -12,6 +13,7 @@ import {
 import { useEffect, useState } from 'react';
 import type { AppConnection, ProviderId, RendererApi, RendererSnapshot } from '../types';
 import styles from '../ui.module.css';
+import { AssistantSettings } from './settings/AssistantSettings';
 import { AboutSettings } from './settings/AboutSettings';
 import { AppsSettings } from './settings/AppsSettings';
 import { ComputerSettings } from './settings/ComputerSettings';
@@ -22,9 +24,19 @@ import { ProvidersSettings } from './settings/ProvidersSettings';
 import { VoiceSettings } from './settings/VoiceSettings';
 
 export type SettingsSection =
-  'providers' | 'apps' | 'computer' | 'voice' | 'privacy' | 'about' | 'release' | 'research';
+  | 'assistant'
+  | 'providers'
+  | 'apps'
+  | 'computer'
+  | 'voice'
+  | 'privacy'
+  | 'about'
+  | 'release'
+  | 'research';
 
 interface SettingsProps {
+  assistantApi?: Pick<RendererApi, 'assistantLibrary'>;
+  onRunWorkflow?: (threadId: string) => void;
   snapshot: RendererSnapshot;
   initialSection?: SettingsSection | undefined;
   onClose(): void;
@@ -47,6 +59,9 @@ interface SettingsProps {
   onOpenBrowserSite(url: string): Promise<void>;
   onDetachBrowser(): Promise<void>;
   onRequestPermissions(): Promise<void>;
+  onRequestAutomation?(app: AutomationApp): Promise<void>;
+  onRefreshPermissions?(): Promise<void>;
+  onSetComputerAccessMode?(mode: 'mac' | 'connected'): Promise<void>;
   onSetComputerTrust(trust: 'auto' | 'ask'): Promise<void>;
   onSetTrajectoryLog(enabled: boolean): Promise<void>;
   onRevealTrajectories(): Promise<void>;
@@ -55,6 +70,8 @@ interface SettingsProps {
   onRefreshVoices(): Promise<void>;
   onSelectVoice(voiceId: string): Promise<void>;
   onDisconnectVoice(): Promise<void>;
+  onConfigurePushToTalk?: ((enabled: boolean, agentId?: string) => Promise<void>) | undefined;
+  onStartSetup?: (() => void) | undefined;
   onSetCompletionSound(enabled: boolean): Promise<void>;
   onSetCapturePaused(paused: boolean): Promise<void>;
   onExport(): Promise<void>;
@@ -67,6 +84,8 @@ interface SettingsProps {
 }
 
 export function Settings({
+  assistantApi,
+  onRunWorkflow,
   snapshot,
   initialSection = 'providers',
   onClose,
@@ -89,6 +108,9 @@ export function Settings({
   onOpenBrowserSite,
   onDetachBrowser,
   onRequestPermissions,
+  onRequestAutomation,
+  onRefreshPermissions,
+  onSetComputerAccessMode,
   onSetComputerTrust,
   onSetTrajectoryLog,
   onRevealTrajectories,
@@ -98,6 +120,8 @@ export function Settings({
   onSelectVoice,
   onDisconnectVoice,
   onSetCompletionSound,
+  onStartSetup,
+  onConfigurePushToTalk,
   onSetCapturePaused,
   onExport,
   onDelete,
@@ -142,6 +166,14 @@ export function Settings({
 
       <div className={styles.settingsLayout}>
         <nav className={styles.settingsNav} aria-label="Settings sections">
+          {assistantApi && (
+            <SettingsNavButton
+              active={section === 'assistant'}
+              icon={<Sparkle size={17} aria-hidden="true" />}
+              label="Assistant"
+              onClick={() => setSection('assistant')}
+            />
+          )}
           <SettingsNavButton
             active={section === 'providers'}
             icon={<Sparkle size={17} aria-hidden="true" />}
@@ -197,6 +229,13 @@ export function Settings({
         </nav>
 
         <div key={section} className={styles.settingsContent}>
+          {section === 'assistant' && assistantApi && (
+            <AssistantSettings
+              agents={snapshot.agents}
+              api={assistantApi}
+              onRun={onRunWorkflow ?? (() => undefined)}
+            />
+          )}
           {section === 'providers' ? (
             <ProvidersSettings
               providers={snapshot.providers}
@@ -232,6 +271,9 @@ export function Settings({
               onOpenBrowserSite={onOpenBrowserSite}
               onDetachBrowser={onDetachBrowser}
               onRequestPermissions={onRequestPermissions}
+              {...(onRequestAutomation ? { onRequestAutomation } : {})}
+              {...(onRefreshPermissions ? { onRefreshPermissions } : {})}
+              {...(onSetComputerAccessMode ? { onSetComputerAccessMode } : {})}
               onSetComputerTrust={onSetComputerTrust}
               onSetTrajectoryLog={onSetTrajectoryLog}
               onRevealTrajectories={onRevealTrajectories}
@@ -240,12 +282,15 @@ export function Settings({
           {section === 'voice' ? (
             <VoiceSettings
               voice={snapshot.voice}
+              agents={snapshot.agents}
+              onConfigurePushToTalk={onConfigurePushToTalk}
               completionSound={snapshot.preferences.completionSound}
               onConfigure={onConfigureVoice}
               onRefresh={onRefreshVoices}
               onSelect={onSelectVoice}
               onDisconnect={onDisconnectVoice}
               onSetCompletionSound={onSetCompletionSound}
+              onStartSetup={onStartSetup}
             />
           ) : null}
           {section === 'privacy' ? (

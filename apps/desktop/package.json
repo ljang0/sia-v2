@@ -17,16 +17,19 @@
     "package:mac": "node scripts/verify-release-environment.mjs && rimraf release && pnpm cloud-config:prepare:release && pnpm icon:build && pnpm -w build && electron-builder --mac --universal && node scripts/finalize-release-artifacts.mjs --arch=universal && node scripts/verify-packaged-app.mjs --arch=universal --signing=release",
     "package:mac:arm64:dir": "rimraf release && pnpm cloud-config:prepare && pnpm icon:build && pnpm -w build && electron-builder --mac --arm64 --dir --config.mac.identity=null --config.mac.notarize=false && node scripts/verify-packaged-app.mjs --arch=arm64 --signing=unsigned",
     "package:mac:dir": "rimraf release && pnpm cloud-config:prepare && pnpm icon:build && pnpm -w build && electron-builder --mac --universal --dir --config.mac.identity=null --config.mac.notarize=false && node scripts/verify-packaged-app.mjs --arch=universal --signing=unsigned",
-    "preview": "electron-vite preview",
-    "prebuild": "pnpm licenses:build",
-    "test": "vitest run",
+    "preview": "node scripts/preview.mjs",
+    "prebuild": "pnpm licenses:build && pnpm native:build",
+    "test": "pnpm native:test && vitest run",
     "test:e2e": "pnpm -w build && playwright test",
     "test:e2e:parity": "pnpm -w build && playwright test parity/parity.spec.ts",
     "test:e2e:parity:strict": "SIA_PARITY_REQUIRE_COMPLETE=1 pnpm test:e2e:parity",
     "test:e2e:parity:incomplete": "SIA_PARITY_ALLOW_INCOMPLETE=1 pnpm test:e2e:parity",
     "test:e2e:real:no-turn": "pnpm -w build && playwright test e2e/real-no-turn.spec.ts",
     "test:e2e:real:capabilities": "pnpm -w build && playwright test e2e/real-capabilities.spec.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "native:build": "node scripts/build-voice-helper.mjs",
+    "predev": "pnpm native:build && node scripts/prepare-dev-electron.mjs",
+    "native:test": "node --test scripts/prepare-dev-electron.test.mjs && node scripts/test-voice-helper.mjs"
   },
   "dependencies": {
     "@trycua/cua-driver": "0.21.0",
@@ -106,6 +109,10 @@
       {
         "from": "build/sia-cloud.json",
         "to": "sia-cloud.json"
+      },
+      {
+        "from": "build/native/SiaVoiceHelper",
+        "to": "native/SiaVoiceHelper"
       }
     ],
     "extraMetadata": {
@@ -123,17 +130,22 @@
       "entitlementsInherit": "build/entitlements.mac.plist",
       "x64ArchFiles": "Contents/Resources/app.asar.unpacked/node_modules/{@trycua,@ubjs}/**/*",
       "extendInfo": {
-        "NSAccessibilityUsageDescription": "Sia uses Accessibility only for computer actions you explicitly grant.",
+        "NSAccessibilityUsageDescription": "Sia uses Accessibility for computer actions you grant and the optional Fn push-to-talk shortcut.",
         "NSScreenCaptureDescription": "Sia uses Screen Recording to observe only the windows you explicitly grant.",
         "NSMicrophoneUsageDescription": "Sia uses the microphone only while you record a message for transcription.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false,
           "NSAllowsLocalNetworking": false
-        }
+        },
+        "NSSpeechRecognitionUsageDescription": "Sia uses on-device speech recognition when you choose dictation.",
+        "NSAppleEventsUsageDescription": "Sia uses Automation for app actions you approve in Calendar, Reminders, Finder, and Messages."
       },
       "target": [
         "dmg",
         "zip"
+      ],
+      "binaries": [
+        "Contents/Resources/native/SiaVoiceHelper"
       ]
     },
     "dmg": {

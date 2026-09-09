@@ -139,3 +139,23 @@ The source checks are necessary but do not certify a deployed stack. Before invi
 
 Do not mark the research release ready until this rehearsal and `docs/manual-acceptance.md` pass on
 the exact deployed stack and exact signed artifact.
+
+### Native Fn voice helper
+
+The desktop prebuild compiles `native/voice` for macOS 14+ on arm64 and x86_64, combines both slices,
+and caches the result under ignored `build/native/`. Electron Builder includes `SiaVoiceHelper` in
+`Contents/Resources/native/` and explicitly signs it with the application. The packaged-app verifier
+checks its presence and architecture. The helper embeds microphone/Accessibility usage strings;
+the hardened-runtime entitlement includes audio input. Keep the helper path and signing identity
+stable so macOS can retain permission grants across updates.
+
+For a signed release, the operator must verify microphone and Accessibility permission attribution
+on a clean Mac, then test Fn capture with the Sia window closed and in fullscreen. Development
+ad-hoc signing and automated tests do not establish signed-build TCC behavior. The native source
+provenance and the differences from Notch are recorded in `apps/desktop/native/voice/README.md`.
+
+The native voice helper also contains the default Mac speech engine. Verify its embedded
+`NSSpeechRecognitionUsageDescription` and the signed Speech Recognition entitlement along with
+microphone access. Check read aloud with no cloud configuration and no microphone grant; then test
+Fn with allowed, denied, and revoked Speech Recognition grants. Unsupported on-device recognition
+must retain read aloud and typing without a cloud fallback. Only installed voices are offered.

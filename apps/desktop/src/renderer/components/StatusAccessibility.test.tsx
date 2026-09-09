@@ -51,7 +51,9 @@ describe('status accessibility', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /pnpm test/i }));
+    expect(screen.queryByText('pnpm test')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Running a command/i }));
+    expect(screen.getAllByText('pnpm test').length).toBeGreaterThan(0);
     expect(screen.getByText('/tmp/workspace')).toBeTruthy();
     expect(screen.getByText('20 passed')).toBeTruthy();
     expect(screen.getByText('Exit 0 · 912 ms')).toBeTruthy();

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createBridgeRendererApi } from './bridgeAdapter';
 import type { SettingsSection } from './components/Settings';
 import type { AgentSummary, RendererApi, RendererSnapshot } from './types';
@@ -31,7 +31,6 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
   const [editingAgent, setEditingAgent] = useState<AgentSummary>();
   const [startupNoticeDismissed, setStartupNoticeDismissed] = useState(false);
   const [attachments, setAttachments] = useState<import('./types').RendererAttachment[]>([]);
-  const firstAgentPrompted = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -100,18 +99,6 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
   useEffect(() => {
     setAttachments([]);
   }, [snapshot?.selectedThreadId]);
-
-  useEffect(() => {
-    if (!snapshot || firstAgentPrompted.current) return;
-    if (snapshot.agents.length > 0) {
-      firstAgentPrompted.current = true;
-      return;
-    }
-    if (snapshot.cloudAuth.state !== 'signed-in') return;
-    firstAgentPrompted.current = true;
-    setEditingAgent(undefined);
-    setAgentDialogOpen(true);
-  }, [snapshot?.agents.length, snapshot?.cloudAuth.state]);
 
   return {
     api,

@@ -185,7 +185,7 @@ export function Sidebar({
 
       <div className={styles.sidebarScroll}>
         <div className={styles.sidebarSectionHeader}>
-          <span>Agents</span>
+          <span>{agents.length === 1 ? 'Recent conversations' : 'Agents'}</span>
           <button
             className={styles.iconButtonSmall}
             type="button"
@@ -212,7 +212,7 @@ export function Sidebar({
 
         <div className={styles.agentList}>
           {orderedAgents.map((agent) => {
-            const expanded = !closedAgents.has(agent.id);
+            const expanded = agents.length === 1 || !closedAgents.has(agent.id);
             const selected = agent.id === selectedAgentId;
             return (
               <section
@@ -221,55 +221,70 @@ export function Sidebar({
                 key={agent.id}
               >
                 <div
-                  className={`${styles.agentRow} ${selected ? styles.agentRowSelected : ''}`}
+                  className={`${styles.agentRow} ${selected ? styles.agentRowSelected : ''} ${agents.length === 1 ? styles.singleAgentRow : ''}`}
                 >
-                  <button
-                    type="button"
-                    className={styles.disclosureButton}
-                    onClick={() => {
-                      setClosedAgents((current) => {
-                        const next = new Set(current);
-                        if (next.has(agent.id)) next.delete(agent.id);
-                        else next.add(agent.id);
-                        return next;
-                      });
-                    }}
-                    aria-label={expanded ? `Collapse ${agent.name}` : `Expand ${agent.name}`}
-                    aria-expanded={expanded}
-                  >
-                    {expanded ? (
-                      <CaretDown size={13} aria-hidden="true" />
-                    ) : (
-                      <CaretRight size={13} aria-hidden="true" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.agentNameButton}
-                    onClick={() => onSelectAgent(agent.id)}
-                  >
-                    <span
-                      className={styles.agentAvatar}
-                      data-presence={agentPresence(agent)}
-                      data-identity={agent.hue}
+                  {agents.length === 1 ? (
+                    <button
+                      type="button"
+                      className={styles.newConversationButton}
+                      onClick={() => onCreateThread(agent.id)}
+                      aria-label={`Start a thread with ${agent.name}`}
                     >
-                      <AgentForm
-                        identity={agent.hue}
-                        state={agentPresence(agent)}
-                        size="small"
-                      />
-                    </span>
-                    <span className={styles.agentName}>{agent.name}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.agentEditButton}
-                    onClick={() => onCreateThread(agent.id)}
-                    aria-label={`Start a thread with ${agent.name}`}
-                    title="New thread"
-                  >
-                    <Plus size={14} aria-hidden="true" />
-                  </button>
+                      <Plus size={15} aria-hidden="true" /> New conversation
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className={styles.disclosureButton}
+                        onClick={() => {
+                          setClosedAgents((current) => {
+                            const next = new Set(current);
+                            if (next.has(agent.id)) next.delete(agent.id);
+                            else next.add(agent.id);
+                            return next;
+                          });
+                        }}
+                        aria-label={
+                          expanded ? `Collapse ${agent.name}` : `Expand ${agent.name}`
+                        }
+                        aria-expanded={expanded}
+                      >
+                        {expanded ? (
+                          <CaretDown size={13} aria-hidden="true" />
+                        ) : (
+                          <CaretRight size={13} aria-hidden="true" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.agentNameButton}
+                        onClick={() => onSelectAgent(agent.id)}
+                      >
+                        <span
+                          className={styles.agentAvatar}
+                          data-presence={agentPresence(agent)}
+                          data-identity={agent.hue}
+                        >
+                          <AgentForm
+                            identity={agent.hue}
+                            state={agentPresence(agent)}
+                            size="small"
+                          />
+                        </span>
+                        <span className={styles.agentName}>{agent.name}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.agentEditButton}
+                        onClick={() => onCreateThread(agent.id)}
+                        aria-label={`Start a thread with ${agent.name}`}
+                        title="New thread"
+                      >
+                        <Plus size={14} aria-hidden="true" />
+                      </button>
+                    </>
+                  )}
                   <AgentMenu
                     agent={agent}
                     onEdit={() => onEditAgent(agent)}
@@ -291,7 +306,9 @@ export function Sidebar({
                 </div>
 
                 {expanded ? (
-                  <div className={styles.threadList}>
+                  <div
+                    className={`${styles.threadList} ${agents.length === 1 ? styles.flatThreadList : ''}`}
+                  >
                     {agent.threads.length ? (
                       agent.threads.map((thread) =>
                         editingThread?.id === thread.id ? (

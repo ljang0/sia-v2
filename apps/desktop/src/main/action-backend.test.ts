@@ -1,3 +1,4 @@
+import type { BrowserWindowState } from './browser-window.js';
 import type { ValidatedActionInvocation } from '@sia/action-gateway';
 import {
   getActionToolDescriptor,
@@ -87,7 +88,7 @@ describe('DesktopActionBackend computer boundary', () => {
 
     expect(result).toMatchObject({
       outcome: 'verified',
-      summary: expect.stringContaining('Opened Apple Notes'),
+      summary: expect.stringContaining('opening Apple Notes'),
     });
     expect(openApplication).toHaveBeenCalledWith('notes');
   });
@@ -203,6 +204,7 @@ describe('DesktopActionBackend computer boundary', () => {
     expect(appId).toMatch(/^app:[0-9a-f-]{36}$/);
     expect(windowId).toMatch(/^window:[0-9a-f-]{36}$/);
     expect(result.data).toEqual({
+      installed_apps: [],
       apps: [{ app_id: appId, name: 'Notes', bundle_id: 'com.apple.Notes' }],
       windows: [
         {
@@ -430,7 +432,7 @@ describe('DesktopActionBackend computer boundary', () => {
 
     expect(acted.outcome).toBe('accepted_unverified');
     expect(acted.verification?.snapshotId).not.toBe(capturedData.snapshot_id);
-    expect(acted.images).toEqual([{ mimeType: 'image/png', dataBase64: 'pixels-2' }]);
+    expect(acted.images).toBeUndefined(); // No pixel exposure for a window containing secure controls.
     const actedData = dataRecord(acted.data);
     expect(actedData.snapshot_id).toBe(acted.verification?.snapshotId);
     expect(actedData).not.toHaveProperty('snapshot');
@@ -515,7 +517,7 @@ describe('DesktopActionBackend computer boundary', () => {
         text: 'Replacement text',
       }),
     );
-    expect(replaced.outcome).toBe('verified');
+    expect(replaced.outcome).toBe('accepted_unverified');
     expect(cua.call.mock.calls.find(([tool]) => tool === 'set_value')?.[1]).toMatchObject({
       pid: 42,
       window_id: 91,
@@ -538,7 +540,7 @@ describe('DesktopActionBackend computer boundary', () => {
         modifiers: ['cmd'],
       }),
     );
-    expect(shortcut.outcome).toBe('verified');
+    expect(shortcut.outcome).toBe('accepted_unverified');
     expect(cua.call.mock.calls.find(([tool]) => tool === 'hotkey')?.[1]).toMatchObject({
       pid: 42,
       window_id: 91,
@@ -593,7 +595,7 @@ describe('DesktopActionBackend computer boundary', () => {
       }),
     );
 
-    expect(typed.outcome).toBe('verified');
+    expect(typed.outcome).toBe('accepted_unverified');
     expect(cua.call.mock.calls.find(([tool]) => tool === 'type_text')?.[1]).toMatchObject({
       pid: 77,
       window_id: 88,
@@ -700,7 +702,7 @@ describe('DesktopActionBackend browser boundary', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  it('reports zero granted tabs after the trusted host revokes the attachment', async () => {
+  it('reports a connection blocker after the host revokes the attachment', async () => {
     const cua = fakeCua(async (tool) => {
       throw new Error(`Unexpected ${tool}`);
     });
@@ -717,8 +719,8 @@ describe('DesktopActionBackend browser boundary', () => {
     backend.resetBrowserCapabilities();
     const result = await backend.invoke(request('browser_tabs', {}));
 
-    expect(result).toMatchObject({ outcome: 'verified', data: { tabs: [] } });
-    expect(result.summary).toContain('Found 0 granted browser tabs.');
+    expect(result).toMatchObject({ outcome: 'refused', data: { tabs: [] } });
+    expect(result.summary).toContain('Browser access needs setup.');
     expect(result.summary).toContain('rather than concluding Chrome is closed');
     expect(cua.call).not.toHaveBeenCalled();
   });
@@ -1748,4 +1750,509 @@ describe('DesktopActionBackend schedule boundary', () => {
     });
     expect(schedules.create).not.toHaveBeenCalled();
   });
+});
+
+it('discovers and launches ordinary installed apps while rejecting sensitive apps and arbitrary paths', async () => {
+  const openApplication = vi.fn(async () => undefined);
+  const backend = new DesktopActionBackend({
+    cua: fakeCua(async () => ({})),
+    openApplication,
+    installedApplications: async () => [
+      { id: 'com.apple.Preview', name: 'Preview' },
+      { id: 'com.apple.Terminal', name: 'Terminal' },
+    ],
+  });
+  const listed = await backend.invoke(request('computer_list', {}));
+  expect(dataRecord(listed.data).installed_apps).toEqual([
+    { application: 'com.apple.Preview', name: 'Preview' },
+  ]);
+  expect(
+    (await backend.invoke(request('computer_open_app', { application: 'com.apple.Preview' })))
+      .outcome,
+  ).toBe('verified');
+  expect(
+    (await backend.invoke(request('computer_open_app', { application: 'com.apple.Terminal' })))
+      .outcome,
+  ).toBe('refused');
+  expect(
+    (await backend.invoke(request('computer_open_app', { application: '/tmp/evil.app' })))
+      .outcome,
+  ).toBe('refused');
+  expect(openApplication).toHaveBeenCalledExactlyOnceWith('com.apple.Preview');
+});
+
+it('binds pixel clicks and drags to fresh window images and rechecks protected controls before delivery', async () => {
+  const png = Buffer.alloc(24);
+  Buffer.from('89504e470d0a1a0a', 'hex').copy(png);
+  png.write('IHDR', 12);
+  png.writeUInt32BE(800, 16);
+  png.writeUInt32BE(600, 20);
+  let protectedWindow = false;
+  const cua = fakeCua(async (tool) => {
+    if (tool === 'list_apps')
+      return { apps: [{ pid: 42, name: 'Preview', bundle_id: 'com.apple.Preview' }] };
+    if (tool === 'list_windows')
+      return { windows: [{ pid: 42, window_id: 91, app_name: 'Preview' }] };
+    if (tool === 'get_window_state')
+      return {
+        value: {
+          snapshot_id: 'native',
+          elements: protectedWindow ? [{ role: 'AXSecureTextField' }] : [],
+        },
+        images: [{ mimeType: 'image/png', dataBase64: png.toString('base64') }],
+      };
+    return { effect: 'confirmed', route: 'synthetic_events', delivery: { mode: 'foreground' } };
+  });
+  const backend = new DesktopActionBackend({ cua });
+  const target = await grantedComputerTarget(backend);
+  const captured = await backend.invoke(
+    request('computer_snapshot', { app_id: target.appId, window_id: target.windowId }),
+  );
+  expect(dataRecord(captured.data).pixel_actions_available).toBe(true);
+  const args = {
+    app_id: target.appId,
+    window_id: target.windowId,
+    snapshot_id: dataRecord(captured.data).snapshot_id,
+    action: 'click',
+    x: 20,
+    y: 30,
+  };
+  expect((await backend.invoke(request('computer_action', { ...args, x: 800 }))).outcome).toBe(
+    'stale',
+  );
+  expect(cua.call.mock.calls.some(([tool]) => tool === 'click')).toBe(false);
+  const clicked = await backend.invoke(request('computer_action', args));
+  expect(clicked.outcome).toBe('accepted_unverified');
+  expect(cua.call.mock.calls.find(([tool]) => tool === 'click')?.[1]).toMatchObject({
+    pid: 42,
+    window_id: 91,
+    x: 20,
+    y: 30,
+    delivery_mode: 'foreground',
+  });
+  const dragged = await backend.invoke(
+    request('computer_action', {
+      ...args,
+      snapshot_id: dataRecord(clicked.data).snapshot_id,
+      action: 'drag',
+      to_x: 200,
+      to_y: 250,
+    }),
+  );
+  expect(dragged.outcome).toBe('accepted_unverified');
+  expect(cua.call.mock.calls.find(([tool]) => tool === 'drag')?.[1]).toMatchObject({
+    from_x: 20,
+    from_y: 30,
+    to_x: 200,
+    to_y: 250,
+  });
+  protectedWindow = true;
+  expect(
+    (
+      await backend.invoke(
+        request('computer_action', {
+          ...args,
+          snapshot_id: dataRecord(dragged.data).snapshot_id,
+        }),
+      )
+    ).outcome,
+  ).toBe('refused');
+  expect(cua.call.mock.calls.filter(([tool]) => tool === 'click')).toHaveLength(1);
+});
+
+it('stops a failed control loop after two attempts without posting any input', async () => {
+  const cua = fakeCua(async () => ({}));
+  const backend = new DesktopActionBackend({ cua });
+  const input = request('computer_action', {
+    app_id: 'expired',
+    window_id: 'expired',
+    snapshot_id: 'expired',
+    action: 'click',
+    element_ref: 'expired',
+  });
+  expect((await backend.invoke(input)).outcome).toBe('stale');
+  expect((await backend.invoke(input)).outcome).toBe('stale');
+  expect((await backend.invoke(input)).summary).toContain('Two control attempts failed');
+  expect(cua.call).not.toHaveBeenCalled();
+});
+
+it('requires an approved native automation invocation and fails closed when no assistant host exists', async () => {
+  const macAutomation = vi.fn(async () => ({
+    outcome: 'verified' as const,
+    summary: 'Read selected items.',
+  }));
+  const backend = new DesktopActionBackend({ cua: fakeCua(async () => ({})), macAutomation });
+  const approved = request('mac_automation', { operation: 'finder_selection' });
+  const unapproved = { ...approved };
+  delete (unapproved as { approvalId?: string }).approvalId;
+  expect((await backend.invoke(unapproved)).outcome).toBe('refused');
+  expect(macAutomation).not.toHaveBeenCalled();
+  expect((await backend.invoke(approved)).outcome).toBe('verified');
+  expect((await backend.invoke(request('skill_run', {}))).outcome).toBe('refused');
+});
+
+describe('Use my Mac browser routing', () => {
+  function browserHarness() {
+    let enabled = true;
+    let url = 'https://example.com/';
+    const openUrl = vi.fn(async (value: string) => {
+      url = value;
+    });
+    const inspect = vi.fn(async (): Promise<BrowserWindowState> => ({
+      status: 'ready' as const,
+      url,
+      bundleID: 'com.apple.Safari',
+    }));
+    const cua = fakeCua(async (tool) => {
+      if (tool === 'list_apps')
+        return {
+          apps: [
+            { pid: 42, name: 'Safari', bundle_id: 'com.apple.Safari', active: true },
+            { pid: 43, name: '1Password', bundle_id: 'com.1password.1password' },
+          ],
+        };
+      if (tool === 'list_windows')
+        return {
+          windows: [{ pid: 42, window_id: 91, app_name: 'Safari', title: 'Example Domain' }],
+        };
+      if (tool === 'get_window_state')
+        return {
+          snapshot_id: 'native-browser-snapshot',
+          elements: [
+            { element_index: 1, element_token: 'link', role: 'AXLink', label: 'Learn more' },
+          ],
+        };
+      if (tool === 'click') return { success: true };
+      throw new Error(`Unexpected tool ${tool}`);
+    });
+    const backend = new DesktopActionBackend({
+      cua,
+      macBrowserAccess: () => enabled,
+      inspectBrowserWindow: inspect,
+      openUrl,
+    });
+    return {
+      backend,
+      cua,
+      inspect,
+      openUrl,
+      disable: () => {
+        enabled = false;
+      },
+      navigate: (value: string) => {
+        url = value;
+      },
+    };
+  }
+  async function capture(h: ReturnType<typeof browserHarness>) {
+    const target = await grantedComputerTarget(h.backend);
+    const result = await h.backend.invoke(
+      request('computer_snapshot', { app_id: target.appId, window_id: target.windowId }),
+    );
+    const data = dataRecord(result.data);
+    return {
+      app_id: target.appId,
+      window_id: target.windowId,
+      snapshot_id: data.snapshot_id,
+      element_ref: (data.elements as Record<string, unknown>[])[0]!.element_ref,
+    };
+  }
+
+  it('discovers Safari without Chrome attachment and returns the native route to the same task', async () => {
+    const h = browserHarness();
+    const result = await h.backend.invoke(request('browser_tabs', {}));
+    expect(result.outcome).toBe('verified');
+    expect(dataRecord(result.data).route).toBe('computer');
+    expect(JSON.stringify(result)).toContain('Safari');
+    expect(JSON.stringify(result)).not.toContain('1Password');
+    expect(h.cua.call.mock.calls.some(([tool]) => tool === 'browser_prepare')).toBe(false);
+    const args = await capture(h);
+    expect(
+      (await h.backend.invoke(request('computer_action', { ...args, action: 'click' })))
+        .outcome,
+    ).toBe('accepted_unverified');
+    expect(h.cua.call.mock.calls.some(([tool]) => tool === 'click')).toBe(true);
+  });
+
+  it('keeps the native browser route when Chrome also has an attached tab', async () => {
+    const h = browserHarness();
+    h.backend.acceptBrowserState({
+      target_id: 'attached-target',
+      tab_id: 'attached-tab',
+      url: 'https://mail.google.com/',
+    });
+    const result = await h.backend.invoke(request('browser_tabs', {}));
+    expect(result.outcome).toBe('verified');
+    expect(dataRecord(result.data).route).toBe('computer');
+    expect(JSON.stringify(result)).toContain('Safari');
+    expect(JSON.stringify(result)).not.toContain('mail.google.com');
+    expect(h.cua.call.mock.calls.some(([tool]) => tool === 'get_browser_state')).toBe(false);
+  });
+
+  it('opens an ordinary website itself and directs the same task to inspect it', async () => {
+    const h = browserHarness();
+    const result = await h.backend.invoke(
+      request('computer_open_url', { url: 'https://canvas.cmu.edu/' }),
+    );
+    expect(result.outcome).toBe('accepted_unverified');
+    expect(result.summary).toContain('Call computer_list');
+    expect(h.openUrl).toHaveBeenCalledWith('https://canvas.cmu.edu/');
+    expect(
+      h.backend.trustedApprovalTarget('computer_open_url', {
+        url: 'https://canvas.cmu.edu/',
+      }),
+    ).toBe('Open https://canvas.cmu.edu in the default browser');
+  });
+
+  it('recovers a navigation race by observing again without replaying the click', async () => {
+    const h = browserHarness();
+    const args = await capture(h);
+    h.inspect.mockResolvedValueOnce({
+      status: 'ready',
+      url: 'https://example.com/',
+      bundleID: 'com.apple.Safari',
+    });
+    h.inspect.mockResolvedValueOnce({
+      status: 'ready',
+      url: 'https://example.com/',
+      bundleID: 'com.apple.Safari',
+    });
+    h.navigate('https://example.com/course');
+    const result = await h.backend.invoke(
+      request('computer_action', { ...args, action: 'click' }),
+    );
+    expect(result.outcome).toBe('accepted_unverified');
+    expect(dataRecord(result.data).evidence_id).toMatch(/^evidence:/);
+    expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'click')).toHaveLength(1);
+    expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state')).toHaveLength(
+      3,
+    );
+  });
+
+  it('preserves delivered action status when the destination becomes protected', async () => {
+    const h = browserHarness();
+    const args = await capture(h);
+    h.inspect.mockResolvedValueOnce({
+      status: 'ready',
+      url: 'https://example.com/',
+      bundleID: 'com.apple.Safari',
+    });
+    h.navigate('https://example.com/login');
+    const result = await h.backend.invoke(
+      request('computer_action', { ...args, action: 'click' }),
+    );
+    expect(result.outcome).toBe('accepted_unverified');
+    expect(dataRecord(result.data).observation_pending).toBe(true);
+    expect(dataRecord(result.data).evidence_id).toBeUndefined();
+    expect(result.images).toBeUndefined();
+    expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'click')).toHaveLength(1);
+  });
+
+  it('refuses connected tools even when invoked indirectly in Mac mode', async () => {
+    const h = browserHarness();
+    const result = await h.backend.invoke(request('browser_snapshot', { tab_id: 'old-tab' }));
+    expect(result.outcome).toBe('refused');
+    expect(result.summary).toContain('native app tools');
+    expect(h.cua.call).not.toHaveBeenCalled();
+  });
+
+  it('keeps delivery status when post-action capture throws', async () => {
+    const h = browserHarness();
+    const args = await capture(h);
+    h.cua.call.mockImplementation(async (tool: string) => {
+      if (tool === 'click') return { success: true };
+      if (tool === 'get_window_state') throw new Error('capture timed out');
+      if (tool === 'list_apps')
+        return { apps: [{ pid: 42, name: 'Safari', bundle_id: 'com.apple.Safari' }] };
+      if (tool === 'list_windows')
+        return { windows: [{ pid: 42, window_id: 91, app_name: 'Safari' }] };
+      throw new Error(`Unexpected ${tool}`);
+    });
+    const result = await h.backend.invoke(
+      request('computer_action', { ...args, action: 'click' }),
+    );
+    expect(result.outcome).toBe('accepted_unverified');
+    expect(dataRecord(result.data).observation_pending).toBe(true);
+    expect(dataRecord(result.data).evidence_id).toBeUndefined();
+    expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'click')).toHaveLength(1);
+  });
+
+  it('bounds loading observations and does not admit the loading preview as evidence', async () => {
+    const h = browserHarness();
+    const target = await grantedComputerTarget(h.backend);
+    const implementation = h.cua.call.getMockImplementation() as (
+      tool: string,
+      args: Record<string, unknown>,
+    ) => Promise<unknown>;
+    h.cua.call.mockImplementation(async (tool: string, args: Record<string, unknown>) =>
+      tool === 'get_window_state'
+        ? {
+            snapshot_id: 'loading',
+            elements: [
+              {
+                element_index: 1,
+                element_token: 'spinner',
+                role: 'AXProgressIndicator',
+                label: 'Loading',
+              },
+            ],
+          }
+        : implementation(tool, args),
+    );
+    const result = await h.backend.invoke(
+      request('computer_snapshot', { app_id: target.appId, window_id: target.windowId }),
+    );
+    expect(dataRecord(result.data).loading).toBe(true);
+    expect(dataRecord(result.data).evidence_id).toBeUndefined();
+    expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state')).toHaveLength(
+      3,
+    );
+  });
+
+  it.each([
+    'https://accounts.google.com/',
+    'https://example.com/login',
+    'file:///etc/passwd',
+    'chrome://settings',
+    'javascript:alert(1)',
+  ])('does not open protected or internal website %s', async (url) => {
+    const h = browserHarness();
+    const result = await h.backend.invoke(request('computer_open_url', { url }));
+    expect(result.outcome).toBe('refused');
+    expect(h.openUrl).not.toHaveBeenCalled();
+  });
+
+  it('does not open a website outside Use my Mac mode', async () => {
+    const h = browserHarness();
+    h.disable();
+    const result = await h.backend.invoke(
+      request('computer_open_url', { url: 'https://canvas.cmu.edu/' }),
+    );
+    expect(result.outcome).toBe('refused');
+    expect(h.openUrl).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'https://accounts.google.com/',
+    'https://example.com/login',
+    'file:///etc/passwd',
+    'chrome://settings',
+    'javascript:alert(1)',
+  ])('blocks protected and internal page %s before returning a snapshot', async (url) => {
+    const h = browserHarness();
+    h.navigate(url);
+    const target = await grantedComputerTarget(h.backend);
+    const result = await h.backend.invoke(
+      request('computer_snapshot', { app_id: target.appId, window_id: target.windowId }),
+    );
+    expect(result.outcome).toBe('refused');
+    expect(h.cua.call.mock.calls.some(([tool]) => tool === 'get_window_state')).toBe(false);
+    expect(result.images).toBeUndefined();
+  });
+
+  it.each(['protected', 'unavailable'] as const)(
+    'does not capture private or unverified browser state (%s)',
+    async (status) => {
+      const h = browserHarness();
+      h.inspect.mockResolvedValue({ status });
+      const target = await grantedComputerTarget(h.backend);
+      const result = await h.backend.invoke(
+        request('computer_snapshot', { app_id: target.appId, window_id: target.windowId }),
+      );
+      expect(result.outcome).toBe('refused');
+      expect(result.images).toBeUndefined();
+      expect(h.cua.call.mock.calls.some(([tool]) => tool === 'get_window_state')).toBe(false);
+    },
+  );
+
+  it('invalidates a captured browser action after a tab switch and does not replay a click', async () => {
+    const h = browserHarness();
+    const args = await capture(h);
+    h.navigate('https://example.com/another-page');
+    expect(
+      (await h.backend.invoke(request('computer_action', { ...args, action: 'click' })))
+        .outcome,
+    ).toBe('stale');
+    expect(h.cua.call.mock.calls.some(([tool]) => tool === 'click')).toBe(false);
+  });
+
+  it('revokes native browser grants as soon as the mode is disabled', async () => {
+    const h = browserHarness();
+    const args = await capture(h);
+    h.disable();
+    expect(
+      (await h.backend.invoke(request('computer_action', { ...args, action: 'click' })))
+        .outcome,
+    ).toBe('stale');
+    const listed = await h.backend.invoke(request('computer_list', {}));
+    expect(dataRecord(listed.data).apps).toEqual([]);
+  });
+
+  it('blocks browser script injection and developer shortcuts', async () => {
+    const h = browserHarness();
+    const args = await capture(h);
+    for (const action of [
+      { action: 'type', text: 'javascript:alert(1)' },
+      { action: 'key', value: 'i', modifiers: ['cmd', 'option'] },
+    ]) {
+      expect(
+        (await h.backend.invoke(request('computer_action', { ...args, ...action }))).outcome,
+      ).toBe('refused');
+    }
+  });
+
+  it('drops page content if the browser changes during capture', async () => {
+    const h = browserHarness();
+    h.inspect.mockResolvedValueOnce({
+      status: 'ready',
+      url: 'https://example.com/',
+      bundleID: 'com.apple.Safari',
+    });
+    h.navigate('https://example.com/login');
+    const target = await grantedComputerTarget(h.backend);
+    const result = await h.backend.invoke(
+      request('computer_snapshot', { app_id: target.appId, window_id: target.windowId }),
+    );
+    expect(result.outcome).toBe('refused');
+    expect(result.data).toBeUndefined();
+    expect(result.images).toBeUndefined();
+  });
+});
+
+it('keeps accessibility usable when screenshot capture fails and omits hidden history menus', async () => {
+  const cua = fakeCua(async (tool, args) => {
+    if (tool === 'list_apps')
+      return { apps: [{ pid: 42, name: 'Notes', bundle_id: 'com.apple.Notes' }] };
+    if (tool === 'list_windows')
+      return { windows: [{ pid: 42, window_id: 91, app_name: 'Notes' }] };
+    if (tool === 'get_window_state' && args.include_screenshot)
+      throw new Error('CUA refused: px_capture_unavailable');
+    return {
+      snapshot_id: 'native',
+      elements: [
+        {
+          element_index: 1,
+          element_token: 'text',
+          role: 'AXStaticText',
+          value: 'Visible content',
+        },
+        {
+          element_index: 2,
+          element_token: 'history',
+          role: 'AXMenuItem',
+          label: 'Sign in to old site',
+        },
+      ],
+    };
+  });
+  const backend = new DesktopActionBackend({ cua });
+  const target = await grantedComputerTarget(backend);
+  const result = await backend.invoke(
+    request('computer_snapshot', { app_id: target.appId, window_id: target.windowId }),
+  );
+  expect(result.outcome).toBe('verified');
+  expect(JSON.stringify(result)).toContain('Visible content');
+  expect(JSON.stringify(result)).not.toContain('Sign in');
+  expect(dataRecord(result.data).pixel_actions_available).toBe(false);
+  expect(cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state')).toHaveLength(2);
 });

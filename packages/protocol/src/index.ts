@@ -579,6 +579,8 @@ export interface ProviderAccount {
 }
 
 export interface ProviderSessionOptions {
+  /** Dynamic-tool-only sessions: supported by the Codex harness, with native execution disabled. */
+  readonly nativeTools?: 'disabled';
   readonly threadId: string;
   readonly model: string;
   /** Optional during migration; harness-aware callers should provide the pinned target. */

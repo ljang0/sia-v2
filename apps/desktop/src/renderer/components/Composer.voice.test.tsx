@@ -110,3 +110,91 @@ describe('composer voice input', () => {
     expect(onChange).toHaveBeenLastCalledWith(false);
   });
 });
+
+describe('shared voice capture ownership', () => {
+  function microphone(getUserMedia = vi.fn(async () => ({ getTracks: () => [] }))) {
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia },
+    });
+    vi.stubGlobal('MediaRecorder', TestMediaRecorder);
+    return getUserMedia;
+  }
+
+  it('does not open the microphone while Fn owns capture', async () => {
+    const getUserMedia = microphone();
+    render(
+      <Composer
+        voiceEnabled
+        onAcquireVoiceCapture={async () => {
+          throw new Error('Another voice recording is active.');
+        }}
+        onTranscribe={vi.fn()}
+        onSend={vi.fn()}
+        onStop={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Dictate message' }));
+    await screen.findByText('Another voice recording is active.');
+    expect(getUserMedia).not.toHaveBeenCalled();
+  });
+
+  it('releases ownership when microphone permission is denied', async () => {
+    microphone(
+      vi.fn(async () => {
+        throw new DOMException('Denied', 'NotAllowedError');
+      }),
+    );
+    const release = vi.fn(async () => undefined);
+    render(
+      <Composer
+        voiceEnabled
+        onAcquireVoiceCapture={async () => 'lease'}
+        onReleaseVoiceCapture={release}
+        onTranscribe={vi.fn()}
+        onSend={vi.fn()}
+        onStop={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Dictate message' }));
+    await waitFor(() => expect(release).toHaveBeenCalledWith('lease'));
+    expect(await screen.findByRole('button', { name: 'Dictate message' })).toBeTruthy();
+  });
+
+  it('closes a microphone that finishes opening after unmount and sends nothing', async () => {
+    let resolve!: (stream: { getTracks(): { stop(): void }[] }) => void;
+    const stop = vi.fn();
+    const getUserMedia = vi.fn(
+      () =>
+        new Promise<{ getTracks(): { stop(): void }[] }>((done) => {
+          resolve = done;
+        }),
+    );
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia },
+    });
+    vi.stubGlobal('MediaRecorder', TestMediaRecorder);
+    const release = vi.fn(async () => undefined);
+    const send = vi.fn();
+    const transcribe = vi.fn();
+    const view = render(
+      <Composer
+        voiceEnabled
+        onAcquireVoiceCapture={async () => 'lease'}
+        onReleaseVoiceCapture={release}
+        onTranscribe={transcribe}
+        onSend={send}
+        onStop={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Dictate message' }));
+    await waitFor(() => expect(getUserMedia).toHaveBeenCalledOnce());
+    view.unmount();
+    resolve({ getTracks: () => [{ stop }] });
+    await waitFor(() => expect(stop).toHaveBeenCalled());
+    expect(release).toHaveBeenCalledWith('lease');
+    expect(transcribe).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+  });
+});

@@ -1,3 +1,6 @@
+import { ComputerAccessMode } from '../ComputerAccessMode';
+import { MacAutomationPermissions } from '../MacAutomationPermissions';
+import type { AutomationApp } from '../../../shared/mac-permissions';
 import { Browser, Desktop, Notebook, ShieldCheck } from '@phosphor-icons/react';
 import { useState, type FormEvent } from 'react';
 import type { RendererSnapshot } from '../../types';
@@ -11,6 +14,9 @@ export function ComputerSettings({
   onOpenBrowserSite,
   onDetachBrowser,
   onRequestPermissions,
+  onRequestAutomation,
+  onRefreshPermissions,
+  onSetComputerAccessMode,
   onSetComputerTrust,
   onSetTrajectoryLog,
   onRevealTrajectories,
@@ -20,6 +26,9 @@ export function ComputerSettings({
   onOpenBrowserSite(url: string): Promise<void>;
   onDetachBrowser(): Promise<void>;
   onRequestPermissions(): Promise<void>;
+  onRequestAutomation?(app: AutomationApp): Promise<void>;
+  onRefreshPermissions?(): Promise<void>;
+  onSetComputerAccessMode?(mode: 'mac' | 'connected'): Promise<void>;
   onSetComputerTrust(trust: 'auto' | 'ask'): Promise<void>;
   onSetTrajectoryLog(enabled: boolean): Promise<void>;
   onRevealTrajectories(): Promise<void>;
@@ -63,6 +72,21 @@ export function ComputerSettings({
       description="Grant only what a task needs. Changes ask for confirmation by default, and every computer action stays reviewable."
     >
       <InlineSettingsError message={error} />
+      {onSetComputerAccessMode ? (
+        <ComputerAccessMode
+          computer={snapshot.computer}
+          disabled={Boolean(pending)}
+          change={(mode) => void run('computer', () => onSetComputerAccessMode(mode))}
+        />
+      ) : null}
+      {onRequestAutomation && onRefreshPermissions ? (
+        <MacAutomationPermissions
+          permissions={snapshot.computer.automation}
+          request={onRequestAutomation}
+          refresh={onRefreshPermissions}
+          disabled={Boolean(pending)}
+        />
+      ) : null}
       {!snapshot.browser.attached &&
       snapshot.browser.status === 'error' &&
       snapshot.browser.snapshotLabel ? (
@@ -90,7 +114,9 @@ export function ComputerSettings({
         <div className={styles.accessRow}>
           <Browser size={20} aria-hidden="true" />
           <div>
-            <strong>Authenticated Chrome</strong>
+            <strong>
+              Authenticated Chrome{snapshot.computer.accessMode === 'mac' ? ' (optional)' : ''}
+            </strong>
             <p>
               {snapshot.browser.attached
                 ? `Attached to ${snapshot.browser.profileName}.${trusted ? ' Any site in this window is available.' : ' Only granted origins are available.'}`
@@ -170,20 +196,22 @@ export function ComputerSettings({
           <ShieldCheck size={20} aria-hidden="true" />
           <div>
             <div className={styles.rowTitleLine}>
-              <strong>Confirm before changes</strong>
-              {!trusted ? <span className={styles.stateLabel}>Recommended</span> : null}
+              <strong>Bypass action approvals</strong>
+              {trusted ? <span className={styles.stateLabel}>Enabled</span> : null}
             </div>
             <p>
               {trusted
-                ? 'Off — Sia can click, type, send, post, upload, and schedule without interrupting the run.'
-                : 'On — changes pause for confirmation. Searches, reads, and verification continue automatically.'}
+                ? 'On — Sia can click, type, send, post, upload, and schedule without asking for each action.'
+                : 'Off — changes pause for confirmation. Searches, reads, and verification continue automatically.'}{' '}
+              macOS permissions and protected fields still apply. Executable skills still ask
+              for source review.
             </p>
           </div>
           <button
             type="button"
             role="switch"
-            aria-checked={!trusted}
-            aria-label="Confirm before changes"
+            aria-checked={trusted}
+            aria-label="Bypass action approvals"
             className={styles.secondaryButton}
             disabled={Boolean(pending)}
             onClick={() =>
@@ -191,7 +219,7 @@ export function ComputerSettings({
             }
             data-testid="computer-trust-toggle"
           >
-            {pending === 'trust' ? 'Saving…' : trusted ? 'Turn on' : 'Turn off'}
+            {pending === 'trust' ? 'Saving…' : trusted ? 'Turn off' : 'Turn on'}
           </button>
         </div>
         <div className={styles.accessRow}>

@@ -54,6 +54,7 @@ interface StoredVoicePreference {
 
 export interface VoiceOperations {
   view(): VoiceView;
+  prepareDictation?(): Promise<void>;
   configure(): Promise<VoiceView>;
   refresh(): Promise<VoiceView>;
   select(voiceId: string): Promise<VoiceView>;
@@ -65,7 +66,7 @@ export interface VoiceOperations {
   speak(
     text: string,
     voiceId?: string,
-  ): Promise<{ audioBase64: string; mimeType: 'audio/mpeg' }>;
+  ): Promise<{ audioBase64: string; mimeType: 'audio/mpeg' | 'audio/wav' }>;
   dispose?(): void;
 }
 
@@ -691,7 +692,7 @@ function speechText(value: string): string {
 }
 
 /** Makes playback concise and always ends at a sentence boundary. */
-function spokenSummary(value: string): string {
+export function spokenSummary(value: string): string {
   const text = speechText(value);
   if (!text) return '';
   const sentences = text.match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g)?.map((part) => part.trim()) ?? [

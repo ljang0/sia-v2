@@ -26,7 +26,11 @@ import {
 } from '@sia/runtime';
 import type { ActionGateway, TurnLease } from '@sia/action-gateway';
 
+import { MAC_EXECUTION_TOOLS } from './mac-execution.js';
+
 export interface RuntimeThreadConfig {
+  nativeTools?: 'disabled';
+  computerAccessMode?: 'mac' | 'connected';
   id: string;
   provider: ProviderId;
   model: string;
@@ -53,6 +57,9 @@ export interface RuntimeReviewInput {
 }
 
 interface ActiveTurnContext {
+  allowedTools?: ReadonlySet<string>;
+  macTaskUsed?: boolean;
+  macTaskChecked?: boolean;
   sessionId: string;
   threadId: string;
   turnId: string;
@@ -256,15 +263,17 @@ export class RuntimeCoordinator {
       state,
       input.lease,
       signal,
-      () =>
+      (continuation?: string) =>
         state.adapter.sendTurn(
           state.session,
           {
             turnId: input.turnId,
-            text: input.text,
+            text: continuation ?? input.text,
             model: input.thread.model,
             ...(input.reasoningEffort ? { reasoningEffort: input.reasoningEffort } : {}),
-            ...(input.attachments?.length ? { attachments: input.attachments } : {}),
+            ...(!continuation && input.attachments?.length
+              ? { attachments: input.attachments }
+              : {}),
           },
           signal,
         ),
@@ -299,7 +308,7 @@ export class RuntimeCoordinator {
     state: SessionState,
     lease: TurnLease | undefined,
     signal: AbortSignal | undefined,
-    run: () => AsyncIterable<ThreadEventEnvelope>,
+    run: (continuation?: string) => AsyncIterable<ThreadEventEnvelope>,
   ): AsyncIterable<ThreadEventEnvelope> {
     const context: ActiveTurnContext = {
       sessionId: state.session.id,
@@ -307,6 +316,9 @@ export class RuntimeCoordinator {
       turnId,
       provider: thread.provider,
       workspace: thread.workspace,
+      ...(thread.computerAccessMode === 'mac' && thread.nativeTools !== 'disabled'
+        ? { allowedTools: new Set(MAC_EXECUTION_TOOLS) }
+        : {}),
       ...(lease ? { lease } : {}),
       ...(signal ? { signal } : {}),
     };
@@ -314,12 +326,54 @@ export class RuntimeCoordinator {
     this.#activeByProviderSession.set(state.session.id, context);
     this.#activeByProviderSession.set(state.session.nativeId, context);
     try {
-      for await (const event of run()) {
-        yield {
-          ...event,
-          harnessId: state.target.harnessId,
-          model: state.target.model,
-        };
+      let continuation: string | undefined;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const pendingMessages: ThreadEventEnvelope[] = [];
+        let pendingBytes = 0;
+        let completion: ThreadEventEnvelope | undefined;
+        for await (const rawEvent of run(continuation)) {
+          const event = {
+            ...rawEvent,
+            harnessId: state.target.harnessId,
+            model: state.target.model,
+          };
+          if (
+            context.allowedTools &&
+            event.type === 'message' &&
+            event.payload.role === 'assistant'
+          ) {
+            pendingBytes += JSON.stringify(event).length;
+            if (pendingBytes > 2_000_000 || pendingMessages.length >= 20_000)
+              throw new Error('The pending answer exceeded Sia’s verification buffer.');
+            pendingMessages.push(event);
+          } else if (context.allowedTools && event.type === 'completion') {
+            completion = event;
+          } else {
+            if (event.type === 'tool') {
+              for (const message of pendingMessages.splice(0)) yield message;
+              pendingBytes = 0;
+            }
+            yield event;
+          }
+        }
+        if (completion?.type === 'completion' && completion.payload.status !== 'completed') {
+          if (!context.macTaskUsed || context.macTaskChecked)
+            for (const message of pendingMessages) yield message;
+          yield completion;
+          break;
+        }
+        if (!context.macTaskUsed || context.macTaskChecked) {
+          for (const message of pendingMessages) yield message;
+          if (completion) yield completion;
+          break;
+        }
+        if (signal?.aborted) throw new Error('Task cancelled.');
+        if (attempt === 2)
+          throw new Error(
+            'Sia could not verify the requested results. The unverified final answer was withheld; completed actions remain in the activity history.',
+          );
+        continuation =
+          'Continue the original task. Your final answer was withheld because computer_task_complete has not accepted evidence for this task. Inspect the actual app and finish checking every requested item. Do not repeat delivered writes. Call computer_task_complete with one verified or explicitly blocked entry per requested item, using evidence_id values and exact quotes from tool observations. A loading page is not evidence. Do not fill missing facts from memory or the public web. Then answer using only those findings and clearly identify anything unfinished.';
       }
     } finally {
       if (this.#activeByThread.get(thread.id) === context) {
@@ -357,12 +411,7 @@ export class RuntimeCoordinator {
         summary: 'This Sia tool capability is not attached to an active provider turn.',
       };
     }
-    const result = await this.#gateway.invoke({
-      name: toolName,
-      arguments: argumentsValue,
-      context,
-    });
-    return result;
+    return (await this.#invokeTool(context, toolName, argumentsValue)).content;
   }
 
   async dispose(): Promise<void> {
@@ -387,11 +436,33 @@ export class RuntimeCoordinator {
     argumentsValue: Readonly<Record<string, unknown>>,
     signal?: AbortSignal,
   ): Promise<{ success: boolean; content: unknown }> {
+    if (context.allowedTools && !context.allowedTools.has(name))
+      return {
+        success: false,
+        content: {
+          outcome: 'refused',
+          summary:
+            'Use my Mac uses native app tools only. Continue in the actual app; connected browser and service tools are unavailable in this mode.',
+        },
+      };
+    if (
+      context.allowedTools &&
+      (name.startsWith('computer_') || name === 'mac_automation' || name === 'skill_run')
+    ) {
+      context.macTaskUsed = true;
+      context.macTaskChecked = false;
+    }
     const result = await this.#gateway.invoke({
       name,
       arguments: argumentsValue,
       context: { ...context, ...(signal ? { signal } : {}) },
     });
+    if (
+      context.allowedTools &&
+      name === 'computer_task_complete' &&
+      result.outcome === 'verified'
+    )
+      context.macTaskChecked = true;
     return {
       success: result.outcome === 'verified' || result.outcome === 'accepted_unverified',
       content: result,
@@ -413,14 +484,30 @@ export class RuntimeCoordinator {
       resolutionSource: 'legacy_default' as const,
     };
     assertTargetContext(thread, target);
-    const tools = this.#gateway.listTools();
+    const mac = thread.computerAccessMode === 'mac' && thread.nativeTools !== 'disabled';
+    if (mac && target.harnessId !== 'codex_app_server')
+      throw new Error('Use my Mac requires a Codex App Server agent.');
+    if (thread.nativeTools === 'disabled' && target.harnessId !== 'codex_app_server')
+      throw new Error('Memory reviews require the Codex App Server harness.');
+    const tools = this.#gateway
+      .listTools()
+      .filter(
+        (tool) =>
+          thread.nativeTools !== 'disabled' ||
+          ['assistant_library', 'memory_suggest'].includes(tool.name),
+      );
+    const sessionTools = tools.filter((tool) =>
+      mac ? MAC_EXECUTION_TOOLS.includes(tool.name) : tool.name !== 'computer_task_complete',
+    );
     const fingerprint = JSON.stringify([
       thread.provider,
       thread.model,
       target,
       thread.workspace,
       thread.instructions,
-      tools.map(({ name }) => name),
+      thread.nativeTools,
+      thread.computerAccessMode,
+      sessionTools.map(({ name }) => name),
     ]);
     const existing = this.#sessions.get(thread.id);
     if (existing?.fingerprint === fingerprint) return existing;
@@ -461,6 +548,7 @@ export class RuntimeCoordinator {
     const usesCodexHarness = target.harnessId === 'codex_app_server';
     const session = await adapter.createSession(
       {
+        ...(mac || thread.nativeTools ? { nativeTools: 'disabled' as const } : {}),
         threadId: thread.id,
         model: target.harnessModelId,
         resolvedExecutionTarget: target,
@@ -471,7 +559,7 @@ export class RuntimeCoordinator {
         ...(usesCodexHarness && thread.priorMessages?.length
           ? { history: thread.priorMessages }
           : {}),
-        tools,
+        tools: sessionTools,
       },
       signal,
     );

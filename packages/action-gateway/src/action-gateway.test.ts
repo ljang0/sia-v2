@@ -91,11 +91,12 @@ describe('curated tool surface', () => {
 
   it('contains only stable snake_case tools and no raw escape hatches', () => {
     const names = ACTION_TOOL_DESCRIPTORS.map((tool) => tool.name);
-    expect(names).toHaveLength(39);
+    expect(names).toHaveLength(47);
     expect(names.every((name) => /^[a-z][a-z0-9_]*$/.test(name))).toBe(true);
     expect(names.join(' ')).not.toMatch(/visual|canvas|javascript|cdp|cookie|profile|shell/i);
     expect(names).toContain('computer_action');
     expect(names).toContain('computer_open_app');
+    expect(names).toContain('computer_open_url');
     expect(names).toContain('slack_post');
     expect(names).toContain('slack_find_users');
     expect(names).toContain('slack_open_dm');
@@ -110,6 +111,7 @@ describe('curated tool surface', () => {
       'browser_action',
       'browser_upload',
       'computer_open_app',
+      'computer_open_url',
       'computer_action',
       'mail_create_draft',
       'mail_send',
@@ -135,6 +137,19 @@ describe('curated tool surface', () => {
         readOnly: false,
         requiresApproval: true,
       });
+    }
+  });
+
+  it('admits only ordinary credential-free web URLs for native browser opening', () => {
+    expect(
+      parseActionArguments('computer_open_url', { url: 'https://canvas.cmu.edu/' }),
+    ).toEqual({ url: 'https://canvas.cmu.edu/' });
+    for (const url of [
+      'file:///etc/passwd',
+      'javascript:alert(1)',
+      'https://person:secret@example.com/',
+    ]) {
+      expect(() => parseActionArguments('computer_open_url', { url })).toThrow();
     }
   });
 
@@ -691,4 +706,32 @@ describe('local lease coordinator', () => {
     expect(coordinator.snapshotQueue()).toHaveLength(0);
     first.release();
   });
+});
+
+it('accepts bounded pixel gestures but rejects ambiguous or incomplete addresses', () => {
+  const base = { app_id: 'app:1', window_id: 'window:1', snapshot_id: 'snapshot:1' };
+  expect(
+    parseActionArguments('computer_action', { ...base, action: 'click', x: 10, y: 20 }),
+  ).toMatchObject({ x: 10, y: 20 });
+  expect(
+    parseActionArguments('computer_action', {
+      ...base,
+      action: 'drag',
+      x: 10,
+      y: 20,
+      to_x: 100,
+      to_y: 200,
+    }),
+  ).toMatchObject({ action: 'drag' });
+  for (const args of [
+    { action: 'click', x: 10 },
+    { action: 'drag', x: 10, y: 20 },
+    { action: 'click', x: -1, y: 20 },
+    { action: 'click', x: 10, y: 20, element_ref: 'w:1' },
+    { action: 'type', x: 10, y: 20, text: 'bad' },
+  ])
+    expect(() => parseActionArguments('computer_action', { ...base, ...args })).toThrow();
+  expect(() =>
+    parseActionArguments('computer_open_app', { application: '/tmp/program.app' }),
+  ).toThrow();
 });

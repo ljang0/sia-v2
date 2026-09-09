@@ -9,10 +9,18 @@ const appControllerPath = join(rendererRoot, 'useAppController.ts');
 const infraTemplatePath = join(root, 'infra/template.yaml');
 
 const expectedActionTools = [
+  'assistant_library',
+  'memory_learn',
+  'memory_suggest',
+  'skill_save',
+  'skill_run',
+  'mac_automation',
   'computer_list',
   'computer_snapshot',
+  'computer_task_complete',
   'computer_action',
   'computer_open_app',
+  'computer_open_url',
   'browser_tabs',
   'browser_snapshot',
   'browser_navigate',

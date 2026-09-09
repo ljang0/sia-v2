@@ -615,6 +615,10 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         current.selectedAgentId = id;
         current.selectedThreadId = undefined;
         current.activeThread = undefined;
+        if (draft.startOnboarding)
+          current.preferences.onboarding = { step: 'voice', agentId: id };
+        else if (current.preferences.onboarding && !current.preferences.onboarding.agentId)
+          current.preferences.onboarding = { step: 'complete' };
       });
       return id;
     },
@@ -939,6 +943,7 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         current.connection = 'offline';
       });
     },
+    async connectBrowserAndContinue() {},
     async attachBrowser(windowId) {
       mutate((current) => {
         void windowId;
@@ -962,6 +967,11 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         current.browser.tabs = current.browser.tabs.map((tab) => ({ ...tab, granted: false }));
       });
     },
+    async setComputerAccessMode(mode) {
+      mutate((current) => {
+        current.computer.accessMode = mode;
+      });
+    },
     async setComputerTrust(trust) {
       mutate((current) => {
         current.computer.trust = trust;
@@ -973,6 +983,7 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
       });
     },
     async revealTrajectories() {},
+    async refreshComputerPermissions() {},
     async requestComputerPermissions() {
       mutate((current) => {
         current.computer.accessibility = 'allowed';
@@ -982,6 +993,13 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
     async openMessages() {
       return Promise.resolve();
     },
+    async configurePushToTalk() {
+      throw new Error('Fn push-to-talk requires the macOS app.');
+    },
+    async acquireVoiceCapture() {
+      return 'demo-voice';
+    },
+    async releaseVoiceCapture() {},
     async configureVoice() {
       mutate((current) => {
         current.voice = structuredClone(demoSnapshot.voice);
@@ -1001,6 +1019,30 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
     async disconnectVoice() {
       mutate((current) => {
         current.voice = { status: 'disconnected', voices: [] };
+      });
+    },
+    async assistantLibrary() {
+      return { memories: [], workflows: [], context: false };
+    },
+    async restartForOnboarding() {
+      mutate((current) => {
+        current.preferences.onboarding = {
+          ...current.preferences.onboarding,
+          step: 'verify',
+          restarted: true,
+        };
+        current.browser.attached = false;
+        current.browser.status = 'detached';
+      });
+    },
+    async setupMessages() {},
+    async requestAutomationPermission() {},
+    async setOnboarding(step) {
+      mutate((current) => {
+        current.preferences.onboarding = {
+          step,
+          ...(current.selectedAgentId ? { agentId: current.selectedAgentId } : {}),
+        };
       });
     },
     async setCompletionSound(enabled) {

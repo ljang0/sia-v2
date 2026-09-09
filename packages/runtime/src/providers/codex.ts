@@ -313,14 +313,17 @@ export class CodexAppServerAdapter implements ProviderAdapter {
           model: options.model,
           developerInstructions: options.instructions,
           // Sia owns the user-facing authorization boundary for dynamic tools.
-          // Codex remains inside a workspace-write sandbox, so provider-native
-          // confirmation cards only duplicate Sia's policy and interrupt an
-          // otherwise autonomous run.
+          // Connected turns retain the workspace sandbox. Mac tasks and library reviews
+          // disable native execution and verify a read-only sandbox before any model turn.
           approvalPolicy: 'never',
-          sandbox: 'workspace-write',
+          sandbox: options.nativeTools === 'disabled' ? 'read-only' : 'workspace-write',
           serviceName: 'sia',
           ...(this.#options.sessionEphemeral ? { ephemeral: true } : {}),
-          config: this.#isolationConfig(inventory, customProvider),
+          config: this.#isolationConfig(
+            inventory,
+            customProvider,
+            options.nativeTools === 'disabled',
+          ),
           dynamicTools: options.tools.map((tool) => ({
             name: tool.name,
             description: tool.description,
@@ -336,12 +339,18 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     if (!nativeId)
       throw isolationFailure('Codex did not create a verifiable isolated session.');
     try {
+      if (
+        options.nativeTools === 'disabled' &&
+        stringAt(result, ['sandbox', 'type']) !== 'readOnly'
+      )
+        throw new Error('Dynamic-tool-only session did not retain a read-only sandbox.');
       await this.#verifyIsolation(
         peer,
         options.workspace,
         nativeId,
         inventory,
         Boolean(customProvider),
+        options.nativeTools === 'disabled',
         signal,
       );
       if (options.history?.length) {
@@ -622,6 +631,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   #isolationConfig(
     inventory: CodexIsolationInventory,
     customProvider?: CodexCustomModelProvider,
+    disableNative = false,
   ): Readonly<Record<string, unknown>> {
     const features = Object.fromEntries([
       ...SIA_CODEX_DISABLED_FEATURES.map((feature) => [feature, false] as const),
@@ -631,11 +641,13 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     // providers use the portable function-tool subset, so keep that namespace
     // on the native Codex-plan path only.
     if (customProvider) features.multi_agent = false;
+    if (disableNative)
+      for (const feature of SIA_CODEX_ENABLED_FEATURES) features[feature] = false;
     return {
       features,
       // Custom labs receive computer/browser/search through Sia's audited
       // dynamic tools; only the user's native Codex plan uses provider search.
-      web_search: customProvider ? 'disabled' : 'live',
+      web_search: customProvider || disableNative ? 'disabled' : 'live',
       notify: [],
       orchestrator: {
         skills: { enabled: false },
@@ -672,6 +684,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     threadId: string,
     expectedInventory: CodexIsolationInventory,
     customProvider: boolean,
+    disableNative: boolean,
     signal?: AbortSignal,
   ): Promise<void> {
     const [features, apps, pluginsResult, mcpServers, currentInventory] = await Promise.all([
@@ -697,12 +710,16 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       const name = stringAt(feature, ['name']);
       if (name) featureStates.set(name, feature.enabled);
     }
-    const disabledFeatures = customProvider
-      ? [...SIA_CODEX_DISABLED_FEATURES, 'multi_agent']
-      : SIA_CODEX_DISABLED_FEATURES;
-    const enabledFeatures = customProvider
-      ? SIA_CODEX_ENABLED_FEATURES.filter((feature) => feature !== 'multi_agent')
-      : SIA_CODEX_ENABLED_FEATURES;
+    const disabledFeatures = disableNative
+      ? [...SIA_CODEX_DISABLED_FEATURES, ...SIA_CODEX_ENABLED_FEATURES]
+      : customProvider
+        ? [...SIA_CODEX_DISABLED_FEATURES, 'multi_agent']
+        : SIA_CODEX_DISABLED_FEATURES;
+    const enabledFeatures = disableNative
+      ? []
+      : customProvider
+        ? SIA_CODEX_ENABLED_FEATURES.filter((feature) => feature !== 'multi_agent')
+        : SIA_CODEX_ENABLED_FEATURES;
     if (disabledFeatures.some((feature) => featureStates.get(feature) !== false)) {
       throw new Error('a provider-native feature remains enabled');
     }

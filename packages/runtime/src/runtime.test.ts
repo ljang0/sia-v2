@@ -1214,3 +1214,64 @@ describe('Meta streaming adapter', () => {
     await adapter.dispose();
   });
 });
+
+describe('Codex library review isolation', () => {
+  it.each([false, true])(
+    'disables native tools and rejects a server that leaves execution enabled (%s)',
+    async (unsafe) => {
+      const peers = linkedPeers();
+      let request: Record<string, unknown> | undefined;
+      peers.server.onRequest(async (method, params) => {
+        if (method === 'initialize') return { userAgent: 'fake' };
+        if (method === 'thread/start') {
+          request = params as Record<string, unknown>;
+          return { thread: { id: 'review-native' }, sandbox: { type: 'readOnly' } };
+        }
+        if (method === 'experimentalFeature/list')
+          return {
+            data: Object.keys(isolatedCodexFeatures).map((name) => ({
+              name,
+              enabled: unsafe && name === 'shell_tool',
+            })),
+            nextCursor: null,
+          };
+        const response = codexIsolationResponse(method, params);
+        if (response !== undefined) return response;
+        throw new Error(`unexpected ${method}`);
+      });
+      const adapter = new CodexAppServerAdapter({
+        peerFactory: async () => ({
+          peer: peers.client,
+          dispose: async () => {
+            await peers.client.close();
+            await peers.server.close();
+          },
+        }),
+      });
+      try {
+        const start = adapter.createSession({
+          ...sessionOptions,
+          tools: [],
+          nativeTools: 'disabled',
+        });
+        if (unsafe) await expect(start).rejects.toThrow('verification failed');
+        else await expect(start).resolves.toMatchObject({ nativeId: 'review-native' });
+        expect(request).toMatchObject({
+          sandbox: 'read-only',
+          approvalPolicy: 'never',
+          config: {
+            web_search: 'disabled',
+            features: {
+              shell_tool: false,
+              unified_exec: false,
+              view_image: false,
+              multi_agent: false,
+            },
+          },
+        });
+      } finally {
+        await adapter.dispose();
+      }
+    },
+  );
+});

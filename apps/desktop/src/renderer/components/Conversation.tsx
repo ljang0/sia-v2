@@ -34,6 +34,8 @@ import { ConversationOutline, hasConversationOutline } from './ConversationOutli
 import { SafeMarkdown } from './SafeMarkdown';
 
 interface ConversationProps {
+  suggestion?: { text: string } | undefined;
+  onSuggestionHandled?: (() => void) | undefined;
   thread?: ThreadDetail | undefined;
   agentName?: string | undefined;
   agentInitials?: string | undefined;
@@ -51,13 +53,18 @@ interface ConversationProps {
   findOpen?: boolean | undefined;
   onFindOpenChange?: ((open: boolean) => void) | undefined;
   voiceEnabled?: boolean | undefined;
+  dictationEnabled?: boolean | undefined;
+  globalVoiceActive?: boolean | undefined;
+  onAcquireVoiceCapture?: (() => Promise<string>) | undefined;
+  onReleaseVoiceCapture?: ((leaseId: string) => Promise<void>) | undefined;
   onTranscribeVoice?: ((audioBase64: string, mimeType: string) => Promise<string>) | undefined;
   onStartRealtimeVoice?: (() => Promise<string>) | undefined;
   onAppendRealtimeVoice?:
     ((sessionId: string, audioBase64: string) => Promise<void>) | undefined;
   onStopRealtimeVoice?: ((sessionId: string, commit: boolean) => Promise<string>) | undefined;
   onSpeak?:
-    ((text: string) => Promise<{ audioBase64: string; mimeType: 'audio/mpeg' }>) | undefined;
+    | ((text: string) => Promise<{ audioBase64: string; mimeType: 'audio/mpeg' | 'audio/wav' }>)
+    | undefined;
   completionSound?: boolean | undefined;
   onSend(content: string, attachmentIds?: readonly string[]): Promise<void>;
   onStop(): Promise<void>;
@@ -68,9 +75,12 @@ interface ConversationProps {
   onOpenApps?: (() => void) | undefined;
   onDraftChange?: ((content: string) => Promise<void> | void) | undefined;
   workspaceTools?: ReactNode | undefined;
+  browserRecovery?: ReactNode | undefined;
 }
 
 export function Conversation({
+  suggestion,
+  onSuggestionHandled,
   thread,
   agentName,
   agentHue,
@@ -87,7 +97,11 @@ export function Conversation({
   findOpen = false,
   onFindOpenChange,
   voiceEnabled,
+  dictationEnabled = true,
   onTranscribeVoice,
+  globalVoiceActive = false,
+  onAcquireVoiceCapture,
+  onReleaseVoiceCapture,
   onStartRealtimeVoice,
   onAppendRealtimeVoice,
   onStopRealtimeVoice,
@@ -102,6 +116,7 @@ export function Conversation({
   onOpenApps,
   onDraftChange,
   workspaceTools,
+  browserRecovery,
 }: ConversationProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedToLatestRef = useRef(true);
@@ -121,6 +136,12 @@ export function Conversation({
     error?: string;
   }>({ phase: 'idle' });
   const [voiceConversation, setVoiceConversation] = useState(false);
+  useEffect(() => {
+    if (globalVoiceActive) {
+      setVoiceConversation(false);
+      stopSpeech();
+    }
+  }, [globalVoiceActive]);
   const [justCompleted, setJustCompleted] = useState(false);
   const [findQuery, setFindQuery] = useState('');
   const [findIndex, setFindIndex] = useState(0);
@@ -493,7 +514,7 @@ export function Conversation({
           {thread.events.length === 0 ? (
             <div className={styles.threadEmpty} data-companion-thread-empty>
               <AgentForm identity={agentHue} size="large" />
-              <span className={styles.emptyStateKicker}>{agentName ?? 'Sia'} is listening</span>
+              <span className={styles.emptyStateKicker}>Ready when you are</span>
               <h2>What would you like to do?</h2>
               <p>Describe the outcome, attach any useful files, or choose a suggested start.</p>
               {onOpenApps ? (
@@ -568,6 +589,7 @@ export function Conversation({
                 </div>
               ))}
               {running ? <ThinkingRow /> : null}
+              {browserRecovery}
             </div>
           )}
         </div>
@@ -601,6 +623,8 @@ export function Conversation({
       ) : null}
 
       <Composer
+        suggestion={suggestion}
+        onSuggestionHandled={onSuggestionHandled}
         key={thread.id}
         initialValue={thread.draft ?? ''}
         disabled={queued || waitingForApproval}
@@ -630,13 +654,17 @@ export function Conversation({
               }
             : undefined
         }
-        voiceEnabled={voiceEnabled}
+        voiceEnabled={voiceEnabled && dictationEnabled}
+        onAcquireVoiceCapture={onAcquireVoiceCapture}
+        onReleaseVoiceCapture={onReleaseVoiceCapture}
         onTranscribe={onTranscribeVoice}
         onStartRealtime={onStartRealtimeVoice}
         onAppendRealtime={onAppendRealtimeVoice}
         onStopRealtime={onStopRealtimeVoice}
         voiceConversation={voiceConversation}
-        voiceCanListen={speech.phase === 'idle'}
+        voiceCanListen={Boolean(
+          voiceEnabled && dictationEnabled && speech.phase === 'idle' && !globalVoiceActive,
+        )}
         presence={
           speech.phase === 'playing'
             ? 'speaking'

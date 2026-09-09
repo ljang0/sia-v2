@@ -2914,6 +2914,24 @@ button.agentAvatar {
   border-top: 1px solid var(--border-subtle);
 }
 
+.voiceShortcut {
+  min-width: 0;
+  padding: 4px 0 24px;
+}
+
+.voiceShortcut .voiceSelect {
+  margin-left: 0;
+  max-width: 100%;
+}
+
+.voiceShortcut .voicePreference > span {
+  min-width: 0;
+}
+
+.voiceShortcut .voicePreference input {
+  flex-shrink: 0;
+}
+
 .voicePreference {
   display: flex;
   align-items: center;
@@ -7058,4 +7076,108 @@ button.agentAvatar {
     outline: 2px solid Highlight;
     outline-offset: -2px;
   }
+}
+
+.agentSettingsMenu {
+  position: relative;
+  font-size: 12px;
+}
+.agentSettingsMenu > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-secondary);
+}
+.agentSettingsMenu > summary::-webkit-details-marker {
+  display: none;
+}
+.agentSettingsMenu .threadControls {
+  height: auto;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 30;
+  width: 280px;
+  max-width: calc(100vw - 40px);
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px #0002;
+}
+.agentSettingsMenu .threadControls label {
+  display: grid;
+  gap: 6px;
+}
+.agentSettingsMenu .threadControls select {
+  max-width: 100%;
+  width: 100%;
+}
+.agentSettingsMenu .threadControlDivider {
+  display: none;
+}
+.workspaceDetails {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+.workspaceDetails summary {
+  cursor: pointer;
+}
+.newConversationButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  padding: 10px;
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+.flatThreadList {
+  margin-left: 0;
+  padding-left: 0;
+  border-left: 0;
+}
+.agentSettingsMenu .threadControls select:focus-visible {
+  outline: 2px solid var(--border-strong);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.singleAgentRow {
+  display: flex;
+  gap: 4px;
+  background: transparent;
+}
+.singleAgentRow .newConversationButton {
+  min-width: 0;
+  white-space: nowrap;
+  background: var(--shell-hover);
+  color: var(--shell-text);
+  border-color: var(--shell-line);
+}
+.singleAgentRow .newConversationButton svg {
+  flex: none;
+}
+
+.agentGroupSelected .singleAgentRow,
+.agentGroupSelected .singleAgentRow:hover {
+  background: transparent;
+  box-shadow: none;
+}
+.singleAgentRow .agentEditButton {
+  opacity: 1;
 }

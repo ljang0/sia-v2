@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { rm } from 'node:fs/promises';
 
-import { dismissFirstAgentPrompt, launchIsolatedSia } from '../support/electron-harness';
+import { exitFirstRunSetup, launchIsolatedSia } from '../support/electron-harness';
 
 test('configured first run requires Sia sign-in before setup', async () => {
   const harness = await launchIsolatedSia({
@@ -52,7 +52,7 @@ test('a signed-out relaunch locks persisted agents and every app surface', async
       });
     });
     await expect(
-      signedIn.page.getByText('Persisted private agent', { exact: true }),
+      signedIn.page.getByRole('button', { name: 'Room actions for Persisted private agent' }),
     ).toBeVisible();
     await signedIn.close({ removeTestRoot: false });
     signedInClosed = true;
@@ -65,7 +65,7 @@ test('a signed-out relaunch locks persisted agents and every app surface', async
     await expect(signedOut.page.getByRole('dialog', { name: 'Sign in to Sia' })).toBeVisible();
     await expect(signedOut.page.getByRole('button', { name: 'Access' })).toHaveCount(0);
     await expect(
-      signedOut.page.getByText('Persisted private agent', { exact: true }),
+      signedOut.page.getByRole('button', { name: 'Room actions for Persisted private agent' }),
     ).toHaveCount(0);
     const locked = await signedOut.page.evaluate(async () => await window.sia.bootstrap());
     expect(locked).toMatchObject({
@@ -99,7 +99,7 @@ test('core Sia opens first and optional setup connects every work app later', as
   });
 
   try {
-    await dismissFirstAgentPrompt(harness.page);
+    await exitFirstRunSetup(harness.page);
     await expect(
       harness.page.getByRole('dialog', { name: 'Connect your work apps' }),
     ).toHaveCount(0);
@@ -169,7 +169,7 @@ test('a user can connect only a selected set of work apps later', async () => {
   });
 
   try {
-    await dismissFirstAgentPrompt(harness.page);
+    await exitFirstRunSetup(harness.page);
     await expect(
       harness.page.getByRole('dialog', { name: 'Connect your work apps' }),
     ).toHaveCount(0);

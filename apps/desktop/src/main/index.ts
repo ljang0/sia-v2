@@ -1,5 +1,10 @@
+import { BrowserWindowService } from './browser-window.js';
+import { AutomationPermissionService } from './automation-permissions.js';
+import { createCommandLauncher } from './command-launcher.js';
+import { runMacAutomation } from './mac-automation.js';
+import { installedApplications, launchInstalledApplication } from './application-catalog.js';
 import { writeFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 
 import {
   app,
@@ -9,6 +14,7 @@ import {
   Menu,
   nativeTheme,
   Notification,
+  powerMonitor,
   session,
   shell,
 } from 'electron';
@@ -45,7 +51,9 @@ import { CognitoIdentityManager } from './identity.js';
 import { configureMetaCloudAvailability } from './provider-probe.js';
 import { macProviderPath } from './provider-path.js';
 import { WorkspaceOperationsService } from './workspace-operations.js';
+import { MacVoiceService, createMacSpeechTransport } from './mac-voice-service.js';
 import { ElevenLabsVoiceService } from './voice-service.js';
+import { nativeVoiceHelperFactory } from './push-to-talk.js';
 
 const APP_ORIGIN = 'app://sia';
 const PRODUCTION_CSP =
@@ -60,6 +68,7 @@ const PRODUCTION_HEADER_CSP = PRODUCTION_CSP.replace(
   "script-src 'self'",
   `script-src 'self' ${CSP_BOOTSTRAP_HASH}`,
 );
+let commandLauncher: ReturnType<typeof createCommandLauncher> | undefined;
 let mainWindow: BrowserWindow | undefined;
 let controller: DesktopController | undefined;
 let unregisterIpc: (() => void) | undefined;
@@ -88,6 +97,8 @@ if (!gotLock) {
   app.on('activate', showOrCreateApplicationWindow);
 
   app.on('before-quit', (event) => {
+    commandLauncher?.dispose();
+    commandLauncher = undefined;
     unsubscribeDockBadge?.();
     unsubscribeDockBadge = undefined;
     if (!shutdownStarted && controller) {
@@ -190,6 +201,21 @@ async function performApplicationCreation(): Promise<void> {
       enabled: () => activeController?.trajectoryLogEnabled() ?? true,
     });
     const messagesService = new MessagesService();
+    const browserWindows = new BrowserWindowService(
+      app.isPackaged
+        ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
+        : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper'),
+    );
+    const automationPermissions = new AutomationPermissionService({
+      helperPath: app.isPackaged
+        ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
+        : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper'),
+      fake: fakeServices,
+      openSettings: () =>
+        shell.openExternal(
+          'x-apple.systempreferences:com.apple.preference.security?Privacy_Automation',
+        ),
+    });
     activeController = new DesktopController({
       repository,
       cloud,
@@ -199,6 +225,7 @@ async function performApplicationCreation(): Promise<void> {
       ...(fakeTurnDelayMs ? { fakeTurnDelayMs } : {}),
       trajectory,
       capabilitySetup: {
+        automationPermissions: (request) => automationPermissions.check(request),
         messagesStatus: () => messagesService.status(),
         chromeDebugStatus: () => chromeRemoteDebuggingStatus(),
       },
@@ -207,6 +234,28 @@ async function performApplicationCreation(): Promise<void> {
       },
       openExternal: openSafeExternal,
       openMessages: () => shell.openExternal('sms:', { activate: true }),
+      openMessagesPermissions: () =>
+        shell.openExternal(
+          'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles',
+        ),
+      restartApp: () => {
+        // Allow the typed IPC reply to arrive before the normal shutdown drains work.
+        setTimeout(() => {
+          if (process.platform === 'darwin' && !app.isPackaged) {
+            app.relaunch({
+              execPath: '/usr/bin/open',
+              args: [
+                '-n',
+                '-a',
+                resolve(process.execPath, '../../..'),
+                '--args',
+                app.getAppPath(),
+              ],
+            });
+          } else app.relaunch();
+          app.quit();
+        }, 250);
+      },
       chooseDirectory,
       defaultWorkspaceRoot:
         !app.isPackaged && process.env.SIA_TEST_WORKSPACE
@@ -248,16 +297,38 @@ async function performApplicationCreation(): Promise<void> {
       workspaceOperations: new WorkspaceOperationsService({
         privateWorktreeRoot: join(app.getPath('userData'), 'worktrees'),
       }),
-      voice: new ElevenLabsVoiceService({ repository, gateway: cloud }),
+      voice:
+        process.platform === 'darwin' && !fakeServices
+          ? new MacVoiceService(repository, () =>
+              createMacSpeechTransport(
+                app.isPackaged
+                  ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
+                  : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper'),
+              ),
+            )
+          : new ElevenLabsVoiceService({ repository, gateway: cloud }),
       ...(startupNotice ? { startupNotice } : {}),
     });
     const actionBackend = new DesktopActionBackend({
+      macAutomation: runMacAutomation,
+      assistantAction: (request) =>
+        activeController.assistantAction(request, (name, args, skillSignal) =>
+          gateway.invoke({
+            name,
+            arguments: args,
+            context: {
+              ...request.context,
+              signal: request.context.signal
+                ? AbortSignal.any([request.context.signal, skillSignal])
+                : skillSignal,
+            },
+          }),
+        ),
       cua: computer,
       cloud,
-      openApplication: async (application) => {
-        const bundleId = { notes: 'com.apple.Notes' }[application];
-        await execFileAsync('/usr/bin/open', ['-b', bundleId]);
-      },
+      installedApplications,
+      openApplication: launchInstalledApplication,
+      openUrl: openWebExternal,
       messages: messagesService,
       openFullDiskAccessSettings: async () => {
         await shell.openExternal(
@@ -266,6 +337,8 @@ async function performApplicationCreation(): Promise<void> {
       },
       isBrowserOriginAllowed: (origin) => activeController.isBrowserOriginAllowed(origin),
       ensureBrowserAttached: () => activeController.ensureBrowserAttachedForActions(),
+      macBrowserAccess: () => activeController.computerAccessMode() === 'mac',
+      inspectBrowserWindow: (pid, windowId) => browserWindows.inspect(pid, windowId),
       resolveConnectionId: (app, selector, approvalId) =>
         activeController.connectionIdForAction(app, selector, approvalId),
       onConnectionReconnectRequired: (app, connectionId) =>
@@ -279,11 +352,20 @@ async function performApplicationCreation(): Promise<void> {
       },
     });
     activeController.attachBrowserCapabilitySink(actionBackend);
+    const defaultPolicy = new DefaultActionAuthorizationPolicy({
+      trustLocalActions: () => activeController.computerTrust() === 'auto',
+    });
     const gateway = new ActionGateway({
       backend: actionBackend,
-      policy: new DefaultActionAuthorizationPolicy({
-        trustLocalActions: () => activeController.computerTrust() === 'auto',
-      }),
+      policy: {
+        evaluate: (request) =>
+          activeController.allowsReviewAction(request.context.threadId, request.name)
+            ? defaultPolicy.evaluate(request)
+            : {
+                decision: 'deny',
+                reason: 'Memory reviews can only read the library and propose suggestions.',
+              },
+      },
       approvals: activeController.approvalBroker(),
       onInvocation: activeController.actionInvocationObserver(),
       onResult: activeController.actionResultObserver(),
@@ -359,9 +441,53 @@ async function performApplicationCreation(): Promise<void> {
         }
       });
     }
+    activeController.attachPushToTalk({
+      available: process.platform === 'darwin' && !fakeServices,
+      createHelper: nativeVoiceHelperFactory(
+        app.isPackaged
+          ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
+          : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper'),
+      ),
+      isFocused: () =>
+        Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()),
+    });
+    let voiceAsleep = false;
+    let voiceScreenLocked =
+      process.platform === 'darwin' && powerMonitor.getSystemIdleState(1) === 'locked';
+    const updateVoiceSuspension = () => {
+      activeController.suspendVoice(voiceAsleep || voiceScreenLocked);
+      commandLauncher?.suspend(voiceAsleep || voiceScreenLocked);
+    };
+    // Waking the Mac must not re-enable capture while its screen remains locked.
+    powerMonitor.on('suspend', () => {
+      voiceAsleep = true;
+      updateVoiceSuspension();
+    });
+    powerMonitor.on('lock-screen', () => {
+      voiceScreenLocked = true;
+      updateVoiceSuspension();
+    });
+    powerMonitor.on('resume', () => {
+      voiceAsleep = false;
+      updateVoiceSuspension();
+    });
+    powerMonitor.on('unlock-screen', () => {
+      voiceScreenLocked = false;
+      updateVoiceSuspension();
+    });
+    updateVoiceSuspension();
     controller = activeController;
   }
   const activeController = controller;
+  commandLauncher ??= createCommandLauncher(
+    activeController,
+    showOrCreateApplicationWindow,
+    rendererDevUrl,
+  );
+  commandLauncher.suspend(
+    process.platform === 'darwin' && powerMonitor.getSystemIdleState(1) === 'locked',
+  );
+  activeController.setLauncherRegistered(commandLauncher.registered);
 
   const window = new BrowserWindow({
     title: 'Sia',
@@ -395,10 +521,12 @@ async function performApplicationCreation(): Promise<void> {
     if (url !== rendererDevUrl && !url.startsWith(APP_ORIGIN)) event.preventDefault();
   });
   window.webContents.on('render-process-gone', (_event, details) => {
+    activeController.releaseRendererVoiceCapture();
     console.error('Renderer exited', { reason: details.reason, exitCode: details.exitCode });
   });
   window.once('ready-to-show', () => window.show());
   window.on('closed', () => {
+    activeController.releaseRendererVoiceCapture();
     unregisterIpc?.();
     unregisterIpc = undefined;
     mainWindow = undefined;
@@ -515,6 +643,14 @@ function installApplicationMenu(): void {
         label: 'Sia',
         submenu: [
           { role: 'about' },
+          {
+            label: 'Ask Sia',
+            accelerator: 'Command+E',
+            registerAccelerator: false,
+            click: () => {
+              void commandLauncher?.toggle().catch(reportStartupFailure);
+            },
+          },
           { type: 'separator' },
           { role: 'services' },
           { type: 'separator' },
@@ -589,6 +725,18 @@ async function exportJson(value: unknown): Promise<string | null> {
 async function openSafeExternal(value: string): Promise<void> {
   if (!isSafeExternal(value)) throw new Error('Blocked an unsafe external URL.');
   await shell.openExternal(value, { activate: true });
+}
+
+async function openWebExternal(value: string): Promise<void> {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error('Blocked an invalid website URL.');
+  }
+  if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password)
+    throw new Error('Blocked an unsafe website URL.');
+  await shell.openExternal(url.toString(), { activate: true });
 }
 
 function isSafeExternal(value: string): boolean {

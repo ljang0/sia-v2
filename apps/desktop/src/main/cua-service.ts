@@ -6,6 +6,7 @@ const CUA_TOOLS = new Set([
   'get_window_state',
   'get_browser_state',
   'click',
+  'drag',
   'type_text',
   'set_value',
   'press_key',

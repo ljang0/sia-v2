@@ -1,3 +1,4 @@
+import { activityLabel } from '../../shared/activity-label';
 import {
   Browser,
   CaretDown,
@@ -38,7 +39,7 @@ export function ActivityRow({ event }: ActivityRowProps) {
         ? WarningCircle
         : Clock;
   const statusClass = event.status === 'complete' ? '' : styles[`activity_${event.status}`];
-  const hasDetail = Boolean(event.detail || event.presentation);
+  const hasDetail = Boolean(event.title || event.detail || event.presentation);
 
   return (
     <div className={`${styles.activityRow} ${statusClass}`}>
@@ -50,7 +51,9 @@ export function ActivityRow({ event }: ActivityRowProps) {
         aria-expanded={hasDetail ? expanded : undefined}
       >
         <Icon size={16} aria-hidden="true" />
-        <span className={styles.activityTitle}>{event.title}</span>
+        <span className={styles.activityTitle}>
+          {activityLabel(event.toolName, event.presentation?.kind ?? event.kind)}
+        </span>
         <span className={styles.visuallyHidden}>Status: {event.status}</span>
         <StatusIcon size={15} aria-hidden="true" />
         {hasDetail ? (
@@ -63,6 +66,8 @@ export function ActivityRow({ event }: ActivityRowProps) {
       </button>
       {expanded && hasDetail ? (
         <div className={styles.activityDetail}>
+          <small>{event.toolName ?? event.title}</small>
+          {event.toolName && event.title !== event.toolName && <p>{event.title}</p>}
           <RichActivityDetail event={event} />
         </div>
       ) : null}
@@ -83,6 +88,7 @@ function RichActivityDetail({ event }: { event: ActivityEvent }) {
   if (presentation.kind === 'command') {
     return (
       <div className={styles.activityStack}>
+        <code>{presentation.command}</code>
         {presentation.cwd ? <small>{presentation.cwd}</small> : null}
         {presentation.output ? (
           <pre>{presentation.output}</pre>

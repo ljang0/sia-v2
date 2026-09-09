@@ -57,7 +57,7 @@ test('saved agents, threads, transcripts, and drafts survive a full app relaunch
     await expect(
       restoredPage
         .getByRole('complementary', { name: 'Agent navigation' })
-        .getByRole('button', { name: 'Persistent helper', exact: true }),
+        .getByRole('button', { name: 'Room actions for Persistent helper', exact: true }),
     ).toBeVisible();
     await expect(restoredPage.getByText(prompt, { exact: true })).toBeVisible();
     await expect(restoredPage.getByText(assistantReply, { exact: true })).toBeVisible();
@@ -83,7 +83,7 @@ test('first-run actions and the Access surface remain usable by keyboard at 200%
     await expect(page.getByRole('heading', { name: 'Create your first agent.' })).toBeVisible();
     await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
 
-    await expect(page.getByRole('button', { name: 'Create your first agent' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Set up Sia', exact: true })).toBeVisible();
 
     const accessButton = page.getByRole('button', { name: 'Access' });
     await accessButton.click();

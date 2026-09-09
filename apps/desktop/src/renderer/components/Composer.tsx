@@ -21,6 +21,8 @@ interface ComposerAttachment {
 }
 
 interface ComposerProps {
+  suggestion?: { text: string } | undefined;
+  onSuggestionHandled?: (() => void) | undefined;
   initialValue?: string;
   disabled?: boolean;
   running?: boolean;
@@ -33,6 +35,8 @@ interface ComposerProps {
   onRemoveAttachment?: ((attachmentId: string) => Promise<void> | void) | undefined;
   onPreviewAttachment?: ((attachmentId: string) => void) | undefined;
   voiceEnabled?: boolean | undefined;
+  onAcquireVoiceCapture?: (() => Promise<string>) | undefined;
+  onReleaseVoiceCapture?: ((leaseId: string) => Promise<void>) | undefined;
   onTranscribe?: ((audioBase64: string, mimeType: string) => Promise<string>) | undefined;
   onStartRealtime?: (() => Promise<string>) | undefined;
   onAppendRealtime?: ((sessionId: string, audioBase64: string) => Promise<void>) | undefined;
@@ -47,6 +51,8 @@ interface ComposerProps {
 }
 
 export function Composer({
+  suggestion,
+  onSuggestionHandled,
   initialValue = '',
   disabled,
   running,
@@ -60,6 +66,8 @@ export function Composer({
   onPreviewAttachment,
   voiceEnabled = false,
   onTranscribe,
+  onAcquireVoiceCapture,
+  onReleaseVoiceCapture,
   onStartRealtime,
   onAppendRealtime,
   onStopRealtime,
@@ -73,10 +81,22 @@ export function Composer({
 }: ComposerProps) {
   const [value, setValue] = useState(initialValue);
   const [sending, setSending] = useState(false);
-  const [voicePhase, setVoicePhase] = useState<'idle' | 'recording' | 'transcribing'>('idle');
+  const [voicePhase, setVoicePhase] = useState<
+    'idle' | 'starting' | 'recording' | 'transcribing'
+  >('idle');
   const [voiceError, setVoiceError] = useState<string>();
   const [voiceLevel, setVoiceLevel] = useState(0);
   const textArea = useRef<HTMLTextAreaElement>(null);
+  const captureGeneration = useRef(0);
+  const captureStarting = useRef(false);
+  const captureLease = useRef<string | undefined>(undefined);
+  const releaseCaptureHandler = useRef(onReleaseVoiceCapture);
+  releaseCaptureHandler.current = onReleaseVoiceCapture;
+  const releaseCapture = () => {
+    const leaseId = captureLease.current;
+    captureLease.current = undefined;
+    if (leaseId) void releaseCaptureHandler.current?.(leaseId).catch(() => undefined);
+  };
   const mediaRecorder = useRef<MediaRecorder | undefined>(undefined);
   const mediaStream = useRef<MediaStream | undefined>(undefined);
   const recordingTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -116,6 +136,8 @@ export function Composer({
 
   useEffect(
     () => () => {
+      captureGeneration.current += 1;
+      discardRecording.current = true;
       if (recordingTimeout.current) clearTimeout(recordingTimeout.current);
       if (voiceRestartTimer.current) clearTimeout(voiceRestartTimer.current);
       if (analyserFrame.current !== undefined) cancelAnimationFrame(analyserFrame.current);
@@ -126,6 +148,7 @@ export function Composer({
         void realtimeStopHandler.current?.(sessionId, false).catch(() => undefined);
       if (mediaRecorder.current?.state === 'recording') mediaRecorder.current.stop();
       mediaStream.current?.getTracks().forEach((track) => track.stop());
+      if (!captureStarting.current) releaseCapture();
     },
     [],
   );
@@ -185,6 +208,15 @@ export function Composer({
     };
   }, [disabled, running, sending, voiceCanListen, voiceConversation, voicePhase]);
 
+  useEffect(() => {
+    if (!suggestion) return;
+    // A tutorial suggestion never replaces an unsaved draft or interrupts recording.
+    if (!value.trim() && !disabled && !sending && voicePhase === 'idle')
+      updateValue(suggestion.text);
+    textArea.current?.focus();
+    onSuggestionHandled?.();
+  }, [suggestion]);
+
   const submit = async () => {
     const content = value.trim();
     if ((!content && attachments.length === 0) || disabled || sending) return;
@@ -216,7 +248,15 @@ export function Composer({
   };
 
   const beginRecording = async (purpose: 'dictation' | 'conversation' = 'dictation') => {
-    if (!onTranscribe || disabled || running || sending || voicePhase !== 'idle') return;
+    if (
+      !onTranscribe ||
+      disabled ||
+      running ||
+      sending ||
+      voicePhase !== 'idle' ||
+      captureStarting.current
+    )
+      return;
     setVoiceError(undefined);
     const useRealtime =
       purpose === 'conversation' &&
@@ -228,13 +268,36 @@ export function Composer({
       setVoiceError('Microphone recording is unavailable on this Mac.');
       return;
     }
+    const generation = ++captureGeneration.current;
+    captureStarting.current = true;
+    setVoicePhase('starting');
     try {
+      if (onAcquireVoiceCapture) {
+        const leaseId = await onAcquireVoiceCapture();
+        if (captureGeneration.current !== generation) {
+          void releaseCaptureHandler.current?.(leaseId).catch(() => undefined);
+          return;
+        }
+        captureLease.current = leaseId;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
         video: false,
       });
+      if (captureGeneration.current !== generation) {
+        stream.getTracks().forEach((track) => track.stop());
+        releaseCapture();
+        return;
+      }
+      mediaStream.current = stream;
       if (useRealtime && onStartRealtime && onAppendRealtime && onStopRealtime) {
-        await beginRealtimeRecording(stream, onStartRealtime, onAppendRealtime, onStopRealtime);
+        await beginRealtimeRecording(
+          stream,
+          onStartRealtime,
+          onAppendRealtime,
+          onStopRealtime,
+          generation,
+        );
         return;
       }
       const mimeType = preferredRecordingMimeType();
@@ -259,6 +322,9 @@ export function Composer({
       recordingTimeout.current = setTimeout(stopRecording, 60_000);
       if (typeof AudioContext !== 'undefined') monitorAudio(stream, purpose === 'conversation');
     } catch (cause) {
+      releaseCapture();
+      onVoiceConversationChange?.(false);
+      setVoicePhase('idle');
       const sessionId = realtimeSession.current;
       realtimeSession.current = undefined;
       releaseRealtimeAudio(realtimeProcessor, realtimeSource, realtimeGain, realtimeContext);
@@ -268,8 +334,12 @@ export function Composer({
       setVoiceError(
         cause instanceof DOMException && cause.name === 'NotAllowedError'
           ? 'Allow microphone access in System Settings to dictate.'
-          : 'Sia could not start the microphone.',
+          : cause instanceof Error
+            ? cause.message
+            : 'Sia could not start the microphone.',
       );
+    } finally {
+      captureStarting.current = false;
     }
   };
 
@@ -286,9 +356,16 @@ export function Composer({
     start: () => Promise<string>,
     append: (sessionId: string, audioBase64: string) => Promise<void>,
     stop: (sessionId: string, commit: boolean) => Promise<string>,
+    generation: number,
   ) => {
     mediaStream.current = stream;
     const sessionId = await start();
+    if (captureGeneration.current !== generation) {
+      stream.getTracks().forEach((track) => track.stop());
+      await stop(sessionId, false).catch(() => undefined);
+      releaseCapture();
+      return;
+    }
     realtimeSession.current = sessionId;
     realtimeAppend.current = Promise.resolve();
     realtimeFailure.current = undefined;
@@ -351,6 +428,7 @@ export function Composer({
   ): Promise<void> => {
     const sessionId = realtimeSession.current;
     if (!sessionId || realtimeFinishing.current || !stop) return;
+    const generation = captureGeneration.current;
     realtimeFinishing.current = true;
     realtimeSession.current = undefined;
     if (recordingTimeout.current) clearTimeout(recordingTimeout.current);
@@ -365,7 +443,8 @@ export function Composer({
       await realtimeAppend.current;
       if (realtimeFailure.current) throw realtimeFailure.current;
       const transcript = await stop(sessionId, commit);
-      if (commit && transcript.trim()) await onSend(transcript.trim(), []);
+      if (commit && captureGeneration.current === generation && transcript.trim())
+        await onSend(transcript.trim(), []);
     } catch (cause) {
       await stop(sessionId, false).catch(() => undefined);
       if (commit) {
@@ -374,6 +453,7 @@ export function Composer({
         );
       }
     } finally {
+      releaseCapture();
       realtimeAppend.current = Promise.resolve();
       realtimeFailure.current = undefined;
       realtimeFinishing.current = false;
@@ -382,6 +462,8 @@ export function Composer({
   };
 
   const cancelActiveRecording = () => {
+    captureGeneration.current += 1;
+    if (captureStarting.current) setVoicePhase('idle');
     if (realtimeSession.current) void stopRealtimeRecording(false);
     else stopRecording(true);
   };
@@ -426,6 +508,7 @@ export function Composer({
   };
 
   const finishRecording = async (mimeType: string) => {
+    const generation = captureGeneration.current;
     mediaStream.current?.getTracks().forEach((track) => track.stop());
     mediaStream.current = undefined;
     mediaRecorder.current = undefined;
@@ -434,16 +517,19 @@ export function Composer({
     const discarded = discardRecording.current;
     discardRecording.current = false;
     if (discarded) {
+      releaseCapture();
       setVoicePhase('idle');
       return;
     }
     if (!blob.size || !onTranscribe) {
+      releaseCapture();
       setVoicePhase('idle');
       return;
     }
     setVoicePhase('transcribing');
     try {
       const transcript = await onTranscribe(await blobBase64(blob), mimeType);
+      if (captureGeneration.current !== generation) return;
       if (recordingPurpose.current === 'conversation') {
         if (transcript.trim()) await onSend(transcript.trim(), []);
       } else {
@@ -461,6 +547,7 @@ export function Composer({
         cause instanceof Error ? cause.message : 'Speech could not be transcribed.',
       );
     } finally {
+      releaseCapture();
       setVoicePhase('idle');
     }
   };
@@ -557,14 +644,17 @@ export function Composer({
                     running ||
                     sending ||
                     voiceConversation ||
-                    voicePhase === 'transcribing'
+                    voicePhase === 'transcribing' ||
+                    voicePhase === 'starting'
                   }
                   aria-label={
                     voicePhase === 'recording'
                       ? 'Stop recording and transcribe'
-                      : voicePhase === 'transcribing'
-                        ? 'Transcribing voice message'
-                        : 'Dictate message'
+                      : voicePhase === 'starting'
+                        ? 'Starting microphone'
+                        : voicePhase === 'transcribing'
+                          ? 'Transcribing voice message'
+                          : 'Dictate message'
                   }
                   aria-pressed={voicePhase === 'recording' && !voiceConversation}
                   title={voicePhase === 'recording' ? 'Stop and transcribe' : 'Dictate message'}

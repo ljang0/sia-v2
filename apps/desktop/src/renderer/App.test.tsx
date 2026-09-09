@@ -41,7 +41,7 @@ describe('app privacy routing', () => {
     expect(screen.queryByText(demoSnapshot.agents[0]!.name)).toBeNull();
   });
 
-  it('moves directly from email verification into the minimal first-agent form', async () => {
+  it('moves from email verification into guided setup without opening a second dialog', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),
       agents: [],
@@ -61,9 +61,10 @@ describe('app privacy routing', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Verify code' }));
 
-    const dialog = await screen.findByRole('dialog', { name: 'New agent' });
-    expect(within(dialog).getByRole('textbox', { name: 'Name' })).toBeTruthy();
-    expect(within(dialog).getByRole('textbox', { name: 'Instructions' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Set up Sia' })).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'New agent' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Set up Sia' }));
+    expect(await screen.findByRole('textbox', { name: 'Agent name' })).toBeTruthy();
   });
 
   it('takes Archived navigation directly to the archive section', async () => {
@@ -185,7 +186,8 @@ describe('app privacy routing', () => {
 
     render(<App api={createDemoRendererApi(snapshot)} />);
 
-    expect(await screen.findByRole('dialog', { name: 'New agent' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Set up Sia' })).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'New agent' })).toBeNull();
     expect(
       screen.queryByRole('alertdialog', { name: 'Join the Sia research release?' }),
     ).toBeNull();
@@ -223,12 +225,12 @@ describe('app privacy routing', () => {
 
     render(<App api={api} />);
 
-    const firstAgentDialog = await screen.findByRole('dialog', { name: 'New agent' });
+    await screen.findByRole('button', { name: 'Set up Sia' });
     expect(
       screen.queryByRole('alertdialog', { name: 'Join the Sia research release?' }),
     ).toBeNull();
     expect(screen.queryByRole('dialog', { name: 'Connect your work apps' })).toBeNull();
-    fireEvent.click(within(firstAgentDialog).getByRole('button', { name: 'Close' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Exit setup' }));
     expect(await screen.findByRole('button', { name: 'Connect work apps later' })).toBeTruthy();
     expect(
       (await api.getSnapshot()).apps.every(({ status }) => status === 'disconnected'),
@@ -303,7 +305,7 @@ describe('app privacy routing', () => {
     ).toBeNull();
   });
 
-  it('opens the minimal first-agent form automatically after sign-in', async () => {
+  it('keeps custom agent creation available as an explicit choice', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),
       agents: [],
@@ -314,6 +316,7 @@ describe('app privacy routing', () => {
 
     render(<App api={createDemoRendererApi(snapshot)} />);
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Customize an agent instead' }));
     const dialog = await screen.findByRole('dialog', { name: 'New agent' });
     expect(within(dialog).getByRole('textbox', { name: 'Name' })).toBeTruthy();
     expect(within(dialog).getByRole('textbox', { name: 'Instructions' })).toBeTruthy();

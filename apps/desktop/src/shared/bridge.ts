@@ -391,6 +391,8 @@ export interface ComputerPermissionsView {
 }
 
 export interface ComputerView extends ComputerPermissionsView {
+  accessMode?: 'mac' | 'connected';
+  automation?: import('./mac-permissions.js').AutomationPermissions;
   /** Local Apple Messages readability; sends additionally prompt for Automation once. */
   messagesAccess?: 'ready' | 'needs_full_disk_access' | 'unavailable';
   /** Chrome's persistent remote-debugging toggle for silent attachment. */
@@ -420,7 +422,21 @@ export interface BrowserView {
   detail?: string;
 }
 
+export interface PushToTalkView {
+  available: boolean;
+  enabled: boolean;
+  agentId?: string;
+  accessibility: boolean;
+  microphone?: boolean;
+  phase: 'idle' | 'starting' | 'listening' | 'transcribing' | 'error';
+  detail?: string | undefined;
+}
+
 export interface VoiceView {
+  engine?: 'macos' | 'elevenlabs';
+  dictationAvailable?: boolean;
+  dictationDetail?: string | undefined;
+  pushToTalk?: PushToTalkView;
   status: 'disconnected' | 'connected';
   selectedVoiceId?: string;
   selectedVoiceName?: string;
@@ -442,6 +458,7 @@ export interface DesktopSnapshot {
   voice: VoiceView;
   preferences: {
     completionSound: boolean;
+    onboarding?: OnboardingProgress;
   };
   providerUsage?: ProviderUsageView[];
   updates?: UpdateView;
@@ -476,7 +493,26 @@ export interface CloudFeatureFlags {
   schedules: boolean;
 }
 
+export type OnboardingStep =
+  | 'welcome'
+  | 'agent'
+  | 'voice'
+  | 'access'
+  | 'apps'
+  | 'restart'
+  | 'verify'
+  | 'practice'
+  | 'complete';
+export interface OnboardingProgress {
+  step: OnboardingStep;
+  agentId?: string;
+  restartPending?: boolean;
+  restarted?: boolean;
+}
+
 export interface SaveAgentInput {
+  /** Atomically attach first-run setup to the new starter agent. */
+  startOnboarding?: boolean;
   id?: string;
   name: string;
   instructions: string;
@@ -530,6 +566,7 @@ export interface ResolveApprovalInput {
 }
 
 export interface BridgeRequestMap {
+  'assistant.library': import('./assistant-library.js').AssistantLibraryCommand;
   bootstrap: undefined;
   'agents.save': SaveAgentInput;
   'agents.delete': { agentId: string };
@@ -590,19 +627,29 @@ export interface BridgeRequestMap {
   'providers.probe': { providerId?: ProviderId };
   'providers.login': { providerId: ProviderId };
   'settings.openDirectory': undefined;
+  'settings.setOnboarding': { step: OnboardingStep };
+  'settings.restartForOnboarding': undefined;
+  'computer.setupMessages': undefined;
   'settings.setCompletionSound': { enabled: boolean };
   'feedback.compose': { message: string; threadId?: string; includeDiagnostics: boolean };
   'updates.check': undefined;
   'updates.openDownload': undefined;
   'computer.permissions': undefined;
   'computer.requestPermissions': undefined;
+  'computer.requestAutomation': { app: import('./mac-permissions.js').AutomationApp };
   'computer.openMessages': undefined;
+  'computer.setAccessMode': { mode: 'mac' | 'connected' };
   'computer.setTrust': { trust: 'auto' | 'ask' };
   'computer.setTrajectoryLog': { enabled: boolean };
   'computer.revealTrajectories': undefined;
   'browser.attach': { windowId?: number };
+  'browser.connectAndContinue': { threadId: string; userMessageId: string; windowId?: number };
   'browser.open': { url: string };
   'browser.detach': undefined;
+  'voice.pushToTalk.configure': { enabled: boolean; agentId?: string };
+  'voice.pushToTalk.cancel': undefined;
+  'voice.capture.acquire': undefined;
+  'voice.capture.release': { leaseId: string };
   'voice.configure': undefined;
   'voice.refresh': undefined;
   'voice.select': { voiceId: string };
@@ -634,6 +681,7 @@ export interface BridgeRequestMap {
 }
 
 export interface BridgeResultMap {
+  'assistant.library': import('./assistant-library.js').AssistantLibraryView;
   bootstrap: DesktopSnapshot;
   'agents.save': { agentId: string; snapshot: DesktopSnapshot };
   'agents.delete': DesktopSnapshot;
@@ -689,19 +737,29 @@ export interface BridgeResultMap {
   'providers.probe': DesktopSnapshot;
   'providers.login': { opened: boolean; snapshot: DesktopSnapshot };
   'settings.openDirectory': { path: string | null };
+  'settings.setOnboarding': DesktopSnapshot;
+  'settings.restartForOnboarding': DesktopSnapshot;
+  'computer.setupMessages': DesktopSnapshot;
   'settings.setCompletionSound': DesktopSnapshot;
   'feedback.compose': { opened: boolean };
   'updates.check': UpdateView;
   'updates.openDownload': { opened: boolean };
   'computer.permissions': DesktopSnapshot;
   'computer.requestPermissions': DesktopSnapshot;
+  'computer.requestAutomation': DesktopSnapshot;
   'computer.openMessages': DesktopSnapshot;
+  'computer.setAccessMode': DesktopSnapshot;
   'computer.setTrust': DesktopSnapshot;
   'computer.setTrajectoryLog': DesktopSnapshot;
   'computer.revealTrajectories': DesktopSnapshot;
   'browser.attach': DesktopSnapshot;
+  'browser.connectAndContinue': DesktopSnapshot;
   'browser.open': DesktopSnapshot;
   'browser.detach': DesktopSnapshot;
+  'voice.pushToTalk.configure': DesktopSnapshot;
+  'voice.pushToTalk.cancel': undefined;
+  'voice.capture.acquire': { leaseId: string };
+  'voice.capture.release': undefined;
   'voice.configure': DesktopSnapshot;
   'voice.refresh': DesktopSnapshot;
   'voice.select': DesktopSnapshot;
@@ -710,7 +768,7 @@ export interface BridgeResultMap {
   'voice.realtime.start': { sessionId: string };
   'voice.realtime.append': undefined;
   'voice.realtime.stop': { text: string };
-  'voice.speak': { audioBase64: string; mimeType: 'audio/mpeg' };
+  'voice.speak': { audioBase64: string; mimeType: 'audio/mpeg' | 'audio/wav' };
   'connections.startGoogle': { opened: boolean; snapshot: DesktopSnapshot };
   'connections.upgradeGoogle': { opened: boolean; snapshot: DesktopSnapshot };
   'connections.start': { opened: boolean; snapshot: DesktopSnapshot };
@@ -749,6 +807,9 @@ export type DesktopPushEvent =
   { type: 'snapshot'; snapshot: DesktopSnapshot } | { type: 'fatal'; error: BridgeErrorShape };
 
 export interface DesktopBridgeApi {
+  assistantLibrary(
+    input: BridgeRequestMap['assistant.library'],
+  ): Promise<BridgeResultMap['assistant.library']>;
   bootstrap(): Promise<DesktopSnapshot>;
   agents: {
     save(input: SaveAgentInput): Promise<BridgeResultMap['agents.save']>;
@@ -842,6 +903,8 @@ export interface DesktopBridgeApi {
   };
   settings: {
     openDirectory(): Promise<{ path: string | null }>;
+    setOnboarding(step: OnboardingStep): Promise<DesktopSnapshot>;
+    restartForOnboarding(): Promise<DesktopSnapshot>;
     setCompletionSound(enabled: boolean): Promise<DesktopSnapshot>;
   };
   feedback: {
@@ -858,17 +921,29 @@ export interface DesktopBridgeApi {
   computer: {
     permissions(): Promise<DesktopSnapshot>;
     requestPermissions(): Promise<DesktopSnapshot>;
+    requestAutomation(
+      app: import('./mac-permissions.js').AutomationApp,
+    ): Promise<DesktopSnapshot>;
     openMessages(): Promise<DesktopSnapshot>;
+    setupMessages(): Promise<DesktopSnapshot>;
+    setAccessMode(mode: 'mac' | 'connected'): Promise<DesktopSnapshot>;
     setTrust(trust: 'auto' | 'ask'): Promise<DesktopSnapshot>;
     setTrajectoryLog(enabled: boolean): Promise<DesktopSnapshot>;
     revealTrajectories(): Promise<DesktopSnapshot>;
   };
   browser: {
     attach(windowId?: number): Promise<DesktopSnapshot>;
+    connectAndContinue(
+      input: BridgeRequestMap['browser.connectAndContinue'],
+    ): Promise<DesktopSnapshot>;
     open(url: string): Promise<DesktopSnapshot>;
     detach(): Promise<DesktopSnapshot>;
   };
   voice: {
+    configurePushToTalk(enabled: boolean, agentId?: string): Promise<DesktopSnapshot>;
+    cancelPushToTalk(): Promise<void>;
+    acquireCapture(): Promise<{ leaseId: string }>;
+    releaseCapture(leaseId: string): Promise<void>;
     configure(): Promise<DesktopSnapshot>;
     refresh(): Promise<DesktopSnapshot>;
     select(voiceId: string): Promise<DesktopSnapshot>;
@@ -880,7 +955,7 @@ export interface DesktopBridgeApi {
     speak(
       text: string,
       voiceId?: string,
-    ): Promise<{ audioBase64: string; mimeType: 'audio/mpeg' }>;
+    ): Promise<{ audioBase64: string; mimeType: 'audio/mpeg' | 'audio/wav' }>;
   };
   connections: {
     startGoogle(): Promise<BridgeResultMap['connections.startGoogle']>;

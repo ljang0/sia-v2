@@ -108,6 +108,7 @@ test('model and reasoning controls belong to one thread and survive reload', asy
   const harness = await launchParityFixture('threadConfiguration');
   try {
     await createAgentAndThread(harness.page);
+    await harness.page.getByText('Agent settings', { exact: true }).click();
     await harness.page
       .getByTestId(parityContract.threadConfiguration.testIds[0])
       .selectOption('gpt-5.6-terra');
@@ -117,6 +118,7 @@ test('model and reasoning controls belong to one thread and survive reload', asy
 
     await harness.page.reload();
     await expect.poll(() => harness.page.evaluate(() => Boolean(window.sia))).toBe(true);
+    await harness.page.getByText('Agent settings', { exact: true }).click();
     await expect(
       harness.page.getByTestId(parityContract.threadConfiguration.testIds[0]),
     ).toHaveValue('gpt-5.6-terra');

@@ -75,7 +75,9 @@ test('Sia presence follows the real task lifecycle and respects reduced motion',
     await sia.page.getByRole('textbox', { name: 'Message' }).fill('Show the working state');
     await sia.page.getByRole('button', { name: 'Send message' }).click();
     await expect(presence).toHaveAttribute('data-state', 'working');
-    await expect(sia.page.locator('[data-presence="working"]')).toBeVisible();
+    await expect(
+      sia.page.locator('[data-companion-room-header] [data-state="working"]'),
+    ).toBeVisible();
     await expect(presence).toHaveAttribute('data-state', 'complete', { timeout: 5_000 });
     await expect(presence).toHaveAttribute('data-state', 'idle', { timeout: 3_000 });
 

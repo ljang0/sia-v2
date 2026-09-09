@@ -1,3 +1,4 @@
+import type { OnboardingProgress, OnboardingStep, PushToTalkView } from '../shared/bridge';
 export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude';
 /** Safe catalog id. The main process decides whether the corresponding adapter is admitted. */
 type HarnessId = string;
@@ -57,6 +58,7 @@ export interface MessageEvent {
 }
 
 export interface ActivityEvent {
+  toolName?: string;
   id: string;
   type: 'activity';
   kind: 'command' | 'browser' | 'computer' | 'connector' | 'plan';
@@ -307,6 +309,10 @@ export interface BrowserInspectorState {
 }
 
 export interface VoiceSettingsState {
+  engine?: 'macos' | 'elevenlabs';
+  dictationAvailable?: boolean;
+  dictationDetail?: string | undefined;
+  pushToTalk?: PushToTalkView | undefined;
   status: 'disconnected' | 'connected';
   selectedVoiceId?: string | undefined;
   selectedVoiceName?: string | undefined;
@@ -323,11 +329,13 @@ interface ComputerWindow {
 }
 
 export interface ComputerInspectorState {
+  accessMode?: 'mac' | 'connected' | undefined;
   accessibility: 'allowed' | 'denied' | 'not-requested';
   screenRecording: 'allowed' | 'denied' | 'not-requested';
   windows: ComputerWindow[];
   /** 'auto' runs eligible actions without in-app approval. */
   trust: 'auto' | 'ask';
+  automation?: import('../shared/mac-permissions').AutomationPermissions | undefined;
   messagesAccess?: 'ready' | 'needs_full_disk_access' | 'unavailable' | undefined;
   chromeConnection?: 'enabled' | 'off' | 'unavailable' | undefined;
   trajectoryLog: boolean;
@@ -421,6 +429,7 @@ export interface RendererSnapshot {
   voice: VoiceSettingsState;
   preferences: {
     completionSound: boolean;
+    onboarding?: OnboardingProgress;
   };
   updates: {
     status: 'unconfigured' | 'idle' | 'checking' | 'available' | 'current' | 'error';
@@ -438,6 +447,7 @@ export interface RendererSnapshot {
 }
 
 export interface AgentDraft {
+  startOnboarding?: boolean;
   name: string;
   instructions: string;
   provider: ProviderId;
@@ -482,6 +492,9 @@ export interface ResearchBatchSummary {
 export type ApprovalDecision = 'approve' | 'reject';
 
 export interface RendererApi {
+  assistantLibrary(
+    input: import('../shared/assistant-library').AssistantLibraryCommand,
+  ): Promise<import('../shared/assistant-library').AssistantLibraryView>;
   getSnapshot(): Promise<RendererSnapshot>;
   subscribe(
     listener: (snapshot: RendererSnapshot) => void,
@@ -581,17 +594,33 @@ export interface RendererApi {
   signOutCloud(): Promise<void>;
   deleteCloudAccount(confirmation: 'DELETE ACCOUNT'): Promise<void>;
   attachBrowser(windowId?: number): Promise<void>;
+  connectBrowserAndContinue(
+    threadId: string,
+    userMessageId: string,
+    windowId?: number,
+  ): Promise<void>;
   openBrowserSite(url: string): Promise<void>;
   detachBrowser(): Promise<void>;
+  refreshComputerPermissions(): Promise<void>;
   requestComputerPermissions(): Promise<void>;
+  requestAutomationPermission(
+    app: import('../shared/mac-permissions').AutomationApp,
+  ): Promise<void>;
+  setComputerAccessMode(mode: 'mac' | 'connected'): Promise<void>;
   setComputerTrust(trust: 'auto' | 'ask'): Promise<void>;
   setTrajectoryLog(enabled: boolean): Promise<void>;
   revealTrajectories(): Promise<void>;
   openMessages(): Promise<void>;
+  configurePushToTalk(enabled: boolean, agentId?: string): Promise<void>;
+  acquireVoiceCapture(): Promise<string>;
+  releaseVoiceCapture(leaseId: string): Promise<void>;
   configureVoice(): Promise<void>;
   refreshVoices(): Promise<void>;
   selectVoice(voiceId: string): Promise<void>;
   disconnectVoice(): Promise<void>;
+  setOnboarding(step: OnboardingStep): Promise<void>;
+  restartForOnboarding(): Promise<void>;
+  setupMessages(): Promise<void>;
   setCompletionSound(enabled: boolean): Promise<void>;
   composeFeedback(
     message: string,
@@ -607,7 +636,7 @@ export interface RendererApi {
   speakText(
     text: string,
     voiceId?: string,
-  ): Promise<{ audioBase64: string; mimeType: 'audio/mpeg' }>;
+  ): Promise<{ audioBase64: string; mimeType: 'audio/mpeg' | 'audio/wav' }>;
   exportResearchData(): Promise<void>;
   deleteResearchData(): Promise<void>;
   listResearchInvites(): Promise<{ invites: ResearchInvite[]; limit: number }>;

@@ -17,10 +17,17 @@ const invoke = <M extends BridgeMethod>(
   input: BridgeRequestMap[M],
 ): Promise<BridgeResultMap[M]> => {
   const envelope: BridgeInvokeEnvelope<M> = { method, input };
-  return ipcRenderer.invoke(INVOKE_CHANNEL, envelope) as Promise<BridgeResultMap[M]>;
+  return ipcRenderer.invoke(INVOKE_CHANNEL, envelope).catch((cause: unknown) => {
+    if (cause instanceof Error)
+      throw new Error(
+        cause.message.replace(/^Error invoking remote method 'sia:invoke': (?:Error: )?/, ''),
+      );
+    throw cause;
+  }) as Promise<BridgeResultMap[M]>;
 };
 
 const api: DesktopBridgeApi = {
+  assistantLibrary: (input) => invoke('assistant.library', input),
   bootstrap: () => invoke('bootstrap', undefined),
   agents: {
     save: (input) => invoke('agents.save', input),
@@ -124,6 +131,8 @@ const api: DesktopBridgeApi = {
   },
   settings: {
     openDirectory: () => invoke('settings.openDirectory', undefined),
+    setOnboarding: (step) => invoke('settings.setOnboarding', { step }),
+    restartForOnboarding: () => invoke('settings.restartForOnboarding', undefined),
     setCompletionSound: (enabled) => invoke('settings.setCompletionSound', { enabled }),
   },
   feedback: {
@@ -141,17 +150,26 @@ const api: DesktopBridgeApi = {
   computer: {
     permissions: () => invoke('computer.permissions', undefined),
     requestPermissions: () => invoke('computer.requestPermissions', undefined),
+    requestAutomation: (app) => invoke('computer.requestAutomation', { app }),
     openMessages: () => invoke('computer.openMessages', undefined),
+    setupMessages: () => invoke('computer.setupMessages', undefined),
+    setAccessMode: (mode) => invoke('computer.setAccessMode', { mode }),
     setTrust: (trust) => invoke('computer.setTrust', { trust }),
     setTrajectoryLog: (enabled) => invoke('computer.setTrajectoryLog', { enabled }),
     revealTrajectories: () => invoke('computer.revealTrajectories', undefined),
   },
   browser: {
+    connectAndContinue: (input) => invoke('browser.connectAndContinue', input),
     attach: (windowId) => invoke('browser.attach', windowId === undefined ? {} : { windowId }),
     open: (url) => invoke('browser.open', { url }),
     detach: () => invoke('browser.detach', undefined),
   },
   voice: {
+    configurePushToTalk: (enabled, agentId) =>
+      invoke('voice.pushToTalk.configure', agentId ? { enabled, agentId } : { enabled }),
+    cancelPushToTalk: () => invoke('voice.pushToTalk.cancel', undefined),
+    acquireCapture: () => invoke('voice.capture.acquire', undefined),
+    releaseCapture: (leaseId) => invoke('voice.capture.release', { leaseId }),
     configure: () => invoke('voice.configure', undefined),
     refresh: () => invoke('voice.refresh', undefined),
     select: (voiceId) => invoke('voice.select', { voiceId }),

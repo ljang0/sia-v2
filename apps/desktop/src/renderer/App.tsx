@@ -1,3 +1,4 @@
+import { BrowserTaskRecovery, browserTaskRequest } from './components/BrowserTaskRecovery';
 import {
   Archive,
   ChatCircle,
@@ -11,6 +12,7 @@ import {
   WarningCircle,
 } from '@phosphor-icons/react';
 import { lazy, Suspense, useEffect, useState } from 'react';
+import { Onboarding } from './components/Onboarding';
 import { AgentDialog } from './components/AgentDialog';
 import { AppSkeleton, WorkspaceNotice } from './components/AppStates';
 import { Conversation } from './components/Conversation';
@@ -48,6 +50,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     Boolean(
       import.meta.env?.DEV && typeof location !== 'undefined' && location.hash === '#audit',
     );
+  const [suggestion, setSuggestion] = useState<{ threadId: string; text: string }>();
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [conversationFindOpen, setConversationFindOpen] = useState(false);
@@ -297,6 +300,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               <div className={styles.topbarActions}>
                 {activeThread ? (
                   <ThreadModelControls
+                    workspace={activeThread.workspace}
                     modelId={activeThread.model}
                     reasoningId={activeThread.reasoningEffort ?? ''}
                     models={modelOptions(snapshot, activeThread.provider, activeThread.model)}
@@ -396,6 +400,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
             </main>
           ) : app.settingsOpen ? (
             <Settings
+              assistantApi={api}
+              onRunWorkflow={(threadId) => {
+                app.closeSettings();
+                void run(() => api.selectThread(threadId));
+              }}
               key={app.settingsSection}
               snapshot={snapshot}
               initialSection={app.settingsSection}
@@ -421,6 +430,9 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onOpenBrowserSite={(url) => api.openBrowserSite(url)}
               onDetachBrowser={() => api.detachBrowser()}
               onRequestPermissions={() => api.requestComputerPermissions()}
+              onRequestAutomation={(app) => api.requestAutomationPermission(app)}
+              onRefreshPermissions={() => api.refreshComputerPermissions()}
+              onSetComputerAccessMode={(mode) => api.setComputerAccessMode(mode)}
               onSetComputerTrust={(trust) => api.setComputerTrust(trust)}
               onSetTrajectoryLog={(enabled) => api.setTrajectoryLog(enabled)}
               onRevealTrajectories={() => api.revealTrajectories()}
@@ -429,6 +441,16 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onRefreshVoices={() => api.refreshVoices()}
               onSelectVoice={(voiceId) => api.selectVoice(voiceId)}
               onDisconnectVoice={() => api.disconnectVoice()}
+              onConfigurePushToTalk={(enabled, agentId) =>
+                api.configurePushToTalk(enabled, agentId)
+              }
+              onStartSetup={() =>
+                void run(async () => {
+                  await api.setOnboarding('welcome');
+                  app.closeSettings();
+                  app.closeActivity();
+                })
+              }
               onSetCompletionSound={(enabled) => api.setCompletionSound(enabled)}
               onSetCapturePaused={(paused) => api.setCapturePaused(paused)}
               onExport={() => api.exportResearchData()}
@@ -442,106 +464,143 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               }
             />
           ) : (
-            <Conversation
-              thread={activeThread}
-              agentName={roomAgent?.name}
-              agentInitials={roomAgent?.initials}
-              agentHue={roomAgent?.hue}
-              loading={app.loading}
-              attachments={app.attachments}
-              acceptingAttachments={Boolean(activeThread)}
-              onPickAttachments={
-                activeThread ? () => app.pickAttachments(activeThread.id) : undefined
-              }
-              onRemoveAttachment={app.removeAttachment}
-              onDropAttachments={
-                activeThread
-                  ? (files) => app.dropAttachments(activeThread.id, files)
-                  : undefined
-              }
-              onPreviewAttachment={
-                activeThread
-                  ? (attachmentId) => api.previewAttachment(activeThread.id, attachmentId)
-                  : undefined
-              }
-              onOpenAttachment={
-                activeThread
-                  ? (attachmentId) =>
-                      app.run(() => api.openAttachment(activeThread.id, attachmentId))
-                  : undefined
-              }
-              onRevealAttachment={
-                activeThread
-                  ? (attachmentId) =>
-                      app.run(() => api.revealAttachment(activeThread.id, attachmentId))
-                  : undefined
-              }
-              starterPrompts={starterPrompts(roomAgent, snapshot)}
-              findOpen={conversationFindOpen}
-              onFindOpenChange={setConversationFindOpen}
-              voiceEnabled={snapshot.voice.status === 'connected'}
-              onTranscribeVoice={(audioBase64, mimeType) =>
-                api.transcribeVoice(audioBase64, mimeType)
-              }
-              onStartRealtimeVoice={() => api.startRealtimeVoice()}
-              onAppendRealtimeVoice={(sessionId, audioBase64) =>
-                api.appendRealtimeVoice(sessionId, audioBase64)
-              }
-              onStopRealtimeVoice={(sessionId, commit) =>
-                api.stopRealtimeVoice(sessionId, commit)
-              }
-              onSpeak={(text) => api.speakText(text, selectedAgent?.voiceId)}
-              completionSound={snapshot.preferences.completionSound}
-              onSend={(content, attachmentIds) =>
-                activeThread
-                  ? app
-                      .attempt(() => api.sendMessage(activeThread.id, content, attachmentIds))
-                      .then(app.clearAttachments)
-                  : Promise.resolve()
-              }
-              onStop={() =>
-                activeThread ? run(() => api.cancelTurn(activeThread.id)) : Promise.resolve()
-              }
-              onRetry={() =>
-                activeThread ? run(() => api.retryThread(activeThread.id)) : Promise.resolve()
-              }
-              onResolveApproval={(id, decision) =>
-                run(() => api.respondToApproval(id, decision))
-              }
-              onDraftChange={
-                activeThread ? (content) => api.saveDraft(activeThread.id, content) : undefined
-              }
-              onCreateThread={
-                selectedAgent
-                  ? () => void run(() => api.createThread(selectedAgent.id))
-                  : undefined
-              }
-              onCreateAgent={!selectedAgent ? app.openNewAgent : undefined}
-              onOpenApps={
-                snapshot.cloudAuth.state === 'signed-in' &&
-                snapshot.cloudAuth.features?.connectors !== false &&
-                snapshot.apps.some(({ status }) => status !== 'connected')
-                  ? () => app.openSettings('apps')
-                  : undefined
-              }
-              workspaceTools={
-                activeThread ? (
-                  <>
-                    {activeThread.sourceThreadId ? (
-                      <div className={styles.forkSourceLabel} data-testid="fork-source-label">
-                        Forked from {activeThread.sourceThreadId}
-                      </div>
-                    ) : null}
-                    <ThreadWorkspaceTools
-                      thread={activeThread}
-                      snapshot={snapshot}
-                      api={api}
-                      run={run}
+            <Onboarding
+              snapshot={snapshot}
+              api={api}
+              onSuggest={(text) => {
+                if (activeThread) setSuggestion({ threadId: activeThread.id, text });
+              }}
+              onCustomize={app.openNewAgent}
+              onModels={() => app.openSettings('providers')}
+              onAccount={() => app.openSettings('privacy')}
+            >
+              <Conversation
+                suggestion={suggestion?.threadId === activeThread?.id ? suggestion : undefined}
+                onSuggestionHandled={() => setSuggestion(undefined)}
+                thread={activeThread}
+                agentName={roomAgent?.name}
+                agentInitials={roomAgent?.initials}
+                agentHue={roomAgent?.hue}
+                loading={app.loading}
+                attachments={app.attachments}
+                acceptingAttachments={Boolean(activeThread)}
+                onPickAttachments={
+                  activeThread ? () => app.pickAttachments(activeThread.id) : undefined
+                }
+                onRemoveAttachment={app.removeAttachment}
+                onDropAttachments={
+                  activeThread
+                    ? (files) => app.dropAttachments(activeThread.id, files)
+                    : undefined
+                }
+                onPreviewAttachment={
+                  activeThread
+                    ? (attachmentId) => api.previewAttachment(activeThread.id, attachmentId)
+                    : undefined
+                }
+                onOpenAttachment={
+                  activeThread
+                    ? (attachmentId) =>
+                        app.run(() => api.openAttachment(activeThread.id, attachmentId))
+                    : undefined
+                }
+                onRevealAttachment={
+                  activeThread
+                    ? (attachmentId) =>
+                        app.run(() => api.revealAttachment(activeThread.id, attachmentId))
+                    : undefined
+                }
+                starterPrompts={starterPrompts(roomAgent, snapshot)}
+                findOpen={conversationFindOpen}
+                onFindOpenChange={setConversationFindOpen}
+                voiceEnabled={snapshot.voice.status === 'connected'}
+                dictationEnabled={snapshot.voice.dictationAvailable !== false}
+                globalVoiceActive={Boolean(
+                  snapshot.voice.pushToTalk &&
+                  ['starting', 'listening', 'transcribing'].includes(
+                    snapshot.voice.pushToTalk.phase,
+                  ),
+                )}
+                onAcquireVoiceCapture={() => api.acquireVoiceCapture()}
+                onReleaseVoiceCapture={(leaseId) => api.releaseVoiceCapture(leaseId)}
+                onTranscribeVoice={(audioBase64, mimeType) =>
+                  api.transcribeVoice(audioBase64, mimeType)
+                }
+                onStartRealtimeVoice={() => api.startRealtimeVoice()}
+                onAppendRealtimeVoice={(sessionId, audioBase64) =>
+                  api.appendRealtimeVoice(sessionId, audioBase64)
+                }
+                onStopRealtimeVoice={(sessionId, commit) =>
+                  api.stopRealtimeVoice(sessionId, commit)
+                }
+                onSpeak={(text) => api.speakText(text, selectedAgent?.voiceId)}
+                completionSound={snapshot.preferences.completionSound}
+                onSend={(content, attachmentIds) =>
+                  activeThread
+                    ? app
+                        .attempt(() => api.sendMessage(activeThread.id, content, attachmentIds))
+                        .then(app.clearAttachments)
+                    : Promise.resolve()
+                }
+                onStop={() =>
+                  activeThread ? run(() => api.cancelTurn(activeThread.id)) : Promise.resolve()
+                }
+                browserRecovery={
+                  snapshot.activeThread ? (
+                    <BrowserTaskRecovery
+                      accessMode={snapshot.computer.accessMode}
+                      key={`${snapshot.activeThread.id}:${browserTaskRequest(snapshot.activeThread) ?? ''}`}
+                      thread={snapshot.activeThread}
+                      browser={snapshot.browser}
+                      connect={(threadId, userMessageId, windowId) =>
+                        api.connectBrowserAndContinue(threadId, userMessageId, windowId)
+                      }
                     />
-                  </>
-                ) : undefined
-              }
-            />
+                  ) : undefined
+                }
+                onRetry={() =>
+                  activeThread ? run(() => api.retryThread(activeThread.id)) : Promise.resolve()
+                }
+                onResolveApproval={(id, decision) =>
+                  run(() => api.respondToApproval(id, decision))
+                }
+                onDraftChange={
+                  activeThread
+                    ? (content) => api.saveDraft(activeThread.id, content)
+                    : undefined
+                }
+                onCreateThread={
+                  selectedAgent
+                    ? () => void run(() => api.createThread(selectedAgent.id))
+                    : undefined
+                }
+                onCreateAgent={!selectedAgent ? app.openNewAgent : undefined}
+                onOpenApps={
+                  snapshot.cloudAuth.state === 'signed-in' &&
+                  snapshot.cloudAuth.features?.connectors !== false &&
+                  snapshot.apps.some(({ status }) => status !== 'connected')
+                    ? () => app.openSettings('apps')
+                    : undefined
+                }
+                workspaceTools={
+                  activeThread ? (
+                    <>
+                      {activeThread.sourceThreadId ? (
+                        <div className={styles.forkSourceLabel} data-testid="fork-source-label">
+                          Forked from {activeThread.sourceThreadId}
+                        </div>
+                      ) : null}
+                      <ThreadWorkspaceTools
+                        thread={activeThread}
+                        snapshot={snapshot}
+                        api={api}
+                        run={run}
+                      />
+                    </>
+                  ) : undefined
+                }
+              />
+            </Onboarding>
           )}
           {app.inspectorOpen && !app.settingsOpen ? (
             <Inspector

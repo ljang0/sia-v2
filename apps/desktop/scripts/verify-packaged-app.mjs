@@ -44,6 +44,7 @@ const dmgPath = join(
 const contentsPath = join(appPath, 'Contents');
 const resourcesPath = join(contentsPath, 'Resources');
 const executablePath = join(contentsPath, 'MacOS', 'Sia');
+const voiceHelperPath = join(resourcesPath, 'native', 'SiaVoiceHelper');
 const infoPlistPath = join(contentsPath, 'Info.plist');
 const asarPath = join(resourcesPath, 'app.asar');
 const packagedIconPath = join(resourcesPath, 'icon.icns');
@@ -59,6 +60,7 @@ const packagedArchitectures =
 
 await Promise.all([
   requirePath(executablePath),
+  requirePath(voiceHelperPath),
   requirePath(infoPlistPath),
   requirePath(asarPath),
   requirePath(packagedIconPath),
@@ -102,6 +104,7 @@ const executableArchitectures =
   requestedArch === 'universal' ? ['arm64', 'x86_64'] : [toLipoArch(requestedArch)];
 for (const binaryPath of [
   executablePath,
+  voiceHelperPath,
   join(
     contentsPath,
     'Frameworks',
@@ -205,6 +208,12 @@ if (
   'Sia uses the microphone only while you record a message for transcription.'
 ) {
   throw new Error('Packaged microphone access is not limited to explicit dictation.');
+}
+if (
+  readPlistRaw('NSSpeechRecognitionUsageDescription') !==
+  'Sia uses on-device speech recognition when you choose dictation.'
+) {
+  throw new Error('Packaged speech recognition is missing its dictation usage description.');
 }
 
 if (requestedArch === 'universal' || requestedArch === process.arch) {

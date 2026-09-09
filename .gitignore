@@ -29,3 +29,5 @@ cdk.out/
 /apps/desktop/build/THIRD_PARTY_LICENSES.txt
 /apps/cloud/lambda/
 *.tsbuildinfo
+
+/apps/desktop/build/native/

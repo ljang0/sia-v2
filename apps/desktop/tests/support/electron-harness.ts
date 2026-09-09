@@ -106,11 +106,9 @@ export function collectRendererErrors(page: Page): string[] {
   return errors;
 }
 
-export async function dismissFirstAgentPrompt(page: Page): Promise<void> {
-  const dialog = page.getByRole('dialog', { name: 'New agent' });
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: 'Close' }).click();
-  await expect(dialog).toBeHidden();
+export async function exitFirstRunSetup(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Exit setup', exact: true }).click();
+  await expect(page.getByRole('main', { name: 'Welcome to Sia' })).toBeHidden();
 }
 
 export async function createAgentAndThread(

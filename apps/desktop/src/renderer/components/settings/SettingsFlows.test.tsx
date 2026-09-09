@@ -551,9 +551,9 @@ describe('computer access settings', () => {
     expect(screen.getByText(/every computer action stays reviewable/i)).toBeTruthy();
     expect(
       screen
-        .getByRole('switch', { name: 'Confirm before changes' })
+        .getByRole('switch', { name: 'Bypass action approvals' })
         .getAttribute('aria-checked'),
-    ).toBe('true');
+    ).toBe('false');
     expect(
       screen
         .getByRole('switch', { name: 'Keep a full local log' })
@@ -608,7 +608,12 @@ describe('computer access settings', () => {
         onRevealTrajectories={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole('switch', { name: 'Confirm before changes' }));
+    expect(
+      screen
+        .getByRole('switch', { name: 'Bypass action approvals' })
+        .getAttribute('aria-checked'),
+    ).toBe('true');
+    fireEvent.click(screen.getByRole('switch', { name: 'Bypass action approvals' }));
     await waitFor(() => expect(onSetComputerTrust).toHaveBeenCalledWith('ask'));
     await waitFor(() =>
       expect(

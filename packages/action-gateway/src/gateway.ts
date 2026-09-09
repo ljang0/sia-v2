@@ -158,9 +158,9 @@ function defaultSafetyDecision(
         reason: 'This application must not be controlled through generic computer tools',
       };
   }
-  if (request.name === 'browser_navigate') {
+  if (request.name === 'browser_navigate' || request.name === 'computer_open_url') {
     const url = new URL(String(args.url));
-    if (url.protocol !== 'https:' && url.protocol !== 'http:')
+    if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.username || url.password)
       return { decision: 'deny', reason: 'Only HTTP and HTTPS navigation is allowed' };
   }
   if (request.name === 'browser_upload') {

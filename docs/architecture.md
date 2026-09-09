@@ -46,13 +46,139 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   attaches to a signed-in window without copying cookies. Messages read capabilities access bounded
   local `chat.db` rows only with Full Disk Access, and exact sends follow the autonomous/confirmation setting.
 - Provider authentication stays in each official CLI. Sia does not inspect, copy, or store provider API keys or consumer-login files.
-- ElevenLabs is an included speech service, not a model provider. Its restricted API key stays in
+- The default macOS voice service uses installed system voices through `AVSpeechSynthesizer`,
+  returning bounded WAV audio in memory. Dictation uses `SFSpeechRecognizer` with on-device
+  recognition required and checked for the current locale. Read aloud works without cloud setup or
+  microphone access; unsupported or denied dictation never silently falls back to a server.
+  A separate `--speech` mode of the bundled helper receives PCM over private pipes and does not
+  open a microphone or event tap. Disconnect invalidates pending native results and stops its process.
+- The compatibility ElevenLabs speech service is not a model provider. Its restricted API key stays in
   AWS Secrets Manager; the main process requests a purpose-bound single-use token when needed. A
   legacy locally stored key is deleted during migration and no key-entry IPC remains.
   Recorded and generated audio stays in memory and is sent only after the user presses Dictate or
   Read aloud; it is not added to transcripts or persisted by Sia. Read aloud uses an optional
   per-agent voice with the global voice as fallback, permits only one playback session, omits code,
   and ends long narration at a sentence boundary with an explicit on-screen handoff.
+- Optional Fn push-to-talk runs in a bundled Swift helper adapted from Notch. A main-process
+  `PushToTalkService` owns its recording state, pins the destination at activation, and streams bounded
+  16 kHz PCM into the selected voice service. Release commits; Escape, sign-out, sleep, and helper
+  exit discard the session, including late transcription results. The helper has no provider
+  credentials or model tools, communicates only over inherited pipes, and exits on parent EOF or
+  heartbeat expiry. Normal Fn sessions show a thin green edge through recording, transcription, and task execution; the helper reserves its
+  nonactivating status notice for errors. It uses no screenshot capture. Composer capture obtains an
+  exclusive main-process lease before opening the microphone; window teardown releases the lease.
+- Cmd+E opens an independent, compact command window on the pointer's display, adapted from
+  Notch's HotkeyManager lifecycle through Electron globalShortcut. Its separate sandboxed preload
+  exposes only display-state subscription, send, cancel, new request, dismiss and open; main
+  validates the exact sender frame and bounded input.
+  Agent lists use the sign-in-redacted snapshot. Sending uses canonical thread creation and dispatch;
+  failures retain the draft. Typed requests stay in this panel for progress, results, Stop and follow-ups.
+  Fn dispatch has no path to show the launcher or main window. A main-owned session binds each reply/cancel to its exact thread and latest turn;
+  stale controls fail closed. The narrow preload receives bounded, redacted display state only.
+  The explicit Review in Sia button opens the canonical conversation for approvals and questions.
+  Escape or clicking away dismisses the box without canceling work. Sia → Ask Sia works if shortcut registration
+  conflicts with another app. No voice helper or TCC grant is required for the launcher.
+- Settings → Assistant owns an encrypted `assistant/library` record: user-authored per-agent memory,
+  guided workflows with named inputs and expected results, context opt-in.
+  Memories are injected only for their owning agent on new runtime turns; pausing/deleting affects
+  future requests, not provider history. Workflows create a fresh canonical conversation and resolve
+  live tool capabilities at execution time. They contain instructions, not shell scripts or cached
+  native references. Library operations are strictly typed and release sign-in gated.
+- Optional per-agent automatic memory records an encrypted operational journal (tool names/outcomes,
+  task completion, and model-proposed lessons), never raw action arguments, message bodies, or screenshots.
+  The current task's model extracts useful lessons through `memory_learn`. A local idle timer
+  consolidates finished-turn lessons, deduplicates them, and caps learned memory at 40 entries per
+  agent, at most once every six hours; Settings offers an immediate pass. This uses no extra model
+  turn. Pausing stops collection/consolidation. Deletion suppresses identical lessons from being
+  relearned. The journal retains at most 500 entries and remains separate from research capture.
+- `memory_suggest` adapts Notch's PROMOTE/DISTILL pass into encrypted proposals to merge memories,
+  retire contradicted guidance, or save an executable skill. Proposals retain exact before/after
+  content, reasons and owning-agent completed-task evidence. Skills require evidence from two turns.
+  UI acceptance validates the proposal revision and current memory contents; stale changes are
+  rejected. Dismissal suppresses identical proposals, clearing the journal clears pending evidence,
+  and no skill executes on acceptance. Ordinary tasks can propose improvements while learning is on.
+  Find improvements starts a visible canonical review turn on the agent's pinned model route.
+  A separate default-off background-review preference authorizes extra model turns, at most every
+  six hours after new experience, while idle, awake and unlocked. Reviews do not change the active
+  conversation, stack, or journal themselves. They stop after three minutes and are cancelled when
+  learning/reviews are disabled. Gateway policy restricts review conversations to assistant_library
+  and memory_suggest (also in trusted mode); provider-native approval requests are denied. Review
+  sessions require the Codex harness, expose only those two dynamic tools, request a read-only
+  sandbox, disable shell/unified-exec/image/multi-agent features and web search, and verify the
+  returned sandbox and effective native feature flags before starting a model turn. This uses the
+  [App Server session configuration](https://learn.chatgpt.com/docs/app-server) contract.
+- Executable skills adapt Notch's Bash library with encrypted source, an owning agent, and a SHA-256
+  revision. `skill_save` and `skill_run` always show exact-source approval, including in trusted mode.
+  Runs revalidate the saved source after approval. A macOS kernel sandbox confines Bash and descendants
+  to a private scratch directory plus system binaries/libraries, denies network and direct host/app
+  access, and inherits no provider environment. `sia_action` brokers up to 32 sequential calls through
+  the same gateway, turn cancellation, and fresh capability checks. Refused or unverified actions stop
+  the script; timeout kills the process group and aborts outstanding approval. No unchecked host shell
+  or arbitrary AppleScript tool is exposed. Saving a script never runs it.
+- `mac_automation` uses fixed Apple-event programs for Calendar list/read/create, Reminders
+  list/read/create, and Finder selection metadata. Arguments are JSON data, targets are exact native
+  identifiers, and creates read back their native object. An unconfirmed create is never reported as
+  success. macOS Automation permission remains app-specific; scripts cannot bypass it.
+  Onboarding and Computer settings share a typed, fixed-target permission route for Calendar,
+  Reminders, Finder, and Messages. The native helper's permission-only mode uses
+  `AEDeterminePermissionToAutomateTarget`; background checks never prompt or launch apps.
+  Explicit requests open only the selected app and may show its macOS consent prompt.
+  Previously denied access opens Automation settings. No app content is read by setup, and
+  action-gateway approvals remain unchanged. Status is checked again on return/restart rather
+  than persisting a claimed grant; errors and closed apps remain unresolved in the checklist.
+- Opt-in Fn context pins the frontmost app before showing the edge. The native helper reads only
+  bounded window/selection metadata and a static accessibility outline, excludes protected app/field
+  ancestry, and sends app identity alone for browsers. It never reads the clipboard or records a
+  background journal. Context travels with the committed request as untrusted data.
+  Only threads dispatched by Fn drive the click-through green working edge. Main-process thread
+  updates keep it animated for running/queued work, steady during approval/input waits, and remove
+  completed, failed, cancelled, or deleted threads. Overlapping Fn requests share the indicator;
+  unrelated typed requests cannot activate it. Disable/sign-out/helper failure clear its bindings.
+  Sleep hides it; wake rechecks remaining tasks. No task content is sent to the decorative overlay.
+  The native view respects Reduced Motion and fades out without activating a window.
+- `computer_list` also discovers installed apps from fixed application directories. Launch validates
+  a currently installed bundle and excludes sensitive apps and script runners. In **Use my Mac** mode, known browser bundles are available through the same capability-bound computer tools; Connected apps retains the separate Chrome route. The mode is persisted independently of action confirmations and defaults to Connected apps for existing profiles. Safari’s system-owned Cryptex app link is recognized without admitting arbitrary symlinks. Native
+  click/drag can use screenshot pixels bound to a recent host-owned window capability. The backend
+  validates PNG dimensions, coordinates, live app/window ownership, and protected controls again
+  before delivery; no global-coordinate tool is exposed. Windows with protected controls omit
+  screenshots. Input delivery returns `accepted_unverified` plus fresh state for semantic review.
+  Two failed control attempts stop further computer/browser mutations in that turn; read-only
+  observations remain available to diagnose the blocker. Chrome attachment failures include an
+  actionable connection repair instruction without changing trust mode. In Use my Mac,
+  `browser_tabs` always returns native app/window references and instructions to continue with computer
+  tools, even if an older Chrome attachment remains active. `computer_open_url` opens an ordinary
+  credential-free HTTP(S) destination in the default browser so the agent can start a web task instead
+  of asking the user to open the site. Authentication and security URLs remain user-controlled. A fixed native AX operation checks the exact browser window
+  using unambiguous WindowServer/AX geometry, bounded protected-control inspection, and the current
+  document URL. The host rejects protected/internal URLs, changed pages, unsafe shortcuts, and script
+  URLs before input. It checks again around capture, omits hidden menu/history nodes, and never returns
+  the guard’s private URLs. Off-Space browsers may require an approved app activation before AX is
+  available. Connected apps still returns a connection refusal for unattached `browser_tabs`.
+  Mac sessions use a separate tool allowlist and disable Codex native execution, search, and
+  inherited integrations. Mode changes replace the provider session with restored Sia history.
+  The backend also refuses connected-service actions from saved skills in Mac mode. Native URL
+  changes during capture trigger up to two delayed read-only observations; successful input delivery
+  remains `accepted_unverified` if post-action observation is unavailable. Loading observations do not
+  receive evidence IDs. `computer_snapshot.wait_ms` offers a cancellable wait of at most 3 seconds.
+  A bounded per-turn evidence store backs `computer_task_complete`: text citations must match an
+  observation from that turn and visual citations require an image. This checks citation ownership,
+  not semantic correctness or requirement completeness. For Mac tool tasks the coordinator buffers
+  the final answer until this checklist is accepted, requesting up to two verification continuations
+  before reporting failure. Explicitly blocked checklist items must be disclosed in the answer.
+  Conversations with a browser attempt after the latest user message offer an explicit
+  Connect Chrome & continue control while detached in Connected apps mode. `browser.connectAndContinue` uses the same
+  canonical attachment route as Settings, checks the latest user-message id before and after
+  attachment, and sends a fixed continuation through the original thread's pinned execution route.
+  It preserves drafts and rejects concurrent connections or stale/active/archived requests.
+  No model turn starts until the user chooses a window and the host verifies an HTTP(S) grant.
+- First-run guidance is gated by the same release sign-in check as the workspace. Its progress
+  lives in encrypted desktop preferences, and starter creation uses `agents.save` plus the normal
+  catalog/resolver and private workspace path. The guide records its agent and next step in the
+  same commit as first-thread creation; repeated setup requests reuse that agent. Existing
+  profiles are not enrolled automatically. Permission steps are optional and use the typed bridge;
+  the animated cursor is only an illustration. Native voice readiness publishes actual microphone
+  and Accessibility grants, including changes while returning from System Settings. Practice
+  suggestions use the regular composer and never send themselves or replace an existing draft.
 - The renderer permission handler admits only an audio-only microphone request from Sia's own main
   frame. Camera, display capture, Bluetooth, and unrelated renderer permissions remain denied.
 - Under v3 raw research consent, eligible provider protocol frames and connected-app/browser/

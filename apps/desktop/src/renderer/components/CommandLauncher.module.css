@@ -1,0 +1,251 @@
+.launcher {
+  --panel: #f8f9f8;
+  --ink: #252c29;
+  --muted: #758079;
+  --line: #252c2912;
+  box-sizing: border-box;
+  height: 100vh;
+  padding: 16px 20px;
+  background: var(--panel);
+  color: var(--ink);
+  font:
+    13px -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  border: 1px solid #252c291c;
+  border-radius: 18px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+.launcher header,
+.launcher footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.launcher header {
+  min-height: 24px;
+  -webkit-app-region: drag;
+}
+.launcher header strong {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.mark {
+  width: 12px;
+  height: 12px;
+  border: 3px solid #547b65;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.hint {
+  margin-left: auto;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+}
+.launcher button,
+.launcher select {
+  -webkit-app-region: no-drag;
+  font: inherit;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 5px;
+}
+.launcher button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.launcher button:hover {
+  background: var(--line);
+  color: var(--ink);
+}
+.launcher button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.launcher button:focus-visible,
+.launcher select:focus-visible {
+  outline: 2px solid #769d86;
+  outline-offset: 2px;
+}
+.launcher form {
+  margin-top: auto;
+}
+.launcher textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 82px;
+  resize: none;
+  border: 0;
+  outline: 0;
+  padding: 18px 0 12px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 21px;
+  line-height: 1.45;
+  letter-spacing: -0.025em;
+}
+.launcher textarea::placeholder {
+  color: var(--muted);
+  opacity: 0.8;
+}
+.launcher textarea:disabled {
+  opacity: 0.6;
+}
+.launcher footer {
+  min-height: 30px;
+}
+.launcher footer select {
+  max-width: 160px;
+  padding-left: 0;
+  font-size: 11px;
+}
+.agentName {
+  color: var(--muted);
+  font-size: 11px;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.keyboardHint {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+.launcher button[type='submit'] {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--panel);
+}
+.result {
+  min-height: 0;
+  margin-top: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.taskHeading,
+.taskActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.taskHeading strong {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  margin: 6px 0 12px;
+}
+.statusDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #749581;
+  flex: none;
+}
+.progress[data-status='waiting'] .statusDot {
+  background: #bb904a;
+}
+.progress[data-status='error'] .statusDot {
+  background: #b55555;
+}
+.response {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 180px;
+  overflow: auto;
+  line-height: 1.65;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+.response small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+.taskActions button {
+  font-size: 11px;
+  padding: 4px 0;
+}
+.taskActions button + button {
+  margin-left: auto;
+}
+.result + form textarea {
+  height: 66px;
+  font-size: 17px;
+  padding-top: 14px;
+}
+.error {
+  color: #a54444;
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 10px 0 0;
+}
+.empty {
+  margin: auto 0;
+  color: var(--muted);
+}
+.empty button {
+  color: var(--ink);
+  padding-left: 0;
+}
+@media (prefers-color-scheme: dark) {
+  .launcher {
+    --panel: #202422;
+    --ink: #e4e9e6;
+    --muted: #929d96;
+    --line: #ffffff12;
+    border-color: #ffffff1c;
+  }
+  .launcher select option {
+    background: var(--panel);
+  }
+  .error {
+    color: #e7a0a0;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .launcher button {
+    transition:
+      background 120ms ease,
+      color 120ms ease;
+  }
+  .result {
+    animation: enter 140ms ease-out;
+  }
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
