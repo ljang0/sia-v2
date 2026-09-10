@@ -369,10 +369,16 @@ in the agent's `.sia-mac/skills/`. Your existing memory and conversation history
 
 **Background controls (experimental)** in **Settings → Computer** is off by default and applies to
 the next request. It exposes CUA tools tied to individual windows, without a Chrome connection.
-The agent is instructed to use those tools for GUI work throughout that task, rather than switching
-between window actions and global native input. Some apps and gestures need an explicit foreground
-attempt; if the window route cannot work, turn the option off for the next request. Not every app
-supports background operation, and the prompt does not technically restrict arbitrary shell commands.
+Native shell commands are disabled in these sessions so they cannot take over the desktop through
+AppleScript or global input. Background tasks use their own window-control instructions and inspect
+the target window directly. Executable scripts and arbitrary file output require the normal native
+route; answers and source links still appear in Sia.
+
+Choose **Pause and tell me** to stop when foreground control is needed, or **Allow brief foreground
+control** to permit that fallback. Pause is the default and is enforced by the host before an action
+approval or dispatch. Settings changes apply to the next request, not one already running. App/site
+opening requests no activation, though apps may raise their own windows. Some controls require focus;
+background mode cannot guarantee every action works across every app.
 
 Account answers require fresh, course-by-course source evidence. Canvas checks must distinguish
 current courses, instructors and TAs, with missing evidence reported explicitly. Clipboard reads

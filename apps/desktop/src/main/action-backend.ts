@@ -89,7 +89,10 @@ export interface DesktopActionBackendOptions {
   readonly cua: CuaToolCaller;
   readonly cloud?: CloudActionClient;
   /** Opens one explicitly supported non-sensitive macOS application. */
-  readonly openApplication?: (application: string) => Promise<void>;
+  readonly openApplication?: (
+    application: string,
+    options: { background: boolean },
+  ) => Promise<void>;
   /** Opens one validated public web location in the person's default browser. */
   readonly openUrl?: (url: string, options: { background: boolean }) => Promise<void>;
   readonly installedApplications?: () => Promise<readonly { id: string; name: string }[]>;
@@ -951,7 +954,9 @@ export class DesktopActionBackend implements ActionBackend {
     }
     if (!installed && requested !== 'notes')
       return refused('Application discovery is unavailable in this build.');
-    await this.#openApplication(installed ? application : requested);
+    await this.#openApplication(installed ? application : requested, {
+      background: this.#macBrowserAccess(),
+    });
     const mac = this.#macBrowserAccess();
     if (!mac) this.#resetComputerCapabilities();
     if (mac) await delay(350, undefined, { signal: request.context.signal });
@@ -1948,6 +1953,13 @@ export class DesktopActionBackend implements ActionBackend {
         ? await this.#stageDriveUpload(request, connectionId)
         : withoutKey(request.arguments, 'account_id');
     if (request.context.signal?.aborted) return refused('Action cancelled before execution.');
+    if (request.context.backgroundOnly && request.arguments.delivery === 'foreground')
+      return {
+        outcome: 'needs_foreground',
+        summary:
+          'This request is set to pause when foreground control is needed. No foreground input or opening was dispatched. Explain the blocker; the user can enable brief foreground control in Settings → Computer for a new request.',
+        reason: 'Background fallback is set to pause for this turn.',
+      };
     try {
       const prepared = await this.#cloud.prepareAction(
         {

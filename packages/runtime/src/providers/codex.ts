@@ -308,7 +308,11 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     options: ProviderSessionOptions,
     signal?: AbortSignal,
   ): Promise<ProviderSession> {
-    if (options.nativeTools === 'mac' && !options.baseInstructions?.trim())
+    const nativeMac = options.nativeTools === 'mac';
+    const macAssistant = nativeMac || options.nativeTools === 'mac-background';
+    const nativeDisabled =
+      options.nativeTools === 'disabled' || options.nativeTools === 'mac-background';
+    if (macAssistant && !options.baseInstructions?.trim())
       throw new Error('Native Mac sessions require the Mac assistant instructions.');
     const peer = await this.#peer();
     const inventory = await this.#readIsolationInventory(peer, options.workspace, signal);
@@ -321,29 +325,19 @@ export class CodexAppServerAdapter implements ProviderAdapter {
           cwd: options.workspace,
           model: options.model,
           developerInstructions: options.instructions,
-          ...(options.nativeTools === 'mac'
-            ? { baseInstructions: options.baseInstructions }
-            : {}),
+          ...(macAssistant ? { baseInstructions: options.baseInstructions } : {}),
           // Native Mac mode is the explicitly selected Notch-style host execution path.
           // Connected tools and background memory reviews keep their existing isolation.
           approvalPolicy:
-            options.nativeTools === 'mac' && options.nativeApproval !== 'auto'
-              ? 'untrusted'
-              : 'never',
-          sandbox:
-            options.nativeTools === 'mac'
-              ? 'danger-full-access'
-              : options.nativeTools === 'disabled'
-                ? 'read-only'
-                : 'workspace-write',
+            nativeMac && options.nativeApproval !== 'auto' ? 'untrusted' : 'never',
+          sandbox: nativeMac
+            ? 'danger-full-access'
+            : nativeDisabled
+              ? 'read-only'
+              : 'workspace-write',
           serviceName: 'sia',
           ...(this.#options.sessionEphemeral ? { ephemeral: true } : {}),
-          config: this.#isolationConfig(
-            inventory,
-            customProvider,
-            options.nativeTools === 'disabled',
-            options.nativeTools === 'mac',
-          ),
+          config: this.#isolationConfig(inventory, customProvider, nativeDisabled, nativeMac),
           dynamicTools: options.tools.map((tool) => ({
             name: tool.name,
             description: tool.description,
@@ -359,12 +353,9 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     if (!nativeId)
       throw isolationFailure('Codex did not create a verifiable isolated session.');
     try {
-      if (
-        options.nativeTools === 'disabled' &&
-        stringAt(result, ['sandbox', 'type']) !== 'readOnly'
-      )
+      if (nativeDisabled && stringAt(result, ['sandbox', 'type']) !== 'readOnly')
         throw new Error('Dynamic-tool-only session did not retain a read-only sandbox.');
-      if (options.nativeTools === 'mac') {
+      if (nativeMac) {
         if (stringAt(result, ['sandbox', 'type']) !== 'dangerFullAccess')
           throw new Error('Native Mac execution was not enabled.');
         const policy = options.nativeApproval === 'auto' ? 'never' : 'untrusted';
@@ -377,9 +368,9 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         nativeId,
         inventory,
         Boolean(customProvider),
-        options.nativeTools === 'disabled',
+        nativeDisabled,
         signal,
-        options.nativeTools === 'mac',
+        nativeMac,
       );
       if (options.history?.length) {
         await peer.request(
@@ -480,7 +471,9 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       queue: new AsyncQueue(),
       events: new EventFactory(this.id, session.threadId, input.turnId),
       nativeItems: new Map(),
-      mac: this.#sessionOptions.get(session.id)?.nativeTools === 'mac',
+      mac: ['mac', 'mac-background'].includes(
+        this.#sessionOptions.get(session.id)?.nativeTools ?? '',
+      ),
       nativeApproval: this.#sessionOptions.get(session.id)?.nativeApproval ?? 'ask',
       lastActivity: Date.now(),
       dynamicToolNames: this.#dynamicToolNamesBySession.get(session.id) ?? new Set(),

@@ -735,3 +735,39 @@ it('accepts bounded pixel gestures but rejects ambiguous or incomplete addresses
     parseActionArguments('computer_open_app', { application: '/tmp/program.app' }),
   ).toThrow();
 });
+
+it.each([
+  {
+    name: 'computer_action',
+    arguments: {
+      app_id: 'app',
+      window_id: 'window',
+      snapshot_id: 'snapshot',
+      action: 'key',
+      value: 'return',
+      delivery: 'foreground',
+    },
+  },
+  {
+    name: 'computer_open_url',
+    arguments: { url: 'https://example.com', delivery: 'foreground' },
+  },
+])('honors background-only policy before approval or dispatch for $name', async (action) => {
+  const backend = verifiedBackend();
+  const requestApproval = vi.fn(async () => ({ approved: true }));
+  const gateway = new ActionGateway({ backend, approvals: { requestApproval } });
+  const result = await gateway.invoke({
+    ...action,
+    context: { ...context, backgroundOnly: true },
+  });
+  expect(result.outcome).toBe('needs_foreground');
+  expect(backend.invoke).not.toHaveBeenCalled();
+  expect(requestApproval).not.toHaveBeenCalled();
+  const allowed = await gateway.invoke({
+    ...action,
+    context: { ...context, backgroundOnly: false },
+  });
+  expect(allowed.outcome).toBe('verified');
+  expect(requestApproval).toHaveBeenCalledOnce();
+  expect(backend.invoke).toHaveBeenCalledOnce();
+});

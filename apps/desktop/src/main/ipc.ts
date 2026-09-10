@@ -227,7 +227,11 @@ const inputSchemas = {
   'computer.setupMessages': z.undefined(),
   'settings.restartForOnboarding': z.undefined(),
   'computer.setAccessMode': z
-    .object({ mode: z.enum(['mac', 'connected']), background: z.boolean().optional() })
+    .object({
+      mode: z.enum(['mac', 'connected']),
+      background: z.boolean().optional(),
+      backgroundFallback: z.enum(['pause', 'foreground']).optional(),
+    })
     .strict(),
   'computer.setTrust': z.object({ trust: z.enum(['auto', 'ask']) }).strict(),
   'computer.setTrajectoryLog': z.object({ enabled: z.boolean() }).strict(),

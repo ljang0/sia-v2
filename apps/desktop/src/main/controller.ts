@@ -190,6 +190,7 @@ interface PersistedState {
     /** All eligible actions run without in-app approval only when explicitly set to 'auto'. */
     computerAccessMode?: 'mac' | 'connected';
     macBackgroundControl?: boolean;
+    macBackgroundFallback?: 'pause' | 'foreground';
     computerTrust?: 'auto' | 'ask';
     /** Eligible local trajectory log; Google Workspace connector turns are excluded. */
     trajectoryLog?: boolean;
@@ -821,6 +822,12 @@ export class DesktopController {
     return this.#state.preferences.macBackgroundControl === true;
   }
 
+  macBackgroundFallback(): 'pause' | 'foreground' {
+    return this.#state.preferences.macBackgroundFallback === 'foreground'
+      ? 'foreground'
+      : 'pause';
+  }
+
   computerTrust(): 'auto' | 'ask' {
     return this.#state.preferences.computerTrust ?? 'ask';
   }
@@ -1226,6 +1233,7 @@ export class DesktopController {
         ...(this.#chromeConnection ? { chromeConnection: this.#chromeConnection } : {}),
         accessMode: this.computerAccessMode(),
         backgroundControl: this.macBackgroundControl(),
+        backgroundFallback: this.macBackgroundFallback(),
         trust: this.computerTrust(),
         trajectoryLog: this.trajectoryLogEnabled(),
         ...(this.#trajectory ? { trajectoryDirectory: this.#trajectory.rootDirectory } : {}),
@@ -1701,6 +1709,9 @@ export class DesktopController {
         ).mode;
         const background = (input as BridgeRequestMap['computer.setAccessMode']).background;
         if (background !== undefined) this.#state.preferences.macBackgroundControl = background;
+        const fallback = (input as BridgeRequestMap['computer.setAccessMode'])
+          .backgroundFallback;
+        if (fallback !== undefined) this.#state.preferences.macBackgroundFallback = fallback;
         this.#pushToTalk?.setContextEnabled(
           this.#assistantLibrary.view().context || this.computerAccessMode() === 'mac',
           this.computerAccessMode() === 'mac',
@@ -5486,6 +5497,7 @@ export class DesktopController {
         const runtimeThread = {
           computerAccessMode: this.computerAccessMode(),
           macBackgroundControl: this.macBackgroundControl(),
+          macBackgroundFallback: this.macBackgroundFallback(),
           computerTrust: this.computerTrust(),
           ...(this.#assistantLibrary.isReview(thread.id)
             ? { nativeTools: 'disabled' as const }

@@ -90,7 +90,7 @@ describe('DesktopActionBackend computer boundary', () => {
       outcome: 'verified',
       summary: expect.stringContaining('opening Apple Notes'),
     });
-    expect(openApplication).toHaveBeenCalledWith('notes');
+    expect(openApplication).toHaveBeenCalledWith('notes', { background: false });
   });
 
   it('keeps a live computer grant usable for a slow model turn and expires it after ten minutes', async () => {
@@ -1957,7 +1957,9 @@ it('discovers and launches ordinary installed apps while rejecting sensitive app
     (await backend.invoke(request('computer_open_app', { application: '/tmp/evil.app' })))
       .outcome,
   ).toBe('refused');
-  expect(openApplication).toHaveBeenCalledExactlyOnceWith('com.apple.Preview');
+  expect(openApplication).toHaveBeenCalledExactlyOnceWith('com.apple.Preview', {
+    background: false,
+  });
 });
 
 it('binds pixel clicks and drags to fresh window images and rechecks protected controls before delivery', async () => {
@@ -2598,4 +2600,18 @@ it('keeps window tools out of the default native Mac route', async () => {
   const result = await backend.invoke(request('computer_list', {}));
   expect(result.outcome).toBe('refused');
   expect(cua.call).not.toHaveBeenCalled();
+});
+
+it('requests background application launch for the Mac window route', async () => {
+  const cua = fakeCua(async () => ({ apps: [], windows: [] }));
+  const openApplication = vi.fn(async () => undefined);
+  const backend = new DesktopActionBackend({
+    cua,
+    openApplication,
+    macBrowserAccess: () => true,
+    macBackgroundControl: () => true,
+  });
+  const result = await backend.invoke(request('computer_open_app', { application: 'notes' }));
+  expect(result.outcome).toBe('verified');
+  expect(openApplication).toHaveBeenCalledExactlyOnceWith('notes', { background: true });
 });

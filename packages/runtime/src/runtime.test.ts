@@ -1217,12 +1217,14 @@ describe('Meta streaming adapter', () => {
 
 describe('Codex library review isolation', () => {
   it.each([
-    { unsafe: false, normalizedExec: false },
-    { unsafe: false, normalizedExec: true },
-    { unsafe: true, normalizedExec: true },
+    { unsafe: false, normalizedExec: false, background: false },
+    { unsafe: false, normalizedExec: true, background: false },
+    { unsafe: true, normalizedExec: true, background: false },
+    { unsafe: false, normalizedExec: true, background: true },
+    { unsafe: true, normalizedExec: true, background: true },
   ])(
     'disables native tools and checks the shell gate with normalized execution flags (%j)',
-    async ({ unsafe, normalizedExec }) => {
+    async ({ unsafe, normalizedExec, background }) => {
       const peers = linkedPeers();
       let request: Record<string, unknown> | undefined;
       peers.server.onRequest(async (method, params) => {
@@ -1258,10 +1260,14 @@ describe('Codex library review isolation', () => {
         const start = adapter.createSession({
           ...sessionOptions,
           tools: [],
-          nativeTools: 'disabled',
+          nativeTools: background ? 'mac-background' : 'disabled',
+          ...(background ? { baseInstructions: 'Use only background window tools.' } : {}),
         });
         if (unsafe) await expect(start).rejects.toThrow('verification failed');
         else await expect(start).resolves.toMatchObject({ nativeId: 'review-native' });
+        if (background)
+          expect(request?.baseInstructions).toBe('Use only background window tools.');
+        else expect(request).not.toHaveProperty('baseInstructions');
         expect(request).toMatchObject({
           sandbox: 'read-only',
           approvalPolicy: 'never',

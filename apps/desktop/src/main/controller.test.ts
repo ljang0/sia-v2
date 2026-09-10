@@ -4877,8 +4877,14 @@ it('persists Use my Mac separately from action confirmations and avoids Chrome p
   const { controller, repository } = await createHarness();
   expect(controller.computerAccessMode()).toBe('mac');
   expect(controller.macBackgroundControl()).toBe(false);
+  expect(controller.macBackgroundFallback()).toBe('pause');
   expect(controller.computerTrust()).toBe('ask');
-  await controller.invoke('computer.setAccessMode', { mode: 'mac', background: true });
+  await controller.invoke('computer.setAccessMode', {
+    mode: 'mac',
+    background: true,
+    backgroundFallback: 'foreground',
+  });
+  await controller.invoke('computer.setAccessMode', { mode: 'mac' });
   expect(controller.snapshot().computer.backgroundControl).toBe(true);
   expect(controller.snapshot().computer.accessMode).toBe('mac');
   expect(controller.computerTrust()).toBe('ask');
@@ -4887,6 +4893,7 @@ it('persists Use my Mac separately from action confirmations and avoids Chrome p
   const restored = await createHarness({ repository });
   expect(restored.controller.computerAccessMode()).toBe('mac');
   expect(restored.controller.macBackgroundControl()).toBe(true);
+  expect(restored.controller.macBackgroundFallback()).toBe('foreground');
   expect(restored.controller.computerTrust()).toBe('ask');
   await restored.controller.shutdown();
 });

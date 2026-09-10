@@ -63,8 +63,13 @@ export async function installedApplications(): Promise<InstalledApplication[]> {
     a.name.localeCompare(b.name),
   );
 }
-export async function launchInstalledApplication(id: string): Promise<void> {
+export async function launchInstalledApplication(
+  id: string,
+  options: { background: boolean },
+): Promise<void> {
   const app = (await installedApplications()).find((app) => app.id === id);
   if (!app) throw new Error('This app is no longer installed. Refresh the application list.');
-  await exec('/usr/bin/open', ['-a', app.path], { timeout: 10000 });
+  await exec('/usr/bin/open', [...(options.background ? ['-g'] : []), '-a', app.path], {
+    timeout: 10000,
+  });
 }

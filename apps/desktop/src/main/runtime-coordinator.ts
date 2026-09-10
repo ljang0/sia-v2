@@ -37,6 +37,7 @@ export interface RuntimeThreadConfig {
   nativeTools?: 'disabled';
   computerAccessMode?: 'mac' | 'connected';
   macBackgroundControl?: boolean;
+  macBackgroundFallback?: 'pause' | 'foreground';
   computerTrust?: 'ask' | 'auto';
   id: string;
   provider: ProviderId;
@@ -64,6 +65,7 @@ export interface RuntimeReviewInput {
 }
 
 interface ActiveTurnContext {
+  backgroundOnly?: boolean;
   allowedTools?: ReadonlySet<string>;
   sessionId: string;
   threadId: string;
@@ -270,7 +272,8 @@ export class RuntimeCoordinator {
     // The controller releases the turn lease on success, cancellation and failure.
     if (mac && input.lease)
       await input.lease.acquire({ kind: 'global_focus', id: 'foreground' }, signal);
-    const nativeContext = mac ? await this.#macContext?.() : undefined;
+    const nativeContext =
+      mac && !input.thread.macBackgroundControl ? await this.#macContext?.() : undefined;
     const state = await this.#sessionFor(input.thread, signal);
     for await (const event of this.#runSession(
       input.thread,
@@ -336,6 +339,9 @@ export class RuntimeCoordinator {
       turnId,
       provider: thread.provider,
       workspace: thread.workspace,
+      ...(thread.computerAccessMode === 'mac' && thread.macBackgroundControl
+        ? { backgroundOnly: thread.macBackgroundFallback !== 'foreground' }
+        : {}),
       ...(thread.computerAccessMode === 'mac' && thread.nativeTools !== 'disabled'
         ? { allowedTools: new Set(macExecutionTools(thread.macBackgroundControl)) }
         : {}),
@@ -477,6 +483,7 @@ export class RuntimeCoordinator {
       thread.computerAccessMode,
       thread.computerTrust,
       thread.macBackgroundControl,
+      thread.macBackgroundFallback,
       sessionTools.map(({ name }) => name),
     ]);
     const existing = this.#sessions.get(thread.id);
@@ -520,9 +527,14 @@ export class RuntimeCoordinator {
       {
         ...(mac
           ? {
-              nativeTools: 'mac' as const,
+              nativeTools: thread.macBackgroundControl
+                ? ('mac-background' as const)
+                : ('mac' as const),
               nativeApproval: thread.computerTrust ?? 'ask',
-              baseInstructions: macExecutionGuidance(thread.macBackgroundControl),
+              baseInstructions: macExecutionGuidance(
+                thread.macBackgroundControl,
+                thread.macBackgroundFallback,
+              ),
             }
           : thread.nativeTools
             ? { nativeTools: thread.nativeTools }

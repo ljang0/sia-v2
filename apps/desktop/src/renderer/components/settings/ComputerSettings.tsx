@@ -28,7 +28,11 @@ export function ComputerSettings({
   onRequestPermissions(): Promise<void>;
   onRequestAutomation?(app: AutomationApp): Promise<void>;
   onRefreshPermissions?(): Promise<void>;
-  onSetComputerAccessMode?(mode: 'mac' | 'connected', background?: boolean): Promise<void>;
+  onSetComputerAccessMode?(
+    mode: 'mac' | 'connected',
+    background?: boolean,
+    backgroundFallback?: 'pause' | 'foreground',
+  ): Promise<void>;
   onSetComputerTrust(trust: 'auto' | 'ask'): Promise<void>;
   onSetTrajectoryLog(enabled: boolean): Promise<void>;
   onRevealTrajectories(): Promise<void>;
@@ -77,8 +81,10 @@ export function ComputerSettings({
           computer={snapshot.computer}
           disabled={Boolean(pending)}
           showBackgroundOption
-          change={(mode, background) =>
-            void run('computer', () => onSetComputerAccessMode(mode, background))
+          change={(mode, background, backgroundFallback) =>
+            void run('computer', () =>
+              onSetComputerAccessMode(mode, background, backgroundFallback),
+            )
           }
         />
       ) : null}
@@ -207,7 +213,9 @@ export function ComputerSettings({
                 ? 'On — Sia can click, type, send, post, upload, and schedule without asking for each action.'
                 : 'Off — changes pause for confirmation. Searches, reads, and verification continue automatically.'}{' '}
               {snapshot.computer.accessMode === 'mac'
-                ? 'Native commands run with full local access. macOS permissions still apply; complete sign-ins yourself. Changes to this setting apply to the next task.'
+                ? snapshot.computer.backgroundControl
+                  ? 'Background fallback is a separate choice. Bypass does not override Pause and tell me or enable native commands.'
+                  : 'Native commands run with full local access. macOS permissions still apply; complete sign-ins yourself. Changes to this setting apply to the next task.'
                 : 'macOS permissions and protected fields still apply. Executable skills still ask for source review.'}
             </p>
           </div>
@@ -269,8 +277,9 @@ export function ComputerSettings({
         </div>
       </div>
       <div className={styles.settingsNote}>
-        Sia restores your previous app after each action. Sensitive surfaces (password fields,
-        private windows, security prompts) are always off-limits, whichever mode is on.
+        {snapshot.computer.accessMode === 'mac' && !snapshot.computer.backgroundControl
+          ? 'Native Mac control can bring apps forward. Complete sign-ins and macOS permission prompts yourself.'
+          : 'Window actions follow your foreground choice. macOS permissions and protected surfaces still apply.'}
       </div>
     </SettingsSectionHeader>
   );

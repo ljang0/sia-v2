@@ -55,6 +55,8 @@ export interface ActionContext {
   readonly turnId: string;
   readonly provider: ProviderId;
   readonly workspace: string;
+  /** Host-pinned per turn; model arguments cannot authorize foreground fallback. */
+  readonly backgroundOnly?: boolean;
   readonly lease?: TurnLease;
   readonly signal?: AbortSignal;
 }
@@ -287,6 +289,14 @@ export class ActionGateway {
     };
     const hardSafety = defaultSafetyDecision(request);
     if (hardSafety?.decision === 'deny') return refused(hardSafety.reason);
+
+    if (request.context.backgroundOnly && request.arguments.delivery === 'foreground')
+      return {
+        outcome: 'needs_foreground',
+        summary:
+          'This request is set to pause when foreground control is needed. No foreground input or opening was dispatched. Explain the blocker; the user can enable brief foreground control in Settings → Computer for a new request.',
+        reason: 'Background fallback is set to pause for this turn.',
+      };
 
     const authorization = await this.#policy.evaluate(request);
     let approvedRequestId: string | undefined;

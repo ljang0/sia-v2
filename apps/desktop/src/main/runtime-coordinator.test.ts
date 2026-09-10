@@ -32,11 +32,13 @@ describe('Use my Mac native execution', () => {
       },
       async *sendTurn(session, input) {
         passes++;
-        if (created.at(-1)?.nativeTools === 'mac') {
+        if (['mac', 'mac-background'].includes(created.at(-1)?.nativeTools ?? '')) {
           expect(input.outputSchema).toMatchObject({
             required: expect.arrayContaining(['response', 'success']),
           });
-          expect(input.text).toContain('Screen geometry');
+          if (created.at(-1)?.nativeTools === 'mac')
+            expect(input.text).toContain('Screen geometry');
+          else expect(input.text).not.toContain('Screen geometry');
           for (const name of [
             'browser_tabs',
             'mac_automation',
@@ -142,20 +144,34 @@ describe('Use my Mac native execution', () => {
         expect.arrayContaining(['computer_list', 'computer_snapshot', 'computer_action']),
       );
       expect(created[1]?.baseInstructions).toContain('EXPERIMENTAL WINDOW CONTROL');
+      expect(created[1]?.nativeTools).toBe('mac-background');
+      expect(created[1]?.baseInstructions).not.toContain('screencapture');
       expect(JSON.stringify(events)).toContain('The document is ready.');
       expect(JSON.stringify(events)).not.toContain('success');
       expect(backend.invoke).toHaveBeenCalledExactlyOnceWith(
-        expect.objectContaining({ name: 'computer_list', arguments: {} }),
+        expect.objectContaining({
+          name: 'computer_list',
+          arguments: {},
+          context: expect.objectContaining({ backgroundOnly: true }),
+        }),
       );
       thread.computerTrust = 'ask';
       await run();
       expect(created[2]?.nativeApproval).toBe('ask');
+      thread.macBackgroundFallback = 'foreground';
+      await run();
+      expect(created[3]?.nativeTools).toBe('mac-background');
+      expect(backend.invoke).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          context: expect.objectContaining({ backgroundOnly: false }),
+        }),
+      );
       thread.computerAccessMode = 'connected';
       await run();
-      expect(created[3]?.nativeTools).toBeUndefined();
-      expect(created[3]?.baseInstructions).toBeUndefined();
-      expect(created[3]?.tools.map((t) => t.name)).toContain('browser_tabs');
-      expect(created[3]?.tools.map((t) => t.name)).not.toContain('computer_task_complete');
+      expect(created[4]?.nativeTools).toBeUndefined();
+      expect(created[4]?.baseInstructions).toBeUndefined();
+      expect(created[4]?.tools.map((t) => t.name)).toContain('browser_tabs');
+      expect(created[4]?.tools.map((t) => t.name)).not.toContain('computer_task_complete');
     } finally {
       await runtime.dispose();
     }

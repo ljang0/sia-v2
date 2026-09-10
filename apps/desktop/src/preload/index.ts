@@ -154,10 +154,11 @@ const api: DesktopBridgeApi = {
     requestAutomation: (app) => invoke('computer.requestAutomation', { app }),
     openMessages: () => invoke('computer.openMessages', undefined),
     setupMessages: () => invoke('computer.setupMessages', undefined),
-    setAccessMode: (mode, background) =>
+    setAccessMode: (mode, background, backgroundFallback) =>
       invoke('computer.setAccessMode', {
         mode,
         ...(background === undefined ? {} : { background }),
+        ...(backgroundFallback === undefined ? {} : { backgroundFallback }),
       }),
     setTrust: (trust) => invoke('computer.setTrust', { trust }),
     setTrajectoryLog: (enabled) => invoke('computer.setTrajectoryLog', { enabled }),

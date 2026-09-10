@@ -65,7 +65,11 @@ interface SettingsProps {
   onRequestPermissions(): Promise<void>;
   onRequestAutomation?(app: AutomationApp): Promise<void>;
   onRefreshPermissions?(): Promise<void>;
-  onSetComputerAccessMode?(mode: 'mac' | 'connected', background?: boolean): Promise<void>;
+  onSetComputerAccessMode?(
+    mode: 'mac' | 'connected',
+    background?: boolean,
+    backgroundFallback?: 'pause' | 'foreground',
+  ): Promise<void>;
   onSetComputerTrust(trust: 'auto' | 'ask'): Promise<void>;
   onSetTrajectoryLog(enabled: boolean): Promise<void>;
   onRevealTrajectories(): Promise<void>;

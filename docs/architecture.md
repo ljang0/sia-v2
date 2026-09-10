@@ -167,19 +167,26 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   **Background controls (experimental)** in Settings → Computer is separately persisted and off by
   default. Opting in adds built-in CUA `computer_list`, `computer_snapshot`, `computer_action`,
   `computer_open_app` and `computer_open_url` through ActionGateway and changes the session prompt.
-  The experimental prompt directs GUI actions exclusively through window tools, with no mid-task
-  fallback to global native input. Native shell remains available for file work; this separation is
-  instructed rather than a command-level sandbox. Window actions default to background delivery;
-  unsupported input returns `needs_foreground` without automatic input replay. A fresh observation
-  precedes any explicit foreground attempt in the same window. URL opening requests `activate:false`
-  by default; apps may still raise a window. No all-app background guarantee is made. Browser snapshots
+  It uses a distinct `mac-background` Codex session with verified native-tool disablement and a
+  read-only sandbox. Its standalone window-control prompt contains no native command instructions;
+  foreground native context is not injected. Native scripts and arbitrary file output require the
+  default native route. Mac response formatting and the progress watchdog remain active.
+  **Pause and tell me** is the default fallback. RuntimeCoordinator pins `backgroundOnly` in the
+  host's turn context; ActionGateway rejects explicit foreground input/opening before approval or
+  dispatch. A model cannot change that context with tool arguments. The optional **Allow brief
+  foreground control** setting permits an explicit foreground attempt after fresh observation,
+  with ordinary action approvals still applying. Changing the fallback creates a new session on
+  the next request and cannot relax a running turn. No automatic input replay occurs.
+  App launching uses `open -g`; URL opening requests `activate:false` by default. These avoid
+  requesting activation, but apps may still raise their own windows. No all-app background guarantee
+  is made. Browser snapshots
   can require `expected_url`, including query filters, and refuse a mismatched page before returning
   content. `source_url` attributes the observed page without exposing query parameters or fragments.
   Native commands use Codex's execution boundary, **not** the
   per-window ActionGateway. This is an explicit architecture exception for the requested native
   Mac mode, not a claim that arbitrary commands can be confined to approved window capabilities.
   Confirmations use Codex `untrusted`; the user's existing full-bypass selection uses `never`.
-  Mode/trust/background-control changes recreate the session on the next task, preserving encrypted
+  Mode/trust/background-control/fallback changes recreate the session on the next task, preserving encrypted
   Sia history.
 
   Notch's `ScreenContextProvider.swift` is copied with attribution and adds a 600 ms capture

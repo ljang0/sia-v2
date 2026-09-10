@@ -10,7 +10,11 @@ export function ComputerAccessMode({
 }: {
   computer: RendererSnapshot['computer'];
   disabled?: boolean | undefined;
-  change(mode: 'mac' | 'connected', background?: boolean): void;
+  change(
+    mode: 'mac' | 'connected',
+    background?: boolean,
+    backgroundFallback?: 'pause' | 'foreground',
+  ): void;
   showBackgroundOption?: boolean;
 }) {
   return (
@@ -46,14 +50,35 @@ export function ComputerAccessMode({
             Background controls (experimental)
           </label>
           <p className={styles.settingsNote}>
-            Off by default. Uses controls tied to individual windows. Some apps and gestures are
-            unsupported; turn this off for normal Mac control. Applies to the next request.
+            Uses controls tied to individual windows. Native shell commands are disabled in this
+            mode so they cannot take over your screen. Applies to the next request.
+          </p>
+          <label>
+            If background control cannot finish{' '}
+            <select
+              className={modeStyles.select}
+              aria-label="Background fallback"
+              value={computer.backgroundFallback ?? 'pause'}
+              disabled={disabled || !computer.backgroundControl}
+              onChange={(event) =>
+                change('mac', true, event.target.value as 'pause' | 'foreground')
+              }
+            >
+              <option value="pause">Pause and tell me</option>
+              <option value="foreground">Allow brief foreground control</option>
+            </select>
+          </label>
+          <p className={styles.settingsNote}>
+            Sia requests background input and opening. Apps may still raise their own windows.
+            Some controls cannot work without foreground access.
           </p>
         </div>
       ) : null}
       <p className={styles.settingsNote}>
         {computer.accessMode === 'mac'
-          ? 'Sia uses native commands, AppleScript, files and screen images, like Notch. It uses the ordinary app interface and may bring apps forward. No Chrome connection is required. Full bypass runs commands without a workspace sandbox or per-action prompts. Allow Accessibility, Screen Recording and app Automation; complete sign-ins yourself.'
+          ? computer.backgroundControl
+            ? 'Sia uses the existing apps through window controls. No Chrome attachment is needed. Executable scripts and arbitrary file output need normal native control. Complete sign-ins and macOS permission prompts yourself.'
+            : 'Sia uses native commands, AppleScript, files and screen images, like Notch. It uses the ordinary app interface and may bring apps forward. No Chrome connection is required. Full bypass runs commands without a workspace sandbox or per-action prompts. Allow Accessibility, Screen Recording and app Automation; complete sign-ins yourself.'
           : 'Connect Chrome or individual services for structured access. Choose Use my Mac to work through existing browser windows without attaching Chrome.'}
       </p>
     </div>
