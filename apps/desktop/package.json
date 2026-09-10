@@ -18,7 +18,7 @@
     "package:mac:arm64:dir": "rimraf release && pnpm cloud-config:prepare && pnpm icon:build && pnpm -w build && electron-builder --mac --arm64 --dir --config.mac.identity=null --config.mac.notarize=false && node scripts/verify-packaged-app.mjs --arch=arm64 --signing=unsigned",
     "package:mac:dir": "rimraf release && pnpm cloud-config:prepare && pnpm icon:build && pnpm -w build && electron-builder --mac --universal --dir --config.mac.identity=null --config.mac.notarize=false && node scripts/verify-packaged-app.mjs --arch=universal --signing=unsigned",
     "preview": "node scripts/preview.mjs",
-    "prebuild": "pnpm licenses:build && pnpm native:build",
+    "prebuild": "pnpm licenses:build && pnpm native:build && pnpm remote:build",
     "test": "pnpm native:test && vitest run",
     "test:e2e": "pnpm -w build && playwright test",
     "test:e2e:parity": "pnpm -w build && playwright test parity/parity.spec.ts",
@@ -28,8 +28,10 @@
     "test:e2e:real:capabilities": "pnpm -w build && playwright test e2e/real-capabilities.spec.ts",
     "typecheck": "tsc --noEmit",
     "native:build": "node scripts/build-voice-helper.mjs",
-    "predev": "pnpm native:build && node scripts/prepare-dev-electron.mjs",
-    "native:test": "node --test scripts/prepare-dev-electron.test.mjs && node scripts/test-voice-helper.mjs"
+    "predev": "pnpm native:build && pnpm remote:build && node scripts/prepare-dev-electron.mjs",
+    "native:test": "node --test scripts/prepare-dev-electron.test.mjs && node scripts/test-voice-helper.mjs",
+    "remote:build": "vite build --config vite.remote.config.ts",
+    "test:remote": "pnpm remote:build && playwright test --config playwright.remote.config.ts"
   },
   "dependencies": {
     "@trycua/cua-driver": "0.21.0",
@@ -138,7 +140,11 @@
           "NSAllowsLocalNetworking": false
         },
         "NSSpeechRecognitionUsageDescription": "Sia uses on-device speech recognition when you choose dictation.",
-        "NSAppleEventsUsageDescription": "Sia uses Automation to control Mac apps for your tasks, following your selected action approval mode."
+        "NSAppleEventsUsageDescription": "Sia uses Automation to control Mac apps for your tasks, following your selected action approval mode.",
+        "NSLocalNetworkUsageDescription": "Sia connects to your phone on the same Wi-Fi when you enable Phone remote.",
+        "NSBonjourServices": [
+          "_http._tcp"
+        ]
       },
       "target": [
         "dmg",

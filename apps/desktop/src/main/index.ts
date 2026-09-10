@@ -1,5 +1,7 @@
 import { BrowserWindowService } from './browser-window.js';
 import { AutomationPermissionService } from './automation-permissions.js';
+import { PhoneRemote } from './phone-remote.js';
+import { remoteQR, advertiseRemote } from './phone-remote-native.js';
 import { createCommandLauncher } from './command-launcher.js';
 import { runMacAutomation } from './mac-automation.js';
 import { installedApplications, launchInstalledApplication } from './application-catalog.js';
@@ -8,6 +10,7 @@ import { basename, join, resolve } from 'node:path';
 
 import {
   app,
+  clipboard,
   BrowserWindow,
   dialog,
   ipcMain,
@@ -68,6 +71,7 @@ const PRODUCTION_HEADER_CSP = PRODUCTION_CSP.replace(
   "script-src 'self'",
   `script-src 'self' ${CSP_BOOTSTRAP_HASH}`,
 );
+let phoneRemote: PhoneRemote | undefined;
 let commandLauncher: ReturnType<typeof createCommandLauncher> | undefined;
 let mainWindow: BrowserWindow | undefined;
 let controller: DesktopController | undefined;
@@ -97,6 +101,8 @@ if (!gotLock) {
   app.on('activate', showOrCreateApplicationWindow);
 
   app.on('before-quit', (event) => {
+    phoneRemote?.dispose();
+    phoneRemote = undefined;
     commandLauncher?.dispose();
     commandLauncher = undefined;
     unsubscribeDockBadge?.();
@@ -458,12 +464,27 @@ async function performApplicationCreation(): Promise<void> {
       isFocused: () =>
         Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()),
     });
+    const helperPath = app.isPackaged
+      ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
+      : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper');
+    phoneRemote = new PhoneRemote({
+      controller: activeController,
+      repository,
+      assets: join(import.meta.dirname, '../remote'),
+      qr: (url) => remoteQR(helperPath, url),
+      copy: (url) => clipboard.writeText(url),
+      ...(!fakeServices
+        ? { advertise: (port: number) => advertiseRemote(helperPath, port) }
+        : {}),
+    });
+    activeController.attachPhoneRemote((command) => phoneRemote!.configure(command));
     let voiceAsleep = false;
     let voiceScreenLocked =
       process.platform === 'darwin' && powerMonitor.getSystemIdleState(1) === 'locked';
     const updateVoiceSuspension = () => {
       activeController.suspendVoice(voiceAsleep || voiceScreenLocked);
       commandLauncher?.suspend(voiceAsleep || voiceScreenLocked);
+      phoneRemote?.suspend(voiceAsleep || voiceScreenLocked);
     };
     // Waking the Mac must not re-enable capture while its screen remains locked.
     powerMonitor.on('suspend', () => {
@@ -483,6 +504,7 @@ async function performApplicationCreation(): Promise<void> {
       updateVoiceSuspension();
     });
     updateVoiceSuspension();
+    await phoneRemote.initialize();
     controller = activeController;
   }
   const activeController = controller;

@@ -1,5 +1,13 @@
 # Native voice helper
 
+`PhoneRemote.swift` adds two independent, non-voice helper modes. `--remote-qr` accepts a bounded
+private pairing URL on stdin and returns a Core Image QR PNG on stdout (adapted from NotchApp).
+`--remote-discovery <port>` advertises Sia with NetService and browses `_http._tcp` with NWBrowser,
+matching Notch's Local Network permission trigger. It stops on parent EOF. Neither mode installs
+an event tap, captures a microphone, or starts Mac control. They run only when Phone remote is
+enabled; there are no startup computer-use probes. The parent HTTP server and mobile bundle live
+in `src/main/phone-remote*.ts` and `src/mobile`.
+
 Adapted at the repository owner's request from
 [romirthedev/notch](https://github.com/romirthedev/notch/tree/6c74c30c31a2ce31a852209eba86f28c8371409e):
 

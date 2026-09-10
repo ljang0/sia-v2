@@ -213,6 +213,20 @@ final class VoiceHelper {
 
 let application = NSApplication.shared
 application.setActivationPolicy(.accessory)
+if CommandLine.arguments == [CommandLine.arguments[0], "--remote-qr"] {
+    remoteQRCode()
+    exit(0)
+}
+if CommandLine.arguments.contains("--remote-discovery") {
+    guard CommandLine.arguments.count == 3, let port = Int32(CommandLine.arguments[2]), port > 0, port <= 65535 else { exit(2) }
+    let discovery = PhoneRemoteDiscovery(port: port)
+    DispatchQueue.global().async {
+        while !FileHandle.standardInput.availableData.isEmpty {}
+        DispatchQueue.main.async { discovery.stop(); application.terminate(nil) }
+    }
+    application.run()
+    exit(0)
+}
 if CommandLine.arguments == [CommandLine.arguments[0], "--mac-context"] {
     let displays = NSScreen.screens.enumerated().map { index, screen -> [String: Any] in
         let frame = screen.frame

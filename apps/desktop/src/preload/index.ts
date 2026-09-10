@@ -27,6 +27,7 @@ const invoke = <M extends BridgeMethod>(
 };
 
 const api: DesktopBridgeApi = {
+  phoneRemote: (input) => invoke('phone.remote', input),
   assistantLibrary: (input) => invoke('assistant.library', input),
   bootstrap: () => invoke('bootstrap', undefined),
   agents: {

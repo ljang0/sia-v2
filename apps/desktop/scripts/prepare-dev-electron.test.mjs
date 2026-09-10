@@ -37,10 +37,12 @@ test(
         'NSMicrophoneUsageDescription',
         'NSAccessibilityUsageDescription',
         'NSAppleEventsUsageDescription',
+        'NSLocalNetworkUsageDescription',
       ]) {
         assert.equal(result[key], descriptions[key]);
         assert.ok(result[key].length > 0);
       }
+      assert.deepEqual(result.NSBonjourServices, ['_http._tcp']);
       assert.equal(result.CFBundleIdentifier, 'com.github.Electron');
       const first = readFileSync(plist, 'utf8');
       prepareDevElectron(executable, descriptions);

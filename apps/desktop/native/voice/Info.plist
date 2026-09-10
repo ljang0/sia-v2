@@ -7,5 +7,7 @@
 <key>NSAccessibilityUsageDescription</key><string>Sia detects holding the Fn key when you enable push-to-talk.</string>
 <key>NSSpeechRecognitionUsageDescription</key><string>Sia transcribes speech on this Mac when you choose dictation.</string>
 <key>NSAppleEventsUsageDescription</key><string>Sia requests Automation access for native app control, keyboard input and your browser during setup.</string>
+<key>NSLocalNetworkUsageDescription</key><string>Sia connects to your phone on the same Wi-Fi when you enable Phone remote.</string>
+<key>NSBonjourServices</key><array><string>_http._tcp</string></array>
 <key>LSUIElement</key><true/>
 </dict></plist>

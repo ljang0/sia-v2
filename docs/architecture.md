@@ -187,6 +187,30 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   It preserves drafts and rejects concurrent connections or stale/active/archived requests.
   No model turn starts until the user chooses a window and the host verifies an HTTP(S) grant.
 
+- **Phone remote** is an optional, separate local web surface built into `out/remote`.
+  `PhoneRemote` ports Notch's `/t/<token>/` command/state/cancel/outbox/vault/note flow, with
+  a Core Image QR and Bonjour helper. Settings uses one validated `phone.remote` preload route;
+  the HTTP server exposes no generic IPC, shell, approval, credential or filesystem API.
+  It projects the chosen agent's current conversation into bounded text/progress snapshots;
+  commands and cancellation call the existing controller, preserving the pinned execution route,
+  action gateway where applicable, native Mac context, and selected approval mode. Task sessions
+  reject stale cancel/follow-up requests, and request IDs deduplicate command retries.
+  The 256-bit pairing token and enable preference use the encrypted repository. The listener
+  binds a private LAN IPv4 address on port 8738, admits same-subnet clients only, validates Host
+  and Origin, limits auth failures/body size/connections, sends no-store/no-referrer/CSP headers,
+  and never logs its private URL. Rotation invalidates prior links. Account access is rechecked
+  before requests and after asynchronous reads; lock, sleep and shutdown close the listener.
+  Interface changes rebind it without launching applications or a model. Enable is opt-in.
+  Output downloads must be named in the current conversation, stay in SiaOutbox, have no final
+  symlink, and are bounded to 20 MB and forced to inert attachments. Native skill reads stay in
+  the selected workspace's `.sia-mac/skills`, reject symlinks and are bounded to 60 small scripts.
+  The memory graph reads the selected agent's encrypted library/journal and those scripts.
+  Like Notch's Wi-Fi mode, this is HTTP, not a cloud relay or encrypted remote desktop. The UI
+  explains trusted Wi-Fi, link privacy, keyboard dictation and awake/unlocked requirements.
+  Sia retains its model/permission boundaries; Notch's Claude MCP permission endpoint and
+  Tailscale address advertisement are not part of this same-Wi-Fi port. The phone stores only
+  recent prompts locally, and offers a control to clear them. It never stores provider credentials.
+
 - First-run guidance is gated by the same release sign-in check as the workspace. Its progress
   lives in encrypted desktop preferences, and starter creation uses `agents.save` plus the normal
   catalog/resolver and private workspace path. The guide records its agent and next step in the

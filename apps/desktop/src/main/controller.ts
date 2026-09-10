@@ -676,6 +676,19 @@ export class DesktopController {
     return true;
   }
 
+  #phoneRemote: import('../shared/phone-remote.js').PhoneRemoteApi | undefined;
+  attachPhoneRemote(handler: import('../shared/phone-remote.js').PhoneRemoteApi): void {
+    this.#phoneRemote = handler;
+  }
+  remoteAccessAllowed(): boolean {
+    return (
+      !this.#shuttingDown &&
+      !this.#accountDeletionInProgress &&
+      !this.#signOutInProgress &&
+      !this.#releaseAccessLocked()
+    );
+  }
+
   #launcherRegistered = false;
   setLauncherRegistered(registered: boolean): void {
     this.#launcherRegistered = registered;
@@ -1329,6 +1342,11 @@ export class DesktopController {
     switch (method) {
       case 'bootstrap':
         return this.snapshot() as BridgeResultMap[M];
+      case 'phone.remote':
+        if (!this.#phoneRemote) throw new Error('Phone remote is unavailable in this build.');
+        return (await this.#phoneRemote(
+          input as BridgeRequestMap['phone.remote'],
+        )) as BridgeResultMap[M];
       case 'agents.save':
         return (await this.#saveAgent(
           input as BridgeRequestMap['agents.save'],

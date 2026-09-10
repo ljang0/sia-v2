@@ -90,6 +90,29 @@ private release links.
 If a sign-in wall is bypassed, a secret appears, an unapproved side effect occurs, or account deletion
 reports success before cloud completion, stop testing and notify the pilot owner immediately.
 
+## Optional phone remote
+
+In **Settings → Phone remote**, choose an assistant and enable remote access. If macOS asks for
+**Local Network**, choose **Allow**. Connect your phone to the same Wi-Fi, scan the QR code with
+its camera, and open the private link. No phone app, connector, or additional account is required.
+The page uses Sia's desktop styling and lets you send/follow up, watch progress, stop the current
+task, download results from SiaOutbox (up to 20 MB), and explore the selected agent's memories,
+journal, workflows and saved scripts. **New chat** clears the remote view without deleting the
+Mac's history. Your phone can also follow the selected agent's current desktop/Fn conversation.
+
+Phone requests use the assistant's existing Codex route and the Mac's current **Use my Mac** /
+**Connected apps** and **Full bypass** / **Ask first** settings. Approve pending computer actions
+on the Mac. Dictate with your phone's keyboard microphone; browser speech APIs usually require
+HTTPS, while this Notch-style local link uses HTTP. Keep the link private and use trusted Wi-Fi:
+the local traffic is not encrypted. **Create a new link** revokes old links; **Turn off remote**
+closes the listener. The listener binds a private LAN address on port 8738 and accepts only that
+subnet. It stops on sleep/lock, follows network changes, and resumes when the Mac is available.
+Sia must remain open and the Mac awake and unlocked. Scan again after a Wi-Fi address change.
+Guest/campus Wi-Fi that isolates devices may prevent pairing; use a network that permits peers.
+
+`pnpm --filter @sia/desktop test:remote` runs the isolated phone-browser checks with simulated
+tasks. It does not launch Electron, call a model, move the cursor, or open host apps.
+
 ## Optional Fn push-to-talk
 
 On macOS, enable Mac voice in **Settings → Voice**, choose the agent for background voice

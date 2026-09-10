@@ -11,6 +11,8 @@
   "include": [
     "electron.vite.config.ts",
     "playwright.config.ts",
+    "playwright.remote.config.ts",
+    "vite.remote.config.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
     "tests/**/*.ts"

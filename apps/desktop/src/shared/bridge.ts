@@ -566,6 +566,7 @@ export interface ResolveApprovalInput {
 }
 
 export interface BridgeRequestMap {
+  'phone.remote': import('./phone-remote.js').PhoneRemoteCommand;
   'assistant.library': import('./assistant-library.js').AssistantLibraryCommand;
   bootstrap: undefined;
   'agents.save': SaveAgentInput;
@@ -681,6 +682,7 @@ export interface BridgeRequestMap {
 }
 
 export interface BridgeResultMap {
+  'phone.remote': import('./phone-remote.js').PhoneRemoteSettings;
   'assistant.library': import('./assistant-library.js').AssistantLibraryView;
   bootstrap: DesktopSnapshot;
   'agents.save': { agentId: string; snapshot: DesktopSnapshot };
@@ -807,6 +809,7 @@ export type DesktopPushEvent =
   { type: 'snapshot'; snapshot: DesktopSnapshot } | { type: 'fatal'; error: BridgeErrorShape };
 
 export interface DesktopBridgeApi {
+  phoneRemote: import('./phone-remote.js').PhoneRemoteApi;
   assistantLibrary(
     input: BridgeRequestMap['assistant.library'],
   ): Promise<BridgeResultMap['assistant.library']>;

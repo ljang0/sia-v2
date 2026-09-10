@@ -1,3 +1,4 @@
+import { phoneRemoteCommand } from '../shared/phone-remote.js';
 import { automationAppSchema } from '../shared/mac-permissions.js';
 import type { BrowserWindow, IpcMain } from 'electron';
 import { z } from 'zod';
@@ -23,6 +24,7 @@ const harnessId = z
   .regex(/^[a-z][a-z0-9_]*$/);
 
 const inputSchemas = {
+  'phone.remote': phoneRemoteCommand,
   'assistant.library': assistantLibraryCommand,
   bootstrap: z.undefined(),
   'agents.save': z

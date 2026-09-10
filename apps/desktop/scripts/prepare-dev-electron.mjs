@@ -19,6 +19,7 @@ export function prepareDevElectron(executable, descriptions) {
     'NSMicrophoneUsageDescription',
     'NSAccessibilityUsageDescription',
     'NSAppleEventsUsageDescription',
+    'NSLocalNetworkUsageDescription',
   ]) {
     const value = descriptions[key];
     if (typeof value !== 'string' || !value.trim())
@@ -29,6 +30,17 @@ export function prepareDevElectron(executable, descriptions) {
       key,
       '-string',
       value,
+      plist,
+    ]);
+  }
+  if (
+    JSON.stringify(current.NSBonjourServices) !== JSON.stringify(descriptions.NSBonjourServices)
+  ) {
+    execFileSync('/usr/bin/plutil', [
+      Object.hasOwn(current, 'NSBonjourServices') ? '-replace' : '-insert',
+      'NSBonjourServices',
+      '-json',
+      JSON.stringify(descriptions.NSBonjourServices),
       plist,
     ]);
   }

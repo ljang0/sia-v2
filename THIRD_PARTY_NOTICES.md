@@ -12,6 +12,14 @@ Sia interoperates with, but does not bundle, the separately installed OpenAI Cod
 
 ## Notch native assistant components
 
+Phone remote ports `Remote/RemoteControlServer.swift`'s token-addressed LAN HTTP flow,
+mobile polling/composer/recents/keyboard behavior, vault wikilinks, and graph force constants.
+`native/voice/PhoneRemote.swift` adapts Notch's Core Image QR generation and Bonjour discovery.
+Sia substitutes its typed controller dispatch, encrypted pairing records, own library and outbox,
+and actual desktop font, colors, mark and Markdown renderer. The mobile UI is a separate local
+bundle; it does not expose Electron IPC. Pairing tokens are stronger, links can be revoked, and
+requests are bounded, deduplicated, origin-checked and limited to the local network.
+
 Use my Mac additionally ports `Agent/ClaudeCodeInvoker.swift`'s native AppleScript/shell/screenshot
 operating instructions and progress watchdog, and `Agent/AgentResponse.swift`'s balanced-JSON parser.
 `Context/ScreenContextProvider.swift` is copied into the native helper with bounded-time and

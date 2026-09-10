@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   Sparkle,
   SpeakerHigh,
+  DeviceMobile,
   X,
 } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
@@ -21,6 +22,7 @@ import { PrivacySettings } from './settings/PrivacySettings';
 import { ReleaseReviewSettings } from './settings/ReleaseReviewSettings';
 import { ResearchArchiveSettings } from './settings/ResearchArchiveSettings';
 import { ProvidersSettings } from './settings/ProvidersSettings';
+import { PhoneRemoteSettings } from './settings/PhoneRemoteSettings';
 import { VoiceSettings } from './settings/VoiceSettings';
 
 export type SettingsSection =
@@ -29,12 +31,14 @@ export type SettingsSection =
   | 'apps'
   | 'computer'
   | 'voice'
+  | 'phone'
   | 'privacy'
   | 'about'
   | 'release'
   | 'research';
 
 interface SettingsProps {
+  phoneRemoteApi?: import('../../shared/phone-remote').PhoneRemoteApi | undefined;
   assistantApi?: Pick<RendererApi, 'assistantLibrary'>;
   onRunWorkflow?: (threadId: string) => void;
   snapshot: RendererSnapshot;
@@ -84,6 +88,7 @@ interface SettingsProps {
 }
 
 export function Settings({
+  phoneRemoteApi,
   assistantApi,
   onRunWorkflow,
   snapshot,
@@ -198,6 +203,14 @@ export function Settings({
             label="Voice"
             onClick={() => setSection('voice')}
           />
+          {phoneRemoteApi && (
+            <SettingsNavButton
+              active={section === 'phone'}
+              icon={<DeviceMobile size={17} aria-hidden="true" />}
+              label="Phone remote"
+              onClick={() => setSection('phone')}
+            />
+          )}
           <SettingsNavButton
             active={section === 'privacy'}
             icon={<ShieldCheck size={17} aria-hidden="true" />}
@@ -229,6 +242,9 @@ export function Settings({
         </nav>
 
         <div key={section} className={styles.settingsContent}>
+          {section === 'phone' && phoneRemoteApi && (
+            <PhoneRemoteSettings api={phoneRemoteApi} agents={snapshot.agents} />
+          )}
           {section === 'assistant' && assistantApi && (
             <AssistantSettings
               accessMode={snapshot.computer.accessMode ?? 'connected'}

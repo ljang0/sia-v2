@@ -492,6 +492,7 @@ export interface ResearchBatchSummary {
 export type ApprovalDecision = 'approve' | 'reject';
 
 export interface RendererApi {
+  phoneRemote?: import('../shared/phone-remote').PhoneRemoteApi;
   assistantLibrary(
     input: import('../shared/assistant-library').AssistantLibraryCommand,
   ): Promise<import('../shared/assistant-library').AssistantLibraryView>;
