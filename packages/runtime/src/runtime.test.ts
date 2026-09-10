@@ -1216,9 +1216,13 @@ describe('Meta streaming adapter', () => {
 });
 
 describe('Codex library review isolation', () => {
-  it.each([false, true])(
-    'disables native tools and rejects a server that leaves execution enabled (%s)',
-    async (unsafe) => {
+  it.each([
+    { unsafe: false, normalizedExec: false },
+    { unsafe: false, normalizedExec: true },
+    { unsafe: true, normalizedExec: true },
+  ])(
+    'disables native tools and checks the shell gate with normalized execution flags (%j)',
+    async ({ unsafe, normalizedExec }) => {
       const peers = linkedPeers();
       let request: Record<string, unknown> | undefined;
       peers.server.onRequest(async (method, params) => {
@@ -1231,7 +1235,9 @@ describe('Codex library review isolation', () => {
           return {
             data: Object.keys(isolatedCodexFeatures).map((name) => ({
               name,
-              enabled: unsafe && name === 'shell_tool',
+              enabled:
+                (unsafe && name === 'shell_tool') ||
+                (normalizedExec && name === 'unified_exec'),
             })),
             nextCursor: null,
           };

@@ -210,6 +210,24 @@ final class VoiceHelper {
 
 let application = NSApplication.shared
 application.setActivationPolicy(.accessory)
+if CommandLine.arguments == [CommandLine.arguments[0], "--image-text"] {
+    var data = Data()
+    while data.count <= 16_000_000 {
+        let chunk = FileHandle.standardInput.readData(ofLength: min(65536, 16_000_001 - data.count))
+        if chunk.isEmpty { break }
+        data.append(chunk)
+    }
+    let result = ImageText.recognize(data)
+    if let output = try? JSONSerialization.data(withJSONObject: result) { FileHandle.standardOutput.write(output) }
+    exit(0)
+}
+if CommandLine.arguments.contains("--window-context") {
+    guard CommandLine.arguments.count == 4, let pid = Int32(CommandLine.arguments[2]),
+          let windowID = UInt32(CommandLine.arguments[3]), pid > 0, windowID > 0 else { exit(2) }
+    let result = WindowContext.capture(pid: pid, windowID: windowID)
+    if let data = try? JSONSerialization.data(withJSONObject: result) { FileHandle.standardOutput.write(data) }
+    exit(0)
+}
 if CommandLine.arguments.contains("--browser-window") {
     guard CommandLine.arguments.count == 4, let pid = Int32(CommandLine.arguments[2]),
           let windowID = UInt32(CommandLine.arguments[3]), pid > 0, windowID > 0 else { exit(2) }

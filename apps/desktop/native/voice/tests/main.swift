@@ -3,6 +3,9 @@ import CoreGraphics
 
 // Exercises the real Notch-derived monitor without installing an OS tap or posting input.
 Task { @MainActor in
+    precondition(WindowContext.contentValue(role: "AXStaticText", value: NSNumber(value: 254)) == "254")
+    precondition(WindowContext.contentValue(role: "AXHeading", value: NSNumber(value: 2)) == nil)
+    precondition(WindowContext.contentValue(role: "AXStaticText", value: "3,374") == "3,374")
     precondition(BrowserWindow.unsafeAddress("java\nscript:alert(1)"))
     precondition(BrowserWindow.unsafeAddress(" javascript:alert(1)"))
     precondition(BrowserWindow.unsafeAddress("chrome://settings"))

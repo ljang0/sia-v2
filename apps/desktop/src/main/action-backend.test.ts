@@ -604,6 +604,177 @@ describe('DesktopActionBackend computer boundary', () => {
     });
   });
 
+  it('returns a newly created document window instead of re-observing the old document', async () => {
+    let created = false;
+    const cua = fakeCua(async (tool) => {
+      if (tool === 'list_apps')
+        return { apps: [{ pid: 42, name: 'TextEdit', bundle_id: 'com.apple.TextEdit' }] };
+      if (tool === 'list_windows')
+        return {
+          windows: [
+            { pid: 42, window_id: 91, title: 'Existing document', app_name: 'TextEdit' },
+            ...(created
+              ? [{ pid: 42, window_id: 92, title: 'Untitled', app_name: 'TextEdit' }]
+              : []),
+          ],
+        };
+      if (tool === 'get_window_state')
+        return {
+          snapshot_id: 'native-1',
+          elements: [
+            { element_index: 0, role: 'AXTextArea', value: 'Existing document text' },
+            {
+              element_index: 1,
+              role: 'AXMenuBarItem',
+              label: 'File',
+              frame: { x: 10, y: 0, width: 50, height: 24 },
+            },
+          ],
+        };
+      if (tool === 'hotkey') {
+        created = true;
+        return { effect: 'unverifiable', delivery: { mode: 'foreground' } };
+      }
+      throw new Error(`Unexpected ${tool}`);
+    });
+    const backend = new DesktopActionBackend({ cua, macBrowserAccess: () => true });
+    const target = await grantedComputerTarget(backend);
+    const first = await backend.invoke(
+      request('computer_snapshot', { app_id: target.appId, window_id: target.windowId }),
+    );
+    expect(JSON.stringify(first.data)).not.toContain('AXMenuBarItem');
+    const result = await backend.invoke(
+      request('computer_action', {
+        app_id: target.appId,
+        window_id: target.windowId,
+        snapshot_id: dataRecord(first.data).snapshot_id,
+        action: 'key',
+        value: 'n',
+        modifiers: ['cmd'],
+      }),
+    );
+    const data = dataRecord(result.data);
+    expect(result.outcome).toBe('accepted_unverified');
+    expect(data.observation_pending).toBe(true);
+    const next = (data.new_windows as Record<string, unknown>[])[0]!;
+    expect(next.title).toBe('Untitled');
+    expect(next.window_id).not.toBe(target.windowId);
+    expect(data.elements).toBeUndefined();
+    expect(cua.call.mock.calls.filter(([tool]) => tool === 'hotkey')).toHaveLength(1);
+    expect(cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state')).toHaveLength(1);
+  });
+
+  it('reads pixels on demand only from an unprotected granted snapshot', async () => {
+    const readImageText = vi.fn(async () => 'Instructor: Example Person');
+    let protectedControl = false;
+    const cua = fakeCua(async (tool) => {
+      if (tool === 'list_apps')
+        return { apps: [{ pid: 42, name: 'Preview', bundle_id: 'com.apple.Preview' }] };
+      if (tool === 'list_windows')
+        return { windows: [{ pid: 42, window_id: 91, app_name: 'Preview' }] };
+      return {
+        value: {
+          snapshot_id: 'native-1',
+          elements: protectedControl ? [{ role: 'AXSecureTextField', element_index: 0 }] : [],
+        },
+        images: [{ mimeType: 'image/png', dataBase64: 'captured-image' }],
+      };
+    });
+    const backend = new DesktopActionBackend({
+      cua,
+      macBrowserAccess: () => true,
+      readImageText,
+    });
+    const target = await grantedComputerTarget(backend);
+    const args = { app_id: target.appId, window_id: target.windowId };
+    await backend.invoke(request('computer_snapshot', args));
+    expect(readImageText).not.toHaveBeenCalled();
+    const observed = await backend.invoke(
+      request('computer_snapshot', { ...args, read_text: true }),
+    );
+    expect(readImageText).toHaveBeenCalledExactlyOnceWith('captured-image');
+    const data = dataRecord(observed.data);
+    expect(data.image_text).toBe('Instructor: Example Person');
+    expect(
+      (
+        await backend.invoke(
+          request('computer_task_complete', {
+            items: [
+              {
+                requirement: 'Read professor',
+                status: 'verified',
+                evidence_id: data.evidence_id,
+                kind: 'text',
+                quote: 'Instructor: Example Person',
+                finding: 'Example Person',
+              },
+            ],
+          }),
+        )
+      ).outcome,
+    ).toBe('verified');
+    protectedControl = true;
+    await backend.invoke(request('computer_snapshot', { ...args, read_text: true }));
+    expect(readImageText).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not pass an element snapshot to an unaddressed keyboard action', async () => {
+    const cua = fakeCua(async (tool, args) => {
+      if (tool === 'list_apps')
+        return { apps: [{ pid: 42, name: 'Calculator', bundle_id: 'com.apple.calculator' }] };
+      if (tool === 'list_windows')
+        return { windows: [{ pid: 42, window_id: 91, app_name: 'Calculator' }] };
+      if (tool === 'get_window_state')
+        return {
+          snapshot_id: 'native-1',
+          elements: [
+            { element_index: 0, role: 'AXWindow', label: 'Calculator' },
+            { role: 'AXStaticText', value: 254 },
+            { role: 'AXHeading', value: 2, label: 'Result' },
+          ],
+        };
+      if (tool === 'press_key') {
+        if (args.snapshot_id || args.element_index !== undefined)
+          throw new Error('CUA refused: element_index_required');
+        expect(args).toMatchObject({ pid: 42, window_id: 91, delivery_mode: 'foreground' });
+        return { effect: 'unverifiable', delivery: { mode: 'foreground' } };
+      }
+      throw new Error(`Unexpected ${tool}`);
+    });
+    const backend = new DesktopActionBackend({
+      cua,
+      macBrowserAccess: () => true,
+      readWindowContext: async () => ({
+        status: 'ready',
+        bundleID: 'com.apple.calculator',
+        title: 'Calculator',
+        text: '7 × 24 + 86\n254',
+      }),
+    });
+    const target = await grantedComputerTarget(backend);
+    const captured = await backend.invoke(
+      request('computer_snapshot', { app_id: target.appId, window_id: target.windowId }),
+    );
+    const data = dataRecord(captured.data);
+    expect(data.visible_text).toContain('254');
+    const elements = data.elements as Record<string, unknown>[];
+    expect(elements[1]).toMatchObject({ role: 'AXStaticText', value: '254' });
+    expect(elements[1]!.element_ref).toBeUndefined();
+    expect(elements[2]!.value).toBeUndefined();
+    const result = await backend.invoke(
+      request('computer_action', {
+        app_id: target.appId,
+        window_id: target.windowId,
+        snapshot_id: data.snapshot_id,
+        element_ref: elements[0]!.element_ref,
+        action: 'key',
+        value: '1',
+      }),
+    );
+    expect(result.outcome).toBe('accepted_unverified');
+    expect(cua.call.mock.calls.filter(([tool]) => tool === 'press_key')).toHaveLength(1);
+  });
+
   it('never performs an implicit foreground retry', async () => {
     const cua = fakeCua(async (tool) => {
       if (tool === 'list_apps') {
@@ -1974,6 +2145,54 @@ describe('Use my Mac browser routing', () => {
     expect(h.cua.call.mock.calls.some(([tool]) => tool === 'click')).toBe(true);
   });
 
+  it('preserves live window ids through refresh and activation but revokes a closed window', async () => {
+    const h = browserHarness();
+    const args = await capture(h);
+    const again = await grantedComputerTarget(h.backend);
+    expect(again.appId).toBe(args.app_id);
+    expect(again.windowId).toBe(args.window_id);
+    expect(
+      (await h.backend.invoke(request('computer_action', { ...args, action: 'click' })))
+        .outcome,
+    ).toBe('accepted_unverified');
+    const implementation = h.cua.call.getMockImplementation() as (
+      tool: string,
+      args: Record<string, unknown>,
+    ) => Promise<unknown>;
+    h.cua.call.mockImplementation(async (tool: string, args: Record<string, unknown>) =>
+      tool === 'list_windows' ? { windows: [] } : implementation(tool, args),
+    );
+    await h.backend.invoke(request('computer_list', {}));
+    expect(
+      (
+        await h.backend.invoke(
+          request('computer_snapshot', { app_id: again.appId, window_id: again.windowId }),
+        )
+      ).outcome,
+    ).toBe('stale');
+  });
+
+  it('distinguishes an ambiguous window from a protected page', async () => {
+    const h = browserHarness();
+    const target = await grantedComputerTarget(h.backend);
+    h.inspect.mockResolvedValue({ status: 'unavailable', reason: 'ambiguous' });
+    const unavailable = await h.backend.invoke(
+      request('computer_snapshot', { app_id: target.appId, window_id: target.windowId }),
+    );
+    expect(dataRecord(unavailable.data)).toMatchObject({
+      blocker_code: 'window_unavailable',
+      blocker_detail: 'ambiguous',
+      window_id: target.windowId,
+    });
+    expect(unavailable.summary).toContain('not evidence of a login');
+    h.inspect.mockResolvedValue({ status: 'protected' });
+    const protectedPage = await h.backend.invoke(
+      request('computer_snapshot', { app_id: target.appId, window_id: target.windowId }),
+    );
+    expect(dataRecord(protectedPage.data).blocker_code).toBe('protected_window');
+    expect(h.cua.call.mock.calls.some(([tool]) => tool === 'get_window_state')).toBe(false);
+  });
+
   it('keeps the native browser route when Chrome also has an attached tab', async () => {
     const h = browserHarness();
     h.backend.acceptBrowserState({
@@ -1995,7 +2214,8 @@ describe('Use my Mac browser routing', () => {
       request('computer_open_url', { url: 'https://canvas.cmu.edu/' }),
     );
     expect(result.outcome).toBe('accepted_unverified');
-    expect(result.summary).toContain('Call computer_list');
+    expect(result.summary).toContain('Use the returned window ids');
+    expect(dataRecord(result.data).windows).toHaveLength(1);
     expect(h.openUrl).toHaveBeenCalledWith('https://canvas.cmu.edu/');
     expect(
       h.backend.trustedApprovalTarget('computer_open_url', {
@@ -2043,7 +2263,7 @@ describe('Use my Mac browser routing', () => {
     );
     expect(result.outcome).toBe('accepted_unverified');
     expect(dataRecord(result.data).observation_pending).toBe(true);
-    expect(dataRecord(result.data).evidence_id).toBeUndefined();
+    expect(dataRecord(result.data).evidence_kind).toBe('blocker');
     expect(result.images).toBeUndefined();
     expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'click')).toHaveLength(1);
   });
@@ -2073,7 +2293,7 @@ describe('Use my Mac browser routing', () => {
     );
     expect(result.outcome).toBe('accepted_unverified');
     expect(dataRecord(result.data).observation_pending).toBe(true);
-    expect(dataRecord(result.data).evidence_id).toBeUndefined();
+    expect(dataRecord(result.data).evidence_kind).toBe('blocker');
     expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'click')).toHaveLength(1);
   });
 
@@ -2103,7 +2323,7 @@ describe('Use my Mac browser routing', () => {
       request('computer_snapshot', { app_id: target.appId, window_id: target.windowId }),
     );
     expect(dataRecord(result.data).loading).toBe(true);
-    expect(dataRecord(result.data).evidence_id).toBeUndefined();
+    expect(dataRecord(result.data).evidence_kind).toBe('blocker');
     expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state')).toHaveLength(
       3,
     );
@@ -2214,7 +2434,8 @@ describe('Use my Mac browser routing', () => {
       request('computer_snapshot', { app_id: target.appId, window_id: target.windowId }),
     );
     expect(result.outcome).toBe('refused');
-    expect(result.data).toBeUndefined();
+    expect(dataRecord(result.data).blocker_code).toBe('protected_window');
+    expect(dataRecord(result.data).elements).toBeUndefined();
     expect(result.images).toBeUndefined();
   });
 });

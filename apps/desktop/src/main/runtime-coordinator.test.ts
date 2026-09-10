@@ -10,7 +10,7 @@ import { RuntimeCoordinator, composeSessionInstructions } from './runtime-coordi
 import type { RuntimeThreadConfig } from './runtime-coordinator.js';
 
 describe('Use my Mac execution isolation', () => {
-  function harness(verify: boolean) {
+  function harness(verify: boolean, wrongNumber = false) {
     let passes = 0;
     const createSession = vi.fn(async (options: ProviderSessionOptions) => ({
       id: `session-${createSession.mock.calls.length}`,
@@ -22,6 +22,19 @@ describe('Use my Mac execution isolation', () => {
       invoke: vi.fn(async () => ({
         outcome: 'verified' as const,
         summary: 'Evidence accepted',
+        ...(wrongNumber
+          ? {
+              data: {
+                items: [
+                  {
+                    requirement: 'Read Calculator',
+                    quote: '254',
+                    finding: 'Calculator shows 254.',
+                  },
+                ],
+              },
+            }
+          : {}),
       })),
     };
     const adapter: ProviderAdapter = {
@@ -44,6 +57,8 @@ describe('Use my Mac execution isolation', () => {
               {
                 requirement: 'Read document',
                 status: 'blocked',
+                evidence_id: 'evidence:test',
+                quote: 'The document is unavailable.',
                 reason: 'The document is unavailable.',
               },
             ],
@@ -66,7 +81,14 @@ describe('Use my Mac execution isolation', () => {
             parts: [
               {
                 kind: 'text',
-                text: passes === 1 ? 'Unchecked answer' : 'Document is unavailable',
+                text:
+                  passes === 1
+                    ? 'Unchecked answer'
+                    : wrongNumber
+                      ? passes === 2
+                        ? 'Calculator shows 3,374.'
+                        : 'Calculator shows 254.'
+                      : 'Document is unavailable',
               },
             ],
             delta: false,
@@ -114,6 +136,16 @@ describe('Use my Mac execution isolation', () => {
     };
     return { runtime, createSession, backend, thread, events, run, passes: () => passes };
   }
+
+  it('withholds numerical claims invented after an accepted checkpoint and repairs the answer', async () => {
+    const h = harness(true, true);
+    await h.run();
+    const output = JSON.stringify(h.events);
+    expect(output).not.toContain('3,374');
+    expect(output).toContain('Calculator shows 254.');
+    expect(h.passes()).toBe(3);
+    await h.runtime.dispose();
+  });
 
   it('withholds an unchecked answer, continues verification, and restores connected tools when the mode changes', async () => {
     const h = harness(true);

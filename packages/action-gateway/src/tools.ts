@@ -73,6 +73,8 @@ const computerTaskComplete = z
             .object({
               requirement: z.string().trim().min(1).max(300),
               status: z.literal('blocked'),
+              evidence_id: id,
+              quote: z.string().trim().min(1).max(2000),
               reason: z.string().trim().min(1).max(1000),
             })
             .strict(),
@@ -107,7 +109,12 @@ const computerOpenUrl = z
   })
   .strict();
 const computerSnapshot = z
-  .object({ app_id: id, window_id: id, wait_ms: z.number().int().min(0).max(3000).optional() })
+  .object({
+    app_id: id,
+    window_id: id,
+    wait_ms: z.number().int().min(0).max(3000).optional(),
+    read_text: z.boolean().optional(),
+  })
   .strict();
 const computerAction = z
   .object({
@@ -115,6 +122,7 @@ const computerAction = z
     window_id: id,
     snapshot_id: id,
     action: z.enum(['click', 'type', 'set', 'scroll', 'key', 'drag']),
+    delivery: z.enum(['background', 'foreground']).optional(),
     x: z.number().finite().min(0).max(32768).optional(),
     y: z.number().finite().min(0).max(32768).optional(),
     to_x: z.number().finite().min(0).max(32768).optional(),
@@ -544,7 +552,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_task_complete: {
     name: 'computer_task_complete',
     description:
-      'Before finishing a Use my Mac app task, account for EVERY requested item. For each verified finding cite an evidence_id from this turn and an exact quote from that observation (kind text), or describe a result visible in its screenshot (kind visual, empty quote). For document facts use text evidence after reading the document, never its title or a loading preview. For unresolved requirements report blocked with the actual reason. Evidence checks validate observation ownership and quoted text, not the truth of an inference. Only report findings supported by the cited observation. Do not use memory or public sources as substitutes for account-specific evidence.',
+      'Before finishing a Use my Mac app task, account for EVERY requested item. For each verified finding cite an evidence_id from this turn and an exact quote from that observation (kind text), or describe a nonfactual action outcome visible in its screenshot (kind visual, empty quote). Numbers, dates, names and document facts require text evidence; reported numbers must occur in the cited text. For document facts use text evidence after reading the document, never its title or a loading preview. For unresolved requirements report blocked with evidence_id, an exact quote, and the observed reason. When citing a host refusal, reason must be verbatim from the quote; it applies only to that window. Evidence checks validate observation ownership and quoted text, not the truth of an inference. Only report findings supported by the cited observation. Do not use memory or public sources as substitutes for account-specific evidence.',
     inputSchema: z.toJSONSchema(computerTaskComplete),
     annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
   },
@@ -600,7 +608,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_open_app: {
     name: 'computer_open_app',
     description:
-      'Open or bring forward a supported non-sensitive macOS app. Use this when a browser on another Space does not expose its window state. Use an application id from computer_list installed_apps. After it opens, call computer_list to obtain fresh app and window ids before inspecting or acting.',
+      'Open or bring forward a supported non-sensitive macOS app. Use this when a browser on another Space does not expose its window state. Use an application id from computer_list installed_apps. In Use my Mac the result includes fresh app/window ids; inspect those directly. In Connected apps, call computer_list after opening.',
     inputSchema: object(
       {
         application: string(
@@ -614,7 +622,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_open_url: {
     name: 'computer_open_url',
     description:
-      'Open an ordinary HTTP(S) website in the person’s default browser, then call computer_list and computer_snapshot to continue through the new or updated browser window. Use this in Use my Mac mode when the needed website is not already open. Do not ask the person to open a site that this tool can open. Authentication and security URLs remain unavailable; if the resulting page asks for login, let the person finish it and continue the same task.',
+      'Open an ordinary HTTP(S) website in the person’s default browser, then use the returned window inventory with computer_snapshot to continue through the new or updated browser window. Use this in Use my Mac mode when the needed website is not already open. Do not ask the person to open a site that this tool can open. Authentication and security URLs remain unavailable; if the resulting page asks for login, let the person finish it and continue the same task.',
     inputSchema: object({ url: string('Exact HTTP(S) website to open', { format: 'uri' }) }, [
       'url',
     ]),
@@ -623,11 +631,16 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_snapshot: {
     name: 'computer_snapshot',
     description:
-      'Capture accessibility and pixel state for a permitted application window. In Use my Mac, wait_ms optionally waits up to 3000 ms before observing. If loading or observation_pending is true, wait and observe again before claiming success. A document title or loading preview does not establish its contents.',
+      'Capture accessibility and pixel state for a permitted application window. In Use my Mac, read_text requests local OCR of this exact screenshot when a PDF/image exposes no readable text; cross-check image_text with the image, wait for loading, and scroll or change pages to read more. In Use my Mac, wait_ms optionally waits up to 3000 ms before observing. If loading or observation_pending is true, wait and observe again before claiming success. A document title or loading preview does not establish its contents.',
     inputSchema: object(
       {
         app_id: string('Exact application id'),
         window_id: string('Exact window id'),
+        read_text: {
+          type: 'boolean',
+          description:
+            'Use my Mac: read text from this screenshot locally, for PDFs or images without usable accessibility text.',
+        },
         wait_ms: {
           type: 'integer',
           minimum: 0,
@@ -642,7 +655,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_action: {
     name: 'computer_action',
     description:
-      'Perform one action against the exact freshly captured application window. Prefer an element_ref. If an Electron or canvas app exposes no usable element, type, key, and scroll may omit element_ref to use the focused control in that exact window; click can use x/y screenshot pixels and drag uses x/y plus to_x/to_y when pixel_actions_available is true. Coordinates use the original window screenshot, top-left origin; set requires a ref. "type" inserts only new text at the current caret. "set" replaces the entire editable value. For shortcuts, put one non-modifier key in value and list modifiers separately.',
+      'Perform one action against the exact freshly captured application window. In Use my Mac, key and type use foreground delivery to the exact window; do not use an AXWindow reference as an editable field. Prefer an element_ref for actual controls. If an Electron or canvas app exposes no usable element, type, key, and scroll may omit element_ref to use the focused control in that exact window; click can use x/y screenshot pixels and drag uses x/y plus to_x/to_y when pixel_actions_available is true. Coordinates use the original window screenshot, top-left origin; set requires a ref. "type" inserts only new text at the current caret. "set" replaces the entire editable value. For shortcuts, put one non-modifier key in value and list modifiers separately. The result already includes a fresh post-action snapshot; use it to check the effect without another snapshot unless observation_pending/loading is true or the result is unclear.',
     inputSchema: object(
       {
         app_id: string('Exact application id'),
@@ -653,6 +666,10 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
         to_x: { type: 'number', minimum: 0, maximum: 32768 },
         to_y: { type: 'number', minimum: 0, maximum: 32768 },
         action: string('Action', { enum: ['click', 'type', 'set', 'scroll', 'key', 'drag'] }),
+        delivery: string(
+          'Use my Mac: explicitly request foreground input after observing a background no-op. Keyboard input already uses foreground. Never replay a delivered write without checking its result.',
+          { enum: ['background', 'foreground'] },
+        ),
         element_ref: string(
           'Element reference from the snapshot. Required for click and set; optional for type, key, and scroll when the exact window already has the intended focused control.',
         ),

@@ -8,7 +8,11 @@ Adapted at the repository owner's request from
 - `Core/EdgeGlowWindowController.swift` and `UI/EdgeGlowView.swift`: transparent nonactivating
   panel, bloom, and interruptible fade. Sia uses a thin forest-green path with a travelling mint tail.
 - `Context/ScreenContextProvider.swift`: frontmost-app, selected-text capture, and bounded accessibility outlines, narrowed to explicit
-  Fn gestures with Sia’s opt-in and protected-surface filtering.
+  Fn gestures with Sia’s opt-in and protected-surface filtering. `WindowContext.swift` also adapts
+  its static-text/NSNumber reading for explicit Use my Mac snapshots of an exact granted window.
+  The latter checks window ownership and unambiguous geometry, scans security metadata first,
+  and caps traversal at 2,000 nodes, 40 levels, 12,000 text characters, and a 1.5 second deadline.
+  It does not return editable values or mint action references.
 - `Core/NotchWindowController.swift` and expanded-view concepts: nonactivating status panel, adapted
   for bounded progress, stop, open, dismiss, and follow-up events.
 - `Voice/AudioCaptureEngine.swift`: AVAudioEngine capture and AVAudioConverter to 16 kHz mono PCM.
@@ -22,8 +26,8 @@ this adaptation does not claim a new third-party license for the original code.
 
 `pnpm --filter @sia/desktop native:build` builds an ad-hoc signed universal helper on macOS 14+.
 Build products stay in ignored `build/native/`. The release signing pipeline signs the embedded helper
-with the application. No provider credentials, screenshot capture, shell commands, or model tools enter
-this process. Its only transport is inherited stdin/stdout; EOF and a parent heartbeat stop recording.
+with the application. The helper never captures screenshots, runs model-supplied shell commands, or receives provider credentials.
+The host may submit an already-authorized window image for local OCR. Voice transport is inherited stdin/stdout; fixed host-only `--browser-window` and `--window-context` operations return bounded JSON. EOF and a parent heartbeat stop recording.
 
 `MacSpeech.swift` is Sia’s original native speech implementation, separate from the Notch adaptations.
 The `--speech` mode enumerates installed voices, renders speech to in-memory WAV buffers, and accepts
@@ -43,3 +47,10 @@ phase, never task text. Reduced Motion uses a steady edge. Approvals remain in t
 The outline uses Notch’s 400-node, 12-level, 2,800-character budgets with a 600 ms deadline. A
 metadata pass excludes protected controls before reading static text; editable field values are
 not included. Incomplete protection checks suppress content. This remains gesture-only capture.
+
+`ImageText.swift` uses [Apple Vision text recognition](https://developer.apple.com/documentation/vision/vnrecognizetextrequest)
+for explicit `computer_snapshot.read_text` requests. `--image-text` reads at most 16 MB of image bytes
+from stdin, accepts images up to 8,192 pixels on each axis, and returns at most 16,000 characters.
+It uses accurate recognition without word correction, omits low-confidence lines, performs no
+additional capture or network access, and is terminated by the host after eight seconds. OCR is
+observation evidence, not a guarantee that every letter or number was recognized correctly.

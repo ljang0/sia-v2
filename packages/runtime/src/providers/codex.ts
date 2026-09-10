@@ -711,7 +711,14 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       if (name) featureStates.set(name, feature.enabled);
     }
     const disabledFeatures = disableNative
-      ? [...SIA_CODEX_DISABLED_FEATURES, ...SIA_CODEX_ENABLED_FEATURES]
+      ? [
+          ...SIA_CODEX_DISABLED_FEATURES,
+          // Codex 0.150 normalizes unified_exec to true even when requested false.
+          // Its add_shell_tools gate requires shell_tool as well; requiring that
+          // tool gate false keeps exec_command/write_stdin absent. Keep requesting
+          // both false, but verify the effective tool gate rather than the backend.
+          ...SIA_CODEX_ENABLED_FEATURES.filter((feature) => feature !== 'unified_exec'),
+        ]
       : customProvider
         ? [...SIA_CODEX_DISABLED_FEATURES, 'multi_agent']
         : SIA_CODEX_DISABLED_FEATURES;

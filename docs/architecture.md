@@ -158,11 +158,28 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   inherited integrations. Mode changes replace the provider session with restored Sia history.
   The backend also refuses connected-service actions from saved skills in Mac mode. Native URL
   changes during capture trigger up to two delayed read-only observations; successful input delivery
-  remains `accepted_unverified` if post-action observation is unavailable. Loading observations do not
-  receive evidence IDs. `computer_snapshot.wait_ms` offers a cancellable wait of at most 3 seconds.
+  remains `accepted_unverified` if post-action observation is unavailable. Loading observations
+  supply only blocker evidence, never factual evidence. `computer_snapshot.wait_ms` offers a cancellable wait of at most 3 seconds.
   A bounded per-turn evidence store backs `computer_task_complete`: text citations must match an
-  observation from that turn and visual citations require an image. This checks citation ownership,
-  not semantic correctness or requirement completeness. For Mac tool tasks the coordinator buffers
+  observation from that turn, reported numbers must occur in the cited text, and visual action citations
+  require an image. Blockers also cite an observation; a host refusal must be quoted without changing
+  its meaning or window scope. Unidentified windows are distinguished from protected pages, with
+  previously readable windows included for recovery. The final answer cannot introduce numbers
+  absent from the accepted findings. These checks do not prove general semantic correctness or requirement completeness.
+  Mac inventory refreshes preserve ids for live windows in the same session, while still checking
+  ownership, expiry, and snapshot freshness before each action. Native keyboard input uses the exact
+  foreground window and excludes element snapshot parameters for unaddressed input. Successful
+  input gets a short settling delay before observation; no write is automatically replayed. New windows
+  opened by an action receive explicit grants for the next observation, so Cmd+N does not leave the
+  agent targeting the old document. App menu-bar refs outside a window are not exposed as its controls.
+  Notch's static-text reader supplements indexed controls with a bounded, capability-bound AX
+  outline, including numeric display values. Browser origin and window title accompany snapshots;
+  private guard URLs remain host-only. `computer_snapshot.read_text` optionally recognizes text in
+  the already-authorized window image locally with Apple Vision, using bounded stdin/stdout and no
+  extra screen capture. OCR results are citable but must be cross-checked against the image. This
+  covers image-only previews without substituting filenames for document contents. App/URL opening
+  returns fresh inventory and actions return post-action observations, avoiding redundant model turns.
+  For Mac tool tasks the coordinator buffers
   the final answer until this checklist is accepted, requesting up to two verification continuations
   before reporting failure. Explicitly blocked checklist items must be disclosed in the answer.
   Conversations with a browser attempt after the latest user message offer an explicit

@@ -16,6 +16,7 @@ if (process.platform === 'darwin') {
         join(source, 'PushToTalkMonitor.swift'),
         join(source, 'FnContext.swift'),
         join(source, 'BrowserWindow.swift'),
+        join(source, 'WindowContext.swift'),
         join(source, 'tests/main.swift'),
         '-o',
         binary,

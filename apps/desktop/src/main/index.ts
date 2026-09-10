@@ -339,6 +339,8 @@ async function performApplicationCreation(): Promise<void> {
       ensureBrowserAttached: () => activeController.ensureBrowserAttachedForActions(),
       macBrowserAccess: () => activeController.computerAccessMode() === 'mac',
       inspectBrowserWindow: (pid, windowId) => browserWindows.inspect(pid, windowId),
+      readImageText: (dataBase64) => browserWindows.imageText(dataBase64),
+      readWindowContext: (pid, windowId) => browserWindows.context(pid, windowId),
       resolveConnectionId: (app, selector, approvalId) =>
         activeController.connectionIdForAction(app, selector, approvalId),
       onConnectionReconnectRequired: (app, connectionId) =>

@@ -27,6 +27,7 @@ import {
 import type { ActionGateway, TurnLease } from '@sia/action-gateway';
 
 import { MAC_EXECUTION_TOOLS } from './mac-execution.js';
+import { unsupportedNumericClaims } from './mac-task-evidence.js';
 
 export interface RuntimeThreadConfig {
   nativeTools?: 'disabled';
@@ -60,6 +61,7 @@ interface ActiveTurnContext {
   allowedTools?: ReadonlySet<string>;
   macTaskUsed?: boolean;
   macTaskChecked?: boolean;
+  macCheckedText?: string;
   sessionId: string;
   threadId: string;
   turnId: string;
@@ -356,6 +358,18 @@ export class RuntimeCoordinator {
             yield event;
           }
         }
+        const finalText = pendingMessages
+          .flatMap((event) =>
+            event.type === 'message'
+              ? event.payload.parts.flatMap((part) => (part.kind === 'text' ? [part.text] : []))
+              : [],
+          )
+          .join('');
+        const unsupported =
+          context.macTaskChecked && context.macCheckedText !== undefined
+            ? unsupportedNumericClaims(finalText, context.macCheckedText)
+            : [];
+        if (unsupported.length) context.macTaskChecked = false;
         if (completion?.type === 'completion' && completion.payload.status !== 'completed') {
           if (!context.macTaskUsed || context.macTaskChecked)
             for (const message of pendingMessages) yield message;
@@ -373,7 +387,10 @@ export class RuntimeCoordinator {
             'Sia could not verify the requested results. The unverified final answer was withheld; completed actions remain in the activity history.',
           );
         continuation =
-          'Continue the original task. Your final answer was withheld because computer_task_complete has not accepted evidence for this task. Inspect the actual app and finish checking every requested item. Do not repeat delivered writes. Call computer_task_complete with one verified or explicitly blocked entry per requested item, using evidence_id values and exact quotes from tool observations. A loading page is not evidence. Do not fill missing facts from memory or the public web. Then answer using only those findings and clearly identify anything unfinished.';
+          'Continue the original task. Your final answer was withheld because computer_task_complete has not accepted evidence for this task. Inspect the actual app and finish checking every requested item. Do not repeat delivered writes. Call computer_task_complete with one verified or explicitly blocked entry per requested item, using evidence_id values and exact quotes from tool observations. A loading page is not evidence. Do not fill missing facts from memory or the public web. Then answer using only those findings and clearly identify anything unfinished.' +
+          (unsupported.length
+            ? ` Your answer introduced numbers absent from the checked findings: ${unsupported.join(', ')}. Correct the answer or inspect evidence for those values first.`
+            : '');
       }
     } finally {
       if (this.#activeByThread.get(thread.id) === context) {
@@ -451,6 +468,7 @@ export class RuntimeCoordinator {
     ) {
       context.macTaskUsed = true;
       context.macTaskChecked = false;
+      delete context.macCheckedText;
     }
     const result = await this.#gateway.invoke({
       name,
@@ -461,8 +479,25 @@ export class RuntimeCoordinator {
       context.allowedTools &&
       name === 'computer_task_complete' &&
       result.outcome === 'verified'
-    )
+    ) {
       context.macTaskChecked = true;
+      const data = result.data as
+        | {
+            items?: Array<{
+              requirement: string;
+              quote: string;
+              finding?: string;
+              reason?: string;
+            }>;
+          }
+        | undefined;
+      if (data?.items)
+        context.macCheckedText = data.items
+          .map((item) =>
+            [item.requirement, item.quote, item.finding, item.reason].filter(Boolean).join(' '),
+          )
+          .join('\n');
+    }
     return {
       success: result.outcome === 'verified' || result.outcome === 'accepted_unverified',
       content: result,

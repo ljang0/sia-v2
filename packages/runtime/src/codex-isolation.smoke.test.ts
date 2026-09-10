@@ -4,9 +4,9 @@ import { CodexAppServerAdapter } from './providers/codex.js';
 const realSmoke = process.env.SIA_CODEX_REAL_SMOKE === '1' ? it : it.skip;
 
 describe('Codex isolation smoke', () => {
-  realSmoke(
-    'retains ChatGPT auth while creating a verified ephemeral session',
-    async () => {
+  realSmoke.each([undefined, 'disabled'] as const)(
+    'retains ChatGPT auth while creating a verified ephemeral session (native tools: %s)',
+    async (nativeTools) => {
       const adapter = new CodexAppServerAdapter({ sessionEphemeral: true });
       try {
         const probe = await adapter.probe();
@@ -25,6 +25,7 @@ describe('Codex isolation smoke', () => {
           workspace: process.cwd(),
           instructions: 'Isolation smoke only. Do not start a turn.',
           tools: [],
+          ...(nativeTools ? { nativeTools } : {}),
         });
         expect(session).toMatchObject({
           id: 'codex-isolation-smoke',

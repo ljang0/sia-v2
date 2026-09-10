@@ -13,7 +13,7 @@ Sia interoperates with, but does not bundle, the separately installed OpenAI Cod
 ## Notch native assistant components
 
 Sia's optional Fn helper adapts the Fn monitor, edge-glow panel/view, microphone conversion,
-and frontmost-context capture code; its interactive panel also draws on Notch's nonactivating panel
+and frontmost-context capture code. The Use my Mac window reader also adapts ScreenContextProvider’s bounded static-text and numeric-value capture; its interactive panel also draws on Notch's nonactivating panel
 structure. The encrypted journal, idle lesson consolidation, and executable skill library adapt
 JournalStore, ConsolidationScheduler, and SkillLibrary concepts. The Cmd+E launcher ports
 HotkeyManager’s registration lifecycle to Electron, and reviewable improvements adapt the

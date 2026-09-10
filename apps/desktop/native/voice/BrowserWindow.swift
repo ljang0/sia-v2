@@ -16,11 +16,8 @@ enum BrowserWindow {
     static func inspect(pid: pid_t, windowID: CGWindowID) -> [String: Any] {
         guard AXIsProcessTrusted() else { return ["status": "unavailable", "reason": "accessibility"] }
         guard let app = NSRunningApplication(processIdentifier: pid),
-              let bundle = app.bundleIdentifier, bundles.contains(bundle.lowercased()),
-              let info = (CGWindowListCopyWindowInfo(.optionIncludingWindow, windowID) as? [[String: Any]])?.first,
-              (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid,
-              let bounds = info[kCGWindowBounds as String] as? NSDictionary,
-              let frame = CGRect(dictionaryRepresentation: bounds) else { return ["status": "unavailable", "reason": "window"] }
+              let bundle = app.bundleIdentifier, bundles.contains(bundle.lowercased()) else { return ["status": "unavailable", "reason": "window"] }
+        guard let window = WindowContext.resolve(pid: pid, windowID: windowID) else { return ["status": "unavailable", "reason": "ambiguous"] }
         let deadline = Date().addingTimeInterval(2)
         func attr<T>(_ node: AXUIElement, _ key: String) -> T? {
             guard Date() < deadline else { return nil }
@@ -28,22 +25,6 @@ enum BrowserWindow {
             guard AXUIElementCopyAttributeValue(node, key as CFString, &value) == .success else { return nil }
             return value as? T
         }
-        let root = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(root, 0.1)
-        AXUIElementSetAttributeValue(root, "AXManualAccessibility" as CFString, kCFBooleanTrue)
-        AXUIElementSetAttributeValue(root, "AXEnhancedUserInterface" as CFString, kCFBooleanTrue)
-        let windows: [AXUIElement] = attr(root, kAXWindowsAttribute) ?? []
-        // Public AX has no WindowServer id. Match exact geometry and reject overlapping
-        // siblings rather than guessing which AX window corresponds to the granted id.
-        let matches = windows.filter { window in
-            guard let position: AXValue = attr(window, kAXPositionAttribute),
-                  let size: AXValue = attr(window, kAXSizeAttribute),
-                  AXValueGetType(position) == .cgPoint, AXValueGetType(size) == .cgSize else { return false }
-            var p = CGPoint.zero; var s = CGSize.zero
-            guard AXValueGetValue(position, .cgPoint, &p), AXValueGetValue(size, .cgSize, &s) else { return false }
-            return abs(p.x - frame.minX) < 1 && abs(p.y - frame.minY) < 1 && abs(s.width - frame.width) < 1 && abs(s.height - frame.height) < 1
-        }
-        guard matches.count == 1, let window = matches.first else { return ["status": "unavailable", "reason": "ambiguous"] }
         let title: String = attr(window, kAXTitleAttribute) ?? ""
         var url: String? = attr(window, kAXDocumentAttribute)
         var protected = false
@@ -88,6 +69,6 @@ enum BrowserWindow {
         // An empty browser window can be navigated without exposing a web account.
         if url == nil, webAreas == 0, ["Start Page", "New Tab", "Safari"].contains(title) { url = "about:blank" }
         guard let url, url.utf8.count <= 8192 else { return ["status": "unavailable", "reason": "page"] }
-        return ["status": "ready", "url": url, "bundleID": bundle]
+        return ["status": "ready", "url": url, "bundleID": bundle, "title": FnContext.bounded(title, 300)]
     }
 }

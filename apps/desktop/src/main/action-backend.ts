@@ -1,4 +1,8 @@
-import { MAC_BROWSER_BUNDLES, type BrowserWindowState } from './browser-window.js';
+import {
+  MAC_BROWSER_BUNDLES,
+  type BrowserWindowState,
+  type WindowContextState,
+} from './browser-window.js';
 import { MacTaskEvidence } from './mac-task-evidence.js';
 import { MAC_EXECUTION_TOOLS } from './mac-execution.js';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -79,6 +83,8 @@ export interface DesktopActionBackendOptions {
     pid: number,
     windowId: number,
   ) => Promise<BrowserWindowState>;
+  readonly readImageText?: (dataBase64: string) => Promise<string | undefined>;
+  readonly readWindowContext?: (pid: number, windowId: number) => Promise<WindowContextState>;
   readonly cua: CuaToolCaller;
   readonly cloud?: CloudActionClient;
   /** Opens one explicitly supported non-sensitive macOS application. */
@@ -298,6 +304,9 @@ export class DesktopActionBackend implements ActionBackend {
   readonly #macAutomation: DesktopActionBackendOptions['macAutomation'];
   readonly #macBrowserAccess: () => boolean;
   readonly #inspectBrowserWindow: DesktopActionBackendOptions['inspectBrowserWindow'];
+  readonly #readImageText: DesktopActionBackendOptions['readImageText'];
+  readonly #readWindowContext: DesktopActionBackendOptions['readWindowContext'];
+  #computerInventorySession: string | undefined;
   readonly #cua: CuaToolCaller;
   readonly #cloud: CloudActionClient | undefined;
   readonly #installedApplications: DesktopActionBackendOptions['installedApplications'];
@@ -336,6 +345,8 @@ export class DesktopActionBackend implements ActionBackend {
     this.#macAutomation = options.macAutomation;
     this.#macBrowserAccess = options.macBrowserAccess ?? (() => false);
     this.#inspectBrowserWindow = options.inspectBrowserWindow;
+    this.#readImageText = options.readImageText;
+    this.#readWindowContext = options.readWindowContext;
     this.#cua = options.cua;
     this.#cloud = options.cloud;
     this.#openApplication = options.openApplication;
@@ -742,30 +753,59 @@ export class DesktopActionBackend implements ActionBackend {
     );
   }
 
-  async #nativeBrowserState(binding: ComputerWindowBinding): Promise<string | undefined> {
-    if (!this.#macBrowserAccess() || !this.#inspectBrowserWindow) return undefined;
+  async #nativeBrowserState(binding: ComputerWindowBinding): Promise<BrowserWindowState> {
+    if (!this.#macBrowserAccess() || !this.#inspectBrowserWindow)
+      return { status: 'unavailable' };
     const state = await this.#inspectBrowserWindow(binding.pid, binding.windowId);
+    if (state.status !== 'ready') return state;
     if (
-      state.status !== 'ready' ||
       `bundle:${state.bundleID.toLowerCase()}` !==
-        this.#computerApps.get(binding.appId)?.identity
+      this.#computerApps.get(binding.appId)?.identity
     )
-      return undefined;
-    if (state.url === 'about:blank') return state.url;
+      return { status: 'unavailable', reason: 'window' };
+    if (state.url === 'about:blank') return state;
     try {
       if (
         !['http:', 'https:'].includes(new URL(state.url).protocol) ||
         browserUrlLooksSensitive(state.url)
       )
-        return undefined;
-      return state.url;
+        return { status: 'protected', reason: 'page' };
+      return state;
     } catch {
-      return undefined;
+      return { status: 'unavailable', reason: 'page' };
     }
   }
 
+  #browserObservationRefused(
+    binding: ComputerWindowBinding,
+    state: BrowserWindowState,
+  ): ActionExecutionResult {
+    const protectedPage = state.status === 'protected';
+    return {
+      outcome: 'refused',
+      summary: protectedPage
+        ? 'This specific browser window contains a protected page or security control. It was not read. This does not establish that another window or the requested account needs login.'
+        : 'This specific browser window could not be identified or observed. This is not evidence of a login screen. Continue in the task window already observed, or bring the browser forward and inspect this window again.',
+      data: {
+        app_id: binding.appId,
+        window_id: binding.id,
+        blocker_code: protectedPage ? 'protected_window' : 'window_unavailable',
+        ...(state.status !== 'ready' && state.reason ? { blocker_detail: state.reason } : {}),
+      },
+    };
+  }
+
   async #computerList(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
-    this.#resetComputerCapabilities();
+    // Preserve exact window identities across inventory refreshes in one Mac session.
+    // Each action still revalidates ownership, expiry and the latest snapshot.
+    const mac = this.#macBrowserAccess();
+    if (!mac || this.#computerInventorySession !== request.context.sessionId)
+      this.#resetComputerCapabilities();
+    this.#computerInventorySession = request.context.sessionId;
+    const previousApps = [...this.#computerApps.values()];
+    const previousWindows = [...this.#computerWindows.values()];
+    const liveApps = new Set<string>();
+    const liveWindows = new Set<string>();
     const [appsValue, windowsValue] = await Promise.all([
       this.#callCua(request, 'list_apps', {}),
       this.#callCua(request, 'list_windows', { on_screen_only: false }),
@@ -784,8 +824,11 @@ export class DesktopActionBackend implements ActionBackend {
         this.#computerAppBlocked(name, bundleId)
       )
         return [];
+      const previous = previousApps.find(
+        (app) => app.pid === pid && app.identity === identity && app.expiresAt > Date.now(),
+      );
       const binding: ComputerAppBinding = {
-        id: `app:${randomUUID()}`,
+        id: previous?.id ?? `app:${randomUUID()}`,
         pid,
         identity,
         name: name ?? bundleId!,
@@ -793,6 +836,7 @@ export class DesktopActionBackend implements ActionBackend {
       };
       appByPid.set(pid, binding);
       this.#computerApps.set(binding.id, binding);
+      liveApps.add(binding.id);
       return [
         compact({
           app_id: binding.id,
@@ -817,12 +861,18 @@ export class DesktopActionBackend implements ActionBackend {
           )
         )
           return undefined;
-        const title = trustedDisplayText(firstString(record, ['title']));
+        const previous = previousWindows.find(
+          (window) =>
+            window.appId === app.id &&
+            window.windowId === windowId &&
+            window.expiresAt > Date.now(),
+        );
+        const title = trustedDisplayText(firstString(record, ['title'])) ?? previous?.title;
         const isOnScreen = firstBoolean(record, ['is_on_screen', 'on_screen']);
         const onCurrentSpace = firstBoolean(record, ['on_current_space']);
         if (!title && isOnScreen === false && onCurrentSpace !== true) return undefined;
         const binding: ComputerWindowBinding = {
-          id: `window:${randomUUID()}`,
+          id: previous?.id ?? `window:${randomUUID()}`,
           appId: app.id,
           pid: app.pid,
           windowId,
@@ -830,17 +880,38 @@ export class DesktopActionBackend implements ActionBackend {
           expiresAt,
         };
         this.#computerWindows.set(binding.id, binding);
+        liveWindows.add(binding.id);
         return compact({
           app_id: binding.appId,
           window_id: binding.id,
           app_name: app.name,
-          title: firstString(record, ['title']),
+          title: mac ? title : firstString(record, ['title']),
+          ...(mac ? { z_order: nonNegativeInteger(record.z_index) } : {}),
           bounds: sanitizeFrame(record.bounds),
           is_on_screen: isOnScreen,
           on_current_space: onCurrentSpace,
         });
       })
       .filter(isDefined);
+    for (const id of this.#computerApps.keys())
+      if (!liveApps.has(id)) this.#computerApps.delete(id);
+    for (const id of this.#computerWindows.keys())
+      if (!liveWindows.has(id)) {
+        this.#computerWindows.delete(id);
+        const snapshot = this.#latestWindowSnapshot.get(id);
+        if (snapshot) this.#windowSnapshots.delete(snapshot);
+        this.#latestWindowSnapshot.delete(id);
+      }
+    // WindowServer enumerates back-to-front on some builds. Give the model the
+    // frontmost candidates first, retaining every permitted window for discovery.
+    if (mac)
+      windows.sort(
+        (a, b) =>
+          Number(b.on_current_space === true) - Number(a.on_current_space === true) ||
+          Number(b.is_on_screen === true) - Number(a.is_on_screen === true) ||
+          Number(a.z_order ?? Infinity) - Number(b.z_order ?? Infinity),
+      );
+
     return {
       outcome: 'verified',
       summary: `Found ${apps.length} running application${apps.length === 1 ? '' : 's'} and ${windows.length} window${windows.length === 1 ? '' : 's'}.`,
@@ -878,10 +949,14 @@ export class DesktopActionBackend implements ActionBackend {
     if (!installed && requested !== 'notes')
       return refused('Application discovery is unavailable in this build.');
     await this.#openApplication(installed ? application : requested);
-    this.#resetComputerCapabilities();
+    const mac = this.#macBrowserAccess();
+    if (!mac) this.#resetComputerCapabilities();
+    if (mac) await delay(350, undefined, { signal: request.context.signal });
+    const inventory = mac ? await this.#computerList(request) : undefined;
     return {
       outcome: 'verified',
-      summary: `Requested opening ${entry?.name ?? 'Apple Notes'}. Call computer_list for fresh window grants before continuing.`,
+      summary: `Requested opening ${entry?.name ?? 'Apple Notes'}. ${inventory ? 'Use the returned window ids to inspect the app; no extra computer_list is needed.' : 'Call computer_list for fresh window grants before continuing.'}`,
+      ...(inventory?.data ? { data: inventory.data } : {}),
       verification: {
         evidence:
           'The trusted desktop host submitted the installed application to LaunchServices; inspect its current windows next.',
@@ -909,14 +984,16 @@ export class DesktopActionBackend implements ActionBackend {
         'Authentication, credential, internal, and non-web addresses cannot be opened by Sia. Open that page yourself, finish the login, then continue this task.',
       );
     await this.#openUrl(url.toString());
-    this.#resetComputerCapabilities();
+    await delay(350, undefined, { signal: request.context.signal });
+    const inventory = await this.#computerList(request);
     return {
       outcome: 'accepted_unverified',
       summary:
-        'Opened the website in the default browser. Call computer_list, choose the resulting browser window, and inspect it before continuing. Do not ask the person to repeat the task.',
+        'Opened the website in the default browser. Use the returned window ids to inspect the resulting page; no extra computer_list is needed. Do not ask the person to repeat the task.',
       data: {
+        ...(asRecord(inventory.data) ?? {}),
         next_step:
-          'Call computer_list and computer_snapshot. If the page requires authentication, ask the person to finish signing in and continue this same request.',
+          'Call computer_snapshot on the matching browser window. If it is still loading, wait and observe again. If an actual authentication screen is observed, ask the person to finish signing in and continue this same request.',
       },
       verification: {
         evidence: 'The trusted desktop host submitted the validated web URL to macOS.',
@@ -957,11 +1034,10 @@ export class DesktopActionBackend implements ActionBackend {
     request: ValidatedActionInvocation,
   ): Promise<ActionExecutionResult> {
     const browser = this.#isNativeBrowser(binding);
-    const browserUrl = browser ? await this.#nativeBrowserState(binding) : undefined;
-    if (browser && !browserUrl)
-      return refused(
-        'The browser page is protected or its window could not be safely identified. If the browser is on another Space, first use computer_open_app with its installed application id to bring it forward, then computer_list and computer_snapshot again. If it shows login or a security prompt, ask the person to finish it and continue this same task. Chrome attachment is optional.',
-      );
+    const browserState = browser ? await this.#nativeBrowserState(binding) : undefined;
+    if (browserState && browserState.status !== 'ready')
+      return this.#browserObservationRefused(binding, browserState);
+    const browserUrl = browserState?.status === 'ready' ? browserState.url : undefined;
     const capture = (includeScreenshot: boolean) =>
       this.#callCua(request, 'get_window_state', {
         pid: binding.pid,
@@ -984,13 +1060,42 @@ export class DesktopActionBackend implements ActionBackend {
     const refusalResult = resultRefusal(raw);
     if (refusalResult) return refusalResult;
 
+    const context =
+      this.#macBrowserAccess() && !windowHasProtectedControls(raw)
+        ? await this.#readWindowContext?.(binding.pid, binding.windowId)
+        : undefined;
+    const readableContext =
+      context?.status === 'ready' &&
+      `bundle:${context.bundleID.toLowerCase()}` ===
+        this.#computerApps.get(binding.appId)?.identity
+        ? context
+        : undefined;
+    if (context?.status === 'protected')
+      return {
+        outcome: 'refused',
+        summary: 'Protected controls appeared in this window. No content was returned.',
+        data: {
+          app_id: binding.appId,
+          window_id: binding.id,
+          blocker_code: 'protected_window',
+        },
+      };
+    const image = actionImages(raw)?.images?.[0];
+    const imageText =
+      this.#macBrowserAccess() &&
+      request.arguments.read_text === true &&
+      image &&
+      !windowHasProtectedControls(raw)
+        ? await this.#readImageText?.(image.dataBase64)
+        : undefined;
     if (browser) {
-      const afterUrl = await this.#nativeBrowserState(binding);
-      if (windowHasProtectedControls(raw) || !afterUrl)
-        return refused(
-          'The browser shows protected controls or its page could not be safely identified. No page content was returned. Inspect the window again; if it needs login, ask the person to finish it.',
+      const after = await this.#nativeBrowserState(binding);
+      if (windowHasProtectedControls(raw) || after.status !== 'ready')
+        return this.#browserObservationRefused(
+          binding,
+          windowHasProtectedControls(raw) ? { status: 'protected' } : after,
         );
-      if (afterUrl !== browserUrl)
+      if (after.url !== browserUrl)
         return {
           outcome: 'accepted_unverified',
           summary:
@@ -998,15 +1103,28 @@ export class DesktopActionBackend implements ActionBackend {
           data: { observation_pending: true },
         };
     }
+    const title =
+      readableContext?.title ||
+      (browserState?.status === 'ready' ? browserState.title : undefined) ||
+      binding.title;
+    if (title) this.#computerWindows.set(binding.id, { ...binding, title });
     const snapshotId = randomUUID();
     const nativeSnapshotId = findString(raw, ['snapshot_id', 'snapshotId']);
     const elementMap = new Map<string, NativeElementAddress>();
     const elements = findElementRecords(raw, 'window')
       .map((record, position) => {
         if (isProtectedElement(record) || isHiddenWindowStructure(record)) return undefined;
+        // The application menu bar is outside this window's input grant. Exposing
+        // those refs invites element_outside_target_window failures; use shortcuts.
+        if (
+          this.#macBrowserAccess() &&
+          /^AXMenuBar(?:Item)?$/.test(firstString(record, ['role', 'type']) ?? '')
+        )
+          return undefined;
         const token = firstString(record, ['element_token', 'elementToken']);
         const index = nonNegativeInteger(record.element_index ?? record.elementIndex);
-        if (!token && (index === undefined || !nativeSnapshotId)) return undefined;
+        if (!token && (index === undefined || !nativeSnapshotId))
+          return this.#macBrowserAccess() ? sanitizeElement(record) : undefined;
         const ref = `w:${snapshotId}:${position}`;
         const label = trustedElementLabel(record);
         const role = trustedDisplayText(firstString(record, ['role', 'type']));
@@ -1016,7 +1134,9 @@ export class DesktopActionBackend implements ActionBackend {
           ...(label ? { label } : {}),
           ...(role ? { role } : {}),
         });
-        return sanitizeElement(record, ref);
+        const element = sanitizeElement(record, ref);
+        if (this.#macBrowserAccess()) delete element.frame;
+        return element;
       })
       .filter(isDefined);
     const pixels = windowHasProtectedControls(raw) ? undefined : screenshotDimensions(raw);
@@ -1042,6 +1162,19 @@ export class DesktopActionBackend implements ActionBackend {
         snapshot_id: snapshotId,
         app_id: binding.appId,
         window_id: binding.id,
+        app_name: this.#computerApps.get(binding.appId)?.name,
+        title,
+        browser_origin:
+          browserUrl && browserUrl !== 'about:blank' ? new URL(browserUrl).origin : undefined,
+        visible_text: readableContext?.text || undefined,
+        image_text: imageText,
+        ...(request.arguments.read_text === true
+          ? {
+              image_text_status: imageText ? 'read' : 'unavailable',
+              image_text_note:
+                'OCR of this exact screenshot; cross-check with the image. It only covers visible pixels, not other pages or offscreen content.',
+            }
+          : {}),
         elements,
         ...(this.#macBrowserAccess() &&
         findElementRecords(raw, 'window').some(
@@ -1083,8 +1216,8 @@ export class DesktopActionBackend implements ActionBackend {
       return stale('The window snapshot is missing, superseded, or belongs to another window.');
     }
     if (this.#isNativeBrowser(binding)) {
-      const currentUrl = await this.#nativeBrowserState(binding);
-      if (!currentUrl || currentUrl !== capability.browserUrl)
+      const current = await this.#nativeBrowserState(binding);
+      if (current.status !== 'ready' || current.url !== capability.browserUrl)
         return stale(
           'The browser page changed or needs login. Capture a fresh browser window state before continuing; do not replay the previous action.',
         );
@@ -1130,9 +1263,14 @@ export class DesktopActionBackend implements ActionBackend {
           );
       }
     }
-    const address = this.#windowElementAddress(capability, args.element_ref);
+    let address = this.#windowElementAddress(capability, args.element_ref);
     if (args.element_ref && !address)
       return stale('The element reference is not in this snapshot.');
+    const macKeyboard =
+      this.#macBrowserAccess() && ['type', 'key'].includes(String(args.action));
+    // AXWindow is not an editable control. Focusing it before each keystroke loses
+    // the actual field focus in apps such as Calculator. Use the exact-window route.
+    if (macKeyboard && address?.role === 'AXWindow') address = undefined;
     if (!address && capability.protectedControls)
       return refused(
         'Focused and pixel actions are blocked on a window containing protected controls.',
@@ -1193,8 +1331,13 @@ export class DesktopActionBackend implements ActionBackend {
       pid: binding.pid,
       window_id: binding.windowId,
       session: request.context.sessionId,
-      delivery_mode: address ? 'background' : 'foreground',
-      snapshot_id: capability.nativeSnapshotId,
+      delivery_mode:
+        macKeyboard || !address || (this.#macBrowserAccess() && args.delivery === 'foreground')
+          ? 'foreground'
+          : 'background',
+      // An unaddressed action must not carry an element snapshot: the driver
+      // otherwise refuses it with element_index_required. Sia's grant is checked above.
+      snapshot_id: address ? capability.nativeSnapshotId : undefined,
       element_token: address?.token,
       element_index: address?.index,
     });
@@ -1269,8 +1412,13 @@ export class DesktopActionBackend implements ActionBackend {
         return refused('Unsupported computer action.');
     }
 
+    const knownWindows = new Set(
+      [...this.#computerWindows.values()]
+        .filter((window) => window.appId === binding.appId)
+        .map((window) => window.windowId),
+    );
     const raw = await this.#callCua(request, tool, input);
-    const focusedFallback = !address;
+    const focusedFallback = base.delivery_mode === 'foreground';
     const native = actionResult(
       raw,
       focusedFallback
@@ -1287,6 +1435,37 @@ export class DesktopActionBackend implements ActionBackend {
     }
     let after: ActionExecutionResult;
     try {
+      // Notch waits before observing the result. A successful post is not proof
+      // that the application has processed the input yet. Never replay input here.
+      if (this.#macBrowserAccess()) {
+        await delay(350, undefined, { signal: request.context.signal });
+        const current = await this.#callCua(request, 'list_windows', { pid: binding.pid });
+        const created = new Set(
+          findRecordArray(current, 'windows')
+            .filter((window) => positiveInteger(window.pid, MAX_PID) === binding.pid)
+            .map((window) => positiveInteger(window.window_id ?? window.id, MAX_WINDOW_ID))
+            .filter((id): id is number => id !== undefined && !knownWindows.has(id)),
+        );
+        if (created.size) {
+          const inventory = await this.#computerList(request);
+          const newWindows = (
+            (asRecord(inventory.data)?.windows ?? []) as Record<string, unknown>[]
+          ).filter((window) => {
+            const grant = this.#computerWindows.get(String(window.window_id));
+            return grant?.appId === binding.appId && created.has(grant.windowId);
+          });
+          if (newWindows.length)
+            return {
+              outcome: 'accepted_unverified',
+              summary: `${native.summary} New windows appeared. Inspect a new_window before continuing; the previous snapshot belongs to the original window. Do not repeat the action that opened it.`,
+              data: {
+                observation_pending: true,
+                new_windows: newWindows,
+                previous_window_id: binding.id,
+              },
+            };
+        }
+      }
       after = this.#macBrowserAccess()
         ? await this.#captureSettledWindow(binding, request)
         : await this.#captureWindow(binding, request);
@@ -2584,7 +2763,8 @@ function findElementRecords(
   ];
   return candidates.filter((record) =>
     kind === 'window'
-      ? firstString(record, ['element_token', 'elementToken']) !== undefined ||
+      ? firstString(record, ['role', 'type']) !== undefined ||
+        firstString(record, ['element_token', 'elementToken']) !== undefined ||
         nonNegativeInteger(record.element_index ?? record.elementIndex) !== undefined
       : firstString(record, ['ref', 'element_ref', 'elementRef']) !== undefined,
   );
@@ -2628,14 +2808,20 @@ function collectTabRecords(value: unknown): Record<string, unknown>[] {
 
 function sanitizeElement(
   record: Record<string, unknown>,
-  ref: string,
+  ref?: string,
 ): Record<string, unknown> {
   const states = asRecord(record.states);
   return compact({
     element_ref: ref,
     role: firstString(record, ['role', 'type']),
     label: trustedElementLabel(record),
-    value: firstString(record, ['value', 'text']),
+    value:
+      firstString(record, ['role', 'type']) === 'AXHeading'
+        ? undefined
+        : (firstString(record, ['value', 'text']) ??
+          (typeof record.value === 'number' && Number.isFinite(record.value)
+            ? String(record.value)
+            : undefined)),
     description: firstString(record, ['description']),
     frame: sanitizeFrame(record.frame ?? record.bounds),
     disabled: firstBoolean(record, ['disabled']) ?? firstBoolean(states ?? {}, ['disabled']),
