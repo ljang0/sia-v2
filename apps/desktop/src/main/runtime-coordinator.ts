@@ -27,8 +27,8 @@ import {
 import type { ActionGateway, TurnLease } from '@sia/action-gateway';
 
 import {
-  MAC_EXECUTION_TOOLS,
-  MAC_EXECUTION_GUIDANCE,
+  macExecutionTools,
+  macExecutionGuidance,
   MAC_RESPONSE_SCHEMA,
   presentMacResponse,
 } from './mac-execution.js';
@@ -36,6 +36,7 @@ import {
 export interface RuntimeThreadConfig {
   nativeTools?: 'disabled';
   computerAccessMode?: 'mac' | 'connected';
+  macBackgroundControl?: boolean;
   computerTrust?: 'ask' | 'auto';
   id: string;
   provider: ProviderId;
@@ -336,7 +337,7 @@ export class RuntimeCoordinator {
       provider: thread.provider,
       workspace: thread.workspace,
       ...(thread.computerAccessMode === 'mac' && thread.nativeTools !== 'disabled'
-        ? { allowedTools: new Set(MAC_EXECUTION_TOOLS) }
+        ? { allowedTools: new Set(macExecutionTools(thread.macBackgroundControl)) }
         : {}),
       ...(lease ? { lease } : {}),
       ...(signal ? { signal } : {}),
@@ -462,7 +463,9 @@ export class RuntimeCoordinator {
           ['assistant_library', 'memory_suggest'].includes(tool.name),
       );
     const sessionTools = tools.filter((tool) =>
-      mac ? MAC_EXECUTION_TOOLS.includes(tool.name) : tool.name !== 'computer_task_complete',
+      mac
+        ? macExecutionTools(thread.macBackgroundControl).includes(tool.name)
+        : tool.name !== 'computer_task_complete',
     );
     const fingerprint = JSON.stringify([
       thread.provider,
@@ -473,6 +476,7 @@ export class RuntimeCoordinator {
       thread.nativeTools,
       thread.computerAccessMode,
       thread.computerTrust,
+      thread.macBackgroundControl,
       sessionTools.map(({ name }) => name),
     ]);
     const existing = this.#sessions.get(thread.id);
@@ -518,7 +522,7 @@ export class RuntimeCoordinator {
           ? {
               nativeTools: 'mac' as const,
               nativeApproval: thread.computerTrust ?? 'ask',
-              baseInstructions: MAC_EXECUTION_GUIDANCE,
+              baseInstructions: macExecutionGuidance(thread.macBackgroundControl),
             }
           : thread.nativeTools
             ? { nativeTools: thread.nativeTools }

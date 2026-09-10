@@ -433,7 +433,9 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onRequestPermissions={() => api.requestComputerPermissions()}
               onRequestAutomation={(app) => api.requestAutomationPermission(app)}
               onRefreshPermissions={() => api.refreshComputerPermissions()}
-              onSetComputerAccessMode={(mode) => api.setComputerAccessMode(mode)}
+              onSetComputerAccessMode={(mode, background) =>
+                api.setComputerAccessMode(mode, background)
+              }
               onSetComputerTrust={(trust) => api.setComputerTrust(trust)}
               onSetTrajectoryLog={(enabled) => api.setTrajectoryLog(enabled)}
               onRevealTrajectories={() => api.revealTrajectories()}

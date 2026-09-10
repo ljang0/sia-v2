@@ -392,6 +392,7 @@ export interface ComputerPermissionsView {
 
 export interface ComputerView extends ComputerPermissionsView {
   accessMode?: 'mac' | 'connected';
+  backgroundControl?: boolean;
   automation?: import('./mac-permissions.js').AutomationPermissions;
   /** Local Apple Messages readability; sends additionally prompt for Automation once. */
   messagesAccess?: 'ready' | 'needs_full_disk_access' | 'unavailable';
@@ -639,7 +640,7 @@ export interface BridgeRequestMap {
   'computer.requestPermissions': undefined;
   'computer.requestAutomation': { app: import('./mac-permissions.js').AutomationApp };
   'computer.openMessages': undefined;
-  'computer.setAccessMode': { mode: 'mac' | 'connected' };
+  'computer.setAccessMode': { mode: 'mac' | 'connected'; background?: boolean };
   'computer.setTrust': { trust: 'auto' | 'ask' };
   'computer.setTrajectoryLog': { enabled: boolean };
   'computer.revealTrajectories': undefined;
@@ -929,7 +930,7 @@ export interface DesktopBridgeApi {
     ): Promise<DesktopSnapshot>;
     openMessages(): Promise<DesktopSnapshot>;
     setupMessages(): Promise<DesktopSnapshot>;
-    setAccessMode(mode: 'mac' | 'connected'): Promise<DesktopSnapshot>;
+    setAccessMode(mode: 'mac' | 'connected', background?: boolean): Promise<DesktopSnapshot>;
     setTrust(trust: 'auto' | 'ask'): Promise<DesktopSnapshot>;
     setTrajectoryLog(enabled: boolean): Promise<DesktopSnapshot>;
     revealTrajectories(): Promise<DesktopSnapshot>;

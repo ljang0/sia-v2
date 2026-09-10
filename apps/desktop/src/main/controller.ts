@@ -189,6 +189,7 @@ interface PersistedState {
     onboarding?: NonNullable<DesktopSnapshot['preferences']['onboarding']>;
     /** All eligible actions run without in-app approval only when explicitly set to 'auto'. */
     computerAccessMode?: 'mac' | 'connected';
+    macBackgroundControl?: boolean;
     computerTrust?: 'auto' | 'ask';
     /** Eligible local trajectory log; Google Workspace connector turns are excluded. */
     trajectoryLog?: boolean;
@@ -392,7 +393,7 @@ const INITIAL_STATE: PersistedState = {
     connectors: true,
     schedules: true,
   },
-  preferences: { completionSound: false },
+  preferences: { completionSound: false, computerAccessMode: 'mac' },
   usageByTurn: {},
 };
 
@@ -816,6 +817,10 @@ export class DesktopController {
     return this.#state.preferences.computerAccessMode ?? 'connected';
   }
 
+  macBackgroundControl(): boolean {
+    return this.#state.preferences.macBackgroundControl === true;
+  }
+
   computerTrust(): 'auto' | 'ask' {
     return this.#state.preferences.computerTrust ?? 'ask';
   }
@@ -1220,6 +1225,7 @@ export class DesktopController {
         ...(this.#messagesAccess ? { messagesAccess: this.#messagesAccess } : {}),
         ...(this.#chromeConnection ? { chromeConnection: this.#chromeConnection } : {}),
         accessMode: this.computerAccessMode(),
+        backgroundControl: this.macBackgroundControl(),
         trust: this.computerTrust(),
         trajectoryLog: this.trajectoryLogEnabled(),
         ...(this.#trajectory ? { trajectoryDirectory: this.#trajectory.rootDirectory } : {}),
@@ -1688,17 +1694,20 @@ export class DesktopController {
       }
       case 'computer.openMessages':
         return (await this.#openMessagesApp()) as unknown as BridgeResultMap[M];
-      case 'computer.setAccessMode':
+      case 'computer.setAccessMode': {
         this.#requireSignedInReleaseAccount();
         this.#state.preferences.computerAccessMode = (
           input as BridgeRequestMap['computer.setAccessMode']
         ).mode;
+        const background = (input as BridgeRequestMap['computer.setAccessMode']).background;
+        if (background !== undefined) this.#state.preferences.macBackgroundControl = background;
         this.#pushToTalk?.setContextEnabled(
           this.#assistantLibrary.view().context || this.computerAccessMode() === 'mac',
           this.computerAccessMode() === 'mac',
         );
         this.#commit();
         return this.snapshot() as BridgeResultMap[M];
+      }
       case 'computer.setTrust':
         this.#state.preferences.computerTrust = (
           input as BridgeRequestMap['computer.setTrust']
@@ -5476,6 +5485,7 @@ export class DesktopController {
           this.#taintResearchTurn(turn.id);
         const runtimeThread = {
           computerAccessMode: this.computerAccessMode(),
+          macBackgroundControl: this.macBackgroundControl(),
           computerTrust: this.computerTrust(),
           ...(this.#assistantLibrary.isReview(thread.id)
             ? { nativeTools: 'disabled' as const }

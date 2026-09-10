@@ -356,8 +356,8 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async detachBrowser() {
       publish(await bridge.browser.detach());
     },
-    async setComputerAccessMode(mode) {
-      publish(await bridge.computer.setAccessMode(mode));
+    async setComputerAccessMode(mode, background) {
+      publish(await bridge.computer.setAccessMode(mode, background));
     },
     async setComputerTrust(trust) {
       publish(await bridge.computer.setTrust(trust));
@@ -635,6 +635,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
       screenRecording: source.computer.screenRecording ? 'allowed' : 'not-requested',
       windows: [],
       accessMode: source.computer.accessMode,
+      backgroundControl: source.computer.backgroundControl,
       trust: source.computer.trust,
       messagesAccess: source.computer.messagesAccess,
       automation: source.computer.automation,

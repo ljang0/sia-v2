@@ -330,6 +330,7 @@ interface ComputerWindow {
 
 export interface ComputerInspectorState {
   accessMode?: 'mac' | 'connected' | undefined;
+  backgroundControl?: boolean | undefined;
   accessibility: 'allowed' | 'denied' | 'not-requested';
   screenRecording: 'allowed' | 'denied' | 'not-requested';
   windows: ComputerWindow[];
@@ -607,7 +608,7 @@ export interface RendererApi {
   requestAutomationPermission(
     app: import('../shared/mac-permissions').AutomationApp,
   ): Promise<void>;
-  setComputerAccessMode(mode: 'mac' | 'connected'): Promise<void>;
+  setComputerAccessMode(mode: 'mac' | 'connected', background?: boolean): Promise<void>;
   setComputerTrust(trust: 'auto' | 'ask'): Promise<void>;
   setTrajectoryLog(enabled: boolean): Promise<void>;
   revealTrajectories(): Promise<void>;

@@ -227,6 +227,19 @@ if CommandLine.arguments.contains("--remote-discovery") {
     application.run()
     exit(0)
 }
+if CommandLine.arguments.contains("--mac-screenshot") {
+    guard CommandLine.arguments.count == 3 || CommandLine.arguments.count == 4,
+          CommandLine.arguments[1] == "--mac-screenshot",
+          let display = Int(CommandLine.arguments.count == 4 ? CommandLine.arguments[3] : "1") else { exit(2) }
+    do {
+        let result = try MacScreenshot.capture(path: CommandLine.arguments[2], display: display)
+        FileHandle.standardOutput.write(try JSONSerialization.data(withJSONObject: result))
+    } catch {
+        FileHandle.standardError.write(Data(error.localizedDescription.utf8))
+        exit(1)
+    }
+    exit(0)
+}
 if CommandLine.arguments == [CommandLine.arguments[0], "--mac-context"] {
     let displays = NSScreen.screens.enumerated().map { index, screen -> [String: Any] in
         let frame = screen.frame

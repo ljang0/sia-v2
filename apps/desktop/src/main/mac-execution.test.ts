@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAC_EXECUTION_TOOLS, parseMacResponse } from './mac-execution.js';
+import { MAC_EXECUTION_TOOLS, macExecutionTools, parseMacResponse } from './mac-execution.js';
 
 describe('Notch response port', () => {
   it('reads fenced JSON with escaped quotes and braces without speaking the envelope', () => {
@@ -27,12 +27,16 @@ describe('Notch response port', () => {
     ])
       expect(parseMacResponse(text)).toBeUndefined();
   });
-  it('keeps the old computer checklist, CUA, service connections and restricted script runner out of Mac execution', () => {
+  it('adds window control only when explicitly selected while keeping the old checklist, connections and restricted script runner out of Mac execution', () => {
     expect(
       MAC_EXECUTION_TOOLS.some((name) =>
-        /^(computer_|browser_|mac_automation|skill_run)/.test(name),
+        /^(computer_task_complete|browser_|mac_automation|skill_run)/.test(name),
       ),
     ).toBe(false);
     expect(MAC_EXECUTION_TOOLS).toContain('assistant_library');
+    expect(MAC_EXECUTION_TOOLS).not.toContain('computer_list');
+    expect(macExecutionTools(true)).toEqual(
+      expect.arrayContaining(['computer_list', 'computer_snapshot', 'computer_action']),
+    );
   });
 });

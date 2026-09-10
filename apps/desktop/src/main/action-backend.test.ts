@@ -637,7 +637,11 @@ describe('DesktopActionBackend computer boundary', () => {
       }
       throw new Error(`Unexpected ${tool}`);
     });
-    const backend = new DesktopActionBackend({ cua, macBrowserAccess: () => true });
+    const backend = new DesktopActionBackend({
+      cua,
+      macBrowserAccess: () => true,
+      macBackgroundControl: () => true,
+    });
     const target = await grantedComputerTarget(backend);
     const first = await backend.invoke(
       request('computer_snapshot', { app_id: target.appId, window_id: target.windowId }),
@@ -650,6 +654,7 @@ describe('DesktopActionBackend computer boundary', () => {
         snapshot_id: dataRecord(first.data).snapshot_id,
         action: 'key',
         value: 'n',
+        delivery: 'foreground',
         modifiers: ['cmd'],
       }),
     );
@@ -683,6 +688,7 @@ describe('DesktopActionBackend computer boundary', () => {
     const backend = new DesktopActionBackend({
       cua,
       macBrowserAccess: () => true,
+      macBackgroundControl: () => true,
       readImageText,
     });
     const target = await grantedComputerTarget(backend);
@@ -712,7 +718,7 @@ describe('DesktopActionBackend computer boundary', () => {
           }),
         )
       ).outcome,
-    ).toBe('verified');
+    ).toBe('refused'); // The retired checklist is not exposed in native Mac mode.
     protectedControl = true;
     await backend.invoke(request('computer_snapshot', { ...args, read_text: true }));
     expect(readImageText).toHaveBeenCalledTimes(1);
@@ -744,6 +750,7 @@ describe('DesktopActionBackend computer boundary', () => {
     const backend = new DesktopActionBackend({
       cua,
       macBrowserAccess: () => true,
+      macBackgroundControl: () => true,
       readWindowContext: async () => ({
         status: 'ready',
         bundleID: 'com.apple.calculator',
@@ -769,6 +776,7 @@ describe('DesktopActionBackend computer boundary', () => {
         element_ref: elements[0]!.element_ref,
         action: 'key',
         value: '1',
+        delivery: 'foreground',
       }),
     );
     expect(result.outcome).toBe('accepted_unverified');
@@ -2099,6 +2107,7 @@ describe('Use my Mac browser routing', () => {
     const backend = new DesktopActionBackend({
       cua,
       macBrowserAccess: () => enabled,
+      macBackgroundControl: () => true,
       inspectBrowserWindow: inspect,
       openUrl,
     });
@@ -2128,6 +2137,34 @@ describe('Use my Mac browser routing', () => {
       element_ref: (data.elements as Record<string, unknown>[])[0]!.element_ref,
     };
   }
+
+  it('binds browser facts to the expected course and role query without exposing query secrets', async () => {
+    const h = browserHarness();
+    const target = await grantedComputerTarget(h.backend);
+    const ids = { app_id: target.appId, window_id: target.windowId };
+    const expected = 'https://canvas.cmu.edu/api/v1/courses/22/users?role=teacher&per_page=100';
+    h.navigate('https://canvas.cmu.edu/api/v1/courses/11/users?role=teacher&per_page=100');
+    expect(
+      (await h.backend.invoke(request('computer_snapshot', { ...ids, expected_url: expected })))
+        .outcome,
+    ).toBe('stale');
+    h.navigate('https://canvas.cmu.edu/api/v1/courses/22/users?role=ta&per_page=100');
+    expect(
+      (await h.backend.invoke(request('computer_snapshot', { ...ids, expected_url: expected })))
+        .outcome,
+    ).toBe('stale');
+    expect(h.cua.call.mock.calls.some(([tool]) => tool === 'get_window_state')).toBe(false);
+    h.navigate('https://canvas.cmu.edu/api/v1/courses/22/users?per_page=100&role=teacher#top');
+    const matched = await h.backend.invoke(
+      request('computer_snapshot', { ...ids, expected_url: expected }),
+    );
+    expect(matched.outcome).toBe('verified');
+    expect(dataRecord(matched.data).source_url).toBe(
+      'https://canvas.cmu.edu/api/v1/courses/22/users',
+    );
+    expect(JSON.stringify(matched)).not.toContain('per_page');
+    expect(JSON.stringify(matched)).not.toContain('#top');
+  });
 
   it('discovers Safari without Chrome attachment and returns the native route to the same task', async () => {
     const h = browserHarness();
@@ -2216,12 +2253,23 @@ describe('Use my Mac browser routing', () => {
     expect(result.outcome).toBe('accepted_unverified');
     expect(result.summary).toContain('Use the returned window ids');
     expect(dataRecord(result.data).windows).toHaveLength(1);
-    expect(h.openUrl).toHaveBeenCalledWith('https://canvas.cmu.edu/');
+    expect(h.openUrl).toHaveBeenCalledWith('https://canvas.cmu.edu/', { background: true });
+    expect(dataRecord(result.data).delivery_requested).toBe('background');
     expect(
       h.backend.trustedApprovalTarget('computer_open_url', {
         url: 'https://canvas.cmu.edu/',
       }),
     ).toBe('Open https://canvas.cmu.edu in the default browser');
+  });
+
+  it('only requests browser activation for explicit foreground navigation', async () => {
+    const h = browserHarness();
+    await h.backend.invoke(
+      request('computer_open_url', { url: 'https://canvas.cmu.edu/', delivery: 'foreground' }),
+    );
+    expect(h.openUrl).toHaveBeenCalledExactlyOnceWith('https://canvas.cmu.edu/', {
+      background: false,
+    });
   });
 
   it('recovers a navigation race by observing again without replaying the click', async () => {
@@ -2272,7 +2320,7 @@ describe('Use my Mac browser routing', () => {
     const h = browserHarness();
     const result = await h.backend.invoke(request('browser_snapshot', { tab_id: 'old-tab' }));
     expect(result.outcome).toBe('refused');
-    expect(result.summary).toContain('native app tools');
+    expect(result.summary).toContain('selected Mac control route');
     expect(h.cua.call).not.toHaveBeenCalled();
   });
 
@@ -2476,4 +2524,78 @@ it('keeps accessibility usable when screenshot capture fails and omits hidden hi
   expect(JSON.stringify(result)).not.toContain('Sign in');
   expect(dataRecord(result.data).pixel_actions_available).toBe(false);
   expect(cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state')).toHaveLength(2);
+});
+
+it.each([
+  { action: 'key', value: 'a', tool: 'press_key' },
+  { action: 'type', text: 'hello', tool: 'type_text' },
+  { action: 'click', x: 20, y: 30, tool: 'click' },
+  { action: 'drag', x: 20, y: 30, to_x: 40, to_y: 50, tool: 'drag' },
+  { action: 'scroll', direction: 'down', tool: 'scroll' },
+])(
+  'keeps Mac $action in the background and never automatically replays a refusal',
+  async ({ tool: expectedTool, ...action }) => {
+    const png = Buffer.alloc(24);
+    Buffer.from('89504e470d0a1a0a', 'hex').copy(png);
+    png.write('IHDR', 12);
+    png.writeUInt32BE(800, 16);
+    png.writeUInt32BE(600, 20);
+    const cua = fakeCua(async (tool, args) => {
+      if (tool === 'list_apps')
+        return { apps: [{ pid: 42, name: 'Preview', bundle_id: 'com.apple.Preview' }] };
+      if (tool === 'list_windows')
+        return { windows: [{ pid: 42, window_id: 91, app_name: 'Preview' }] };
+      if (tool === 'get_window_state')
+        return {
+          value: { snapshot_id: 'native', elements: [] },
+          images: [{ mimeType: 'image/png', dataBase64: png.toString('base64') }],
+        };
+      expect(tool).toBe(expectedTool);
+      return args.delivery_mode === 'background'
+        ? { error_code: 'background_unavailable' }
+        : { effect: 'unverifiable', delivery: { mode: 'foreground' } };
+    });
+    const backend = new DesktopActionBackend({
+      cua,
+      macBrowserAccess: () => true,
+      macBackgroundControl: () => true,
+    });
+    const target = await grantedComputerTarget(backend);
+    const ids = { app_id: target.appId, window_id: target.windowId };
+    const observe = async () =>
+      dataRecord((await backend.invoke(request('computer_snapshot', ids))).data);
+    const before = await observe();
+    const args = { ...ids, snapshot_id: before.snapshot_id, ...action };
+    expect((await backend.invoke(request('computer_action', args))).outcome).toBe(
+      'needs_foreground',
+    );
+    const calls = cua.call.mock.calls.filter(([tool]) => tool === expectedTool);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[1]).toMatchObject({
+      pid: 42,
+      window_id: 91,
+      delivery_mode: 'background',
+    });
+    expect(calls[0]?.[1]).not.toHaveProperty('snapshot_id');
+    const fresh = await observe();
+    const fallback = await backend.invoke(
+      request('computer_action', {
+        ...args,
+        snapshot_id: fresh.snapshot_id,
+        delivery: 'foreground',
+      }),
+    );
+    expect(fallback.outcome).toBe('accepted_unverified');
+    expect(cua.call.mock.calls.filter(([tool]) => tool === expectedTool)).toHaveLength(2);
+  },
+);
+
+it('keeps window tools out of the default native Mac route', async () => {
+  const cua = fakeCua(async () => {
+    throw new Error('The native route must not dispatch window tools');
+  });
+  const backend = new DesktopActionBackend({ cua, macBrowserAccess: () => true });
+  const result = await backend.invoke(request('computer_list', {}));
+  expect(result.outcome).toBe('refused');
+  expect(cua.call).not.toHaveBeenCalled();
 });

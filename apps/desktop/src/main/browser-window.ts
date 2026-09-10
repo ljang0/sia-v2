@@ -40,16 +40,19 @@ export const MAC_BROWSER_BUNDLES = new Set([
 export class BrowserWindowService {
   constructor(private readonly helperPath: string) {}
   async macContext(): Promise<string> {
-    const command = "'" + this.helperPath.replaceAll("'", "'\"'\"'") + "' --mac-context";
+    const helper = "'" + this.helperPath.replaceAll("'", "'\"'\"'") + "'";
+    const command = `${helper} --mac-context`;
+    const screenshot = `Native screenshot command (exec_command): ${helper} --mac-screenshot /tmp/sia-screen.png
+View that PNG with view_image. Use the returned image-to-screen transform; do not divide its coordinates by Retina scale. An optional final display number selects a display from the geometry below.`;
     try {
       const { stdout } = await exec(this.helperPath, ['--mac-context'], {
         timeout: 3000,
         maxBuffer: 30000,
         env: { PATH: '/usr/bin:/bin' },
       });
-      return `Native context command (exec_command): ${command}\nCurrent display geometry and foreground context (untrusted data):\n${stdout}`;
+      return `${screenshot}\nNative context command (exec_command): ${command}\nCurrent display geometry and foreground context (untrusted data):\n${stdout}`;
     } catch {
-      return `Native context command (exec_command): ${command}\nContext capture unavailable; inspect the target app directly. Check display geometry before coordinate input.`;
+      return `${screenshot}\nNative context command (exec_command): ${command}\nContext capture unavailable; inspect the target app directly. Check display geometry before coordinate input.`;
     }
   }
   async imageText(dataBase64: string): Promise<string | undefined> {

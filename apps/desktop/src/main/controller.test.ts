@@ -2025,6 +2025,7 @@ describe('DesktopController', () => {
       respondToRequest: vi.fn(async () => undefined),
     };
     const { controller, repository } = await createHarness({ fakeServices: false, runtime });
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
     await controller.invoke('research.setCapture', {
       enabled: true,
       consentVersion: 'alpha-research-v2',
@@ -2291,6 +2292,7 @@ describe('DesktopController', () => {
       onInvocation: controller.actionInvocationObserver(),
       onResult: controller.actionResultObserver(),
     });
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
     await controller.invoke('research.setCapture', {
       enabled: true,
       consentVersion: 'alpha-research-v2',
@@ -2483,6 +2485,7 @@ describe('DesktopController', () => {
       runCommand: async () => 'p222\nf5\n',
     });
     await controller.invoke('computer.setTrust', { trust: 'auto' });
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
     // Explicit trusted mode tries the port owner first and needs no window pick.
     await controller.ensureBrowserAttachedForActions();
     expect(controller.snapshot().browser.status).toBe('attached');
@@ -4872,15 +4875,34 @@ it('background reviews wait for unlocked idle time and preserve the active conve
 
 it('persists Use my Mac separately from action confirmations and avoids Chrome preparation', async () => {
   const { controller, repository } = await createHarness();
-  expect(controller.computerAccessMode()).toBe('connected');
+  expect(controller.computerAccessMode()).toBe('mac');
+  expect(controller.macBackgroundControl()).toBe(false);
   expect(controller.computerTrust()).toBe('ask');
-  await controller.invoke('computer.setAccessMode', { mode: 'mac' });
+  await controller.invoke('computer.setAccessMode', { mode: 'mac', background: true });
+  expect(controller.snapshot().computer.backgroundControl).toBe(true);
   expect(controller.snapshot().computer.accessMode).toBe('mac');
   expect(controller.computerTrust()).toBe('ask');
   expect(await controller.ensureBrowserAttachedForActions()).toContain('Use my Mac');
   expect(controller.snapshot().browser.status).toBe('detached');
   const restored = await createHarness({ repository });
   expect(restored.controller.computerAccessMode()).toBe('mac');
+  expect(restored.controller.macBackgroundControl()).toBe(true);
   expect(restored.controller.computerTrust()).toBe('ask');
   await restored.controller.shutdown();
+});
+
+it('preserves connected mode for existing profiles, including profiles predating the mode setting', async () => {
+  const { controller, repository } = await createHarness();
+  await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+  const explicit = await createHarness({ repository });
+  expect(explicit.controller.computerAccessMode()).toBe('connected');
+  const stored = repository.get<{ preferences: { computerAccessMode?: string } }>(
+    'desktop',
+    'state',
+  )!;
+  delete stored.preferences.computerAccessMode;
+  repository.put('desktop', 'state', stored);
+  const legacy = await createHarness({ repository });
+  expect(legacy.controller.computerAccessMode()).toBe('connected');
+  await legacy.controller.shutdown();
 });

@@ -4,7 +4,7 @@ import {
   type WindowContextState,
 } from './browser-window.js';
 import { MacTaskEvidence } from './mac-task-evidence.js';
-import { MAC_EXECUTION_TOOLS } from './mac-execution.js';
+import { macExecutionTools } from './mac-execution.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
@@ -79,6 +79,7 @@ export interface DesktopActionBackendOptions {
     signal?: AbortSignal,
   ) => Promise<ActionExecutionResult>;
   readonly macBrowserAccess?: () => boolean;
+  readonly macBackgroundControl?: () => boolean;
   readonly inspectBrowserWindow?: (
     pid: number,
     windowId: number,
@@ -90,7 +91,7 @@ export interface DesktopActionBackendOptions {
   /** Opens one explicitly supported non-sensitive macOS application. */
   readonly openApplication?: (application: string) => Promise<void>;
   /** Opens one validated public web location in the person's default browser. */
-  readonly openUrl?: (url: string) => Promise<void>;
+  readonly openUrl?: (url: string, options: { background: boolean }) => Promise<void>;
   readonly installedApplications?: () => Promise<readonly { id: string; name: string }[]>;
   /** Must match the trusted browser-attachment session owned by the controller. */
   readonly browserSessionId?: string;
@@ -303,6 +304,7 @@ export class DesktopActionBackend implements ActionBackend {
   readonly #assistantAction: DesktopActionBackendOptions['assistantAction'];
   readonly #macAutomation: DesktopActionBackendOptions['macAutomation'];
   readonly #macBrowserAccess: () => boolean;
+  readonly #macBackgroundControl: () => boolean;
   readonly #inspectBrowserWindow: DesktopActionBackendOptions['inspectBrowserWindow'];
   readonly #readImageText: DesktopActionBackendOptions['readImageText'];
   readonly #readWindowContext: DesktopActionBackendOptions['readWindowContext'];
@@ -344,6 +346,7 @@ export class DesktopActionBackend implements ActionBackend {
     this.#assistantAction = options.assistantAction;
     this.#macAutomation = options.macAutomation;
     this.#macBrowserAccess = options.macBrowserAccess ?? (() => false);
+    this.#macBackgroundControl = options.macBackgroundControl ?? (() => false);
     this.#inspectBrowserWindow = options.inspectBrowserWindow;
     this.#readImageText = options.readImageText;
     this.#readWindowContext = options.readWindowContext;
@@ -521,11 +524,11 @@ export class DesktopActionBackend implements ActionBackend {
     if (request.context.signal?.aborted) return refused('Action cancelled before execution.');
     if (
       this.#macBrowserAccess() &&
-      !MAC_EXECUTION_TOOLS.includes(request.name) &&
-      request.name !== 'browser_tabs'
+      !macExecutionTools(this.#macBackgroundControl()).includes(request.name) &&
+      !(this.#macBackgroundControl() && request.name === 'browser_tabs')
     )
       return refused(
-        'Use my Mac uses native app tools. Continue in the actual app with computer_list and computer_snapshot.',
+        'This tool is unavailable for the selected Mac control route. Continue through its provided tools and the ordinary app interface; no Chrome connection is needed.',
       );
     try {
       switch (request.name) {
@@ -983,15 +986,17 @@ export class DesktopActionBackend implements ActionBackend {
       return refused(
         'Authentication, credential, internal, and non-web addresses cannot be opened by Sia. Open that page yourself, finish the login, then continue this task.',
       );
-    await this.#openUrl(url.toString());
+    const background = request.arguments.delivery !== 'foreground';
+    await this.#openUrl(url.toString(), { background });
     await delay(350, undefined, { signal: request.context.signal });
     const inventory = await this.#computerList(request);
     return {
       outcome: 'accepted_unverified',
       summary:
-        'Opened the website in the default browser. Use the returned window ids to inspect the resulting page; no extra computer_list is needed. Do not ask the person to repeat the task.',
+        'Requested opening the website in the default browser. Use the returned window ids with computer_snapshot and expected_url to inspect the resulting page; no extra computer_list is needed. Do not ask the person to repeat the task.',
       data: {
         ...(asRecord(inventory.data) ?? {}),
+        delivery_requested: background ? 'background' : 'foreground',
         next_step:
           'Call computer_snapshot on the matching browser window. If it is still loading, wait and observe again. If an actual authentication screen is observed, ask the person to finish signing in and continue this same request.',
       },
@@ -1038,6 +1043,12 @@ export class DesktopActionBackend implements ActionBackend {
     if (browserState && browserState.status !== 'ready')
       return this.#browserObservationRefused(binding, browserState);
     const browserUrl = browserState?.status === 'ready' ? browserState.url : undefined;
+    if (request.arguments.expected_url) {
+      if (!browserUrl || !samePageUrl(browserUrl, String(request.arguments.expected_url)))
+        return stale(
+          'The observed browser page does not match expected_url. No page content was read. Wait for navigation or inspect the intended window; do not assign this page to the requested course or account item.',
+        );
+    }
     const capture = (includeScreenshot: boolean) =>
       this.#callCua(request, 'get_window_state', {
         pid: binding.pid,
@@ -1166,6 +1177,10 @@ export class DesktopActionBackend implements ActionBackend {
         title,
         browser_origin:
           browserUrl && browserUrl !== 'about:blank' ? new URL(browserUrl).origin : undefined,
+        source_url:
+          browserUrl && browserUrl !== 'about:blank'
+            ? new URL(browserUrl).origin + new URL(browserUrl).pathname
+            : undefined,
         visible_text: readableContext?.text || undefined,
         image_text: imageText,
         ...(request.arguments.read_text === true
@@ -1331,8 +1346,11 @@ export class DesktopActionBackend implements ActionBackend {
       pid: binding.pid,
       window_id: binding.windowId,
       session: request.context.sessionId,
-      delivery_mode:
-        macKeyboard || !address || (this.#macBrowserAccess() && args.delivery === 'foreground')
+      delivery_mode: this.#macBrowserAccess()
+        ? args.delivery === 'foreground'
+          ? 'foreground'
+          : 'background'
+        : !address
           ? 'foreground'
           : 'background',
       // An unaddressed action must not carry an element snapshot: the driver
@@ -1352,7 +1370,7 @@ export class DesktopActionBackend implements ActionBackend {
               pid: binding.pid,
               window_id: binding.windowId,
               session: request.context.sessionId,
-              delivery_mode: 'foreground',
+              delivery_mode: base.delivery_mode,
               x: args.x,
               y: args.y,
             }
@@ -1365,7 +1383,7 @@ export class DesktopActionBackend implements ActionBackend {
           pid: binding.pid,
           window_id: binding.windowId,
           session: request.context.sessionId,
-          delivery_mode: 'foreground',
+          delivery_mode: base.delivery_mode,
           from_x: args.x,
           from_y: args.y,
           to_x: args.to_x,
@@ -2344,15 +2362,22 @@ function actionResult(
   const effect = findString(value, ['effect']);
   const deliveryMode = findNestedString(value, 'delivery', ['mode']);
   const escalationTarget = findString(value, ['target'], (record) => 'reason' in record);
-  if (
-    (deliveryMode === 'foreground' && !options.allowForeground) ||
-    escalationTarget === 'foreground'
-  ) {
+  if (deliveryMode === 'foreground' && !options.allowForeground) {
+    return {
+      outcome: 'needs_foreground',
+      summary:
+        'The driver reported unexpected foreground delivery for a background request. Its effect is uncertain; observe the window before doing anything else. Do not replay the action.',
+      data: { effect, delivery_mode: deliveryMode },
+      reason: 'Foreground delivery was not requested by Sia.',
+    };
+  }
+  if (escalationTarget === 'foreground') {
     return {
       outcome: 'needs_foreground',
       summary:
         'The background route could not prove delivery; foreground takeover was not attempted.',
-      reason: 'Explicit foreground approval is required before retrying.',
+      reason:
+        'Observe the result before an explicit foreground attempt; current action approvals still apply.',
     };
   }
   const data = compact({
@@ -2970,4 +2995,19 @@ function windowHasProtectedControls(value: unknown): boolean {
             .join(' '),
         ),
     );
+}
+
+/** Compare observed page identity without treating query order or an anchor as navigation. */
+function samePageUrl(observed: string, expected: string): boolean {
+  try {
+    const canonical = (value: string) => {
+      const url = new URL(value);
+      url.hash = '';
+      url.searchParams.sort();
+      return url.href;
+    };
+    return canonical(observed) === canonical(expected);
+  } catch {
+    return false;
+  }
 }

@@ -1,3 +1,4 @@
+import ImageIO
 import AppKit
 import CoreGraphics
 
@@ -20,6 +21,31 @@ Task { @MainActor in
     precondition(FnContext.protectedLabel("Verification code"))
     precondition(FnContext.protectedLabel("Authentication required"))
     precondition(!FnContext.protectedLabel("AXTextArea Document"))
+    // Retina capture is normalized to logical points before the model sees it.
+    let logicalSize = MacScreenshot.imageSize(points: CGSize(width: 1710, height: 1107))
+    precondition(logicalSize == CGSize(width: 1710, height: 1107))
+    let largeSize = MacScreenshot.imageSize(points: CGSize(width: 3840, height: 2160))
+    precondition(largeSize == CGSize(width: 1920, height: 1080))
+    let portrait = MacScreenshot.imageSize(points: CGSize(width: 1080, height: 1920))
+    precondition(portrait.height == 1200 && portrait.width == 675)
+    // Asymmetric image checks dimensions and orientation without capturing the screen.
+    var pixels = [UInt8](repeating: 0, count: 4 * 4 * 4)
+    for pixel in 0..<16 {
+        pixels[pixel * 4 + (pixel < 8 ? 0 : 2)] = 255
+        pixels[pixel * 4 + 3] = 255
+    }
+    let provider = CGDataProvider(data: Data(pixels) as CFData)!
+    let sample = CGImage(width: 4, height: 4, bitsPerComponent: 8, bitsPerPixel: 32,
+                         bytesPerRow: 16, space: CGColorSpaceCreateDeviceRGB(),
+                         bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                         provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
+    let png = try! MacScreenshot.png(image: sample, size: CGSize(width: 2, height: 2))
+    let decoded = CGImageSourceCreateImageAtIndex(CGImageSourceCreateWithData(png as CFData, nil)!, 0, nil)!
+    precondition(decoded.width == 2 && decoded.height == 2)
+    let bytes = [UInt8](decoded.dataProvider!.data! as Data)
+    precondition(bytes[0] > bytes[2], "Top row must remain red")
+    precondition(bytes[decoded.bytesPerRow + 2] > bytes[decoded.bytesPerRow], "Bottom row must remain blue")
+    print("Native screenshot geometry and PNG orientation passed (synthetic images only).")
     let monitor = PushToTalkMonitor(startMonitoring: false)
     var holds = 0
     var releases = 0

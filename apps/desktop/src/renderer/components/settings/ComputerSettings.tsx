@@ -28,7 +28,7 @@ export function ComputerSettings({
   onRequestPermissions(): Promise<void>;
   onRequestAutomation?(app: AutomationApp): Promise<void>;
   onRefreshPermissions?(): Promise<void>;
-  onSetComputerAccessMode?(mode: 'mac' | 'connected'): Promise<void>;
+  onSetComputerAccessMode?(mode: 'mac' | 'connected', background?: boolean): Promise<void>;
   onSetComputerTrust(trust: 'auto' | 'ask'): Promise<void>;
   onSetTrajectoryLog(enabled: boolean): Promise<void>;
   onRevealTrajectories(): Promise<void>;
@@ -76,7 +76,10 @@ export function ComputerSettings({
         <ComputerAccessMode
           computer={snapshot.computer}
           disabled={Boolean(pending)}
-          change={(mode) => void run('computer', () => onSetComputerAccessMode(mode))}
+          showBackgroundOption
+          change={(mode, background) =>
+            void run('computer', () => onSetComputerAccessMode(mode, background))
+          }
         />
       ) : null}
       {onRequestAutomation && onRefreshPermissions ? (

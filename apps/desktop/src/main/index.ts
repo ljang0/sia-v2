@@ -344,6 +344,7 @@ async function performApplicationCreation(): Promise<void> {
       isBrowserOriginAllowed: (origin) => activeController.isBrowserOriginAllowed(origin),
       ensureBrowserAttached: () => activeController.ensureBrowserAttachedForActions(),
       macBrowserAccess: () => activeController.computerAccessMode() === 'mac',
+      macBackgroundControl: () => activeController.macBackgroundControl(),
       inspectBrowserWindow: (pid, windowId) => browserWindows.inspect(pid, windowId),
       readImageText: (dataBase64) => browserWindows.imageText(dataBase64),
       readWindowContext: (pid, windowId) => browserWindows.context(pid, windowId),
@@ -756,7 +757,7 @@ async function openSafeExternal(value: string): Promise<void> {
   await shell.openExternal(value, { activate: true });
 }
 
-async function openWebExternal(value: string): Promise<void> {
+async function openWebExternal(value: string, options: { background: boolean }): Promise<void> {
   let url: URL;
   try {
     url = new URL(value);
@@ -765,7 +766,7 @@ async function openWebExternal(value: string): Promise<void> {
   }
   if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password)
     throw new Error('Blocked an unsafe website URL.');
-  await shell.openExternal(url.toString(), { activate: true });
+  await shell.openExternal(url.toString(), { activate: !options.background });
 }
 
 function isSafeExternal(value: string): boolean {

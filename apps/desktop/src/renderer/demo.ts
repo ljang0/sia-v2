@@ -967,9 +967,10 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         current.browser.tabs = current.browser.tabs.map((tab) => ({ ...tab, granted: false }));
       });
     },
-    async setComputerAccessMode(mode) {
+    async setComputerAccessMode(mode, background) {
       mutate((current) => {
         current.computer.accessMode = mode;
+        if (background !== undefined) current.computer.backgroundControl = background;
       });
     },
     async setComputerTrust(trust) {

@@ -96,6 +96,7 @@ const computerOpenApp = z
   .strict();
 const computerOpenUrl = z
   .object({
+    delivery: z.enum(['background', 'foreground']).optional(),
     url: z
       .url()
       .max(2048)
@@ -114,6 +115,7 @@ const computerSnapshot = z
     window_id: id,
     wait_ms: z.number().int().min(0).max(3000).optional(),
     read_text: z.boolean().optional(),
+    expected_url: computerOpenUrl.shape.url.optional(),
   })
   .strict();
 const computerAction = z
@@ -622,10 +624,16 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_open_url: {
     name: 'computer_open_url',
     description:
-      'Open an ordinary HTTP(S) website in the person’s default browser, then use the returned window inventory with computer_snapshot to continue through the new or updated browser window. Use this in Use my Mac mode when the needed website is not already open. Do not ask the person to open a site that this tool can open. Authentication and security URLs remain unavailable; if the resulting page asks for login, let the person finish it and continue the same task.',
-    inputSchema: object({ url: string('Exact HTTP(S) website to open', { format: 'uri' }) }, [
-      'url',
-    ]),
+      'Open an ordinary HTTP(S) website directly in the person’s default browser. Prefer this over typing URLs through the address bar. Use my Mac defaults to background opening without requesting browser activation; use explicit foreground delivery only when needed. Inspect the returned window ids with computer_snapshot and expected_url to verify the resulting page. Do not ask the person to connect Chrome or open a site this tool can open. Authentication and security URLs remain unavailable; if the resulting page asks for login, let the person finish it and continue the same task.',
+    inputSchema: object(
+      {
+        url: string('Exact HTTP(S) website to open', { format: 'uri' }),
+        delivery: string('Background by default; explicitly choose foreground if needed.', {
+          enum: ['background', 'foreground'],
+        }),
+      },
+      ['url'],
+    ),
     annotations: { readOnly: false, requiresApproval: true, takesForeground: true },
   },
   computer_snapshot: {
@@ -636,6 +644,10 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
       {
         app_id: string('Exact application id'),
         window_id: string('Exact window id'),
+        expected_url: string(
+          'Use my Mac browsers: require this exact page URL, including query parameters, before reading. Use for course/account-specific facts to avoid attributing the previous page to a new destination. The result includes a source_url with query and fragment removed.',
+          { format: 'uri' },
+        ),
         read_text: {
           type: 'boolean',
           description:
@@ -655,7 +667,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_action: {
     name: 'computer_action',
     description:
-      'Perform one action against the exact freshly captured application window. In Use my Mac, key and type use foreground delivery to the exact window; do not use an AXWindow reference as an editable field. Prefer an element_ref for actual controls. If an Electron or canvas app exposes no usable element, type, key, and scroll may omit element_ref to use the focused control in that exact window; click can use x/y screenshot pixels and drag uses x/y plus to_x/to_y when pixel_actions_available is true. Coordinates use the original window screenshot, top-left origin; set requires a ref. "type" inserts only new text at the current caret. "set" replaces the entire editable value. For shortcuts, put one non-modifier key in value and list modifiers separately. The result already includes a fresh post-action snapshot; use it to check the effect without another snapshot unless observation_pending/loading is true or the result is unclear.',
+      'Perform one action against the exact freshly captured application window. Use my Mac defaults to background delivery; unsupported actions return needs_foreground. Explicit delivery:foreground is available when necessary. Do not use an AXWindow reference as an editable field. Prefer an element_ref for actual controls. If an Electron or canvas app exposes no usable element, type, key, and scroll may omit element_ref to use the focused control in that exact window; click can use x/y screenshot pixels and drag uses x/y plus to_x/to_y when pixel_actions_available is true. Coordinates use the original window screenshot, top-left origin; set requires a ref. "type" inserts only new text at the current caret. "set" replaces the entire editable value. For shortcuts, put one non-modifier key in value and list modifiers separately. The result already includes a fresh post-action snapshot; use it to check the rendered effect without another snapshot unless observation_pending/loading is true or the result is unclear. Delivery alone does not prove success.',
     inputSchema: object(
       {
         app_id: string('Exact application id'),
@@ -667,7 +679,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
         to_y: { type: 'number', minimum: 0, maximum: 32768 },
         action: string('Action', { enum: ['click', 'type', 'set', 'scroll', 'key', 'drag'] }),
         delivery: string(
-          'Use my Mac: explicitly request foreground input after observing a background no-op. Keyboard input already uses foreground. Never replay a delivered write without checking its result.',
+          'Use my Mac defaults to background for every action. Explicitly request foreground only when needed after observing the result of the background attempt. Never replay a delivered write without checking its result.',
           { enum: ['background', 'foreground'] },
         ),
         element_ref: string(

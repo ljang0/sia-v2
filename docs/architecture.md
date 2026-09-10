@@ -137,7 +137,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   Sleep hides it; wake rechecks remaining tasks. No task content is sent to the decorative overlay.
   The native view respects Reduced Motion and fades out without activating a window.
 - `computer_list` also discovers installed apps from fixed application directories. Launch validates
-  a currently installed bundle and excludes sensitive apps and script runners. These capability-bound computer tools remain on the Connected apps route; Use my Mac uses native execution as described below. The mode is persisted independently of action confirmations and defaults to Connected apps for existing profiles. Safari’s system-owned Cryptex app link is recognized without admitting arbitrary symlinks. Native
+  a currently installed bundle and excludes sensitive apps and script runners. These capability-bound computer tools also provide optional background control in Use my Mac. New profiles default to Use my Mac; existing preferences, including the Connected apps fallback for legacy profiles, are preserved. The mode is persisted independently of action confirmations. Safari’s system-owned Cryptex app link is recognized without admitting arbitrary symlinks. Native
   click/drag can use screenshot pixels bound to a recent host-owned window capability. The backend
   validates PNG dimensions, coordinates, live app/window ownership, and protected controls again
   before delivery; no global-coordinate tool is exposed. Windows with protected controls omit
@@ -149,14 +149,38 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   **Use my Mac now runs the Notch-style native execution path.** It uses the same Codex
   App Server harness and subscription login, with `baseInstructions` replacing the coding persona
   with the port of Notch's `ClaudeCodeInvoker` prompt. Native shell, file operations and image
-  viewing are enabled in `danger-full-access`; provider web search, CUA, inherited plugins/MCPs,
-  project instruction discovery and subagents are disabled. Connected browser/computer tools and
-  the old `computer_task_complete` checklist are not exposed. Sia library/memory/schedule tools
-  still pass through ActionGateway. Native commands use Codex's execution boundary, **not** the
+  viewing are enabled in `danger-full-access`; provider web search, inherited plugins/MCPs,
+  project instruction discovery and subagents are disabled. Connected-browser tools and
+  the old `computer_task_complete` checklist are not exposed. The default native route exposes only
+  Sia library/memory/schedule tools through ActionGateway, with no CUA tools. Its instructions require
+  ordinary app navigation: for Canvas, observed course cards followed by People or actual course
+  materials, rather than raw API pages or guessed course IDs. API navigation is reserved for explicit
+  developer requests. Native input instructions require activating and checking the intended process
+  before global input; screenshots of another app are not evidence for the requested page. These are
+  model instructions, not a shell enforcement boundary. Clipboard reads also require freshness and
+  page/content corroboration: an immediate `pbpaste` after Cmd+C can return the previous page.
+  `SiaVoiceHelper --mac-screenshot` captures one display on demand and normalizes its Retina image
+  to logical point dimensions, bounded to 1920×1200. It returns the display origin and exact
+  points-per-image-pixel transform. The native prompt uses this command for observation and
+  verification; it must not divide those image coordinates by Retina scale again. Pure native tests
+  cover Retina/large/portrait geometry and PNG orientation without OS capture or input.
+  **Background controls (experimental)** in Settings → Computer is separately persisted and off by
+  default. Opting in adds built-in CUA `computer_list`, `computer_snapshot`, `computer_action`,
+  `computer_open_app` and `computer_open_url` through ActionGateway and changes the session prompt.
+  The experimental prompt directs GUI actions exclusively through window tools, with no mid-task
+  fallback to global native input. Native shell remains available for file work; this separation is
+  instructed rather than a command-level sandbox. Window actions default to background delivery;
+  unsupported input returns `needs_foreground` without automatic input replay. A fresh observation
+  precedes any explicit foreground attempt in the same window. URL opening requests `activate:false`
+  by default; apps may still raise a window. No all-app background guarantee is made. Browser snapshots
+  can require `expected_url`, including query filters, and refuse a mismatched page before returning
+  content. `source_url` attributes the observed page without exposing query parameters or fragments.
+  Native commands use Codex's execution boundary, **not** the
   per-window ActionGateway. This is an explicit architecture exception for the requested native
   Mac mode, not a claim that arbitrary commands can be confined to approved window capabilities.
   Confirmations use Codex `untrusted`; the user's existing full-bypass selection uses `never`.
-  Mode/trust changes recreate the session on the next task, preserving encrypted Sia history.
+  Mode/trust/background-control changes recreate the session on the next task, preserving encrypted
+  Sia history.
 
   Notch's `ScreenContextProvider.swift` is copied with attribution and adds a 600 ms capture
   budget and secure-field exclusions. Fn Mac context includes the existing browser without an

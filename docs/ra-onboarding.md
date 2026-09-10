@@ -335,7 +335,8 @@ manual acceptance with disposable content.
 
 ### Use my Mac
 
-Choose **Settings → Computer → App access mode → Use my Mac**, or select it during setup.
+New profiles default to **Use my Mac**. Existing profiles keep their chosen mode. Change it in
+**Settings → Computer → App access mode**, or select it during setup.
 Sia uses Notch's native operating approach: shell commands, AppleScript, file access, screenshots,
 and accessibility context, with Codex as the model backend and results in Sia. Hold Fn to dictate;
 release to send. Fn keeps the app in the background and shows the green screen edge. Cmd+E opens
@@ -355,11 +356,29 @@ window grants: its secure-surface exclusions and executable-skill review are not
 boundary for arbitrary commands. macOS permissions still apply. The agent is instructed not to read
 credentials or operate authentication surfaces.
 
-The agent follows Notch's observe–act–verify loop, uses native app scripting first, and sees the actual
-screen to recover and verify results. Provider web search, CUA and service-connection tools are not
-available in this mode. Only one Sia Mac task controls the screen at a time; others queue. Long results
-can be written to `~/SiaOutbox`, and reusable native scripts live in the agent's `.sia-mac/skills/`.
-Your existing Sia memory and conversation history remain available.
+The default route follows Notch's observe–act–verify loop with native commands and screen images.
+Its instructions require ordinary app navigation: open Canvas, click an observed course card, then
+read People, instructor information or the actual syllabus. Raw API pages and guessed course IDs
+are not substitutes; API work requires an explicit developer request. Before global clicks or keys,
+the agent must activate and check the intended app. Native screenshots normalize Retina pixels to
+screen points and supply an explicit coordinate mapping to avoid clicks landing on the wrong control.
+This route may take foreground focus. Provider
+web search and connected-browser tools remain unavailable. Only one Sia Mac task controls the screen
+at a time; others queue. Long results can be written to `~/SiaOutbox`, and reusable native scripts live
+in the agent's `.sia-mac/skills/`. Your existing memory and conversation history remain available.
+
+**Background controls (experimental)** in **Settings → Computer** is off by default and applies to
+the next request. It exposes CUA tools tied to individual windows, without a Chrome connection.
+The agent is instructed to use those tools for GUI work throughout that task, rather than switching
+between window actions and global native input. Some apps and gestures need an explicit foreground
+attempt; if the window route cannot work, turn the option off for the next request. Not every app
+supports background operation, and the prompt does not technically restrict arbitrary shell commands.
+
+Account answers require fresh, course-by-course source evidence. Canvas checks must distinguish
+current courses, instructors and TAs, with missing evidence reported explicitly. Clipboard reads
+need a freshness check: a completed Copy command can still leave the previous page's text on the
+clipboard. In the experimental route, browser snapshots can require the expected page URL before
+returning content, preventing a mismatched course or query from being accepted as that page.
 
 The Fn monitor and accessibility reader derive from Notch's source; the operating prompt, response
 parser and watchdog are ports. Sia keeps its own Mac speech service, storage and UI. Codex's decisions
