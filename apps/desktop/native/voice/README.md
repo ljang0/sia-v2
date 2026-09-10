@@ -36,15 +36,15 @@ microphone itself. Catalog/TTS operations request no speech or microphone permis
 requires the explicit Speech Recognition grant and `supportsOnDeviceRecognition`; every request sets
 `requiresOnDeviceRecognition = true`. Parent cancellation, EOF, and heartbeat expiry stop work.
 
-Fn context defaults off. Settings → Assistant enables app/window/selection metadata and a static accessibility outline for voice
-requests. Browser content stays behind the Chrome attachment boundary. Text is captured before
+Connected-app Fn context defaults off. Use my Mac enables gesture context with its selected native access mode. Settings → Assistant enables app/window/selection metadata and a static accessibility outline for voice
+requests. Connected-app browser content stays behind the Chrome attachment boundary. In Use my Mac, the copied `ScreenContextProvider.swift` reads the foreground browser directly. Text is captured before
 the panel appears and sent only with the committed request; it is not written to a local journal.
 Fn never opens the command box or main window. The green edge remains through transcription and
 Fn task execution; running/queued tasks move the highlight, approval/input waits keep it still,
 and completion/failure/cancellation fades it out. The parent sends only an idle/working/waiting
 phase, never task text. Reduced Motion uses a steady edge. Approvals remain in the main app.
 
-The outline uses Notch’s 400-node, 12-level, 2,800-character budgets with a 600 ms deadline. A
+The Connected apps outline uses Notch’s 400-node, 12-level, 2,800-character budgets with a 600 ms deadline. A
 metadata pass excludes protected controls before reading static text; editable field values are
 not included. Incomplete protection checks suppress content. This remains gesture-only capture.
 
@@ -54,3 +54,11 @@ from stdin, accepts images up to 8,192 pixels on each axis, and returns at most 
 It uses accurate recognition without word correction, omits low-confidence lines, performs no
 additional capture or network access, and is terminated by the host after eight seconds. OCR is
 observation evidence, not a guarantee that every letter or number was recognized correctly.
+
+`--mac-context` is an explicit native-mode read: Notch's original accessibility reader plus screen
+geometry in points/pixels and display origins. It never requests permissions or takes a screenshot.
+Its AX calls have short timeouts and a 600 ms budget; secure controls and password-manager apps are
+excluded. This command is made available to the native Codex agent for fresh observations. Native
+shell/screenshots run in Codex, not inside the voice helper. Mac Fn uses the same reader before any
+Sia panel can take focus. The full native route and its broader access are documented in
+`docs/architecture.md`. Permission setup includes System Events, Safari and Chrome Automation.

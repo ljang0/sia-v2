@@ -26,12 +26,17 @@ import {
 } from '@sia/runtime';
 import type { ActionGateway, TurnLease } from '@sia/action-gateway';
 
-import { MAC_EXECUTION_TOOLS } from './mac-execution.js';
-import { unsupportedNumericClaims } from './mac-task-evidence.js';
+import {
+  MAC_EXECUTION_TOOLS,
+  MAC_EXECUTION_GUIDANCE,
+  MAC_RESPONSE_SCHEMA,
+  presentMacResponse,
+} from './mac-execution.js';
 
 export interface RuntimeThreadConfig {
   nativeTools?: 'disabled';
   computerAccessMode?: 'mac' | 'connected';
+  computerTrust?: 'ask' | 'auto';
   id: string;
   provider: ProviderId;
   model: string;
@@ -59,9 +64,6 @@ export interface RuntimeReviewInput {
 
 interface ActiveTurnContext {
   allowedTools?: ReadonlySet<string>;
-  macTaskUsed?: boolean;
-  macTaskChecked?: boolean;
-  macCheckedText?: string;
   sessionId: string;
   threadId: string;
   turnId: string;
@@ -90,6 +92,7 @@ export interface RuntimeHarnessRegistration {
  */
 export class RuntimeCoordinator {
   readonly #gateway: ActionGateway;
+  readonly #macContext: (() => Promise<string>) | undefined;
   readonly #adapters = new Map<ProviderId, ProviderAdapter>();
   readonly #routeAdapters = new Map<string, ProviderAdapter>();
   readonly #ownedAdapters = new Set<ProviderAdapter>();
@@ -102,6 +105,7 @@ export class RuntimeCoordinator {
   constructor(
     gateway: ActionGateway,
     options: {
+      macContext?: () => Promise<string>;
       metaTransport?: MetaTransport;
       hostedCodexProvider?: CodexCustomModelProviderResolver;
       acpMcpServerFactory?: (
@@ -114,6 +118,7 @@ export class RuntimeCoordinator {
     } = {},
   ) {
     this.#gateway = gateway;
+    this.#macContext = options.macContext;
     this.#onDispose = options.onDispose;
     this.#codexAdapter = createCodexAdapter({
       // Sia owns the encrypted local transcript and reconstructs context when
@@ -258,6 +263,13 @@ export class RuntimeCoordinator {
     input: RuntimeTurnInput,
     signal?: AbortSignal,
   ): AsyncIterable<ThreadEventEnvelope> {
+    const mac =
+      input.thread.computerAccessMode === 'mac' && input.thread.nativeTools !== 'disabled';
+    // Like Notch's GUI token, one task owns the screen for its whole action loop.
+    // The controller releases the turn lease on success, cancellation and failure.
+    if (mac && input.lease)
+      await input.lease.acquire({ kind: 'global_focus', id: 'foreground' }, signal);
+    const nativeContext = mac ? await this.#macContext?.() : undefined;
     const state = await this.#sessionFor(input.thread, signal);
     for await (const event of this.#runSession(
       input.thread,
@@ -265,17 +277,16 @@ export class RuntimeCoordinator {
       state,
       input.lease,
       signal,
-      (continuation?: string) =>
+      () =>
         state.adapter.sendTurn(
           state.session,
           {
             turnId: input.turnId,
-            text: continuation ?? input.text,
+            text: [nativeContext, input.text].filter(Boolean).join('\n\n'),
             model: input.thread.model,
+            ...(mac ? { outputSchema: MAC_RESPONSE_SCHEMA } : {}),
             ...(input.reasoningEffort ? { reasoningEffort: input.reasoningEffort } : {}),
-            ...(!continuation && input.attachments?.length
-              ? { attachments: input.attachments }
-              : {}),
+            ...(input.attachments?.length ? { attachments: input.attachments } : {}),
           },
           signal,
         ),
@@ -288,6 +299,12 @@ export class RuntimeCoordinator {
     input: RuntimeReviewInput,
     signal?: AbortSignal,
   ): AsyncIterable<ThreadEventEnvelope> {
+    if (
+      input.thread.computerAccessMode === 'mac' &&
+      input.thread.nativeTools !== 'disabled' &&
+      input.lease
+    )
+      await input.lease.acquire({ kind: 'global_focus', id: 'foreground' }, signal);
     const state = await this.#sessionFor(input.thread, signal);
     if (!state.adapter.startReview) {
       throw new Error(`${input.thread.provider} does not support dedicated code review.`);
@@ -310,7 +327,7 @@ export class RuntimeCoordinator {
     state: SessionState,
     lease: TurnLease | undefined,
     signal: AbortSignal | undefined,
-    run: (continuation?: string) => AsyncIterable<ThreadEventEnvelope>,
+    run: () => AsyncIterable<ThreadEventEnvelope>,
   ): AsyncIterable<ThreadEventEnvelope> {
     const context: ActiveTurnContext = {
       sessionId: state.session.id,
@@ -328,69 +345,13 @@ export class RuntimeCoordinator {
     this.#activeByProviderSession.set(state.session.id, context);
     this.#activeByProviderSession.set(state.session.nativeId, context);
     try {
-      let continuation: string | undefined;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const pendingMessages: ThreadEventEnvelope[] = [];
-        let pendingBytes = 0;
-        let completion: ThreadEventEnvelope | undefined;
-        for await (const rawEvent of run(continuation)) {
-          const event = {
-            ...rawEvent,
-            harnessId: state.target.harnessId,
-            model: state.target.model,
-          };
-          if (
-            context.allowedTools &&
-            event.type === 'message' &&
-            event.payload.role === 'assistant'
-          ) {
-            pendingBytes += JSON.stringify(event).length;
-            if (pendingBytes > 2_000_000 || pendingMessages.length >= 20_000)
-              throw new Error('The pending answer exceeded Sia’s verification buffer.');
-            pendingMessages.push(event);
-          } else if (context.allowedTools && event.type === 'completion') {
-            completion = event;
-          } else {
-            if (event.type === 'tool') {
-              for (const message of pendingMessages.splice(0)) yield message;
-              pendingBytes = 0;
-            }
-            yield event;
-          }
-        }
-        const finalText = pendingMessages
-          .flatMap((event) =>
-            event.type === 'message'
-              ? event.payload.parts.flatMap((part) => (part.kind === 'text' ? [part.text] : []))
-              : [],
-          )
-          .join('');
-        const unsupported =
-          context.macTaskChecked && context.macCheckedText !== undefined
-            ? unsupportedNumericClaims(finalText, context.macCheckedText)
-            : [];
-        if (unsupported.length) context.macTaskChecked = false;
-        if (completion?.type === 'completion' && completion.payload.status !== 'completed') {
-          if (!context.macTaskUsed || context.macTaskChecked)
-            for (const message of pendingMessages) yield message;
-          yield completion;
-          break;
-        }
-        if (!context.macTaskUsed || context.macTaskChecked) {
-          for (const message of pendingMessages) yield message;
-          if (completion) yield completion;
-          break;
-        }
-        if (signal?.aborted) throw new Error('Task cancelled.');
-        if (attempt === 2)
-          throw new Error(
-            'Sia could not verify the requested results. The unverified final answer was withheld; completed actions remain in the activity history.',
-          );
-        continuation =
-          'Continue the original task. Your final answer was withheld because computer_task_complete has not accepted evidence for this task. Inspect the actual app and finish checking every requested item. Do not repeat delivered writes. Call computer_task_complete with one verified or explicitly blocked entry per requested item, using evidence_id values and exact quotes from tool observations. A loading page is not evidence. Do not fill missing facts from memory or the public web. Then answer using only those findings and clearly identify anything unfinished.' +
-          (unsupported.length
-            ? ` Your answer introduced numbers absent from the checked findings: ${unsupported.join(', ')}. Correct the answer or inspect evidence for those values first.`
-            : '');
+      for await (const rawEvent of run()) {
+        const event = {
+          ...rawEvent,
+          harnessId: state.target.harnessId,
+          model: state.target.model,
+        };
+        yield context.allowedTools ? presentMacResponse(event) : event;
       }
     } finally {
       if (this.#activeByThread.get(thread.id) === context) {
@@ -462,42 +423,11 @@ export class RuntimeCoordinator {
             'Use my Mac uses native app tools only. Continue in the actual app; connected browser and service tools are unavailable in this mode.',
         },
       };
-    if (
-      context.allowedTools &&
-      (name.startsWith('computer_') || name === 'mac_automation' || name === 'skill_run')
-    ) {
-      context.macTaskUsed = true;
-      context.macTaskChecked = false;
-      delete context.macCheckedText;
-    }
     const result = await this.#gateway.invoke({
       name,
       arguments: argumentsValue,
       context: { ...context, ...(signal ? { signal } : {}) },
     });
-    if (
-      context.allowedTools &&
-      name === 'computer_task_complete' &&
-      result.outcome === 'verified'
-    ) {
-      context.macTaskChecked = true;
-      const data = result.data as
-        | {
-            items?: Array<{
-              requirement: string;
-              quote: string;
-              finding?: string;
-              reason?: string;
-            }>;
-          }
-        | undefined;
-      if (data?.items)
-        context.macCheckedText = data.items
-          .map((item) =>
-            [item.requirement, item.quote, item.finding, item.reason].filter(Boolean).join(' '),
-          )
-          .join('\n');
-    }
     return {
       success: result.outcome === 'verified' || result.outcome === 'accepted_unverified',
       content: result,
@@ -542,6 +472,7 @@ export class RuntimeCoordinator {
       thread.instructions,
       thread.nativeTools,
       thread.computerAccessMode,
+      thread.computerTrust,
       sessionTools.map(({ name }) => name),
     ]);
     const existing = this.#sessions.get(thread.id);
@@ -583,7 +514,15 @@ export class RuntimeCoordinator {
     const usesCodexHarness = target.harnessId === 'codex_app_server';
     const session = await adapter.createSession(
       {
-        ...(mac || thread.nativeTools ? { nativeTools: 'disabled' as const } : {}),
+        ...(mac
+          ? {
+              nativeTools: 'mac' as const,
+              nativeApproval: thread.computerTrust ?? 'ask',
+              baseInstructions: MAC_EXECUTION_GUIDANCE,
+            }
+          : thread.nativeTools
+            ? { nativeTools: thread.nativeTools }
+            : {}),
         threadId: thread.id,
         model: target.harnessModelId,
         resolvedExecutionTarget: target,

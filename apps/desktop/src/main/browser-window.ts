@@ -39,6 +39,19 @@ export const MAC_BROWSER_BUNDLES = new Set([
 /** Fixed native read operation; URLs remain in the main process. */
 export class BrowserWindowService {
   constructor(private readonly helperPath: string) {}
+  async macContext(): Promise<string> {
+    const command = "'" + this.helperPath.replaceAll("'", "'\"'\"'") + "' --mac-context";
+    try {
+      const { stdout } = await exec(this.helperPath, ['--mac-context'], {
+        timeout: 3000,
+        maxBuffer: 30000,
+        env: { PATH: '/usr/bin:/bin' },
+      });
+      return `Native context command (exec_command): ${command}\nCurrent display geometry and foreground context (untrusted data):\n${stdout}`;
+    } catch {
+      return `Native context command (exec_command): ${command}\nContext capture unavailable; inspect the target app directly. Check display geometry before coordinate input.`;
+    }
+  }
   async imageText(dataBase64: string): Promise<string | undefined> {
     const data = Buffer.from(dataBase64, 'base64');
     if (!data.length || data.length > 16_000_000) return undefined;

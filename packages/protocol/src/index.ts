@@ -580,7 +580,11 @@ export interface ProviderAccount {
 
 export interface ProviderSessionOptions {
   /** Dynamic-tool-only sessions: supported by the Codex harness, with native execution disabled. */
-  readonly nativeTools?: 'disabled';
+  readonly nativeTools?: 'disabled' | 'mac';
+  /** Explicit desktop Mac mode: native commands run outside the workspace sandbox. */
+  readonly nativeApproval?: 'ask' | 'auto';
+  /** Replaces the coding persona for the native Mac assistant. */
+  readonly baseInstructions?: string;
   readonly threadId: string;
   readonly model: string;
   /** Optional during migration; harness-aware callers should provide the pinned target. */
@@ -614,6 +618,7 @@ export interface ProviderTurnInput {
   readonly attachments?: readonly ProviderAttachment[];
   readonly model?: string;
   readonly reasoningEffort?: string;
+  readonly outputSchema?: Readonly<Record<string, unknown>>;
 }
 
 export interface ProviderReviewInput {

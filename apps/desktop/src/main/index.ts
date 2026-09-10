@@ -390,6 +390,7 @@ async function performApplicationCreation(): Promise<void> {
       });
     }
     activeRuntime = new RuntimeCoordinator(gateway, {
+      macContext: () => browserWindows.macContext(),
       metaTransport: cloud,
       ...(hostedResponsesProxy
         ? {
@@ -428,7 +429,11 @@ async function performApplicationCreation(): Promise<void> {
     unsubscribeDockBadge = activeController.subscribe((event) => {
       if (event.type === 'snapshot') updateDockBadge(event.snapshot);
     });
-    if (!fakeServices && activeController.computerTrust() === 'auto') {
+    if (
+      !fakeServices &&
+      activeController.computerAccessMode() === 'connected' &&
+      activeController.computerTrust() === 'auto'
+    ) {
       // Trusted local mode also makes the signed-in Chrome reachable by default: Chrome's own
       // persistent remote-debugging toggle is enabled whenever Chrome is closed at launch, so
       // attachment needs no per-session consent prompt. Visible and revocable at

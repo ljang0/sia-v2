@@ -4,7 +4,7 @@ import Carbon
 // Permission-only mode. Never reads calendars, messages, files, or reminder content.
 // Keep targets fixed; neither the renderer nor a model can supply a bundle identifier.
 func runAutomationPermissions(request: String?) {
-    let targets = ["calendar": "com.apple.iCal", "reminders": "com.apple.reminders",
+    let targets = ["system_events": "com.apple.systemevents", "safari": "com.apple.Safari", "chrome": "com.google.Chrome", "calendar": "com.apple.iCal", "reminders": "com.apple.reminders",
                    "finder": "com.apple.finder", "messages": "com.apple.MobileSMS"]
     func check(_ key: String, ask: Bool) -> String {
         guard let bundle = targets[key], NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) != nil else { return "unavailable" }

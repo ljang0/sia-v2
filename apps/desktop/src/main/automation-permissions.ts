@@ -8,10 +8,21 @@ import {
   type AutomationPermissions,
 } from '../shared/mac-permissions.js';
 const exec = promisify(execFile);
-const resultSchema = z.record(automationAppSchema, automationStatusSchema);
+const resultSchema = z.object({
+  calendar: automationStatusSchema,
+  reminders: automationStatusSchema,
+  finder: automationStatusSchema,
+  messages: automationStatusSchema,
+  system_events: automationStatusSchema.optional(),
+  safari: automationStatusSchema.optional(),
+  chrome: automationStatusSchema.optional(),
+});
 
 export class AutomationPermissionService {
   private readonly fakePermissions: AutomationPermissions = {
+    system_events: 'needs_permission',
+    safari: 'needs_permission',
+    chrome: 'needs_permission',
     calendar: 'needs_permission',
     reminders: 'needs_permission',
     finder: 'needs_permission',

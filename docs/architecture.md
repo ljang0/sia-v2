@@ -113,20 +113,20 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   to a private scratch directory plus system binaries/libraries, denies network and direct host/app
   access, and inherits no provider environment. `sia_action` brokers up to 32 sequential calls through
   the same gateway, turn cancellation, and fresh capability checks. Refused or unverified actions stop
-  the script; timeout kills the process group and aborts outstanding approval. No unchecked host shell
-  or arbitrary AppleScript tool is exposed. Saving a script never runs it.
+  the script; timeout kills the process group and aborts outstanding approval. This restricted runner exposes no unchecked host shell
+  or arbitrary AppleScript; native Mac mode uses its separate execution path below. Saving a script never runs it.
 - `mac_automation` uses fixed Apple-event programs for Calendar list/read/create, Reminders
   list/read/create, and Finder selection metadata. Arguments are JSON data, targets are exact native
   identifiers, and creates read back their native object. An unconfirmed create is never reported as
   success. macOS Automation permission remains app-specific; scripts cannot bypass it.
-  Onboarding and Computer settings share a typed, fixed-target permission route for Calendar,
+  Onboarding and Computer settings share a typed, fixed-target permission route for System Events, Safari, Chrome, Calendar,
   Reminders, Finder, and Messages. The native helper's permission-only mode uses
   `AEDeterminePermissionToAutomateTarget`; background checks never prompt or launch apps.
   Explicit requests open only the selected app and may show its macOS consent prompt.
   Previously denied access opens Automation settings. No app content is read by setup, and
   action-gateway approvals remain unchanged. Status is checked again on return/restart rather
   than persisting a claimed grant; errors and closed apps remain unresolved in the checklist.
-- Opt-in Fn context pins the frontmost app before showing the edge. The native helper reads only
+- Connected-app opt-in Fn context pins the frontmost app before showing the edge. The native helper reads only
   bounded window/selection metadata and a static accessibility outline, excludes protected app/field
   ancestry, and sends app identity alone for browsers. It never reads the clipboard or records a
   background journal. Context travels with the committed request as untrusted data.
@@ -137,57 +137,56 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   Sleep hides it; wake rechecks remaining tasks. No task content is sent to the decorative overlay.
   The native view respects Reduced Motion and fades out without activating a window.
 - `computer_list` also discovers installed apps from fixed application directories. Launch validates
-  a currently installed bundle and excludes sensitive apps and script runners. In **Use my Mac** mode, known browser bundles are available through the same capability-bound computer tools; Connected apps retains the separate Chrome route. The mode is persisted independently of action confirmations and defaults to Connected apps for existing profiles. Safari’s system-owned Cryptex app link is recognized without admitting arbitrary symlinks. Native
+  a currently installed bundle and excludes sensitive apps and script runners. These capability-bound computer tools remain on the Connected apps route; Use my Mac uses native execution as described below. The mode is persisted independently of action confirmations and defaults to Connected apps for existing profiles. Safari’s system-owned Cryptex app link is recognized without admitting arbitrary symlinks. Native
   click/drag can use screenshot pixels bound to a recent host-owned window capability. The backend
   validates PNG dimensions, coordinates, live app/window ownership, and protected controls again
   before delivery; no global-coordinate tool is exposed. Windows with protected controls omit
   screenshots. Input delivery returns `accepted_unverified` plus fresh state for semantic review.
   Two failed control attempts stop further computer/browser mutations in that turn; read-only
   observations remain available to diagnose the blocker. Chrome attachment failures include an
-  actionable connection repair instruction without changing trust mode. In Use my Mac,
-  `browser_tabs` always returns native app/window references and instructions to continue with computer
-  tools, even if an older Chrome attachment remains active. `computer_open_url` opens an ordinary
-  credential-free HTTP(S) destination in the default browser so the agent can start a web task instead
-  of asking the user to open the site. Authentication and security URLs remain user-controlled. A fixed native AX operation checks the exact browser window
-  using unambiguous WindowServer/AX geometry, bounded protected-control inspection, and the current
-  document URL. The host rejects protected/internal URLs, changed pages, unsafe shortcuts, and script
-  URLs before input. It checks again around capture, omits hidden menu/history nodes, and never returns
-  the guard’s private URLs. Off-Space browsers may require an approved app activation before AX is
-  available. Connected apps still returns a connection refusal for unattached `browser_tabs`.
-  Mac sessions use a separate tool allowlist and disable Codex native execution, search, and
-  inherited integrations. Mode changes replace the provider session with restored Sia history.
-  The backend also refuses connected-service actions from saved skills in Mac mode. Native URL
-  changes during capture trigger up to two delayed read-only observations; successful input delivery
-  remains `accepted_unverified` if post-action observation is unavailable. Loading observations
-  supply only blocker evidence, never factual evidence. `computer_snapshot.wait_ms` offers a cancellable wait of at most 3 seconds.
-  A bounded per-turn evidence store backs `computer_task_complete`: text citations must match an
-  observation from that turn, reported numbers must occur in the cited text, and visual action citations
-  require an image. Blockers also cite an observation; a host refusal must be quoted without changing
-  its meaning or window scope. Unidentified windows are distinguished from protected pages, with
-  previously readable windows included for recovery. The final answer cannot introduce numbers
-  absent from the accepted findings. These checks do not prove general semantic correctness or requirement completeness.
-  Mac inventory refreshes preserve ids for live windows in the same session, while still checking
-  ownership, expiry, and snapshot freshness before each action. Native keyboard input uses the exact
-  foreground window and excludes element snapshot parameters for unaddressed input. Successful
-  input gets a short settling delay before observation; no write is automatically replayed. New windows
-  opened by an action receive explicit grants for the next observation, so Cmd+N does not leave the
-  agent targeting the old document. App menu-bar refs outside a window are not exposed as its controls.
-  Notch's static-text reader supplements indexed controls with a bounded, capability-bound AX
-  outline, including numeric display values. Browser origin and window title accompany snapshots;
-  private guard URLs remain host-only. `computer_snapshot.read_text` optionally recognizes text in
-  the already-authorized window image locally with Apple Vision, using bounded stdin/stdout and no
-  extra screen capture. OCR results are citable but must be cross-checked against the image. This
-  covers image-only previews without substituting filenames for document contents. App/URL opening
-  returns fresh inventory and actions return post-action observations, avoiding redundant model turns.
-  For Mac tool tasks the coordinator buffers
-  the final answer until this checklist is accepted, requesting up to two verification continuations
-  before reporting failure. Explicitly blocked checklist items must be disclosed in the answer.
+  actionable connection repair instruction without changing trust mode. Connected apps returns a connection refusal for
+  unattached `browser_tabs`.
+  **Use my Mac now runs the Notch-style native execution path.** It uses the same Codex
+  App Server harness and subscription login, with `baseInstructions` replacing the coding persona
+  with the port of Notch's `ClaudeCodeInvoker` prompt. Native shell, file operations and image
+  viewing are enabled in `danger-full-access`; provider web search, CUA, inherited plugins/MCPs,
+  project instruction discovery and subagents are disabled. Connected browser/computer tools and
+  the old `computer_task_complete` checklist are not exposed. Sia library/memory/schedule tools
+  still pass through ActionGateway. Native commands use Codex's execution boundary, **not** the
+  per-window ActionGateway. This is an explicit architecture exception for the requested native
+  Mac mode, not a claim that arbitrary commands can be confined to approved window capabilities.
+  Confirmations use Codex `untrusted`; the user's existing full-bypass selection uses `never`.
+  Mode/trust changes recreate the session on the next task, preserving encrypted Sia history.
+
+  Notch's `ScreenContextProvider.swift` is copied with attribution and adds a 600 ms capture
+  budget and secure-field exclusions. Fn Mac context includes the existing browser without an
+  attachment. The host supplies display point/pixel geometry and a fixed helper command for fresh
+  context. Native commands use AppleScript dictionaries first and screenshots plus System Events
+  as fallback. Prompts require fresh observations, settling time, result verification and two
+  recovery attempts; these are model instructions, not an enforced proof of success. Native mode
+  cannot enforce Connected apps' password/window boundaries against arbitrary shell programs.
+  macOS TCC still controls Accessibility, Screen Recording, Automation and Full Disk Access.
+  The agent is instructed to leave credentials and authentication to the user.
+
+  A whole-task `global_focus` lease prevents concurrent Sia tasks from driving the GUI. Fn audio
+  capture can proceed while a task runs; new Mac tasks queue for the screen. Notch's progress-aware
+  watchdog is ported (180 seconds without provider activity; one hour maximum, excluding approval
+  waits). Cancellation interrupts the turn, declines pending approvals and cleans native background
+  terminals before releasing the screen. No model/GUI probes run automatically at launch.
+  Final structured results use Notch's response contract and balanced-object parser, translated to
+  Sia's timeline, voice response and output-file link. Partial JSON is never streamed into speech.
+  Native executable skills follow Notch's script format under each agent's `.sia-mac/skills/`;
+  existing encrypted memory, journals and consolidation remain canonical. Native scripts and
+  `~/SiaOutbox` files are normal local files. Detached Claude workers, Notch's Groq voice provider,
+  private display APIs and self-relaunch code are not copied. Codex can still make different
+  decisions than Claude: this port aligns execution mechanics, not model behavior or reliability.
   Conversations with a browser attempt after the latest user message offer an explicit
   Connect Chrome & continue control while detached in Connected apps mode. `browser.connectAndContinue` uses the same
   canonical attachment route as Settings, checks the latest user-message id before and after
   attachment, and sends a fixed continuation through the original thread's pinned execution route.
   It preserves drafts and rejects concurrent connections or stale/active/archived requests.
   No model turn starts until the user chooses a window and the host verifies an HTTP(S) grant.
+
 - First-run guidance is gated by the same release sign-in check as the workspace. Its progress
   lives in encrypted desktop preferences, and starter creation uses `agents.save` plus the normal
   catalog/resolver and private workspace path. The guide records its agent and next step in the

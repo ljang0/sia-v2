@@ -4,7 +4,7 @@ import { CodexAppServerAdapter } from './providers/codex.js';
 const realSmoke = process.env.SIA_CODEX_REAL_SMOKE === '1' ? it : it.skip;
 
 describe('Codex isolation smoke', () => {
-  realSmoke.each([undefined, 'disabled'] as const)(
+  realSmoke.each([undefined, 'disabled', 'mac'] as const)(
     'retains ChatGPT auth while creating a verified ephemeral session (native tools: %s)',
     async (nativeTools) => {
       const adapter = new CodexAppServerAdapter({ sessionEphemeral: true });
@@ -26,6 +26,12 @@ describe('Codex isolation smoke', () => {
           instructions: 'Isolation smoke only. Do not start a turn.',
           tools: [],
           ...(nativeTools ? { nativeTools } : {}),
+          ...(nativeTools === 'mac'
+            ? {
+                nativeApproval: 'auto' as const,
+                baseInstructions: 'You are Sia. This is a no-turn configuration test.',
+              }
+            : {}),
         });
         expect(session).toMatchObject({
           id: 'codex-isolation-smoke',

@@ -310,6 +310,16 @@ export function accessChecklist(snapshot: RendererSnapshot) {
   if (snapshot.computer.accessMode === 'mac' && snapshot.computer.trust === 'auto') {
     return [
       ...core,
+      ...automationApps
+        .filter(({ id }) => ['system_events', 'safari', 'chrome'].includes(id))
+        .map(({ id, name }) => ({
+          label: `${name} automation`,
+          ready: ['ready', 'unavailable'].includes(
+            snapshot.computer.automation?.[id] ?? 'needs_permission',
+          ),
+          detail:
+            automationStatusLabel[snapshot.computer.automation?.[id] ?? 'needs_permission'],
+        })),
       {
         label: 'Full bypass',
         ready: true,

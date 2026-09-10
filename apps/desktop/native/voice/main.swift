@@ -20,6 +20,7 @@ final class AssistantStatusPanel: NSPanel {
 @MainActor
 final class VoiceHelper {
     private var contextEnabled = false
+    private var macContext = false
     private var monitor: PushToTalkMonitor?
     private let glow = EdgeGlowWindowController()
     private var capture: AudioCaptureEngine?
@@ -53,7 +54,7 @@ final class VoiceHelper {
             let id = UUID().uuidString
             self.heldID = id
             var event: [String: Any] = ["type": "hold", "id": id]
-            if self.contextEnabled, let context = FnContext.capture() { event["context"] = context }
+            if self.contextEnabled, let context = self.macContext ? ScreenContextProvider().capture()?.siaContext : FnContext.capture() { event["context"] = context }
             emit(event)
         }
         monitor?.onReleased = { [weak self] in
@@ -85,7 +86,9 @@ final class VoiceHelper {
     func command(_ value: [String: Any]) {
         guard let type = value["type"] as? String else { return }
         switch type {
-        case "context": contextEnabled = value["enabled"] as? Bool == true
+        case "context":
+            contextEnabled = value["enabled"] as? Bool == true
+            macContext = value["mac"] as? Bool == true
         case "ping":
             lastPing = Date()
             emit(["type": "ready", "accessibility": AXIsProcessTrusted(), "microphone": AVCaptureDevice.authorizationStatus(for: .audio) == .authorized])
@@ -210,6 +213,20 @@ final class VoiceHelper {
 
 let application = NSApplication.shared
 application.setActivationPolicy(.accessory)
+if CommandLine.arguments == [CommandLine.arguments[0], "--mac-context"] {
+    let displays = NSScreen.screens.enumerated().map { index, screen -> [String: Any] in
+        let frame = screen.frame
+        let mainHeight = NSScreen.screens.first?.frame.height ?? frame.height
+        return ["display": index + 1, "width_points": frame.width, "height_points": frame.height,
+                "origin_x_points": frame.minX, "origin_y_points": mainHeight - frame.maxY,
+                "scale": screen.backingScaleFactor,
+                "width_pixels": frame.width * screen.backingScaleFactor, "height_pixels": frame.height * screen.backingScaleFactor]
+    }
+    let context = ScreenContextProvider().capture()?.promptBlock ?? "No accessible foreground context. Inspect the target app directly."
+    let value: [String: Any] = ["context": context, "displays": displays]
+    if let data = try? JSONSerialization.data(withJSONObject: value) { FileHandle.standardOutput.write(data) }
+    exit(0)
+}
 if CommandLine.arguments == [CommandLine.arguments[0], "--image-text"] {
     var data = Data()
     while data.count <= 16_000_000 {

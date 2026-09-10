@@ -130,7 +130,7 @@ cancelling a pending transcript creates no message. Use a disposable account for
 The welcome screen offers **Use my Mac + full bypass** as the fastest setup. Selecting it and
 pressing Set up Sia saves Mac access and bypass approvals together before continuing. This route
 skips service connections and reviews only Mac permissions, optional Fn dictation, browser window
-access, and bypass status. Existing signed-in apps and websites are used through computer tools.
+access, and bypass status. Existing signed-in apps and websites are used through native commands and screenshots.
 AI access, macOS permissions, and any website sign-in are still needed; bypass does not grant them.
 **Connected apps + confirmations** retains the individual connection steps and action approvals.
 
@@ -146,7 +146,7 @@ or move the real pointer. Enable Mac voice and the Fn shortcut explicitly, then 
 Sia Voice in macOS Speech Recognition, Microphone, and Accessibility settings. Permission indicators reflect
 native checks, including denial or revocation. Continue with typing at any point.
 Computer permissions are separate; grant individual windows as tasks need them.
-Setup requests app-specific Automation access for Calendar, Reminders, Finder, and Messages,
+Setup requests app-specific Automation access for System Events, Safari, Chrome, Calendar, Reminders, Finder, and Messages,
 then walks through Google Workspace, Slack, and Messages Full Disk Access before restarting.
 Use **Set up all Mac apps** to request each app in sequence, or choose an individual Allow button.
 Permission checks use Apple's [Automation permission API](https://developer.apple.com/documentation/coreservices/3025784-aedeterminepermissiontoautomatet)
@@ -313,28 +313,31 @@ manual acceptance with disposable content.
 ### Use my Mac
 
 Choose **Settings → Computer → App access mode → Use my Mac**, or select it during setup.
-Allow Accessibility and Screen Recording. Sia can then discover your existing Safari or supported
-browser window and use visible webpages without attaching Chrome or connecting each service. It can
-open an ordinary website in the default browser and continue the same task; sign-in and security
-pages still pause for the user.
-It prefers the browser already showing the task’s signed-in website. In this mode the Codex agent
-gets only Sia’s Mac, library, skill, and schedule tools. Public web search, provider shell tools,
-and connected-service tools are disabled. Switch to Connected apps to use direct integrations or
-structured Chrome access. Switching modes does not turn off action confirmations.
+Sia uses Notch's native operating approach: shell commands, AppleScript, file access, screenshots,
+and accessibility context, with Codex as the model backend and results in Sia. Hold Fn to dictate;
+release to send. Fn keeps the app in the background and shows the green screen edge. Cmd+E opens
+Sia's compact command box.
 
-To run tasks without approving each click, enable **Settings → Computer → Bypass action approvals**.
-This saved preference applies to subsequent actions, including clicks, typing, sends, uploads, and
-schedules. Turn it off to restore per-action confirmation. It does not grant macOS permissions,
-expose protected fields, or bypass executable-skill source review. A previously pending approval
-still needs a decision; expired actions need a fresh request.
+Allow Accessibility and Screen Recording, then use **Set up all Mac apps** to request System Events,
+Safari, Chrome and the other listed Automation grants. macOS asks separately. Apps that are absent
+are skipped. No Chrome window attachment or individual service connection is required. Restart at
+setup's end, and finish website sign-ins yourself. Other apps may require their own Automation grant
+when first used; macOS cannot grant permission to every possible future app in advance.
 
-Sia may bring the browser forward when macOS hides its accessibility tree on another Space.
-Password fields, private windows, authentication and security pages remain unavailable. Finish
-logins yourself and continue the same conversation. Page changes invalidate earlier action targets;
-Sia observes fresh state rather than replaying a potentially completed write. The agent is instructed
-to wait for loaded content, verify results, and distinguish completed, partial, and needs-input
-outcomes. After using Mac tools, it must submit a task checklist with citations to observations from
-that turn, or explicit blockers. Sia withholds unchecked final answers and allows up to two
-verification continuations. Citation matching cannot prove the model interpreted the page correctly
-or listed every requirement; the agent still must check both. Mac access is not
-a guarantee that a website is signed in or that every task can finish unattended.
+Mac tasks use native Codex execution outside the workspace sandbox. **Bypass action approvals**
+runs commands without per-action prompts, including sends, uploads, file changes and native scripts.
+Turn it off to use Codex's command confirmations. The change applies to the next task; cancel an
+active task first to stop its current access. Native shell access is broader than Connected apps'
+window grants: its secure-surface exclusions and executable-skill review are not an enforcement
+boundary for arbitrary commands. macOS permissions still apply. The agent is instructed not to read
+credentials or operate authentication surfaces.
+
+The agent follows Notch's observe–act–verify loop, uses native app scripting first, and sees the actual
+screen to recover and verify results. Provider web search, CUA and service-connection tools are not
+available in this mode. Only one Sia Mac task controls the screen at a time; others queue. Long results
+can be written to `~/SiaOutbox`, and reusable native scripts live in the agent's `.sia-mac/skills/`.
+Your existing Sia memory and conversation history remain available.
+
+The Fn monitor and accessibility reader derive from Notch's source; the operating prompt, response
+parser and watchdog are ports. Sia keeps its own Mac speech service, storage and UI. Codex's decisions
+and reliability can differ from Claude Code, and neither engine guarantees every task finishes.

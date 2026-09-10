@@ -44,9 +44,9 @@ export function MacAutomationPermissions({
     <section aria-label="Mac app permissions">
       <h3>Connect your Mac apps</h3>
       <p className={styles.note}>
-        Allow Sia to use Calendar, Reminders, Finder, and Messages before your first task. macOS
-        asks separately for each app. This may open the app, but does not read your content or
-        send anything.
+        Allow Sia to control Mac apps, keyboard input and your browser before your first task.
+        macOS asks separately for each app. This may open the app, but does not read your
+        content or send anything.
       </p>
       {automationApps.map(({ id, name, detail }) => {
         const status = permissions?.[id] ?? 'needs_permission';

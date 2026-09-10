@@ -9,6 +9,7 @@ import {
   SetupAccessReview,
   accessChecklist,
 } from './OnboardingConnections';
+import { MacAutomationPermissions } from './MacAutomationPermissions';
 import { ProvidersSettings } from './settings/ProvidersSettings';
 import ui from '../ui.module.css';
 import styles from './Onboarding.module.css';
@@ -246,8 +247,9 @@ export function Onboarding({
                   <strong>Use my Mac + full bypass</strong>
                   <span>Fastest setup · No app connections</span>
                   <p>
-                    Use your existing apps and signed-in browser. Sia clicks, types, and carries
-                    out tasks without asking for each action.
+                    Use your existing apps and signed-in browser. Sia runs commands,
+                    AppleScript, and file operations directly, and sees your screen, without
+                    per-action prompts.
                   </p>
                 </span>
               </label>
@@ -267,9 +269,9 @@ export function Onboarding({
                 </span>
               </label>
               <p className={styles.note}>
-                AI access and Mac permissions are still needed. Bypass includes sends and
-                uploads; protected fields and skill source review stay enforced. Change modes
-                anytime in Settings.
+                AI access and Mac permissions are still needed. This mode gives the agent full
+                local command access, including sends, uploads and file changes. Complete
+                sign-ins yourself. Change modes anytime in Settings.
               </p>
             </fieldset>
           ) : null}
@@ -424,7 +426,11 @@ export function Onboarding({
               <div className={styles.permission}>
                 <div>
                   <strong>Screen Recording</strong>
-                  <p>See the windows you grant for computer tasks.</p>
+                  <p>
+                    {fastMac
+                      ? 'See your screen to operate apps and verify task results.'
+                      : 'See the windows you grant for computer tasks.'}
+                  </p>
                 </div>
                 <span
                   className={
@@ -453,6 +459,14 @@ export function Onboarding({
               >
                 {computerReady ? 'Check access again' : 'Open Mac permissions'}
               </button>
+              {fastMac ? (
+                <MacAutomationPermissions
+                  permissions={snapshot.computer.automation}
+                  request={(app) => api.requestAutomationPermission(app)}
+                  refresh={() => api.refreshComputerPermissions()}
+                  disabled={pending || restarting}
+                />
+              ) : null}
               <p className={styles.note}>
                 {fastMac
                   ? 'No app connections needed. Next, restart Sia to apply your permissions. Full bypass is enabled for task actions.'

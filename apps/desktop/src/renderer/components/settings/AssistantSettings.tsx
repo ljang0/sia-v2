@@ -17,10 +17,12 @@ const empty: AssistantLibraryView = {
 };
 export function AssistantSettings({
   agents,
+  accessMode = 'connected',
   api,
   onRun,
 }: {
   agents: readonly { id: string; name: string }[];
+  accessMode?: 'mac' | 'connected';
   api: Pick<RendererApi, 'assistantLibrary'>;
   onRun(threadId: string): void;
 }) {
@@ -169,13 +171,15 @@ export function AssistantSettings({
             <span>
               <strong>Use context when I hold Fn</strong>
               <small>
-                Share the active app, window outline, title, and selected text with your agent.
-                Browser content still needs a Chrome connection. Protected fields are excluded.
+                {accessMode === 'mac'
+                  ? 'Included in Use my Mac: Sia reads the foreground app and browser when you hold Fn, just like Notch.'
+                  : 'Share the active app, window outline, title, and selected text with your agent. Browser content still needs a Chrome connection. Protected fields are excluded.'}
               </small>
             </span>
             <input
               type="checkbox"
-              checked={library.context}
+              checked={accessMode === 'mac' || library.context}
+              disabled={accessMode === 'mac'}
               onChange={(e) =>
                 void command({
                   operation: 'preferences',

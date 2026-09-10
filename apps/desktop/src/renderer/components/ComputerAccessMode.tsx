@@ -34,7 +34,7 @@ export function ComputerAccessMode({
       </div>
       <p className={styles.settingsNote}>
         {computer.accessMode === 'mac'
-          ? 'Safari and supported browsers work through their visible windows. No Chrome connection is required. Allow Accessibility and Screen Recording below; finish website sign-ins yourself. Sia may bring the target window forward.'
+          ? 'Sia uses native commands, AppleScript, file access and screen images, like Notch. No Chrome connection is required. Full bypass runs commands without a workspace sandbox or per-action prompts. Allow Accessibility, Screen Recording and app Automation; complete sign-ins yourself.'
           : 'Connect Chrome or individual services for structured access. Choose Use my Mac to work through existing browser windows without attaching Chrome.'}
       </p>
     </div>

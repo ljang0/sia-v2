@@ -1281,3 +1281,141 @@ describe('Codex library review isolation', () => {
     },
   );
 });
+
+describe('Notch-style native Mac sessions', () => {
+  it.each(['ask', 'auto'] as const)(
+    'retains native tools, replaces the coding persona, and honors %s approval',
+    async (nativeApproval) => {
+      const peers = linkedPeers();
+      let start: any;
+      let approvalDecision: unknown;
+      let turnParams: any;
+      const finalText = JSON.stringify({
+        type: 'action',
+        steps: ['Open app'],
+        response: 'Opened.',
+        success: true,
+        learned_skill: null,
+        output_file: null,
+      });
+      peers.server.onRequest(async (method, params) => {
+        if (method === 'initialize') return {};
+        if (method === 'thread/start') {
+          start = params;
+          return {
+            thread: { id: 'native-mac' },
+            sandbox: { type: 'dangerFullAccess' },
+            approvalPolicy: nativeApproval === 'auto' ? 'never' : 'untrusted',
+          };
+        }
+        if (method === 'experimentalFeature/list')
+          return {
+            data: Object.entries({ ...isolatedCodexFeatures, multi_agent: false }).map(
+              ([name, enabled]) => ({ name, enabled }),
+            ),
+            nextCursor: null,
+          };
+        if (method === 'turn/start') {
+          turnParams = params;
+          setImmediate(() => {
+            void (async () => {
+              approvalDecision = await peers.server.request(
+                'item/commandExecution/requestApproval',
+                {
+                  threadId: 'native-mac',
+                  turnId: 'native-turn',
+                  itemId: 'command',
+                  command: 'open -a TextEdit',
+                },
+              );
+              await peers.server.notify('item/agentMessage/delta', {
+                threadId: 'native-mac',
+                itemId: 'answer',
+                delta: '{"type":',
+              });
+              await peers.server.notify('item/completed', {
+                threadId: 'native-mac',
+                item: {
+                  type: 'agentMessage',
+                  id: 'answer',
+                  phase: 'final_answer',
+                  text: finalText,
+                },
+              });
+              await peers.server.notify('turn/completed', {
+                threadId: 'native-mac',
+                turn: { id: 'native-turn', status: 'completed' },
+              });
+            })();
+          });
+          return { turn: { id: 'native-turn' } };
+        }
+        if (method === 'thread/backgroundTerminals/clean') return {};
+        const isolated = codexIsolationResponse(method, params);
+        if (isolated !== undefined) return isolated;
+        throw new Error(`Unexpected ${method}`);
+      });
+      const adapter = new CodexAppServerAdapter({
+        peerFactory: async () => ({
+          peer: peers.client,
+          dispose: async () => {
+            await peers.client.close();
+            await peers.server.close();
+          },
+        }),
+      });
+      try {
+        const session = await adapter.createSession({
+          ...sessionOptions,
+          tools: [],
+          nativeTools: 'mac',
+          nativeApproval,
+          baseInstructions: 'You are Sia. PERCEIVE → ACT → VERIFY.',
+        });
+        expect(start).toMatchObject({
+          sandbox: 'danger-full-access',
+          approvalPolicy: nativeApproval === 'auto' ? 'never' : 'untrusted',
+          baseInstructions: 'You are Sia. PERCEIVE → ACT → VERIFY.',
+          dynamicTools: [],
+          config: {
+            web_search: 'disabled',
+            project_doc_max_bytes: 0,
+            features: {
+              shell_tool: true,
+              unified_exec: true,
+              view_image: true,
+              multi_agent: false,
+              computer_use: false,
+              apps: false,
+            },
+          },
+        });
+        const events = [];
+        for await (const event of adapter.sendTurn(session, {
+          turnId: 'turn',
+          text: 'Open TextEdit',
+          outputSchema: { type: 'object' },
+        })) {
+          events.push(event);
+          if (event.type === 'approval')
+            await adapter.respondToRequest(session, {
+              requestId: event.payload.requestId,
+              choiceId: 'deny',
+            });
+        }
+        expect(approvalDecision).toEqual({
+          decision: nativeApproval === 'auto' ? 'accept' : 'decline',
+        });
+        expect(events.filter((e) => e.type === 'approval')).toHaveLength(
+          nativeApproval === 'auto' ? 0 : 1,
+        );
+        expect(events.filter((e) => e.type === 'message')).toMatchObject([
+          { payload: { delta: false, parts: [{ text: finalText }] } },
+        ]);
+        expect(turnParams.outputSchema).toEqual({ type: 'object' });
+      } finally {
+        await adapter.dispose();
+      }
+    },
+  );
+});

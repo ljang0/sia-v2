@@ -1,7 +1,6 @@
 import type { AutomationApp, AutomationPermissions } from '../shared/mac-permissions.js';
 import { completedJournal, MEMORY_REVIEW_PROMPT } from './memory-suggestions.js';
 import { AssistantLibrary, DESKTOP_EXECUTION_GUIDANCE } from './assistant-library.js';
-import { MAC_EXECUTION_GUIDANCE } from './mac-execution.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, stat } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join, normalize, resolve } from 'node:path';
@@ -580,7 +579,10 @@ export class DesktopController {
       },
       changed: () => this.#emit(),
     });
-    this.#pushToTalk.setContextEnabled(this.#assistantLibrary.view().context);
+    this.#pushToTalk.setContextEnabled(
+      this.#assistantLibrary.view().context || this.computerAccessMode() === 'mac',
+      this.computerAccessMode() === 'mac',
+    );
     this.#pushToTalk.syncAccess();
   }
 
@@ -894,7 +896,7 @@ export class DesktopController {
 
   async ensureBrowserAttachedForActions(): Promise<string | undefined> {
     if (this.computerAccessMode() === 'mac')
-      return 'Use my Mac is enabled. Use computer_list, computer_snapshot, and computer_action with the existing Safari or browser window. Chrome attachment is optional.';
+      return 'Use my Mac is enabled. Use native shell, AppleScript and screenshots with the existing Safari or browser window. Chrome attachment is optional.';
     if (this.computerTrust() !== 'auto')
       return 'No Chrome window is connected. Sia shows a Connect Chrome & continue control below this response. Ask the user to choose their window there; they do not need to repeat the request.';
     if (this.#state.browser.status === 'attached' && this.#browserSessionId) return undefined;
@@ -1376,7 +1378,10 @@ export class DesktopController {
               await this.#cancelTurn(threadId);
           }
         }
-        this.#pushToTalk?.setContextEnabled(result.context);
+        this.#pushToTalk?.setContextEnabled(
+          result.context || this.computerAccessMode() === 'mac',
+          this.computerAccessMode() === 'mac',
+        );
         this.#commit();
         return {
           ...result,
@@ -1670,6 +1675,10 @@ export class DesktopController {
         this.#state.preferences.computerAccessMode = (
           input as BridgeRequestMap['computer.setAccessMode']
         ).mode;
+        this.#pushToTalk?.setContextEnabled(
+          this.#assistantLibrary.view().context || this.computerAccessMode() === 'mac',
+          this.computerAccessMode() === 'mac',
+        );
         this.#commit();
         return this.snapshot() as BridgeResultMap[M];
       case 'computer.setTrust':
@@ -5443,8 +5452,13 @@ export class DesktopController {
         const runtime = this.#runtime;
         if (!runtime) throw new Error('The provider runtime did not initialize.');
         const thread = this.#requireThread(turn.threadId);
+        // Native Mac commands may observe private apps without a connector event.
+        // Keep those turns out of optional research capture just like private gateway actions.
+        if (this.computerAccessMode() === 'mac' && !this.#assistantLibrary.isReview(thread.id))
+          this.#taintResearchTurn(turn.id);
         const runtimeThread = {
           computerAccessMode: this.computerAccessMode(),
+          computerTrust: this.computerTrust(),
           ...(this.#assistantLibrary.isReview(thread.id)
             ? { nativeTools: 'disabled' as const }
             : {}),
@@ -5457,7 +5471,7 @@ export class DesktopController {
           workspace: thread.workspace,
           instructions: this.#assistantLibrary.isReview(thread.id)
             ? MEMORY_REVIEW_PROMPT
-            : `${thread.instructionsSnapshot}\n\n${this.computerAccessMode() === 'mac' ? MAC_EXECUTION_GUIDANCE : DESKTOP_EXECUTION_GUIDANCE}\nAccess mode: ${this.computerAccessMode() === 'mac' ? `Use my Mac. Action approvals: ${this.computerTrust() === 'auto' ? 'bypass enabled; perform permitted task actions without asking for each step' : 'confirm changes through the provided tools'}.` : 'Connected apps. Browser tools require a connected Chrome window; Use my Mac can be enabled in Settings → Computer for native browser access.'}`,
+            : `${thread.instructionsSnapshot}\n\n${this.computerAccessMode() === 'mac' ? 'Use my Mac is active. Follow the native Mac operating instructions.' : DESKTOP_EXECUTION_GUIDANCE}\nAccess mode: ${this.computerAccessMode() === 'mac' ? `Use my Mac. Action approvals: ${this.computerTrust() === 'auto' ? 'bypass enabled; perform permitted task actions without asking for each step' : 'confirm changes through the provided tools'}.` : 'Connected apps. Browser tools require a connected Chrome window; Use my Mac can be enabled in Settings → Computer for native browser access.'}`,
           priorMessages: this.#state.timeline
             .filter(
               (item) =>

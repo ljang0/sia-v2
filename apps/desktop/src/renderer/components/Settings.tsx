@@ -231,6 +231,7 @@ export function Settings({
         <div key={section} className={styles.settingsContent}>
           {section === 'assistant' && assistantApi && (
             <AssistantSettings
+              accessMode={snapshot.computer.accessMode ?? 'connected'}
               agents={snapshot.agents}
               api={assistantApi}
               onRun={onRunWorkflow ?? (() => undefined)}

@@ -76,12 +76,18 @@ it('skips connections in quick Mac setup and reviews only its relevant access', 
       <div />
     </Onboarding>,
   );
+  expect(screen.getByRole('button', { name: 'Allow System Events' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Allow Safari' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Allow Chrome' })).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Review and restart' }));
   await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('restart'));
   expect(accessChecklist(snapshot).map((item) => item.label)).toEqual([
     'Mac apps',
     'Fn dictation',
     'Browser window access',
+    'System Events automation',
+    'Safari automation',
+    'Chrome automation',
     'Full bypass',
   ]);
   expect(screen.queryByText('Your apps')).toBeNull();

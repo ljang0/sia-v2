@@ -16,6 +16,9 @@ it('requests app permissions only on click, sequentially, and skips allowed or u
   render(
     <MacAutomationPermissions
       permissions={{
+        system_events: 'ready',
+        safari: 'ready',
+        chrome: 'unavailable',
         calendar: 'needs_permission',
         reminders: 'denied',
         finder: 'ready',

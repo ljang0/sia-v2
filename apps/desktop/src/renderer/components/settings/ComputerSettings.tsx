@@ -203,8 +203,9 @@ export function ComputerSettings({
               {trusted
                 ? 'On — Sia can click, type, send, post, upload, and schedule without asking for each action.'
                 : 'Off — changes pause for confirmation. Searches, reads, and verification continue automatically.'}{' '}
-              macOS permissions and protected fields still apply. Executable skills still ask
-              for source review.
+              {snapshot.computer.accessMode === 'mac'
+                ? 'Native commands run with full local access. macOS permissions still apply; complete sign-ins yourself. Changes to this setting apply to the next task.'
+                : 'macOS permissions and protected fields still apply. Executable skills still ask for source review.'}
             </p>
           </div>
           <button

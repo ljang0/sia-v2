@@ -131,14 +131,14 @@
       "x64ArchFiles": "Contents/Resources/app.asar.unpacked/node_modules/{@trycua,@ubjs}/**/*",
       "extendInfo": {
         "NSAccessibilityUsageDescription": "Sia uses Accessibility for computer actions you grant and the optional Fn push-to-talk shortcut.",
-        "NSScreenCaptureDescription": "Sia uses Screen Recording to observe only the windows you explicitly grant.",
+        "NSScreenCaptureDescription": "Sia uses Screen Recording to observe your screen during Use my Mac tasks and windows you grant in Connected apps.",
         "NSMicrophoneUsageDescription": "Sia uses the microphone only while you record a message for transcription.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false,
           "NSAllowsLocalNetworking": false
         },
         "NSSpeechRecognitionUsageDescription": "Sia uses on-device speech recognition when you choose dictation.",
-        "NSAppleEventsUsageDescription": "Sia uses Automation for app actions you approve in Calendar, Reminders, Finder, and Messages."
+        "NSAppleEventsUsageDescription": "Sia uses Automation to control Mac apps for your tasks, following your selected action approval mode."
       },
       "target": [
         "dmg",

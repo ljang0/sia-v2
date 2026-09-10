@@ -12,6 +12,13 @@ Sia interoperates with, but does not bundle, the separately installed OpenAI Cod
 
 ## Notch native assistant components
 
+Use my Mac additionally ports `Agent/ClaudeCodeInvoker.swift`'s native AppleScript/shell/screenshot
+operating instructions and progress watchdog, and `Agent/AgentResponse.swift`'s balanced-JSON parser.
+`Context/ScreenContextProvider.swift` is copied into the native helper with bounded-time and
+secure-field checks. Codex App Server replaces Claude Code transport; Sia retains its UI, macOS
+speech provider, encrypted memory and schedule services. See `docs/architecture.md` for the native
+execution boundary and the deliberate adapter differences.
+
 Sia's optional Fn helper adapts the Fn monitor, edge-glow panel/view, microphone conversion,
 and frontmost-context capture code. The Use my Mac window reader also adapts ScreenContextProvider’s bounded static-text and numeric-value capture; its interactive panel also draws on Notch's nonactivating panel
 structure. The encrypted journal, idle lesson consolidation, and executable skill library adapt

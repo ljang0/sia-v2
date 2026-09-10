@@ -60,6 +60,7 @@ type Command = {
     | 'task';
   phase?: 'idle' | 'working' | 'waiting';
   enabled?: boolean;
+  mac?: boolean;
   id?: string;
   label?: string;
   text?: string;
@@ -176,6 +177,7 @@ interface Options {
 export class PushToTalkService {
   readonly #options: Options;
   #contextEnabled = false;
+  #macContext = false;
   readonly #taskThreads = new Set<string>();
   #taskPhase: Command['phase'];
   #helper: VoiceHelperTransport | undefined;
@@ -200,10 +202,11 @@ export class PushToTalkService {
     };
   }
 
-  setContextEnabled(enabled: boolean): void {
+  setContextEnabled(enabled: boolean, mac = false): void {
+    this.#macContext = mac;
     this.#contextEnabled = enabled;
     if (!enabled && this.#recording) delete this.#recording.context;
-    this.#helper?.send({ type: 'context', enabled });
+    this.#helper?.send({ type: 'context', enabled, mac });
   }
   view(): PushToTalkView {
     return { ...this.#view };
@@ -282,7 +285,7 @@ export class PushToTalkService {
         },
       );
       this.#helper = helper;
-      helper.send({ type: 'context', enabled: this.#contextEnabled });
+      helper.send({ type: 'context', enabled: this.#contextEnabled, mac: this.#macContext });
       this.syncTasks();
     }
   }

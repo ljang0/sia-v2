@@ -9,95 +9,78 @@ import type {
 import { RuntimeCoordinator, composeSessionInstructions } from './runtime-coordinator.js';
 import type { RuntimeThreadConfig } from './runtime-coordinator.js';
 
-describe('Use my Mac execution isolation', () => {
-  function harness(verify: boolean, wrongNumber = false) {
-    let passes = 0;
-    const createSession = vi.fn(async (options: ProviderSessionOptions) => ({
-      id: `session-${createSession.mock.calls.length}`,
-      nativeId: `native-${createSession.mock.calls.length}`,
-      threadId: options.threadId,
-      provider: 'meta' as const,
-    }));
+describe('Use my Mac native execution', () => {
+  it('uses the Notch prompt and native tools, restores connected tools, and recreates sessions when trust changes', async () => {
+    const created: ProviderSessionOptions[] = [];
     const backend = {
-      invoke: vi.fn(async () => ({
-        outcome: 'verified' as const,
-        summary: 'Evidence accepted',
-        ...(wrongNumber
-          ? {
-              data: {
-                items: [
-                  {
-                    requirement: 'Read Calculator',
-                    quote: '254',
-                    finding: 'Calculator shows 254.',
-                  },
-                ],
-              },
-            }
-          : {}),
-      })),
+      invoke: vi.fn(async () => ({ outcome: 'verified' as const, summary: 'done' })),
     };
+    let passes = 0;
     const adapter: ProviderAdapter = {
       id: 'meta',
       productionEnabled: true,
       probe: async () => ({ available: true, supported: true }),
       account: async () => ({ state: 'authenticated', billing: 'included' }),
-      createSession,
+      createSession: async (options) => {
+        created.push(options);
+        return {
+          id: `session-${created.length}`,
+          nativeId: `native-${created.length}`,
+          threadId: options.threadId,
+          provider: 'meta',
+        };
+      },
       async *sendTurn(session, input) {
         passes++;
-        const options = createSession.mock.calls.at(-1)![0];
-        const denied = await runtime.invokeCapability(session.nativeId, 'browser_tabs', {});
-        if (options.nativeTools === 'disabled')
-          expect(denied).toMatchObject({ outcome: 'refused' });
-        await runtime.invokeCapability(session.nativeId, 'computer_list', {});
-        if (verify && passes > 1 && options.nativeTools === 'disabled') {
-          expect(input.text).toContain('Continue the original task');
-          await runtime.invokeCapability(session.nativeId, 'computer_task_complete', {
-            items: [
-              {
-                requirement: 'Read document',
-                status: 'blocked',
-                evidence_id: 'evidence:test',
-                quote: 'The document is unavailable.',
-                reason: 'The document is unavailable.',
-              },
-            ],
+        if (created.at(-1)?.nativeTools === 'mac') {
+          expect(input.outputSchema).toMatchObject({
+            required: expect.arrayContaining(['response', 'success']),
           });
+          expect(input.text).toContain('Screen geometry');
+          for (const name of [
+            'browser_tabs',
+            'computer_list',
+            'computer_action',
+            'mac_automation',
+            'computer_task_complete',
+            'skill_run',
+          ])
+            expect(await runtime.invokeCapability(session.nativeId, name, {})).toMatchObject({
+              outcome: 'refused',
+            });
         }
-        const base = {
-          id: `message-${passes}`,
+        yield {
+          id: 'answer',
           threadId: session.threadId,
           turnId: input.turnId,
-          sequence: 0,
-          timestamp: '2026-09-09T00:00:00Z',
-          provider: 'meta' as const,
-        };
-        yield {
-          ...base,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          provider: 'meta',
           type: 'message',
           payload: {
-            messageId: `message-${passes}`,
+            messageId: 'answer',
             role: 'assistant',
+            delta: false,
             parts: [
               {
                 kind: 'text',
-                text:
-                  passes === 1
-                    ? 'Unchecked answer'
-                    : wrongNumber
-                      ? passes === 2
-                        ? 'Calculator shows 3,374.'
-                        : 'Calculator shows 254.'
-                      : 'Document is unavailable',
+                text: JSON.stringify({
+                  type: 'action',
+                  steps: [],
+                  response: 'The document is ready.',
+                  success: true,
+                }),
               },
             ],
-            delta: false,
           },
         };
         yield {
-          ...base,
-          id: `done-${passes}`,
-          sequence: 1,
+          id: 'done',
+          threadId: session.threadId,
+          turnId: input.turnId,
+          sequence: 2,
+          timestamp: new Date().toISOString(),
+          provider: 'meta',
           type: 'completion',
           payload: { status: 'completed' },
         };
@@ -107,15 +90,17 @@ describe('Use my Mac execution isolation', () => {
       dispose: async () => undefined,
     };
     const runtime = new RuntimeCoordinator(new ActionGateway({ backend }), {
+      macContext: async () => 'Screen geometry',
       harnessAdapters: [{ provider: 'meta', harnessId: 'codex_app_server', adapter }],
     });
     const thread: RuntimeThreadConfig = {
-      id: 'mac-task',
+      id: 'mac',
       provider: 'meta',
       model: 'included',
       workspace: '/tmp',
       instructions: '',
       computerAccessMode: 'mac',
+      computerTrust: 'auto',
       resolvedExecutionTarget: {
         provider: 'meta',
         model: 'included',
@@ -125,61 +110,38 @@ describe('Use my Mac execution isolation', () => {
         resolutionSource: 'backend_default',
       },
     };
-    const events: ThreadEventEnvelope[] = [];
     const run = async () => {
-      for await (const event of runtime.runTurn({
+      const events: ThreadEventEnvelope[] = [];
+      for await (const e of runtime.runTurn({
         thread,
         turnId: 'turn',
-        text: 'Read my document',
+        text: 'Make a document',
       }))
-        events.push(event);
+        events.push(e);
+      return events;
     };
-    return { runtime, createSession, backend, thread, events, run, passes: () => passes };
-  }
-
-  it('withholds numerical claims invented after an accepted checkpoint and repairs the answer', async () => {
-    const h = harness(true, true);
-    await h.run();
-    const output = JSON.stringify(h.events);
-    expect(output).not.toContain('3,374');
-    expect(output).toContain('Calculator shows 254.');
-    expect(h.passes()).toBe(3);
-    await h.runtime.dispose();
-  });
-
-  it('withholds an unchecked answer, continues verification, and restores connected tools when the mode changes', async () => {
-    const h = harness(true);
     try {
-      await h.run();
-      expect(h.passes()).toBe(2);
-      expect(JSON.stringify(h.events)).not.toContain('Unchecked answer');
-      expect(JSON.stringify(h.events)).toContain('Document is unavailable');
-      const mac = h.createSession.mock.calls[0]![0];
-      expect(mac.nativeTools).toBe('disabled');
-      expect(mac.tools.map(({ name }) => name)).toContain('computer_task_complete');
-      expect(mac.tools.some(({ name }) => /^(browser_|mail_|drive_|slack_)/.test(name))).toBe(
-        false,
-      );
-      expect(h.backend.invoke.mock.calls.length).toBe(3);
-      h.thread.computerAccessMode = 'connected';
-      await h.run();
-      const connected = h.createSession.mock.calls[1]![0];
-      expect(connected.nativeTools).toBeUndefined();
-      expect(connected.tools.map(({ name }) => name)).toContain('browser_tabs');
-      expect(connected.tools.map(({ name }) => name)).not.toContain('computer_task_complete');
+      const events = await run();
+      expect(passes).toBe(1);
+      expect(created[0]).toMatchObject({
+        nativeTools: 'mac',
+        nativeApproval: 'auto',
+        baseInstructions: expect.stringContaining('PERCEIVE → ACT → VERIFY'),
+      });
+      expect(JSON.stringify(events)).toContain('The document is ready.');
+      expect(JSON.stringify(events)).not.toContain('success');
+      expect(backend.invoke).not.toHaveBeenCalled();
+      thread.computerTrust = 'ask';
+      await run();
+      expect(created[1]?.nativeApproval).toBe('ask');
+      thread.computerAccessMode = 'connected';
+      await run();
+      expect(created[2]?.nativeTools).toBeUndefined();
+      expect(created[2]?.baseInstructions).toBeUndefined();
+      expect(created[2]?.tools.map((t) => t.name)).toContain('browser_tabs');
+      expect(created[2]?.tools.map((t) => t.name)).not.toContain('computer_task_complete');
     } finally {
-      await h.runtime.dispose();
-    }
-  });
-
-  it('stops after two verification continuations and never emits the unchecked final', async () => {
-    const h = harness(false);
-    try {
-      await expect(h.run()).rejects.toThrow('unverified final answer was withheld');
-      expect(h.passes()).toBe(3);
-      expect(h.events).toEqual([]);
-    } finally {
-      await h.runtime.dispose();
+      await runtime.dispose();
     }
   });
 });
