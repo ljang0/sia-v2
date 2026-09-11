@@ -159,6 +159,12 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   before global input; screenshots of another app are not evidence for the requested page. These are
   model instructions, not a shell enforcement boundary. Clipboard reads also require freshness and
   page/content corroboration: an immediate `pbpaste` after Cmd+C can return the previous page.
+  Native and background prompts share investigation guidance: inventory the requested scope, pursue
+  relevant alternate sources, and distinguish absence in one view from verified absence across the
+  account. Canvas coursework requires per-course Assignments, Modules, syllabus and relevant
+  announcements, with source links and explicit coverage gaps. Neither an empty calendar nor a
+  successful screenshot establishes task completion. The opt-in course investigation smoke tests
+  this with real Codex and an entirely synthetic, dynamic-tool-only browser fixture.
   `SiaVoiceHelper --mac-screenshot` captures one display on demand and normalizes its Retina image
   to logical point dimensions, bounded to 1920×1200. It returns the display origin and exact
   points-per-image-pixel transform. The native prompt uses this command for observation and

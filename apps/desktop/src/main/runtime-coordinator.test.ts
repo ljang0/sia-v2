@@ -151,6 +151,12 @@ describe('Use my Mac native execution', () => {
       expect(created[1]?.baseInstructions).toContain('EXPERIMENTAL WINDOW CONTROL');
       expect(created[1]?.nativeTools).toBe('mac-background');
       expect(created[1]?.baseInstructions).not.toContain('screencapture');
+      for (const session of created.slice(0, 2)) {
+        expect(session.baseInstructions).toContain('INVESTIGATE THE WHOLE REQUEST');
+        expect(session.baseInstructions).toContain('CANVAS COURSE RESEARCH');
+        expect(session.baseInstructions).toContain('Open EACH in-scope course');
+        expect(session.baseInstructions).toContain('incomplete coverage');
+      }
       expect(JSON.stringify(events)).toContain('The document is ready.');
       expect(JSON.stringify(events)).not.toContain('success');
       expect(backend.invoke).toHaveBeenCalledExactlyOnceWith(

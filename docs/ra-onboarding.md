@@ -423,6 +423,23 @@ need a freshness check: a completed Copy command can still leave the previous pa
 clipboard. In the experimental route, browser snapshots can require the expected page URL before
 returning content, preventing a mismatched course or query from being accepted as that page.
 
+Both Mac modes also distinguish successful navigation from a complete investigation. For coursework,
+the agent must establish the current course inventory and actual date range, then inspect each
+course's Assignments, relevant Modules, syllabus schedule and recent deadline announcements. The
+calendar is an overview, not evidence that no work exists. Relevant linked course materials must be
+followed; conflicting deadlines, undated work and inaccessible sources must be reported. Answers
+include source links and a short coverage statement. Concise speech does not shorten this research.
+These are model instructions, not a guarantee that the model will inspect every source correctly.
+
+The opt-in course investigation regression uses real Codex with only in-memory browser fixtures.
+It checks an empty calendar with work in Modules/syllabus, an instructor deadline update, submitted
+work, a course absent from dashboard favorites, and an inaccessible course. It never opens apps,
+reads a real account or runs native commands; it is skipped by normal checks and never runs at startup:
+
+```sh
+SIA_CODEX_REAL_SMOKE=1 SIA_COURSE_INVESTIGATION_SMOKE=1 pnpm --filter @sia/desktop exec vitest run src/main/course-investigation.smoke.test.ts
+```
+
 The Fn monitor and accessibility reader derive from Notch's source; the operating prompt, response
 parser and watchdog are ports. Sia keeps its own Mac speech service, storage and UI. Codex's decisions
 and reliability can differ from Claude Code, and neither engine guarantees every task finishes.
