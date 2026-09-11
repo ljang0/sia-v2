@@ -298,7 +298,7 @@ In **Use my Mac**, native skills use Notch's filesystem implementation. Sia disc
 `# description: <when to use it>` headers. They use ordinary Bash/AppleScript and script
 arguments. A matching task can reuse a script after reading its current source; each result
 still needs verification. Saving never executes a script, and native runs follow the selected
-action approval mode. Turn off experimental Background controls to run native scripts.
+action approval mode. Choose **On my screen** under Settings → Computer to run native scripts.
 
 Enable **Settings → Assistant → Memory → Notch-style learning** to complete the automatic
 learning cycle: brief request/result/step summaries and failures enter the encrypted journal;
@@ -398,12 +398,18 @@ web search and connected-browser tools remain unavailable. Only one Sia Mac task
 at a time; others queue. Long results can be written to `~/SiaOutbox`, and reusable native scripts live
 in the agent's `.sia-mac/skills/`. Your existing memory and conversation history remain available.
 
-**Background controls (experimental)** in **Settings → Computer** is off by default and applies to
-the next request. It exposes CUA tools tied to individual windows, without a Chrome connection.
+**Settings → Computer → Where Sia works** offers **On my screen** (the default native route)
+and **Work in background** (experimental). The choice applies to the next typed or Fn request.
+Background control uses the native Cua Driver SDK with tools tied to individual windows, without
+a VM or a Chrome connection. Accessibility is needed for semantic controls; Screen Recording is
+needed for window images and pixel actions. Check both under **Settings → Computer → Set up**.
 Native shell commands are disabled in these sessions so they cannot take over the desktop through
 AppleScript or global input. Background tasks use their own window-control instructions and inspect
 the target window directly. Executable scripts and arbitrary file output require the normal native
-route; answers and source links still appear in Sia.
+route; answers and source links still appear in Sia. Both Mac modes share saved preferences and,
+when learning is enabled, the same detailed request/result/steps journal and failure history.
+Background turns can learn lessons and contribute evidence to idle consolidation; they do not
+receive instructions to execute native scripts.
 
 Choose **Pause and tell me** to stop when foreground control is needed, or **Allow brief foreground
 control** to permit that fallback. Pause is the default and is enforced by the host before an action

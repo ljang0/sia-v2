@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import type { RendererSnapshot } from '../types';
 import styles from '../ui.module.css';
 import modeStyles from './ComputerAccessMode.module.css';
@@ -17,6 +18,7 @@ export function ComputerAccessMode({
   ): void;
   showBackgroundOption?: boolean;
 }) {
+  const controlId = useId();
   return (
     <div className={styles.accessGroup}>
       <div className={modeStyles.row}>
@@ -40,34 +42,62 @@ export function ComputerAccessMode({
       </div>
       {computer.accessMode === 'mac' && showBackgroundOption ? (
         <div>
-          <label>
-            <input
-              type="checkbox"
-              checked={computer.backgroundControl === true}
-              disabled={disabled}
-              onChange={(event) => change('mac', event.target.checked)}
-            />{' '}
-            Background controls (experimental)
-          </label>
+          <fieldset className={modeStyles.controls} disabled={disabled}>
+            <legend>Where Sia works</legend>
+            <div className={modeStyles.choices}>
+              <label className={modeStyles.choice}>
+                <input
+                  type="radio"
+                  name={controlId}
+                  checked={!computer.backgroundControl}
+                  onChange={() => change('mac', false)}
+                />
+                <span>
+                  <strong>On my screen</strong>
+                  <span>
+                    Full native control, including saved scripts. Apps may come forward.
+                  </span>
+                </span>
+              </label>
+              <label className={modeStyles.choice}>
+                <input
+                  type="radio"
+                  name={controlId}
+                  checked={computer.backgroundControl === true}
+                  onChange={() => change('mac', true)}
+                />
+                <span>
+                  <strong>Work in background</strong>
+                  <span>
+                    Experimental window controls while you keep working. No Chrome connection.
+                  </span>
+                </span>
+              </label>
+            </div>
+          </fieldset>
           <p className={styles.settingsNote}>
-            Uses controls tied to individual windows. Native shell commands are disabled in this
-            mode so they cannot take over your screen. Applies to the next request.
+            Applies to your next typed or Fn request. Both modes use this agent's saved memory
+            and task history. Background mode cannot run native scripts or arbitrary shell
+            commands.
           </p>
-          <label>
-            If background control cannot finish{' '}
-            <select
-              className={modeStyles.select}
-              aria-label="Background fallback"
-              value={computer.backgroundFallback ?? 'pause'}
-              disabled={disabled || !computer.backgroundControl}
-              onChange={(event) =>
-                change('mac', true, event.target.value as 'pause' | 'foreground')
-              }
-            >
-              <option value="pause">Pause and tell me</option>
-              <option value="foreground">Allow brief foreground control</option>
-            </select>
-          </label>
+          {computer.backgroundControl ? (
+            <div className={modeStyles.row}>
+              <label htmlFor={`${controlId}-fallback`}>When a step needs the screen</label>
+              <select
+                id={`${controlId}-fallback`}
+                className={modeStyles.select}
+                aria-label="Background fallback"
+                value={computer.backgroundFallback ?? 'pause'}
+                disabled={disabled}
+                onChange={(event) =>
+                  change('mac', true, event.target.value as 'pause' | 'foreground')
+                }
+              >
+                <option value="pause">Pause and tell me</option>
+                <option value="foreground">Allow brief foreground control</option>
+              </select>
+            </div>
+          ) : null}
           <p className={styles.settingsNote}>
             Sia requests background input and opening. Apps may still raise their own windows.
             Some controls cannot work without foreground access.

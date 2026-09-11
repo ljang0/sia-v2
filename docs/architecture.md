@@ -164,13 +164,19 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   points-per-image-pixel transform. The native prompt uses this command for observation and
   verification; it must not divide those image coordinates by Retina scale again. Pure native tests
   cover Retina/large/portrait geometry and PNG orientation without OS capture or input.
-  **Background controls (experimental)** in Settings → Computer is separately persisted and off by
-  default. Opting in adds built-in CUA `computer_list`, `computer_snapshot`, `computer_action`,
+  **Work in background (experimental)** under Settings → Computer → Where Sia works is separately
+  persisted and off by default; **On my screen** selects the native route. The background route uses
+  `@trycua/cua-driver` through `CuaService` in the Electron main process, without a VM or driver daemon.
+  Opting in adds built-in CUA `computer_list`, `computer_snapshot`, `computer_action`,
   `computer_open_app` and `computer_open_url` through ActionGateway and changes the session prompt.
   It uses a distinct `mac-background` Codex session with verified native-tool disablement and a
   read-only sandbox. Its standalone window-control prompt contains no native command instructions;
   foreground native context is not injected. Native scripts and arbitrary file output require the
   default native route. Mac response formatting and the progress watchdog remain active.
+  Both Mac routes record the structured
+  result in the encrypted task journal and inject recent activity, failures and memory topics on later
+  requests. Background prompts exclude native skill creation/execution instructions and the filesystem
+  skill registry; the shared journal can still supply evidence to idle consolidation.
   **Pause and tell me** is the default fallback. RuntimeCoordinator pins `backgroundOnly` in the
   host's turn context; ActionGateway rejects explicit foreground input/opening before approval or
   dispatch. A model cannot change that context with tool arguments. The optional **Allow brief

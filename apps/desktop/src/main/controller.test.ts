@@ -11,6 +11,7 @@ import { ActionGateway, getActionToolDescriptor } from '@sia/action-gateway';
 import { CloudClient } from './cloud-client.js';
 import { DesktopController } from './controller.js';
 import { probeProviders } from './provider-probe.js';
+import type { RuntimeTurnInput } from './runtime-coordinator.js';
 import { canonicalJson } from './update-manifest.js';
 import {
   PlaintextTestCipher,
@@ -4889,7 +4890,7 @@ it('saves native learning improvements to the filesystem without executing them 
     });
     const library = new AssistantLibrary(repository);
     for (let i = 0; i < 2; i++)
-      library.recordNativeTask({
+      library.recordMacTask({
         agentId,
         threadId: randomUUID(),
         turnId: randomUUID(),
@@ -4961,7 +4962,7 @@ it('saves native learning improvements to the filesystem without executing them 
         id: skill.id,
         input: {},
       }),
-    ).rejects.toThrow('Turn off Background');
+    ).rejects.toThrow('On my screen');
     await controller.invoke('assistant.library', { operation: 'deleteSkill', id: skill.id });
     expect(
       (await controller.invoke('assistant.library', { operation: 'list' })).skills,
@@ -4975,6 +4976,86 @@ it('saves native learning improvements to the filesystem without executing them 
   } finally {
     await controller.shutdown();
     await rm(directory, { recursive: true, force: true });
+  }
+});
+
+it('retains background task results and failures across conversations and native mode without injecting scripts into background turns', async () => {
+  const turns: RuntimeTurnInput[] = [];
+  const runtime = {
+    async *runTurn(input: RuntimeTurnInput) {
+      turns.push(input);
+      input.onMacResult?.({
+        success: turns.length > 1,
+        response:
+          turns.length === 1 ? 'The document needs foreground access.' : 'Read the document.',
+        steps: ['Observed the target document window'],
+      });
+      yield {
+        id: randomUUID(),
+        threadId: input.thread.id,
+        turnId: input.turnId,
+        provider: 'codex' as const,
+        sequence: 1,
+        timestamp: new Date().toISOString(),
+        type: 'completion' as const,
+        payload: { status: 'completed' as const },
+      };
+    },
+    dispose: vi.fn(async () => undefined),
+    cancel: vi.fn(async () => undefined),
+  };
+  const { controller, repository } = await createHarness({ fakeServices: false, runtime });
+  try {
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'Background journal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    await controller.invoke('assistant.library', {
+      operation: 'learning',
+      agentId,
+      enabled: true,
+    });
+    await controller.invoke('computer.setAccessMode', { mode: 'mac', background: true });
+    const library = new AssistantLibrary(repository);
+    for (let i = 0; i < 3; i++) {
+      if (i === 2)
+        await controller.invoke('computer.setAccessMode', { mode: 'mac', background: false });
+      const { threadId } = await controller.invoke('threads.create', { agentId });
+      await controller.invoke('threads.send', {
+        threadId,
+        text: 'Read the document in its window.',
+      });
+      await vi.waitFor(() =>
+        expect(library.view().journal?.filter((entry) => entry.kind === 'task')).toHaveLength(
+          i + 1,
+        ),
+      );
+    }
+    expect(library.view().journal?.filter((entry) => entry.kind === 'task')).toEqual([
+      expect.objectContaining({
+        outcome: 'blocked',
+        text: expect.stringContaining('foreground access'),
+      }),
+      expect.objectContaining({
+        outcome: 'complete',
+        text: expect.stringContaining('Read the document'),
+      }),
+      expect.objectContaining({ outcome: 'complete' }),
+    ]);
+    expect(turns[0]!.thread.macBackgroundControl).toBe(true);
+    expect(turns[1]!.text).toContain('<failures>');
+    expect(turns[1]!.text).toContain('foreground access');
+    expect(turns[1]!.text).toContain('Observed the target document window');
+    expect(turns[1]!.text).not.toContain('Native executable skills live in');
+    expect(turns[1]!.text).not.toContain('skill_run');
+    expect(turns[2]!.thread.macBackgroundControl).toBe(false);
+    expect(turns[2]!.text).toContain('foreground access');
+    expect(turns[2]!.text).toContain('Native executable skills live in');
+  } finally {
+    await controller.shutdown();
   }
 });
 

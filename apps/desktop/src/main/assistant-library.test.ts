@@ -166,7 +166,7 @@ it('ports useful native activity and failure continuity without leaking it to ot
   const agentId = randomUUID(),
     threadId = randomUUID();
   service.change({ operation: 'nativeLearning', agentId, enabled: true }, () => undefined);
-  service.recordNativeTask({
+  service.recordMacTask({
     agentId,
     threadId,
     turnId: randomUUID(),
@@ -178,7 +178,7 @@ it('ports useful native activity and failure continuity without leaking it to ot
       steps: ['Opened the course', 'Opened its syllabus'],
     },
   });
-  service.recordNativeTask({
+  service.recordMacTask({
     agentId,
     threadId,
     turnId: randomUUID(),
@@ -186,17 +186,26 @@ it('ports useful native activity and failure continuity without leaking it to ot
     outcome: 'failed',
   });
   const restarted = new AssistantLibrary(repository);
-  const prompt = restarted.memoryPrompt(agentId, true);
+  const prompt = restarted.memoryPrompt(agentId, 'mac');
   expect(prompt).toContain('<recent_activity>');
   expect(prompt).toContain('<failures>');
   expect(prompt).toContain('Downloads permission');
   expect(prompt).toContain('Opened its syllabus');
   expect(prompt).not.toContain('do-not-store-this');
-  expect(restarted.memoryPrompt(randomUUID(), true)).not.toContain('syllabus');
+  expect(restarted.memoryPrompt(randomUUID(), 'mac')).not.toContain('syllabus');
   expect(restarted.view().journal?.[0]?.outcome).toBe('blocked');
   expect(restarted.view().reviewAgents).toContain(agentId);
+  const background = restarted.memoryPrompt(agentId, 'mac-background');
+  expect(background).toContain('<recent_activity>');
+  expect(background).toContain('<failures>');
+  expect(background).toContain('Downloads permission');
+  expect(background).toContain('Native scripts require normal Mac control');
+  expect(background).not.toContain('save reusable native skills as you learn them');
+  expect(background).not.toContain('skill_run');
+  expect(restarted.memoryPrompt(randomUUID(), 'mac-background')).not.toContain('syllabus');
   restarted.change({ operation: 'nativeLearning', agentId, enabled: false }, () => undefined);
-  expect(restarted.memoryPrompt(agentId, true)).not.toContain('<recent_activity>');
+  expect(restarted.memoryPrompt(agentId, 'mac')).not.toContain('<recent_activity>');
+  expect(restarted.memoryPrompt(agentId, 'mac-background')).not.toContain('<recent_activity>');
   expect(restarted.view().reviewAgents).not.toContain(agentId);
   expect(restarted.reviewDue(agentId, Date.now() + 7 * 3600000)).toBe(false);
 });
