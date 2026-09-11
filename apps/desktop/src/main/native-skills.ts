@@ -157,6 +157,7 @@ export class NativeSkills {
     const skills = this.list();
     return (
       `Native executable skills live in ${JSON.stringify(this.directory)}. The filesystem is the registry; it is refreshed for every request.\n` +
+      `Save scripts as ${JSON.stringify(join(this.directory, '<kebab-name>.sh'))}; the .sh extension is required for discovery. Put #!/bin/bash, # skill: <kebab-name>, and # description: <when to use it> in the first eight lines, then chmod +x the saved file.\n` +
       (skills.length
         ? `Your saved skills (prefer a matching skill as a fast path; read its current source before running):\n${JSON.stringify(skills.map(({ title, description, path }) => ({ name: title, description, path })))}`
         : 'You currently have NO saved native skills.') +

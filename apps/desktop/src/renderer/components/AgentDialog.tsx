@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { FolderSimple, X } from '@phosphor-icons/react';
-import { type FormEvent, useEffect, useId, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type {
   AgentDraft,
   AgentSummary,
@@ -45,6 +45,7 @@ export function AgentDialog({
   const [draft, setDraft] = useState<AgentDraft>(emptyDraft);
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
+  const submission = useRef(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [modelChosen, setModelChosen] = useState(false);
   const formId = useId();
@@ -59,6 +60,8 @@ export function AgentDialog({
 
   useEffect(() => {
     if (!open) return;
+    submission.current = false;
+    setSaving(false);
     if (agent) {
       setDraft({
         name: agent.name,
@@ -105,6 +108,7 @@ export function AgentDialog({
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (submission.current) return;
     if (!draft.name.trim()) {
       setError('Give this agent a name.');
       return;
@@ -122,6 +126,7 @@ export function AgentDialog({
       return;
     }
 
+    submission.current = true;
     setSaving(true);
     setError(undefined);
     try {
@@ -135,8 +140,8 @@ export function AgentDialog({
       await onSave(payload);
       onOpenChange(false);
     } catch (cause) {
+      submission.current = false;
       setError(cause instanceof Error ? cause.message : 'The agent could not be saved.');
-    } finally {
       setSaving(false);
     }
   };

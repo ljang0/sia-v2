@@ -311,6 +311,18 @@ existing files; collisions stay as suggestions. Turning the setting off pauses l
 reviews. Existing records/scripts stay available until deleted. This is separate from research
 capture; memory stays encrypted rather than creating a second plaintext Notch vault.
 
+To validate native learning with real Codex turns and disposable local files, opt in explicitly:
+
+```sh
+SIA_CODEX_REAL_SMOKE=1 SIA_NATIVE_LEARNING_SMOKE=1 pnpm --filter @sia/desktop exec vitest run src/main/native-learning.smoke.test.ts
+```
+
+This uses the signed-in Codex plan to check file creation/readback, native `.sh` skill discovery,
+reuse and memory recall after restarting the controller, missing-input reporting, and the isolated
+consolidation session. It removes its temporary agent workspace and encrypted database afterward.
+It is skipped in ordinary tests and never runs at app startup. The prompts restrict work to synthetic
+local files; this does not validate GUI clicks, macOS permissions, or account websites.
+
 Ask Sia to list Calendar calendars or Reminders lists, then read or create an item in an exact
 returned calendar/list. Calendar creates have no attendees. Finder can report selected item names
 and types. These actions use native Apple events and may ask for **System Settings → Privacy &
