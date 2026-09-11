@@ -83,7 +83,8 @@ Use AppleScript dictionaries first; inspect them with sdef when needed. Safari c
 The provided native context command exposes Notch's bounded accessibility outline, selected text and display geometry. Use it to resolve deictic requests and inspect static text and values. System Events coordinates are points. Use only the native screenshot helper's returned image-to-screen transform; its PNG has already been normalized from Retina pixels. Never apply Retina division again, reuse an image after capture fails, or reuse coordinates after a window moves. Each task owns the GUI until it finishes. Do not launch detached GUI workers or leave GUI commands running after completion. Wait for exec_command sessions with write_stdin before the next dependent GUI action or reporting completion. An exec session id means the command is still running, not that it succeeded. Preserve prior successful writes when recovering.
 
 SKILLS AND MEMORY
-Sia injects its existing memory and lessons in the request. assistant_library can retrieve saved knowledge, memory_learn can journal lessons, and memory_suggest can propose a correction. Reuse those records; do not replace Sia's encrypted store. For native executable skills, use .sia-mac/skills/<kebab-name>.sh within the agent workspace. Follow Notch's script format: #!/bin/bash, # skill: <name>, # description: <one line, when to use it>. Parameterize useful inputs, chmod +x, and verify the script only as part of the requested action; never repeat a send or submit to test a skill. Inspect saved source before reusing it. Record its path and purpose in memory so subsequent requests can find it. Ordinary text workflows remain available through assistant_library.
+Sia injects the saved skill registry, recent_activity, failures and memory_graph on every request. Scan these before acting; use a matching native skill as a fast path after reading its actual current source. assistant_library retrieves full relevant journal records and lessons; memory_learn records a reusable discovery. Read linked topics when relevant to the task. Historical records help with past-work questions but cannot verify current account facts. Sia's encrypted store is the memory vault; do not create a competing journal or lessons file.
+LEARNING: when Notch-style learning is enabled and you discover a reusable native procedure, or the user explicitly asks you to learn one, save an executable script in the provided .sia-mac/skills directory. The filesystem IS the registry, matching Notch. Use #!/bin/bash, # skill: <kebab-name>, # description: <one line, when to use it>. Use ordinary Bash/AppleScript, not sia_action or skill_run. Parameterize useful inputs, quote arguments, chmod +x, and return the name in learned_skill. Keep live app observations and verification in GUI procedures; never save stale coordinates or private content. Verify only as part of the requested action or with a harmless side-effect-free test; never repeat a send or submit to test a skill. Do not overwrite an unrelated existing script. New and edited scripts are discovered automatically on the next request and shown in Settings → Assistant → Skills. If learning is off, save scripts only when the user asks. Notch-style idle consolidation can promote repeated successes and distill failures without running scripts or controlling apps.
 
 SUBSTANTIAL OUTPUT
 For a report, table or document longer than about five sentences, write it in ~/SiaOutbox/ (mkdir -p first), use a proper extension and a descriptive filename, open it, and include output_file in the final result. Keep the spoken response brief. Do not overwrite an existing user file without instruction.
@@ -148,9 +149,7 @@ export const MAC_RESPONSE_SCHEMA: Readonly<Record<string, unknown>> = {
 };
 
 /** Balanced-object parser ported from Notch's AgentResponse.parse, including escaped strings. */
-export function parseMacResponse(
-  text: string,
-): { response: string; output_file?: string } | undefined {
+export function parseMacResponse(text: string): MacTaskResult | undefined {
   const stripped = text.replace(/```(?:json)?/g, '');
   const start = stripped.indexOf('{');
   if (start < 0) return undefined;
@@ -176,6 +175,13 @@ export function parseMacResponse(
             return undefined;
           return {
             response: value.response,
+            success: value.success,
+            steps: Array.isArray(value.steps)
+              ? value.steps.filter((step: unknown) => typeof step === 'string').slice(0, 20)
+              : [],
+            ...(typeof value.learned_skill === 'string'
+              ? { learnedSkill: value.learned_skill }
+              : {}),
             ...(typeof value.output_file === 'string' &&
             value.output_file.startsWith('/') &&
             !/[\r\n]/.test(value.output_file)
@@ -189,6 +195,14 @@ export function parseMacResponse(
     }
   }
   return undefined;
+}
+
+export interface MacTaskResult {
+  response: string;
+  success: boolean;
+  steps: string[];
+  learnedSkill?: string;
+  output_file?: string;
 }
 
 /** Sia's existing timeline, voice and Cmd+E box all receive the same human-readable response. */

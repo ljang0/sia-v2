@@ -7,13 +7,17 @@ export function MemorySuggestions({
   library,
   agentId,
   command,
+  accessMode = 'connected',
 }: {
   library: AssistantLibraryView;
   agentId: string;
   command(input: AssistantLibraryCommand): Promise<boolean>;
+  accessMode?: 'mac' | 'connected';
 }) {
   const suggestions = (library.suggestions ?? []).filter((entry) => entry.agentId === agentId);
   const learning = library.learningAgents?.includes(agentId) ?? false;
+  const automatic =
+    accessMode === 'mac' && (library.nativeLearningAgents?.includes(agentId) ?? false);
   return (
     <>
       <div className={styles.heading}>
@@ -41,8 +45,12 @@ export function MemorySuggestions({
           <strong>Review memory in the background</strong>
           <small>
             Uses your agent’s model plan for one review when idle, at most every six hours and
-            only after new completed tasks. Reviews can propose changes but cannot operate apps
-            or run scripts. Turn this off to stop background reviews.
+            only after new completed tasks.{' '}
+            {automatic
+              ? 'Notch-style learning saves supported improvements automatically.'
+              : 'Changes wait for your review.'}{' '}
+            Reviews cannot operate apps or run scripts. Turn this off to stop background
+            reviews.
           </small>
         </span>
         <input
@@ -59,8 +67,12 @@ export function MemorySuggestions({
         />
       </label>
       <p className={styles.note}>
-        Find improvements also uses a model turn. Every change waits for your review. Saved
-        skills run only when requested, with the usual approvals.
+        Find improvements also uses a model turn.{' '}
+        {automatic
+          ? 'Supported lessons and native skills are saved automatically; scripts are never tested by the review.'
+          : 'Every change waits for your review.'}{' '}
+        Saved skills can be reused for matching requests, following your action approval
+        setting.
       </p>
       {!suggestions.length && (
         <p className={styles.empty}>
@@ -75,7 +87,9 @@ export function MemorySuggestions({
                 ? 'Combine memories'
                 : entry.kind === 'retire'
                   ? 'Retire memory'
-                  : 'New executable skill'}
+                  : entry.kind === 'lesson'
+                    ? 'New lesson'
+                    : 'New executable skill'}
             </small>
             <h4>{entry.title}</h4>
             <p>{entry.reason}</p>
@@ -91,7 +105,7 @@ export function MemorySuggestions({
               ))}
             </div>
           )}
-          {entry.kind === 'merge' && (
+          {(entry.kind === 'merge' || entry.kind === 'lesson') && (
             <div>
               <strong>Proposed memory</strong>
               <p>{entry.text}</p>

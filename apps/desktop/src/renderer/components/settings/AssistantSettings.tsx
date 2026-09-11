@@ -227,6 +227,31 @@ export function AssistantSettings({
               }
             />
           </label>
+          {accessMode === 'mac' && (
+            <label className={styles.toggle}>
+              <span>
+                <strong>Notch-style learning</strong>
+                <small>
+                  Remember brief task summaries and failures, reuse native scripts, and save new
+                  lessons and skills automatically. Uses your agent’s model for an idle review
+                  after new tasks, at most every six hours. Reviews never run scripts or control
+                  apps. Turning this off pauses learning and idle reviews.
+                </small>
+              </span>
+              <input
+                type="checkbox"
+                disabled={!agentId}
+                checked={library.nativeLearningAgents?.includes(agentId) ?? false}
+                onChange={(e) =>
+                  void command({
+                    operation: 'nativeLearning',
+                    agentId,
+                    enabled: e.target.checked,
+                  })
+                }
+              />
+            </label>
+          )}
           <details>
             <summary>
               Task journal (
@@ -590,7 +615,12 @@ export function AssistantSettings({
           )}
         </div>
         <div className={styles.section} hidden={section !== 'Suggestions'}>
-          <MemorySuggestions library={library} agentId={agentId} command={command} />
+          <MemorySuggestions
+            library={library}
+            agentId={agentId}
+            command={command}
+            accessMode={accessMode}
+          />
         </div>
         <div className={styles.section} hidden={section !== 'Skills'}>
           <ExecutableSkills
@@ -598,12 +628,14 @@ export function AssistantSettings({
             library={library}
             agentId={agentId}
             command={command}
+            accessMode={accessMode}
           />
         </div>
       </fieldset>
       <p className={styles.note}>
-        Deleting memory removes it from future requests. Earlier conversations and information
-        already sent to your provider are unchanged.
+        Deleting memory removes it from saved guidance. Earlier conversations, journal entries
+        and information already sent to your provider are unchanged. Clear the journal
+        separately to remove its history from future memory lookups.
       </p>
     </section>
   );

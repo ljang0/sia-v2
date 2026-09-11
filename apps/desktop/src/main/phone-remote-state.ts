@@ -110,7 +110,7 @@ export function remoteVault(
         content: entry.text,
       })),
     ...(library.skills ?? [])
-      .filter((entry) => entry.agentId === agentId)
+      .filter((entry) => entry.agentId === agentId && entry.execution !== 'native')
       .slice(-60)
       .map((entry) => ({
         id: entry.id,

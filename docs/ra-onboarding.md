@@ -275,7 +275,7 @@ open and the Mac awake/unlocked. These reviews cannot access apps or run scripts
 minutes. Turn the setting off to cancel a running review. Model quality should be checked on your
 real tasks; deterministic tests verify the routing and review protections without consuming a plan.
 
-Under **Executable skills**, save or edit Bash source, or ask your agent to make a task reusable.
+In **Connected apps**, under **Executable skills**, save or edit Bash source, or ask your agent to make a task reusable.
 Each skill belongs to an agent. **Run skill** accepts up to 12 text inputs as JSON and starts a
 conversation that requests approval for the current source. Saving does not execute it. Even
 trusted mode asks for source review. `SIA_INPUT` contains input JSON; `sia_action TOOL JSON_ARGS`
@@ -291,6 +291,25 @@ access to user files, apps, AppleScript, or network; host operations use approve
 A run stops on refused or unverified results, after 32 actions, on cancellation, or after three
 minutes. Completed external actions are preserved, so inspect them before retrying. This is a
 curated adaptation of Notch's executable skills, not unrestricted host Bash.
+
+In **Use my Mac**, native skills use Notch's filesystem implementation. Sia discovers
+`.sia-mac/skills/*.sh` in the agent workspace before every request and shows them under
+**Settings → Assistant → Skills**. Scripts have `#!/bin/bash`, `# skill: <name>` and
+`# description: <when to use it>` headers. They use ordinary Bash/AppleScript and script
+arguments. A matching task can reuse a script after reading its current source; each result
+still needs verification. Saving never executes a script, and native runs follow the selected
+action approval mode. Turn off experimental Background controls to run native scripts.
+
+Enable **Settings → Assistant → Memory → Notch-style learning** to complete the automatic
+learning cycle: brief request/result/step summaries and failures enter the encrypted journal;
+recent activity, failures, memory topics and saved scripts are supplied on future requests.
+The agent can save a reusable procedure during a task, and idle consolidation uses one model
+turn after new experience, at most every six hours, to distill lessons and promote repeated
+successes into native skills. Supported improvements are saved automatically. Consolidation
+never executes a script, opens an app or takes a screenshot. New skill names cannot overwrite
+existing files; collisions stay as suggestions. Turning the setting off pauses learning and
+reviews. Existing records/scripts stay available until deleted. This is separate from research
+capture; memory stays encrypted rather than creating a second plaintext Notch vault.
 
 Ask Sia to list Calendar calendars or Reminders lists, then read or create an item in an exact
 returned calendar/list. Calendar creates have no attendees. Finder can report selected item names

@@ -161,6 +161,45 @@ it('honors learning pause, bounds the journal and clears pending lessons', () =>
   service.forgetAgent(agentId);
   expect(service.view().learningAgents).toEqual([]);
 });
+it('ports useful native activity and failure continuity without leaking it to other agents or learning-off prompts', () => {
+  const { service, repository } = library();
+  const agentId = randomUUID(),
+    threadId = randomUUID();
+  service.change({ operation: 'nativeLearning', agentId, enabled: true }, () => undefined);
+  service.recordNativeTask({
+    agentId,
+    threadId,
+    turnId: randomUUID(),
+    request: 'Read my course syllabus',
+    outcome: 'complete',
+    result: {
+      response: 'The Downloads permission is missing.',
+      success: false,
+      steps: ['Opened the course', 'Opened its syllabus'],
+    },
+  });
+  service.recordNativeTask({
+    agentId,
+    threadId,
+    turnId: randomUUID(),
+    request: 'password: do-not-store-this',
+    outcome: 'failed',
+  });
+  const restarted = new AssistantLibrary(repository);
+  const prompt = restarted.memoryPrompt(agentId, true);
+  expect(prompt).toContain('<recent_activity>');
+  expect(prompt).toContain('<failures>');
+  expect(prompt).toContain('Downloads permission');
+  expect(prompt).toContain('Opened its syllabus');
+  expect(prompt).not.toContain('do-not-store-this');
+  expect(restarted.memoryPrompt(randomUUID(), true)).not.toContain('syllabus');
+  expect(restarted.view().journal?.[0]?.outcome).toBe('blocked');
+  expect(restarted.view().reviewAgents).toContain(agentId);
+  restarted.change({ operation: 'nativeLearning', agentId, enabled: false }, () => undefined);
+  expect(restarted.memoryPrompt(agentId, true)).not.toContain('<recent_activity>');
+  expect(restarted.view().reviewAgents).not.toContain(agentId);
+  expect(restarted.reviewDue(agentId, Date.now() + 7 * 3600000)).toBe(false);
+});
 it('pins executable source revisions and prevents cross-agent edits and runs', () => {
   const { service } = library();
   const agentId = randomUUID();

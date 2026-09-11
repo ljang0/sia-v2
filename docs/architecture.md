@@ -91,7 +91,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   agent, at most once every six hours; Settings offers an immediate pass. This uses no extra model
   turn. Pausing stops collection/consolidation. Deletion suppresses identical lessons from being
   relearned. The journal retains at most 500 entries and remains separate from research capture.
-- `memory_suggest` adapts Notch's PROMOTE/DISTILL pass into encrypted proposals to merge memories,
+- `memory_suggest` adapts Notch's PROMOTE/DISTILL pass into encrypted proposals to add lessons, merge memories,
   retire contradicted guidance, or save an executable skill. Proposals retain exact before/after
   content, reasons and owning-agent completed-task evidence. Skills require evidence from two turns.
   UI acceptance validates the proposal revision and current memory contents; stale changes are
@@ -206,8 +206,27 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   terminals before releasing the screen. No model/GUI probes run automatically at launch.
   Final structured results use Notch's response contract and balanced-object parser, translated to
   Sia's timeline, voice response and output-file link. Partial JSON is never streamed into speech.
-  Native executable skills follow Notch's script format under each agent's `.sia-mac/skills/`;
-  existing encrypted memory, journals and consolidation remain canonical. Native scripts and
+  `NativeSkills` ports Notch's filesystem registry: `.sia-mac/skills/*.sh`, sorted discovery,
+  metadata from the first eight lines, and matching scripts injected before every native request.
+  The desktop Skills page and phone vault use the same parser. Source is bounded to 16 KB per
+  script and 100 scripts; links and non-regular files are excluded. Settings can save/edit/delete
+  files and start a normal native turn to run one. Discovery, saving and consolidation never
+  execute code. The native agent reads current source and runs Bash/AppleScript through Codex,
+  following the selected native approval policy; it does not use the gateway skill runner.
+  Existing encrypted memory and journals remain canonical. Native turns retain the structured
+  success/steps/learned-skill result before presentation and journal bounded request/result/step
+  summaries when learning is enabled. Blocked, failed and cancelled turns are distinguished from
+  successful work. Native prompts receive recent activity, failures and the current memory index;
+  journal content remains historical evidence, not authority or current account verification.
+  **Notch-style learning** is a per-agent opt-in in Settings → Assistant → Memory. It enables
+  journaling, idle review and automatic application of evidence-based native improvements. The
+  review keeps the existing two-tool, no-shell isolation: the host saves scripts into the pinned
+  agent workspace, while the model cannot execute them or touch apps. PROMOTE requires successful
+  evidence from two tasks; DISTILL can create a new lesson from observed failure evidence. Native
+  review intent is pinned at creation and automatic application rechecks current mode and learning
+  preferences. Disabling learning or reviews cancels pending review work. Reviews leave existing
+  scripts intact on filename collision and retain the proposal for manual resolution. Connected
+  mode continues to use reviewed gateway-skill proposals. Native scripts and
   `~/SiaOutbox` files are normal local files. Detached Claude workers, Notch's Groq voice provider,
   private display APIs and self-relaunch code are not copied. Codex can still make different
   decisions than Claude: this port aligns execution mechanics, not model behavior or reliability.

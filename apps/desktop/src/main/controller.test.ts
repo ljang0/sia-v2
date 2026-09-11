@@ -1,6 +1,6 @@
 import { AssistantLibrary } from './assistant-library.js';
 import type { VoiceHelperFactory } from './push-to-talk.js';
-import { generateKeyPairSync, sign } from 'node:crypto';
+import { generateKeyPairSync, sign, randomUUID } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -4870,6 +4870,111 @@ it('background reviews wait for unlocked idle time and preserve the active conve
   } finally {
     await controller.shutdown();
     vi.useRealTimers();
+  }
+});
+
+it('saves native learning improvements to the filesystem without executing them and exposes them through the same skill UI', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'sia-native-learning-'));
+  const { controller, repository } = await createHarness({ defaultWorkspaceRoot: directory });
+  try {
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'Native learning',
+      instructions: '',
+      model: 'gpt-5.6-sol',
+    });
+    await controller.invoke('assistant.library', {
+      operation: 'nativeLearning',
+      agentId,
+      enabled: true,
+    });
+    const library = new AssistantLibrary(repository);
+    for (let i = 0; i < 2; i++)
+      library.recordNativeTask({
+        agentId,
+        threadId: randomUUID(),
+        turnId: randomUUID(),
+        request: 'Inspect Finder',
+        outcome: 'complete',
+        result: {
+          success: true,
+          response: 'Read the Finder folder.',
+          steps: ['Read Finder with its AppleScript dictionary'],
+        },
+      });
+    const evidence_ids = library.view().journal!.map((entry) => entry.id);
+    const review = await controller.invoke('assistant.library', {
+      operation: 'review',
+      agentId,
+    });
+    const threadId = review.threadId!;
+    const turnId = controller
+      .snapshot()
+      .timeline.find((entry) => entry.threadId === threadId && entry.kind === 'user')!.turnId!;
+    const invoke = vi.fn();
+    const result = await controller.assistantAction(
+      {
+        name: 'memory_suggest',
+        descriptor: getActionToolDescriptor('memory_suggest')!,
+        context: {
+          sessionId: 'review',
+          threadId,
+          turnId,
+          provider: 'codex',
+          workspace: directory,
+        },
+        arguments: {
+          kind: 'skill',
+          title: 'Finder folder',
+          reason: 'Both tasks read Finder.',
+          description: 'Read the current Finder folder',
+          memory_ids: [],
+          evidence_ids,
+          text: '',
+          source: '#!/bin/bash\nprintf never-executed\n',
+        },
+      },
+      invoke,
+    );
+    expect(result.summary).toContain('Saved the improvement');
+    expect(invoke).not.toHaveBeenCalled();
+    const view = await controller.invoke('assistant.library', { operation: 'list' });
+    expect(view.suggestions).toEqual([]);
+    expect(view.skills).toEqual([
+      expect.objectContaining({
+        agentId,
+        execution: 'native',
+        title: 'finder-folder',
+        source: expect.stringContaining('# description:'),
+      }),
+    ]);
+    expect(library.view().skills).toEqual([]);
+    const skill = view.skills![0]!;
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find((entry) => entry.id === threadId)?.status).toBe(
+        'idle',
+      ),
+    );
+    await controller.invoke('computer.setAccessMode', { mode: 'mac', background: true });
+    await expect(
+      controller.invoke('assistant.library', {
+        operation: 'runSkill',
+        id: skill.id,
+        input: {},
+      }),
+    ).rejects.toThrow('Turn off Background');
+    await controller.invoke('assistant.library', { operation: 'deleteSkill', id: skill.id });
+    expect(
+      (await controller.invoke('assistant.library', { operation: 'list' })).skills,
+    ).toEqual([]);
+    await controller.invoke('assistant.library', {
+      operation: 'nativeLearning',
+      agentId,
+      enabled: false,
+    });
+    expect(library.view().reviewAgents).toEqual([]);
+  } finally {
+    await controller.shutdown();
+    await rm(directory, { recursive: true, force: true });
   }
 });
 

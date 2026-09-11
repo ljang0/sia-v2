@@ -30,7 +30,12 @@ execution boundary and the deliberate adapter differences.
 Sia's optional Fn helper adapts the Fn monitor, edge-glow panel/view, microphone conversion,
 and frontmost-context capture code. The Use my Mac window reader also adapts ScreenContextProvider’s bounded static-text and numeric-value capture; its interactive panel also draws on Notch's nonactivating panel
 structure. The encrypted journal, idle lesson consolidation, and executable skill library adapt
-JournalStore, ConsolidationScheduler, and SkillLibrary concepts. The Cmd+E launcher ports
+JournalStore, ConsolidationScheduler, and SkillLibrary concepts.
+`native-skills.ts` additionally ports SkillLibrary's filesystem registry and first-eight-line
+metadata parsing, shared by the desktop and phone. Native journal summaries and prompt tails
+adapt JournalStore and NotchViewModel; the native consolidation prompt ports PROMOTE/DISTILL/INDEX,
+with encrypted memory storage and host-side script saving replacing the plaintext vault worker.
+The Cmd+E launcher ports
 HotkeyManager’s registration lifecycle to Electron, and reviewable improvements adapt the
 ConsolidationScheduler PROMOTE/DISTILL instructions through Sia's existing runtime and authorization system. These adaptations derive from [romirthedev/notch](https://github.com/romirthedev/notch) at commit
 `6c74c30c31a2ce31a852209eba86f28c8371409e`, at the repository owner's request. The source repository at

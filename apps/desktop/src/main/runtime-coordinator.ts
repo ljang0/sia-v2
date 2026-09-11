@@ -31,6 +31,8 @@ import {
   macExecutionGuidance,
   MAC_RESPONSE_SCHEMA,
   presentMacResponse,
+  parseMacResponse,
+  type MacTaskResult,
 } from './mac-execution.js';
 
 export interface RuntimeThreadConfig {
@@ -49,6 +51,7 @@ export interface RuntimeThreadConfig {
 }
 
 export interface RuntimeTurnInput {
+  onMacResult?: (result: MacTaskResult) => void;
   thread: RuntimeThreadConfig;
   turnId: string;
   text: string;
@@ -295,7 +298,20 @@ export class RuntimeCoordinator {
           signal,
         ),
     )) {
-      yield event;
+      if (
+        mac &&
+        event.type === 'message' &&
+        event.payload.role === 'assistant' &&
+        !event.payload.delta
+      ) {
+        const result = parseMacResponse(
+          event.payload.parts
+            .flatMap((part) => (part.kind === 'text' ? [part.text] : []))
+            .join(''),
+        );
+        if (result) input.onMacResult?.(result);
+      }
+      yield mac ? presentMacResponse(event) : event;
     }
   }
 
@@ -321,7 +337,9 @@ export class RuntimeCoordinator {
       signal,
       () => state.adapter.startReview!(state.session, input, signal),
     )) {
-      yield event;
+      yield input.thread.computerAccessMode === 'mac' && input.thread.nativeTools !== 'disabled'
+        ? presentMacResponse(event)
+        : event;
     }
   }
 
@@ -358,7 +376,7 @@ export class RuntimeCoordinator {
           harnessId: state.target.harnessId,
           model: state.target.model,
         };
-        yield context.allowedTools ? presentMacResponse(event) : event;
+        yield event;
       }
     } finally {
       if (this.#activeByThread.get(thread.id) === context) {

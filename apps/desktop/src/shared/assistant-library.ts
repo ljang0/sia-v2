@@ -50,9 +50,13 @@ export const skillSchema = z
     title: z.string().trim().min(1).max(100),
     description: z.string().trim().min(1).max(500),
     source: z.string().min(1).max(16000),
+    execution: z.enum(['gateway', 'native']).optional(),
   })
   .strict();
 export const assistantLibraryCommand = z.discriminatedUnion('operation', [
+  z
+    .object({ operation: z.literal('nativeLearning'), agentId: id, enabled: z.boolean() })
+    .strict(),
   z.object({ operation: z.literal('saveSkill'), entry: skillSchema }).strict(),
   z.object({ operation: z.literal('deleteSkill'), id }).strict(),
   z
@@ -96,7 +100,11 @@ export const assistantLibraryCommand = z.discriminatedUnion('operation', [
 export type AssistantLibraryCommand = z.infer<typeof assistantLibraryCommand>;
 export type AssistantMemory = z.infer<typeof memorySchema> & { id: string };
 export type AssistantWorkflow = z.infer<typeof workflowSchema> & { id: string };
-export type AssistantSkill = z.infer<typeof skillSchema> & { id: string; revision: string };
+export type AssistantSkill = z.infer<typeof skillSchema> & {
+  id: string;
+  revision: string;
+  path?: string;
+};
 export interface AssistantJournalEntry {
   id: string;
   agentId: string;
@@ -107,13 +115,15 @@ export interface AssistantJournalEntry {
   title: string;
   text: string;
   consolidated?: boolean;
+  outcome?: 'complete' | 'failed' | 'blocked' | 'cancelled';
 }
 export interface AssistantSuggestion {
   id: string;
   agentId: string;
   revision: string;
   createdAt: string;
-  kind: 'merge' | 'retire' | 'skill';
+  kind: 'merge' | 'retire' | 'skill' | 'lesson';
+  nativeWorkspace?: string;
   title: string;
   reason: string;
   text: string;
@@ -133,6 +143,7 @@ export interface AssistantLibraryView {
   skills?: AssistantSkill[];
   journal?: AssistantJournalEntry[];
   learningAgents?: string[];
+  nativeLearningAgents?: string[];
   lastConsolidated?: Record<string, string>;
   threadId?: string;
 }

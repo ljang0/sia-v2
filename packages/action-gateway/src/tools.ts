@@ -415,7 +415,7 @@ const memoryLearn = z
   .strict();
 export const memorySuggestion = z
   .object({
-    kind: z.enum(['merge', 'retire', 'skill']),
+    kind: z.enum(['merge', 'retire', 'skill', 'lesson']),
     title: z.string().trim().min(1).max(100),
     reason: z.string().trim().min(1).max(1000),
     memory_ids: z.array(z.string().uuid()).max(8),
@@ -433,8 +433,10 @@ export const memorySuggestion = z
         ? v.memory_ids.length >= 2 && !!v.text && !v.source && !v.description
         : v.kind === 'retire'
           ? v.memory_ids.length === 1 && !v.text && !v.source && !v.description
-          : v.memory_ids.length === 0 && !!v.source.trim() && !!v.description && !v.text),
-    'Supply only the fields for the chosen kind: merge needs two memories and text; retire one memory; skill source and description.',
+          : v.kind === 'lesson'
+            ? v.memory_ids.length === 0 && !!v.text && !v.source && !v.description
+            : v.memory_ids.length === 0 && !!v.source.trim() && !!v.description && !v.text),
+    'Supply only the fields for the chosen kind: merge needs two memories and text; retire one memory; lesson text and no memories; skill source and description.',
   );
 const skillSave = z
   .object({
@@ -575,7 +577,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   memory_suggest: {
     name: 'memory_suggest',
     description:
-      'Queue a reviewable improvement without changing memory or executing code. Read assistant_library first. Merge related memories, retire guidance contradicted by completed-task evidence, or propose a reusable Bash skill supported by at least two finished turns. Cite exact journal evidence_ids and memory_ids. Give an explanation. Scripts use sia_action TOOL JSON_ARGS, SIA_RESULT and SIA_INPUT; no direct user files, network or AppleScript. Empty irrelevant fields. The user must accept the exact proposal in Settings → Assistant.',
+      'Submit an evidence-based memory improvement. Read assistant_library first. Distill a new lesson, merge related memories, retire contradicted guidance, or create a reusable Bash skill supported by at least two finished turns. Cite exact journal evidence_ids and memory_ids. Empty irrelevant fields. Follow the library’s skill execution format and consolidation policy: native skills use ordinary Bash/AppleScript; gateway skills use sia_action. Notch-style learning can apply native review changes automatically; otherwise they wait for review. This tool never executes a script.',
     inputSchema: z.toJSONSchema(memorySuggestion),
     annotations: { readOnly: false, requiresApproval: false, takesForeground: false },
   },

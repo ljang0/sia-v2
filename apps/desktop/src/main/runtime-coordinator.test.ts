@@ -117,18 +117,23 @@ describe('Use my Mac native execution', () => {
         resolutionSource: 'backend_default',
       },
     };
+    const onMacResult = vi.fn();
     const run = async () => {
       const events: ThreadEventEnvelope[] = [];
       for await (const e of runtime.runTurn({
         thread,
         turnId: 'turn',
         text: 'Make a document',
+        onMacResult,
       }))
         events.push(e);
       return events;
     };
     try {
       const events = await run();
+      expect(onMacResult).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, response: 'The document is ready.' }),
+      );
       expect(passes).toBe(1);
       expect(created[0]).toMatchObject({
         nativeTools: 'mac',

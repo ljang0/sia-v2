@@ -15,7 +15,7 @@ describe('Notch response port', () => {
           }) +
           '\n```',
       ),
-    ).toEqual({ response, output_file: '/tmp/Example one.txt' });
+    ).toEqual({ response, success: true, steps: [], output_file: '/tmp/Example one.txt' });
   });
   it('does not turn incomplete output or arbitrary JSON into claimed success', () => {
     for (const text of [

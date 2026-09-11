@@ -185,3 +185,56 @@ it('retirement suppresses identical relearning and merging preserves paused memo
   library.record({ ...prior, kind: 'lesson', text: merge.text });
   expect(library.view().journal?.some((entry) => entry.text === merge.text)).toBe(false);
 });
+
+it('distills a new lesson from evidence and suppresses it after deletion', () => {
+  const { library, agentId, evidence_ids, change } = setup();
+  const args = {
+    kind: 'lesson',
+    title: 'Permission dialogs',
+    reason: 'Observed a missing grant.',
+    memory_ids: [],
+    evidence_ids: [evidence_ids[0]],
+    text: 'Pause for the person at macOS permission dialogs.',
+    source: '',
+    description: '',
+  };
+  const proposal = library.suggest(agentId, args).suggestions![0]!;
+  const view = change({
+    operation: 'resolveSuggestion',
+    id: proposal.id,
+    revision: proposal.revision,
+    accept: true,
+  });
+  expect(view.memories.at(-1)).toMatchObject({ text: args.text, enabled: true, learned: true });
+  change({ operation: 'deleteMemory', id: view.memories.at(-1)!.id });
+  expect(library.suggest(agentId, args).suggestions).toEqual([]);
+});
+
+it('keeps native script proposals out of the gateway registry and requires the native save callback', () => {
+  const { library, agentId, evidence_ids } = setup();
+  const args = {
+    kind: 'skill',
+    title: 'Inspect Finder',
+    description: 'Read the active Finder window',
+    reason: 'Two completed tasks used it.',
+    memory_ids: [],
+    evidence_ids,
+    text: '',
+    source: '#!/bin/bash\n# skill: inspect-finder\nprintf example\n',
+  };
+  const proposal = library.suggest(agentId, args, '/tmp/native-agent').suggestions![0]!;
+  expect(() =>
+    library.resolveSuggestion(proposal.id, proposal.revision, true, () => undefined),
+  ).toThrow('desktop controller');
+  const saved: string[] = [];
+  const view = library.resolveSuggestion(
+    proposal.id,
+    proposal.revision,
+    true,
+    () => undefined,
+    (entry) => saved.push(entry.source),
+  );
+  expect(saved).toEqual([args.source]);
+  expect(view.skills).toEqual([]);
+  expect(view.suggestions).toEqual([]);
+});
