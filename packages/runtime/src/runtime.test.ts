@@ -1289,6 +1289,55 @@ describe('Codex library review isolation', () => {
 });
 
 describe('Notch-style native Mac sessions', () => {
+  it('discovers Astra from the live model catalog contract, preserving the account reasoning options', async () => {
+    const peers = linkedPeers();
+    peers.server.onRequest(async (method, params) => {
+      if (method === 'initialize') return {};
+      if (method === 'model/list') {
+        expect(params).toMatchObject({ limit: 100 });
+        return {
+          data: [
+            {
+              id: 'astra',
+              model: 'gpt-6-astra',
+              displayName: 'GPT-6 Astra',
+              supportedReasoningEfforts: [
+                { reasoningEffort: 'low' },
+                { reasoningEffort: 'medium' },
+                { reasoningEffort: 'ultra' },
+              ],
+              defaultReasoningEffort: 'medium',
+            },
+            { model: 'private-model', hidden: true },
+          ],
+          nextCursor: null,
+        };
+      }
+      throw new Error(`Unexpected ${method}`);
+    });
+    const adapter = new CodexAppServerAdapter({
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    try {
+      expect(await adapter.listModels()).toEqual([
+        {
+          id: 'gpt-6-astra',
+          label: 'GPT-6 Astra',
+          description: '',
+          reasoningEfforts: ['low', 'medium', 'ultra'],
+          defaultReasoningEffort: 'medium',
+        },
+      ]);
+    } finally {
+      await adapter.dispose();
+    }
+  });
   it.each(['ask', 'auto'] as const)(
     'retains native tools, replaces the coding persona, and honors %s approval',
     async (nativeApproval) => {
@@ -1334,6 +1383,16 @@ describe('Notch-style native Mac sessions', () => {
                   command: 'open -a TextEdit',
                 },
               );
+              await peers.server.notify('item/completed', {
+                threadId: 'native-mac',
+                item: {
+                  type: 'commandExecution',
+                  id: 'failed-command',
+                  command: 'false',
+                  status: 'completed',
+                  exitCode: 1,
+                },
+              });
               await peers.server.notify('item/agentMessage/delta', {
                 threadId: 'native-mac',
                 itemId: 'answer',
@@ -1373,12 +1432,14 @@ describe('Notch-style native Mac sessions', () => {
       try {
         const session = await adapter.createSession({
           ...sessionOptions,
+          model: 'gpt-6-astra',
           tools: [],
           nativeTools: 'mac',
           nativeApproval,
           baseInstructions: 'You are Sia. PERCEIVE → ACT → VERIFY.',
         });
         expect(start).toMatchObject({
+          model: 'gpt-6-astra',
           sandbox: 'danger-full-access',
           approvalPolicy: nativeApproval === 'auto' ? 'never' : 'untrusted',
           baseInstructions: 'You are Sia. PERCEIVE → ACT → VERIFY.',
@@ -1418,6 +1479,16 @@ describe('Notch-style native Mac sessions', () => {
         expect(events.filter((e) => e.type === 'message')).toMatchObject([
           { payload: { delta: false, parts: [{ text: finalText }] } },
         ]);
+        expect(events.filter((e) => e.type === 'tool')).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              payload: expect.objectContaining({
+                phase: 'failed',
+                presentation: expect.objectContaining({ exitCode: 1 }),
+              }),
+            }),
+          ]),
+        );
         expect(turnParams.outputSchema).toEqual({ type: 'object' });
       } finally {
         await adapter.dispose();

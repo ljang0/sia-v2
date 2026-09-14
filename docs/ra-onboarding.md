@@ -317,6 +317,9 @@ To validate native learning with real Codex turns and disposable local files, op
 SIA_CODEX_REAL_SMOKE=1 SIA_NATIVE_LEARNING_SMOKE=1 pnpm --filter @sia/desktop exec vitest run src/main/native-learning.smoke.test.ts
 ```
 
+Set `SIA_SMOKE_MODEL=gpt-6-astra` to run this check with Astra. The test resolves the same
+installed Codex binary as the desktop and uses its live model catalog.
+
 This uses the signed-in Codex plan to check file creation/readback, native `.sh` skill discovery,
 reuse and memory recall after restarting the controller, missing-input reporting, and the isolated
 consolidation session. It removes its temporary agent workspace and encrypted database afterward.
@@ -439,6 +442,13 @@ reads a real account or runs native commands; it is skipped by normal checks and
 ```sh
 SIA_CODEX_REAL_SMOKE=1 SIA_COURSE_INVESTIGATION_SMOKE=1 pnpm --filter @sia/desktop exec vitest run src/main/course-investigation.smoke.test.ts
 ```
+
+GPT-6 Astra is available in the model picker when the connected Codex account lists it. Sia
+checks both PATH and the official installed Mac app for a supported Codex version. Existing
+conversations keep their selected model; select Astra when creating an agent or changing its
+model for new conversations. Cmd+E captures the source app before taking focus, so requests
+like “summarize this selection” retain that context. Partial or blocked task results show that
+the task needs attention instead of announcing completion.
 
 The Fn monitor and accessibility reader derive from Notch's source; the operating prompt, response
 parser and watchdog are ports. Sia keeps its own Mac speech service, storage and UI. Codex's decisions

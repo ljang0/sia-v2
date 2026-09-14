@@ -165,6 +165,15 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   announcements, with source links and explicit coverage gaps. Neither an empty calendar nor a
   successful screenshot establishes task completion. The opt-in course investigation smoke tests
   this with real Codex and an entirely synthetic, dynamic-tool-only browser fixture.
+  Every Mac turn receives the current local date/time and timezone, including after a session
+  resumes. A structured unsuccessful task result ends as needing attention across desktop,
+  phone, schedules, journal and notifications, even when Codex completed its response normally.
+  Cmd+E captures source context before its panel takes focus and delivers it through the host
+  send route, without placing private context in renderer IPC or the displayed user message.
+  `--mac-apps` lists running application names, bundle IDs and PIDs. `--mac-context <pid>`
+  reads the chosen app without taking focus or substituting another app; it has a bounded
+  1,200-node, 28-level, 12,000-character, two-second budget. Truncated or timed-out reads
+  are explicitly partial evidence. Fn retains its shorter capture budget.
   `SiaVoiceHelper --mac-screenshot` captures one display on demand and normalizes its Retina image
   to logical point dimensions, bounded to 1920×1200. It returns the display origin and exact
   points-per-image-pixel transform. The native prompt uses this command for observation and

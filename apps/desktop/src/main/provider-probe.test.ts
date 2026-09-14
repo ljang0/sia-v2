@@ -93,14 +93,14 @@ describe('probeProviders', () => {
     const runner = {
       run: vi.fn(async (executable: string) => ({
         code: 0,
-        stdout: executable.endsWith('codex') ? 'codex-cli 0.151.0' : 'gemini 1.2.3',
+        stdout: executable.endsWith('codex') ? 'codex-cli 0.154.0' : 'gemini 1.2.3',
         stderr: '',
       })),
     };
     try {
       const [codex] = await probeProviders('codex', { PATH: directory }, runner);
       const [gemini] = await probeProviders('gemini', { PATH: directory }, runner);
-      expect(codex).toMatchObject({ status: 'incompatible', version: '0.151.0' });
+      expect(codex).toMatchObject({ status: 'incompatible', version: '0.154.0' });
       expect(gemini).toMatchObject({
         status: 'disabled',
         detail: expect.stringContaining('Legacy adapter'),

@@ -6,6 +6,7 @@ import { expect, it } from 'vitest';
 import { ActionGateway } from '@sia/action-gateway';
 import { RuntimeCoordinator } from './runtime-coordinator.js';
 import type { MacTaskResult } from './mac-execution.js';
+import { discoverCodexInstallation } from './codex-installation.js';
 
 // Opt-in real-model regression. Every app action ends in this in-memory fixture.
 // Native commands, web search and image tools are disabled by mac-background isolation.
@@ -225,7 +226,8 @@ live.each([false, true])(
         },
       },
     });
-    const runtime = new RuntimeCoordinator(gateway);
+    const codexCommand = await discoverCodexInstallation();
+    const runtime = new RuntimeCoordinator(gateway, codexCommand ? { codexCommand } : {});
     let result: MacTaskResult | undefined;
     try {
       for await (const event of runtime.runTurn(
@@ -233,17 +235,17 @@ live.each([false, true])(
           thread: {
             id: randomUUID(),
             provider: 'codex',
-            model: 'gpt-5.6-sol',
+            model: process.env.SIA_SMOKE_MODEL ?? 'gpt-5.6-sol',
             workspace,
             computerAccessMode: 'mac',
             computerTrust: 'auto',
             macBackgroundControl: true,
             macBackgroundFallback: 'pause',
             instructions:
-              'Validation environment: the provided computer tools operate an in-memory Canvas fixture, not a real browser. Read its accessibility text and follow its links normally. There are no images, saved workflows or other apps. Do not attempt to leave this environment. Today is Friday September 11, 2026; local timezone America/New_York. This environment information does not supply the answer.',
+              'Validation environment: the provided computer tools operate an in-memory Canvas fixture, not a real browser. Read its accessibility text and follow its links normally. There are no images, saved workflows or other apps. Do not attempt to leave this environment. Local timezone is America/New_York. This environment information does not supply the answer.',
           },
           turnId: randomUUID(),
-          text: 'Go through my Canvas and tell me all assignments that are due next week.',
+          text: 'Go through my Canvas and tell me all assignments due the week of September 14–20, 2026.',
           onMacResult: (value) => {
             result = value;
           },

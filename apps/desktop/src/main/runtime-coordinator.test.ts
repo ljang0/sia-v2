@@ -6,10 +6,19 @@ import type {
   ThreadEventEnvelope,
 } from '@sia/protocol';
 
-import { RuntimeCoordinator, composeSessionInstructions } from './runtime-coordinator.js';
+import {
+  RuntimeCoordinator,
+  composeSessionInstructions,
+  macRequestClock,
+} from './runtime-coordinator.js';
 import type { RuntimeThreadConfig } from './runtime-coordinator.js';
 
 describe('Use my Mac native execution', () => {
+  it('grounds relative dates in the Mac timezone, including across UTC midnight', () => {
+    const clock = macRequestClock(new Date('2026-09-15T02:00:00Z'), 'America/New_York');
+    expect(clock).toContain('Monday, September 14, 2026');
+    expect(clock).toContain('America/New_York');
+  });
   it('uses the Notch prompt and native tools, restores connected tools, and recreates sessions when trust changes', async () => {
     const created: ProviderSessionOptions[] = [];
     const backend = {
@@ -33,6 +42,7 @@ describe('Use my Mac native execution', () => {
       async *sendTurn(session, input) {
         passes++;
         if (['mac', 'mac-background'].includes(created.at(-1)?.nativeTools ?? '')) {
+          expect(input.text).toContain('Current request time:');
           expect(input.outputSchema).toMatchObject({
             required: expect.arrayContaining(['response', 'success']),
           });

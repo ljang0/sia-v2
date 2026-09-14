@@ -18,11 +18,15 @@ struct ScreenContext {
     var selectedText: String?
     var focusedElement: String?
     var outline: String
+    var processID: pid_t = 0
+    var isFrontmost = true
+    var isPartial = false
 
     /// The block injected into the agent prompt.
     var promptBlock: String {
         var lines = ["<screen_context>"]
-        lines.append("Frontmost app: \(appName) (\(bundleID))")
+        lines.append("\(isFrontmost ? "Frontmost app" : "Target app (not frontmost)"): \(appName) (\(bundleID)), pid \(processID)")
+        if isPartial { lines.append("PARTIAL accessibility snapshot: some content was omitted or could not be read. Inspect further; absence here is not evidence of absence in the app.") }
         if !windowTitle.isEmpty { lines.append("Window: \(windowTitle)") }
         if let focused = focusedElement, !focused.isEmpty { lines.append("Focused element: \(focused)") }
         if let selected = selectedText, !selected.isEmpty { lines.append("Selected text: \"\(selected)\"") }
@@ -39,10 +43,19 @@ final class ScreenContextProvider {
 
     // Budgets keep capture fast and the prompt small.
     private var deadline = Date.distantFuture
-    private let maxNodes = 400
-    private let maxDepth = 12
-    private let maxOutlineChars = 2800
+    private var partial = false
+    private let detailed: Bool
+    private let maxNodes: Int
+    private let maxDepth: Int
+    private let maxOutlineChars: Int
     private let maxTextPerNode = 220
+
+    init(detailed: Bool = false) {
+        self.detailed = detailed
+        maxNodes = detailed ? 1200 : 400
+        maxDepth = detailed ? 28 : 12
+        maxOutlineChars = detailed ? 12000 : 2800
+    }
 
     static func isTrusted(promptIfNeeded: Bool) -> Bool {
         if promptIfNeeded {
@@ -54,13 +67,17 @@ final class ScreenContextProvider {
 
     /// Synchronous; call off the main thread. Returns nil when there's no
     /// frontmost app or Accessibility isn't granted.
-    func capture() -> ScreenContext? {
+    func capture(pid: pid_t? = nil) -> ScreenContext? {
         guard Self.isTrusted(promptIfNeeded: false) else { return nil }
-        guard let app = NSWorkspace.shared.frontmostApplication,
+        // An explicit target must never fall back to a different foreground app.
+        let target = pid.flatMap { NSRunningApplication(processIdentifier: $0) }
+        guard let app = pid == nil ? NSWorkspace.shared.frontmostApplication : target,
+              !app.isTerminated,
               app.bundleIdentifier != Bundle.main.bundleIdentifier else { return nil }
 
         guard !["password", "keychain", "bitwarden", "lastpass", "dashlane", "authenticator"].contains(where: { (app.bundleIdentifier ?? "").lowercased().contains($0) }) else { return nil }
-        deadline = Date().addingTimeInterval(0.6)
+        partial = false
+        deadline = Date().addingTimeInterval(detailed ? 2.0 : 0.6)
         let axApp = AXUIElementCreateApplication(app.processIdentifier)
         AXUIElementSetMessagingTimeout(axApp, 0.05)
 
@@ -96,7 +113,10 @@ final class ScreenContextProvider {
             windowTitle: windowTitle,
             selectedText: selectedText,
             focusedElement: focusedDescription,
-            outline: lines.joined(separator: "\n")
+            outline: lines.joined(separator: "\n"),
+            processID: app.processIdentifier,
+            isFrontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier,
+            isPartial: partial || Date() >= deadline
         )
     }
 
@@ -129,7 +149,7 @@ final class ScreenContextProvider {
         nodeCount: inout Int,
         charCount: inout Int
     ) {
-        guard Date() < deadline, depth <= maxDepth, nodeCount < maxNodes, charCount < maxOutlineChars else { return }
+        guard Date() < deadline, depth <= maxDepth, nodeCount < maxNodes, charCount < maxOutlineChars else { partial = true; return }
         nodeCount += 1
 
         let role: String = copyAttr(element, kAXRoleAttribute) ?? ""
@@ -138,8 +158,11 @@ final class ScreenContextProvider {
 
         if let label = Self.contentRoles[role], let line = contentLine(element, label: label) {
             let indent = String(repeating: "  ", count: min(depth, 6))
-            lines.append(indent + line)
-            charCount += line.count
+            let remaining = max(0, maxOutlineChars - charCount - indent.count)
+            if line.count > remaining { partial = true }
+            let bounded = indent + String(line.prefix(remaining))
+            lines.append(bounded)
+            charCount += bounded.count
             // Content nodes re-emit their own text through child Text
             // nodes — recursing would double every line.
             return
@@ -148,7 +171,7 @@ final class ScreenContextProvider {
         // Containers are structural — recurse.
         guard let children: [AXUIElement] = copyAttrArray(element, kAXChildrenAttribute) else { return }
         for child in children {
-            guard nodeCount < maxNodes, charCount < maxOutlineChars else { return }
+            guard nodeCount < maxNodes, charCount < maxOutlineChars else { partial = true; return }
             walk(child, depth: depth + 1, lines: &lines, nodeCount: &nodeCount, charCount: &charCount)
         }
     }
@@ -185,14 +208,16 @@ final class ScreenContextProvider {
     // MARK: - AX plumbing
 
     private func copyAttr<T>(_ element: AXUIElement, _ attribute: String) -> T? {
-        guard Date() < deadline else { return nil }
+        guard Date() < deadline else { partial = true; return nil }
         var ref: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &ref) == .success else { return nil }
+        let status = AXUIElementCopyAttributeValue(element, attribute as CFString, &ref)
+        if status == .cannotComplete { partial = true }
+        guard status == .success else { return nil }
         return ref as? T
     }
 
     private func copyAttrArray(_ element: AXUIElement, _ attribute: String) -> [AXUIElement]? {
-        guard Date() < deadline else { return nil }
+        guard Date() < deadline else { partial = true; return nil }
         var ref: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, attribute as CFString, &ref) == .success,
               let array = ref as? [AnyObject] else { return nil }
@@ -204,7 +229,7 @@ final class ScreenContextProvider {
     }
 
     private func stringValue(of element: AXUIElement) -> String? {
-        guard Date() < deadline else { return nil }
+        guard Date() < deadline else { partial = true; return nil }
         var ref: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &ref) == .success,
               let ref else { return nil }
@@ -215,7 +240,7 @@ final class ScreenContextProvider {
 
     private func nonEmpty(_ s: String?, limit: Int) -> String? {
         guard var s = s?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else { return nil }
-        if s.count > limit { s = String(s.prefix(limit)) + "…" }
+        if s.count > limit { partial = true; s = String(s.prefix(limit)) + "…" }
         return s.replacingOccurrences(of: "\n", with: " ⏎ ")
     }
 }
@@ -224,7 +249,7 @@ final class ScreenContextProvider {
 extension ScreenContext {
     var siaContext: [String: String] {
         var value = ["app": FnContext.bounded(appName, 160), "bundleID": FnContext.bounded(bundleID, 200),
-                     "window": FnContext.bounded(windowTitle, 300), "outline": FnContext.bounded(outline, 2800)]
+                     "window": FnContext.bounded(windowTitle, 300), "outline": FnContext.bounded((isPartial ? "PARTIAL accessibility snapshot. Inspect further.\n" : "") + outline, 2800)]
         if let selectedText { value["selectedText"] = FnContext.bounded(selectedText, 1200) }
         return value
     }

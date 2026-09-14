@@ -5033,10 +5033,24 @@ it('retains background task results and failures across conversations and native
           i + 1,
         ),
       );
+      expect(controller.snapshot().threads.find((entry) => entry.id === threadId)?.status).toBe(
+        i === 0 ? 'failed' : 'idle',
+      );
+      if (i === 0)
+        expect(controller.snapshot().timeline).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              threadId,
+              kind: 'error',
+              title: 'Task needs attention',
+              text: 'The document needs foreground access.',
+            }),
+          ]),
+        );
     }
     expect(library.view().journal?.filter((entry) => entry.kind === 'task')).toEqual([
       expect.objectContaining({
-        outcome: 'blocked',
+        outcome: 'failed',
         text: expect.stringContaining('foreground access'),
       }),
       expect.objectContaining({

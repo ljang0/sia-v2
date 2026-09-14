@@ -22,6 +22,12 @@ import {
   waitForProcessSpawn,
 } from '../supervisor.js';
 
+// Admission covers the Astra-capable app server as well as existing Sia installs.
+export const CODEX_SUPPORTED_VERSIONS = {
+  minimum: '0.147.0',
+  maximumExclusive: '0.154.0',
+} as const;
+
 export interface DynamicToolCall {
   readonly callId: string;
   readonly name: string;
@@ -188,10 +194,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   async probe(signal?: AbortSignal): Promise<ProviderProbeResult> {
     return await discoverCli({
       command: this.#options.command ?? 'codex',
-      range: this.#options.supportedVersions ?? {
-        minimum: '0.147.0',
-        maximumExclusive: '0.151.0',
-      },
+      range: this.#options.supportedVersions ?? CODEX_SUPPORTED_VERSIONS,
       ...(this.#options.commandRunner ? { runner: this.#options.commandRunner } : {}),
       ...(signal ? { signal } : {}),
     });
@@ -1281,6 +1284,13 @@ function nativePhase(
 ): ToolEvent['payload']['phase'] {
   const status = stringAt(item, ['status']);
   if (status === 'failed' || status === 'declined') return 'failed';
+  if (
+    method === 'item/completed' &&
+    item.type === 'commandExecution' &&
+    typeof item.exitCode === 'number' &&
+    item.exitCode !== 0
+  )
+    return 'failed';
   return method === 'item/started' ? 'started' : 'completed';
 }
 

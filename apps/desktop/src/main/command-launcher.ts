@@ -33,6 +33,7 @@ export function createCommandLauncher(
   let opening = false;
   let disposed = false;
   let suspended = false;
+  let activationContext: string | undefined;
   const session = new LauncherSession();
   const state = () => session.view(controller.snapshot());
   const publish = () => {
@@ -53,6 +54,7 @@ export function createCommandLauncher(
       if (!window || window.isDestroyed() || event.senderFrame !== window.webContents.mainFrame)
         throw new Error('Blocked launcher request.');
       if (channel === 'dismiss') {
+        activationContext = undefined;
         window.hide();
         return;
       }
@@ -93,7 +95,8 @@ export function createCommandLauncher(
             title: input.text.slice(0, 80),
           }));
         }
-        await controller.invoke('threads.send', { threadId, text: input.text });
+        controller.sendLauncherTurn({ threadId, text: input.text }, activationContext);
+        activationContext = undefined;
         session.bind(threadId);
         publish();
       } catch {
@@ -110,6 +113,11 @@ export function createCommandLauncher(
     if (suspended) return;
     opening = true;
     try {
+      activationContext = await controller.captureLauncherContext();
+      if (disposed || suspended) {
+        activationContext = undefined;
+        return;
+      }
       if (!window || window.isDestroyed()) {
         window = new BrowserWindow({
           width: 560,
@@ -134,6 +142,7 @@ export function createCommandLauncher(
         window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
         window.webContents.on('will-navigate', (event) => event.preventDefault());
         window.on('blur', () => {
+          activationContext = undefined;
           window?.hide();
         });
         window.on('closed', () => {
@@ -176,12 +185,14 @@ export function createCommandLauncher(
     suspend(value: boolean) {
       suspended = value;
       if (value) {
+        activationContext = undefined;
         session.clear();
         publish();
         window?.hide();
       }
     },
     dispose() {
+      activationContext = undefined;
       disposed = true;
       unsubscribe();
       if (registered) globalShortcut.unregister('Command+E');

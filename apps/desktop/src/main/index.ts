@@ -51,7 +51,8 @@ import {
 } from './persistence.js';
 import { RuntimeCoordinator } from './runtime-coordinator.js';
 import { CognitoIdentityManager } from './identity.js';
-import { configureMetaCloudAvailability } from './provider-probe.js';
+import { configureMetaCloudAvailability, probeProviders } from './provider-probe.js';
+import { discoverCodexInstallation } from './codex-installation.js';
 import { macProviderPath } from './provider-path.js';
 import { WorkspaceOperationsService } from './workspace-operations.js';
 import { MacVoiceService, createMacSpeechTransport } from './mac-voice-service.js';
@@ -176,6 +177,7 @@ async function performApplicationCreation(): Promise<void> {
   configureMetaCloudAvailability(Boolean(cloudConfiguration.apiBaseUrl));
 
   if (!controller) {
+    const codexCommand = fakeServices ? undefined : await discoverCodexInstallation();
     const databasePath = join(app.getPath('userData'), 'sia.sqlite');
     const plaintextTestStorage =
       !app.isPackaged && process.env.SIA_TEST_PLAINTEXT_STORAGE === '1';
@@ -223,6 +225,14 @@ async function performApplicationCreation(): Promise<void> {
         ),
     });
     activeController = new DesktopController({
+      captureMacContext: () => browserWindows.macContext(),
+      providerProbe: (only) =>
+        probeProviders(
+          only,
+          process.env,
+          undefined,
+          codexCommand ? { codex: codexCommand } : {},
+        ),
       repository,
       cloud,
       computer,
@@ -397,6 +407,7 @@ async function performApplicationCreation(): Promise<void> {
       });
     }
     activeRuntime = new RuntimeCoordinator(gateway, {
+      ...(codexCommand ? { codexCommand } : {}),
       macContext: () => browserWindows.macContext(),
       metaTransport: cloud,
       ...(hostedResponsesProxy

@@ -240,7 +240,17 @@ if CommandLine.arguments.contains("--mac-screenshot") {
     }
     exit(0)
 }
-if CommandLine.arguments == [CommandLine.arguments[0], "--mac-context"] {
+if CommandLine.arguments == [CommandLine.arguments[0], "--mac-apps"] {
+    let apps = NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular }.map { app -> [String: Any] in
+        ["pid": app.processIdentifier, "name": app.localizedName ?? "Unknown", "bundleID": app.bundleIdentifier ?? "", "frontmost": app.isActive]
+    }
+    if let data = try? JSONSerialization.data(withJSONObject: ["apps": apps]) { FileHandle.standardOutput.write(data) }
+    exit(0)
+}
+if CommandLine.arguments.count >= 2 && CommandLine.arguments[1] == "--mac-context" {
+    guard CommandLine.arguments.count == 2 || CommandLine.arguments.count == 3 else { exit(2) }
+    let pid = CommandLine.arguments.count == 3 ? Int32(CommandLine.arguments[2]) : nil
+    if CommandLine.arguments.count == 3 && (pid == nil || pid! <= 0) { exit(2) }
     let displays = NSScreen.screens.enumerated().map { index, screen -> [String: Any] in
         let frame = screen.frame
         let mainHeight = NSScreen.screens.first?.frame.height ?? frame.height
@@ -249,8 +259,10 @@ if CommandLine.arguments == [CommandLine.arguments[0], "--mac-context"] {
                 "scale": screen.backingScaleFactor,
                 "width_pixels": frame.width * screen.backingScaleFactor, "height_pixels": frame.height * screen.backingScaleFactor]
     }
-    let context = ScreenContextProvider().capture()?.promptBlock ?? "No accessible foreground context. Inspect the target app directly."
-    let value: [String: Any] = ["context": context, "displays": displays]
+    let captured = ScreenContextProvider(detailed: pid != nil).capture(pid: pid)
+    let context = captured?.promptBlock ?? "No accessible context for the requested app. It may have closed, have no window, or require Accessibility access. No other app was substituted."
+    let value: [String: Any] = ["status": captured == nil ? "unavailable" : "ready", "context": context,
+                              "partial": captured?.isPartial ?? true, "captured_at": ISO8601DateFormatter().string(from: Date()), "displays": displays]
     if let data = try? JSONSerialization.data(withJSONObject: value) { FileHandle.standardOutput.write(data) }
     exit(0)
 }

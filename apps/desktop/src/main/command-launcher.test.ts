@@ -64,6 +64,10 @@ it('opens only on explicit Cmd+E, never from background snapshots, and unregiste
   let changed!: () => void;
   let snapshot = { agents: [], threads: [], timeline: [] } as unknown as DesktopSnapshot;
   const controller = {
+    captureLauncherContext: vi.fn(async () => {
+      expect(electron.windows.every((window) => !window.visible)).toBe(true);
+      return 'Source app: TextEdit';
+    }),
     snapshot: () => snapshot,
     subscribe: (listener: () => void) => {
       changed = listener;
@@ -84,6 +88,7 @@ it('opens only on explicit Cmd+E, never from background snapshots, and unregiste
   const shortcut = electron.register.mock.calls[0]![1];
   shortcut();
   await vi.waitFor(() => expect(electron.windows[0]?.show).toHaveBeenCalledOnce());
+  expect(controller.captureLauncherContext).toHaveBeenCalledOnce();
   shortcut();
   expect(electron.windows[0].visible).toBe(false);
   changed();
@@ -92,4 +97,39 @@ it('opens only on explicit Cmd+E, never from background snapshots, and unregiste
   expect(openSia).not.toHaveBeenCalled();
   launcher.dispose();
   expect(electron.unregister).toHaveBeenCalledExactlyOnceWith('Command+E');
+});
+
+it('hands the pre-focus context to the host send route once without exposing it to the renderer', async () => {
+  const agentId = '0ca8ce47-5fb5-4bca-9476-92e34de07d25';
+  const threadId = '6e973c04-9e1d-4b52-8e10-d565c566b8a1';
+  const context = 'Source app: TextEdit; selected text: synthetic selection';
+  const snapshot = {
+    agents: [{ id: agentId, name: 'Sia' }],
+    threads: [],
+    timeline: [],
+  } as unknown as DesktopSnapshot;
+  const send = vi.fn();
+  const controller = {
+    snapshot: () => snapshot,
+    subscribe: () => vi.fn(),
+    captureLauncherContext: async () => context,
+    sendLauncherTurn: send,
+    invoke: vi.fn(async () => ({ threadId })),
+  } as unknown as DesktopController;
+  const launcher = createCommandLauncher(controller, vi.fn());
+  try {
+    await launcher.toggle();
+    const window = electron.windows[0];
+    const event = { senderFrame: window.webContents.mainFrame };
+    const input = { kind: 'new', agentId, text: 'Summarize this selection' };
+    await electron.handlers.get('sia:launcher:send')!(event, input);
+    expect(send).toHaveBeenLastCalledWith({ threadId, text: input.text }, context);
+    expect(JSON.stringify(window.webContents.send.mock.calls)).not.toContain(
+      'synthetic selection',
+    );
+    await electron.handlers.get('sia:launcher:send')!(event, input);
+    expect(send).toHaveBeenLastCalledWith({ threadId, text: input.text }, undefined);
+  } finally {
+    launcher.dispose();
+  }
 });

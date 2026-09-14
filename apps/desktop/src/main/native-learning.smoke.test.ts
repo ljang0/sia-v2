@@ -10,6 +10,8 @@ import { CloudClient } from './cloud-client.js';
 import { EphemeralPayloadCipher, SqliteRecordRepository } from './persistence.js';
 import { RuntimeCoordinator } from './runtime-coordinator.js';
 import { NativeSkills } from './native-skills.js';
+import { discoverCodexInstallation } from './codex-installation.js';
+import { probeProviders } from './provider-probe.js';
 
 // Opt-in real model test. No GUI driver, screen capture, account content or network
 // task is provided. Synthetic files and encrypted state live in a disposable folder.
@@ -20,6 +22,8 @@ const live =
 live(
   'runs native commands, learns/reuses a skill and memory after restart, and consolidates without GUI access',
   async () => {
+    const codexCommand = await discoverCodexInstallation();
+    const model = process.env.SIA_SMOKE_MODEL ?? 'gpt-5.6-sol';
     const root = await mkdtemp(join(tmpdir(), 'sia-native-live-'));
     const cipher = new EphemeralPayloadCipher();
     const db = join(root, 'state.sqlite');
@@ -44,6 +48,13 @@ live(
         shutdown: async () => undefined,
       };
       const host = new DesktopController({
+        providerProbe: (only) =>
+          probeProviders(
+            only,
+            process.env,
+            undefined,
+            codexCommand ? { codex: codexCommand } : {},
+          ),
         repository,
         cloud,
         computer,
@@ -88,6 +99,7 @@ live(
         isToolAvailable: (name) => host.actionToolAvailable(name),
       });
       const runtime = new RuntimeCoordinator(gateway, {
+        ...(codexCommand ? { codexCommand } : {}),
         macContext: async () =>
           'Local shell-only validation. No screen context or screenshot tool is supplied. Do not capture or control the desktop.',
       });
@@ -95,7 +107,7 @@ live(
       await host.initialize();
       return host;
     };
-    const waitForThread = async (threadId: string) => {
+    const waitForThread = async (threadId: string, expectedFailure = false) => {
       const deadline = Date.now() + 240_000;
       while (Date.now() < deadline) {
         const state = controller!.snapshot();
@@ -105,8 +117,12 @@ live(
           const errors = items
             .filter((entry) => entry.kind === 'error')
             .map((entry) => entry.text);
-          if (errors.length || thread.status === 'failed')
+          if (!expectedFailure && (errors.length || thread.status === 'failed'))
             throw new Error(`Live task failed: ${errors.join('; ')}`);
+          if (expectedFailure) {
+            expect(thread.status).toBe('failed');
+            expect(errors.join(' ')).toContain('missing-validation-input.txt');
+          }
           return items
             .filter((entry) => entry.kind === 'assistant')
             .map((entry) => entry.text ?? '')
@@ -117,11 +133,16 @@ live(
       await controller!.invoke('threads.cancel', { threadId });
       throw new Error('Live task exceeded four minutes.');
     };
-    const task = async (agentId: string, title: string, text: string) => {
+    const task = async (
+      agentId: string,
+      title: string,
+      text: string,
+      expectedFailure = false,
+    ) => {
       const { threadId } = await controller!.invoke('threads.create', { agentId, title });
       console.info(`Native live test: ${title} started`);
       await controller!.invoke('threads.send', { threadId, text });
-      const response = await waitForThread(threadId);
+      const response = await waitForThread(threadId, expectedFailure);
       console.info(`Native live test: ${title} response: ${response.slice(-1600)}`);
       return { threadId, response };
     };
@@ -132,7 +153,7 @@ live(
       const { agentId } = await controller.invoke('agents.save', {
         name: 'Native live validation',
         provider: 'codex',
-        model: 'gpt-5.6-sol',
+        model,
         instructions:
           'This is a temporary validation agent. Use only synthetic files in your own workspace. Do not open/control apps, use screenshots, browse the network, or read unrelated files. For shell-only work verify using stdout and file readback. Keep replies brief.',
       });
@@ -197,13 +218,14 @@ live(
         agentId,
         'Observed missing-file failure',
         'Calculate and report the SHA-256 checksum of missing-validation-input.txt in this workspace. Do not create the file or search anywhere else. If it is missing, explain that the requested checksum cannot be calculated. No GUI or screenshots.',
+        true,
       );
       library = await controller.invoke('assistant.library', { operation: 'list' });
       const missingJournal = library.journal?.filter(
         (entry) => entry.threadId === missing.threadId && entry.kind === 'task',
       );
       console.info('Native live test: missing-file journal:', JSON.stringify(missingJournal));
-      expect(missingJournal?.some((entry) => entry.outcome === 'blocked')).toBe(true);
+      expect(missingJournal?.some((entry) => entry.outcome === 'failed')).toBe(true);
       console.info('Native live test: missing-file blocker retained in the journal');
 
       await controller.invoke('assistant.library', {

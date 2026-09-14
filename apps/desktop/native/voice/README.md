@@ -34,7 +34,7 @@ this adaptation does not claim a new third-party license for the original code.
 
 `pnpm --filter @sia/desktop native:build` builds an ad-hoc signed universal helper on macOS 14+.
 Build products stay in ignored `build/native/`. The release signing pipeline signs the embedded helper
-with the application. The helper never captures screenshots, runs model-supplied shell commands, or receives provider credentials.
+with the application. The voice modes never capture screenshots, run model-supplied shell commands, or receive provider credentials. The separate explicit `--mac-screenshot` mode captures a display only when requested by a Mac task.
 The host may submit an already-authorized window image for local OCR. Voice transport is inherited stdin/stdout; fixed host-only `--browser-window` and `--window-context` operations return bounded JSON. EOF and a parent heartbeat stop recording.
 
 `MacSpeech.swift` is Sia’s original native speech implementation, separate from the Notch adaptations.
@@ -67,6 +67,12 @@ observation evidence, not a guarantee that every letter or number was recognized
 geometry in points/pixels and display origins. It never requests permissions or takes a screenshot.
 Its AX calls have short timeouts and a 600 ms budget; secure controls and password-manager apps are
 excluded. This command is made available to the native Codex agent for fresh observations. Native
-shell/screenshots run in Codex, not inside the voice helper. Mac Fn uses the same reader before any
+shell commands run in Codex; its screenshot helper normalizes images and returns exact coordinate transforms. Mac Fn uses the same reader before any
 Sia panel can take focus. The full native route and its broader access are documented in
 `docs/architecture.md`. Permission setup includes System Events, Safari and Chrome Automation.
+
+`--mac-apps` returns running application identity only. `--mac-context <pid>` reads that exact
+process without activating it and never falls back to another app when the process is absent.
+Explicit target reads allow 1,200 nodes, depth 28, 12,000 characters and two seconds. Gesture
+capture keeps its 400-node/600 ms budget. Both mark omitted/truncated content as PARTIAL;
+a limited accessibility outline is never a complete inventory of the app or document.

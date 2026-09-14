@@ -111,6 +111,7 @@ export class RuntimeCoordinator {
   constructor(
     gateway: ActionGateway,
     options: {
+      codexCommand?: string;
       macContext?: () => Promise<string>;
       metaTransport?: MetaTransport;
       hostedCodexProvider?: CodexCustomModelProviderResolver;
@@ -127,6 +128,7 @@ export class RuntimeCoordinator {
     this.#macContext = options.macContext;
     this.#onDispose = options.onDispose;
     this.#codexAdapter = createCodexAdapter({
+      ...(options.codexCommand ? { command: options.codexCommand } : {}),
       // Sia owns the encrypted local transcript and reconstructs context when
       // a provider session is recreated. Do not leave a second native Codex
       // transcript in provider-owned persistence.
@@ -148,6 +150,7 @@ export class RuntimeCoordinator {
         'meta',
         'codex_app_server',
         createCodexAdapter({
+          ...(options.codexCommand ? { command: options.codexCommand } : {}),
           providerId: 'meta',
           accountOverride: {
             state: 'authenticated',
@@ -289,8 +292,10 @@ export class RuntimeCoordinator {
           state.session,
           {
             turnId: input.turnId,
-            text: [nativeContext, input.text].filter(Boolean).join('\n\n'),
-            model: input.thread.model,
+            text: [mac ? macRequestClock() : undefined, nativeContext, input.text]
+              .filter(Boolean)
+              .join('\n\n'),
+            model: state.target.harnessModelId,
             ...(mac ? { outputSchema: MAC_RESPONSE_SCHEMA } : {}),
             ...(input.reasoningEffort ? { reasoningEffort: input.reasoningEffort } : {}),
             ...(input.attachments?.length ? { attachments: input.attachments } : {}),
@@ -575,6 +580,20 @@ export class RuntimeCoordinator {
     this.#sessions.set(thread.id, state);
     return state;
   }
+}
+
+export function macRequestClock(
+  now = new Date(),
+  timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
+): string {
+  return `Current request time: ${now.toISOString()}. Mac timezone: ${timeZone}. Local date and time: ${new Intl.DateTimeFormat(
+    'en-US',
+    {
+      timeZone,
+      dateStyle: 'full',
+      timeStyle: 'long',
+    },
+  ).format(now)}. Resolve relative dates from this request time, not from earlier messages.`;
 }
 
 function assertTargetContext(

@@ -4,6 +4,10 @@ import CoreGraphics
 
 // Exercises the real Notch-derived monitor without installing an OS tap or posting input.
 Task { @MainActor in
+    let partialContext = ScreenContext(appName: "Fixture", bundleID: "test.fixture", windowTitle: "Document", outline: "Read this", processID: 123, isFrontmost: false, isPartial: true)
+    precondition(partialContext.promptBlock.contains("Target app (not frontmost)"))
+    precondition(partialContext.promptBlock.contains("PARTIAL accessibility snapshot"))
+    precondition(partialContext.siaContext["outline"]!.hasPrefix("PARTIAL"))
     precondition(WindowContext.contentValue(role: "AXStaticText", value: NSNumber(value: 254)) == "254")
     precondition(WindowContext.contentValue(role: "AXHeading", value: NSNumber(value: 2)) == nil)
     precondition(WindowContext.contentValue(role: "AXStaticText", value: "3,374") == "3,374")
