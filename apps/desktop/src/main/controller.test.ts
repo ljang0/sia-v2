@@ -1,3 +1,4 @@
+import { ScottyTasks } from './scotty-state.js';
 import { AssistantLibrary } from './assistant-library.js';
 import type { VoiceHelperFactory } from './push-to-talk.js';
 import { generateKeyPairSync, sign, randomUUID } from 'node:crypto';
@@ -3427,6 +3428,101 @@ describe('DesktopController', () => {
     });
     await expect(pending).resolves.toEqual({ approved: false });
     await controller.shutdown();
+  });
+
+  it('answers a provider question through Scotty and resumes the same runtime turn', async () => {
+    let runtimeThreadId = '';
+    const answered = Promise.withResolvers<void>();
+    const runtime = {
+      async *runTurn(input: { turnId: string }, signal?: AbortSignal) {
+        const base = {
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 1,
+          type: 'question' as const,
+          payload: {
+            requestId: 'calendar-question',
+            phase: 'requested' as const,
+            prompt: 'Which calendar should I use?',
+          },
+        };
+        if (signal?.aborted) return;
+        signal?.addEventListener('abort', () => answered.resolve(), { once: true });
+        await answered.promise;
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      respondToRequest: vi.fn(async () => {
+        answered.resolve();
+      }),
+      cancel: vi.fn(async () => {
+        answered.resolve();
+      }),
+      dispose: vi.fn(async () => {
+        answered.resolve();
+      }),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    try {
+      const agent = await controller.invoke('agents.save', {
+        name: 'Personal',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const created = await controller.invoke('threads.create', { agentId: agent.agentId });
+      runtimeThreadId = created.threadId;
+      const started = await controller.invoke('threads.send', {
+        threadId: created.threadId,
+        text: 'Help with my calendar',
+      });
+      await vi.waitFor(() =>
+        expect(
+          controller.snapshot().threads.find((thread) => thread.id === created.threadId)
+            ?.status,
+        ).toBe('waiting'),
+      );
+      const tasks = new ScottyTasks();
+      const settings = { enabled: true, size: 'medium' as const, motion: true };
+      const question = tasks
+        .view(controller.snapshot(), settings, true)
+        .tasks.find((task) => task.id === created.threadId)!;
+      expect(question.question).toBe('Which calendar should I use?');
+      await tasks.act(
+        { kind: 'reply', token: question.token, text: 'My work calendar' },
+        controller,
+        settings,
+        vi.fn(),
+      );
+      expect(runtime.respondToRequest).toHaveBeenCalledExactlyOnceWith(created.threadId, {
+        requestId: 'calendar-question',
+        text: 'My work calendar',
+      });
+      expect(
+        controller.snapshot().timeline.findLast((item) => item.kind === 'user')?.turnId,
+      ).toBe(started.turnId);
+      await vi.waitFor(() =>
+        expect(
+          controller.snapshot().threads.find((thread) => thread.id === created.threadId)
+            ?.status,
+        ).toBe('idle'),
+      );
+    } finally {
+      answered.resolve();
+      await controller.shutdown();
+    }
   });
 
   it('revokes provider and computer approvals before a cancelled turn can release', async () => {

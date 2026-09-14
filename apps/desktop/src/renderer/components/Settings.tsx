@@ -9,6 +9,7 @@ import {
   Sparkle,
   SpeakerHigh,
   DeviceMobile,
+  PawPrint,
   X,
 } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
@@ -23,6 +24,7 @@ import { ReleaseReviewSettings } from './settings/ReleaseReviewSettings';
 import { ResearchArchiveSettings } from './settings/ResearchArchiveSettings';
 import { ProvidersSettings } from './settings/ProvidersSettings';
 import { PhoneRemoteSettings } from './settings/PhoneRemoteSettings';
+import { ScottySettings } from './settings/ScottySettings';
 import { VoiceSettings } from './settings/VoiceSettings';
 
 export type SettingsSection =
@@ -31,6 +33,7 @@ export type SettingsSection =
   | 'apps'
   | 'computer'
   | 'voice'
+  | 'scotty'
   | 'phone'
   | 'privacy'
   | 'about'
@@ -38,6 +41,7 @@ export type SettingsSection =
   | 'research';
 
 interface SettingsProps {
+  scottyApi?: import('../../shared/scotty').ScottySettingsApi | undefined;
   phoneRemoteApi?: import('../../shared/phone-remote').PhoneRemoteApi | undefined;
   assistantApi?: Pick<RendererApi, 'assistantLibrary'>;
   onRunWorkflow?: (threadId: string) => void;
@@ -92,6 +96,7 @@ interface SettingsProps {
 }
 
 export function Settings({
+  scottyApi,
   phoneRemoteApi,
   assistantApi,
   onRunWorkflow,
@@ -207,6 +212,14 @@ export function Settings({
             label="Voice"
             onClick={() => setSection('voice')}
           />
+          {scottyApi && (
+            <SettingsNavButton
+              active={section === 'scotty'}
+              icon={<PawPrint size={17} aria-hidden="true" />}
+              label="Scotty"
+              onClick={() => setSection('scotty')}
+            />
+          )}
           {phoneRemoteApi && (
             <SettingsNavButton
               active={section === 'phone'}
@@ -246,6 +259,7 @@ export function Settings({
         </nav>
 
         <div key={section} className={styles.settingsContent}>
+          {section === 'scotty' && scottyApi && <ScottySettings api={scottyApi} />}
           {section === 'phone' && phoneRemoteApi && (
             <PhoneRemoteSettings api={phoneRemoteApi} agents={snapshot.agents} />
           )}

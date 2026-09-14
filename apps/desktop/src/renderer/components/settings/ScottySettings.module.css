@@ -1,0 +1,89 @@
+.card {
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-raised);
+  border-radius: 20px;
+  overflow: hidden;
+  max-width: 660px;
+}
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 12px 36px 32px;
+  background: radial-gradient(ellipse at 50% 25%, var(--bg-selected), transparent 65%);
+}
+.preview {
+  height: 172px;
+  display: grid;
+  place-items: center;
+}
+.name {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 10px;
+  color: var(--text-secondary);
+  letter-spacing: 0.11em;
+}
+.hero h3 {
+  font: 560 34px/1.07 var(--font-brand);
+  letter-spacing: -0.035em;
+  margin: 15px 0 12px;
+}
+.hero p {
+  font-size: 13px;
+  line-height: 1.65;
+  max-width: 350px;
+  color: var(--text-secondary);
+  margin: 0 0 22px;
+}
+.controls {
+  padding: 0 24px;
+  border-top: 1px solid var(--border-subtle);
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px 0;
+}
+.row + .row {
+  border-top: 1px solid var(--border-subtle);
+}
+.row strong {
+  font-size: 13px;
+  font-weight: 560;
+}
+.row p {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin: 4px 0 0;
+}
+.row select {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 7px 12px;
+  color: var(--text-primary);
+  background: var(--bg-field);
+  font: inherit;
+  font-size: 12px;
+}
+.row input {
+  accent-color: var(--bg-accent);
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.row button {
+  white-space: nowrap;
+  font-size: 11px;
+}
+.note {
+  max-width: 660px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.65;
+  margin-top: 15px;
+}

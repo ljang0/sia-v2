@@ -67,6 +67,20 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   heartbeat expiry. Normal Fn sessions show Notch's multicolor gradient border through recording, transcription, and task execution; the helper reserves its
   nonactivating status notice for errors. It uses no screenshot capture. Composer capture obtains an
   exclusive main-process lease before opening the microphone; window teardown releases the lease.
+- Scotty is an optional Sia-owned desktop pet. Its transparent Electron window, generated
+  pixel-terrier atlas, animation, position and task tray are bundled in Sia; it never loads
+  Codex pet assets or calls Codex's pet UI. Settings → Scotty and the Sia menu control visibility.
+  Position, size and motion preferences use the encrypted local repository. Task updates reuse
+  the controller subscription with a bounded projection; no second transcript or model session
+  is created. Pending input, unread failures, unread results and running tasks drive its state.
+  The tray replies, starts requests, cancels tasks and resolves reviewed approvals through the
+  canonical controller routes. Main validates the exact sender frame, request schema, current
+  task token and approval identity; replacement turns/questions invalidate old controls.
+  Oversized approval details require review in the main app. Passive updates never open the tray
+  or focus a window. Transparent space passes mouse events through. Display changes clamp the
+  saved position to a usable screen, and lock/sleep/sign-out clear task bindings and hide both
+  surfaces. Reduced Motion (or disabling animation) holds the sprite still. No startup probes,
+  microphone, screen capture, network connection or additional permissions are needed for the pet.
 - Cmd+E opens an independent, compact command window on the pointer's display, adapted from
   Notch's HotkeyManager lifecycle through Electron globalShortcut. Its separate sandboxed preload
   exposes only display-state subscription, send, cancel, new request, dismiss and open; main

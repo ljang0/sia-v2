@@ -1,3 +1,4 @@
+import { scottyCommand } from './scotty-state.js';
 import { phoneRemoteCommand } from '../shared/phone-remote.js';
 import { automationAppSchema } from '../shared/mac-permissions.js';
 import type { BrowserWindow, IpcMain } from 'electron';
@@ -24,6 +25,7 @@ const harnessId = z
   .regex(/^[a-z][a-z0-9_]*$/);
 
 const inputSchemas = {
+  'scotty.configure': scottyCommand,
   'phone.remote': phoneRemoteCommand,
   'assistant.library': assistantLibraryCommand,
   bootstrap: z.undefined(),

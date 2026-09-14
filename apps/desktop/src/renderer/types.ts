@@ -494,6 +494,7 @@ export interface ResearchBatchSummary {
 export type ApprovalDecision = 'approve' | 'reject';
 
 export interface RendererApi {
+  scotty?: import('../shared/scotty').ScottySettingsApi;
   phoneRemote?: import('../shared/phone-remote').PhoneRemoteApi;
   assistantLibrary(
     input: import('../shared/assistant-library').AssistantLibraryCommand,

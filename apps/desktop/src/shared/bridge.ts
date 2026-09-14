@@ -568,6 +568,7 @@ export interface ResolveApprovalInput {
 }
 
 export interface BridgeRequestMap {
+  'scotty.configure': import('./scotty.js').ScottyCommand;
   'phone.remote': import('./phone-remote.js').PhoneRemoteCommand;
   'assistant.library': import('./assistant-library.js').AssistantLibraryCommand;
   bootstrap: undefined;
@@ -688,6 +689,7 @@ export interface BridgeRequestMap {
 }
 
 export interface BridgeResultMap {
+  'scotty.configure': import('./scotty.js').ScottySettings;
   'phone.remote': import('./phone-remote.js').PhoneRemoteSettings;
   'assistant.library': import('./assistant-library.js').AssistantLibraryView;
   bootstrap: DesktopSnapshot;
@@ -815,6 +817,7 @@ export type DesktopPushEvent =
   { type: 'snapshot'; snapshot: DesktopSnapshot } | { type: 'fatal'; error: BridgeErrorShape };
 
 export interface DesktopBridgeApi {
+  scotty: import('./scotty.js').ScottySettingsApi;
   phoneRemote: import('./phone-remote.js').PhoneRemoteApi;
   assistantLibrary(
     input: BridgeRequestMap['assistant.library'],

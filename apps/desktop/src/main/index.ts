@@ -2,6 +2,7 @@ import { BrowserWindowService } from './browser-window.js';
 import { AutomationPermissionService } from './automation-permissions.js';
 import { PhoneRemote } from './phone-remote.js';
 import { remoteQR, advertiseRemote } from './phone-remote-native.js';
+import { createScottyCompanion } from './scotty-window.js';
 import { createCommandLauncher } from './command-launcher.js';
 import { runMacAutomation } from './mac-automation.js';
 import { installedApplications, launchInstalledApplication } from './application-catalog.js';
@@ -73,6 +74,7 @@ const PRODUCTION_HEADER_CSP = PRODUCTION_CSP.replace(
   `script-src 'self' ${CSP_BOOTSTRAP_HASH}`,
 );
 let phoneRemote: PhoneRemote | undefined;
+let scotty: ReturnType<typeof createScottyCompanion> | undefined;
 let commandLauncher: ReturnType<typeof createCommandLauncher> | undefined;
 let mainWindow: BrowserWindow | undefined;
 let controller: DesktopController | undefined;
@@ -104,6 +106,8 @@ if (!gotLock) {
   app.on('before-quit', (event) => {
     phoneRemote?.dispose();
     phoneRemote = undefined;
+    scotty?.dispose();
+    scotty = undefined;
     commandLauncher?.dispose();
     commandLauncher = undefined;
     unsubscribeDockBadge?.();
@@ -490,6 +494,13 @@ async function performApplicationCreation(): Promise<void> {
         : {}),
     });
     activeController.attachPhoneRemote((command) => phoneRemote!.configure(command));
+    scotty = createScottyCompanion(
+      activeController,
+      repository,
+      showOrCreateApplicationWindow,
+      rendererDevUrl,
+    );
+    activeController.attachScotty(scotty.configure);
     let voiceAsleep = false;
     let voiceScreenLocked =
       process.platform === 'darwin' && powerMonitor.getSystemIdleState(1) === 'locked';
@@ -497,6 +508,7 @@ async function performApplicationCreation(): Promise<void> {
       activeController.suspendVoice(voiceAsleep || voiceScreenLocked);
       commandLauncher?.suspend(voiceAsleep || voiceScreenLocked);
       phoneRemote?.suspend(voiceAsleep || voiceScreenLocked);
+      scotty?.suspend(voiceAsleep || voiceScreenLocked);
     };
     // Waking the Mac must not re-enable capture while its screen remains locked.
     powerMonitor.on('suspend', () => {
@@ -517,6 +529,7 @@ async function performApplicationCreation(): Promise<void> {
     });
     updateVoiceSuspension();
     await phoneRemote.initialize();
+    scotty.initialize();
     controller = activeController;
   }
   const activeController = controller;
@@ -684,6 +697,18 @@ function installApplicationMenu(): void {
         label: 'Sia',
         submenu: [
           { role: 'about' },
+          {
+            label: 'Show Scotty',
+            click: () => {
+              void scotty?.configure({ operation: 'show' }).catch(() => {
+                void dialog.showMessageBox({
+                  type: 'error',
+                  title: 'Scotty could not open',
+                  message: 'Try again from Settings → Scotty.',
+                });
+              });
+            },
+          },
           {
             label: 'Ask Sia',
             accelerator: 'Command+E',

@@ -687,6 +687,11 @@ export class DesktopController {
     return true;
   }
 
+  #scotty: import('../shared/scotty.js').ScottySettingsApi | undefined;
+  attachScotty(handler: import('../shared/scotty.js').ScottySettingsApi): void {
+    this.#scotty = handler;
+  }
+
   #phoneRemote: import('../shared/phone-remote.js').PhoneRemoteApi | undefined;
   attachPhoneRemote(handler: import('../shared/phone-remote.js').PhoneRemoteApi): void {
     this.#phoneRemote = handler;
@@ -1430,6 +1435,11 @@ export class DesktopController {
     switch (method) {
       case 'bootstrap':
         return this.snapshot() as BridgeResultMap[M];
+      case 'scotty.configure':
+        if (!this.#scotty) throw new Error('Scotty is unavailable in this build.');
+        return (await this.#scotty(
+          input as BridgeRequestMap['scotty.configure'],
+        )) as BridgeResultMap[M];
       case 'phone.remote':
         if (!this.#phoneRemote) throw new Error('Phone remote is unavailable in this build.');
         return (await this.#phoneRemote(

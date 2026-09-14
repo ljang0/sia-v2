@@ -50,6 +50,7 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
   };
 
   return {
+    scotty: (input) => bridge.scotty(input),
     phoneRemote: (input) => bridge.phoneRemote(input),
     async getSnapshot() {
       return structuredClone(publish(await bridge.bootstrap()));

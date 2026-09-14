@@ -401,6 +401,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
           ) : app.settingsOpen ? (
             <Settings
               assistantApi={api}
+              scottyApi={api.scotty}
               phoneRemoteApi={api.phoneRemote}
               onRunWorkflow={(threadId) => {
                 app.closeSettings();

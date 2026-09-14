@@ -29,6 +29,7 @@ export default defineConfig({
         input: {
           index: resolve(import.meta.dirname, 'src/preload/index.ts'),
           launcher: resolve(import.meta.dirname, 'src/preload/launcher.ts'),
+          scotty: resolve(import.meta.dirname, 'src/preload/scotty.ts'),
         },
         output: { format: 'cjs', entryFileNames: '[name].js' },
       },

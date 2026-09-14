@@ -367,6 +367,25 @@ pixel bounds/protected-window rejection, and retry limits without reading your s
 real input. Live Fn microphone use and action reliability in individual third-party apps still need
 manual acceptance with disposable content.
 
+### Scotty desktop companion
+
+Open **Settings → Scotty → Bring Scotty to my desktop**, or **Sia → Show Scotty** in the
+Mac menu bar. Scotty is Sia's pixel Scottish terrier: he floats above other apps while Sia is
+open. Drag him to move, click him or his badge to open the task tray, and use Escape to close
+the tray. Right-click → **Hide Scotty** hides the pet; your position and preferences are saved.
+Settings also offers small/medium/large sizes, an animation switch and Reset position.
+
+The task tray shows your existing Sia conversations. Select a task to read progress/results,
+answer a pending question, review and approve/deny an action, send a follow-up, or stop it.
+**Ask Sia** starts a request using the existing agent you select. These use the same model,
+permissions and task history as the main app. The pet never invents task updates or runs a
+separate assistant. New input, failed work, new results and running work have distinct states.
+The tray stays closed until you open it, and includes buttons for moving Scotty without dragging.
+
+Scotty's windows and artwork live entirely inside Sia. The Codex/ChatGPT pet UI need not run.
+He hides when your Mac locks or Sia signs out, respects macOS Reduced Motion, and requires no
+additional permissions or connection. Closing Sia closes Scotty too.
+
 ### Use my Mac
 
 New profiles default to **Use my Mac**. Existing profiles keep their chosen mode. Change it in
