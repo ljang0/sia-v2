@@ -42,6 +42,7 @@ vi.mock('electron', () => ({
     focus = vi.fn();
     setIgnoreMouseEvents = vi.fn();
     setVisibleOnAllWorkspaces = vi.fn();
+    setAlwaysOnTop = vi.fn();
     constructor(public options: any) {
       electron.windows.push(this);
     }
@@ -124,6 +125,14 @@ it('creates no windows until enabled, restores position, stays passive on update
   const event = { senderFrame: window.webContents.mainFrame };
   await electron.handlers.get('sia:scotty:expand')!(event, true);
   const panel = electron.windows[1];
+  for (const surface of [window, panel]) {
+    if (process.platform === 'darwin') expect(surface.options.type).toBe('panel');
+    expect(surface.setVisibleOnAllWorkspaces).toHaveBeenCalledWith(true, {
+      visibleOnFullScreen: true,
+      skipTransformProcessType: process.platform === 'darwin',
+    });
+    expect(surface.setAlwaysOnTop).toHaveBeenCalledWith(true, 'status');
+  }
   expect(panel.focus).toHaveBeenCalledOnce();
   await electron.handlers.get('sia:scotty:nudge')!(
     { senderFrame: panel.webContents.mainFrame },

@@ -149,6 +149,7 @@ export function createScottyCompanion(
       title,
       width,
       height,
+      ...(process.platform === 'darwin' ? { type: 'panel' } : {}),
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -169,7 +170,13 @@ export function createScottyCompanion(
         backgroundThrottling: false,
       },
     });
-    window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    // A nonactivating panel can join other apps' full-screen Spaces without
+    // transforming Sia into a Dock-less accessory app. Normal NSWindows cannot.
+    window.setVisibleOnAllWorkspaces(true, {
+      visibleOnFullScreen: true,
+      skipTransformProcessType: process.platform === 'darwin',
+    });
+    window.setAlwaysOnTop(true, 'status');
     window.on('page-title-updated', (event) => event.preventDefault());
     return window;
   }
