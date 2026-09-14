@@ -122,8 +122,8 @@ of these permissions and no cloud configuration. If macOS lists the development 
 The Fn monitor retries Accessibility access every ten seconds. Screen Recording is not required.
 
 Hold Fn (Globe) until the screen edges glow, speak, and release to send. Successful dictation uses
-a thin green edge without opening a status popup, command box, or main window. A soft mint highlight
-travels around the edge while recording, transcribing, and working on the Fn request. It becomes
+Notch's multicolor gradient border without opening a status popup, command box, or main window.
+The gradient animates while recording, transcribing, and working on the Fn request. It becomes
 steady while waiting for approval or an answer, then fades out on completion, cancellation, or failure.
 Reduced Motion keeps the edge still. With Sia focused, the target
 is the current conversation; in another
@@ -373,7 +373,7 @@ New profiles default to **Use my Mac**. Existing profiles keep their chosen mode
 **Settings → Computer → App access mode**, or select it during setup.
 Sia uses Notch's native operating approach: shell commands, AppleScript, file access, screenshots,
 and accessibility context, with Codex as the model backend and results in Sia. Hold Fn to dictate;
-release to send. Fn keeps the app in the background and shows the green screen edge. Cmd+E opens
+release to send. Fn keeps the app in the background and shows the multicolor gradient screen edge. Cmd+E opens
 Sia's compact command box.
 
 Allow Accessibility and Screen Recording, then use **Set up all Mac apps** to request System Events,

@@ -64,7 +64,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   16 kHz PCM into the selected voice service. Release commits; Escape, sign-out, sleep, and helper
   exit discard the session, including late transcription results. The helper has no provider
   credentials or model tools, communicates only over inherited pipes, and exits on parent EOF or
-  heartbeat expiry. Normal Fn sessions show a thin green edge through recording, transcription, and task execution; the helper reserves its
+  heartbeat expiry. Normal Fn sessions show Notch's multicolor gradient border through recording, transcription, and task execution; the helper reserves its
   nonactivating status notice for errors. It uses no screenshot capture. Composer capture obtains an
   exclusive main-process lease before opening the microphone; window teardown releases the lease.
 - Cmd+E opens an independent, compact command window on the pointer's display, adapted from
@@ -130,7 +130,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   bounded window/selection metadata and a static accessibility outline, excludes protected app/field
   ancestry, and sends app identity alone for browsers. It never reads the clipboard or records a
   background journal. Context travels with the committed request as untrusted data.
-  Only threads dispatched by Fn drive the click-through green working edge. Main-process thread
+  Only threads dispatched by Fn drive the click-through multicolor working edge. Main-process thread
   updates keep it animated for running/queued work, steady during approval/input waits, and remove
   completed, failed, cancelled, or deleted threads. Overlapping Fn requests share the indicator;
   unrelated typed requests cannot activate it. Disable/sign-out/helper failure clear its bindings.

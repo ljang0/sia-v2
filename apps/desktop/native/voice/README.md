@@ -14,7 +14,7 @@ Adapted at the repository owner's request from
 - `Core/PushToTalkMonitor.swift`: Fn key code 63, 300 ms hold detection, shortcut exclusion,
   pass-through event tap, and permission retry.
 - `Core/EdgeGlowWindowController.swift` and `UI/EdgeGlowView.swift`: transparent nonactivating
-  panel, bloom, and interruptible fade. Sia uses a thin forest-green path with a travelling mint tail.
+  panel and Notch's original multicolor gradient, bloom, six-second rotation, and interruptible fade.
 - `Context/ScreenContextProvider.swift`: frontmost-app, selected-text capture, and bounded accessibility outlines, narrowed to explicit
   Fn gestures with Sia’s opt-in and protected-surface filtering. `WindowContext.swift` also adapts
   its static-text/NSNumber reading for explicit Use my Mac snapshots of an exact granted window.
@@ -47,8 +47,8 @@ requires the explicit Speech Recognition grant and `supportsOnDeviceRecognition`
 Connected-app Fn context defaults off. Use my Mac enables gesture context with its selected native access mode. Settings → Assistant enables app/window/selection metadata and a static accessibility outline for voice
 requests. Connected-app browser content stays behind the Chrome attachment boundary. In Use my Mac, the copied `ScreenContextProvider.swift` reads the foreground browser directly. Text is captured before
 the panel appears and sent only with the committed request; it is not written to a local journal.
-Fn never opens the command box or main window. The green edge remains through transcription and
-Fn task execution; running/queued tasks move the highlight, approval/input waits keep it still,
+Fn never opens the command box or main window. The multicolor gradient border remains through recording,
+transcription and Fn task execution; running/queued tasks animate the gradient, approval/input waits keep it still,
 and completion/failure/cancellation fades it out. The parent sends only an idle/working/waiting
 phase, never task text. Reduced Motion uses a steady edge. Approvals remain in the main app.
 

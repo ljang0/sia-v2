@@ -2,7 +2,7 @@
 import AppKit
 import SwiftUI
 
-/// Full-screen, click-through overlay that renders the green
+/// Full-screen, click-through overlay that renders the multicolor
 /// edge glow around the display's edges.  Uses `EdgeGlowContentView` (SwiftUI
 /// with `.drawingGroup()` for Metal compositing) hosted in a transparent panel.
 @MainActor
