@@ -44,6 +44,9 @@ final class ScreenContextProvider {
     // Budgets keep capture fast and the prompt small.
     private var deadline = Date.distantFuture
     private var partial = false
+    // Tables can expose the same cells through both rows and columns. AX trees
+    // can also contain back-references. Read each element once per snapshot.
+    private var visited = Set<AXUIElement>()
     private let detailed: Bool
     private let maxNodes: Int
     private let maxDepth: Int
@@ -77,6 +80,7 @@ final class ScreenContextProvider {
 
         guard !["password", "keychain", "bitwarden", "lastpass", "dashlane", "authenticator"].contains(where: { (app.bundleIdentifier ?? "").lowercased().contains($0) }) else { return nil }
         partial = false
+        visited.removeAll(keepingCapacity: true)
         deadline = Date().addingTimeInterval(detailed ? 2.0 : 0.6)
         let axApp = AXUIElementCreateApplication(app.processIdentifier)
         AXUIElementSetMessagingTimeout(axApp, 0.05)
@@ -150,6 +154,7 @@ final class ScreenContextProvider {
         charCount: inout Int
     ) {
         guard Date() < deadline, depth <= maxDepth, nodeCount < maxNodes, charCount < maxOutlineChars else { partial = true; return }
+        guard visited.insert(element).inserted else { return }
         nodeCount += 1
 
         let role: String = copyAttr(element, kAXRoleAttribute) ?? ""
@@ -160,7 +165,7 @@ final class ScreenContextProvider {
             let indent = String(repeating: "  ", count: min(depth, 6))
             let remaining = max(0, maxOutlineChars - charCount - indent.count)
             if line.count > remaining { partial = true }
-            let bounded = indent + String(line.prefix(remaining))
+            let bounded = indent + Self.boundedOutlineLine(line, limit: remaining)
             lines.append(bounded)
             charCount += bounded.count
             // Content nodes re-emit their own text through child Text
@@ -171,9 +176,16 @@ final class ScreenContextProvider {
         // Containers are structural — recurse.
         guard let children: [AXUIElement] = copyAttrArray(element, kAXChildrenAttribute) else { return }
         for child in children {
-            guard nodeCount < maxNodes, charCount < maxOutlineChars else { partial = true; return }
+            guard Date() < deadline, nodeCount < maxNodes, charCount < maxOutlineChars else { partial = true; return }
             walk(child, depth: depth + 1, lines: &lines, nodeCount: &nodeCount, charCount: &charCount)
         }
+    }
+
+    // A clipped date or value must not look like a complete observed fact.
+    static func boundedOutlineLine(_ line: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        guard line.count > limit else { return line }
+        return String(line.prefix(limit - 1)) + "…"
     }
 
     private func contentLine(_ element: AXUIElement, label: String) -> String? {

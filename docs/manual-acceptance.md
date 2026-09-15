@@ -28,6 +28,39 @@ SIA_REAL_CODEX_E2E=1 SIA_REAL_CUA_E2E=1 pnpm test:e2e:real:no-turn
 Run Chrome probing only with a dedicated visible test window and a unique
 `SIA_REAL_BROWSER_WINDOW_MATCH` value.
 
+## Use my Mac task validation
+
+Run these tasks only when the tester explicitly requests live computer control. They are not
+startup checks. Use **Use my Mac → On my screen**, a separate validation agent, a disposable folder,
+and a model actually offered by the signed-in Codex plan. Keep existing documents and browser tabs.
+Record the selected model, tool calls, outcome, and any missing macOS grant. The person must handle
+permission prompts; full bypass does not grant macOS permissions.
+Resetting reasoning to **Default** uses the selected model's advertised default; an explicit
+reasoning choice stays in effect and does not inherit a separate CLI setting.
+
+| Task                                                                                                | Independent completion check                                                                                                                                         |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Calculate quantities and costs from a small CSV and save JSON                                       | Read the saved file; compare every expected field. No screenshot or app activation is necessary.                                                                     |
+| Open a public downloads page in a new Safari tab, follow its release link, and report compatibility | Compare both facts and links with the actual pages. Check that existing tabs survived. No web search or shell/network fetching substitutes for this navigation test. |
+| Rename a disposable file using Finder                                                               | Verify the new name in Finder and on disk, and that the old path is absent. A missing Automation grant is a blocker, not a pass.                                     |
+| Edit a disposable Unicode document in TextEdit and save                                             | Read the saved file and compare the requested edit and untouched text exactly.                                                                                       |
+| Enter an expression in Calculator                                                                   | Read the actual displayed expression and result. A correct number in the assistant's answer alone does not pass.                                                     |
+| Ask a follow-up about the previous task                                                             | Verify the referenced app/document is still the intended target, even with Sia frontmost.                                                                            |
+| Cancel a task before its next action                                                                | Confirm the task stops, no later action runs, and another task can start.                                                                                            |
+
+Native control verifies each meaningful operation using fresh app dictionary/accessibility values
+when sufficient. It uses screenshots for incomplete text, visual results, and coordinate input.
+Waiting for the expected state must be bounded; a command's exit code or a page title alone is not
+verification. Compare equivalent tasks before claiming fewer calls or lower latency; one successful
+run does not establish reliability across every app or model.
+
+The opt-in [native learning smoke](../apps/desktop/src/main/native-learning.smoke.test.ts) uses a real
+model and disposable files to check saved scripts, memory across controller restart, failure
+reporting, and consolidation. The [course investigation smoke](../apps/desktop/src/main/course-investigation.smoke.test.ts)
+uses a real model with **in-memory browser fixtures** to check coursework outside the calendar and
+inaccessible-course reporting. Neither replaces the live GUI checks above. Experimental background
+window control must be validated separately, including its selected foreground fallback policy.
+
 ## Fifteen-minute pilot pass
 
 - [ ] Install the exact signed DMG on a fresh macOS profile. Gatekeeper accepts it and Sia shows

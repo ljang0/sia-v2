@@ -230,12 +230,21 @@ live.each([false, true])(
     const runtime = new RuntimeCoordinator(gateway, codexCommand ? { codexCommand } : {});
     let result: MacTaskResult | undefined;
     try {
+      const model = process.env.SIA_SMOKE_MODEL ?? 'gpt-5.6-sol';
+      const offered = (await runtime.listModels('codex')).find((entry) => entry.id === model);
+      expect(offered, `Model ${model} must be available to this Codex account`).toBeDefined();
+      // Match new desktop threads: pin the offered model's default effort rather
+      // than inheriting an unrelated local Codex CLI reasoning configuration.
+      const reasoningEffort = offered!.defaultReasoningEffort;
+      const started = Date.now();
+      const deadline = AbortSignal.timeout(240_000);
+      console.info('Course investigation model:', model, 'reasoning:', reasoningEffort);
       for await (const event of runtime.runTurn(
         {
           thread: {
             id: randomUUID(),
             provider: 'codex',
-            model: process.env.SIA_SMOKE_MODEL ?? 'gpt-5.6-sol',
+            model,
             workspace,
             computerAccessMode: 'mac',
             computerTrust: 'auto',
@@ -245,15 +254,25 @@ live.each([false, true])(
               'Validation environment: the provided computer tools operate an in-memory Canvas fixture, not a real browser. Read its accessibility text and follow its links normally. There are no images, saved workflows or other apps. Do not attempt to leave this environment. Local timezone is America/New_York. This environment information does not supply the answer.',
           },
           turnId: randomUUID(),
+          ...(reasoningEffort ? { reasoningEffort } : {}),
           text: 'Go through my Canvas and tell me all assignments due the week of September 14–20, 2026.',
           onMacResult: (value) => {
             result = value;
           },
         },
-        AbortSignal.timeout(240_000),
+        deadline,
       )) {
         if (event.type === 'error') throw new Error(JSON.stringify(event.payload));
       }
+      console.info('Course investigation metrics:', {
+        elapsedMs: Date.now() - started,
+        calls,
+        sources: visited.size,
+        timedOut: deadline.aborted,
+      });
+      expect(deadline.aborted, 'Course investigation exceeded its four-minute budget').toBe(
+        false,
+      );
       console.info('Course investigation result:', JSON.stringify(result));
       expect(result).toBeDefined();
       for (const source of [

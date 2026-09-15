@@ -157,6 +157,73 @@ async function createController(): Promise<DesktopController> {
 }
 
 describe('DesktopController', () => {
+  it('uses the offered reasoning default after reset while preserving an explicit choice', async () => {
+    const turns: RuntimeTurnInput[] = [];
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        turns.push(input);
+        yield {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({
+      fakeServices: false,
+      runtime,
+      providerProbe: async (only) =>
+        (await deterministicProviderProbe(only)).map((provider) =>
+          provider.id === 'codex'
+            ? {
+                ...provider,
+                models: [
+                  {
+                    id: 'gpt-5.6-sol',
+                    label: 'GPT-5.6-Sol',
+                    description: '',
+                    reasoningEfforts: ['low', 'medium'],
+                    defaultReasoningEffort: 'medium',
+                  },
+                ],
+              }
+            : provider,
+        ),
+    });
+    try {
+      const { agentId } = await controller.invoke('agents.save', {
+        name: 'Reasoning validation',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', { agentId });
+      for (const choice of ['low', '']) {
+        await controller.invoke('threads.config', {
+          threadId,
+          model: 'gpt-5.6-sol',
+          reasoningEffort: choice,
+        });
+        await controller.invoke('threads.send', { threadId, text: 'Read the test document.' });
+        await vi.waitFor(() =>
+          expect(
+            controller.snapshot().threads.find((thread) => thread.id === threadId)?.status,
+          ).toBe('idle'),
+        );
+      }
+      expect(turns.map((turn) => turn.reasoningEffort)).toEqual(['low', 'medium']);
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
   it('saves setup before restarting and rechecks access without reviving a browser grant', async () => {
     const restartApp = vi.fn();
     const h = await createHarness({

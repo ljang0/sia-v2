@@ -5681,6 +5681,10 @@ export class DesktopController {
               text: item.text!,
             })),
         };
+        // A reset/older thread can omit effort. Use the selected model's advertised
+        // default, not an unrelated reasoning override in the user's CLI config.
+        const reasoningEffort =
+          thread.reasoningEffort ?? this.#defaultReasoningEffort(thread.provider, thread.model);
         const events = turn.reviewTarget
           ? runtime.runReview(
               { thread: runtimeThread, turnId: turn.id, target: turn.reviewTarget, lease },
@@ -5715,7 +5719,7 @@ export class DesktopController {
                   .filter(Boolean)
                   .join('\n\n'),
                 ...(turn.attachments?.length ? { attachments: turn.attachments } : {}),
-                ...(thread.reasoningEffort ? { reasoningEffort: thread.reasoningEffort } : {}),
+                ...(reasoningEffort ? { reasoningEffort } : {}),
                 lease,
               },
               signal,
