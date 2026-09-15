@@ -1,6 +1,6 @@
 import { PassThrough } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
-import type { ProviderSessionOptions } from '@sia/protocol';
+import type { ProviderSessionOptions, ThreadEventEnvelope } from '@sia/protocol';
 import type { JsonRpcMessage, JsonRpcTransport } from './json-rpc.js';
 import { JsonLinesTransport, JsonRpcPeer, parseJsonRpcMessage } from './json-rpc.js';
 import {
@@ -1222,16 +1222,31 @@ describe('Codex library review isolation', () => {
     { unsafe: true, normalizedExec: true, background: false },
     { unsafe: false, normalizedExec: true, background: true },
     { unsafe: true, normalizedExec: true, background: true },
+    { unsafe: false, normalizedExec: true, background: true, invalidPermissions: true },
   ])(
     'disables native tools and checks the shell gate with normalized execution flags (%j)',
-    async ({ unsafe, normalizedExec, background }) => {
+    async (testCase) => {
+      const { unsafe, normalizedExec, background } = testCase;
+      const invalidPermissions =
+        'invalidPermissions' in testCase && testCase.invalidPermissions;
       const peers = linkedPeers();
       let request: Record<string, unknown> | undefined;
       peers.server.onRequest(async (method, params) => {
         if (method === 'initialize') return { userAgent: 'fake' };
         if (method === 'thread/start') {
           request = params as Record<string, unknown>;
-          return { thread: { id: 'review-native' }, sandbox: { type: 'readOnly' } };
+          return {
+            thread: { id: 'review-native' },
+            sandbox: background
+              ? {
+                  type: 'workspaceWrite',
+                  networkAccess: false,
+                  writableRoots: invalidPermissions ? ['/'] : [],
+                  excludeSlashTmp: true,
+                  excludeTmpdirEnvVar: true,
+                }
+              : { type: 'readOnly' },
+          };
         }
         if (method === 'experimentalFeature/list')
           return {
@@ -1263,13 +1278,25 @@ describe('Codex library review isolation', () => {
           nativeTools: background ? 'mac-background' : 'disabled',
           ...(background ? { baseInstructions: 'Use only background window tools.' } : {}),
         });
-        if (unsafe) await expect(start).rejects.toThrow('verification failed');
+        if (unsafe || invalidPermissions)
+          await expect(start).rejects.toThrow('verification failed');
         else await expect(start).resolves.toMatchObject({ nativeId: 'review-native' });
         if (background)
           expect(request?.baseInstructions).toBe('Use only background window tools.');
         else expect(request).not.toHaveProperty('baseInstructions');
+        if (background)
+          expect(request).toMatchObject({
+            config: {
+              sandbox_workspace_write: {
+                network_access: false,
+                writable_roots: [],
+                exclude_slash_tmp: true,
+                exclude_tmpdir_env_var: true,
+              },
+            },
+          });
         expect(request).toMatchObject({
-          sandbox: 'read-only',
+          sandbox: background ? 'workspace-write' : 'read-only',
           approvalPolicy: 'never',
           config: {
             web_search: 'disabled',
@@ -1289,6 +1316,122 @@ describe('Codex library review isolation', () => {
 });
 
 describe('Notch-style native Mac sessions', () => {
+  it.each([false, true])(
+    'waits for a host tool and reports exactly one terminal result (watchdog: %s)',
+    async (watchdog) => {
+      const peers = linkedPeers();
+      const started = Promise.withResolvers<void>();
+      const entered = Promise.withResolvers<void>();
+      const startReply = Promise.withResolvers<unknown>();
+      const toolReply = Promise.withResolvers<{ success: boolean; content: unknown }>();
+      let interrupts = 0;
+      peers.server.onRequest(async (method, params) => {
+        if (method === 'initialize') return {};
+        if (method === 'thread/start')
+          return {
+            thread: { id: 'mac-wait' },
+            sandbox: { type: 'dangerFullAccess' },
+            approvalPolicy: 'never',
+          };
+        if (method === 'experimentalFeature/list')
+          return {
+            data: Object.entries({ ...isolatedCodexFeatures, multi_agent: false }).map(
+              ([name, enabled]) => ({ name, enabled }),
+            ),
+            nextCursor: null,
+          };
+        if (method === 'turn/start') {
+          started.resolve();
+          return startReply.promise;
+        }
+        if (method === 'turn/interrupt') {
+          interrupts++;
+          await peers.server.notify('turn/completed', {
+            threadId: 'mac-wait',
+            turn: { id: 'turn-wait', status: 'interrupted' },
+          });
+          return {};
+        }
+        if (method === 'thread/backgroundTerminals/clean') return {};
+        const response = codexIsolationResponse(method, params);
+        if (response !== undefined) return response;
+        throw new Error(`Unexpected ${method}`);
+      });
+      const adapter = new CodexAppServerAdapter({
+        peerFactory: async () => ({
+          peer: peers.client,
+          dispose: async () => {
+            await peers.client.close();
+            await peers.server.close();
+          },
+        }),
+        dynamicToolHandler: async () => {
+          entered.resolve();
+          return toolReply.promise;
+        },
+      });
+      try {
+        const session = await adapter.createSession({
+          ...sessionOptions,
+          nativeTools: 'mac',
+          nativeApproval: 'auto',
+          baseInstructions: 'Use the provided tools.',
+        });
+        vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+        const events: ThreadEventEnvelope[] = [];
+        const finished = (async () => {
+          for await (const event of adapter.sendTurn(session, {
+            turnId: 'turn-wait',
+            text: 'Run a workflow',
+          }))
+            events.push(event);
+        })();
+        await started.promise;
+        const tool = peers.server.request('item/tool/call', {
+          threadId: session.nativeId,
+          callId: 'call',
+          name: 'browser_tabs',
+          arguments: {},
+        });
+        await entered.promise;
+        await vi.advanceTimersByTimeAsync(185000);
+        expect(interrupts).toBe(0);
+        toolReply.resolve({ success: true, content: { outcome: 'verified' } });
+        await tool;
+        if (watchdog) await vi.advanceTimersByTimeAsync(185000);
+        else {
+          await peers.server.notify('item/completed', {
+            threadId: session.nativeId,
+            item: {
+              id: 'answer',
+              type: 'agentMessage',
+              phase: 'final_answer',
+              text: '{"type":"action","response":"Verified.","success":true}',
+            },
+          });
+          await peers.server.notify('turn/completed', {
+            threadId: session.nativeId,
+            turn: { id: 'turn-wait', status: 'completed' },
+          });
+        }
+        await finished;
+        startReply.reject(new Error('Late start failure'));
+        await new Promise((resolve) => setImmediate(resolve));
+        expect(events.filter((event) => event.type === 'completion')).toHaveLength(1);
+        expect(events.some((event) => event.type === 'error')).toBe(watchdog);
+        if (watchdog) {
+          expect(JSON.stringify(events)).toContain('stopped responding');
+          expect(events.at(-1)).toMatchObject({
+            type: 'completion',
+            payload: { status: 'failed' },
+          });
+        }
+      } finally {
+        vi.useRealTimers();
+        await adapter.dispose();
+      }
+    },
+  );
   it('discovers Astra from the live model catalog contract, preserving the account reasoning options', async () => {
     const peers = linkedPeers();
     peers.server.onRequest(async (method, params) => {

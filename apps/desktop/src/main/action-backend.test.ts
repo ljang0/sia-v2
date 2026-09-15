@@ -28,6 +28,18 @@ import {
 } from './action-backend.js';
 import { CloudRequestError } from './cloud-client.js';
 
+// These fixtures advance app state with explicit mock observations. Real settle
+// sleeps add load and timing failures without exercising an application's timing.
+vi.mock('node:timers/promises', async (original) => ({
+  ...(await original<typeof import('node:timers/promises')>()),
+  setTimeout: vi.fn(
+    async (_ms?: number, value?: unknown, options?: { signal?: AbortSignal }) => {
+      options?.signal?.throwIfAborted();
+      return value;
+    },
+  ),
+}));
+
 function request(
   name: ActionToolName,
   args: Record<string, unknown>,
@@ -77,6 +89,107 @@ async function grantedComputerTarget(
 }
 
 describe('DesktopActionBackend computer boundary', () => {
+  it('uses text observations in background, exposes context/double clicks, and requires images for pixels', async () => {
+    const png = Buffer.alloc(24);
+    Buffer.from('89504e470d0a1a0a', 'hex').copy(png);
+    png.write('IHDR', 12);
+    png.writeUInt32BE(800, 16);
+    png.writeUInt32BE(600, 20);
+    const cua = fakeCua(async (tool, args) => {
+      if (tool === 'list_apps')
+        return { apps: [{ pid: 42, name: 'Preview', bundle_id: 'com.apple.Preview' }] };
+      if (tool === 'list_windows')
+        return { windows: [{ pid: 42, window_id: 91, app_name: 'Preview' }] };
+      if (tool === 'get_window_state')
+        return {
+          value: {
+            snapshot_id: 'native',
+            elements: [{ element_index: 1, role: 'AXButton', label: 'Document' }],
+          },
+          ...(args.include_screenshot
+            ? { images: [{ mimeType: 'image/png', dataBase64: png.toString('base64') }] }
+            : {}),
+        };
+      return { effect: 'unverifiable', delivery: { mode: 'background' } };
+    });
+    const backend = new DesktopActionBackend({
+      cua,
+      macBrowserAccess: () => true,
+      macBackgroundControl: () => true,
+    });
+    const target = await grantedComputerTarget(backend);
+    const ids = { app_id: target.appId, window_id: target.windowId };
+    const first = await backend.invoke(request('computer_snapshot', ids));
+    const data = dataRecord(first.data);
+    expect(first.images).toBeUndefined();
+    expect(data.pixel_actions_available).toBe(false);
+    expect(cua.call).toHaveBeenLastCalledWith(
+      'get_window_state',
+      expect.objectContaining({ include_screenshot: false }),
+      expect.anything(),
+      undefined,
+    );
+    expect(
+      (
+        await backend.invoke(
+          request('computer_action', {
+            ...ids,
+            snapshot_id: data.snapshot_id,
+            action: 'click',
+            x: 10,
+            y: 20,
+          }),
+        )
+      ).outcome,
+    ).toBe('stale');
+    const ref = (data.elements as Record<string, unknown>[])[0]!.element_ref;
+    expect(() =>
+      parseActionArguments('computer_action', {
+        ...ids,
+        snapshot_id: data.snapshot_id,
+        action: 'click',
+        element_ref: ref,
+        count: 2,
+      }),
+    ).toThrow();
+    const clicked = await backend.invoke(
+      request('computer_action', {
+        ...ids,
+        snapshot_id: data.snapshot_id,
+        action: 'click',
+        element_ref: ref,
+        button: 'right',
+      }),
+    );
+    expect(clicked.outcome).toBe('accepted_unverified');
+    expect(clicked.images).toBeUndefined();
+    expect(cua.call.mock.calls.find(([tool]) => tool === 'click')?.[1]).toMatchObject({
+      button: 'right',
+      delivery_mode: 'background',
+    });
+    const visual = await backend.invoke(
+      request('computer_snapshot', { ...ids, include_image: true }),
+    );
+    expect(visual.images).toHaveLength(1);
+    const doubled = await backend.invoke(
+      request('computer_action', {
+        ...ids,
+        snapshot_id: dataRecord(visual.data).snapshot_id,
+        action: 'click',
+        x: 20,
+        y: 30,
+        count: 2,
+      }),
+    );
+    expect(doubled.outcome).toBe('accepted_unverified');
+    expect(doubled.images).toHaveLength(1);
+    expect(cua.call.mock.calls.filter(([tool]) => tool === 'click').at(-1)?.[1]).toMatchObject({
+      count: 2,
+      x: 20,
+      y: 30,
+      delivery_mode: 'background',
+    });
+  });
   it('opens Apple Notes through the trusted host before requesting fresh window ids', async () => {
     const openApplication = vi.fn(async () => undefined);
     const backend = new DesktopActionBackend({
@@ -2565,7 +2678,10 @@ it.each([
     const target = await grantedComputerTarget(backend);
     const ids = { app_id: target.appId, window_id: target.windowId };
     const observe = async () =>
-      dataRecord((await backend.invoke(request('computer_snapshot', ids))).data);
+      dataRecord(
+        (await backend.invoke(request('computer_snapshot', { ...ids, include_image: true })))
+          .data,
+      );
     const before = await observe();
     const args = { ...ids, snapshot_id: before.snapshot_id, ...action };
     expect((await backend.invoke(request('computer_action', args))).outcome).toBe(

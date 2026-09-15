@@ -5,6 +5,48 @@ import { tmpdir } from 'node:os';
 import { runExecutableSkill } from './executable-skills.js';
 
 describe.skipIf(process.platform !== 'darwin')('executable skill sandbox', () => {
+  it('provides JSON helpers that preserve Unicode, newlines and untrusted literal input', async () => {
+    const text = 'São Paulo "quoted"\n$(touch /tmp/should-not-run)\\end';
+    const invoke = vi.fn(async () => ({
+      outcome: 'verified' as const,
+      summary: 'Read.',
+      data: { text },
+    }));
+    const result = await runExecutableSkill({
+      input: { name: 'input.txt' },
+      invoke,
+      source: `name=$(sia_json_get name <<< "$SIA_INPUT")
+sia_action computer_read_file "$(sia_json_object name "$name")"
+text=$(sia_json_get data.text <<< "$SIA_RESULT")
+sia_json_object name "$name" text "$text"`,
+    });
+    expect(result.outcome, JSON.stringify(result)).toBe('verified');
+    expect(invoke).toHaveBeenCalledWith(
+      'computer_read_file',
+      { name: 'input.txt' },
+      expect.any(AbortSignal),
+    );
+    expect(JSON.parse((result.data as { output: string }).output)).toEqual({
+      name: 'input.txt',
+      text,
+    });
+  });
+  it('builds and extracts JSON safely with the documented system utility format', async () => {
+    const result = await runExecutableSkill({
+      input: { name: 'São Paulo "quoted"\nnext line' },
+      invoke: vi.fn(),
+      source: `name=$(/usr/bin/plutil -extract name raw -o - - <<< "$SIA_INPUT")
+/usr/bin/plutil -create xml1 args.plist
+/usr/bin/plutil -insert name -string "$name" args.plist
+/usr/bin/plutil -insert count -integer 4 args.plist
+/usr/bin/plutil -convert json -o - args.plist`,
+    });
+    expect(result.outcome, JSON.stringify(result)).toBe('verified');
+    expect(JSON.parse((result.data as { output: string }).output)).toEqual({
+      name: 'São Paulo "quoted"\nnext line',
+      count: 4,
+    });
+  });
   it('runs real Bash and round-trips brokered action results without evaluating input', async () => {
     const invoke = vi.fn(async () => ({
       outcome: 'verified' as const,
@@ -93,6 +135,59 @@ describe.skipIf(process.platform !== 'darwin')('executable skill sandbox', () =>
     expect(pending.outcome).toBe('refused');
     expect(signal?.aborted).toBe(true);
   });
+  it('stops a script waiting on bare stdin while allowing a pending host action to finish', async () => {
+    const blocked = await runExecutableSkill({
+      source: '/bin/cat',
+      input: {},
+      invoke: vi.fn(),
+      idleTimeoutMs: 100,
+    });
+    expect(blocked.outcome).toBe('refused');
+    expect(blocked.summary).toContain('waiting on stdin');
+    const delayed = await runExecutableSkill({
+      source: "sia_action computer_list '{}'",
+      input: {},
+      idleTimeoutMs: 100,
+      invoke: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        return { outcome: 'verified', summary: 'Listed.' };
+      },
+    });
+    expect(delayed.outcome).toBe('verified');
+  });
+  it('lets a skill inspect fresh post-action state without upgrading UI delivery to verified success', async () => {
+    const invoke = vi.fn(async () => ({
+      outcome: 'accepted_unverified' as const,
+      summary: 'Delivered; inspect fresh state.',
+      data: { snapshot_id: 'fresh', elements: [{ label: 'Total', value: '383' }] },
+    }));
+    const result = await runExecutableSkill({
+      source: `sia_action computer_action '{}'\nprintf '%s\\n' "$SIA_RESULT"`,
+      input: {},
+      invoke,
+    });
+    expect(result.outcome).toBe('accepted_unverified');
+    expect(result.data).toMatchObject({ last_observation: { snapshot_id: 'fresh' } });
+    expect(JSON.stringify(result.data)).toContain('383');
+  });
+  it.each(['needs_foreground', 'stale', 'refused', 'loading'])(
+    'stops a background skill on %s without taking another action',
+    async (outcome) => {
+      const invoke = vi.fn(async () => ({
+        outcome: (outcome === 'loading' ? 'accepted_unverified' : outcome) as
+          'needs_foreground' | 'stale' | 'refused' | 'accepted_unverified',
+        summary: 'Cannot continue.',
+        data: { snapshot_id: 'fresh', ...(outcome === 'loading' ? { loading: true } : {}) },
+      }));
+      const result = await runExecutableSkill({
+        source: `sia_action computer_action '{}'\nsia_action computer_action '{}'`,
+        input: {},
+        invoke,
+      });
+      expect(result.outcome).toBe('refused');
+      expect(invoke).toHaveBeenCalledTimes(1);
+    },
+  );
 });
 
 it.skipIf(process.platform !== 'darwin')(

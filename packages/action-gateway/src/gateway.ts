@@ -57,6 +57,8 @@ export interface ActionContext {
   readonly workspace: string;
   /** Host-pinned per turn; model arguments cannot authorize foreground fallback. */
   readonly backgroundOnly?: boolean;
+  /** Host-pinned per turn and inherited by nested skill actions; never a model argument. */
+  readonly allowedTools?: ReadonlySet<string>;
   readonly lease?: TurnLease;
   readonly signal?: AbortSignal;
 }
@@ -260,6 +262,13 @@ export class ActionGateway {
   }
 
   async invoke(invocation: ActionInvocation): Promise<ActionExecutionResult> {
+    if (
+      invocation.context.allowedTools &&
+      !invocation.context.allowedTools.has(invocation.name)
+    )
+      return refused(
+        'This tool is unavailable for the selected Mac route. Use this turn’s provided tools; changing settings cannot expand a running skill’s access.',
+      );
     if (!isActionToolName(invocation.name))
       return refused(`Tool ${invocation.name} is not exposed by Sia`);
     if (this.#isToolAvailable && !this.#isToolAvailable(invocation.name)) {

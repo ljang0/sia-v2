@@ -34,7 +34,7 @@ describe('Notch response port', () => {
     ])
       expect(parseMacResponse(text)).toBeUndefined();
   });
-  it('adds window control only when explicitly selected while keeping the old checklist, connections and restricted script runner out of Mac execution', () => {
+  it('offers background skills and files only on the background route, preserving the native route', () => {
     expect(
       MAC_EXECUTION_TOOLS.some((name) =>
         /^(computer_task_complete|browser_|mac_automation|skill_run)/.test(name),
@@ -43,7 +43,15 @@ describe('Notch response port', () => {
     expect(MAC_EXECUTION_TOOLS).toContain('assistant_library');
     expect(MAC_EXECUTION_TOOLS).not.toContain('computer_list');
     expect(macExecutionTools(true)).toEqual(
-      expect.arrayContaining(['computer_list', 'computer_snapshot', 'computer_action']),
+      expect.arrayContaining([
+        'computer_list',
+        'computer_snapshot',
+        'computer_action',
+        'skill_save',
+        'skill_run',
+        'computer_read_file',
+        'computer_write_file',
+      ]),
     );
   });
 });

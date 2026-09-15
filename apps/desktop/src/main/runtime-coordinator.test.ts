@@ -156,7 +156,15 @@ describe('Use my Mac native execution', () => {
       thread.macBackgroundControl = true;
       await run();
       expect(created[1]?.tools.map((tool) => tool.name)).toEqual(
-        expect.arrayContaining(['computer_list', 'computer_snapshot', 'computer_action']),
+        expect.arrayContaining([
+          'computer_list',
+          'computer_snapshot',
+          'computer_action',
+          'skill_save',
+          'skill_run',
+          'computer_read_file',
+          'computer_write_file',
+        ]),
       );
       expect(created[1]?.baseInstructions).toContain('EXPERIMENTAL WINDOW CONTROL');
       expect(created[1]?.nativeTools).toBe('mac-background');

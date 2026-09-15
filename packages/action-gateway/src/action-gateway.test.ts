@@ -91,7 +91,7 @@ describe('curated tool surface', () => {
 
   it('contains only stable snake_case tools and no raw escape hatches', () => {
     const names = ACTION_TOOL_DESCRIPTORS.map((tool) => tool.name);
-    expect(names).toHaveLength(47);
+    expect(names).toHaveLength(50);
     expect(names.every((name) => /^[a-z][a-z0-9_]*$/.test(name))).toBe(true);
     expect(names.join(' ')).not.toMatch(/visual|canvas|javascript|cdp|cookie|profile|shell/i);
     expect(names).toContain('computer_action');
@@ -138,6 +138,30 @@ describe('curated tool surface', () => {
         requiresApproval: true,
       });
     }
+  });
+  it('enforces the original tool allowlist on nested actions before authorization or dispatch', async () => {
+    const backend = {
+      invoke: vi.fn(async () => ({ outcome: 'verified' as const, summary: 'done' })),
+    };
+    const gateway = new ActionGateway({
+      backend,
+      policy: { evaluate: () => ({ decision: 'allow' }) },
+    });
+    const pinned = { ...context, allowedTools: new Set(['computer_read_file']) };
+    expect(
+      (await gateway.invoke({ name: 'browser_tabs', arguments: {}, context: pinned })).outcome,
+    ).toBe('refused');
+    expect(backend.invoke).not.toHaveBeenCalled();
+    expect(
+      (
+        await gateway.invoke({
+          name: 'computer_read_file',
+          arguments: { name: 'report.md' },
+          context: pinned,
+        })
+      ).outcome,
+    ).toBe('verified');
+    expect(backend.invoke).toHaveBeenCalledOnce();
   });
 
   it('admits only ordinary credential-free web URLs for native browser opening', () => {

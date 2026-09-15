@@ -201,13 +201,40 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   Opting in adds built-in CUA `computer_list`, `computer_snapshot`, `computer_action`,
   `computer_open_app` and `computer_open_url` through ActionGateway and changes the session prompt.
   It uses a distinct `mac-background` Codex session with verified native-tool disablement and a
-  read-only sandbox. Its standalone window-control prompt contains no native command instructions;
-  foreground native context is not injected. Native scripts and arbitrary file output require the
-  default native route. Mac response formatting and the progress watchdog remain active.
+  workspace-write sandbox with no additional writable roots, temporary-directory grant or process
+  network access. Shell/image tool gates remain disabled and are verified before the turn. Read-only
+  memory reviews retain their read-only sandbox. Workspace permission matches the explicit file-output
+  tools, avoiding a contradictory read-only instruction that caused a real model to decline reports.
+  Its standalone window-control prompt contains no native command instructions;
+  foreground native context is not injected. Mac response formatting and the progress watchdog remain active.
+  Background also exposes `computer_list_files`, `computer_read_file` and `computer_write_file`
+  through ActionGateway. They read bounded UTF-8 data files and create new txt/md/csv/tsv/json
+  reports in the host-pinned task workspace. Updating an existing file requires the SHA-256 from
+  its latest read; stale revisions are refused, and concurrent Sia writes are serialized. Creation
+  never replaces an existing file. They cannot traverse subdirectories, follow file links, read
+  hidden/credential files or open apps. Writes return disk readback and a
+  SHA-256 digest; arbitrary filesystem and native script operations still use the native route.
   Both Mac routes record the structured
   result in the encrypted task journal and inject recent activity, failures and memory topics on later
-  requests. Background prompts exclude native skill creation/execution instructions and the filesystem
-  skill registry; the shared journal can still supply evidence to idle consolidation.
+  requests. Background uses the encrypted gateway skill registry and `skill_save`/`skill_run` with
+  exact-source approval. Its Bash sandbox has no direct GUI, user-file, Apple-event or network access;
+  `sia_json_get` and `sia_json_object` wrap the system JSON utility to avoid hand-escaped arguments.
+  `skill_run` takes the saved id, SHA-256 revision and input, rather than asking the model to resend
+  the entire script. The host loads and hashes the current source for the approval preview, before
+  execution, and before each nested action. Editing or deleting the skill invalidates a pending run.
+  `sia_action` calls retain the original turn's tool allowlist, cancellation and foreground policy.
+  Scripts with no progress between host actions stop after 30 seconds with a recovery diagnostic;
+  pending host actions suspend that inactivity check, within the existing overall skill deadline.
+  A delivered UI action with fresh, settled state may continue so the script can inspect that state.
+  Missing/loading observations, stale targets and refusals stop the run without replay. Runs containing
+  UI delivery remain `accepted_unverified` until the agent inspects semantic evidence. Native scripts
+  remain on the native route; both routes share journal evidence for consolidation.
+  Background native observations default to accessibility/text, with `include_image:true` for visual
+  evidence and pixel targeting, or `read_text:true` for screenshot OCR. Browser observations keep
+  images by default; text edits also capture an image to cross-check unreliable AX echo. Pixel input always receives a
+  fresh post-action image and cannot use a text-only snapshot. Right-clicks use a current element or
+  screenshot target; double-clicks require screenshot coordinates. Dropdown selection uses the
+  driver's `set_value` support. Browser tab shortcuts are restricted to ordinary navigation.
   **Pause and tell me** is the default fallback. RuntimeCoordinator pins `backgroundOnly` in the
   host's turn context; ActionGateway rejects explicit foreground input/opening before approval or
   dispatch. A model cannot change that context with tool arguments. The optional **Allow brief
@@ -239,7 +266,10 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   A whole-task `global_focus` lease prevents concurrent Sia tasks from driving the GUI. Fn audio
   capture can proceed while a task runs; new Mac tasks queue for the screen. Notch's progress-aware
   watchdog is ported (180 seconds without provider activity; one hour maximum, excluding approval
-  waits). Cancellation interrupts the turn, declines pending approvals and cleans native background
+  waits). Pending host tool calls suspend the inactivity timer while their own bounded timeouts apply;
+  the one-hour task limit remains. Completion/cancellation wins over a late start-request failure,
+  preventing duplicate terminal events or writes to a closed event queue.
+  Cancellation interrupts the turn, declines pending approvals and cleans native background
   terminals before releasing the screen. No model/GUI probes run automatically at launch.
   Final structured results use Notch's response contract and balanced-object parser, translated to
   Sia's timeline, voice response and output-file link. Partial JSON is never streamed into speech.

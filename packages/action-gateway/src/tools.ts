@@ -115,6 +115,7 @@ const computerSnapshot = z
     window_id: id,
     wait_ms: z.number().int().min(0).max(3000).optional(),
     read_text: z.boolean().optional(),
+    include_image: z.boolean().optional(),
     expected_url: computerOpenUrl.shape.url.optional(),
   })
   .strict();
@@ -124,6 +125,9 @@ const computerAction = z
     window_id: id,
     snapshot_id: id,
     action: z.enum(['click', 'type', 'set', 'scroll', 'key', 'drag']),
+    button: z.enum(['left', 'right']).optional(),
+    count: z.number().int().min(1).max(2).optional(),
+    include_image: z.boolean().optional(),
     delivery: z.enum(['background', 'foreground']).optional(),
     x: z.number().finite().min(0).max(32768).optional(),
     y: z.number().finite().min(0).max(32768).optional(),
@@ -147,8 +151,15 @@ const computerAction = z
     target_role: z.string().max(128).optional(),
   })
   .strict()
-  .superRefine(({ action, element_ref, x, y, to_x, to_y }, context) => {
+  .superRefine(({ action, element_ref, x, y, to_x, to_y, button, count }, context) => {
     const coordinates = x !== undefined && y !== undefined;
+    if ((button !== undefined || count !== undefined) && action !== 'click')
+      context.addIssue({ code: 'custom', message: 'button/count only apply to click.' });
+    if (count === 2 && (!coordinates || element_ref))
+      context.addIssue({
+        code: 'custom',
+        message: 'Double-click requires fresh screenshot coordinates.',
+      });
     if (
       (x !== undefined || y !== undefined || to_x !== undefined || to_y !== undefined) &&
       (!coordinates || element_ref || !['click', 'drag'].includes(action))
@@ -172,6 +183,22 @@ const computerAction = z
     }
   });
 const browserTabs = z.object({}).strict();
+const workspaceFileName = z
+  .string()
+  .min(1)
+  .max(180)
+  .regex(/^[^./\\\x00-\x1f][^/\\\x00-\x1f]*\.(?:txt|md|csv|tsv|json)$/i);
+const computerReadFile = z.object({ name: workspaceFileName }).strict();
+const computerWriteFile = z
+  .object({
+    name: workspaceFileName,
+    text: z.string().max(262_144),
+    expected_sha256: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
+  })
+  .strict();
 const browserSnapshot = z.object({ tab_id: id }).strict();
 const browserNavigate = z
   .object({ tab_id: id, url: z.url().max(8_192), private: z.boolean().optional() })
@@ -450,7 +477,6 @@ const skillRun = z
   .object({
     id: z.string().uuid(),
     revision: z.string().regex(/^[a-f0-9]{64}$/),
-    source: z.string().min(1).max(16000),
     input: z
       .record(z.string().max(100), z.string().max(2000))
       .refine((v) => Object.keys(v).length <= 12),
@@ -510,6 +536,9 @@ export const actionInputSchemas = {
   computer_open_url: computerOpenUrl,
   computer_snapshot: computerSnapshot,
   computer_action: computerAction,
+  computer_list_files: computerList,
+  computer_read_file: computerReadFile,
+  computer_write_file: computerWriteFile,
   browser_tabs: browserTabs,
   browser_snapshot: browserSnapshot,
   browser_navigate: browserNavigate,
@@ -553,6 +582,27 @@ export type ActionArguments<N extends ActionToolName = ActionToolName> = z.infer
 >;
 
 const descriptors: Record<ActionToolName, ToolDescriptor> = {
+  computer_list_files: {
+    name: 'computer_list_files',
+    description:
+      'List ordinary text/data files in this task’s workspace folder. Returns the workspace path and eligible top-level txt/md/csv/tsv/json files. Hidden files, credentials, links and subdirectories are excluded.',
+    inputSchema: z.toJSONSchema(computerList),
+    annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
+  },
+  computer_read_file: {
+    name: 'computer_read_file',
+    description:
+      'Read one UTF-8 text/data file by its exact name in the task workspace, up to 256 KB. Returns the complete content, path and SHA-256 revision. Use fresh app evidence for account facts; old files do not replace current investigation.',
+    inputSchema: z.toJSONSchema(computerReadFile),
+    annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
+  },
+  computer_write_file: {
+    name: 'computer_write_file',
+    description:
+      'Create or edit a UTF-8 txt/md/csv/tsv/json report in the task workspace without opening an app. Pass its name and complete text (up to 256 KB). To edit an existing file, first read it and pass its returned sha256 as expected_sha256; a changed revision is refused. Without expected_sha256, an existing file is never overwritten. Returns data.path, data.sha256 and data.text read back from disk. Verify the content before reporting success or returning output_file.',
+    inputSchema: z.toJSONSchema(computerWriteFile),
+    annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
+  },
   computer_task_complete: {
     name: 'computer_task_complete',
     description:
@@ -584,14 +634,14 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   skill_save: {
     name: 'skill_save',
     description:
-      'Propose saving a reusable Bash script; shows the exact source for approval. Use sia_action TOOL JSON_ARGS for approved host operations, then inspect SIA_RESULT (JSON). Bash can run shell logic and system text utilities but cannot directly access user files, network, apps, or AppleScript. Input JSON is in SIA_INPUT. Never hardcode transient references. Saving does not execute the script.',
+      'Propose saving a reusable Bash script; shows the exact source for approval. Use sia_action TOOL JSON_ARGS for approved host operations, then inspect SIA_RESULT (JSON). Bash can run shell logic and system text utilities but cannot directly access user files, network, apps, or AppleScript. Input JSON is in SIA_INPUT. Helpers are provided: sia_json_get KEY_PATH reads a scalar from stdin (e.g. sia_json_get data.text <<< "$SIA_RESULT"); sia_json_object KEY VALUE [KEY VALUE...] constructs a JSON object of string values with correct escaping. For file arguments use sia_json_object name "$filename" text "$report". Bash command substitution strips trailing newlines: use a here-string or handle the last unterminated line when iterating text. For numeric JSON use validated numbers, or plutil -create xml1 FILE, -insert KEY -integer NUMBER FILE, then -convert json -o - FILE. Never hardcode transient references. Saving does not execute the script.',
     inputSchema: z.toJSONSchema(skillSave),
     annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
   },
   skill_run: {
     name: 'skill_run',
     description:
-      'Run a saved skill after exact-source approval. Read assistant_library first and pass its id, revision and complete source unchanged. Input is JSON data, never substituted into code. Each host action inside the script still passes the approval gateway. Stop on any refused or uncertain action result; never automatically replay a failed run.',
+      'Run a saved skill after exact-source approval. Read assistant_library first, then pass its id, revision and input. Do not resend the source: Sia loads the exact saved script, verifies its SHA-256 against revision, shows it for approval, and checks it again before execution and every host action. Input is JSON data, never substituted into code. Each host action still passes the gateway and this turn’s tool/foreground policy. Inspect SIA_RESULT before the next operation. Refusal, stale targets, foreground requirements or missing/loading observations stop the run. UI delivery still requires semantic verification; never automatically replay a failed run.',
     inputSchema: z.toJSONSchema(skillRun),
     annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
   },
@@ -655,6 +705,11 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
           description:
             'Use my Mac: read text from this screenshot locally, for PDFs or images without usable accessibility text.',
         },
+        include_image: {
+          type: 'boolean',
+          description:
+            'Background native windows default to fresh accessibility/text. Browser windows retain images by default to cross-check web content. Set true for visual verification, missing or ambiguous content, or before pixel input. read_text also captures an image. Pixel actions require an image from this snapshot.',
+        },
         wait_ms: {
           type: 'integer',
           minimum: 0,
@@ -680,6 +735,20 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
         to_x: { type: 'number', minimum: 0, maximum: 32768 },
         to_y: { type: 'number', minimum: 0, maximum: 32768 },
         action: string('Action', { enum: ['click', 'type', 'set', 'scroll', 'key', 'drag'] }),
+        button: string('For click: left (default) or right to open a context menu', {
+          enum: ['left', 'right'],
+        }),
+        count: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 2,
+          description: 'For pixel click only: 2 double-clicks. Element clicks support count 1.',
+        },
+        include_image: {
+          type: 'boolean',
+          description:
+            'Include an image in the post-action observation when visual verification is needed. Pixel input and text edits always capture one, to cross-check delivery. Background native element clicks default to text; browser windows retain images.',
+        },
         delivery: string(
           'Use my Mac defaults to background for every action. Explicitly request foreground only when needed after observing the result of the background attempt. Never replay a delivered write without checking its result.',
           { enum: ['background', 'foreground'] },
@@ -688,7 +757,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
           'Element reference from the snapshot. Required for click and set; optional for type, key, and scroll when the exact window already has the intended focused control.',
         ),
         text: string(
-          'For type: only new characters to insert at the caret. For set: the exact complete replacement value.',
+          'For type: only new characters to insert at the caret. For set: the exact complete replacement value, or the exact observed dropdown option.',
         ),
         value: string('One non-modifier key; use modifiers for shortcuts'),
         modifiers: {

@@ -159,6 +159,8 @@ interface ActiveTurn {
   readonly nativeApproval: 'ask' | 'auto';
   lastActivity?: number;
   approvalPending?: boolean;
+  dynamicToolsPending?: number;
+  watchdogError?: string;
   hasFinalResponse?: boolean;
   nativeTurnId?: string;
 }
@@ -312,6 +314,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     signal?: AbortSignal,
   ): Promise<ProviderSession> {
     const nativeMac = options.nativeTools === 'mac';
+    const backgroundMac = options.nativeTools === 'mac-background';
     const macAssistant = nativeMac || options.nativeTools === 'mac-background';
     const nativeDisabled =
       options.nativeTools === 'disabled' || options.nativeTools === 'mac-background';
@@ -335,12 +338,24 @@ export class CodexAppServerAdapter implements ProviderAdapter {
             nativeMac && options.nativeApproval !== 'auto' ? 'untrusted' : 'never',
           sandbox: nativeMac
             ? 'danger-full-access'
-            : nativeDisabled
+            : options.nativeTools === 'disabled'
               ? 'read-only'
               : 'workspace-write',
           serviceName: 'sia',
           ...(this.#options.sessionEphemeral ? { ephemeral: true } : {}),
-          config: this.#isolationConfig(inventory, customProvider, nativeDisabled, nativeMac),
+          config: {
+            ...this.#isolationConfig(inventory, customProvider, nativeDisabled, nativeMac),
+            ...(backgroundMac
+              ? {
+                  sandbox_workspace_write: {
+                    network_access: false,
+                    writable_roots: [],
+                    exclude_slash_tmp: true,
+                    exclude_tmpdir_env_var: true,
+                  },
+                }
+              : {}),
+          },
           dynamicTools: options.tools.map((tool) => ({
             name: tool.name,
             description: tool.description,
@@ -356,8 +371,23 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     if (!nativeId)
       throw isolationFailure('Codex did not create a verifiable isolated session.');
     try {
-      if (nativeDisabled && stringAt(result, ['sandbox', 'type']) !== 'readOnly')
+      if (
+        options.nativeTools === 'disabled' &&
+        stringAt(result, ['sandbox', 'type']) !== 'readOnly'
+      )
         throw new Error('Dynamic-tool-only session did not retain a read-only sandbox.');
+      if (backgroundMac) {
+        const sandbox = strictRecord(strictRecord(result).sandbox);
+        if (
+          sandbox.type !== 'workspaceWrite' ||
+          sandbox.networkAccess !== false ||
+          !Array.isArray(sandbox.writableRoots) ||
+          sandbox.writableRoots.length !== 0 ||
+          sandbox.excludeSlashTmp !== true ||
+          sandbox.excludeTmpdirEnvVar !== true
+        )
+          throw new Error('Background workspace file permissions could not be verified.');
+      }
       if (nativeMac) {
         if (stringAt(result, ['sandbox', 'type']) !== 'dangerFullAccess')
           throw new Error('Native Mac execution was not enabled.');
@@ -492,6 +522,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     void peer
       .request(method, params, { ...(signal ? { signal } : {}), timeoutMs: this.#timeout })
       .then((result) => {
+        if (this.#activeByThread.get(session.nativeId) !== active) return;
         const nativeTurnId = stringAt(result, ['turn', 'id'], ['turnId'], ['id']);
         if (nativeTurnId) {
           active.nativeTurnId = nativeTurnId;
@@ -503,7 +534,10 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     const startedAt = Date.now();
     const watchdog = active.mac
       ? setInterval(() => {
-          if (active.approvalPending) {
+          if (
+            active.approvalPending ||
+            ((active.dynamicToolsPending ?? 0) > 0 && Date.now() - startedAt < 3_600_000)
+          ) {
             active.lastActivity = Date.now();
             return;
           }
@@ -513,12 +547,9 @@ export class CodexAppServerAdapter implements ProviderAdapter {
           )
             return;
           if (watchdog) clearInterval(watchdog);
+          active.watchdogError = 'The Mac task stopped responding and was cancelled.';
           void this.cancelTurn(session, input.turnId).then(
-            () =>
-              this.#failTurn(
-                active,
-                new Error('The Mac task stopped responding and was cancelled.'),
-              ),
+            () => this.#failTurn(active, new Error(active.watchdogError)),
             (error) => this.#failTurn(active, error),
           );
         }, 5000)
@@ -1028,6 +1059,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     if (method === 'turn/completed') {
       const rawStatus = stringAt(value, ['turn', 'status'], ['status']);
       const status =
+        active.watchdogError ||
         rawStatus === 'failed' ||
         (active.mac && rawStatus === 'completed' && !active.hasFinalResponse)
           ? 'failed'
@@ -1035,13 +1067,15 @@ export class CodexAppServerAdapter implements ProviderAdapter {
             ? 'cancelled'
             : 'completed';
       if (status === 'failed') {
-        const failureMessage = stringAt(
-          value,
-          ['turn', 'error', 'message'],
-          ['error', 'message'],
-          ['turn', 'failureReason'],
-          ['message'],
-        );
+        const failureMessage =
+          active.watchdogError ??
+          stringAt(
+            value,
+            ['turn', 'error', 'message'],
+            ['error', 'message'],
+            ['turn', 'failureReason'],
+            ['message'],
+          );
         if (failureMessage) {
           active.queue.push(
             active.events.create('error', {
@@ -1114,15 +1148,25 @@ export class CodexAppServerAdapter implements ProviderAdapter {
           contentItems: [{ type: 'inputText', text: 'Tool unavailable' }],
         };
       }
-      const result = await this.#options.dynamicToolHandler({
-        callId,
-        name,
-        arguments: record(record(params).arguments ?? record(params).input),
-        ...(stringAt(params, ['threadId'])
-          ? { threadId: stringAt(params, ['threadId'])! }
-          : {}),
-        ...(stringAt(params, ['turnId']) ? { turnId: stringAt(params, ['turnId'])! } : {}),
-      });
+      const active = this.#findActive(params);
+      if (active) active.dynamicToolsPending = (active.dynamicToolsPending ?? 0) + 1;
+      let result;
+      try {
+        result = await this.#options.dynamicToolHandler({
+          callId,
+          name,
+          arguments: record(record(params).arguments ?? record(params).input),
+          ...(stringAt(params, ['threadId'])
+            ? { threadId: stringAt(params, ['threadId'])! }
+            : {}),
+          ...(stringAt(params, ['turnId']) ? { turnId: stringAt(params, ['turnId'])! } : {}),
+        });
+      } finally {
+        if (active) {
+          active.dynamicToolsPending = Math.max(0, (active.dynamicToolsPending ?? 1) - 1);
+          active.lastActivity = Date.now();
+        }
+      }
       return {
         success: result.success,
         contentItems: [
@@ -1200,6 +1244,9 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   }
 
   #failTurn(active: ActiveTurn, error: unknown): void {
+    // Interrupt/completion can win the race with a pending start/tool request.
+    // The terminal notification already closed its queue; do not fail it twice.
+    if (this.#activeByThread.get(active.session.nativeId) !== active) return;
     active.queue.push(
       active.events.create('error', {
         code: 'provider_request_failed',

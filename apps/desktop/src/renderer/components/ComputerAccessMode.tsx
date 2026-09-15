@@ -77,8 +77,8 @@ export function ComputerAccessMode({
           </fieldset>
           <p className={styles.settingsNote}>
             Applies to your next typed or Fn request. Both modes use this agent's saved memory
-            and task history. Background mode cannot run native scripts or arbitrary shell
-            commands.
+            and task history. Background skills can reuse window actions and create workspace
+            reports without taking focus. Native scripts require On my screen.
           </p>
           {computer.backgroundControl ? (
             <div className={modeStyles.row}>
@@ -107,7 +107,7 @@ export function ComputerAccessMode({
       <p className={styles.settingsNote}>
         {computer.accessMode === 'mac'
           ? computer.backgroundControl
-            ? 'Sia uses the existing apps through window controls. No Chrome attachment is needed. Executable scripts and arbitrary file output need normal native control. Complete sign-ins and macOS permission prompts yourself.'
+            ? 'Sia uses your existing apps, saved lessons and background skills. It can create text, CSV and JSON reports in the task workspace. Some app controls still need brief foreground access. Complete sign-ins and macOS permission prompts yourself.'
             : 'Sia uses native commands, AppleScript, files and screen images, like Notch. It uses the ordinary app interface and may bring apps forward. No Chrome connection is required. Full bypass runs commands without a workspace sandbox or per-action prompts. Allow Accessibility, Screen Recording and app Automation; complete sign-ins yourself.'
           : 'Connect Chrome or individual services for structured access. Choose Use my Mac to work through existing browser windows without attaching Chrome.'}
       </p>

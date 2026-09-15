@@ -4884,6 +4884,47 @@ it('shows the exact skill source for approval even in trusted mode', async () =>
   }
 });
 
+it('resolves a saved skill by hash for exact-source approval without model-supplied code', async () => {
+  const controller = await createController();
+  try {
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'Saved skill',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const source = "printf 'a saved script\\n'";
+    const library = await controller.invoke('assistant.library', {
+      operation: 'saveSkill',
+      entry: { agentId, title: 'Saved', description: 'Example', source },
+    });
+    const skill = library.skills![0]!;
+    const { threadId } = await controller.invoke('threads.create', { agentId });
+    const { turnId } = await controller.invoke('threads.send', {
+      threadId,
+      text: 'Run the saved routine.',
+    });
+    const decision = controller.approvalBroker().requestApproval({
+      id: 'run-approval',
+      sessionId: 'test-session',
+      threadId,
+      turnId,
+      tool: getActionToolDescriptor('skill_run')!,
+      arguments: { id: skill.id, revision: skill.revision, input: { label: 'Example' } },
+      targetDigest: 'id-revision-input',
+      reason: 'Review the saved source.',
+    });
+    const approval = controller.snapshot().approvals.at(-1)!;
+    expect(approval.dataLeaving).toContain(source);
+    expect(approval.dataLeaving).toContain('Example');
+    await controller.invoke('approvals.resolve', { approvalId: approval.id, decision: 'deny' });
+    await expect(decision).resolves.toEqual({ approved: false });
+  } finally {
+    await controller.shutdown();
+  }
+});
+
 it('does not start queued work when an active turn releases its lease during shutdown', async () => {
   const records = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
   const close = vi.spyOn(records, 'close').mockImplementation(() => undefined);
@@ -5227,7 +5268,7 @@ it('retains background task results and failures across conversations and native
     expect(turns[1]!.text).toContain('foreground access');
     expect(turns[1]!.text).toContain('Observed the target document window');
     expect(turns[1]!.text).not.toContain('Native executable skills live in');
-    expect(turns[1]!.text).not.toContain('skill_run');
+    expect(turns[1]!.text).toContain('skill_run');
     expect(turns[2]!.thread.macBackgroundControl).toBe(false);
     expect(turns[2]!.text).toContain('foreground access');
     expect(turns[2]!.text).toContain('Native executable skills live in');

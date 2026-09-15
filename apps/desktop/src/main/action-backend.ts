@@ -5,6 +5,7 @@ import {
 } from './browser-window.js';
 import { MacTaskEvidence } from './mac-task-evidence.js';
 import { macExecutionTools } from './mac-execution.js';
+import { workspaceFileAction } from './background-files.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
@@ -535,6 +536,10 @@ export class DesktopActionBackend implements ActionBackend {
       );
     try {
       switch (request.name) {
+        case 'computer_list_files':
+        case 'computer_read_file':
+        case 'computer_write_file':
+          return await workspaceFileAction(request);
         case 'computer_task_complete':
           return this.#macBrowserAccess()
             ? this.#macEvidence.complete(request)
@@ -1061,9 +1066,16 @@ export class DesktopActionBackend implements ActionBackend {
         session: request.context.sessionId,
         include_screenshot: includeScreenshot,
       });
+    const includeImage =
+      request.arguments.read_text === true ||
+      request.arguments.include_image === true ||
+      (request.arguments.include_image !== false &&
+        (!this.#macBackgroundControl() || browser)) ||
+      ['type', 'set'].includes(String(request.arguments.action)) ||
+      typeof request.arguments.x === 'number';
     let raw: unknown;
     try {
-      raw = await capture(true);
+      raw = await capture(includeImage);
       if (/\bpx_capture_unavailable\b/.test(resultRefusal(raw)?.summary ?? ''))
         raw = await capture(false);
     } catch (error) {
@@ -1155,7 +1167,8 @@ export class DesktopActionBackend implements ActionBackend {
         return element;
       })
       .filter(isDefined);
-    const pixels = windowHasProtectedControls(raw) ? undefined : screenshotDimensions(raw);
+    const pixels =
+      !includeImage || windowHasProtectedControls(raw) ? undefined : screenshotDimensions(raw);
     const capability: WindowSnapshotCapability = {
       ...(browserUrl ? { browserUrl } : {}),
       capturedAt: Date.now(),
@@ -1173,7 +1186,7 @@ export class DesktopActionBackend implements ActionBackend {
     return {
       outcome: 'verified',
       summary: 'Captured a fresh state for the permitted window.',
-      ...(windowHasProtectedControls(raw) ? {} : actionImages(raw)),
+      ...(!includeImage || windowHasProtectedControls(raw) ? {} : actionImages(raw)),
       data: compact({
         snapshot_id: snapshotId,
         app_id: binding.appId,
@@ -1256,7 +1269,13 @@ export class DesktopActionBackend implements ActionBackend {
         const navigation =
           modifiers.length === 1 &&
           modifiers[0] === 'cmd' &&
-          ['l', 'r', '[', ']', 'a', 'f'].includes(key);
+          ['l', 'r', 'a', 'f', 't', 'w', '1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(
+            key,
+          );
+        const tabSwitch =
+          key === 'tab' &&
+          modifiers.includes('ctrl') &&
+          modifiers.every((modifier) => modifier === 'ctrl' || modifier === 'shift');
         const plain =
           modifiers.length === 0 &&
           [
@@ -1277,7 +1296,7 @@ export class DesktopActionBackend implements ActionBackend {
             'home',
             'end',
           ].includes(key);
-        if (!navigation && !plain)
+        if (!navigation && !tabSwitch && !plain)
           return refused(
             'This browser shortcut is unavailable. Use visible page controls or an ordinary navigation shortcut.',
           );
@@ -1380,6 +1399,8 @@ export class DesktopActionBackend implements ActionBackend {
               y: args.y,
             }
           : base;
+        if (args.button !== undefined) input.button = args.button;
+        if (args.count !== undefined) input.count = args.count;
         break;
       case 'drag':
         if (!pixel) return refused('Drag requires screenshot coordinates.');

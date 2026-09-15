@@ -61,6 +61,34 @@ uses a real model with **in-memory browser fixtures** to check coursework outsid
 inaccessible-course reporting. Neither replaces the live GUI checks above. Experimental background
 window control must be validated separately, including its selected foreground fallback policy.
 
+For background changes, keep another app frontmost and explicitly select **Pause and tell me**.
+Check a Calculator result, a native text edit, and ordinary browser navigation against fresh app
+state. Also create/read a Unicode workspace report, preserve an existing same-name file unless its
+fresh revision is provided for an edit, refuse a stale revision, and reuse
+a saved gateway skill in a new task. Verify results independently and record any foreground change
+or blocker; never count delivery or an assistant's answer alone as a pass. Exercise image capture
+when text is insufficient, context menus and screenshot double-clicks where supported. A foreground
+refusal must stop the affected skill/action without replay. These checks are opt-in; none run when
+Sia launches.
+
+The opt-in [background workflow smoke](../apps/desktop/src/main/background-workflows.smoke.test.ts)
+uses a real Codex model and real workspace files/sandboxed Bash, with GUI calls denied. Run it with
+`SIA_CODEX_REAL_SMOKE=1 SIA_BACKGROUND_WORKFLOWS_SMOKE=1` and an offered `SIA_SMOKE_MODEL`.
+It checks report creation, saving/running a gateway skill, unchanged reuse after restart, and
+repairing an existing report with a fresh revision.
+This test approves generated skills only inside its disposable fixture; normal exact-source
+approval remains in the app. It does not validate live window input.
+
+Current background validation: Astra completed that full disposable workflow. Sol created the
+report but still stalled in the skill workflow, including after a successful library read and
+before saving a script. Earlier runs also exposed JSON-construction errors and a blocked script;
+the JSON helpers and script inactivity diagnostic address those specific failures, not every model
+stall. The live GUI matrix remains unverified for these changes because the Mac was locked.
+Do not describe this as all-app parity or equal reliability across models.
+Build, formatting, quality and type checks passed, as did the focused affected tests. Full
+`pnpm check` attempts also encountered Vitest worker startup/termination failures; a clean full
+gate remains pending.
+
 ## Fifteen-minute pilot pass
 
 - [ ] Install the exact signed DMG on a fresh macOS profile. Gatekeeper accepts it and Sia shows

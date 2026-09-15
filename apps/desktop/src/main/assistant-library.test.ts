@@ -199,9 +199,9 @@ it('ports useful native activity and failure continuity without leaking it to ot
   expect(background).toContain('<recent_activity>');
   expect(background).toContain('<failures>');
   expect(background).toContain('Downloads permission');
-  expect(background).toContain('Native scripts require normal Mac control');
+  expect(background).toContain('Native AppleScript scripts require On my screen');
   expect(background).not.toContain('save reusable native skills as you learn them');
-  expect(background).not.toContain('skill_run');
+  expect(background).toContain('skill_run');
   expect(restarted.memoryPrompt(randomUUID(), 'mac-background')).not.toContain('syllabus');
   restarted.change({ operation: 'nativeLearning', agentId, enabled: false }, () => undefined);
   expect(restarted.memoryPrompt(agentId, 'mac')).not.toContain('<recent_activity>');
@@ -225,10 +225,8 @@ it('pins executable source revisions and prevents cross-agent edits and runs', (
     () => undefined,
   );
   const skill = view.skills![0]!;
-  expect(service.skill(agentId, skill.id, skill.revision, skill.source)).toEqual(skill);
-  expect(() => service.skill(randomUUID(), skill.id, skill.revision, skill.source)).toThrow(
-    'changed',
-  );
+  expect(service.skill(agentId, skill.id, skill.revision)).toEqual(skill);
+  expect(() => service.skill(randomUUID(), skill.id, skill.revision)).toThrow('changed');
   expect(() =>
     service.change(
       {
@@ -257,9 +255,7 @@ it('pins executable source revisions and prevents cross-agent edits and runs', (
     },
     () => undefined,
   );
-  expect(() => service.skill(agentId, skill.id, skill.revision, skill.source)).toThrow(
-    'changed',
-  );
+  expect(() => service.skill(agentId, skill.id, skill.revision)).toThrow('changed');
   service.forgetAgent(agentId);
   expect(service.view().skills).toEqual([]);
 });

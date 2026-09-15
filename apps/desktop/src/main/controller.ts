@@ -793,7 +793,7 @@ export class DesktopController {
               : view.skills?.filter((entry) => entry.agentId === agentId),
             skillExecution: nativeWorkspace
               ? 'native Bash/AppleScript; read source then use exec_command during a normal native task'
-              : 'gateway Bash using sia_action, SIA_INPUT and SIA_RESULT; unavailable in background window sessions',
+              : 'gateway Bash using sia_action, SIA_INPUT and SIA_RESULT; each action is limited to this turn’s tools and foreground policy. Inspect fresh returned state before the next operation. No direct user-file, network, AppleScript or GUI access.',
             consolidationPolicy: autoApply
               ? 'Changes submitted during this review are saved automatically. Scripts are saved but never executed by consolidation.'
               : 'Changes wait for the person to review in Settings → Assistant.',
@@ -870,19 +870,14 @@ export class DesktopController {
         if (!request.approvalId)
           throw new Error('Running a skill requires exact-source approval.');
         const args = parseActionArguments('skill_run', request.arguments);
-        const skill = this.#assistantLibrary.skill(
-          agentId,
-          args.id,
-          args.revision,
-          args.source,
-        );
+        const skill = this.#assistantLibrary.skill(agentId, args.id, args.revision);
         return runExecutableSkill({
           source: skill.source,
           input: args.input,
           ...(request.context.signal ? { signal: request.context.signal } : {}),
           invoke: (name, data, signal) => {
             this.#requireSignedInReleaseAccount();
-            this.#assistantLibrary.skill(agentId, args.id, args.revision, args.source);
+            this.#assistantLibrary.skill(agentId, args.id, args.revision);
             return invoke(name, data, signal);
           },
         });
@@ -1486,9 +1481,13 @@ export class DesktopController {
             (this.computerAccessMode() !== 'mac' || this.macBackgroundControl())
           )
             throw new Error('Choose On my screen in Settings → Computer to run native skills.');
-          if (skill.execution !== 'native' && this.computerAccessMode() === 'mac')
+          if (
+            skill.execution !== 'native' &&
+            this.computerAccessMode() === 'mac' &&
+            !this.macBackgroundControl()
+          )
             throw new Error(
-              'This older skill uses Connected apps. Create a native skill for Use my Mac.',
+              'This skill uses gateway tools. Choose Background or Connected apps, or create a native skill for On my screen.',
             );
           const { threadId } = this.#createThread({
             agentId: skill.agentId,
@@ -5664,7 +5663,7 @@ export class DesktopController {
             ? this.#assistantLibrary.reviewWorkspace(thread.id)
               ? NATIVE_MEMORY_REVIEW_PROMPT
               : MEMORY_REVIEW_PROMPT
-            : `${thread.instructionsSnapshot}\n\n${this.computerAccessMode() === 'mac' ? 'Use my Mac is active. Follow the native Mac operating instructions.' : DESKTOP_EXECUTION_GUIDANCE}\nAccess mode: ${this.computerAccessMode() === 'mac' ? `Use my Mac. Action approvals: ${this.computerTrust() === 'auto' ? 'bypass enabled; perform permitted task actions without asking for each step' : 'confirm changes through the provided tools'}.` : 'Connected apps. Browser tools require a connected Chrome window; Use my Mac can be enabled in Settings → Computer for native browser access.'}`,
+            : `${thread.instructionsSnapshot}\n\n${this.computerAccessMode() === 'mac' ? (this.macBackgroundControl() ? 'Use my Mac background control is active. Follow the window-control instructions and use this turn’s provided tools.' : 'Use my Mac is active. Follow the native Mac operating instructions.') : DESKTOP_EXECUTION_GUIDANCE}\nAccess mode: ${this.computerAccessMode() === 'mac' ? `Use my Mac. Action approvals: ${this.computerTrust() === 'auto' ? 'bypass enabled; perform permitted task actions without asking for each step' : 'confirm changes through the provided tools'}.` : 'Connected apps. Browser tools require a connected Chrome window; Use my Mac can be enabled in Settings → Computer for native browser access.'}`,
           priorMessages: this.#state.timeline
             .filter(
               (item) =>
@@ -6316,7 +6315,16 @@ export class DesktopController {
     const expiresAt = new Date(Date.now() + 2 * 60_000).toISOString();
     const connector = /^(mail|drive|docs|sheets|slides|slack)_/.test(request.tool.name);
     const upload = /upload/.test(request.tool.name);
-    const dataLeaving = summarizeDataLeaving(request.arguments, request.tool.name);
+    let reviewArguments = request.arguments;
+    if (request.tool.name === 'skill_run') {
+      const args = parseActionArguments('skill_run', request.arguments);
+      const agentId = this.#requireThread(request.threadId).agentId;
+      const skill = this.#assistantLibrary.skill(agentId, args.id, args.revision);
+      // The approval digest binds id + SHA-256 revision + input. Resolve the
+      // exact source in the host, never ask the model to copy it back to us.
+      reviewArguments = { ...args, source: skill.source };
+    }
+    const dataLeaving = summarizeDataLeaving(reviewArguments, request.tool.name);
     const dataLabel = request.tool.name.startsWith('skill_')
       ? 'Bash source and inputs to review'
       : request.tool.name === 'mac_automation'
@@ -7441,6 +7449,9 @@ const RUNTIME_TOOL_LABELS: Record<string, string> = {
   computer_list: 'Checking open apps',
   computer_open_app: 'Opening an app',
   computer_open_url: 'Opening a website',
+  computer_list_files: 'Listing workspace files',
+  computer_read_file: 'Reading a workspace file',
+  computer_write_file: 'Saving a workspace report',
   computer_snapshot: 'Looking at a window',
   computer_action: 'Acting on the Mac',
 };

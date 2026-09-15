@@ -444,15 +444,6 @@ export class RuntimeCoordinator {
     argumentsValue: Readonly<Record<string, unknown>>,
     signal?: AbortSignal,
   ): Promise<{ success: boolean; content: unknown }> {
-    if (context.allowedTools && !context.allowedTools.has(name))
-      return {
-        success: false,
-        content: {
-          outcome: 'refused',
-          summary:
-            'Use my Mac uses native app tools only. Continue in the actual app; connected browser and service tools are unavailable in this mode.',
-        },
-      };
     const result = await this.#gateway.invoke({
       name,
       arguments: argumentsValue,
