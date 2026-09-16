@@ -5148,7 +5148,7 @@ it('saves native learning improvements to the filesystem without executing them 
       expect.objectContaining({
         agentId,
         execution: 'native',
-        title: 'finder-folder',
+        title: 'Finder folder',
         source: expect.stringContaining('# description:'),
       }),
     ]);

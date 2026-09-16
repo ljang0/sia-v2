@@ -3,7 +3,7 @@ import {
   type BrowserWindowState,
   type WindowContextState,
 } from './browser-window.js';
-import { MacTaskEvidence } from './mac-task-evidence.js';
+import { MacWindowHistory } from './mac-window-history.js';
 import { macExecutionTools } from './mac-execution.js';
 import { workspaceFileAction } from './background-files.js';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -490,7 +490,7 @@ export class DesktopActionBackend implements ActionBackend {
   }
 
   readonly #recoveryFailures = new Map<string, number>();
-  readonly #macEvidence = new MacTaskEvidence();
+  readonly #macWindows = new MacWindowHistory();
 
   async invoke(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
     const computerWrite =
@@ -503,7 +503,7 @@ export class DesktopActionBackend implements ActionBackend {
     }
     const rawResult = await this.#invoke(request);
     const result = this.#macBrowserAccess()
-      ? this.#macEvidence.observe(request, rawResult)
+      ? this.#macWindows.observe(request, rawResult)
       : rawResult;
     if (computerWrite) {
       if (['stale', 'needs_foreground', 'refused'].includes(result.outcome)) {
@@ -540,10 +540,6 @@ export class DesktopActionBackend implements ActionBackend {
         case 'computer_read_file':
         case 'computer_write_file':
           return await workspaceFileAction(request);
-        case 'computer_task_complete':
-          return this.#macBrowserAccess()
-            ? this.#macEvidence.complete(request)
-            : refused('Task evidence is available in Use my Mac mode.');
         case 'assistant_library':
         case 'memory_learn':
         case 'memory_suggest':

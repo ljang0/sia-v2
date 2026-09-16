@@ -1,12 +1,85 @@
 import { expect, test } from '@playwright/test';
 import { launchIsolatedSia } from '../support/electron-harness';
 
+test('background skills use gateway execution and native titles survive restart', async () => {
+  let sia = await launchIsolatedSia({ prefix: 'sia-skill-modes-' });
+  const testRoot = sia.testRoot;
+  try {
+    const page = sia.page;
+    await page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
+    await page.getByRole('button', { name: 'Create my agent' }).click();
+    await page.getByRole('button', { name: 'Exit setup' }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+    await page
+      .getByRole('navigation', { name: 'Assistant sections' })
+      .getByRole('button', { name: /^Skills/ })
+      .click();
+    await page.getByRole('button', { name: 'New skill', exact: true }).click();
+    await page.getByLabel('Skill name', { exact: true }).fill('Inspect Finder');
+    await page
+      .getByLabel('When to use it', { exact: true })
+      .fill('Read the visible Finder folder.');
+    await page.getByRole('button', { name: 'Save skill', exact: true }).click();
+    const native = page.getByRole('article').filter({ hasText: 'Inspect Finder' });
+    await expect(native.getByRole('button', { name: 'Run skill' })).toBeEnabled();
+
+    await page.evaluate(() => window.sia.computer.setAccessMode('mac', true, 'pause'));
+    await expect(native.getByRole('button', { name: 'Run skill' })).toBeDisabled();
+    await page.getByRole('button', { name: 'New skill', exact: true }).click();
+    await expect(page.getByLabel('Bash source')).toHaveValue(/sia_action/);
+    await page.getByLabel('Skill name', { exact: true }).fill('List background apps');
+    await page.getByLabel('When to use it', { exact: true }).fill('Find available apps.');
+    await page.getByRole('button', { name: 'Save skill', exact: true }).click();
+    const gateway = page.getByRole('article').filter({ hasText: 'List background apps' });
+    await expect(gateway.getByRole('button', { name: 'Run skill' })).toBeEnabled();
+    const denied = await page.evaluate(async () => {
+      const library = await window.sia.assistantLibrary({ operation: 'list' });
+      const skill = library.skills!.find((entry) => entry.execution === 'native')!;
+      try {
+        await window.sia.assistantLibrary({ operation: 'runSkill', id: skill.id, input: {} });
+        return '';
+      } catch (error) {
+        return String(error);
+      }
+    });
+    expect(denied).toContain('On my screen');
+    await gateway.getByRole('button', { name: 'Run skill' }).click();
+    await page.getByRole('button', { name: 'Review run in a new conversation' }).click();
+    await expect(
+      page.getByText(/This development turn used the deterministic local runtime/),
+    ).toBeVisible();
+    expect(sia.rendererErrors).toEqual([]);
+    await sia.close({ removeTestRoot: false });
+    sia = await launchIsolatedSia({ testRoot });
+    const restored = await sia.page.evaluate(async () => ({
+      snapshot: await window.sia.bootstrap(),
+      library: await window.sia.assistantLibrary({ operation: 'list' }),
+    }));
+    expect(restored.snapshot.computer).toMatchObject({
+      accessMode: 'mac',
+      backgroundControl: true,
+    });
+    expect(restored.library.skills).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: 'Inspect Finder', execution: 'native' }),
+        expect.objectContaining({ title: 'List background apps', execution: 'gateway' }),
+      ]),
+    );
+    expect(sia.rendererErrors).toEqual([]);
+  } finally {
+    await sia.close();
+  }
+});
+
 test('personal library saves memory, edits workflow parameters and runs through a real conversation', async () => {
   const sia = await launchIsolatedSia({ prefix: 'sia-assistant-library-' });
   try {
     const page = sia.page;
     await page.setViewportSize({ width: 1220, height: 780 });
+    await page.getByRole('radio', { name: /Connected apps \+ confirmations/ }).check();
     await page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
+    // This fixture exercises gateway tools and confirmation-mode behavior.
     await page.getByRole('button', { name: 'Create my agent' }).click();
     await page.getByRole('button', { name: 'Exit setup' }).click();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -81,7 +154,9 @@ test('automatic learning and executable skills persist and dispatch through the 
   const sia = await launchIsolatedSia({ prefix: 'sia-executable-skills-' });
   try {
     const page = sia.page;
+    await page.getByRole('radio', { name: /Connected apps \+ confirmations/ }).check();
     await page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
+    // This fixture exercises gateway tools and confirmation-mode behavior.
     await page.getByRole('button', { name: 'Create my agent' }).click();
     await page.getByRole('button', { name: 'Exit setup' }).click();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();

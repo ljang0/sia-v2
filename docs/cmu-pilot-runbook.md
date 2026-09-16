@@ -15,10 +15,10 @@ safe, and easy to support. It is not approval for public distribution or a resea
    same thread.
 5. Add Google Workspace, Slack, Chrome, or macOS computer access only when the test requires it.
 
-## Safe pilot defaults
+## Recommended pilot settings
 
-- Computer actions ask for confirmation by default. A tester must explicitly choose autonomous
-  actions, and should do so only for a bounded disposable test.
+- Choose a confirmation mode during onboarding; the initial selection is Use my Mac + full bypass.
+  Use autonomous actions only for a bounded disposable test.
 - New one-time schedules stop after one run. New recurring schedules stop after ten runs unless the
   tester selects another finite limit. Sia must remain open for local schedules to run.
 - Google begins read-only. The initial pilot does not include Gmail send, file editing, sharing, or

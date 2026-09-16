@@ -166,8 +166,8 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   App Server harness and subscription login, with `baseInstructions` replacing the coding persona
   with the port of Notch's `ClaudeCodeInvoker` prompt. Native shell, file operations and image
   viewing are enabled in `danger-full-access`; provider web search, inherited plugins/MCPs,
-  project instruction discovery and subagents are disabled. Connected-browser tools and
-  the old `computer_task_complete` checklist are not exposed. The default native route exposes only
+  project instruction discovery and subagents are disabled. Connected-browser tools are not exposed.
+  The default native route exposes only
   Sia library/memory/schedule tools through ActionGateway, with no CUA tools. Its instructions require
   ordinary app navigation: for Canvas, observed course cards followed by People or actual course
   materials, rather than raw API pages or guessed course IDs. API navigation is reserved for explicit

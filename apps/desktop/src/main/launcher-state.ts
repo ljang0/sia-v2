@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { DesktopSnapshot } from '../shared/bridge.js';
 import type { LauncherState } from '../shared/launcher.js';
 import { activityLabel } from '../shared/activity-label.js';
+import { latestTaskTurn } from './latest-task-turn.js';
 
 /** Only main can bind a target. A stale panel cannot reply to or stop a replacement task. */
 export class LauncherSession {
@@ -32,23 +33,12 @@ export class LauncherSession {
       return result;
     }
     const items = snapshot.timeline.filter((item) => item.threadId === thread.id);
-    const user = items.filter((item) => item.kind === 'user').at(-1);
+    const { user, activity, response } = latestTaskTurn(items);
     if (user && binding.userId !== user.id) {
       binding.userId = user.id;
       binding.sessionId = randomUUID();
     }
-    const current = items.filter(
-      (item) =>
-        user && item.sequence > user.sequence && (!user.turnId || item.turnId === user.turnId),
-    );
     const busy = thread.status === 'running' || thread.status === 'queued';
-    const activity = current
-      .filter((item) => item.kind === 'activity' && item.status === 'running')
-      .at(-1);
-    const response = current
-      .filter((item) => item.kind === 'assistant')
-      .map((item) => item.text ?? '')
-      .join('\n\n');
     result.task = {
       sessionId: binding.sessionId,
       agentId: thread.agentId,

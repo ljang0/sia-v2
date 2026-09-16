@@ -482,11 +482,11 @@ export class RuntimeCoordinator {
           thread.nativeTools !== 'disabled' ||
           ['assistant_library', 'memory_suggest'].includes(tool.name),
       );
-    const sessionTools = tools.filter((tool) =>
-      mac
-        ? macExecutionTools(thread.macBackgroundControl).includes(tool.name)
-        : tool.name !== 'computer_task_complete',
-    );
+    const sessionTools = mac
+      ? tools.filter((tool) =>
+          macExecutionTools(thread.macBackgroundControl).includes(tool.name),
+        )
+      : tools;
     const fingerprint = JSON.stringify([
       thread.provider,
       thread.model,

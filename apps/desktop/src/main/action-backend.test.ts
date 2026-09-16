@@ -956,24 +956,6 @@ describe('DesktopActionBackend computer boundary', () => {
     expect(readImageText).toHaveBeenCalledExactlyOnceWith('captured-image');
     const data = dataRecord(observed.data);
     expect(data.image_text).toBe('Instructor: Example Person');
-    expect(
-      (
-        await backend.invoke(
-          request('computer_task_complete', {
-            items: [
-              {
-                requirement: 'Read professor',
-                status: 'verified',
-                evidence_id: data.evidence_id,
-                kind: 'text',
-                quote: 'Instructor: Example Person',
-                finding: 'Example Person',
-              },
-            ],
-          }),
-        )
-      ).outcome,
-    ).toBe('refused'); // The retired checklist is not exposed in native Mac mode.
     protectedControl = true;
     await backend.invoke(request('computer_snapshot', { ...args, read_text: true }));
     expect(readImageText).toHaveBeenCalledTimes(1);
@@ -2549,7 +2531,7 @@ describe('Use my Mac browser routing', () => {
       request('computer_action', { ...args, action: 'click' }),
     );
     expect(result.outcome).toBe('accepted_unverified');
-    expect(dataRecord(result.data).evidence_id).toMatch(/^evidence:/);
+    expect(dataRecord(result.data).browser_origin).toBe('https://example.com');
     expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'click')).toHaveLength(1);
     expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state')).toHaveLength(
       3,
@@ -2570,7 +2552,7 @@ describe('Use my Mac browser routing', () => {
     );
     expect(result.outcome).toBe('accepted_unverified');
     expect(dataRecord(result.data).observation_pending).toBe(true);
-    expect(dataRecord(result.data).evidence_kind).toBe('blocker');
+    expect(dataRecord(result.data).previously_observed_windows).toHaveLength(1);
     expect(result.images).toBeUndefined();
     expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'click')).toHaveLength(1);
   });
@@ -2600,11 +2582,11 @@ describe('Use my Mac browser routing', () => {
     );
     expect(result.outcome).toBe('accepted_unverified');
     expect(dataRecord(result.data).observation_pending).toBe(true);
-    expect(dataRecord(result.data).evidence_kind).toBe('blocker');
+    expect(dataRecord(result.data).previously_observed_windows).toHaveLength(1);
     expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'click')).toHaveLength(1);
   });
 
-  it('bounds loading observations and does not admit the loading preview as evidence', async () => {
+  it('bounds loading observations and excludes them from recovery targets', async () => {
     const h = browserHarness();
     const target = await grantedComputerTarget(h.backend);
     const implementation = h.cua.call.getMockImplementation() as (
@@ -2630,7 +2612,7 @@ describe('Use my Mac browser routing', () => {
       request('computer_snapshot', { app_id: target.appId, window_id: target.windowId }),
     );
     expect(dataRecord(result.data).loading).toBe(true);
-    expect(dataRecord(result.data).evidence_kind).toBe('blocker');
+    expect(dataRecord(result.data).previously_observed_windows).toEqual([]);
     expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state')).toHaveLength(
       3,
     );

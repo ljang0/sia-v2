@@ -114,7 +114,8 @@ export class NativeSkills {
       .replace(/^-|-$/g, '')
       .slice(0, 80);
     if (!name) throw new Error('Give this skill a name containing letters or numbers.');
-    const header = `#!/bin/bash\n# skill: ${name}\n# description: ${input.description.replace(/[\r\n]+/g, ' ')}\n`;
+    const title = input.title.replace(/[\r\n]+/g, ' ').trim();
+    const header = `#!/bin/bash\n# skill: ${title}\n# description: ${input.description.replace(/[\r\n]+/g, ' ')}\n`;
     const source =
       header +
       input.source

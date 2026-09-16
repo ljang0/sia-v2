@@ -1,5 +1,6 @@
 import { MemorySuggestions } from './MemorySuggestions';
 import { ExecutableSkills } from './ExecutableSkills';
+import { skillExecutionMode } from '../../../shared/skill-execution';
 import { useEffect, useState } from 'react';
 import type { RendererApi } from '../../types';
 import type {
@@ -18,14 +19,17 @@ const empty: AssistantLibraryView = {
 export function AssistantSettings({
   agents,
   accessMode = 'connected',
+  backgroundControl = false,
   api,
   onRun,
 }: {
   agents: readonly { id: string; name: string }[];
   accessMode?: 'mac' | 'connected';
+  backgroundControl?: boolean;
   api: Pick<RendererApi, 'assistantLibrary'>;
   onRun(threadId: string): void;
 }) {
+  const skillMode = skillExecutionMode({ accessMode, backgroundControl });
   const [section, setSection] = useState('General');
   const [library, setLibrary] = useState(empty);
   const [agentId, setAgentId] = useState(agents[0]?.id ?? '');
@@ -624,11 +628,11 @@ export function AssistantSettings({
         </div>
         <div className={styles.section} hidden={section !== 'Skills'}>
           <ExecutableSkills
-            key={agentId}
+            key={`${agentId}:${skillMode}`}
             library={library}
             agentId={agentId}
             command={command}
-            accessMode={accessMode}
+            mode={skillMode}
           />
         </div>
       </fieldset>

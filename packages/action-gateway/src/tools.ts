@@ -54,36 +54,6 @@ const sheetWriteInputSchema = (append: boolean): Record<string, unknown> =>
   );
 
 const computerList = z.object({}).strict();
-const computerTaskComplete = z
-  .object({
-    items: z
-      .array(
-        z.discriminatedUnion('status', [
-          z
-            .object({
-              requirement: z.string().trim().min(1).max(300),
-              status: z.literal('verified'),
-              evidence_id: id,
-              kind: z.enum(['text', 'visual']),
-              quote: z.string().trim().max(2000),
-              finding: z.string().trim().min(1).max(2000),
-            })
-            .strict(),
-          z
-            .object({
-              requirement: z.string().trim().min(1).max(300),
-              status: z.literal('blocked'),
-              evidence_id: id,
-              quote: z.string().trim().min(1).max(2000),
-              reason: z.string().trim().min(1).max(1000),
-            })
-            .strict(),
-        ]),
-      )
-      .min(1)
-      .max(100),
-  })
-  .strict();
 const computerOpenApp = z
   .object({
     application: z
@@ -531,7 +501,6 @@ export const actionInputSchemas = {
   skill_run: skillRun,
   mac_automation: macAutomation,
   computer_list: computerList,
-  computer_task_complete: computerTaskComplete,
   computer_open_app: computerOpenApp,
   computer_open_url: computerOpenUrl,
   computer_snapshot: computerSnapshot,
@@ -602,13 +571,6 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
       'Create or edit a UTF-8 txt/md/csv/tsv/json report in the task workspace without opening an app. Pass its name and complete text (up to 256 KB). To edit an existing file, first read it and pass its returned sha256 as expected_sha256; a changed revision is refused. Without expected_sha256, an existing file is never overwritten. Returns data.path, data.sha256 and data.text read back from disk. Verify the content before reporting success or returning output_file.',
     inputSchema: z.toJSONSchema(computerWriteFile),
     annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
-  },
-  computer_task_complete: {
-    name: 'computer_task_complete',
-    description:
-      'Before finishing a Use my Mac app task, account for EVERY requested item. For each verified finding cite an evidence_id from this turn and an exact quote from that observation (kind text), or describe a nonfactual action outcome visible in its screenshot (kind visual, empty quote). Numbers, dates, names and document facts require text evidence; reported numbers must occur in the cited text. For document facts use text evidence after reading the document, never its title or a loading preview. For unresolved requirements report blocked with evidence_id, an exact quote, and the observed reason. When citing a host refusal, reason must be verbatim from the quote; it applies only to that window. Evidence checks validate observation ownership and quoted text, not the truth of an inference. Only report findings supported by the cited observation. Do not use memory or public sources as substitutes for account-specific evidence.',
-    inputSchema: z.toJSONSchema(computerTaskComplete),
-    annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
   },
   assistant_library: {
     name: 'assistant_library',

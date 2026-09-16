@@ -38,6 +38,15 @@ it('exposes only the bound current turn and rejects stale or removed targets', (
   const session = new LauncherSession();
   session.bind('thread');
   const state = snapshot();
+  state.timeline.push({
+    id: 'late-old-response',
+    threadId: 'thread',
+    turnId: 'old',
+    sequence: 4,
+    kind: 'assistant',
+    text: 'Late response from a previous turn',
+    timestamp: '',
+  });
   const view = session.view(state);
   expect(view.agents).toEqual([{ id: 'agent', name: 'Personal' }]);
   expect(view.task?.response).toBe('Latest response');

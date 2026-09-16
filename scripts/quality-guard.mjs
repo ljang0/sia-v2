@@ -17,7 +17,6 @@ const expectedActionTools = [
   'mac_automation',
   'computer_list',
   'computer_snapshot',
-  'computer_task_complete',
   'computer_action',
   'computer_open_app',
   'computer_open_url',

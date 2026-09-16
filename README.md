@@ -8,7 +8,8 @@ Sia accounts, or the user's existing Codex plan through Codex's official ChatGPT
 through the Codex App Server harness. Users do not paste model API keys into Sia.
 
 Google Workspace, Slack, signed-in Chrome, Apple Messages, computer use, and app-open schedules are
-optional capabilities. Host-side changes ask for confirmation by default. Research capture is a
+optional capabilities. Onboarding offers confirmation and full-bypass modes, with Use my Mac + full
+bypass selected initially. Choose confirmations for supervised testing. Research capture is a
 separate opt-in program and is not enabled by joining the pilot.
 
 ## Start developing

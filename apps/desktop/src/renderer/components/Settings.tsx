@@ -266,6 +266,7 @@ export function Settings({
           {section === 'assistant' && assistantApi && (
             <AssistantSettings
               accessMode={snapshot.computer.accessMode ?? 'connected'}
+              backgroundControl={snapshot.computer.backgroundControl ?? false}
               agents={snapshot.agents}
               api={assistantApi}
               onRun={onRunWorkflow ?? (() => undefined)}

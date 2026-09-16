@@ -5,6 +5,7 @@ import {
   NATIVE_MEMORY_REVIEW_PROMPT,
 } from './memory-suggestions.js';
 import { NativeSkills } from './native-skills.js';
+import { skillExecutionMode, skillUnavailableReason } from '../shared/skill-execution.js';
 import type { MacTaskResult } from './mac-execution.js';
 import { AssistantLibrary, DESKTOP_EXECUTION_GUIDANCE } from './assistant-library.js';
 import { createHash, randomUUID } from 'node:crypto';
@@ -1476,19 +1477,14 @@ export class DesktopController {
         if (command.operation === 'runSkill') {
           const skill = this.#libraryView().skills?.find((entry) => entry.id === command.id);
           if (!skill) throw new Error('This skill was deleted.');
-          if (
-            skill.execution === 'native' &&
-            (this.computerAccessMode() !== 'mac' || this.macBackgroundControl())
-          )
-            throw new Error('Choose On my screen in Settings → Computer to run native skills.');
-          if (
-            skill.execution !== 'native' &&
-            this.computerAccessMode() === 'mac' &&
-            !this.macBackgroundControl()
-          )
-            throw new Error(
-              'This skill uses gateway tools. Choose Background or Connected apps, or create a native skill for On my screen.',
-            );
+          const unavailable = skillUnavailableReason(
+            skillExecutionMode({
+              accessMode: this.computerAccessMode(),
+              backgroundControl: this.macBackgroundControl(),
+            }),
+            skill.execution,
+          );
+          if (unavailable) throw new Error(unavailable);
           const { threadId } = this.#createThread({
             agentId: skill.agentId,
             title: skill.title,

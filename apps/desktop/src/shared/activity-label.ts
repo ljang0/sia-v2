@@ -11,7 +11,6 @@ export function activityLabel(tool: string | undefined, kind?: string): string {
     computer_open_app: 'Opening an app',
     computer_open_url: 'Opening a website',
     computer_snapshot: 'Checking the app window',
-    computer_task_complete: 'Checking task evidence',
     computer_action: 'Working in the app',
     browser_tabs: 'Finding browser tabs',
     browser_snapshot: 'Reading the page',

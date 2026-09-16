@@ -9,6 +9,7 @@ import type {
   ScottyTask,
 } from '../shared/scotty.js';
 import { activityLabel } from '../shared/activity-label.js';
+import { latestTaskTurn } from './latest-task-turn.js';
 
 export const scottyCommand = z.discriminatedUnion('operation', [
   z.object({ operation: z.enum(['status', 'show', 'hide', 'resetPosition']) }).strict(),
@@ -92,13 +93,7 @@ export class ScottyTasks {
     const tasks = threads
       .map((thread): ScottyTask & { updatedAt: string } => {
         const items = itemsByThread.get(thread.id) ?? [];
-        const user = items.findLast((item) => item.kind === 'user');
-        const current = items.filter(
-          (item) =>
-            user &&
-            item.sequence > user.sequence &&
-            (!user.turnId || item.turnId === user.turnId),
-        );
+        const { user, current, activity, response } = latestTaskTurn(items);
         const approval = snapshot.approvals.find(
           (item) => item.threadId === thread.id && item.status === 'pending',
         );
@@ -128,13 +123,6 @@ export class ScottyTasks {
                 : thread.unread
                   ? 'ready'
                   : 'idle';
-        const activity = current.findLast(
-          (item) => item.kind === 'activity' && item.status === 'running',
-        );
-        const response = current
-          .filter((item) => item.kind === 'assistant')
-          .map((item) => item.text ?? '')
-          .join('\n\n');
         const cancelled = current.some(
           (item) =>
             item.kind === 'notice' &&

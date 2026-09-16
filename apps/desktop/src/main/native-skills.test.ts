@@ -36,7 +36,9 @@ it('discovers Notch-format scripts afresh across restarts and edits without exec
     source: `touch '${marker}'\n`,
   });
   expect(statSync(saved.path!).mode & 0o777).toBe(0o700);
-  expect(saved.source).toContain('# skill: inspect-finder');
+  expect(saved.title).toBe('Inspect Finder');
+  expect(saved.source).toContain('# skill: Inspect Finder');
+  expect(saved.path).toMatch(/\/inspect-finder\.sh$/);
   expect(registry.prompt()).toContain('inspect-finder');
   const restarted = new NativeSkills(root, agentId);
   expect(restarted.list()).toEqual([saved]);

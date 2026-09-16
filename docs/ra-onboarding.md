@@ -189,7 +189,9 @@ works through the existing Safari or supported browser window without Chrome att
 **Connected apps** offers the existing Chrome window picker. Browser grants are process-local, so they are created
 after the restart rather than revived from disk. Buttons for Gmail, Drive, Docs, Sheets, Slides,
 and Slack open the chosen site through the existing origin-grant route. Users complete website
-sign-ins themselves; an attached window is not presented as proof of an authenticated inbox. Setup does not change the default action-confirmation policy or research consent.
+sign-ins themselves; an attached window is not presented as proof of an authenticated inbox.
+The welcome screen's access choice sets the initial action-confirmation policy; subsequent
+permission steps preserve that choice. Research consent remains separate.
 
 Progress is saved with encrypted local preferences and resumes after relaunch. Creating
 the starter and advancing the guide are saved together. The practice prompt fills an empty
@@ -275,7 +277,8 @@ open and the Mac awake/unlocked. These reviews cannot access apps or run scripts
 minutes. Turn the setting off to cancel a running review. Model quality should be checked on your
 real tasks; deterministic tests verify the routing and review protections without consuming a plan.
 
-In **Connected apps**, under **Executable skills**, save or edit Bash source, or ask your agent to make a task reusable.
+In **Connected apps** or **Use my Mac → Background**, under **Executable skills**, save or edit
+Bash source, or ask your agent to make a task reusable.
 Each skill belongs to an agent. **Run skill** accepts up to 12 text inputs as JSON and starts a
 conversation that requests approval for the current source. Saving does not execute it. Even
 trusted mode asks for source review. `SIA_INPUT` contains input JSON; `sia_action TOOL JSON_ARGS`
@@ -292,13 +295,14 @@ A run stops on refused or unverified results, after 32 actions, on cancellation,
 minutes. Completed external actions are preserved, so inspect them before retrying. This is a
 curated adaptation of Notch's executable skills, not unrestricted host Bash.
 
-In **Use my Mac**, native skills use Notch's filesystem implementation. Sia discovers
+In **Use my Mac → On my screen**, native skills use Notch's filesystem implementation. Sia discovers
 `.sia-mac/skills/*.sh` in the agent workspace before every request and shows them under
 **Settings → Assistant → Skills**. Scripts have `#!/bin/bash`, `# skill: <name>` and
 `# description: <when to use it>` headers. They use ordinary Bash/AppleScript and script
 arguments. A matching task can reuse a script after reading its current source; each result
 still needs verification. Saving never executes a script, and native runs follow the selected
-action approval mode. Choose **On my screen** under Settings → Computer to run native scripts.
+action approval mode. The skill name is preserved in the header; the filename uses a slug.
+Skills for a different execution mode remain listed with instructions for switching modes.
 
 Enable **Settings → Assistant → Memory → Notch-style learning** to complete the automatic
 learning cycle: brief request/result/step summaries and failures enter the encrypted journal;
