@@ -708,7 +708,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
         include_image: {
           type: 'boolean',
           description:
-            'Background native windows default to fresh accessibility/text. Browser windows retain images by default to cross-check web content. Set true for visual verification, missing or ambiguous content, or before pixel input. read_text also captures an image. Pixel actions require an image from this snapshot.',
+            'Background native windows default to fresh accessibility/text and capture an image if accessibility is empty, unless explicitly false. Browser windows retain images by default to cross-check web content. Set true for visual verification, missing or ambiguous content, or before pixel input. read_text also captures an image. Pixel actions require an image from this snapshot.',
         },
         wait_ms: {
           type: 'integer',

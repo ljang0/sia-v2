@@ -95,6 +95,7 @@ export class CuaService {
   readonly #callTimeoutMs: number;
   readonly #driverFactory: (() => DriverLike | Promise<DriverLike>) | undefined;
   #driver: DriverLike | undefined;
+  #driverGeneration = 0;
   #callTail: Promise<void> = Promise.resolve();
   #authorizationContext: CuaAuthorizationContext | undefined;
 
@@ -156,11 +157,11 @@ export class CuaService {
     signal?: AbortSignal,
   ): Promise<unknown> {
     if (!CUA_TOOLS.has(tool)) throw new Error(`CUA tool ${tool} is not exposed by Sia.`);
+    signal?.throwIfAborted();
     const previous = this.#callTail;
     const next = Promise.withResolvers<void>();
     this.#callTail = next.promise;
-    await previous;
-    this.#authorizationContext = context;
+    let ownsQueue = false;
     const operation = new AbortController();
     const timeoutError = new Error(
       `CUA tool ${tool} timed out after ${this.#callTimeoutMs} ms.`,
@@ -176,34 +177,75 @@ export class CuaService {
     }, this.#callTimeoutMs);
     timer.unref();
     try {
+      // Waiting for another call must be cancellable too. A cancelled waiter
+      // retains its place until that call ends, so subsequent calls cannot race it.
+      await waitForAbort(previous, operation.signal);
+      ownsQueue = true;
+      this.#authorizationContext = context;
       driver = await waitForAbort(this.#getDriver(), operation.signal);
-      const result = await waitForAbort(
-        Promise.resolve().then(
-          async () =>
-            await driver!.callTool(tool, JSON.stringify(args), {
-              signal: operation.signal,
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const result = await waitForAbort(
+            Promise.resolve().then(async () => {
+              operation.signal.throwIfAborted();
+              return await driver!.callTool(tool, JSON.stringify(args), {
+                signal: operation.signal,
+              });
             }),
-        ),
-        operation.signal,
-      );
-      if (result.errorCode) throw new Error(`CUA refused: ${result.errorCode}`);
-      const json = result.structuredJson ?? result.rawJson;
-      try {
-        const parsed = JSON.parse(json) as unknown;
-        return withDriverImages(parsed, result.images);
-      } catch {
-        return withDriverImages({ text: json }, result.images);
+            operation.signal,
+          );
+          if (result.errorCode) throw new Error(`CUA refused: ${result.errorCode}`);
+          const json = result.structuredJson ?? result.rawJson;
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(json) as unknown;
+          } catch {
+            parsed = { text: json };
+          }
+          if (
+            typeof parsed === 'object' &&
+            parsed !== null &&
+            'error_code' in parsed &&
+            parsed.error_code === 'session_ended'
+          )
+            throw new Error('CUA refused: session_ended');
+          return withDriverImages(parsed, result.images);
+        } catch (error) {
+          // The SDK's implicit inspection session expires while Sia stays open.
+          // Renew only unscoped, read-only inventory. Never replay input or revive
+          // an explicitly ended named/browser session under a new authority.
+          if (
+            attempt !== 0 ||
+            !['list_apps', 'list_windows'].includes(tool) ||
+            args.session !== undefined ||
+            operation.signal.aborted ||
+            !(error instanceof Error) ||
+            !/^(?:CUA refused: )?session_ended$/.test(error.message)
+          )
+            throw error;
+          this.#retireDriver(driver);
+          driver = await waitForAbort(this.#getDriver(), operation.signal);
+        }
       }
     } finally {
       clearTimeout(timer);
       signal?.removeEventListener('abort', abortFromCaller);
-      if (operation.signal.aborted && driver) this.#retireDriver(driver);
-      this.#authorizationContext = undefined;
-      next.resolve();
+      if (ownsQueue) {
+        if (operation.signal.aborted) {
+          const cancelledDriver = this.#driver;
+          if (cancelledDriver) this.#retireDriver(cancelledDriver);
+          else this.#driverGeneration++;
+        }
+        this.#authorizationContext = undefined;
+        next.resolve();
+      } else {
+        void previous.then(() => next.resolve());
+      }
     }
   }
 
   async shutdown(): Promise<void> {
+    this.#driverGeneration++;
     const driver = this.#driver;
     this.#driver = undefined;
     if (!driver) return;
@@ -213,10 +255,17 @@ export class CuaService {
 
   async #getDriver(): Promise<DriverLike> {
     if (this.#driver) return this.#driver;
-    if (this.#driverFactory) {
-      this.#driver = await this.#driverFactory();
-      return this.#driver;
+    const generation = this.#driverGeneration;
+    const driver = await (this.#driverFactory?.() ?? this.#createDriver());
+    if (generation !== this.#driverGeneration) {
+      this.#disposeDriver(driver);
+      throw new Error('CUA driver initialization was cancelled.');
     }
+    this.#driver = driver;
+    return driver;
+  }
+
+  async #createDriver(): Promise<DriverLike> {
     const cua = await import('@trycua/cua-driver');
     const authorization = cua.RuntimeAuthorizationOptions.new({
       allowedModes: [cua.SessionPermissionMode.Standard, cua.SessionPermissionMode.Bounded],
@@ -259,16 +308,17 @@ export class CuaService {
         });
       },
     };
-    this.#driver = cua.CuaDriver.createConfiguredWithAuthorizationHost(
-      options,
-      host,
-    ) as DriverLike;
-    return this.#driver;
+    return cua.CuaDriver.createConfiguredWithAuthorizationHost(options, host) as DriverLike;
   }
 
   #retireDriver(driver: DriverLike): void {
     if (this.#driver !== driver) return;
     this.#driver = undefined;
+    this.#driverGeneration++;
+    this.#disposeDriver(driver);
+  }
+
+  #disposeDriver(driver: DriverLike): void {
     void Promise.resolve()
       .then(async () => await driver.shutdown())
       .catch(() => undefined)
@@ -283,7 +333,12 @@ export class CuaService {
 }
 
 async function waitForAbort<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) throw signal.reason ?? new Error('CUA action cancelled.');
+  if (signal.aborted) {
+    // The operation may already be in flight. Drain its eventual rejection even
+    // when cancellation wins before this waiter attaches its normal handlers.
+    void operation.catch(() => undefined);
+    throw signal.reason ?? new Error('CUA action cancelled.');
+  }
   return await new Promise<T>((resolve, reject) => {
     const abort = (): void => {
       cleanup();

@@ -181,6 +181,13 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   announcements, with source links and explicit coverage gaps. Neither an empty calendar nor a
   successful screenshot establishes task completion. The opt-in course investigation smoke tests
   this with real Codex and an entirely synthetic, dynamic-tool-only browser fixture.
+  Account discovery uses observed tabs and the service's full account switcher, including scrolling,
+  instead of guessing Google account slot URLs. A spoken organization name may identify an account
+  whose primary calendar has the person's name. Before calendar writes, the model must verify the
+  live account, destination and existing events; a partial list cannot establish global absence.
+  Campus abbreviations are reconciled with established institution context before navigation.
+  A window observation failure is not evidence that the account needs sign-in. These discovery
+  requirements are shared model instructions, not deterministic guarantees of model behavior.
   Every Mac turn receives the current local date/time and timezone, including after a session
   resumes. A structured unsuccessful task result ends as needing attention across desktop,
   phone, schedules, journal and notifications, even when Codex completed its response normally.
@@ -190,6 +197,9 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   reads the chosen app without taking focus or substituting another app; it has a bounded
   1,200-node, 28-level, 12,000-character, two-second budget. Truncated or timed-out reads
   are explicitly partial evidence. Fn retains its shorter capture budget.
+  Browser page identity, when exposed by accessibility, precedes the bounded outline so truncation
+  does not erase the observed origin/account path. Queries and fragments are omitted; authentication
+  paths are reduced to their origin. Missing identity still requires fresh app inspection.
   `SiaVoiceHelper --mac-screenshot` captures one display on demand and normalizes its Retina image
   to logical point dimensions, bounded to 1920×1200. It returns the display origin and exact
   points-per-image-pixel transform. The native prompt uses this command for observation and
@@ -235,6 +245,16 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   fresh post-action image and cannot use a text-only snapshot. Right-clicks use a current element or
   screenshot target; double-clicks require screenshot coordinates. Dropdown selection uses the
   driver's `set_value` support. Browser tab shortcuts are restricted to ordinary navigation.
+  Empty background accessibility automatically requests one image unless the caller explicitly
+  selected text-only output. Protected/refused reads never use this fallback, and unavailable
+  screenshots never grant pixel input. An unconfirmed delivery with a foreground escalation
+  suggestion still receives post-action observation: the input may already have worked. The model
+  inspects that result before declaring failure or choosing another observed control; Sia never
+  automatically retries the input in the foreground.
+  Driver calls have a deadline covering queue wait and execution. Cancelled waiters return promptly
+  without overtaking the active call; late initialization cannot replace a recovered driver.
+  An expired implicit SDK session renews once for unscoped read-only app/window inventory. Named
+  sessions, permission refusals and writes are never replayed by that recovery path.
   **Pause and tell me** is the default fallback. RuntimeCoordinator pins `backgroundOnly` in the
   host's turn context; ActionGateway rejects explicit foreground input/opening before approval or
   dispatch. A model cannot change that context with tool arguments. The optional **Allow brief

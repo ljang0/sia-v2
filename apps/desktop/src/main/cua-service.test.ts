@@ -15,7 +15,11 @@ function authorization() {
 
 function successfulDriver(value: unknown) {
   return {
-    callTool: vi.fn(async () => ({ rawJson: JSON.stringify(value) })),
+    callTool: vi.fn(
+      async (_name: string, _args: string, _options?: { signal: AbortSignal }) => ({
+        rawJson: JSON.stringify(value),
+      }),
+    ),
     shutdown: vi.fn(async () => undefined),
   };
 }
@@ -25,6 +29,128 @@ afterEach(() => {
 });
 
 describe('CuaService call boundaries', () => {
+  it.each(['errorCode', 'structured', 'thrown'] as const)(
+    'renews an expired implicit inventory session once: %s',
+    async (shape) => {
+      const expired = successfulDriver({ error_code: 'session_ended' });
+      if (shape === 'errorCode')
+        expired.callTool.mockResolvedValue({ rawJson: '{}', errorCode: 'session_ended' } as {
+          rawJson: string;
+        });
+      if (shape === 'thrown')
+        expired.callTool.mockRejectedValue(new Error('CUA refused: session_ended'));
+      const healthy = successfulDriver({ apps: [{ pid: 42, name: 'Calculator' }] });
+      const factory = vi.fn().mockReturnValueOnce(expired).mockReturnValueOnce(healthy);
+      const service = new CuaService(authorization(), { driverFactory: factory });
+      expect(await service.call('list_apps', {}, directContext)).toEqual({
+        apps: [{ pid: 42, name: 'Calculator' }],
+      });
+      expect(expired.callTool).toHaveBeenCalledOnce();
+      expect(healthy.callTool).toHaveBeenCalledOnce();
+      expect(expired.shutdown).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each([
+    { tool: 'click', args: {}, code: 'session_ended' },
+    { tool: 'list_apps', args: { session: 'explicitly-ended' }, code: 'session_ended' },
+    { tool: 'list_apps', args: {}, code: 'permission_denied' },
+  ])('does not renew authority or replay $tool after $code', async ({ tool, args, code }) => {
+    const driver = successfulDriver({});
+    driver.callTool.mockRejectedValue(new Error(`CUA refused: ${code}`));
+    const factory = vi.fn(() => driver);
+    const service = new CuaService(authorization(), { driverFactory: factory });
+    await expect(service.call(tool, args, directContext)).rejects.toThrow(code);
+    expect(driver.callTool).toHaveBeenCalledOnce();
+    expect(factory).toHaveBeenCalledOnce();
+    expect(driver.shutdown).not.toHaveBeenCalled();
+  });
+
+  it('bounds recovery when a replacement inventory session is also ended', async () => {
+    const factory = vi.fn(() => successfulDriver({ error_code: 'session_ended' }));
+    const service = new CuaService(authorization(), { driverFactory: factory });
+    await expect(service.call('list_windows', {}, directContext)).rejects.toThrow(
+      'session_ended',
+    );
+    expect(factory).toHaveBeenCalledTimes(2);
+  });
+
+  it('cancels a queued call promptly without letting a later call overtake the active one', async () => {
+    vi.useFakeTimers();
+    const first = Promise.withResolvers<{ rawJson: string }>();
+    const driver = successfulDriver({ done: true });
+    driver.callTool.mockImplementationOnce(() => first.promise);
+    const service = new CuaService(authorization(), { driverFactory: () => driver });
+    const active = service.call('list_apps', {}, directContext);
+    await vi.advanceTimersByTimeAsync(0);
+    const abort = new AbortController();
+    const queued = service.call('click', {}, directContext, abort.signal);
+    let cancelled = false;
+    const handled = queued.catch(() => {
+      cancelled = true;
+    });
+    const last = service.call('list_windows', {}, directContext);
+    abort.abort(new Error('Cancelled while queued.'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(cancelled).toBe(true);
+    expect(driver.callTool).toHaveBeenCalledTimes(1);
+    first.resolve({ rawJson: '{}' });
+    await Promise.all([active, handled, last]);
+    expect(driver.callTool.mock.calls.map(([name]) => name)).toEqual([
+      'list_apps',
+      'list_windows',
+    ]);
+  });
+
+  it('disposes a late driver initialization instead of replacing the recovered driver', async () => {
+    vi.useFakeTimers();
+    const initializing = Promise.withResolvers<ReturnType<typeof successfulDriver>>();
+    const old = successfulDriver({ old: true });
+    const fresh = successfulDriver({ fresh: true });
+    const factory = vi
+      .fn()
+      .mockReturnValueOnce(initializing.promise)
+      .mockReturnValueOnce(fresh);
+    const service = new CuaService(authorization(), {
+      callTimeoutMs: 25,
+      driverFactory: factory,
+    });
+    const starting = service.call('list_apps', {}, directContext);
+    const failure = expect(starting).rejects.toThrow('timed out');
+    await vi.advanceTimersByTimeAsync(25);
+    await failure;
+    expect(await service.call('list_apps', {}, directContext)).toEqual({ fresh: true });
+    initializing.resolve(old);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await service.call('list_windows', {}, directContext)).toEqual({ fresh: true });
+    expect(old.callTool).not.toHaveBeenCalled();
+    expect(old.shutdown).toHaveBeenCalledOnce();
+  });
+
+  it('also retires initialization that times out while replacing an expired session', async () => {
+    vi.useFakeTimers();
+    const late = Promise.withResolvers<ReturnType<typeof successfulDriver>>();
+    const expired = successfulDriver({ error_code: 'session_ended' });
+    const stale = successfulDriver({ stale: true });
+    const healthy = successfulDriver({ healthy: true });
+    const factory = vi
+      .fn()
+      .mockReturnValueOnce(expired)
+      .mockReturnValueOnce(late.promise)
+      .mockReturnValueOnce(healthy);
+    const service = new CuaService(authorization(), {
+      callTimeoutMs: 25,
+      driverFactory: factory,
+    });
+    const pending = service.call('list_apps', {}, directContext);
+    const failure = expect(pending).rejects.toThrow('timed out');
+    await vi.advanceTimersByTimeAsync(25);
+    await failure;
+    late.resolve(stale);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(stale.shutdown).toHaveBeenCalledOnce();
+    expect(await service.call('list_apps', {}, directContext)).toEqual({ healthy: true });
+  });
   it('forwards the exact-value primitive used by background form replacement', async () => {
     const driver = successfulDriver({ effect: 'confirmed' });
     const service = new CuaService(authorization(), {

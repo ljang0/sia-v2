@@ -21,6 +21,7 @@ struct ScreenContext {
     var processID: pid_t = 0
     var isFrontmost = true
     var isPartial = false
+    var pageURL: String?
 
     /// The block injected into the agent prompt.
     var promptBlock: String {
@@ -28,6 +29,7 @@ struct ScreenContext {
         lines.append("\(isFrontmost ? "Frontmost app" : "Target app (not frontmost)"): \(appName) (\(bundleID)), pid \(processID)")
         if isPartial { lines.append("PARTIAL accessibility snapshot: some content was omitted or could not be read. Inspect further; absence here is not evidence of absence in the app.") }
         if !windowTitle.isEmpty { lines.append("Window: \(windowTitle)") }
+        if let pageURL { lines.append("Observed page: \(pageURL)") }
         if let focused = focusedElement, !focused.isEmpty { lines.append("Focused element: \(focused)") }
         if let selected = selectedText, !selected.isEmpty { lines.append("Selected text: \"\(selected)\"") }
         if !outline.isEmpty {
@@ -44,6 +46,7 @@ final class ScreenContextProvider {
     // Budgets keep capture fast and the prompt small.
     private var deadline = Date.distantFuture
     private var partial = false
+    private var pageURL: String?
     // Tables can expose the same cells through both rows and columns. AX trees
     // can also contain back-references. Read each element once per snapshot.
     private var visited = Set<AXUIElement>()
@@ -80,6 +83,7 @@ final class ScreenContextProvider {
 
         guard !["password", "keychain", "bitwarden", "lastpass", "dashlane", "authenticator"].contains(where: { (app.bundleIdentifier ?? "").lowercased().contains($0) }) else { return nil }
         partial = false
+        pageURL = nil
         visited.removeAll(keepingCapacity: true)
         deadline = Date().addingTimeInterval(detailed ? 2.0 : 0.6)
         let axApp = AXUIElementCreateApplication(app.processIdentifier)
@@ -94,6 +98,9 @@ final class ScreenContextProvider {
             ?? firstElement(of: axApp, attribute: kAXWindowsAttribute) else { return nil }
 
         let windowTitle: String = copyAttr(window, kAXTitleAttribute) ?? ""
+        if let document: String = copyAttr(window, kAXDocumentAttribute) {
+            pageURL = Self.pageIdentity(document)
+        }
 
         // Selected text + focused element, the highest-signal pieces.
         var selectedText: String?
@@ -120,7 +127,8 @@ final class ScreenContextProvider {
             outline: lines.joined(separator: "\n"),
             processID: app.processIdentifier,
             isFrontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier,
-            isPartial: partial || Date() >= deadline
+            isPartial: partial || Date() >= deadline,
+            pageURL: pageURL
         )
     }
 
@@ -160,6 +168,12 @@ final class ScreenContextProvider {
         let role: String = copyAttr(element, kAXRoleAttribute) ?? ""
         let subrole: String = copyAttr(element, kAXSubroleAttribute) ?? ""
         guard !(role + subrole).lowercased().contains("secure") else { return }
+        // Page identity must survive outline truncation. Reading an intended URL
+        // or an old tab title is not evidence that navigation reached that site.
+        if role == "AXWebArea", pageURL == nil {
+            if let url: URL = copyAttr(element, "AXURL") { pageURL = Self.pageIdentity(url.absoluteString) }
+            else if let url: String = copyAttr(element, "AXURL") { pageURL = Self.pageIdentity(url) }
+        }
 
         if let label = Self.contentRoles[role], let line = contentLine(element, label: label) {
             let indent = String(repeating: "  ", count: min(depth, 6))
@@ -179,6 +193,20 @@ final class ScreenContextProvider {
             guard Date() < deadline, nodeCount < maxNodes, charCount < maxOutlineChars else { partial = true; return }
             walk(child, depth: depth + 1, lines: &lines, nodeCount: &nodeCount, charCount: &charCount)
         }
+    }
+
+    static func pageIdentity(_ value: String) -> String? {
+        guard var url = URLComponents(string: value),
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              let host = url.host, !host.isEmpty,
+              url.user == nil, url.password == nil else { return nil }
+        // Never promote OAuth material, search contents or token fragments into
+        // the always-visible identity header. Authentication paths need only origin.
+        url.query = nil; url.fragment = nil
+        if url.path.utf8.count > 300 || url.path.range(of: "(?i)(?:^|/)(?:auth|oauth|saml2?|login|signin|sign-in|token|reset|password)(?:/|$)", options: .regularExpression) != nil {
+            url.path = ""
+        }
+        return url.string
     }
 
     // A clipped date or value must not look like a complete observed fact.
@@ -261,7 +289,7 @@ final class ScreenContextProvider {
 extension ScreenContext {
     var siaContext: [String: String] {
         var value = ["app": FnContext.bounded(appName, 160), "bundleID": FnContext.bounded(bundleID, 200),
-                     "window": FnContext.bounded(windowTitle, 300), "outline": FnContext.bounded((isPartial ? "PARTIAL accessibility snapshot. Inspect further.\n" : "") + outline, 2800)]
+                     "window": FnContext.bounded(windowTitle, 300), "outline": FnContext.bounded((pageURL.map { "Observed page: \($0)\n" } ?? "") + (isPartial ? "PARTIAL accessibility snapshot. Inspect further.\n" : "") + outline, 2800)]
         if let selectedText { value["selectedText"] = FnContext.bounded(selectedText, 1200) }
         return value
     }

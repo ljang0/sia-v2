@@ -79,15 +79,23 @@ repairing an existing report with a fresh revision.
 This test approves generated skills only inside its disposable fixture; normal exact-source
 approval remains in the app. It does not validate live window input.
 
-Current background validation: Astra completed that full disposable workflow. Sol created the
-report but still stalled in the skill workflow, including after a successful library read and
-before saving a script. Earlier runs also exposed JSON-construction errors and a blocked script;
-the JSON helpers and script inactivity diagnostic address those specific failures, not every model
-stall. The live GUI matrix remains unverified for these changes because the Mac was locked.
-Do not describe this as all-app parity or equal reliability across models.
-Build, formatting, quality and type checks passed, as did the focused affected tests. Full
-`pnpm check` attempts also encountered Vitest worker startup/termination failures; a clean full
-gate remains pending.
+The opt-in [background recovery smoke](../apps/desktop/src/main/background-recovery.smoke.test.ts)
+uses real Codex with an in-memory browser and no real account or host actions. Run it with
+`SIA_CODEX_REAL_SMOKE=1 SIA_BACKGROUND_RECOVERY_SMOKE=1` and an offered `SIA_SMOKE_MODEL`.
+It checks a spoken campus abbreviation against saved institution context, reports an unavailable
+window without inventing a login blocker, and finds a dictated workplace through an account
+switcher with eight accounts rather than guessed Google account slot URLs. These cases passed with
+GPT-6 Astra; they validate model behavior in controlled fixtures, not live browser reliability.
+
+Current background validation: Astra completed the disposable file/skill workflow. Sol created the
+report but stalled in the skill workflow. A live Calculator attempt produced the correct displayed
+result despite an unconfirmed driver delivery; the host now observes that result instead of treating
+an escalation suggestion as proof of failure. Regression tests cover that distinction, automatic
+image capture for empty accessibility, cancelled queue waiters, late driver initialization and
+read-only recovery from an expired implicit session. The subsequent live Calculator/TextEdit
+checks remained blocked by off-Space/unresolved windows. The full live GUI matrix is still
+unverified; do not describe this as all-app parity or equal reliability across models.
+The source gate is `pnpm check`; the desktop GUI suite is separate and must not run at startup.
 
 ## Fifteen-minute pilot pass
 

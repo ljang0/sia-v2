@@ -1066,7 +1066,7 @@ export class DesktopActionBackend implements ActionBackend {
         session: request.context.sessionId,
         include_screenshot: includeScreenshot,
       });
-    const includeImage =
+    let includeImage =
       request.arguments.read_text === true ||
       request.arguments.include_image === true ||
       (request.arguments.include_image !== false &&
@@ -1085,8 +1085,32 @@ export class DesktopActionBackend implements ActionBackend {
       // This retry only observes; no input is replayed and pixel actions stay unavailable.
       raw = await capture(false);
     }
-    const refusalResult = resultRefusal(raw);
+    let refusalResult = resultRefusal(raw);
     if (refusalResult) return refusalResult;
+
+    // AX can temporarily return no controls even while a window is usable.
+    // Capture pixels once instead of turning an empty AX response into an app failure.
+    // Honor an explicit text-only request and never escalate a protected/refused read.
+    if (
+      !includeImage &&
+      request.arguments.include_image === undefined &&
+      this.#macBackgroundControl() &&
+      !windowHasProtectedControls(raw) &&
+      findElementRecords(raw, 'window').length === 0
+    ) {
+      try {
+        const visual = await capture(true);
+        if (!/\bpx_capture_unavailable\b/.test(resultRefusal(visual)?.summary ?? '')) {
+          raw = visual;
+          includeImage = true;
+        }
+      } catch (error) {
+        if (!(error instanceof Error) || !/\bpx_capture_unavailable\b/.test(error.message))
+          throw error;
+      }
+      refusalResult = resultRefusal(raw);
+      if (refusalResult) return refusalResult;
+    }
 
     const context =
       this.#macBrowserAccess() && !windowHasProtectedControls(raw)
@@ -1209,6 +1233,14 @@ export class DesktopActionBackend implements ActionBackend {
             }
           : {}),
         elements,
+        ...(elements.length === 0
+          ? {
+              accessibility_empty: true,
+              next_step: pixels
+                ? 'Accessibility returned no controls. Inspect this screenshot and use its fresh pixel targets if the needed controls are visible; do not infer the app is unavailable.'
+                : 'Accessibility returned no controls. Request include_image:true for visual inspection before concluding the app is unavailable.',
+            }
+          : {}),
         ...(this.#macBrowserAccess() &&
         findElementRecords(raw, 'window').some(
           (record) =>
@@ -2406,11 +2438,16 @@ function actionResult(
   }
   if (escalationTarget === 'foreground') {
     return {
-      outcome: 'needs_foreground',
+      outcome: 'accepted_unverified',
       summary:
-        'The background route could not prove delivery; foreground takeover was not attempted.',
+        'Background input was attempted, but the driver could not verify its effect. Foreground takeover was not attempted. Inspect the fresh result before retrying or declaring failure.',
+      data: compact({
+        effect,
+        delivery_mode: deliveryMode,
+        background_verification_needed: true,
+      }),
       reason:
-        'Observe the result before an explicit foreground attempt; current action approvals still apply.',
+        'An escalation suggestion is not proof that input failed. Never replay an uncertain write.',
     };
   }
   const data = compact({

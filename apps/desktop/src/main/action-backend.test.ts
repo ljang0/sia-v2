@@ -89,6 +89,148 @@ async function grantedComputerTarget(
 }
 
 describe('DesktopActionBackend computer boundary', () => {
+  it.each(['image', 'explicit-text', 'image-unavailable', 'protected', 'refused'] as const)(
+    'recovers empty background accessibility with pixels only when allowed: %s',
+    async (scenario) => {
+      const png = Buffer.alloc(24);
+      Buffer.from('89504e470d0a1a0a', 'hex').copy(png);
+      png.write('IHDR', 12);
+      png.writeUInt32BE(800, 16);
+      png.writeUInt32BE(600, 20);
+      const cua = fakeCua(async (tool, args) => {
+        if (tool === 'list_apps')
+          return { apps: [{ pid: 42, name: 'Calculator', bundle_id: 'com.apple.calculator' }] };
+        if (tool === 'list_windows')
+          return { windows: [{ pid: 42, window_id: 91, app_name: 'Calculator' }] };
+        if (tool === 'get_window_state') {
+          if (scenario === 'refused') return { error_code: 'permission_denied' };
+          if (args.include_screenshot && scenario === 'image-unavailable')
+            throw new Error('CUA refused: px_capture_unavailable');
+          return {
+            value: {
+              snapshot_id: 'empty-ax',
+              elements:
+                scenario === 'protected'
+                  ? [{ role: 'AXSecureTextField', element_index: 1 }]
+                  : [],
+            },
+            ...(args.include_screenshot
+              ? {
+                  images: [{ mimeType: 'image/png', dataBase64: png.toString('base64') }],
+                }
+              : {}),
+          };
+        }
+        return { effect: 'unverifiable', delivery: { mode: 'background' } };
+      });
+      const backend = new DesktopActionBackend({
+        cua,
+        macBrowserAccess: () => true,
+        macBackgroundControl: () => true,
+      });
+      const target = await grantedComputerTarget(backend);
+      const ids = { app_id: target.appId, window_id: target.windowId };
+      const result = await backend.invoke(
+        request('computer_snapshot', {
+          ...ids,
+          ...(scenario === 'explicit-text' ? { include_image: false } : {}),
+        }),
+      );
+      const captures = cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state');
+      expect(captures.map(([, args]) => args.include_screenshot)).toEqual(
+        ['image', 'image-unavailable'].includes(scenario) ? [false, true] : [false],
+      );
+      if (scenario === 'refused') {
+        expect(result.outcome).toBe('refused');
+        expect(result.images).toBeUndefined();
+        return;
+      }
+      const data = dataRecord(result.data);
+      expect(data.pixel_actions_available).toBe(scenario === 'image');
+      if (scenario === 'image') {
+        expect(data.accessibility_empty).toBe(true);
+        expect(result.images).toHaveLength(1);
+        const clicked = await backend.invoke(
+          request('computer_action', {
+            ...ids,
+            snapshot_id: data.snapshot_id,
+            action: 'click',
+            x: 20,
+            y: 30,
+          }),
+        );
+        expect(clicked.outcome).toBe('accepted_unverified');
+        expect(cua.call.mock.calls.find(([tool]) => tool === 'click')?.[1]).toMatchObject({
+          delivery_mode: 'background',
+          x: 20,
+          y: 30,
+        });
+      } else {
+        expect(result.images).toBeUndefined();
+        await backend.invoke(
+          request('computer_action', {
+            ...ids,
+            snapshot_id: data.snapshot_id,
+            action: 'click',
+            x: 20,
+            y: 30,
+          }),
+        );
+        expect(cua.call.mock.calls.some(([tool]) => tool === 'click')).toBe(false);
+      }
+    },
+  );
+
+  it('reads an actually changed Calculator result after an unconfirmed background input without replay', async () => {
+    let displayed = '0';
+    const cua = fakeCua(async (tool, args) => {
+      if (tool === 'list_apps')
+        return { apps: [{ pid: 42, name: 'Calculator', bundle_id: 'com.apple.calculator' }] };
+      if (tool === 'list_windows')
+        return { windows: [{ pid: 42, window_id: 91, app_name: 'Calculator' }] };
+      if (tool === 'get_window_state')
+        return {
+          snapshot_id: 'calculator',
+          elements: [{ element_index: 1, role: 'AXStaticText', value: displayed }],
+        };
+      if (tool === 'type_text') {
+        expect(args).toMatchObject({ text: '246*17+31=', delivery_mode: 'background' });
+        displayed = '4213';
+        return {
+          effect: 'suspected_noop',
+          delivery: { mode: 'background' },
+          escalation: { target: 'foreground', reason: 'effect_unconfirmed' },
+        };
+      }
+      throw new Error(`Unexpected ${tool}`);
+    });
+    const backend = new DesktopActionBackend({
+      cua,
+      macBrowserAccess: () => true,
+      macBackgroundControl: () => true,
+    });
+    const target = await grantedComputerTarget(backend);
+    const ids = { app_id: target.appId, window_id: target.windowId };
+    const before = await backend.invoke(request('computer_snapshot', ids));
+    const result = await backend.invoke(
+      request('computer_action', {
+        ...ids,
+        snapshot_id: dataRecord(before.data).snapshot_id,
+        action: 'type',
+        text: '246*17+31=',
+      }),
+    );
+    expect(result.outcome).toBe('accepted_unverified');
+    const data = dataRecord(result.data);
+    expect(data.elements).toEqual([expect.objectContaining({ value: '4213' })]);
+    expect(data.delivery).toMatchObject({ background_verification_needed: true });
+    expect(data.snapshot_id).not.toBe(dataRecord(before.data).snapshot_id);
+    expect(cua.call.mock.calls.filter(([tool]) => tool === 'type_text')).toHaveLength(1);
+    expect(cua.call.mock.calls.some(([, args]) => args.delivery_mode === 'foreground')).toBe(
+      false,
+    );
+  });
+
   it('uses text observations in background, exposes context/double clicks, and requires images for pixels', async () => {
     const png = Buffer.alloc(24);
     Buffer.from('89504e470d0a1a0a', 'hex').copy(png);
@@ -936,7 +1078,9 @@ describe('DesktopActionBackend computer boundary', () => {
       }),
     );
 
-    expect(result.outcome).toBe('needs_foreground');
+    expect(result.outcome).toBe('accepted_unverified');
+    expect(dataRecord(result.data).snapshot_id).toBeTypeOf('string');
+    expect(cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state')).toHaveLength(2);
     const actionArgs = cua.call.mock.calls.find(([tool]) => tool === 'click')?.[1] as Record<
       string,
       unknown
