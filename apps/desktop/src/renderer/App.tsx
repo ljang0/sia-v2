@@ -257,7 +257,6 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
           app.attempt(() => api.setThreadUnread(threadId, unread)) as Promise<void>
         }
         onOpenActivity={() => app.openActivity('activity')}
-        onOpenArchived={() => app.openActivity('archived')}
         onOpenSettings={() => app.openSettings()}
         onOpenQuickSwitcher={() => setQuickSwitcherOpen(true)}
         onOpenFeedback={() => setFeedbackOpen(true)}

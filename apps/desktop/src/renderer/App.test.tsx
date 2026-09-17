@@ -67,7 +67,7 @@ describe('app privacy routing', () => {
     expect(await screen.findByRole('button', { name: 'Start using Sia' })).toBeTruthy();
   });
 
-  it('takes Archived navigation directly to the archive section', async () => {
+  it('keeps archived conversations accessible through Activity', async () => {
     const snapshot: RendererSnapshot = structuredClone(demoSnapshot);
     snapshot.archivedThreads = [
       {
@@ -81,10 +81,10 @@ describe('app privacy routing', () => {
     ];
 
     render(<App api={createDemoRendererApi(snapshot)} />);
-    fireEvent.click(await screen.findByTestId('archived-threads-toggle'));
+    fireEvent.click(await screen.findByTestId('activity-center-toggle'));
 
     const archive = await screen.findByRole('region', { name: 'Archived' });
-    await waitFor(() => expect(document.activeElement).toBe(archive));
+    expect(archive).toBeTruthy();
     expect(screen.getByText('Previous release notes')).toBeTruthy();
   });
 

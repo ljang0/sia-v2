@@ -48,7 +48,6 @@ interface SidebarProps {
   onDuplicateAgent?(agentId: string): Promise<void>;
   onSetThreadUnread?(threadId: string, unread: boolean): Promise<void>;
   onOpenActivity?(): void;
-  onOpenArchived?(): void;
   onOpenSettings(): void;
   onOpenQuickSwitcher?(): void;
   onOpenFeedback?(): void;
@@ -75,7 +74,6 @@ export function Sidebar({
   onDuplicateAgent,
   onSetThreadUnread,
   onOpenActivity,
-  onOpenArchived,
   onOpenSettings,
   onOpenQuickSwitcher,
   onOpenFeedback,
@@ -426,28 +424,15 @@ export function Sidebar({
           </button>
         ) : null}
         {onOpenActivity ? (
-          <>
-            <button
-              className={styles.settingsButton}
-              type="button"
-              onClick={onOpenActivity}
-              data-testid="activity-center-toggle"
-            >
-              <span className={styles.activityNavMark} aria-hidden="true" />
-              <span>Activity</span>
-            </button>
-            {onOpenArchived ? (
-              <button
-                className={styles.settingsButton}
-                type="button"
-                onClick={onOpenArchived}
-                data-testid="archived-threads-toggle"
-              >
-                <Archive size={17} aria-hidden="true" />
-                <span>Archived</span>
-              </button>
-            ) : null}
-          </>
+          <button
+            className={styles.settingsButton}
+            type="button"
+            onClick={onOpenActivity}
+            data-testid="activity-center-toggle"
+          >
+            <span className={styles.activityNavMark} aria-hidden="true" />
+            <span>Activity</span>
+          </button>
         ) : null}
         {onOpenFeedback ? (
           <button className={styles.settingsButton} type="button" onClick={onOpenFeedback}>

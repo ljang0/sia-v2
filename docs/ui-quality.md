@@ -5,11 +5,18 @@ dock holds distinct agent identities; the selected agent opens a clean mineral w
 product should feel expressive and companionable without becoming mascot-like. Safety, consent,
 and legal surfaces remain sober. Sia is not an AI dashboard and not a chat template.
 
+## Everyday use
+
+The audience is an average consumer without technical knowledge. Make the next action obvious,
+use familiar language, and choose sensible defaults. Keep onboarding to a short welcome and access
+check; offer advanced settings and optional features when relevant. Avoid developer jargon,
+mandatory tutorials, and long sequences of setup screens. Archived conversations remain available
+in Activity and search, without a dedicated sidebar item.
+
 ## The room rule
 
 - **The dock** (`--shell-*` tokens) is the evergreen agent navigation: agents, contextual threads,
-  Activity /
-  Archived / Settings. It is the same family in light and dark appearance. The selected agent
+  Activity / Settings. It is the same family in light and dark appearance. The selected agent
   remains on the shell with a quiet selected surface and a two-pixel identity marker; it never
   cuts a light card shape into navigation.
 - **The room** (`.workspace`, `--bg-*` tokens) is the mineral-white, faint sage-neutral space of the agent whose thread is open

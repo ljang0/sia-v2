@@ -31,9 +31,8 @@ describe('thread navigation', () => {
     expect(container.querySelector('[data-presence="working"]')).toBeTruthy();
   });
 
-  it('routes Activity and Archived to distinct destinations', () => {
+  it('keeps Activity accessible without a separate Archived sidebar item', () => {
     const onOpenActivity = vi.fn();
-    const onOpenArchived = vi.fn();
 
     render(
       <Sidebar
@@ -50,15 +49,13 @@ describe('thread navigation', () => {
         onCreateAgent={vi.fn()}
         onEditAgent={vi.fn()}
         onOpenActivity={onOpenActivity}
-        onOpenArchived={onOpenArchived}
         onOpenSettings={vi.fn()}
       />,
     );
 
     fireEvent.click(screen.getByTestId('activity-center-toggle'));
-    fireEvent.click(screen.getByTestId('archived-threads-toggle'));
     expect(onOpenActivity).toHaveBeenCalledOnce();
-    expect(onOpenArchived).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', { name: 'Archived' })).toBeNull();
   });
 
   it('shows draft, unread, work state, and recency without changing thread labels', () => {

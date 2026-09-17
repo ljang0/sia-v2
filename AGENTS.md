@@ -19,6 +19,10 @@ quality, type, unit, and deterministic desktop E2E gates. See
 
 ## Product contract
 
+- Design for everyday consumers without technical backgrounds. Use plain language, sensible
+  defaults, and short setup flows. Keep advanced configuration and developer concepts out of the
+  main path; introduce optional features when people need them.
+
 - A release with cloud configured has no private app access before email sign-in.
 - New agents offer an included model when live-verified or the user's existing Codex plan. Both use
   the Codex App Server harness. Users never paste model API keys into Sia.

@@ -51,10 +51,12 @@ test('minimum viewport keeps dialogs, thread tools, and Activity within bounds',
         ),
     ).toBe(true);
 
-    await sia.page.getByTestId('archived-threads-toggle').click();
-    await expect
-      .poll(() => sia.page.evaluate(() => document.activeElement?.id))
-      .toBe('archived-threads');
+    await expect(
+      sia.page
+        .getByRole('complementary', { name: 'Agent navigation' })
+        .getByRole('button', { name: 'Archived', exact: true }),
+    ).toHaveCount(0);
+    await expect(sia.page.getByRole('region', { name: 'Archived' })).toBeVisible();
     expect(sia.rendererErrors).toEqual([]);
   } finally {
     await sia.close();

@@ -12,7 +12,7 @@ export const parityContract = {
     testIds: [
       'thread-actions',
       'thread-archive',
-      'archived-threads-toggle',
+      'activity-center-toggle',
       'thread-search-input',
       'transcript-search-results',
       'transcript-search-result',
