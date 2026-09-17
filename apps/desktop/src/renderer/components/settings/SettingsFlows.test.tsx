@@ -548,7 +548,11 @@ describe('computer access settings', () => {
       />,
     );
 
-    expect(screen.getByText(/every computer action stays reviewable/i)).toBeTruthy();
+    expect(
+      screen.getByText(
+        /Your bypass setting controls whether task actions ask for confirmation/i,
+      ),
+    ).toBeTruthy();
     expect(
       screen
         .getByRole('switch', { name: 'Bypass action approvals' })

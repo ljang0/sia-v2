@@ -60,6 +60,7 @@ type Command = {
     | 'task';
   phase?: 'idle' | 'working' | 'waiting';
   enabled?: boolean;
+  accessibility?: boolean;
   mac?: boolean;
   id?: string;
   label?: string;
@@ -215,7 +216,7 @@ export class PushToTalkService {
     return Boolean(this.#recording);
   }
 
-  configure(enabled: boolean, agentId?: string): void {
+  configure(enabled: boolean, agentId?: string, requestAccessibility = true): void {
     if (enabled && !this.#options.available)
       throw new Error('Fn push-to-talk is unavailable in this build.');
     if (enabled && !this.#options.allowed())
@@ -238,7 +239,11 @@ export class PushToTalkService {
       ...(this.#view.agentId ? { agentId: this.#view.agentId } : {}),
     });
     this.syncAccess();
-    if (enabled) this.#helper?.send({ type: 'permissions' });
+    if (enabled)
+      this.#helper?.send({
+        type: 'permissions',
+        ...(!requestAccessibility ? { accessibility: false } : {}),
+      });
     this.#changed();
   }
 

@@ -654,7 +654,11 @@ export interface BridgeRequestMap {
   'browser.connectAndContinue': { threadId: string; userMessageId: string; windowId?: number };
   'browser.open': { url: string };
   'browser.detach': undefined;
-  'voice.pushToTalk.configure': { enabled: boolean; agentId?: string };
+  'voice.pushToTalk.configure': {
+    enabled: boolean;
+    agentId?: string;
+    requestAccessibility?: boolean;
+  };
   'voice.pushToTalk.cancel': undefined;
   'voice.capture.acquire': undefined;
   'voice.capture.release': { leaseId: string };
@@ -668,6 +672,7 @@ export interface BridgeRequestMap {
   'voice.realtime.stop': { sessionId: string; commit: boolean };
   'voice.speak': { text: string; voiceId?: string };
   'connections.startGoogle': undefined;
+  'connections.startSelected': { apps: ('google' | 'slack')[] };
   'connections.upgradeGoogle': undefined;
   'connections.start': { connectionId: ConnectionId };
   'connections.setEnabled': { connectionId: ConnectionId; enabled: boolean };
@@ -780,6 +785,7 @@ export interface BridgeResultMap {
   'voice.realtime.stop': { text: string };
   'voice.speak': { audioBase64: string; mimeType: 'audio/mpeg' | 'audio/wav' };
   'connections.startGoogle': { opened: boolean; snapshot: DesktopSnapshot };
+  'connections.startSelected': { opened: boolean; snapshot: DesktopSnapshot };
   'connections.upgradeGoogle': { opened: boolean; snapshot: DesktopSnapshot };
   'connections.start': { opened: boolean; snapshot: DesktopSnapshot };
   'connections.setEnabled': DesktopSnapshot;
@@ -956,7 +962,11 @@ export interface DesktopBridgeApi {
     detach(): Promise<DesktopSnapshot>;
   };
   voice: {
-    configurePushToTalk(enabled: boolean, agentId?: string): Promise<DesktopSnapshot>;
+    configurePushToTalk(
+      enabled: boolean,
+      agentId?: string,
+      requestAccessibility?: boolean,
+    ): Promise<DesktopSnapshot>;
     cancelPushToTalk(): Promise<void>;
     acquireCapture(): Promise<{ leaseId: string }>;
     releaseCapture(leaseId: string): Promise<void>;
@@ -975,6 +985,9 @@ export interface DesktopBridgeApi {
   };
   connections: {
     startGoogle(): Promise<BridgeResultMap['connections.startGoogle']>;
+    startSelected(
+      apps: ('google' | 'slack')[],
+    ): Promise<BridgeResultMap['connections.startSelected']>;
     upgradeGoogle(): Promise<BridgeResultMap['connections.upgradeGoogle']>;
     start(connectionId: ConnectionId): Promise<BridgeResultMap['connections.start']>;
     setEnabled(connectionId: ConnectionId, enabled: boolean): Promise<DesktopSnapshot>;

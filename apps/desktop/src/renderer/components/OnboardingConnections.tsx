@@ -1,7 +1,6 @@
 import { ComputerAccessMode } from './ComputerAccessMode';
-import { MacAutomationPermissions } from './MacAutomationPermissions';
 import { automationApps, automationStatusLabel } from '../../shared/mac-permissions';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { RendererApi, RendererSnapshot } from '../types';
 import { BrowserWindowPicker } from './BrowserWindowPicker';
 import ui from '../ui.module.css';
@@ -15,45 +14,65 @@ type SetupProps = {
 };
 
 export function SetupConnections({ snapshot, api, pending, run }: SetupProps) {
+  const [selected, setSelected] = useState({ google: true, slack: true });
   const google = snapshot.apps.filter(({ id }) => id !== 'slack');
   const googleReady =
     google.length > 0 && google.every((app) => app.status === 'connected' && app.enabled);
-  const slack = snapshot.apps.find(({ id }) => id === 'slack');
+  const slackReady = snapshot.apps.some(
+    (app) => app.id === 'slack' && app.status === 'connected' && app.enabled,
+  );
   const cloudReady =
     snapshot.cloudAuth.state === 'signed-in' &&
     snapshot.cloudAuth.features?.connectors !== false;
   const connecting = snapshot.apps.some((app) => app.status === 'connecting');
-  const enableGoogle = async () => {
-    if (google.every((app) => app.status === 'connected')) {
-      for (const app of google.filter((app) => !app.enabled))
-        await api.setAppEnabled(app.id, true);
-    } else await api.connectGoogleApps();
-  };
+  const choices = [
+    {
+      id: 'google' as const,
+      name: 'Google Workspace',
+      detail: 'Gmail, Drive, Docs, Sheets, and Slides. One Google sign-in for read access.',
+      ready: googleReady,
+    },
+    {
+      id: 'slack' as const,
+      name: 'Slack',
+      detail: 'Search conversations and help with messages in your workspace.',
+      ready: slackReady,
+    },
+  ];
+  const missing = choices.filter((app) => selected[app.id] && !app.ready).map((app) => app.id);
   return (
     <>
-      <ComputerAccessMode
-        computer={snapshot.computer}
-        disabled={pending}
-        change={(mode) => void run(() => api.setComputerAccessMode(mode))}
-      />
-      <MacAutomationPermissions
-        permissions={snapshot.computer.automation}
-        request={(app) => api.requestAutomationPermission(app)}
-        refresh={() => api.refreshComputerPermissions()}
-        disabled={pending}
-      />
-      <SetupRow
-        title="Google Workspace"
-        detail="Gmail, Drive, Docs, Sheets, and Slides. Sign in once to connect your Google account."
-      >
+      <fieldset className={styles.connectorChecklist} disabled={pending || connecting}>
+        <legend>Choose your connections</legend>
+        <p className={styles.note}>
+          Connections are optional and selected to start. Uncheck anything you do not use, then
+          connect once. Each provider still asks you to approve its account access.
+        </p>
+        {choices.map(({ id, name, detail, ready }) => (
+          <label className={styles.permission} key={id}>
+            <input
+              type="checkbox"
+              checked={selected[id]}
+              disabled={ready || !cloudReady}
+              onChange={(event) => setSelected({ ...selected, [id]: event.target.checked })}
+            />
+            <span className={styles.connectorDescription}>
+              <strong>{name}</strong>
+              <span>{detail}</span>
+            </span>
+            <span className={ready ? styles.ready : styles.status}>
+              {ready ? 'Connected' : cloudReady ? 'Not connected' : 'Unavailable in this build'}
+            </span>
+          </label>
+        ))}
         <button
-          className={ui.secondaryButton}
-          disabled={pending || connecting || !cloudReady || googleReady}
-          onClick={() => void run(enableGoogle)}
+          className={ui.primaryButton}
+          disabled={!cloudReady || !missing.length}
+          onClick={() => void run(() => api.connectSelectedApps(missing))}
         >
-          {googleReady ? 'Connected' : connecting ? 'Finish sign-in' : 'Connect Google'}
+          {connecting ? 'Finish account approval…' : 'Connect selected apps'}
         </button>
-      </SetupRow>
+      </fieldset>
       {googleReady && google.some((app) => app.googleAccess !== 'read_write') ? (
         <button
           className={styles.link}
@@ -63,29 +82,6 @@ export function SetupConnections({ snapshot, api, pending, run }: SetupProps) {
           Allow Google edits and sends too
         </button>
       ) : null}
-      <SetupRow
-        title="Slack"
-        detail="Connect your workspace so Sia can search conversations and help with messages."
-      >
-        <button
-          className={ui.secondaryButton}
-          disabled={
-            pending ||
-            connecting ||
-            !cloudReady ||
-            (slack?.status === 'connected' && slack.enabled)
-          }
-          onClick={() =>
-            void run(() =>
-              slack?.status === 'connected'
-                ? api.setAppEnabled('slack', true)
-                : api.connectApp('slack'),
-            )
-          }
-        >
-          {slack?.status === 'connected' && slack.enabled ? 'Connected' : 'Connect Slack'}
-        </button>
-      </SetupRow>
       {!cloudReady ? (
         <p className={styles.note} role="status">
           Direct Google and Slack connections are unavailable{' '}
@@ -97,52 +93,17 @@ export function SetupConnections({ snapshot, api, pending, run }: SetupProps) {
       ) : null}
       {connecting ? (
         <p className={styles.note} role="status">
-          Finish sign-in in the browser, then return here. This page updates when the connection
-          is confirmed.
+          Finish sign-in in the browser. Sia connects the selected accounts in order and updates
+          this checklist as each approval finishes.
         </p>
       ) : null}
       {snapshot.apps.some((app) => app.status === 'error') ? (
         <p className={styles.error} role="alert">
-          An app connection needs another sign-in. Retry its Connect button.
+          An account connection did not finish. Review its status in Settings → Connections
+          before retrying. Connected accounts are kept.
         </p>
       ) : null}
-      <SetupRow
-        title="Apple Messages"
-        detail="For searching message history, allow Sia Full Disk Access in Privacy & Security. Enable the switch yourself, then return here. Sia will restart next."
-      >
-        <button
-          className={ui.secondaryButton}
-          disabled={pending || snapshot.computer.messagesAccess === 'unavailable'}
-          onClick={() =>
-            void run(() =>
-              snapshot.computer.messagesAccess === 'ready'
-                ? api.openMessages()
-                : api.setupMessages(),
-            )
-          }
-        >
-          {snapshot.computer.messagesAccess === 'ready' ? 'Open Messages' : 'Set up Messages'}
-        </button>
-      </SetupRow>
-      <p className={styles.note}>
-        Messages history:{' '}
-        {snapshot.computer.messagesAccess === 'ready'
-          ? 'Available'
-          : snapshot.computer.messagesAccess === 'unavailable'
-            ? 'Unavailable on this device'
-            : 'Needs Full Disk Access'}
-        . Opening Messages also lets you check that you are signed in.
-      </p>
-      <SetupRow
-        title="Optional Chrome connection"
-        detail="After restarting Sia, choose your Chrome window and open the sites you want help with. Keep that window open and signed in."
-      >
-        <span className={styles.status}>Next, after restart</span>
-      </SetupRow>
-      <p className={styles.note}>
-        You can continue without an account you do not use. We will list any missing access
-        before you finish.
-      </p>
+      <p className={styles.note}>Manage existing connections in Settings → Connections.</p>
     </>
   );
 }
@@ -306,20 +267,22 @@ export function accessChecklist(snapshot: RendererSnapshot) {
           ? 'Mac permissions granted; website sign-in is checked during the task'
           : 'A live window with a granted website',
     },
+    {
+      label: 'Messages history',
+      ready: snapshot.computer.messagesAccess === 'ready',
+      detail: 'Full Disk Access',
+    },
   ];
   if (snapshot.computer.accessMode === 'mac' && snapshot.computer.trust === 'auto') {
     return [
       ...core,
-      ...automationApps
-        .filter(({ id }) => ['system_events', 'safari', 'chrome'].includes(id))
-        .map(({ id, name }) => ({
-          label: `${name} automation`,
-          ready: ['ready', 'unavailable'].includes(
-            snapshot.computer.automation?.[id] ?? 'needs_permission',
-          ),
-          detail:
-            automationStatusLabel[snapshot.computer.automation?.[id] ?? 'needs_permission'],
-        })),
+      ...automationApps.map(({ id, name }) => ({
+        label: `${name} automation`,
+        ready: ['ready', 'unavailable'].includes(
+          snapshot.computer.automation?.[id] ?? 'needs_permission',
+        ),
+        detail: automationStatusLabel[snapshot.computer.automation?.[id] ?? 'needs_permission'],
+      })),
       {
         label: 'Full bypass',
         ready: true,
@@ -329,11 +292,6 @@ export function accessChecklist(snapshot: RendererSnapshot) {
   }
   return [
     ...core,
-    {
-      label: 'Messages history',
-      ready: snapshot.computer.messagesAccess === 'ready',
-      detail: 'Full Disk Access',
-    },
     ...automationApps.map(({ id, name }) => ({
       label: `${name} automation`,
       ready: snapshot.computer.automation?.[id] === 'ready',

@@ -304,6 +304,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       const result = await bridge.connections.startGoogle();
       publish(result.snapshot);
     },
+    async connectSelectedApps(apps) {
+      publish((await bridge.connections.startSelected(apps)).snapshot);
+    },
     async upgradeGoogleApps() {
       const result = await bridge.connections.upgradeGoogle();
       publish(result.snapshot);
@@ -381,8 +384,8 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async openMessages() {
       publish(await bridge.computer.openMessages());
     },
-    async configurePushToTalk(enabled, agentId) {
-      publish(await bridge.voice.configurePushToTalk(enabled, agentId));
+    async configurePushToTalk(enabled, agentId, requestAccessibility) {
+      publish(await bridge.voice.configurePushToTalk(enabled, agentId, requestAccessibility));
     },
     async acquireVoiceCapture() {
       return (await bridge.voice.acquireCapture()).leaseId;

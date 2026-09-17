@@ -93,8 +93,10 @@ final class VoiceHelper {
             lastPing = Date()
             emit(["type": "ready", "accessibility": AXIsProcessTrusted(), "microphone": AVCaptureDevice.authorizationStatus(for: .audio) == .authorized])
         case "permissions":
-            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-            _ = AXIsProcessTrustedWithOptions(options)
+            if value["accessibility"] as? Bool != false && !AXIsProcessTrusted() {
+                let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+                _ = AXIsProcessTrustedWithOptions(options)
+            }
             if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
                 AVCaptureDevice.requestAccess(for: .audio) { _ in }
             } else if AVCaptureDevice.authorizationStatus(for: .audio) != .authorized {

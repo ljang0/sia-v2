@@ -151,40 +151,40 @@ cancelling a pending transcript creates no message. Use a disposable account for
 ### Guided desktop setup
 
 The welcome screen offers **Use my Mac + full bypass** as the fastest setup. Selecting it and
-pressing Set up Sia saves Mac access and bypass approvals together before continuing. This route
-skips service connections and reviews only Mac permissions, optional Fn dictation, browser window
-access, and bypass status. Existing signed-in apps and websites are used through native commands and screenshots.
+pressing Set up Sia saves Mac access and bypass approvals together before continuing. Both routes offer one Mac access checklist followed by optional service connections. Existing signed-in apps and websites are used through native commands and screenshots.
 AI access, macOS permissions, and any website sign-in are still needed; bypass does not grant them.
-**Connected apps + confirmations** retains the individual connection steps and action approvals.
+**Connected apps + confirmations** uses the same checklists and retains action approvals.
 
 After any required email sign-in, a new profile opens the Sia guide: meet Sia, create an
-everyday agent, enable voice, grant Mac access, connect apps, restart, verify access, and try a
+everyday agent, grant Mac and voice access, choose connections, restart, verify access, and try a
 request. The starter uses a ready model from the same admitted catalog as the custom agent
 form and gets an automatic private workspace. No provider key or connected app is required.
 If neither AI access option is ready, complete its sign-in/setup or retry before creating
 an agent. Both included access and the existing Codex plan use the Codex App Server harness.
 
-The Fn illustration demonstrates hold → glow → speak → release; it does not record audio
-or move the real pointer. Enable Mac voice and the Fn shortcut explicitly, then allow
-Sia Voice in macOS Speech Recognition, Microphone, and Accessibility settings. Permission indicators reflect
-native checks, including denial or revocation. Continue with typing at any point.
-Computer permissions are separate; grant individual windows as tasks need them.
-Setup requests app-specific Automation access for System Events, Safari, Chrome, Calendar, Reminders, Finder, and Messages,
-then walks through Google Workspace, Slack, and Messages Full Disk Access before restarting.
-Use **Set up all Mac apps** to request each app in sequence, or choose an individual Allow button.
+The access screen includes Accessibility, Screen Recording, voice and microphone, Messages history,
+and Automation for System Events, Safari, Chrome, Calendar, Reminders, Finder, and Messages.
+**Allow all required access** requests missing access in sequence; already granted access is skipped.
+The shared Accessibility request runs once, before Fn setup. This action never starts a recording.
+macOS still requires separate approvals for its permission categories and target apps. Denied or
+unavailable access stays visible, and setup can continue with the available access.
+Opening Sia and **Check access** only read permission status; they do not request permissions.
 Permission checks use Apple's [Automation permission API](https://developer.apple.com/documentation/coreservices/3025784-aedeterminepermissiontoautomatet)
 without reading personal content. A request may open its app. Previously denied access opens
-Privacy & Security → Automation; the user must enable the switch. Recheck app access does not prompt
+Privacy & Security → Automation; the user must enable the switch. Check access does not prompt
 or launch apps. A closed app whose permission cannot be checked remains **Open app to check access**,
 not falsely marked ready. The final checklist lists each app separately. Existing users have the
-same controls in **Settings → Computer**. macOS access does not approve individual Sia actions;
+**Allow all Mac apps** and **Check access** controls in **Settings → Computer**. macOS access does not approve individual Sia actions;
 review any pending action approval separately before it expires.
+Google Workspace and Slack are checked by default; deselect unused accounts and choose
+**Connect selected apps**. Account approvals run in sequence, and connected accounts are skipped.
 Google starts with read access and offers a separate edits/sends consent. Unconfigured builds
 explain the cloud limitation and offer Use my Mac for signed-in websites. Connections and permission
 grants remain optional, with missing access explicitly listed before finishing.
 
 The Restart Sia button saves the verification step before a graceful quit/relaunch. It refuses
-while a task or recording is active. On return, permission status is checked again. **Use my Mac**
+while a task or recording is active. Development relaunches explicitly retain the same test profile
+and service configuration. On return, permission status is checked again. **Use my Mac**
 works through the existing Safari or supported browser window without Chrome attachment.
 **Connected apps** offers the existing Chrome window picker. Browser grants are process-local, so they are created
 after the restart rather than revived from disk. Buttons for Gmail, Drive, Docs, Sheets, Slides,

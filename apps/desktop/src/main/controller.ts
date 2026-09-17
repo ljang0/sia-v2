@@ -202,8 +202,6 @@ interface PersistedState {
     computerTrust?: 'auto' | 'ask';
     /** Eligible local trajectory log; Google Workspace connector turns are excluded. */
     trajectoryLog?: boolean;
-    /** Set once the automatic macOS permission prompt has been shown for this profile. */
-    permissionsPromptedAt?: string;
   };
   usageByTurn: Record<
     string,
@@ -1154,25 +1152,6 @@ export class DesktopController {
     ]);
     this.#providers = providers;
     await this.#refreshCapabilityStatuses().catch(() => undefined);
-    if (
-      !this.#fakeServices &&
-      this.#identity.status().state === 'signed_in' &&
-      computer.status === 'needs_permission' &&
-      this.computerTrust() === 'auto' &&
-      !this.#state.preferences.permissionsPromptedAt
-    ) {
-      // Ask macOS for Accessibility and Screen Recording once per profile so computer use is
-      // ready without a trip through Settings; the person can still deny at the OS prompt.
-      this.#state.preferences.permissionsPromptedAt = new Date().toISOString();
-      this.#commit();
-      void this.#computer
-        .requestPermissions()
-        .then((view) => {
-          this.#computerState = view;
-          this.#emit();
-        })
-        .catch(() => undefined);
-    }
     if (this.#fakeServices) {
       const codexIndex = this.#providers.findIndex(({ id }) => id === 'codex');
       const fakeCodex: ProviderView = {
@@ -1867,7 +1846,7 @@ export class DesktopController {
         if (!this.#pushToTalk) throw new Error('Fn push-to-talk is unavailable in this build.');
         const value = input as BridgeRequestMap['voice.pushToTalk.configure'];
         if (value.enabled) await this.#voice?.prepareDictation?.();
-        this.#pushToTalk.configure(value.enabled, value.agentId);
+        this.#pushToTalk.configure(value.enabled, value.agentId, value.requestAccessibility);
         return this.snapshot() as BridgeResultMap[M];
       }
       case 'voice.pushToTalk.cancel':
@@ -1923,6 +1902,10 @@ export class DesktopController {
       }
       case 'connections.startGoogle':
         return (await this.#startGoogleConnections()) as unknown as BridgeResultMap[M];
+      case 'connections.startSelected':
+        return (await this.#startSelectedConnections(
+          (input as BridgeRequestMap['connections.startSelected']).apps,
+        )) as BridgeResultMap[M];
       case 'connections.upgradeGoogle':
         return (await this.#upgradeGoogleConnections()) as unknown as BridgeResultMap[M];
       case 'connections.start':
@@ -3859,9 +3842,20 @@ export class DesktopController {
   }
 
   async #startGoogleConnections(): Promise<BridgeResultMap['connections.startGoogle']> {
-    await this.#removeLegacyGoogleConnections();
-    for (const id of GOOGLE_CONNECTION_IDS) this.#updateConnection(id, { enabled: true });
-    return await this.#startConnectionGroup(['gmail']);
+    return this.#startSelectedConnections(['google']);
+  }
+
+  async #startSelectedConnections(
+    apps: ('google' | 'slack')[],
+  ): Promise<BridgeResultMap['connections.startSelected']> {
+    if (this.#connectionSetup)
+      throw new Error('Work-app setup is already waiting for provider approval.');
+    if (apps.includes('google')) {
+      await this.#removeLegacyGoogleConnections();
+      for (const id of GOOGLE_CONNECTION_IDS) this.#updateConnection(id, { enabled: true });
+      this.#commit();
+    }
+    return this.#startConnectionGroup(apps.map((id) => (id === 'google' ? 'gmail' : 'slack')));
   }
 
   async #upgradeGoogleConnections(): Promise<BridgeResultMap['connections.upgradeGoogle']> {

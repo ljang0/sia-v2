@@ -16,7 +16,7 @@ test('guided setup resumes, creates one working agent, and finishes through the 
     await page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
     await expect(page.getByLabel('Agent name')).toHaveValue('Sia');
     await page.getByRole('button', { name: 'Create my agent' }).click();
-    await expect(page.getByRole('heading', { name: 'Just say the word.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Give Sia access, once.' })).toBeVisible();
     const created = await page.evaluate(() => window.sia.bootstrap());
     expect(created.agents).toHaveLength(1);
     expect(created.preferences.onboarding?.step).toBe('voice');
@@ -25,33 +25,36 @@ test('guided setup resumes, creates one working agent, and finishes through the 
     expect(created.computer.trust).toBe('ask');
     await sia.close({ removeTestRoot: false });
     sia = await launchIsolatedSia({ testRoot });
-    await expect(sia.page.getByRole('heading', { name: 'Just say the word.' })).toBeVisible();
-    await sia.page.getByRole('button', { name: 'Continue with typing' }).click();
     await expect(
-      sia.page.getByRole('heading', { name: 'A helping hand on your Mac.' }),
-    ).toBeVisible();
-    await sia.page
-      .getByRole('button', { name: /Connect your apps|Continue without Mac access/ })
-      .click();
-    await expect(
-      sia.page.getByRole('heading', { name: 'Bring your apps along.' }),
-    ).toBeVisible();
-    await expect(
-      sia.page.getByRole('button', { name: 'Connect Google', exact: true }),
-    ).toBeVisible();
-    await expect(
-      sia.page.getByRole('button', { name: 'Connect Slack', exact: true }),
+      sia.page.getByRole('heading', { name: 'Give Sia access, once.' }),
     ).toBeVisible();
     const permissions = sia.page.getByRole('region', { name: 'Mac app permissions' });
     await expect(
-      permissions.getByRole('button', { name: 'Allow Calendar', exact: true }),
+      permissions.getByRole('button', { name: 'Allow all required access' }),
     ).toBeVisible();
-    await permissions.getByRole('button', { name: 'Set up all Mac apps' }).click();
-    for (const name of ['Calendar', 'Reminders', 'Finder', 'Messages']) {
-      await expect(permissions.getByRole('button', { name: `${name} allowed` })).toBeDisabled();
-    }
+    await permissions.getByRole('button', { name: 'Check access' }).click();
+    await expect(
+      permissions.getByText('Checking access without requesting permissions…'),
+    ).toBeHidden();
+    await sia.page.screenshot({
+      path: 'test-results/onboarding-access.png',
+      animations: 'disabled',
+    });
+    // The combined native request is covered with injected permission services in unit tests.
+    // This desktop test must not request the host's real macOS access.
+    await sia.page.getByRole('button', { name: 'Connect your apps' }).click();
+    await expect(
+      sia.page.getByRole('heading', { name: 'Bring your apps along.' }),
+    ).toBeVisible();
+    await expect(sia.page.getByRole('checkbox', { name: /Google Workspace/ })).toBeChecked();
+    await expect(sia.page.getByRole('checkbox', { name: /Slack/ })).toBeChecked();
+    await expect(
+      sia.page.getByRole('button', { name: 'Connect selected apps' }),
+    ).toBeDisabled();
     const configured = await sia.page.evaluate(() => window.sia.bootstrap());
-    expect(configured.computer.automation?.calendar).toBe('ready');
+    expect(
+      configured.connections.every((connection) => connection.status === 'disconnected'),
+    ).toBe(true);
     expect(configured.computer.trust).toBe('ask');
     for (const width of [1220, 900]) {
       await sia.page.setViewportSize({ width, height: 780 });
@@ -120,12 +123,58 @@ test('guided setup resumes, creates one working agent, and finishes through the 
   }
 });
 
+test('one checklist action connects the selected accounts and keeps connected accounts checked', async () => {
+  const sia = await launchIsolatedSia({
+    prefix: 'sia-onboarding-connectors-',
+    environment: {
+      SIA_API_BASE_URL: 'https://cloud.example.test/alpha',
+      SIA_COGNITO_REGION: 'us-east-1',
+      SIA_COGNITO_CLIENT_ID: 'deterministicclientid',
+      SIA_DEV_ID_TOKEN: 'deterministic-development-token',
+    },
+  });
+  try {
+    await sia.page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
+    await sia.page.getByRole('button', { name: 'Create my agent' }).click();
+    await sia.page.getByRole('button', { name: 'Connect your apps' }).click();
+    const google = sia.page.getByRole('checkbox', { name: /Google Workspace/ });
+    const slack = sia.page.getByRole('checkbox', { name: /Slack/ });
+    await expect(google).toBeChecked();
+    await expect(slack).toBeChecked();
+    await slack.uncheck();
+    await sia.page.getByRole('button', { name: 'Connect selected apps' }).click();
+    await expect(google).toBeDisabled();
+    await expect(slack).not.toBeChecked();
+    const partial = await sia.page.evaluate(() => window.sia.bootstrap());
+    expect(partial.connections.find((app) => app.id === 'slack')?.status).toBe('disconnected');
+    await slack.check();
+    await sia.page.getByRole('button', { name: 'Connect selected apps' }).click();
+    await expect(
+      sia.page.getByRole('button', { name: 'Connect selected apps' }),
+    ).toBeDisabled();
+    const connected = await sia.page.evaluate(() => window.sia.bootstrap());
+    expect(connected.connections.every((app) => app.status === 'connected')).toBe(true);
+    expect(connected.connections.find((app) => app.id === 'gmail')?.connectionId).toBe(
+      partial.connections.find((app) => app.id === 'gmail')?.connectionId,
+    );
+    await sia.page.screenshot({
+      path: 'test-results/onboarding-connectors.png',
+      animations: 'disabled',
+    });
+    expect(sia.rendererErrors).toEqual([]);
+  } finally {
+    await sia.close();
+  }
+});
+
 test('Voice settings keeps the Fn controls readable and can replay setup with the existing agent', async () => {
   const sia = await launchIsolatedSia({ prefix: 'sia-voice-layout-' });
   try {
     await sia.page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
     await sia.page.getByRole('button', { name: 'Create my agent' }).click();
-    await expect(sia.page.getByRole('heading', { name: 'Just say the word.' })).toBeVisible();
+    await expect(
+      sia.page.getByRole('heading', { name: 'Give Sia access, once.' }),
+    ).toBeVisible();
     await sia.page.getByRole('button', { name: 'Exit setup' }).click();
     await sia.page.getByRole('button', { name: 'Settings', exact: true }).click();
     await sia.page.getByRole('button', { name: 'Voice', exact: true }).click();
@@ -161,7 +210,9 @@ test('Voice settings keeps the Fn controls readable and can replay setup with th
       sia.page.getByRole('heading', { name: 'Make yourself at home.' }),
     ).toBeVisible();
     await sia.page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
-    await expect(sia.page.getByRole('heading', { name: 'Just say the word.' })).toBeVisible();
+    await expect(
+      sia.page.getByRole('heading', { name: 'Give Sia access, once.' }),
+    ).toBeVisible();
     expect((await sia.page.evaluate(() => window.sia.bootstrap())).agents).toHaveLength(1);
     expect(sia.rendererErrors).toEqual([]);
   } finally {

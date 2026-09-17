@@ -142,6 +142,8 @@ export class CuaService {
   }
 
   async requestPermissions(): Promise<ComputerView> {
+    const current = await this.permissions();
+    if (current.status === 'ready' || current.status === 'unavailable') return current;
     if (process.platform === 'darwin') {
       const cuaElectron = await import('@trycua/cua-driver/electron');
       const requested = cuaElectron.requestMacOSPermissions();

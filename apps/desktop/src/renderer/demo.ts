@@ -841,6 +841,17 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
     async refreshProvider() {
       return Promise.resolve();
     },
+    async connectSelectedApps(selected) {
+      mutate((current) => {
+        for (const app of current.apps) {
+          if (!selected.includes(app.id === 'slack' ? 'slack' : 'google')) continue;
+          app.status = 'connected';
+          app.enabled = true;
+          app.account ??= 'lawrence@example.com';
+          if (app.id !== 'slack') app.googleAccess = 'read_only';
+        }
+      });
+    },
     async connectGoogleApps() {
       mutate((current) => {
         for (const app of current.apps) {

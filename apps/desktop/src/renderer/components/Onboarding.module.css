@@ -130,13 +130,6 @@
   color: var(--text-success);
   font-weight: 650;
 }
-.grants {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  font-size: 11px;
-  color: var(--text-secondary);
-}
 .actions {
   display: flex;
   align-items: center;
@@ -586,6 +579,9 @@
 .connectionsStage {
   align-items: start;
 }
+.connectionsStage .demo {
+  align-self: start;
+}
 .setupChoices {
   border: 0;
   padding: 0;
@@ -629,4 +625,32 @@
   font-size: 13px;
   line-height: 1.5;
   color: var(--text-secondary);
+}
+.accessList {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 18px;
+}
+
+.connectorChecklist {
+  border: 0;
+  padding: 0;
+  margin: 20px 0;
+  min-width: 0;
+}
+
+.connectorChecklist legend {
+  font-weight: 600;
+}
+
+.connectorDescription {
+  display: grid;
+  gap: 6px;
+  flex: 1;
+}
+
+.connectorDescription > span {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
 }

@@ -172,8 +172,12 @@ const api: DesktopBridgeApi = {
     detach: () => invoke('browser.detach', undefined),
   },
   voice: {
-    configurePushToTalk: (enabled, agentId) =>
-      invoke('voice.pushToTalk.configure', agentId ? { enabled, agentId } : { enabled }),
+    configurePushToTalk: (enabled, agentId, requestAccessibility) =>
+      invoke('voice.pushToTalk.configure', {
+        enabled,
+        ...(agentId ? { agentId } : {}),
+        ...(requestAccessibility !== undefined ? { requestAccessibility } : {}),
+      }),
     cancelPushToTalk: () => invoke('voice.pushToTalk.cancel', undefined),
     acquireCapture: () => invoke('voice.capture.acquire', undefined),
     releaseCapture: (leaseId) => invoke('voice.capture.release', { leaseId }),
@@ -192,6 +196,7 @@ const api: DesktopBridgeApi = {
   },
   connections: {
     startGoogle: () => invoke('connections.startGoogle', undefined),
+    startSelected: (apps) => invoke('connections.startSelected', { apps }),
     upgradeGoogle: () => invoke('connections.upgradeGoogle', undefined),
     start: (connectionId) => invoke('connections.start', { connectionId }),
     setEnabled: (connectionId, enabled) =>

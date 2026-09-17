@@ -1,5 +1,6 @@
 import { BrowserWindowService } from './browser-window.js';
 import { AutomationPermissionService } from './automation-permissions.js';
+import { developmentRelaunchArguments } from './development-relaunch.js';
 import { PhoneRemote } from './phone-remote.js';
 import { remoteQR, advertiseRemote } from './phone-remote-native.js';
 import { createScottyCompanion } from './scotty-window.js';
@@ -7,7 +8,7 @@ import { createCommandLauncher } from './command-launcher.js';
 import { runMacAutomation } from './mac-automation.js';
 import { installedApplications, launchInstalledApplication } from './application-catalog.js';
 import { writeFile } from 'node:fs/promises';
-import { basename, join, resolve } from 'node:path';
+import { basename, join } from 'node:path';
 
 import {
   app,
@@ -264,13 +265,11 @@ async function performApplicationCreation(): Promise<void> {
           if (process.platform === 'darwin' && !app.isPackaged) {
             app.relaunch({
               execPath: '/usr/bin/open',
-              args: [
-                '-n',
-                '-a',
-                resolve(process.execPath, '../../..'),
-                '--args',
+              args: developmentRelaunchArguments(
+                process.execPath,
                 app.getAppPath(),
-              ],
+                process.env,
+              ),
             });
           } else app.relaunch();
           app.quit();

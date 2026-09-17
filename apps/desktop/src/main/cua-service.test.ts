@@ -28,6 +28,21 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+it.each(['ready', 'unavailable'] as const)(
+  'does not request permissions again when computer access is %s',
+  async (status) => {
+    const service = new CuaService(authorization());
+    const current = {
+      status,
+      accessibility: status === 'ready',
+      screenRecording: status === 'ready',
+    };
+    const permissions = vi.spyOn(service, 'permissions').mockResolvedValue(current);
+    expect(await service.requestPermissions()).toBe(current);
+    expect(permissions).toHaveBeenCalledTimes(1);
+  },
+);
+
 describe('CuaService call boundaries', () => {
   it.each(['errorCode', 'structured', 'thrown'] as const)(
     'renews an expired implicit inventory session once: %s',

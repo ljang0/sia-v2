@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   automationApps,
   automationStatusLabel,
@@ -13,97 +13,104 @@ export function MacAutomationPermissions({
   request,
   refresh,
   disabled = false,
+  prepare,
+  children,
+  needsPreparation = false,
+  onBusyChange,
 }: {
   permissions: AutomationPermissions | undefined;
   request(app: AutomationApp): Promise<void>;
   refresh(): Promise<void>;
   disabled?: boolean;
+  prepare?(): Promise<void>;
+  needsPreparation?: boolean;
+  children?: ReactNode;
+  onBusyChange?(busy: boolean): void;
 }) {
   const [pending, setPending] = useState<string>();
   const [error, setError] = useState<string>();
-  const run = async (action: () => Promise<void>) => {
-    setError(undefined);
-    try {
-      await action();
-    } catch {
-      setError(
-        'Permission setup could not finish. Try again, then check Privacy & Security → Automation.',
-      );
-    } finally {
-      setPending(undefined);
-    }
-  };
-  const ask = async (app: AutomationApp) => {
-    setPending(automationApps.find((entry) => entry.id === app)!.name);
-    await request(app);
-  };
+  const busy = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const needed = automationApps.filter(
     ({ id }) => !['ready', 'unavailable'].includes(permissions?.[id] ?? 'needs_permission'),
   );
+  const run = async (checkOnly: boolean) => {
+    if (busy.current) return;
+    busy.current = true;
+    onBusyChange?.(true);
+    setError(undefined);
+    const failures: string[] = [];
+    try {
+      if (!checkOnly) {
+        if (prepare && needsPreparation) {
+          setPending('Mac and voice access');
+          try {
+            await prepare();
+          } catch (cause) {
+            failures.push(cause instanceof Error ? cause.message : 'Mac and voice access');
+          }
+        }
+        for (const { id, name } of needed) {
+          if (!mounted.current) break;
+          setPending(name);
+          try {
+            await request(id);
+          } catch {
+            failures.push(name);
+          }
+        }
+      }
+      setPending('check');
+      await refresh();
+      if (failures.length)
+        setError(
+          `Setup needs attention: ${failures.join('; ')}. Allowed permissions are kept; retry only the missing access.`,
+        );
+    } catch {
+      setError('Could not check access. Return from System Settings and try again.');
+    } finally {
+      busy.current = false;
+      onBusyChange?.(false);
+      setPending(undefined);
+    }
+  };
   return (
     <section aria-label="Mac app permissions">
-      <h3>Connect your Mac apps</h3>
+      <h3>{prepare ? 'Your access checklist' : 'Mac app access'}</h3>
       <p className={styles.note}>
-        Allow Sia to control Mac apps, keyboard input and your browser before your first task.
-        macOS asks separately for each app. This may open the app, but does not read your
-        content or send anything.
+        All supported Mac apps are included. One setup action walks through missing access.
+        macOS still asks separately for some permissions. Already allowed access is skipped.
       </p>
-      {automationApps.map(({ id, name, detail }) => {
-        const status = permissions?.[id] ?? 'needs_permission';
-        return (
-          <div className={styles.permission} key={id}>
-            <div>
-              <strong>{name}</strong>
-              <p>{detail}</p>
-              <p>{automationStatusLabel[status]}</p>
-            </div>
-            <button
-              className={ui.secondaryButton}
-              disabled={
-                disabled || Boolean(pending) || status === 'unavailable' || status === 'ready'
-              }
-              onClick={() => void run(() => ask(id))}
-            >
-              {pending === name
-                ? 'Waiting for macOS…'
-                : status === 'ready'
-                  ? `${name} allowed`
-                  : status === 'denied'
-                    ? `Review ${name} access`
-                    : `Allow ${name}`}
-            </button>
-          </div>
-        );
-      })}
       <div className={styles.siteButtons}>
         <button
-          className={ui.secondaryButton}
-          disabled={disabled || Boolean(pending) || !needed.length}
-          onClick={() =>
-            void run(async () => {
-              for (const { id } of needed) await ask(id);
-            })
-          }
+          className={ui.primaryButton}
+          disabled={disabled || Boolean(pending) || (!needed.length && !needsPreparation)}
+          onClick={() => void run(false)}
         >
-          Set up all Mac apps
+          {pending && pending !== 'check'
+            ? 'Setting up access…'
+            : prepare
+              ? 'Allow all required access'
+              : 'Allow all Mac apps'}
         </button>
         <button
           className={styles.link}
           disabled={disabled || Boolean(pending)}
-          onClick={() =>
-            void run(async () => {
-              setPending('check');
-              await refresh();
-            })
-          }
+          onClick={() => void run(true)}
         >
-          Recheck app access
+          Check access
         </button>
       </div>
       {pending ? (
         <p className={styles.note} role="status">
           {pending === 'check'
-            ? 'Checking app access…'
+            ? 'Checking access without requesting permissions…'
             : `Finish the ${pending} permission prompt, then return here.`}
         </p>
       ) : null}
@@ -112,10 +119,26 @@ export function MacAutomationPermissions({
           {error}
         </p>
       ) : null}
+      <ul className={styles.accessList}>
+        {children}
+        {automationApps.map(({ id, name, detail }) => {
+          const status = permissions?.[id] ?? 'needs_permission';
+          return (
+            <li className={styles.permission} key={id}>
+              <div>
+                <strong>{name}</strong>
+                <p>{detail}</p>
+              </div>
+              <span className={status === 'ready' ? styles.ready : styles.status}>
+                {automationStatusLabel[status]}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
       <p className={styles.note}>
-        If you previously chose Don’t Allow, enable the app under System Settings → Privacy &
-        Security → Automation. You can skip apps you do not use; missing access will stay
-        visible in your setup review.
+        If access was denied, enable it in System Settings → Privacy &amp; Security. Missing
+        access stays visible; checking this list does not request it again.
       </p>
     </section>
   );

@@ -29,6 +29,8 @@ func runAutomationPermissions(request: String?) {
     }
     guard let request else { finish(); return }
     guard let bundle = targets[request] else { exit(2) }
+    // A granted target need not be launched again just to confirm its permission.
+    if check(request, ask: false) == "ready" { finish(); return }
     guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) else { finish(); return }
     let configuration = NSWorkspace.OpenConfiguration()
     configuration.activates = false

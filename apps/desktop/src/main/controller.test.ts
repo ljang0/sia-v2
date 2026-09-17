@@ -261,6 +261,43 @@ describe('DesktopController', () => {
     expect(restored.controller.snapshot().agents).toHaveLength(1);
   });
 
+  it('does not request macOS permissions on initial startup or a read-only recheck', async () => {
+    const requestPermissions = vi.fn(computer.requestPermissions);
+    const missing = {
+      ...computer,
+      requestPermissions,
+      permissions: async () => ({
+        status: 'needs_permission' as const,
+        accessibility: false,
+        screenRecording: false,
+      }),
+    };
+    const identity = {
+      initialize: async () => ({ state: 'signed_in' as const, email: 'person@example.test' }),
+      status: () => ({ state: 'signed_in' as const, email: 'person@example.test' }),
+      startEmailSignIn: async () => ({ state: 'signed_in' as const }),
+      completeEmailSignIn: async () => ({ state: 'signed_in' as const }),
+      signOut: async () => ({ state: 'signed_out' as const }),
+    };
+    const { controller } = await createHarness({
+      fakeServices: false,
+      computer: missing,
+      identity,
+    });
+    try {
+      await controller.invoke('computer.setTrust', { trust: 'auto' });
+      await controller.initialize();
+      expect(controller.computerTrust()).toBe('auto');
+      expect(requestPermissions).not.toHaveBeenCalled();
+      await controller.invoke('computer.permissions', undefined);
+      expect(requestPermissions).not.toHaveBeenCalled();
+      await controller.invoke('computer.requestPermissions', undefined);
+      expect(requestPermissions).toHaveBeenCalledTimes(1);
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
   it('requests native app permission only through explicit setup and refreshes revocations', async () => {
     let ready = false;
     const automationPermissions = vi.fn(async (app?: string) => {
@@ -2782,6 +2819,27 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it.each([['google'], ['slack'], ['google', 'slack']] as ('google' | 'slack')[][])(
+    'connects only the selected account checklist: %j',
+    async (...apps) => {
+      const controller = await createController();
+      try {
+        const result = await controller.invoke('connections.startSelected', { apps });
+        for (const connection of result.snapshot.connections) {
+          const selected = apps.includes(connection.id === 'slack' ? 'slack' : 'google');
+          expect(connection.status).toBe(selected ? 'connected' : 'disconnected');
+        }
+        const ids = result.snapshot.connections.map((connection) => connection.connectionId);
+        await controller.invoke('connections.startSelected', { apps });
+        expect(
+          controller.snapshot().connections.map((connection) => connection.connectionId),
+        ).toEqual(ids);
+      } finally {
+        await controller.shutdown();
+      }
+    },
+  );
+
   it('keeps a read-only Google grant active until the editor upgrade succeeds', async () => {
     let editorStarted = false;
     const startConnection = vi.fn(
@@ -3154,7 +3212,7 @@ describe('DesktopController', () => {
     }
   });
 
-  it('opens each provider only through its focused setup action', async () => {
+  it('queues selected providers after consent and cancels the queue when disconnected', async () => {
     type TestConnectionId = 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack';
     const connectionOrder: TestConnectionId[] = ['gmail', 'slack'];
     const startConnection = vi.fn(async (connectionId: TestConnectionId) => ({
@@ -3216,14 +3274,17 @@ describe('DesktopController', () => {
     vi.useFakeTimers();
 
     try {
-      const result = await controller.invoke('connections.startGoogle', undefined);
+      const result = await controller.invoke('connections.startSelected', {
+        apps: ['google', 'slack'],
+      });
       expect(result.opened).toBe(true);
       expect(openExternal).toHaveBeenCalledTimes(1);
       expect(openExternal).toHaveBeenLastCalledWith('https://connect.example.test/gmail');
 
+      await expect(
+        controller.invoke('connections.startSelected', { apps: ['slack'] }),
+      ).rejects.toThrow(/already waiting/);
       await vi.advanceTimersByTimeAsync(2_000);
-      const slack = await controller.invoke('connections.start', { connectionId: 'slack' });
-      expect(slack.opened).toBe(true);
       expect(openExternal).toHaveBeenCalledTimes(2);
       expect(openExternal).toHaveBeenLastCalledWith('https://connect.example.test/slack');
       await vi.advanceTimersByTimeAsync(2_000);
@@ -3245,7 +3306,7 @@ describe('DesktopController', () => {
         }>;
       }>();
       connectionStatus.mockImplementationOnce(async () => await delayedStatus.promise);
-      await controller.invoke('connections.startGoogle', undefined);
+      await controller.invoke('connections.startSelected', { apps: ['google', 'slack'] });
       expect(openExternal).toHaveBeenCalledTimes(3);
       await vi.advanceTimersByTimeAsync(2_000);
       expect(connectionStatus).toHaveBeenCalledTimes(3);

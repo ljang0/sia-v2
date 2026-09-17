@@ -29,7 +29,7 @@ it('requests app permissions only on click, sequentially, and skips allowed or u
     />,
   );
   expect(request).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button', { name: 'Set up all Mac apps' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Allow all Mac apps' }));
   expect(request).toHaveBeenCalledWith('calendar');
   expect(request).toHaveBeenCalledTimes(1);
   expect(screen.getByRole('status').textContent).toContain('Calendar');
@@ -41,21 +41,19 @@ it('requests app permissions only on click, sequentially, and skips allowed or u
 });
 it('offers a nonprompting recheck and displays failed requests without marking them allowed', async () => {
   const refresh = vi.fn(async () => {});
+  const request = vi.fn(async () => {
+    throw new Error('native details');
+  });
   render(
-    <MacAutomationPermissions
-      permissions={undefined}
-      request={async () => {
-        throw new Error('native details');
-      }}
-      refresh={refresh}
-    />,
+    <MacAutomationPermissions permissions={undefined} request={request} refresh={refresh} />,
   );
-  fireEvent.click(screen.getByRole('button', { name: 'Recheck app access' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Check access' }));
   await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
   await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
-  fireEvent.click(screen.getByRole('button', { name: 'Allow Calendar' }));
+  expect(request).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Allow all Mac apps' }));
   await waitFor(() =>
-    expect(screen.getByRole('alert').textContent).toContain('could not finish'),
+    expect(screen.getByRole('alert').textContent).toContain('Setup needs attention'),
   );
   expect(screen.queryByRole('button', { name: 'Calendar allowed' })).toBeNull();
 });

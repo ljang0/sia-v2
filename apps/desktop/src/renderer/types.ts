@@ -587,6 +587,7 @@ export interface RendererApi {
   openProviderSetup(provider: ProviderId): Promise<void>;
   refreshProvider(provider: ProviderId): Promise<void>;
   connectGoogleApps(): Promise<void>;
+  connectSelectedApps(apps: ('google' | 'slack')[]): Promise<void>;
   upgradeGoogleApps(): Promise<void>;
   connectApp(app: AppConnection['id']): Promise<void>;
   setAppEnabled(app: AppConnection['id'], enabled: boolean): Promise<void>;
@@ -619,7 +620,11 @@ export interface RendererApi {
   setTrajectoryLog(enabled: boolean): Promise<void>;
   revealTrajectories(): Promise<void>;
   openMessages(): Promise<void>;
-  configurePushToTalk(enabled: boolean, agentId?: string): Promise<void>;
+  configurePushToTalk(
+    enabled: boolean,
+    agentId?: string,
+    requestAccessibility?: boolean,
+  ): Promise<void>;
   acquireVoiceCapture(): Promise<string>;
   releaseVoiceCapture(leaseId: string): Promise<void>;
   configureVoice(): Promise<void>;

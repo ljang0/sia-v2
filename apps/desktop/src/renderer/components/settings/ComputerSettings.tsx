@@ -73,7 +73,7 @@ export function ComputerSettings({
   return (
     <SettingsSectionHeader
       title="Computer access"
-      description="Grant only what a task needs. Changes ask for confirmation by default, and every computer action stays reviewable."
+      description="Review what Sia can use on your Mac. Your bypass setting controls whether task actions ask for confirmation."
     >
       <InlineSettingsError message={error} />
       {onSetComputerAccessMode ? (

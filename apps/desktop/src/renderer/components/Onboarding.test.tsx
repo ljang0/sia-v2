@@ -53,7 +53,7 @@ it.each(['mac-bypass', 'connected'] as const)(
   },
 );
 
-it('skips connections in quick Mac setup and reviews only its relevant access', async () => {
+it('resumes legacy Mac access setup with one action and offers the connector checklist', async () => {
   const snapshot = structuredClone(demoSnapshot);
   snapshot.preferences.onboarding = { step: 'access', agentId: snapshot.agents[0]!.id };
   snapshot.computer.accessMode = 'mac';
@@ -76,21 +76,23 @@ it('skips connections in quick Mac setup and reviews only its relevant access', 
       <div />
     </Onboarding>,
   );
-  expect(screen.getByRole('button', { name: 'Allow System Events' })).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Allow Safari' })).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Allow Chrome' })).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Review and restart' }));
-  await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('restart'));
-  expect(accessChecklist(snapshot).map((item) => item.label)).toEqual([
-    'Mac apps',
-    'Fn dictation',
-    'Browser window access',
-    'System Events automation',
-    'Safari automation',
-    'Chrome automation',
-    'Full bypass',
-  ]);
-  expect(screen.queryByText('Your apps')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Allow all required access' })).toBeTruthy();
+  for (const name of [
+    'System Events',
+    'Safari',
+    'Chrome',
+    'Calendar',
+    'Reminders',
+    'Finder',
+    'Messages',
+  ])
+    expect(screen.getByText(name, { exact: true })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Connect your apps' }));
+  await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('apps'));
+  expect(
+    accessChecklist(snapshot).filter((item) => item.label.endsWith('automation')),
+  ).toHaveLength(7);
+  expect(screen.getByText('Your apps')).toBeTruthy();
 });
 
 it('keeps existing profiles out of first-run and recovers a deleted starter', () => {
@@ -123,6 +125,7 @@ it('keeps voice permission denial optional and does not activate the microphone 
     configurePushToTalk: vi.fn(),
     startRealtimeVoice: vi.fn(),
     requestComputerPermissions: vi.fn(),
+    refreshComputerPermissions: vi.fn().mockResolvedValue(undefined),
   };
   render(
     <Onboarding
@@ -136,9 +139,9 @@ it('keeps voice permission denial optional and does not activate the microphone 
       <div>Conversation</div>
     </Onboarding>,
   );
-  expect(screen.getByText('Microphone: Waiting for access')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Continue with typing' }));
-  await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('access'));
+  expect(screen.getByText('Voice and microphone')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Connect your apps' }));
+  await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('apps'));
   expect(api.configurePushToTalk).not.toHaveBeenCalled();
   expect(api.startRealtimeVoice).not.toHaveBeenCalled();
   expect(api.requestComputerPermissions).not.toHaveBeenCalled();
@@ -198,7 +201,7 @@ it('inserts tutorial suggestions into an empty composer without sending or overw
   expect(onSend).not.toHaveBeenCalled();
 });
 
-it('shows unavailable cloud connections and gives Messages an explicit permission action', async () => {
+it('shows unavailable cloud connections without requesting account or Mac access', async () => {
   const snapshot = structuredClone(demoSnapshot);
   snapshot.preferences.onboarding = { step: 'apps', agentId: snapshot.agents[0]!.id };
   snapshot.cloudAuth.state = 'unconfigured';
@@ -209,8 +212,7 @@ it('shows unavailable cloud connections and gives Messages an explicit permissio
   const api = {
     refreshComputerPermissions: vi.fn().mockResolvedValue(undefined),
     setupMessages: vi.fn().mockResolvedValue(undefined),
-    connectGoogleApps: vi.fn(),
-    connectApp: vi.fn(),
+    connectSelectedApps: vi.fn(),
     setOnboarding: vi.fn().mockResolvedValue(undefined),
   };
   render(
@@ -226,14 +228,12 @@ it('shows unavailable cloud connections and gives Messages an explicit permissio
     </Onboarding>,
   );
   expect(
-    (screen.getByRole('button', { name: 'Connect Google' }) as HTMLButtonElement).disabled,
+    (screen.getByRole('button', { name: 'Connect selected apps' }) as HTMLButtonElement)
+      .disabled,
   ).toBe(true);
   expect(screen.getByText(/Direct Google and Slack connections are unavailable/)).toBeTruthy();
   expect(api.setupMessages).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button', { name: 'Set up Messages' }));
-  await waitFor(() => expect(api.setupMessages).toHaveBeenCalledTimes(1));
-  expect(api.connectGoogleApps).not.toHaveBeenCalled();
-  expect(api.connectApp).not.toHaveBeenCalled();
+  expect(api.connectSelectedApps).not.toHaveBeenCalled();
 });
 
 it('requires an explicit restart and prevents continuing while it is pending', async () => {

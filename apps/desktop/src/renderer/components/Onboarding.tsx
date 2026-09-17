@@ -9,7 +9,7 @@ import {
   SetupAccessReview,
   accessChecklist,
 } from './OnboardingConnections';
-import { MacAutomationPermissions } from './MacAutomationPermissions';
+import { SetupMacAccess } from './SetupMacAccess';
 import { ProvidersSettings } from './settings/ProvidersSettings';
 import ui from '../ui.module.css';
 import styles from './Onboarding.module.css';
@@ -27,7 +27,7 @@ const steps = [
 const labels = [
   'Meet Sia',
   'Your agent',
-  'Your voice',
+  'Your access',
   'Your Mac',
   'Your apps',
   'Restart',
@@ -73,9 +73,7 @@ export function Onboarding({
   const [error, setError] = useState<string>();
   const [setupRoute, setSetupRoute] = useState<'mac-bypass' | 'connected'>('mac-bypass');
   const fastMac = snapshot.computer.accessMode === 'mac' && snapshot.computer.trust === 'auto';
-  const setupSteps = steps.filter(
-    (item) => item !== 'apps' || !(step === 'welcome' ? setupRoute === 'mac-bypass' : fastMac),
-  );
+  const setupSteps = steps.filter((item) => item !== 'access' || step === 'access');
   const restarting = Boolean(snapshot.preferences.onboarding?.restartPending);
   const title = useRef<HTMLHeadingElement>(null);
   const agent = snapshot.agents.find(
@@ -86,7 +84,6 @@ export function Onboarding({
     choices.find((item) => `${item.provider}:${item.model}` === model) ??
     choices.find((item) => item.ready);
   const ptt = snapshot.voice.pushToTalk;
-  const nativeVoice = snapshot.voice.engine === 'macos';
   const voiceReady =
     snapshot.voice.dictationAvailable !== false &&
     ptt?.enabled &&
@@ -102,7 +99,7 @@ export function Onboarding({
   }, [step]);
   // Returning from macOS Settings rechecks grants without opening another prompt.
   useEffect(() => {
-    if (!step || !['access', 'apps', 'verify'].includes(step)) return;
+    if (!step || !['voice', 'access', 'apps', 'verify'].includes(step)) return;
     const refresh = () => {
       void api.refreshComputerPermissions().catch(() => undefined);
     };
@@ -192,7 +189,7 @@ export function Onboarding({
         ))}
       </nav>
       <div
-        className={`${styles.stage} ${step === 'welcome' ? styles.welcomeStage : ''} ${['apps', 'restart', 'verify'].includes(step) ? styles.connectionsStage : ''}`}
+        className={`${styles.stage} ${step === 'welcome' ? styles.welcomeStage : ''} ${['voice', 'access', 'apps', 'restart', 'verify'].includes(step) ? styles.connectionsStage : ''}`}
         key={step}
       >
         <section className={styles.copy}>
@@ -205,7 +202,7 @@ export function Onboarding({
               : step === 'agent'
                 ? 'Meet your everyday helper.'
                 : step === 'voice'
-                  ? 'Just say the word.'
+                  ? 'Give Sia access, once.'
                   : step === 'access'
                     ? 'A helping hand on your Mac.'
                     : step === 'apps'
@@ -222,11 +219,11 @@ export function Onboarding({
               : step === 'agent'
                 ? 'Start with one agent for writing, planning, research, and everyday tasks. You can make it your own later.'
                 : step === 'voice'
-                  ? 'Hold Fn. Wait for the glow. Say what you need, then release to send it to your agent.'
+                  ? 'Set up voice, screen access, and Mac apps together. Sia checks what is already allowed and only requests what is missing.'
                   : step === 'access'
                     ? 'Let Sia see and work in the apps on your Mac. Turn on both permissions, then come back here.'
                     : step === 'apps'
-                      ? 'Choose Use my Mac for your existing apps and browser. Individual service connections are optional.'
+                      ? 'Choose the accounts you want Sia to use. You can add or change connections later in Settings.'
                       : step === 'restart'
                         ? 'Restart Sia to apply your Mac permissions. Your agent, access mode, and setup progress are saved. We’ll recheck access when you return.'
                         : 'Sia is back. Check your chosen access mode and Mac permissions before your first request.'}
@@ -245,7 +242,7 @@ export function Onboarding({
                 />
                 <span>
                   <strong>Use my Mac + full bypass</strong>
-                  <span>Fastest setup · No app connections</span>
+                  <span>Full access · Optional app connections</span>
                   <p>
                     Use your existing apps and signed-in browser. Sia runs commands,
                     AppleScript, and file operations directly, and sees your screen, without
@@ -327,152 +324,14 @@ export function Onboarding({
               )}
             </>
           ) : null}
-          {step === 'voice' ? (
-            <>
-              <div className={styles.permission}>
-                <div>
-                  <strong>
-                    {nativeVoice ? '1. Enable Mac voice' : '1. Connect included voice'}
-                  </strong>
-                  <p>
-                    {nativeVoice
-                      ? 'Use installed Mac voices. No cloud account or API key is needed.'
-                      : 'Your audio is sent to ElevenLabs when you use voice.'}
-                  </p>
-                </div>
-                {snapshot.voice.status === 'connected' ? (
-                  <span className={styles.ready}>Connected</span>
-                ) : (
-                  <button
-                    className={ui.secondaryButton}
-                    disabled={pending || restarting}
-                    onClick={() => void run(() => api.configureVoice())}
-                  >
-                    Enable voice
-                  </button>
-                )}
-              </div>
-              <div className={styles.permission}>
-                <div>
-                  <strong>2. Enable the Fn shortcut</strong>
-                  <p>
-                    {nativeVoice
-                      ? 'macOS will ask for Speech Recognition, Microphone, and Accessibility access for Sia Voice.'
-                      : 'macOS will ask for Microphone and Accessibility access for Sia Voice.'}
-                  </p>
-                </div>
-                <button
-                  className={ui.secondaryButton}
-                  disabled={
-                    pending ||
-                    snapshot.voice.status !== 'connected' ||
-                    snapshot.voice.dictationAvailable === false ||
-                    !ptt?.available ||
-                    !agent
-                  }
-                  onClick={() => void run(() => api.configurePushToTalk(true, agent?.id))}
-                >
-                  {voiceReady
-                    ? 'Check permissions'
-                    : ptt?.enabled
-                      ? 'Open permissions'
-                      : 'Enable Fn shortcut'}
-                </button>
-              </div>
-              {snapshot.voice.dictationDetail ? (
-                <p className={styles.note} role="status">
-                  {snapshot.voice.dictationDetail}
-                </p>
-              ) : null}
-              {ptt?.enabled ? (
-                <div className={styles.grants} role="status">
-                  <span>Microphone: {ptt.microphone ? 'Allowed' : 'Waiting for access'}</span>
-                  <span>
-                    Accessibility: {ptt.accessibility ? 'Allowed' : 'Waiting for access'}
-                  </span>
-                </div>
-              ) : null}
-              {ptt?.detail ? (
-                <p className={styles.note} role="status">
-                  {ptt.detail}
-                </p>
-              ) : null}
-              {!ptt?.available ? (
-                <p className={styles.note}>
-                  Fn dictation needs the macOS app. You can keep going with typing.
-                </p>
-              ) : null}
-              <p className={styles.note}>
-                No screen recording is needed for dictation. Sia must stay open. You can turn
-                voice off anytime in Settings → Voice.
-              </p>
-            </>
-          ) : null}
-          {step === 'access' ? (
-            <>
-              <div className={styles.permission}>
-                <div>
-                  <strong>Accessibility</strong>
-                  <p>Click and type in the windows you grant.</p>
-                </div>
-                <span
-                  className={
-                    snapshot.computer.accessibility === 'allowed' ? styles.ready : styles.status
-                  }
-                >
-                  {snapshot.computer.accessibility === 'allowed' ? 'Allowed' : 'Needs access'}
-                </span>
-              </div>
-              <div className={styles.permission}>
-                <div>
-                  <strong>Screen Recording</strong>
-                  <p>
-                    {fastMac
-                      ? 'See your screen to operate apps and verify task results.'
-                      : 'See the windows you grant for computer tasks.'}
-                  </p>
-                </div>
-                <span
-                  className={
-                    snapshot.computer.screenRecording === 'allowed'
-                      ? styles.ready
-                      : styles.status
-                  }
-                >
-                  {snapshot.computer.screenRecording === 'allowed' ? 'Allowed' : 'Needs access'}
-                </span>
-              </div>
-              <p className={styles.note}>
-                Click Open Mac permissions, allow Sia in Privacy & Security, then return here.
-                macOS may ask you to reopen Sia. Your setup progress is saved.
-              </p>
-              <button
-                className={ui.secondaryButton}
-                disabled={pending || restarting}
-                onClick={() =>
-                  void run(() =>
-                    computerReady
-                      ? api.refreshComputerPermissions()
-                      : api.requestComputerPermissions(),
-                  )
-                }
-              >
-                {computerReady ? 'Check access again' : 'Open Mac permissions'}
-              </button>
-              {fastMac ? (
-                <MacAutomationPermissions
-                  permissions={snapshot.computer.automation}
-                  request={(app) => api.requestAutomationPermission(app)}
-                  refresh={() => api.refreshComputerPermissions()}
-                  disabled={pending || restarting}
-                />
-              ) : null}
-              <p className={styles.note}>
-                {fastMac
-                  ? 'No app connections needed. Next, restart Sia to apply your permissions. Full bypass is enabled for task actions.'
-                  : 'Next we’ll connect your work apps and Messages. Actions ask for confirmation by default; you can grant app windows as tasks need them.'}
-              </p>
-            </>
+          {step === 'voice' || step === 'access' ? (
+            <SetupMacAccess
+              snapshot={snapshot}
+              api={api}
+              agentId={agent?.id}
+              disabled={pending || restarting}
+              onBusyChange={setPending}
+            />
           ) : null}
           {step === 'apps' ? (
             <SetupConnections snapshot={snapshot} api={api} pending={pending} run={run} />
@@ -541,8 +400,8 @@ export function Onboarding({
                       startOnboarding: true,
                     }),
                   );
-                else if (step === 'voice') go('access');
-                else if (step === 'access') go(fastMac ? 'restart' : 'apps');
+                else if (step === 'voice') go('apps');
+                else if (step === 'access') go('apps');
                 else if (step === 'apps') go('restart');
                 else if (step === 'restart') void run(() => api.restartForOnboarding());
                 else
@@ -561,14 +420,10 @@ export function Onboarding({
                   : step === 'agent'
                     ? 'Create my agent'
                     : step === 'voice'
-                      ? voiceReady
-                        ? 'Continue'
-                        : 'Continue with typing'
+                      ? 'Connect your apps'
                       : step === 'access'
                         ? computerReady
-                          ? fastMac
-                            ? 'Review and restart'
-                            : 'Connect your apps'
+                          ? 'Connect your apps'
                           : 'Continue without Mac access'
                         : step === 'apps'
                           ? 'Review and restart'

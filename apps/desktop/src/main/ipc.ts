@@ -251,7 +251,11 @@ const inputSchemas = {
   'browser.open': z.object({ url: z.string().trim().min(1).max(2_048) }).strict(),
   'browser.detach': z.undefined(),
   'voice.pushToTalk.configure': z
-    .object({ enabled: z.boolean(), agentId: identifier.optional() })
+    .object({
+      enabled: z.boolean(),
+      agentId: identifier.optional(),
+      requestAccessibility: z.boolean().optional(),
+    })
     .strict(),
   'voice.pushToTalk.cancel': z.undefined(),
   'voice.capture.acquire': z.undefined(),
@@ -281,6 +285,15 @@ const inputSchemas = {
     })
     .strict(),
   'connections.startGoogle': z.undefined(),
+  'connections.startSelected': z
+    .object({
+      apps: z
+        .array(z.enum(['google', 'slack']))
+        .min(1)
+        .max(2)
+        .refine((apps) => new Set(apps).size === apps.length),
+    })
+    .strict(),
   'connections.upgradeGoogle': z.undefined(),
   'connections.start': z.object({ connectionId }).strict(),
   'connections.setEnabled': z.object({ connectionId, enabled: z.boolean() }).strict(),

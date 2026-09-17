@@ -102,6 +102,18 @@ function release(h: ReturnType<typeof harness>, id: string) {
 }
 
 describe('Fn push-to-talk sessions', () => {
+  it('can defer the shared Accessibility request without starting a recording', () => {
+    const h = harness();
+    h.native.send.mockClear();
+    h.service.configure(true, h.target().agentId, false);
+    expect(h.native.send).toHaveBeenCalledWith({ type: 'permissions', accessibility: false });
+    expect(h.native.send).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'start' }));
+    expect(h.voice.startRealtime).not.toHaveBeenCalled();
+    h.native.send.mockClear();
+    h.service.configure(true, h.target().agentId);
+    expect(h.native.send).toHaveBeenCalledWith({ type: 'permissions' });
+  });
+
   it('streams audio and sends exactly once to the target pinned at activation', async () => {
     const h = harness();
     const target = h.target();
