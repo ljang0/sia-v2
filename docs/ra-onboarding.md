@@ -150,11 +150,16 @@ cancelling a pending transcript creates no message. Use a disposable account for
 
 ### Desktop setup
 
+At launch, Sia explains why macOS may ask for its Keychain encryption key: it protects saved
+conversations and settings. If Keychain access is declined, Sia offers restart or quit without
+opening or changing the saved database. It does not start a temporary, unsaved workspace.
+
 After any required email sign-in:
 
 1. Click **Set up Sia**. This creates the default assistant and starts one pass through missing Mac permissions.
 2. Approve the macOS prompts. Sia rechecks access when you return.
-3. Click **Start using Sia**.
+   Sia opens your conversation automatically when access is ready. If any permission is skipped,
+   choose **Start using Sia** to continue and finish access later in Settings.
 
 The default is **Use my Mac + full bypass**: Sia uses signed-in Mac apps and may send messages or
 change files without per-action approval. **Customize setup** contains the alternative

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { launchIsolatedSia } from '../support/electron-harness';
 
-test('one-click setup creates one agent, resumes without prompts, and opens a working conversation', async () => {
+test('one-click setup opens a working conversation and stays complete across relaunch', async () => {
   let sia = await launchIsolatedSia({ prefix: 'sia-onboarding-' });
   const testRoot = sia.testRoot;
   try {
@@ -18,39 +18,29 @@ test('one-click setup creates one agent, resumes without prompts, and opens a wo
     });
     // SIA_FAKE_SERVICES simulates permission APIs; this cannot prompt the host OS.
     await page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
-    await expect(page.getByText('All available access is ready.')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Start using Sia' })).toBeEnabled();
+    await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     const created = await page.evaluate(() => window.sia.bootstrap());
     expect(created.agents).toHaveLength(1);
     expect(created.agents[0]?.name).toBe('Sia');
-    expect(created.preferences.onboarding?.step).toBe('verify');
+    expect(created.preferences.onboarding?.step).toBe('complete');
     expect(created.preferences.onboarding?.agentId).toBe(created.activeAgentId);
     expect(created.computer.trust).toBe('auto');
     expect(created.computer.accessMode).toBe('mac');
     expect(
       created.connections.every((connection) => connection.status === 'disconnected'),
     ).toBe(true);
-    await expect(page.getByRole('checkbox', { name: /Google Workspace/ })).toBeHidden();
-    await expect(page.getByRole('button', { name: 'Restart Sia', exact: true })).toBeHidden();
     for (const width of [1220, 900]) {
       await page.setViewportSize({ width, height: 780 });
-      const setup = page.getByRole('main', { name: 'Welcome to Sia' });
-      expect(
-        await setup.evaluate((element) => element.scrollWidth <= element.clientWidth),
-      ).toBe(true);
-      await expect(page.getByRole('button', { name: 'Start using Sia' })).toBeInViewport();
+      await expect(
+        page.getByRole('textbox', { name: 'Message', exact: true }),
+      ).toBeInViewport();
       await page.screenshot({
-        path: `test-results/onboarding-simple-${width}.png`,
+        path: `test-results/onboarding-ready-${width}.png`,
         animations: 'disabled',
       });
     }
     await sia.close({ removeTestRoot: false });
     sia = await launchIsolatedSia({ testRoot });
-    await expect(sia.page.getByRole('heading', { name: 'Your Sia setup.' })).toBeVisible();
-    // Fake Automation grants reset with the process. A fresh check must report them
-    // missing rather than request them again just because the guide resumed.
-    await expect(sia.page.getByText('2 of 9 permissions ready')).toBeVisible();
-    await sia.page.getByRole('button', { name: 'Start using Sia' }).click();
     const message = sia.page.getByRole('textbox', { name: 'Message' });
     await expect(message).toBeVisible();
     await message.fill('Help me make a simple plan for my day.');
@@ -84,8 +74,9 @@ test('one checklist action connects the selected accounts and keeps connected ac
   });
   try {
     await sia.page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
-    await expect(sia.page.getByRole('button', { name: 'Start using Sia' })).toBeEnabled();
-    await sia.page.getByText('Connect Google or Slack', { exact: false }).click();
+    await expect(sia.page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
+    await sia.page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await sia.page.getByRole('button', { name: 'Connections', exact: true }).click();
     const google = sia.page.getByRole('checkbox', { name: /Google Workspace/ });
     const slack = sia.page.getByRole('checkbox', { name: /Slack/ });
     await expect(google).toBeChecked();
@@ -120,8 +111,7 @@ test('Voice settings keeps the Fn controls readable and can replay setup with th
   const sia = await launchIsolatedSia({ prefix: 'sia-voice-layout-' });
   try {
     await sia.page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
-    await expect(sia.page.getByRole('heading', { name: 'Your Sia setup.' })).toBeVisible();
-    await sia.page.getByRole('button', { name: 'Exit setup' }).click();
+    await expect(sia.page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     await sia.page.getByRole('button', { name: 'Settings', exact: true }).click();
     await sia.page.getByRole('button', { name: 'Voice', exact: true }).click();
     for (const width of [1220, 900]) {
@@ -154,7 +144,7 @@ test('Voice settings keeps the Fn controls readable and can replay setup with th
     await sia.page.getByRole('button', { name: 'Walk me through setup' }).click();
     await expect(sia.page.getByRole('heading', { name: 'Let’s set up Sia.' })).toBeVisible();
     await sia.page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
-    await expect(sia.page.getByRole('heading', { name: 'Your Sia setup.' })).toBeVisible();
+    await expect(sia.page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     expect((await sia.page.evaluate(() => window.sia.bootstrap())).agents).toHaveLength(1);
     expect(sia.rendererErrors).toEqual([]);
   } finally {

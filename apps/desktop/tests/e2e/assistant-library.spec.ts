@@ -7,7 +7,7 @@ test('background skills use gateway execution and native titles survive restart'
   try {
     const page = sia.page;
     await page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
-    await page.getByRole('button', { name: 'Exit setup' }).click();
+    await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('button', { name: 'Assistant', exact: true }).click();
     await page
@@ -80,7 +80,7 @@ test('personal library saves memory, edits workflow parameters and runs through 
     await page.getByRole('radio', { name: /Connected apps \+ confirmations/ }).check();
     await page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
     // This fixture exercises gateway tools and confirmation-mode behavior.
-    await page.getByRole('button', { name: 'Exit setup' }).click();
+    await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('button', { name: 'Assistant', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'A little more like you' })).toBeVisible();
@@ -157,7 +157,7 @@ test('automatic learning and executable skills persist and dispatch through the 
     await page.getByRole('radio', { name: /Connected apps \+ confirmations/ }).check();
     await page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
     // This fixture exercises gateway tools and confirmation-mode behavior.
-    await page.getByRole('button', { name: 'Exit setup' }).click();
+    await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('button', { name: 'Assistant', exact: true }).click();
     await page

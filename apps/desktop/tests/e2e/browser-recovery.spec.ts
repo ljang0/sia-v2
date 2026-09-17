@@ -12,7 +12,7 @@ test('existing browser-blocked conversations offer inline recovery without openi
     await sia.page.getByRole('radio', { name: /Connected apps \+ confirmations/ }).check();
     await sia.page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
     // This fixture exercises gateway tools and confirmation-mode behavior.
-    await sia.page.getByRole('button', { name: 'Exit setup' }).click();
+    await expect(sia.page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     const threadId = await sia.page.evaluate(
       async () => (await window.sia.bootstrap()).activeThreadId!,
     );
@@ -123,7 +123,7 @@ test('Use my Mac is a persistent access choice independent of action confirmatio
     await sia.page.getByRole('radio', { name: /Connected apps \+ confirmations/ }).check();
     await sia.page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
     // This fixture exercises gateway tools and confirmation-mode behavior.
-    await sia.page.getByRole('button', { name: 'Exit setup' }).click();
+    await expect(sia.page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     await sia.page.getByRole('button', { name: 'Settings', exact: true }).click();
     await sia.page.getByRole('button', { name: 'Computer', exact: true }).click();
     const mode = sia.page.getByRole('combobox', { name: 'App access mode' });

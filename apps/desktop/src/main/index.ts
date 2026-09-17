@@ -8,7 +8,9 @@ import { createCommandLauncher } from './command-launcher.js';
 import { runMacAutomation } from './mac-automation.js';
 import { installedApplications, launchInstalledApplication } from './application-catalog.js';
 import { writeFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
+import { openApplicationRepository } from './application-repository.js';
+import { showStorageStartup } from './storage-startup.js';
 
 import {
   app,
@@ -44,13 +46,7 @@ import { CuaService } from './cua-service.js';
 import { DesktopActionBackend } from './action-backend.js';
 import { CapabilitySocketHost } from './capability-host.js';
 import { registerDesktopIpc } from './ipc.js';
-import {
-  ElectronPayloadCipher,
-  EphemeralPayloadCipher,
-  openRecoverableRecordRepository,
-  PlaintextTestCipher,
-  SqliteRecordRepository,
-} from './persistence.js';
+import { ElectronPayloadCipher, SecureStorageUnavailableError } from './persistence.js';
 import { RuntimeCoordinator } from './runtime-coordinator.js';
 import { CognitoIdentityManager } from './identity.js';
 import { configureMetaCloudAvailability, probeProviders } from './provider-probe.js';
@@ -179,6 +175,52 @@ async function performApplicationCreation(): Promise<void> {
   const developmentMode = !app.isPackaged;
   const fakeServices = developmentMode && process.env.SIA_FAKE_SERVICES === '1';
   const rendererDevUrl = developmentMode ? process.env.ELECTRON_RENDERER_URL : undefined;
+  const window = new BrowserWindow({
+    title: 'Sia',
+    width: 1220,
+    height: 780,
+    minWidth: 960,
+    minHeight: 640,
+    show: false,
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#191b1a' : '#fafaf8',
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 16, y: 16 },
+    webPreferences: {
+      preload: join(import.meta.dirname, '../preload/index.js'),
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      nodeIntegrationInWorker: false,
+      webviewTag: false,
+      spellcheck: true,
+      devTools: !app.isPackaged,
+    },
+  });
+  mainWindow = window;
+
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (isSafeExternal(url)) void shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  window.webContents.on('will-navigate', (event, url) => {
+    if (url !== rendererDevUrl && !url.startsWith(APP_ORIGIN)) event.preventDefault();
+  });
+  window.webContents.on('render-process-gone', (_event, details) => {
+    controller?.releaseRendererVoiceCapture();
+    console.error('Renderer exited', { reason: details.reason, exitCode: details.exitCode });
+  });
+  window.once('ready-to-show', () => window.show());
+  window.on('closed', () => {
+    controller?.releaseRendererVoiceCapture();
+    unregisterIpc?.();
+    unregisterIpc = undefined;
+    mainWindow = undefined;
+    if (!controller) app.quit();
+  });
+
+  const plaintextTestStorage =
+    !app.isPackaged && process.env.SIA_TEST_PLAINTEXT_STORAGE === '1';
+  if (!controller && !plaintextTestStorage) await showStorageStartup(window);
   const cloudConfiguration = await loadCloudConfiguration({
     packaged: app.isPackaged,
     resourcesPath: process.resourcesPath,
@@ -189,8 +231,6 @@ async function performApplicationCreation(): Promise<void> {
   if (!controller) {
     const codexCommand = fakeServices ? undefined : await discoverCodexInstallation();
     const databasePath = join(app.getPath('userData'), 'sia.sqlite');
-    const plaintextTestStorage =
-      !app.isPackaged && process.env.SIA_TEST_PLAINTEXT_STORAGE === '1';
     const { repository, startupNotice } = openApplicationRepository(
       databasePath,
       plaintextTestStorage,
@@ -282,17 +322,7 @@ async function performApplicationCreation(): Promise<void> {
       restartApp: () => {
         // Allow the typed IPC reply to arrive before the normal shutdown drains work.
         setTimeout(() => {
-          if (process.platform === 'darwin' && !app.isPackaged) {
-            app.relaunch({
-              execPath: '/usr/bin/open',
-              args: developmentRelaunchArguments(
-                process.execPath,
-                app.getAppPath(),
-                process.env,
-              ),
-            });
-          } else app.relaunch();
-          app.quit();
+          relaunchApplication();
         }, 250);
       },
       chooseDirectory,
@@ -566,48 +596,7 @@ async function performApplicationCreation(): Promise<void> {
   );
   activeController.setLauncherRegistered(commandLauncher.registered);
 
-  const window = new BrowserWindow({
-    title: 'Sia',
-    width: 1220,
-    height: 780,
-    minWidth: 960,
-    minHeight: 640,
-    show: false,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#191b1a' : '#fafaf8',
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 16, y: 16 },
-    webPreferences: {
-      preload: join(import.meta.dirname, '../preload/index.js'),
-      sandbox: true,
-      contextIsolation: true,
-      nodeIntegration: false,
-      nodeIntegrationInWorker: false,
-      webviewTag: false,
-      spellcheck: true,
-      devTools: !app.isPackaged,
-    },
-  });
-  mainWindow = window;
   unregisterIpc = registerDesktopIpc(ipcMain, window, activeController);
-
-  window.webContents.setWindowOpenHandler(({ url }) => {
-    if (isSafeExternal(url)) void shell.openExternal(url);
-    return { action: 'deny' };
-  });
-  window.webContents.on('will-navigate', (event, url) => {
-    if (url !== rendererDevUrl && !url.startsWith(APP_ORIGIN)) event.preventDefault();
-  });
-  window.webContents.on('render-process-gone', (_event, details) => {
-    activeController.releaseRendererVoiceCapture();
-    console.error('Renderer exited', { reason: details.reason, exitCode: details.exitCode });
-  });
-  window.once('ready-to-show', () => window.show());
-  window.on('closed', () => {
-    activeController.releaseRendererVoiceCapture();
-    unregisterIpc?.();
-    unregisterIpc = undefined;
-    mainWindow = undefined;
-  });
 
   if (rendererDevUrl) {
     await window.loadURL(rendererDevUrl);
@@ -616,53 +605,42 @@ async function performApplicationCreation(): Promise<void> {
   }
 }
 
-function reportStartupFailure(error: unknown): void {
+function relaunchApplication(): void {
+  if (process.platform === 'darwin' && !app.isPackaged) {
+    app.relaunch({
+      execPath: '/usr/bin/open',
+      args: developmentRelaunchArguments(process.execPath, app.getAppPath(), process.env),
+    });
+  } else app.relaunch();
+  app.quit();
+}
+
+async function reportStartupFailure(error: unknown): Promise<void> {
   if (startupFailureReported) return;
   startupFailureReported = true;
+  if (
+    error instanceof SecureStorageUnavailableError &&
+    mainWindow &&
+    !mainWindow.isDestroyed()
+  ) {
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      title: 'Unlock Sia’s secure storage',
+      message: 'Sia needs Keychain access to save your work.',
+      detail:
+        'Your saved data is unchanged. Restart Sia and allow its encryption key in the macOS prompt. Your Mac password stays with macOS.',
+      buttons: ['Restart Sia', 'Quit'],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true,
+    });
+    if (response === 0) relaunchApplication();
+    else app.quit();
+    return;
+  }
   const message = error instanceof Error ? error.message : 'Sia could not start.';
   dialog.showErrorBox('Sia could not start', message);
   app.exit(1);
-}
-
-function openApplicationRepository(
-  databasePath: string,
-  plaintextTestStorage: boolean,
-): {
-  repository: SqliteRecordRepository;
-  startupNotice?: { title: string; detail: string };
-} {
-  if (plaintextTestStorage) {
-    return {
-      repository: new SqliteRecordRepository(databasePath, new PlaintextTestCipher()),
-    };
-  }
-
-  let cipher: ElectronPayloadCipher;
-  try {
-    cipher = new ElectronPayloadCipher();
-  } catch {
-    return {
-      repository: new SqliteRecordRepository(':memory:', new EphemeralPayloadCipher()),
-      startupNotice: {
-        title: 'Secure storage is temporarily unavailable',
-        detail:
-          'Sia opened a temporary session without changing your saved data. Changes in this session will not be saved; unlock macOS Keychain and restart Sia.',
-      },
-    };
-  }
-
-  const opened = openRecoverableRecordRepository(databasePath, cipher);
-  return {
-    repository: opened.repository,
-    ...(opened.archivedPath
-      ? {
-          startupNotice: {
-            title: 'Sia recovered from unreadable local data',
-            detail: `The previous encrypted database could not be opened, so Sia preserved it as ${basename(opened.archivedPath)} and started with a fresh local store.`,
-          },
-        }
-      : {}),
-  };
 }
 
 async function configureProviderPath(): Promise<void> {

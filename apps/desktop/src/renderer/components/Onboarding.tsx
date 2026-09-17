@@ -45,6 +45,10 @@ export function Onboarding({
   const [pending, setPending] = useState(false);
   const [permissionBusy, setPermissionBusy] = useState(false);
   const [startPermissions, setStartPermissions] = useState(false);
+  const [accessReady, setAccessReady] = useState(false);
+  const [permissionPassComplete, setPermissionPassComplete] = useState(false);
+  const [connectionsOpen, setConnectionsOpen] = useState(false);
+  const autoFinished = useRef(false);
   const [error, setError] = useState<string>();
   const [setupRoute, setSetupRoute] = useState<'mac-bypass' | 'connected'>(() =>
     snapshot.agents.length && snapshot.computer.accessMode !== 'mac'
@@ -94,6 +98,8 @@ export function Onboarding({
   };
   const start = () =>
     void run(async () => {
+      autoFinished.current = false;
+      setPermissionPassComplete(false);
       await api.setComputerAccessMode(setupRoute === 'mac-bypass' ? 'mac' : 'connected');
       await api.setComputerTrust(setupRoute === 'mac-bypass' ? 'auto' : 'ask');
       if (agent) await api.setOnboarding('voice');
@@ -115,6 +121,34 @@ export function Onboarding({
       else if (agent) await api.createThread(agent.id);
       await api.setOnboarding('complete');
     });
+
+  // Only a completed, user-started permission pass can advance automatically.
+  // Resuming setup or checking status on focus never starts work or repeats prompts.
+  useEffect(() => {
+    if (
+      !step ||
+      starting ||
+      !agent ||
+      !permissionPassComplete ||
+      !accessReady ||
+      busy ||
+      connecting ||
+      connectionsOpen ||
+      autoFinished.current
+    )
+      return;
+    autoFinished.current = true;
+    finish();
+  }, [
+    step,
+    starting,
+    agent,
+    permissionPassComplete,
+    accessReady,
+    busy,
+    connecting,
+    connectionsOpen,
+  ]);
 
   if (!step) return children;
   return (
@@ -250,11 +284,13 @@ export function Onboarding({
                 agentId={agent?.id}
                 disabled={pending || connecting}
                 onBusyChange={setPermissionBusy}
+                onReadyChange={setAccessReady}
                 compact
                 autoStart={startPermissions}
                 onComplete={async () => {
                   setStartPermissions(false);
                   await run(() => api.setOnboarding('verify'));
+                  setPermissionPassComplete(true);
                 }}
               />
             )}
@@ -270,6 +306,7 @@ export function Onboarding({
             <details
               className={styles.details}
               open={step === 'apps' || connecting || undefined}
+              onToggle={(event) => setConnectionsOpen(event.currentTarget.open)}
             >
               <summary>
                 Connect Google or Slack <span>Optional</span>

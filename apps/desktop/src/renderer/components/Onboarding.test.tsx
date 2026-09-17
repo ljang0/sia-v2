@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { StrictMode } from 'react';
+import { automationApps } from '../../shared/mac-permissions';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { demoSnapshot } from '../demo';
@@ -261,4 +263,65 @@ it('keeps existing profiles out of first-run and recovers a deleted starter', ()
   snapshot.preferences.onboarding = { step: 'complete' };
   snapshot.agents = [];
   expect(onboardingStep(snapshot)).toBeUndefined();
+});
+
+it('automatically opens the conversation once access is ready, including after returning from Settings', async () => {
+  const { snapshot, api, props } = setup('voice');
+  snapshot.computer.accessibility = 'not-requested';
+  snapshot.computer.screenRecording = 'allowed';
+  snapshot.computer.messagesAccess = 'unavailable';
+  snapshot.computer.automation = Object.fromEntries(
+    automationApps.map(({ id }) => [id, 'ready']),
+  ) as typeof snapshot.computer.automation;
+  snapshot.voice.pushToTalk = {
+    enabled: false,
+    available: false,
+    accessibility: false,
+    microphone: false,
+    phase: 'idle',
+  };
+  const content = () => (
+    <StrictMode>
+      <Onboarding {...props}>
+        <div>Conversation</div>
+      </Onboarding>
+    </StrictMode>
+  );
+  const view = render(content());
+  fireEvent.click(screen.getByRole('button', { name: 'Allow remaining access' }));
+  await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('verify'));
+  expect(api.setOnboarding).not.toHaveBeenCalledWith('complete');
+  snapshot.computer.accessibility = 'allowed';
+  view.rerender(content());
+  await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('complete'));
+  fireEvent.focus(window);
+  view.rerender(content());
+  expect(api.setOnboarding.mock.calls.filter(([step]) => step === 'complete')).toHaveLength(1);
+  expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1);
+  expect(api.createThread.mock.calls.length + api.selectThread.mock.calls.length).toBe(1);
+  expect(api.startRealtimeVoice).not.toHaveBeenCalled();
+});
+
+it('does not auto-finish a resumed guide just because access is already ready', async () => {
+  const { snapshot, api, props } = setup('verify');
+  snapshot.computer.accessibility = 'allowed';
+  snapshot.computer.screenRecording = 'allowed';
+  snapshot.computer.messagesAccess = 'unavailable';
+  snapshot.computer.automation = Object.fromEntries(
+    automationApps.map(({ id }) => [id, 'ready']),
+  ) as typeof snapshot.computer.automation;
+  snapshot.voice.pushToTalk = {
+    enabled: false,
+    available: false,
+    accessibility: false,
+    microphone: false,
+    phase: 'idle',
+  };
+  render(
+    <Onboarding {...props}>
+      <div />
+    </Onboarding>,
+  );
+  await waitFor(() => expect(api.refreshComputerPermissions).toHaveBeenCalled());
+  expect(api.setOnboarding).not.toHaveBeenCalledWith('complete');
 });

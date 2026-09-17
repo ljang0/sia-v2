@@ -25,10 +25,16 @@ class UnreadableEncryptedPayloadError extends Error {
   }
 }
 
+export class SecureStorageUnavailableError extends Error {
+  constructor() {
+    super('macOS Keychain encryption is unavailable; saved data has not been opened.');
+  }
+}
+
 export class ElectronPayloadCipher implements PayloadCipher {
   constructor() {
     if (!safeStorage.isEncryptionAvailable()) {
-      throw new Error('macOS Keychain encryption is unavailable; refusing plaintext storage.');
+      throw new SecureStorageUnavailableError();
     }
   }
 
@@ -51,7 +57,7 @@ export class PlaintextTestCipher implements PayloadCipher {
   }
 }
 
-/** Keeps a Keychain-unavailable session off disk without falling back to plaintext. */
+/** Encrypts isolated in-memory test stores without using the host Keychain. */
 export class EphemeralPayloadCipher implements PayloadCipher {
   readonly #key = randomBytes(32);
 

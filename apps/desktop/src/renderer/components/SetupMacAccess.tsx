@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type { RendererApi, RendererSnapshot } from '../types';
 import { automationApps } from '../../shared/mac-permissions';
 import { dictationReady } from '../voiceReadiness';
@@ -13,6 +14,7 @@ export function SetupMacAccess({
   autoStart = false,
   compact = false,
   onComplete,
+  onReadyChange,
 }: {
   snapshot: RendererSnapshot;
   api: RendererApi;
@@ -22,6 +24,7 @@ export function SetupMacAccess({
   autoStart?: boolean;
   compact?: boolean;
   onComplete?(): Promise<void>;
+  onReadyChange?(ready: boolean): void;
 }) {
   const ptt = snapshot.voice.pushToTalk;
   const voiceAvailable = Boolean(ptt?.available) && snapshot.voice.dictationAvailable !== false;
@@ -100,6 +103,9 @@ export function SetupMacAccess({
     available.filter(([, allowed]) => allowed).length +
     apps.filter(({ id }) => snapshot.computer.automation?.[id] === 'ready').length;
   const total = available.length + apps.length;
+  useEffect(() => {
+    onReadyChange?.(ready === total);
+  }, [onReadyChange, ready, total]);
   return (
     <MacAutomationPermissions
       permissions={snapshot.computer.automation}

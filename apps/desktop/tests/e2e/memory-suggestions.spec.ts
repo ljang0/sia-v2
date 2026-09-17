@@ -14,7 +14,7 @@ test('reviews exact memory changes and executable source before accepting', asyn
     await page.getByText('Customize setup', { exact: true }).click();
     await page.getByRole('radio', { name: /Connected apps \+ confirmations/ }).check();
     await page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
-    await page.getByRole('button', { name: 'Exit setup' }).click();
+    await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     const agentId = (await page.evaluate(() => window.sia.bootstrap())).agents[0]!.id;
     // Seed only this disposable plaintext fixture; use the real proposal validation path.
     const db = new DatabaseSync(join(sia.userData, 'sia.sqlite'));
