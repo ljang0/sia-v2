@@ -71,7 +71,7 @@ test('a second-instance event recreates a closed macOS window', async () => {
   const { application, testRoot } = await launchTestApplication();
   try {
     const page = await application.firstWindow();
-    await expect(page.getByRole('heading', { name: 'Create your first agent.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Let’s set up Sia.' })).toBeVisible();
     await page.close();
     await expect.poll(() => application.windows().length).toBe(0);
 
@@ -82,7 +82,7 @@ test('a second-instance event recreates a closed macOS window', async () => {
     const reopenedPage = await reopenedWindow;
 
     await expect(
-      reopenedPage.getByRole('heading', { name: 'Create your first agent.' }),
+      reopenedPage.getByRole('heading', { name: 'Let’s set up Sia.' }),
     ).toBeVisible();
     await expect.poll(() => application.windows().length).toBe(1);
   } finally {

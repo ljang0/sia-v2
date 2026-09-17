@@ -50,7 +50,6 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     Boolean(
       import.meta.env?.DEV && typeof location !== 'undefined' && location.hash === '#audit',
     );
-  const [suggestion, setSuggestion] = useState<{ threadId: string; text: string }>();
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [conversationFindOpen, setConversationFindOpen] = useState(false);
@@ -472,16 +471,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
             <Onboarding
               snapshot={snapshot}
               api={api}
-              onSuggest={(text) => {
-                if (activeThread) setSuggestion({ threadId: activeThread.id, text });
-              }}
               onCustomize={app.openNewAgent}
               onModels={() => app.openSettings('providers')}
               onAccount={() => app.openSettings('privacy')}
             >
               <Conversation
-                suggestion={suggestion?.threadId === activeThread?.id ? suggestion : undefined}
-                onSuggestionHandled={() => setSuggestion(undefined)}
                 thread={activeThread}
                 agentName={roomAgent?.name}
                 agentInitials={roomAgent?.initials}

@@ -32,12 +32,15 @@ test('first run creates an agent, starts a thread, and completes a deterministic
     page.on('pageerror', (error) => rendererErrors.push(error.message));
 
     await expect.poll(() => page.evaluate(() => Boolean(window.sia))).toBe(true);
-    await expect(page.getByRole('heading', { name: 'Create your first agent.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Let’s set up Sia.' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Create agent' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Create agent' }).click();
     await expect(page.getByRole('dialog', { name: 'New agent' })).toBeVisible();
-    await page.getByLabel('Name').fill('Local helper');
+    await page
+      .getByRole('dialog', { name: 'New agent' })
+      .getByLabel('Name', { exact: true })
+      .fill('Local helper');
     await page
       .getByLabel('Instructions')
       .fill('Work carefully inside the selected workspace and explain completed actions.');

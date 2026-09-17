@@ -64,6 +64,7 @@ interface DriverLike {
 }
 
 interface CuaServiceOptions {
+  readonly fakePermissions?: boolean;
   readonly callTimeoutMs?: number;
   readonly driverFactory?: () => DriverLike | Promise<DriverLike>;
 }
@@ -92,6 +93,7 @@ export function isCuaCallResult(value: unknown): value is CuaCallResult {
 
 export class CuaService {
   readonly #authorization: AuthorizationBroker;
+  readonly #fakePermissions: boolean;
   readonly #callTimeoutMs: number;
   readonly #driverFactory: (() => DriverLike | Promise<DriverLike>) | undefined;
   #driver: DriverLike | undefined;
@@ -101,6 +103,7 @@ export class CuaService {
 
   constructor(authorization: AuthorizationBroker, options: CuaServiceOptions = {}) {
     this.#authorization = authorization;
+    this.#fakePermissions = options.fakePermissions ?? false;
     const callTimeoutMs = options.callTimeoutMs ?? DEFAULT_CALL_TIMEOUT_MS;
     if (!Number.isFinite(callTimeoutMs) || callTimeoutMs <= 0) {
       throw new Error('CUA call timeout must be a positive number.');
@@ -110,6 +113,13 @@ export class CuaService {
   }
 
   async permissions(): Promise<ComputerView> {
+    if (this.#fakePermissions)
+      return {
+        status: 'ready',
+        accessibility: true,
+        screenRecording: true,
+        detail: 'Simulated permissions for development.',
+      };
     if (process.platform !== 'darwin') {
       return {
         status: 'unavailable',

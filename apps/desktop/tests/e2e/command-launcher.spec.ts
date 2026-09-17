@@ -6,7 +6,6 @@ test('launcher uses an isolated bridge, opens from the menu, and dispatches to t
   try {
     const page = sia.page;
     await page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
-    await page.getByRole('button', { name: 'Create my agent' }).click();
     await page.getByRole('button', { name: 'Exit setup' }).click();
     await expect(page.getByText('Ready when you are', { exact: true })).toBeVisible();
     await expect(page.getByText('Recent conversations', { exact: true })).toBeVisible();

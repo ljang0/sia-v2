@@ -7,7 +7,6 @@ test('background skills use gateway execution and native titles survive restart'
   try {
     const page = sia.page;
     await page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
-    await page.getByRole('button', { name: 'Create my agent' }).click();
     await page.getByRole('button', { name: 'Exit setup' }).click();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('button', { name: 'Assistant', exact: true }).click();
@@ -77,10 +76,10 @@ test('personal library saves memory, edits workflow parameters and runs through 
   try {
     const page = sia.page;
     await page.setViewportSize({ width: 1220, height: 780 });
+    await page.getByText('Customize setup', { exact: true }).click();
     await page.getByRole('radio', { name: /Connected apps \+ confirmations/ }).check();
     await page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
     // This fixture exercises gateway tools and confirmation-mode behavior.
-    await page.getByRole('button', { name: 'Create my agent' }).click();
     await page.getByRole('button', { name: 'Exit setup' }).click();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('button', { name: 'Assistant', exact: true }).click();
@@ -154,10 +153,10 @@ test('automatic learning and executable skills persist and dispatch through the 
   const sia = await launchIsolatedSia({ prefix: 'sia-executable-skills-' });
   try {
     const page = sia.page;
+    await page.getByText('Customize setup', { exact: true }).click();
     await page.getByRole('radio', { name: /Connected apps \+ confirmations/ }).check();
     await page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
     // This fixture exercises gateway tools and confirmation-mode behavior.
-    await page.getByRole('button', { name: 'Create my agent' }).click();
     await page.getByRole('button', { name: 'Exit setup' }).click();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('button', { name: 'Assistant', exact: true }).click();

@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { MacAutomationPermissions } from './MacAutomationPermissions';
-import { accessChecklist } from './OnboardingConnections';
-import { demoSnapshot } from '../demo';
 afterEach(cleanup);
 it('requests app permissions only on click, sequentially, and skips allowed or unavailable apps', async () => {
   let finish: () => void = () => {};
@@ -57,23 +56,27 @@ it('offers a nonprompting recheck and displays failed requests without marking t
   );
   expect(screen.queryByRole('button', { name: 'Calendar allowed' })).toBeNull();
 });
-it('keeps unresolved app automation visible even when screen and accessibility permissions are ready', () => {
-  const snapshot = structuredClone(demoSnapshot);
-  snapshot.computer.automation = {
-    calendar: 'denied',
-    reminders: 'ready',
-    finder: 'not_running',
-    messages: 'needs_permission',
+it('starts an authorized setup pass once and never replays it on rerender', async () => {
+  const request = vi.fn(async () => {});
+  const complete = vi.fn(async () => {});
+  const props = {
+    permissions: undefined,
+    request,
+    refresh: vi.fn(async () => {}),
+    autoStart: true,
+    onComplete: complete,
   };
-  const checklist = accessChecklist(snapshot);
-  expect(checklist.find((row) => row.label === 'Calendar automation')).toMatchObject({
-    ready: false,
-    detail: 'Allow in System Settings',
-  });
-  expect(checklist.find((row) => row.label === 'Reminders automation')).toMatchObject({
-    ready: true,
-  });
-  expect(checklist.find((row) => row.label === 'Finder automation')).toMatchObject({
-    ready: false,
-  });
+  const view = render(
+    <StrictMode>
+      <MacAutomationPermissions {...props} />
+    </StrictMode>,
+  );
+  await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+  expect(request).toHaveBeenCalledTimes(7);
+  view.rerender(
+    <StrictMode>
+      <MacAutomationPermissions {...props} />
+    </StrictMode>,
+  );
+  expect(request).toHaveBeenCalledTimes(7);
 });

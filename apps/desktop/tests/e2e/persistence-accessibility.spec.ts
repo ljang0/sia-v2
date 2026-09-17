@@ -20,15 +20,16 @@ test('saved agents, threads, transcripts, and drafts survive a full app relaunch
     electronApp = await launchSia(userData, workspace);
     const firstPage = await readyPage(electronApp);
     const firstErrors = collectRendererErrors(firstPage);
-    await expect(
-      firstPage.getByRole('heading', { name: 'Create your first agent.' }),
-    ).toBeVisible();
+    await expect(firstPage.getByRole('heading', { name: 'Let’s set up Sia.' })).toBeVisible();
 
     await firstPage
       .getByRole('complementary', { name: 'Agent navigation' })
       .getByRole('button', { name: 'Create agent' })
       .click();
-    await firstPage.getByLabel('Name').fill('Persistent helper');
+    await firstPage
+      .getByRole('dialog', { name: 'New agent' })
+      .getByLabel('Name', { exact: true })
+      .fill('Persistent helper');
     await firstPage
       .getByLabel('Instructions')
       .fill('Keep the saved thread available after Sia restarts.');
@@ -80,7 +81,7 @@ test('first-run actions and the Access surface remain usable by keyboard at 200%
   try {
     const page = await readyPage(electronApp);
     const rendererErrors = collectRendererErrors(page);
-    await expect(page.getByRole('heading', { name: 'Create your first agent.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Let’s set up Sia.' })).toBeVisible();
     await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
 
     await expect(page.getByRole('button', { name: 'Set up Sia', exact: true })).toBeVisible();

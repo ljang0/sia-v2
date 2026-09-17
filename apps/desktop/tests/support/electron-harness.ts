@@ -120,7 +120,10 @@ export async function createAgentAndThread(
     .getByRole('complementary', { name: 'Agent navigation' })
     .getByRole('button', { name: 'Create agent' })
     .click();
-  await page.getByLabel('Name').fill(name);
+  await page
+    .getByRole('dialog', { name: 'New agent' })
+    .getByLabel('Name', { exact: true })
+    .fill(name);
   await page
     .getByLabel('Instructions')
     .fill(options.instructions ?? 'Run deterministic parity fixtures without external access.');

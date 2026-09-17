@@ -17,6 +17,10 @@ export function MacAutomationPermissions({
   children,
   needsPreparation = false,
   onBusyChange,
+  autoStart = false,
+  compact = false,
+  summary,
+  onComplete,
 }: {
   permissions: AutomationPermissions | undefined;
   request(app: AutomationApp): Promise<void>;
@@ -26,6 +30,10 @@ export function MacAutomationPermissions({
   needsPreparation?: boolean;
   children?: ReactNode;
   onBusyChange?(busy: boolean): void;
+  autoStart?: boolean;
+  compact?: boolean;
+  summary?: ReactNode;
+  onComplete?(): Promise<void>;
 }) {
   const [pending, setPending] = useState<string>();
   const [error, setError] = useState<string>();
@@ -66,8 +74,10 @@ export function MacAutomationPermissions({
           }
         }
       }
+      if (!mounted.current) return;
       setPending('check');
       await refresh();
+      if (!checkOnly) await onComplete?.();
       if (failures.length)
         setError(
           `Setup needs attention: ${failures.join('; ')}. Allowed permissions are kept; retry only the missing access.`,
@@ -80,32 +90,74 @@ export function MacAutomationPermissions({
       setPending(undefined);
     }
   };
+  // Only an explicit Set up Sia click may start this pass automatically. Keep it
+  // consumed across snapshot updates, focus checks, and StrictMode effect replays.
+  const automaticStarted = useRef(false);
+  const runRef = useRef(run);
+  runRef.current = run;
+  useEffect(() => {
+    if (!autoStart || disabled || automaticStarted.current) return;
+    automaticStarted.current = true;
+    void runRef.current(false);
+  }, [autoStart, disabled]);
+  const accessRows = (
+    <ul className={styles.accessList}>
+      {children}
+      {automationApps.map(({ id, name, detail }) => {
+        const status = permissions?.[id] ?? 'needs_permission';
+        return (
+          <li className={styles.permission} key={id}>
+            <div>
+              <strong>{name}</strong>
+              <p>{detail}</p>
+            </div>
+            <span className={status === 'ready' ? styles.ready : styles.status}>
+              {automationStatusLabel[status]}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
   return (
     <section aria-label="Mac app permissions">
-      <h3>{prepare ? 'Your access checklist' : 'Mac app access'}</h3>
-      <p className={styles.note}>
-        All supported Mac apps are included. One setup action walks through missing access.
-        macOS still asks separately for some permissions. Already allowed access is skipped.
-      </p>
+      {compact ? (
+        summary
+      ) : (
+        <>
+          <h3>{prepare ? 'Your access checklist' : 'Mac app access'}</h3>
+          <p className={styles.note}>
+            Approve the macOS prompts. Access already allowed is skipped.
+          </p>
+        </>
+      )}
       <div className={styles.siteButtons}>
-        <button
-          className={ui.primaryButton}
-          disabled={disabled || Boolean(pending) || (!needed.length && !needsPreparation)}
-          onClick={() => void run(false)}
-        >
-          {pending && pending !== 'check'
-            ? 'Setting up access…'
-            : prepare
-              ? 'Allow all required access'
-              : 'Allow all Mac apps'}
-        </button>
-        <button
-          className={styles.link}
-          disabled={disabled || Boolean(pending)}
-          onClick={() => void run(true)}
-        >
-          Check access
-        </button>
+        {!compact || needed.length > 0 || needsPreparation || Boolean(pending) ? (
+          <button
+            className={compact ? ui.secondaryButton : ui.primaryButton}
+            disabled={disabled || Boolean(pending) || (!needed.length && !needsPreparation)}
+            onClick={() => void run(false)}
+          >
+            {pending && pending !== 'check'
+              ? 'Setting up access…'
+              : compact
+                ? !needed.length && !needsPreparation
+                  ? 'Access ready'
+                  : 'Allow remaining access'
+                : prepare
+                  ? 'Allow all required access'
+                  : 'Allow all Mac apps'}
+          </button>
+        ) : null}
+        {!compact ? (
+          <button
+            className={styles.link}
+            disabled={disabled || Boolean(pending)}
+            onClick={() => void run(true)}
+          >
+            Check access
+          </button>
+        ) : null}
       </div>
       {pending ? (
         <p className={styles.note} role="status">
@@ -119,27 +171,21 @@ export function MacAutomationPermissions({
           {error}
         </p>
       ) : null}
-      <ul className={styles.accessList}>
-        {children}
-        {automationApps.map(({ id, name, detail }) => {
-          const status = permissions?.[id] ?? 'needs_permission';
-          return (
-            <li className={styles.permission} key={id}>
-              <div>
-                <strong>{name}</strong>
-                <p>{detail}</p>
-              </div>
-              <span className={status === 'ready' ? styles.ready : styles.status}>
-                {automationStatusLabel[status]}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-      <p className={styles.note}>
-        If access was denied, enable it in System Settings → Privacy &amp; Security. Missing
-        access stays visible; checking this list does not request it again.
-      </p>
+      {compact ? (
+        <details className={styles.details}>
+          <summary>Permission details</summary>
+          <button
+            className={styles.link}
+            disabled={disabled || Boolean(pending)}
+            onClick={() => void run(true)}
+          >
+            Check access
+          </button>
+          {accessRows}
+        </details>
+      ) : (
+        accessRows
+      )}
     </section>
   );
 }

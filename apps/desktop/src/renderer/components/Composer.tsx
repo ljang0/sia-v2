@@ -21,8 +21,6 @@ interface ComposerAttachment {
 }
 
 interface ComposerProps {
-  suggestion?: { text: string } | undefined;
-  onSuggestionHandled?: (() => void) | undefined;
   initialValue?: string;
   disabled?: boolean;
   running?: boolean;
@@ -52,8 +50,6 @@ interface ComposerProps {
 }
 
 export function Composer({
-  suggestion,
-  onSuggestionHandled,
   initialValue = '',
   disabled,
   running,
@@ -209,15 +205,6 @@ export function Composer({
       voiceRestartTimer.current = undefined;
     };
   }, [disabled, running, sending, voiceCanListen, voiceConversation, voicePhase]);
-
-  useEffect(() => {
-    if (!suggestion) return;
-    // A tutorial suggestion never replaces an unsaved draft or interrupts recording.
-    if (!value.trim() && !disabled && !sending && voicePhase === 'idle')
-      updateValue(suggestion.text);
-    textArea.current?.focus();
-    onSuggestionHandled?.();
-  }, [suggestion]);
 
   const submit = async () => {
     const content = value.trim();

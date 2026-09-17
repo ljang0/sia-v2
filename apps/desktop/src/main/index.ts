@@ -215,9 +215,12 @@ async function performApplicationCreation(): Promise<void> {
         : undefined;
     const hostedResponsesProxy = fakeServices ? undefined : new HostedResponsesProxy(cloud);
     let activeController!: DesktopController;
-    const computer = new CuaService({
-      authorize: (request, context) => activeController.authorizeComputer(request, context),
-    });
+    const computer = new CuaService(
+      {
+        authorize: (request, context) => activeController.authorizeComputer(request, context),
+      },
+      { fakePermissions: fakeServices },
+    );
     const fakeTurnDelayMs = fakeServices
       ? testFakeTurnDelay(process.env.SIA_TEST_FAKE_TURN_DELAY_MS)
       : undefined;
@@ -262,7 +265,7 @@ async function performApplicationCreation(): Promise<void> {
       trajectory,
       capabilitySetup: {
         automationPermissions: (request) => automationPermissions.check(request),
-        messagesStatus: () => messagesService.status(),
+        messagesStatus: () => (fakeServices ? 'unavailable' : messagesService.status()),
         chromeDebugStatus: () => chromeRemoteDebuggingStatus(),
       },
       revealDirectory: async (path) => {
@@ -271,9 +274,11 @@ async function performApplicationCreation(): Promise<void> {
       openExternal: openSafeExternal,
       openMessages: () => shell.openExternal('sms:', { activate: true }),
       openMessagesPermissions: () =>
-        shell.openExternal(
-          'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles',
-        ),
+        fakeServices
+          ? Promise.resolve()
+          : shell.openExternal(
+              'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles',
+            ),
       restartApp: () => {
         // Allow the typed IPC reply to arrive before the normal shutdown drains work.
         setTimeout(() => {

@@ -29,13 +29,13 @@ export function ConnectionChecklist({
     {
       id: 'google' as const,
       name: 'Google Workspace',
-      detail: 'Gmail, Drive, Docs, Sheets, and Slides. One Google sign-in for read access.',
+      detail: 'Gmail, Drive, Docs, Sheets, and Slides. Read access.',
       apps: snapshot.apps.filter((app) => app.id !== 'slack'),
     },
     {
       id: 'slack' as const,
       name: 'Slack',
-      detail: 'Search conversations and help with messages in your workspace.',
+      detail: 'Search and work with your messages.',
       apps: snapshot.apps.filter((app) => app.id === 'slack'),
     },
   ].map((choice) => ({
@@ -51,10 +51,7 @@ export function ConnectionChecklist({
     <div className={styles.checklist}>
       <fieldset disabled={pending || Boolean(connecting)}>
         <legend>Choose your connections</legend>
-        <p className={styles.note}>
-          Uncheck anything you do not use, then connect once. Each provider asks you to approve
-          its account access.
-        </p>
+        <p className={styles.note}>Choose your accounts, then approve each sign-in.</p>
         {choices.map(({ id, name, detail, ready, connecting: approving, needsRepair }) => (
           <label className={styles.choice} key={id}>
             <input

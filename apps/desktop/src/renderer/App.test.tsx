@@ -64,7 +64,7 @@ describe('app privacy routing', () => {
     expect(await screen.findByRole('button', { name: 'Set up Sia' })).toBeTruthy();
     expect(screen.queryByRole('dialog', { name: 'New agent' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Set up Sia' }));
-    expect(await screen.findByRole('textbox', { name: 'Agent name' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Start using Sia' })).toBeTruthy();
   });
 
   it('takes Archived navigation directly to the archive section', async () => {

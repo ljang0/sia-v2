@@ -1,4 +1,5 @@
 import type { RendererApi, RendererSnapshot } from '../types';
+import { automationApps } from '../../shared/mac-permissions';
 import { dictationReady } from '../voiceReadiness';
 import { MacAutomationPermissions } from './MacAutomationPermissions';
 import styles from './Onboarding.module.css';
@@ -9,12 +10,18 @@ export function SetupMacAccess({
   agentId,
   disabled,
   onBusyChange,
+  autoStart = false,
+  compact = false,
+  onComplete,
 }: {
   snapshot: RendererSnapshot;
   api: RendererApi;
   agentId: string | undefined;
   disabled: boolean;
   onBusyChange(busy: boolean): void;
+  autoStart?: boolean;
+  compact?: boolean;
+  onComplete?(): Promise<void>;
 }) {
   const ptt = snapshot.voice.pushToTalk;
   const voiceAvailable = Boolean(ptt?.available) && snapshot.voice.dictationAvailable !== false;
@@ -85,9 +92,34 @@ export function SetupMacAccess({
         : 'Enable Full Disk Access in System Settings.',
     ],
   ] as const;
+  const available = rows.filter(([, , supported]) => supported);
+  const apps = automationApps.filter(
+    ({ id }) => snapshot.computer.automation?.[id] !== 'unavailable',
+  );
+  const ready =
+    available.filter(([, allowed]) => allowed).length +
+    apps.filter(({ id }) => snapshot.computer.automation?.[id] === 'ready').length;
+  const total = available.length + apps.length;
   return (
     <MacAutomationPermissions
       permissions={snapshot.computer.automation}
+      autoStart={autoStart}
+      compact={compact}
+      {...(onComplete ? { onComplete } : {})}
+      summary={
+        <p className={styles.accessSummary} role="status">
+          <strong>
+            {ready === total
+              ? 'All available access is ready.'
+              : `${ready} of ${total} permissions ready`}
+          </strong>
+          <span>
+            {ready === total
+              ? 'You’re ready to start.'
+              : 'You can start now and finish missing access later.'}
+          </span>
+        </p>
+      }
       request={(app) => api.requestAutomationPermission(app)}
       refresh={() => api.refreshComputerPermissions()}
       disabled={disabled}

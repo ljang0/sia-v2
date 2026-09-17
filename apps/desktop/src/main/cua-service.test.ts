@@ -43,6 +43,19 @@ it.each(['ready', 'unavailable'] as const)(
   },
 );
 
+it('keeps simulated permission setup away from the native permission API', async () => {
+  const service = new CuaService(authorization(), { fakePermissions: true });
+  expect(await service.permissions()).toMatchObject({
+    status: 'ready',
+    accessibility: true,
+    screenRecording: true,
+  });
+  expect(await service.requestPermissions()).toMatchObject({
+    status: 'ready',
+    detail: 'Simulated permissions for development.',
+  });
+});
+
 describe('CuaService call boundaries', () => {
   it.each(['errorCode', 'structured', 'thrown'] as const)(
     'renews an expired implicit inventory session once: %s',

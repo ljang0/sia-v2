@@ -254,7 +254,9 @@ describe('cloud account settings', () => {
     );
 
     expect(screen.getByText(/Google starts read-only/i)).toBeTruthy();
-    expect(screen.getByText(/One Google sign-in for read access/i)).toBeTruthy();
+    expect(
+      screen.getByRole('checkbox', { name: /Google Workspace/ }).closest('label')?.textContent,
+    ).toContain('Read access.');
     fireEvent.click(screen.getByRole('checkbox', { name: /Slack/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Connect selected apps' }));
     await waitFor(() => expect(onConnectSelected).toHaveBeenCalledWith(['google']));

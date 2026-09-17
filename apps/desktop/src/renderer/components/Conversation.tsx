@@ -34,8 +34,6 @@ import { ConversationOutline, hasConversationOutline } from './ConversationOutli
 import { SafeMarkdown } from './SafeMarkdown';
 
 interface ConversationProps {
-  suggestion?: { text: string } | undefined;
-  onSuggestionHandled?: (() => void) | undefined;
   thread?: ThreadDetail | undefined;
   agentName?: string | undefined;
   agentInitials?: string | undefined;
@@ -80,8 +78,6 @@ interface ConversationProps {
 }
 
 export function Conversation({
-  suggestion,
-  onSuggestionHandled,
   thread,
   agentName,
   agentHue,
@@ -625,8 +621,6 @@ export function Conversation({
       ) : null}
 
       <Composer
-        suggestion={suggestion}
-        onSuggestionHandled={onSuggestionHandled}
         key={thread.id}
         initialValue={thread.draft ?? ''}
         disabled={queued || waitingForApproval}
