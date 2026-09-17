@@ -52,9 +52,12 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   microphone access; unsupported or denied dictation never silently falls back to a server.
   A separate `--speech` mode of the bundled helper receives PCM over private pipes and does not
   open a microphone or event tap. Disconnect invalidates pending native results and stops its process.
-- The compatibility ElevenLabs speech service is not a model provider. Its restricted API key stays in
-  AWS Secrets Manager; the main process requests a purpose-bound single-use token when needed. A
-  legacy locally stored key is deleted during migration and no key-entry IPC remains.
+- ElevenLabs speech is not a model provider. Included voice keeps its restricted API key in
+  AWS Secrets Manager. An explicitly configured personal account instead encrypts its key with
+  macOS Keychain-backed safeStorage in the device's Sia application-support directory, outside
+  agent workspaces and profile exports. Its windowless setup command accepts the key only on stdin;
+  no key-entry IPC exists. Either gateway mints purpose-bound single-use tokens in the main process.
+  Personal voice takes precedence over Apple speech when configured and uses independent preferences.
   Recorded and generated audio stays in memory and is sent only after the user presses Dictate or
   Read aloud; it is not added to transcripts or persisted by Sia. Read aloud uses an optional
   per-agent voice with the global voice as fallback, permits only one playback session, omits code,

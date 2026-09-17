@@ -72,7 +72,7 @@ export function VoiceSettings({
               <SpeakerHigh size={18} />
             </span>
             <div>
-              <strong>{nativeVoice ? 'Read aloud ready' : 'Included voice ready'}</strong>
+              <strong>{nativeVoice ? 'Read aloud ready' : 'ElevenLabs voice ready'}</strong>
               <span>
                 <CheckCircle size={13} aria-hidden="true" />
                 {voice.selectedVoiceName ?? 'Voice ready'}
@@ -125,7 +125,7 @@ export function VoiceSettings({
           </span>
           <div className={styles.voiceSetupBody}>
             <strong>
-              {nativeVoice ? 'Use your Mac’s built-in voice' : 'Voice is included with Sia'}
+              {nativeVoice ? 'Use your Mac’s built-in voice' : 'Use ElevenLabs voice'}
             </strong>
             <p>
               {voice.detail ?? 'Sign in to use dictation and read aloud. No API key is needed.'}

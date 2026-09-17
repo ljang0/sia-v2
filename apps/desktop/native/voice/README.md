@@ -44,6 +44,21 @@ microphone itself. Catalog/TTS operations request no speech or microphone permis
 requires the explicit Speech Recognition grant and `supportsOnDeviceRecognition`; every request sets
 `requiresOnDeviceRecognition = true`. Parent cancellation, EOF, and heartbeat expiry stop work.
 
+An explicitly configured personal ElevenLabs account takes precedence over Apple speech on macOS.
+Build first, then pipe a key from a hidden prompt or secret manager into
+`pnpm --filter @sia/desktop voice:configure`; never put it in shell arguments or a workspace file.
+The windowless main-process entry validates the voice catalog and three single-use token scopes,
+then encrypts the credential with Electron safeStorage (macOS Keychain) in
+`~/Library/Application Support/Sia/voice/elevenlabs.enc`, mode 0600. Restart Sia and enable voice
+in Settings → Voice. The key does not enter renderer IPC, agent memory, exports, or logs. Removing
+that encrypted file and restarting restores the Mac voice backend; Turn off disables voice without
+discarding the credential. Included cloud voice retains its existing independent route.
+
+Personal voice reuses the existing ElevenLabs Scribe v2 batch/realtime and TTS WebSocket pipeline
+through [single-use tokens](https://elevenlabs.io/docs/api-reference/tokens/create).
+Sarah, Notch's default, is selected when the account offers it. Fn capture, cancellation and the
+multicolor border still use the ported Notch native helper; it never receives the key.
+
 Connected-app Fn context defaults off. Use my Mac enables gesture context with its selected native access mode. Settings → Assistant enables app/window/selection metadata and a static accessibility outline for voice
 requests. Connected-app browser content stays behind the Chrome attachment boundary. In Use my Mac, the copied `ScreenContextProvider.swift` reads the foreground browser directly. Text is captured before
 the panel appears and sent only with the committed request; it is not written to a local journal.

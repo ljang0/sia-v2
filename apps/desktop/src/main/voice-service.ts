@@ -73,6 +73,7 @@ export interface VoiceOperations {
 
 export interface ManagedVoiceGateway {
   readonly configured: boolean;
+  readonly personal?: boolean;
   voiceCatalog(signal?: AbortSignal): Promise<{
     provider: {
       available: boolean;
@@ -91,13 +92,14 @@ export interface ManagedVoiceGateway {
   }>;
 }
 
-/** Uses Sia-minted single-use credentials; the long-lived ElevenLabs key never reaches the Mac. */
+/** Uses single-use credentials minted by Sia cloud or the device's personal voice gateway. */
 export class ElevenLabsVoiceService implements VoiceOperations {
   readonly #repository: RecordRepository;
   readonly #gateway: ManagedVoiceGateway;
   readonly #fetch: typeof fetch;
   readonly #websocketFactory: RealtimeSocketFactory;
   readonly #realtimeSessions = new Map<string, RealtimeSession>();
+  readonly #preferenceId: string;
   #preference: StoredVoicePreference | undefined;
   #voices: VoiceView['voices'] = [];
 
@@ -109,17 +111,18 @@ export class ElevenLabsVoiceService implements VoiceOperations {
   }) {
     this.#repository = options.repository;
     this.#gateway = options.gateway;
+    this.#preferenceId = options.gateway.personal ? 'personal-elevenlabs' : PREFERENCE_ID;
     this.#fetch = options.fetch ?? fetch;
     this.#websocketFactory =
       options.websocketFactory ??
       ((url, socketOptions) => new WebSocket(url, socketOptions) as unknown as RealtimeSocket);
     const stored = parsePreference(
-      this.#repository.get<unknown>(PREFERENCE_SCOPE, PREFERENCE_ID),
+      this.#repository.get<unknown>(PREFERENCE_SCOPE, this.#preferenceId),
     );
     const legacy = parseLegacyCredential(
       this.#repository.get<unknown>(LEGACY_CREDENTIAL_SCOPE, LEGACY_CREDENTIAL_ID),
     );
-    this.#preference = stored ?? legacy;
+    this.#preference = stored ?? (options.gateway.personal ? undefined : legacy);
     this.#voices = this.#preference?.voices ?? [];
     // Upgrade away from user-entered credentials immediately. Voice is refreshed from Sia.
     this.#repository.remove(LEGACY_CREDENTIAL_SCOPE, LEGACY_CREDENTIAL_ID);
@@ -129,19 +132,25 @@ export class ElevenLabsVoiceService implements VoiceOperations {
   view(): VoiceView {
     if (!this.#preference) {
       return {
+        engine: 'elevenlabs',
         status: 'disconnected',
         voices: [],
-        detail: this.#gateway.configured
-          ? 'Sign in to Sia to use included voice.'
-          : 'Voice is unavailable in this build.',
+        detail: this.#gateway.personal
+          ? 'Your personal ElevenLabs voice is configured on this Mac. Enable voice to use it.'
+          : this.#gateway.configured
+            ? 'Sign in to Sia to use included voice.'
+            : 'Voice is unavailable in this build.',
       };
     }
     return {
+      engine: 'elevenlabs',
       status: 'connected',
       selectedVoiceId: this.#preference.voiceId,
       selectedVoiceName: this.#preference.voiceName,
       voices: structuredClone(this.#voices),
-      detail: 'Voice is included with Sia. Speech is sent to ElevenLabs only when you use it.',
+      detail: this.#gateway.personal
+        ? 'Uses your personal ElevenLabs account. Speech is sent to ElevenLabs only when you use voice.'
+        : 'Voice is included with Sia. Speech is sent to ElevenLabs only when you use it.',
     };
   }
 
@@ -194,7 +203,7 @@ export class ElevenLabsVoiceService implements VoiceOperations {
     this.#closeRealtimeSessions();
     this.#preference = undefined;
     this.#voices = [];
-    this.#repository.remove(PREFERENCE_SCOPE, PREFERENCE_ID);
+    this.#repository.remove(PREFERENCE_SCOPE, this.#preferenceId);
     return this.view();
   }
 
@@ -404,7 +413,12 @@ export class ElevenLabsVoiceService implements VoiceOperations {
   }
 
   #requirePreference(): StoredVoicePreference {
-    if (!this.#preference) throw new Error('Sign in to Sia to use included voice.');
+    if (!this.#preference)
+      throw new Error(
+        this.#gateway.personal
+          ? 'Enable ElevenLabs voice in Settings → Voice.'
+          : 'Sign in to Sia to use included voice.',
+      );
     return this.#preference;
   }
 
@@ -465,7 +479,7 @@ export class ElevenLabsVoiceService implements VoiceOperations {
 
   #persist(): void {
     if (this.#preference) {
-      this.#repository.put(PREFERENCE_SCOPE, PREFERENCE_ID, this.#preference);
+      this.#repository.put(PREFERENCE_SCOPE, this.#preferenceId, this.#preference);
     }
   }
 }

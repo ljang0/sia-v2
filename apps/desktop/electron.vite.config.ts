@@ -17,6 +17,10 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(import.meta.dirname, 'src/main/index.ts'),
+          'configure-personal-voice': resolve(
+            import.meta.dirname,
+            'src/main/configure-personal-voice.ts',
+          ),
           'tool-bridge': resolve(import.meta.dirname, 'src/main/tool-bridge-entry.ts'),
         },
       },

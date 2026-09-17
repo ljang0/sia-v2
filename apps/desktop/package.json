@@ -18,6 +18,7 @@
     "package:mac:arm64:dir": "rimraf release && pnpm cloud-config:prepare && pnpm icon:build && pnpm -w build && electron-builder --mac --arm64 --dir --config.mac.identity=null --config.mac.notarize=false && node scripts/verify-packaged-app.mjs --arch=arm64 --signing=unsigned",
     "package:mac:dir": "rimraf release && pnpm cloud-config:prepare && pnpm icon:build && pnpm -w build && electron-builder --mac --universal --dir --config.mac.identity=null --config.mac.notarize=false && node scripts/verify-packaged-app.mjs --arch=universal --signing=unsigned",
     "signing:setup": "bash scripts/setup-signing.sh",
+    "voice:configure": "node scripts/configure-personal-voice.mjs",
     "preview": "node scripts/preview.mjs",
     "prebuild": "pnpm licenses:build && pnpm native:build && pnpm remote:build",
     "test": "pnpm native:test && vitest run",

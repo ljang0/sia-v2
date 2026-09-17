@@ -233,7 +233,7 @@ Development permission prompts may name Electron. No permissions are granted or 
 After a helper exits, retrying voice setup reconnects automatically; an interrupted recording
 must be recorded again.
 
-Production macOS runs use `MacVoiceService` independently of Sia cloud configuration. Enable voice
+By default, macOS runs use `MacVoiceService` independently of Sia cloud configuration. Enable voice
 in Settings → Voice to enumerate installed system voices and choose a default. Read aloud renders
 bounded WAV audio in memory using `AVSpeechSynthesizer`; it neither opens the microphone nor requests
 Speech Recognition access. Existing per-agent voice overrides must name an installed Mac voice.
@@ -246,6 +246,16 @@ Speech Recognition before the shortcut is enabled. Apple’s recognizer must rep
 for the current Mac locale; requests always set `requiresOnDeviceRecognition = true`. Denied grants
 point to System Settings; unsupported recognition leaves read aloud available. The compatibility
 ElevenLabs service remains covered by deterministic tests, but is not the default Mac engine.
+
+To explicitly use a personal ElevenLabs account, build Sia and pipe the key from a hidden prompt
+or secret manager into `pnpm --filter @sia/desktop voice:configure`. Never put it in an argument,
+source file or log. Allow Sia's Keychain prompt, restart, then enable voice in Settings → Voice.
+Both Fn/composer transcription and spoken replies then use ElevenLabs; Sarah is preferred when
+available. Audio leaves the Mac only when voice is used. Turn off disables voice. See the
+[voice implementation](../apps/desktop/native/voice/README.md) for encrypted storage and removal.
+An optional real round trip generates one synthetic sentence and verifies batch transcription,
+realtime transcription and cancellation, without opening the microphone or running a model task:
+`SIA_VOICE_REAL_SMOKE=1 pnpm --filter @sia/desktop voice:configure --verify`.
 
 ## Assistant library and broader Mac control
 

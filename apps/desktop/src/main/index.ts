@@ -59,6 +59,11 @@ import { macProviderPath } from './provider-path.js';
 import { WorkspaceOperationsService } from './workspace-operations.js';
 import { MacVoiceService, createMacSpeechTransport } from './mac-voice-service.js';
 import { ElevenLabsVoiceService } from './voice-service.js';
+import {
+  PersonalVoiceCredential,
+  PersonalVoiceGateway,
+  personalVoicePath,
+} from './personal-voice.js';
 import { nativeVoiceHelperFactory } from './push-to-talk.js';
 
 const APP_ORIGIN = 'app://sia';
@@ -201,6 +206,13 @@ async function performApplicationCreation(): Promise<void> {
         : {}),
     });
     const cloud = new CloudClient(cloudConfiguration.apiBaseUrl, identity);
+    const personalVoice =
+      !fakeServices && process.platform === 'darwin'
+        ? new PersonalVoiceCredential(personalVoicePath(app.getPath('appData')), {
+            encrypt: (value) => new ElectronPayloadCipher().encrypt(value),
+            decrypt: (value) => new ElectronPayloadCipher().decrypt(value),
+          })
+        : undefined;
     const hostedResponsesProxy = fakeServices ? undefined : new HostedResponsesProxy(cloud);
     let activeController!: DesktopController;
     const computer = new CuaService({
@@ -319,8 +331,12 @@ async function performApplicationCreation(): Promise<void> {
       workspaceOperations: new WorkspaceOperationsService({
         privateWorktreeRoot: join(app.getPath('userData'), 'worktrees'),
       }),
-      voice:
-        process.platform === 'darwin' && !fakeServices
+      voice: personalVoice?.configured
+        ? new ElevenLabsVoiceService({
+            repository,
+            gateway: new PersonalVoiceGateway(() => personalVoice.read()),
+          })
+        : process.platform === 'darwin' && !fakeServices
           ? new MacVoiceService(repository, () =>
               createMacSpeechTransport(
                 app.isPackaged
