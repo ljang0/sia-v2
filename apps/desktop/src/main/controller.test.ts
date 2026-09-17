@@ -1,5 +1,6 @@
 import { ScottyTasks } from './scotty-state.js';
 import { AssistantLibrary } from './assistant-library.js';
+import { NotchVault } from './notch/vault.js';
 import type { VoiceHelperFactory } from './push-to-talk.js';
 import { generateKeyPairSync, sign, randomUUID } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -1217,6 +1218,9 @@ describe('DesktopController', () => {
     runtimeThreadId = threadId;
     await controller.invoke('threads.send', { threadId, text: 'Wait for shutdown' });
 
+    await vi.waitFor(() =>
+      expect(controller.snapshot().timeline.some((item) => item.text === 'partial')).toBe(true),
+    );
     await controller.shutdown();
 
     expect(cleanupFinished).toBe(true);
@@ -2067,10 +2071,10 @@ describe('DesktopController', () => {
     });
     runtimeThreadId = threadId;
     await controller.invoke('threads.send', { threadId, text: 'Use a tool' });
-    await new Promise((resolve) => setTimeout(resolve, 30));
-
-    expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
-      'idle',
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+        'idle',
+      ),
     );
     expect(repository.list('research')).toHaveLength(0);
     await controller.shutdown();
@@ -3736,8 +3740,10 @@ describe('DesktopController', () => {
 
     await expect(computerDecision).resolves.toBe('cancel');
     expect(runtime.cancel).toHaveBeenCalledWith(threadId, started.turnId);
-    expect(receivedLease?.holds({ kind: 'workspace_writer', id: '/tmp/sia-workspace' })).toBe(
-      false,
+    await vi.waitFor(() =>
+      expect(receivedLease?.holds({ kind: 'workspace_writer', id: '/tmp/sia-workspace' })).toBe(
+        false,
+      ),
     );
     expect(runtime.respondToRequest).toHaveBeenCalledWith(threadId, {
       requestId: 'provider-request-1',
@@ -4852,6 +4858,7 @@ it('learns only for the active opted-in agent and consolidates after the task co
     createDirectory: async () => undefined,
   });
   try {
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
     const { agentId } = await controller.invoke('agents.save', {
       name: 'Learning agent',
       instructions: '',
@@ -5026,12 +5033,18 @@ it('memory reviews pin the owning agent and restrict host actions, including tru
     createDirectory: async () => undefined,
   });
   try {
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
     const { agentId } = await controller.invoke('agents.save', {
       name: 'Reviewer',
       instructions: '',
       model: 'gpt-5.6-sol',
     });
     await controller.invoke('computer.setTrust', { trust: 'auto' });
+    await controller.invoke('assistant.library', {
+      operation: 'learning',
+      agentId,
+      enabled: false,
+    });
     await expect(
       controller.invoke('assistant.library', { operation: 'review', agentId }),
     ).rejects.toThrow('Enable learning');
@@ -5089,6 +5102,7 @@ it('background reviews wait for unlocked idle time and preserve the active conve
     createDirectory: async () => undefined,
   });
   try {
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
     const { agentId } = await controller.invoke('agents.save', {
       name: 'Background reviewer',
       instructions: '',
@@ -5167,7 +5181,6 @@ it('saves native learning improvements to the filesystem without executing them 
           steps: ['Read Finder with its AppleScript dictionary'],
         },
       });
-    const evidence_ids = library.view().journal!.map((entry) => entry.id);
     const review = await controller.invoke('assistant.library', {
       operation: 'review',
       agentId,
@@ -5179,8 +5192,8 @@ it('saves native learning improvements to the filesystem without executing them 
     const invoke = vi.fn();
     const result = await controller.assistantAction(
       {
-        name: 'memory_suggest',
-        descriptor: getActionToolDescriptor('memory_suggest')!,
+        name: 'memory_vault',
+        descriptor: getActionToolDescriptor('memory_vault')!,
         context: {
           sessionId: 'review',
           threadId,
@@ -5189,19 +5202,15 @@ it('saves native learning improvements to the filesystem without executing them 
           workspace: directory,
         },
         arguments: {
-          kind: 'skill',
-          title: 'Finder folder',
-          reason: 'Both tasks read Finder.',
-          description: 'Read the current Finder folder',
-          memory_ids: [],
-          evidence_ids,
-          text: '',
-          source: '#!/bin/bash\nprintf never-executed\n',
+          operation: 'write',
+          name: 'skills/finder-folder.sh',
+          revision: '',
+          text: '#!/bin/bash\n# skill: Finder folder\n# description: Read the current Finder folder\nprintf never-executed\n',
         },
       },
       invoke,
     );
-    expect(result.summary).toContain('Saved the improvement');
+    expect(result.summary).toContain('Saved and read back');
     expect(invoke).not.toHaveBeenCalled();
     const view = await controller.invoke('assistant.library', { operation: 'list' });
     expect(view.suggestions).toEqual([]);
@@ -5331,8 +5340,11 @@ it('retains background task results and failures across conversations and native
     expect(turns[1]!.text).not.toContain('Native executable skills live in');
     expect(turns[1]!.text).toContain('skill_run');
     expect(turns[2]!.thread.macBackgroundControl).toBe(false);
-    expect(turns[2]!.text).toContain('foreground access');
-    expect(turns[2]!.text).toContain('Native executable skills live in');
+    expect(turns[2]!.text).toContain('<memory_graph');
+    expect(turns[2]!.text).toContain('<skills>');
+    expect(new NotchVault('/tmp/sia-workspace', agentId).read('failures.log').text).toContain(
+      'foreground access',
+    );
   } finally {
     await controller.shutdown();
   }

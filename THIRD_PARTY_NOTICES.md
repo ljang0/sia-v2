@@ -24,17 +24,18 @@ Use my Mac additionally ports `Agent/ClaudeCodeInvoker.swift`'s native AppleScri
 operating instructions and progress watchdog, and `Agent/AgentResponse.swift`'s balanced-JSON parser.
 `Context/ScreenContextProvider.swift` is copied into the native helper with bounded-time and
 secure-field checks. Codex App Server replaces Claude Code transport; Sia retains its UI, macOS
-speech provider, encrypted memory and schedule services. See `docs/architecture.md` for the native
+speech provider, encrypted conversations/manual preferences and schedule services. See `docs/architecture.md` for the native
 execution boundary and the deliberate adapter differences.
 
 Sia's optional Fn helper adapts the Fn monitor, edge-glow panel/view, microphone conversion,
 and frontmost-context capture code. The Use my Mac window reader also adapts ScreenContextProvider’s bounded static-text and numeric-value capture; its interactive panel also draws on Notch's nonactivating panel
-structure. The encrypted journal, idle lesson consolidation, and executable skill library adapt
-JournalStore, ConsolidationScheduler, and SkillLibrary concepts.
-`native-skills.ts` additionally ports SkillLibrary's filesystem registry and first-eight-line
-metadata parsing, shared by the desktop and phone. Native journal summaries and prompt tails
-adapt JournalStore and NotchViewModel; the native consolidation prompt ports PROMOTE/DISTILL/INDEX,
-with encrypted memory storage and host-side script saving replacing the plaintext vault worker.
+structure. The foreground engine now executes copied JournalStore, SkillLibrary and AgentResponse
+Swift source, using an agent-scoped local file vault. Original operating and consolidation prompt
+literals are generated from the pinned source; Codex replaces Claude transport. `native-skills.ts`
+shares the first-eight-nonempty-line registry with desktop and phone. Notch’s stable local signing
+certificate setup is adapted for Sia's Electron runtime and voice helper, with codesign-only key
+access and a persistent device certificate pin. See `apps/desktop/native/notch/README.md` for the
+file-by-file source map, checksums, and remaining differences.
 The Cmd+E launcher ports
 HotkeyManager’s registration lifecycle to Electron, and reviewable improvements adapt the
 ConsolidationScheduler PROMOTE/DISTILL instructions through Sia's existing runtime and authorization system. These adaptations derive from [romirthedev/notch](https://github.com/romirthedev/notch) at commit

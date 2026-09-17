@@ -2844,6 +2844,30 @@ it('keeps window tools out of the default native Mac route', async () => {
   expect(cua.call).not.toHaveBeenCalled();
 });
 
+it('routes native vault reviews through the controller authorization boundary', async () => {
+  const cua = fakeCua(async () => {
+    throw new Error('No GUI in a vault review');
+  });
+  const assistantAction = vi.fn(async () => ({
+    outcome: 'verified' as const,
+    summary: 'Read the authorized vault.',
+  }));
+  const backend = new DesktopActionBackend({
+    cua,
+    macBrowserAccess: () => true,
+    assistantAction,
+  });
+  const action = request('memory_vault', {
+    operation: 'list',
+    name: '',
+    text: '',
+    revision: '',
+  });
+  expect((await backend.invoke(action)).outcome).toBe('verified');
+  expect(assistantAction).toHaveBeenCalledExactlyOnceWith(action);
+  expect(cua.call).not.toHaveBeenCalled();
+});
+
 it('requests background application launch for the Mac window route', async () => {
   const cua = fakeCua(async () => ({ apps: [], windows: [] }));
   const openApplication = vi.fn(async () => undefined);

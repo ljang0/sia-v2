@@ -92,7 +92,7 @@ export function remoteState(
   return result;
 }
 
-/** Port of Notch's vault/wikilink graph, with Sia's encrypted, agent-scoped library as its source. */
+/** Notch's wikilink graph, including the canonical native vault when present. */
 export function remoteVault(
   library: AssistantLibraryView,
   agentId: string,
@@ -100,6 +100,14 @@ export function remoteVault(
 ): { graph: RemoteVault; notes: RemoteNote[] } {
   const notes: RemoteNote[] = [
     ...nativeSkills,
+    ...(library.vaults?.find((vault) => vault.agentId === agentId)?.notes ?? [])
+      .filter((note) => !note.name.startsWith('skills/'))
+      .map((note) => ({
+        id: `vault:${note.name}`,
+        title: note.name.replace(/\.(md|log)$/, ''),
+        kind: note.name === 'journal.md' ? ('journal' as const) : ('memory' as const),
+        content: note.text,
+      })),
     ...library.memories
       .filter((entry) => entry.agentId === agentId)
       .slice(-120)
@@ -133,7 +141,7 @@ export function remoteVault(
   const journal = (library.journal ?? [])
     .filter((entry) => entry.agentId === agentId)
     .slice(-80);
-  if (journal.length)
+  if (journal.length && !notes.some((note) => note.id === 'vault:journal.md'))
     notes.push({
       id: 'journal',
       title: 'Journal',

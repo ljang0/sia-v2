@@ -213,6 +213,10 @@ final class VoiceHelper {
     }
 }
 
+if CommandLine.arguments == [CommandLine.arguments[0], "--notch-engine"] {
+    runNotchEngine()
+    exit(0)
+}
 let application = NSApplication.shared
 application.setActivationPolicy(.accessory)
 if CommandLine.arguments == [CommandLine.arguments[0], "--remote-qr"] {

@@ -1,4 +1,5 @@
 import { MemorySuggestions } from './MemorySuggestions';
+import { NativeVault } from './NativeVault';
 import { ExecutableSkills } from './ExecutableSkills';
 import { skillExecutionMode } from '../../../shared/skill-execution';
 import { useEffect, useState } from 'react';
@@ -201,10 +202,7 @@ export function AssistantSettings({
           <div className={styles.heading}>
             <div>
               <h3>Memory</h3>
-              <p>
-                Saved preferences and learned lessons are used for future requests. Stored
-                encrypted on this Mac.
-              </p>
+              <p>Saved preferences and learned lessons are used for future requests.</p>
             </div>
             <button
               disabled={!agentId}
@@ -217,9 +215,9 @@ export function AssistantSettings({
             <span>
               <strong>Learn from completed tasks</strong>
               <small>
-                Keep an operational journal and let this agent suggest reusable lessons. Sia
-                consolidates new lessons while idle, at most every six hours. No extra model
-                turn or background screen recording. You can edit or delete everything below.
+                Keep an operational journal and let this agent suggest reusable lessons. Sia can
+                consolidate lessons while idle. Native learning uses your selected model and a
+                local file vault. You can edit or delete its contents below.
               </small>
             </span>
             <input
@@ -255,6 +253,9 @@ export function AssistantSettings({
                 }
               />
             </label>
+          )}
+          {accessMode === 'mac' && (
+            <NativeVault key={agentId} library={library} agentId={agentId} command={command} />
           )}
           <details>
             <summary>

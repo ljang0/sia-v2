@@ -67,6 +67,32 @@ describe('Use my Mac native execution', () => {
           });
         }
         yield {
+          id: 'progress',
+          threadId: session.threadId,
+          turnId: input.turnId,
+          sequence: 0,
+          timestamp: new Date().toISOString(),
+          provider: 'meta',
+          type: 'message',
+          payload: {
+            messageId: 'progress',
+            role: 'assistant',
+            delta: false,
+            phase: 'commentary',
+            parts: [
+              {
+                kind: 'text',
+                text: JSON.stringify({
+                  type: 'action',
+                  response: '',
+                  success: true,
+                  steps: ['Checking the document.'],
+                }),
+              },
+            ],
+          },
+        };
+        yield {
           id: 'answer',
           threadId: session.threadId,
           turnId: input.turnId,
@@ -144,6 +170,9 @@ describe('Use my Mac native execution', () => {
       expect(onMacResult).toHaveBeenCalledWith(
         expect.objectContaining({ success: true, response: 'The document is ready.' }),
       );
+      expect(onMacResult).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(events)).toContain('Checking the document.');
+      expect(JSON.stringify(events)).not.toContain('\\"success\\":true');
       expect(passes).toBe(1);
       expect(created[0]).toMatchObject({
         nativeTools: 'mac',
@@ -151,7 +180,9 @@ describe('Use my Mac native execution', () => {
         baseInstructions: expect.stringContaining('PERCEIVE → ACT → VERIFY'),
       });
       expect(created[0]?.tools.map((tool) => tool.name)).not.toContain('computer_list');
-      expect(created[0]?.baseInstructions).toContain('NORMAL APP WORKFLOW');
+      expect(created[0]?.baseInstructions).toContain('after EVERY state-changing step');
+      expect(created[0]?.baseInstructions).toContain('MOC.md');
+      expect(created[0]?.baseInstructions).not.toContain('Prefer a dictionary readback');
       expect(backend.invoke).not.toHaveBeenCalled();
       thread.macBackgroundControl = true;
       await run();
@@ -169,7 +200,7 @@ describe('Use my Mac native execution', () => {
       expect(created[1]?.baseInstructions).toContain('EXPERIMENTAL WINDOW CONTROL');
       expect(created[1]?.nativeTools).toBe('mac-background');
       expect(created[1]?.baseInstructions).not.toContain('screencapture');
-      for (const session of created.slice(0, 2)) {
+      for (const session of created.slice(1, 2)) {
         expect(session.baseInstructions).toContain('INVESTIGATE THE WHOLE REQUEST');
         expect(session.baseInstructions).toContain('CANVAS COURSE RESEARCH');
         expect(session.baseInstructions).toContain('Open EACH in-scope course');
@@ -382,71 +413,79 @@ describe('RuntimeCoordinator', () => {
   });
 });
 
-it('passes only library tools and the native-execution restriction to the pinned Codex harness', async () => {
-  const createSession = vi.fn(async (options: ProviderSessionOptions) => ({
-    id: options.threadId,
-    threadId: options.threadId,
-    provider: 'meta' as const,
-    nativeId: 'review-native',
-  }));
-  const adapter: ProviderAdapter = {
-    id: 'meta',
-    productionEnabled: true,
-    probe: async () => ({ available: true, supported: true, version: '1.0.0' }),
-    account: async () => ({ state: 'authenticated', billing: 'included' }),
-    createSession,
-    async *sendTurn(session, input) {
-      yield {
-        id: 'done',
-        threadId: session.threadId,
-        turnId: input.turnId,
-        sequence: 0,
-        timestamp: '2026-09-06T00:00:00Z',
-        provider: 'meta',
-        type: 'completion',
-        payload: { status: 'completed' },
-      };
-    },
-    cancelTurn: async () => undefined,
-    respondToRequest: async () => undefined,
-    dispose: async () => undefined,
-  };
-  const runtime = new RuntimeCoordinator(
-    new ActionGateway({
-      backend: { invoke: async () => ({ outcome: 'refused', summary: 'unused' }) },
-    }),
-    { harnessAdapters: [{ provider: 'meta', harnessId: 'codex_app_server', adapter }] },
-  );
-  try {
-    for await (const _event of runtime.runTurn({
-      thread: {
-        id: 'review',
-        provider: 'meta',
-        model: 'included',
-        workspace: '/tmp',
-        instructions: 'Review evidence',
-        nativeTools: 'disabled',
-        resolvedExecutionTarget: {
+it.each([false, true])(
+  'isolates library review tools from native execution (Notch vault: %s)',
+  async (notchReview) => {
+    const createSession = vi.fn(async (options: ProviderSessionOptions) => ({
+      id: options.threadId,
+      threadId: options.threadId,
+      provider: 'meta' as const,
+      nativeId: 'review-native',
+    }));
+    const adapter: ProviderAdapter = {
+      id: 'meta',
+      productionEnabled: true,
+      probe: async () => ({ available: true, supported: true, version: '1.0.0' }),
+      account: async () => ({ state: 'authenticated', billing: 'included' }),
+      createSession,
+      async *sendTurn(session, input) {
+        yield {
+          id: 'done',
+          threadId: session.threadId,
+          turnId: input.turnId,
+          sequence: 0,
+          timestamp: '2026-09-06T00:00:00Z',
+          provider: 'meta',
+          type: 'completion',
+          payload: { status: 'completed' },
+        };
+      },
+      cancelTurn: async () => undefined,
+      respondToRequest: async () => undefined,
+      dispose: async () => undefined,
+    };
+    const runtime = new RuntimeCoordinator(
+      new ActionGateway({
+        backend: { invoke: async () => ({ outcome: 'refused', summary: 'unused' }) },
+      }),
+      { harnessAdapters: [{ provider: 'meta', harnessId: 'codex_app_server', adapter }] },
+    );
+    try {
+      for await (const _event of runtime.runTurn({
+        thread: {
+          id: 'review',
+          notchReview,
+          ...(notchReview ? { notchVault: '/tmp/.sia-mac/test' } : {}),
           provider: 'meta',
           model: 'included',
-          harnessId: 'codex_app_server',
-          harnessModelId: 'included',
-          credentialSource: 'sia_managed',
-          resolutionSource: 'backend_default',
+          workspace: '/tmp',
+          instructions: 'Review evidence',
+          nativeTools: 'disabled',
+          resolvedExecutionTarget: {
+            provider: 'meta',
+            model: 'included',
+            harnessId: 'codex_app_server',
+            harnessModelId: 'included',
+            credentialSource: 'sia_managed',
+            resolutionSource: 'backend_default',
+          },
         },
-      },
-      turnId: 'turn',
-      text: 'Review the library',
-    })) {
-      /* consume */
+        turnId: 'turn',
+        text: 'Review the library',
+      })) {
+        /* consume */
+      }
+      const options = createSession.mock.calls[0]![0];
+      expect(options.nativeTools).toBe('disabled');
+      expect(options.tools.map((tool) => tool.name).sort()).toEqual(
+        notchReview ? ['memory_vault'] : ['assistant_library', 'memory_suggest'],
+      );
+      if (notchReview) {
+        expect(options.baseInstructions).toContain('PROMOTE');
+        expect(options.baseInstructions).toContain('no shell, GUI, account or network tools');
+      }
+    } finally {
+      await runtime.dispose();
     }
-    const options = createSession.mock.calls[0]![0];
-    expect(options.nativeTools).toBe('disabled');
-    expect(options.tools.map((tool) => tool.name).sort()).toEqual([
-      'assistant_library',
-      'memory_suggest',
-    ]);
-  } finally {
-    await runtime.dispose();
-  }
-});
+  },
+);

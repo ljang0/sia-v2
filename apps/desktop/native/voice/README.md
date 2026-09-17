@@ -76,3 +76,13 @@ process without activating it and never falls back to another app when the proce
 Explicit target reads allow 1,200 nodes, depth 28, 12,000 characters and two seconds. Gesture
 capture keeps its 400-node/600 ms budget. Both mark omitted/truncated content as PARTIAL;
 a limited accessibility outline is never a complete inventory of the app or document.
+
+## Native Notch engine
+
+`--notch-engine` reads a bounded JSON request on stdin and runs the actual copied Swift journal,
+skill registry and response parser without initializing AppKit or requesting permissions.
+See [the source map](../notch/README.md) for provenance and the per-agent file vault contract.
+
+Development builds sign this helper with the same pinned device certificate as the stable
+`~/Library/Application Support/Sia Development/Sia Development.app` Electron runtime. The normal
+build cache does not silently change the certificate. Release packaging still uses Developer ID.

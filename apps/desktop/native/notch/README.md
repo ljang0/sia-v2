@@ -1,0 +1,57 @@
+# Notch foreground engine in Sia
+
+Source: [romirthedev/notch](https://github.com/romirthedev/notch), revision
+`6c74c30c31a2ce31a852209eba86f28c8371409e`, reused at the repository owner's request.
+The source revision has no license file; no replacement license is asserted here.
+`upstream/` preserves original files byte for byte and `upstream.json` records their SHA-256s.
+It is a source reference, not a second runtime. Do not copy the user's `~/.notch` directory.
+
+| Notch source                                             | Executing Sia implementation                                       | Necessary adapter changes                                                                                                                                                        |
+| -------------------------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Core/JournalStore.swift`                                | `../voice/NotchJournalStore.swift`                                 | Agent-scoped root; Sia branding. Original append format, journal tail, bullet lessons and complete MOC selection.                                                                |
+| `Agent/SkillLibrary.swift`                               | `../voice/NotchSkillLibrary.swift`                                 | Agent-scoped root; bounded ordinary kebab-name scripts, no links. Original sorted registry and first eight nonempty-line metadata parser.                                        |
+| `Agent/AgentResponse.swift`                              | `../voice/NotchAgentResponse.swift`                                | Original parser runs on the raw model result before journal recording. Host cancellation/failure wins over model success.                                                        |
+| `Agent/AgentSession.swift` and `ClaudeCodeInvoker.swift` | `../voice/NotchVault.swift`, `src/main/notch/prompts.generated.ts` | Same request-section ordering; Codex tool names, screenshot transform and Sia output presentation.                                                                               |
+| `Ambient/ConsolidationScheduler.swift`                   | Generated PROMOTE/DISTILL/INDEX prompt, controller scheduler       | Six-hour/new-experience cadence, startup delay and explicit trigger. Codex executes the source recipe through revision-checked vault tools, without shell/GUI/network execution. |
+| `scripts/setup-signing.sh`                               | `scripts/setup-signing.sh`, `scripts/dev-signing.mjs`              | Same reusable certificate approach; Sia label, codesign-only key access, device-wide certificate pin and signed Electron development app.                                        |
+
+`node apps/desktop/scripts/port-notch-prompts.mjs` regenerates prompts from the preserved
+Swift literals; `--check` detects drift. Source extraction explicitly omits detached Claude
+coding workers and app self-modification/relaunch. The brief Sia/Codex adapter is separately
+visible in `src/main/notch/foreground.ts`. The native helper's `--notch-engine` mode runs before
+AppKit initialization: it does not prompt for permissions or capture/control the desktop.
+
+## Memory and skills
+
+Foreground memory lives at `<agent workspace>/.sia-mac/<agent id>/`: `journal.md`,
+`failures.log`, `lessons.md`, `MOC.md`, linked Markdown notes and `skills/*.sh`. These are normal
+local files, with private directory/file permissions; they are not encrypted by Sia. Existing
+conversations and manually saved preferences remain in encrypted SQLite. Enabled preferences
+are projected into read-only `preferences.md`; old Sia task summaries/scripts migrate once.
+Deleting a preference updates the projection. Previous model history and learned notes can still
+contain the fact, so deleting a saved preference is not a comprehensive erasure operation.
+
+Swift reads the last 1,200 journal characters, the last 1,000 bullet-lesson characters and the
+complete MOC, then supplies the script registry. Topic files remain available to the foreground
+agent. Automatic reviews use only `memory_vault`, recheck mode/agent/workspace/learning authorization,
+and reject stale revisions, traversal, links and credentials. Writes save scripts without
+executing them. Long journals are paged, with explicit append for consolidation records.
+Settings and the phone vault read the same files. New foreground Mac agents enable native
+learning; existing choices are preserved. Turning learning off stops new recording and reviews.
+
+## Remaining differences
+
+Codex App Server owns sessions, streaming, cancellation and tool transport instead of Claude
+Code. Sia retains its UI, action policy, signed-in release checks and a serialized GUI lease.
+Fn uses Sia's on-device speech recognition, not Notch's Groq Whisper service. Screenshots use
+Sia's normalized capture/coordinate adapter, with Notch's perceive/act/verify cycle. Background
+CUA and Connected apps retain their distinct capability-limited engines. This transplant does
+not make model decisions, browser state, permissions or task reliability identical to Notch.
+
+## Verification
+
+`pnpm --filter @sia/desktop test` builds the actual Swift helper, checks source/prompt hashes,
+and tests the vault, runtime review isolation and controller integration. The opt-in
+`native-learning.smoke.test.ts` exercises real Codex commands, durable memory, skill creation,
+restart/reuse and file-only consolidation using disposable fixtures. It does not validate GUI
+reliability. Do not run broad desktop probes automatically on launch.

@@ -55,6 +55,23 @@ export const skillSchema = z
   .strict();
 export const assistantLibraryCommand = z.discriminatedUnion('operation', [
   z
+    .object({
+      operation: z.literal('saveVaultNote'),
+      agentId: id,
+      name: z.string().min(1).max(160),
+      text: z.string().max(256000),
+      revision: z.string().regex(/^(?:[a-f0-9]{64})?$/),
+    })
+    .strict(),
+  z
+    .object({
+      operation: z.literal('deleteVaultNote'),
+      agentId: id,
+      name: z.string().min(1).max(160),
+      revision: z.string().regex(/^[a-f0-9]{64}$/),
+    })
+    .strict(),
+  z
     .object({ operation: z.literal('nativeLearning'), agentId: id, enabled: z.boolean() })
     .strict(),
   z.object({ operation: z.literal('saveSkill'), entry: skillSchema }).strict(),
@@ -133,6 +150,10 @@ export interface AssistantSuggestion {
   evidence: AssistantJournalEntry[];
 }
 export interface AssistantLibraryView {
+  vaults?: {
+    agentId: string;
+    notes: { name: string; text: string; revision: string; readOnly: boolean }[];
+  }[];
   launcherRegistered?: boolean;
   suggestions?: AssistantSuggestion[];
   reviewAgents?: string[];

@@ -2,14 +2,13 @@ import { execFileSync, spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
-import { prepareDevElectron } from './prepare-dev-electron.mjs';
+import { prepareDevelopmentApp } from './prepare-dev-electron.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const require = createRequire(import.meta.url);
 if (process.platform === 'darwin') {
-  const executable = require('electron');
   const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url)));
-  prepareDevElectron(executable, manifest.build.mac.extendInfo);
+  const executable = prepareDevelopmentApp(require('electron'), manifest.build.mac.extendInfo);
   // LaunchServices gives the development app its own TCC responsibility, even
   // when this command runs inside an IDE. Direct spawn inherits the IDE's identity.
   execFileSync('/usr/bin/open', ['-n', '-a', resolve(executable, '../../..'), '--args', root]);

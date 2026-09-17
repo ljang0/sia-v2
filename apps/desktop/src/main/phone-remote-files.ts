@@ -3,9 +3,12 @@ import type { RemoteNote } from '../shared/phone-remote.js';
 import { NativeSkills } from './native-skills.js';
 
 /** The phone vault and native agent share one Notch-format skill registry. */
-export async function nativeRemoteSkills(workspace: string): Promise<RemoteNote[]> {
+export async function nativeRemoteSkills(
+  workspace: string,
+  agentId: string,
+): Promise<RemoteNote[]> {
   try {
-    return new NativeSkills(workspace, 'phone-index')
+    return new NativeSkills(workspace, agentId)
       .list()
       .slice(0, 60)
       .map((skill) => ({

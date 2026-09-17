@@ -231,6 +231,9 @@ async function performApplicationCreation(): Promise<void> {
     });
     activeController = new DesktopController({
       captureMacContext: () => browserWindows.macContext(),
+      notchHelperPath: app.isPackaged
+        ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
+        : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper'),
       providerProbe: (only) =>
         probeProviders(
           only,

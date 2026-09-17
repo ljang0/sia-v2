@@ -39,7 +39,7 @@ it('discovers Notch-format scripts afresh across restarts and edits without exec
   expect(saved.title).toBe('Inspect Finder');
   expect(saved.source).toContain('# skill: Inspect Finder');
   expect(saved.path).toMatch(/\/inspect-finder\.sh$/);
-  expect(registry.prompt()).toContain('inspect-finder');
+  expect(registry.list()[0]?.title).toBe('Inspect Finder');
   const restarted = new NativeSkills(root, agentId);
   expect(restarted.list()).toEqual([saved]);
   writeFileSync(
@@ -48,10 +48,10 @@ it('discovers Notch-format scripts afresh across restarts and edits without exec
   );
   expect(restarted.list()[0]).toMatchObject({ id: saved.id, title: 'Finder status' });
   expect(restarted.list()[0]?.revision).not.toBe(saved.revision);
-  expect(restarted.prompt()).toContain('Read the visible folder');
+  expect(restarted.list()[0]?.description).toBe('Read the visible folder.');
   expect(existsSync(marker)).toBe(false);
   restarted.remove(saved.id);
-  expect(restarted.prompt()).toContain('NO saved native skills');
+  expect(restarted.list()).toEqual([]);
 });
 
 it('skips links and oversized scripts, refuses replacement paths and never overwrites another skill', () => {
@@ -77,7 +77,8 @@ it('skips links and oversized scripts, refuses replacement paths and never overw
   ).toThrow('deleted');
   const second = fixture();
   mkdirSync(join(second.root, '.sia-mac'));
-  symlinkSync(root, join(second.root, '.sia-mac', 'skills'));
+  mkdirSync(join(second.root, '.sia-mac', second.agentId));
+  symlinkSync(root, join(second.root, '.sia-mac', second.agentId, 'skills'));
   expect(() => new NativeSkills(second.root, second.agentId).list()).toThrow('real directory');
   expect(readFileSync(outside, 'utf8')).toBe('unrelated');
 });

@@ -11,6 +11,7 @@ const infraTemplatePath = join(root, 'infra/template.yaml');
 const expectedActionTools = [
   'assistant_library',
   'memory_learn',
+  'memory_vault',
   'memory_suggest',
   'skill_save',
   'skill_run',

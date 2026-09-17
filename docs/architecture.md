@@ -100,14 +100,14 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   future requests, not provider history. Workflows create a fresh canonical conversation and resolve
   live tool capabilities at execution time. They contain instructions, not shell scripts or cached
   native references. Library operations are strictly typed and release sign-in gated.
-- Optional per-agent automatic memory records an encrypted operational journal (tool names/outcomes,
+- In Connected apps, optional per-agent automatic memory records an encrypted operational journal (tool names/outcomes,
   task completion, and model-proposed lessons), never raw action arguments, message bodies, or screenshots.
   The current task's model extracts useful lessons through `memory_learn`. A local idle timer
   consolidates finished-turn lessons, deduplicates them, and caps learned memory at 40 entries per
   agent, at most once every six hours; Settings offers an immediate pass. This uses no extra model
   turn. Pausing stops collection/consolidation. Deletion suppresses identical lessons from being
   relearned. The journal retains at most 500 entries and remains separate from research capture.
-- `memory_suggest` adapts Notch's PROMOTE/DISTILL pass into encrypted proposals to add lessons, merge memories,
+- The Connected apps / legacy opt-out `memory_suggest` route adapts Notch's PROMOTE/DISTILL pass into encrypted proposals to add lessons, merge memories,
   retire contradicted guidance, or save an executable skill. Proposals retain exact before/after
   content, reasons and owning-agent completed-task evidence. Skills require evidence from two turns.
   UI acceptance validates the proposal revision and current memory contents; stale changes are
@@ -123,7 +123,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   sandbox, disable shell/unified-exec/image/multi-agent features and web search, and verify the
   returned sandbox and effective native feature flags before starting a model turn. This uses the
   [App Server session configuration](https://learn.chatgpt.com/docs/app-server) contract.
-- Executable skills adapt Notch's Bash library with encrypted source, an owning agent, and a SHA-256
+- Connected-app executable skills adapt Notch's Bash library with encrypted source, an owning agent, and a SHA-256
   revision. `skill_save` and `skill_run` always show exact-source approval, including in trusted mode.
   Runs revalidate the saved source after approval. A macOS kernel sandbox confines Bash and descendants
   to a private scratch directory plus system binaries/libraries, denies network and direct host/app
@@ -293,30 +293,32 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   terminals before releasing the screen. No model/GUI probes run automatically at launch.
   Final structured results use Notch's response contract and balanced-object parser, translated to
   Sia's timeline, voice response and output-file link. Partial JSON is never streamed into speech.
-  `NativeSkills` ports Notch's filesystem registry: `.sia-mac/skills/*.sh`, sorted discovery,
-  metadata from the first eight lines, and matching scripts injected before every native request.
-  The desktop Skills page and phone vault use the same parser. Source is bounded to 16 KB per
-  script and 100 scripts; links and non-regular files are excluded. Settings can save/edit/delete
-  files and start a normal native turn to run one. Discovery, saving and consolidation never
-  execute code. The native agent reads current source and runs Bash/AppleScript through Codex,
-  following the selected native approval policy; it does not use the gateway skill runner.
-  Existing encrypted memory and journals remain canonical. Native turns retain the structured
-  success/steps/learned-skill result before presentation and journal bounded request/result/step
-  summaries when learning is enabled. Blocked, failed and cancelled turns are distinguished from
-  successful work. Native prompts receive recent activity, failures and the current memory index;
-  journal content remains historical evidence, not authority or current account verification.
-  **Notch-style learning** is a per-agent opt-in in Settings → Assistant → Memory. It enables
-  journaling, idle review and automatic application of evidence-based native improvements. The
-  review keeps the existing two-tool, no-shell isolation: the host saves scripts into the pinned
-  agent workspace, while the model cannot execute them or touch apps. PROMOTE requires successful
-  evidence from two tasks; DISTILL can create a new lesson from observed failure evidence. Native
-  review intent is pinned at creation and automatic application rechecks current mode and learning
-  preferences. Disabling learning or reviews cancels pending review work. Reviews leave existing
-  scripts intact on filename collision and retain the proposal for manual resolution. Connected
-  mode continues to use reviewed gateway-skill proposals. Native scripts and
-  `~/SiaOutbox` files are normal local files. Detached Claude workers, Notch's Groq voice provider,
-  private display APIs and self-relaunch code are not copied. Codex can still make different
-  decisions than Claude: this port aligns execution mechanics, not model behavior or reliability.
+  Foreground memory now executes the copied Swift `JournalStore`, `SkillLibrary` and
+  `AgentResponse` through the helper's headless `--notch-engine` mode. The foreground operating
+  prompt and PROMOTE/DISTILL/INDEX recipe are generated from pinned Notch source literals, with
+  explicit Codex/Sia adapters. See [the source and adaptation map](../apps/desktop/native/notch/README.md).
+  The canonical learned vault is `<workspace>/.sia-mac/<agent id>/`: journal, failures, bullet
+  lessons, the complete MOC, linked topic notes and executable `skills/*.sh`. Swift supplies the
+  original 1,200-character journal tail and 1,000-character lesson tail. The desktop and phone
+  share the sorted script registry and metadata from the first eight nonempty lines. Ordinary
+  kebab-name files are bounded to 16 KB and 100 scripts; links are excluded. Saving never executes.
+  These native memory/script files are local plaintext, with private permissions. Encrypted
+  conversations/manual preferences remain intact; enabled preferences project into read-only
+  `preferences.md`, and existing task history/scripts migrate once. Foreground tasks use the vault
+  as their memory source. Background tasks also record their outcomes into it for continuity,
+  while retaining their separate capability-restricted execution route and prompt.
+  New foreground Mac agents enable Notch-style learning. Existing opt-outs remain unchanged.
+  Native consolidation uses the source recipe on the agent's pinned Codex model after new
+  experience, at most every six hours while idle; explicit review/trigger can request it sooner.
+  The review has only `memory_vault` list/read/write/append: no native shell, GUI, accounts or
+  network tools. Every call rechecks the current learning preferences, foreground mode and pinned
+  workspace. Revisions prevent overwriting concurrent edits; read paging and append preserve long
+  journals. Scripts are saved, never executed, during review. Disabling learning/reviews cancels it.
+  Legacy suggestion review remains available to existing opt-outs; Connected apps retains reviewed
+  gateway-skill proposals. Settings exposes the actual native notes and the phone graph reads them.
+  Sia's GUI lease, Codex transport, UI, on-device speech and background CUA remain adapters.
+  Detached Claude workers and app self-modification are excluded. Matching source mechanics does
+  not establish equal model behavior or reliability.
   Conversations with a browser attempt after the latest user message offer an explicit
   Connect Chrome & continue control while detached in Connected apps mode. `browser.connectAndContinue` uses the same
   canonical attachment route as Settings, checks the latest user-message id before and after
@@ -341,7 +343,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   Output downloads must be named in the current conversation, stay in SiaOutbox, have no final
   symlink, and are bounded to 20 MB and forced to inert attachments. Native skill reads stay in
   the selected workspace's `.sia-mac/skills`, reject symlinks and are bounded to 60 small scripts.
-  The memory graph reads the selected agent's encrypted library/journal and those scripts.
+  The memory graph reads the selected agent’s native vault, manual memories and scripts; legacy encrypted journal entries remain a fallback.
   Like Notch's Wi-Fi mode, this is HTTP, not a cloud relay or encrypted remote desktop. The UI
   explains trusted Wi-Fi, link privacy, keyboard dictation and awake/unlocked requirements.
   Sia retains its model/permission boundaries; Notch's Claude MCP permission endpoint and

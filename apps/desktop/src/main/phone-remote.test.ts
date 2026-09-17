@@ -326,7 +326,7 @@ it('shows cancellation distinctly and follows the selected agent without exposin
 
 it('reads native Notch-format skills without following symlinks or admitting large files', async () => {
   const { root } = await setup();
-  const directory = join(root, '.sia-mac', 'skills');
+  const directory = join(root, '.sia-mac', agentId, 'skills');
   await mkdir(directory, { recursive: true });
   await writeFile(
     join(directory, 'morning.sh'),
@@ -334,7 +334,7 @@ it('reads native Notch-format skills without following symlinks or admitting lar
   );
   await writeFile(join(directory, 'large.sh'), 'x'.repeat(16001));
   await symlink(join(root, 'index.html'), join(directory, 'linked.sh'));
-  const skills = await nativeRemoteSkills(root);
+  const skills = await nativeRemoteSkills(root, agentId);
   expect(skills).toHaveLength(1);
   expect(skills[0]).toMatchObject({ id: 'native:morning.sh', title: 'Morning', kind: 'skill' });
   expect(skills[0]!.content).toContain('A daily summary');
@@ -347,4 +347,44 @@ it('immediately blocks state and memory when the paired agent is removed', async
   expect((await fetch(new URL('state', url))).status).toBe(404);
   expect((await fetch(new URL('vault', url))).status).toBe(404);
   expect((await remote.configure({ operation: 'status' })).running).toBe(false);
+});
+
+it('connects actual native note links and does not duplicate the legacy journal', () => {
+  const { notes, graph } = remoteVault(
+    {
+      memories: [],
+      workflows: [],
+      context: false,
+      vaults: [
+        {
+          agentId,
+          notes: [
+            { name: 'MOC.md', text: '[[course]]', revision: '1', readOnly: false },
+            { name: 'course.md', text: 'Verified course note', revision: '2', readOnly: false },
+            { name: 'journal.md', text: 'Native activity', revision: '3', readOnly: false },
+          ],
+        },
+        {
+          agentId: 'other',
+          notes: [{ name: 'private.md', text: 'PRIVATE', revision: '4', readOnly: false }],
+        },
+      ],
+      journal: [
+        {
+          id: 'old',
+          agentId,
+          threadId: 't',
+          turnId: 'u',
+          timestamp: '',
+          kind: 'task',
+          title: 'Old',
+          text: 'Legacy activity',
+        },
+      ],
+    },
+    agentId,
+  );
+  expect(graph.edges).toContainEqual(['vault:MOC.md', 'vault:course.md']);
+  expect(notes.filter((note) => note.kind === 'journal')).toHaveLength(1);
+  expect(JSON.stringify(notes)).not.toContain('PRIVATE');
 });

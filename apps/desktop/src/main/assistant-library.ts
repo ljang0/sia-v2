@@ -46,6 +46,9 @@ export class AssistantLibrary {
     const input = assistantLibraryCommand.parse(command);
     const view = this.view();
     switch (input.operation) {
+      case 'saveVaultNote':
+      case 'deleteVaultNote':
+        throw new Error('Native vault edits must go through the desktop controller.');
       case 'nativeLearning':
         requireAgent(input.agentId);
         for (const key of ['learningAgents', 'reviewAgents', 'nativeLearningAgents'] as const) {
@@ -347,11 +350,16 @@ export class AssistantLibrary {
   reviewDue(agentId: string, now = Date.now()): boolean {
     return new SuggestionStore(this.repository).due(agentId, this.view(), now);
   }
-  markReview(agentId: string, threadId: string, nativeWorkspace?: string): void {
+  markReview(agentId: string, threadId: string, nativeWorkspace?: string, notch = false): void {
     const view = this.view();
     view.lastReview = { ...view.lastReview, [agentId]: new Date().toISOString() };
     this.repository.put('assistant', 'library', view);
-    this.repository.put('assistant-reviews', threadId, { agentId, nativeWorkspace });
+    this.repository.put('assistant-reviews', threadId, { agentId, nativeWorkspace, notch });
+  }
+  isNotchReview(threadId: string): boolean {
+    return (
+      this.repository.get<{ notch?: boolean }>('assistant-reviews', threadId)?.notch === true
+    );
   }
   reviewWorkspace(threadId: string): string | undefined {
     return this.repository.get<{ nativeWorkspace?: string }>('assistant-reviews', threadId)

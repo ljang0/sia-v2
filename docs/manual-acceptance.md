@@ -48,8 +48,8 @@ reasoning choice stays in effect and does not inherit a separate CLI setting.
 | Ask a follow-up about the previous task                                                             | Verify the referenced app/document is still the intended target, even with Sia frontmost.                                                                            |
 | Cancel a task before its next action                                                                | Confirm the task stops, no later action runs, and another task can start.                                                                                            |
 
-Native control verifies each meaningful operation using fresh app dictionary/accessibility values
-when sufficient. It uses screenshots for incomplete text, visual results, and coordinate input.
+Foreground native control follows Notch’s screenshot verification after state-changing GUI steps,
+with accessibility/app values as supporting evidence. Pure file/calculation work uses output readback.
 Waiting for the expected state must be bounded; a command's exit code or a page title alone is not
 verification. Compare equivalent tasks before claiming fewer calls or lower latency; one successful
 run does not establish reliability across every app or model.

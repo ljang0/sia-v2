@@ -476,3 +476,19 @@ the task needs attention instead of announcing completion.
 The Fn monitor and accessibility reader derive from Notch's source; the operating prompt, response
 parser and watchdog are ports. Sia keeps its own Mac speech service, storage and UI. Codex's decisions
 and reliability can differ from Claude Code, and neither engine guarantees every task finishes.
+
+## Stable development permissions
+
+`pnpm dev` and `pnpm --filter @sia/desktop preview` use a signed copy of Electron at
+`~/Library/Application Support/Sia Development/Sia Development.app`, with bundle ID
+`ai.sia.desktop.dev`. Sia pins one local certificate in that directory's `signing.json` and uses
+it for the voice helper too. It prefers an existing Sia/Notch development certificate. On a new
+Mac, run `pnpm --filter @sia/desktop signing:setup` once, or select your existing identity with
+`SIA_DEV_SIGN_IDENTITY`. The private key stays in Keychain. A missing pinned key is an error,
+not a silent switch to ad-hoc signing. Quit the development app before upgrading Electron itself.
+
+Moving from old generic/ad-hoc Electron to this stable identity may require one final permission
+grant. Later rebuilds retain the certificate and designated requirement; byte hashes necessarily
+change with code. macOS can still request newly introduced permissions or revoke grants itself.
+No script resets TCC or grants privacy access. Release builds retain the separate Developer ID
+pipeline. See [Apple’s designated requirement documentation](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements).

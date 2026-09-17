@@ -25,6 +25,7 @@ import {
   type MetaTransport,
 } from '@sia/runtime';
 import type { ActionGateway, TurnLease } from '@sia/action-gateway';
+import { notchConsolidationInstructions, notchVaultRoot } from './notch/foreground.js';
 
 import {
   macExecutionTools,
@@ -36,6 +37,8 @@ import {
 } from './mac-execution.js';
 
 export interface RuntimeThreadConfig {
+  notchVault?: string;
+  notchReview?: boolean;
   nativeTools?: 'disabled';
   computerAccessMode?: 'mac' | 'connected';
   macBackgroundControl?: boolean;
@@ -51,6 +54,7 @@ export interface RuntimeThreadConfig {
 }
 
 export interface RuntimeTurnInput {
+  onMacRawResult?: (text: string) => void;
   onMacResult?: (result: MacTaskResult) => void;
   thread: RuntimeThreadConfig;
   turnId: string;
@@ -307,14 +311,26 @@ export class RuntimeCoordinator {
         mac &&
         event.type === 'message' &&
         event.payload.role === 'assistant' &&
+        event.payload.phase !== 'commentary' &&
         !event.payload.delta
       ) {
+        const raw = event.payload.parts
+          .flatMap((part) => (part.kind === 'text' ? [part.text] : []))
+          .join('');
+        input.onMacRawResult?.(raw);
         const result = parseMacResponse(
           event.payload.parts
             .flatMap((part) => (part.kind === 'text' ? [part.text] : []))
             .join(''),
         );
-        if (result) input.onMacResult?.(result);
+        input.onMacResult?.(
+          result ?? {
+            success: false,
+            response:
+              'Sia received no valid completion result. Review the last response before continuing.',
+            steps: [],
+          },
+        );
       }
       yield mac ? presentMacResponse(event) : event;
     }
@@ -367,7 +383,9 @@ export class RuntimeCoordinator {
         : {}),
       ...(thread.computerAccessMode === 'mac' && thread.nativeTools !== 'disabled'
         ? { allowedTools: new Set(macExecutionTools(thread.macBackgroundControl)) }
-        : {}),
+        : thread.notchReview
+          ? { allowedTools: new Set(['memory_vault']) }
+          : {}),
       ...(lease ? { lease } : {}),
       ...(signal ? { signal } : {}),
     };
@@ -477,10 +495,12 @@ export class RuntimeCoordinator {
       throw new Error('Memory reviews require the Codex App Server harness.');
     const tools = this.#gateway
       .listTools()
-      .filter(
-        (tool) =>
-          thread.nativeTools !== 'disabled' ||
-          ['assistant_library', 'memory_suggest'].includes(tool.name),
+      .filter((tool) =>
+        thread.notchReview
+          ? tool.name === 'memory_vault'
+          : tool.name !== 'memory_vault' &&
+            (thread.nativeTools !== 'disabled' ||
+              ['assistant_library', 'memory_suggest'].includes(tool.name)),
       );
     const sessionTools = mac
       ? tools.filter((tool) =>
@@ -498,6 +518,8 @@ export class RuntimeCoordinator {
       thread.computerTrust,
       thread.macBackgroundControl,
       thread.macBackgroundFallback,
+      thread.notchVault,
+      thread.notchReview,
       sessionTools.map(({ name }) => name),
     ]);
     const existing = this.#sessions.get(thread.id);
@@ -539,20 +561,28 @@ export class RuntimeCoordinator {
     const usesCodexHarness = target.harnessId === 'codex_app_server';
     const session = await adapter.createSession(
       {
-        ...(mac
+        ...(thread.notchReview
           ? {
-              nativeTools: thread.macBackgroundControl
-                ? ('mac-background' as const)
-                : ('mac' as const),
-              nativeApproval: thread.computerTrust ?? 'ask',
-              baseInstructions: macExecutionGuidance(
-                thread.macBackgroundControl,
-                thread.macBackgroundFallback,
+              nativeTools: 'disabled' as const,
+              baseInstructions: notchConsolidationInstructions(
+                thread.notchVault ?? notchVaultRoot(thread.workspace),
               ),
             }
-          : thread.nativeTools
-            ? { nativeTools: thread.nativeTools }
-            : {}),
+          : mac
+            ? {
+                nativeTools: thread.macBackgroundControl
+                  ? ('mac-background' as const)
+                  : ('mac' as const),
+                nativeApproval: thread.computerTrust ?? 'ask',
+                baseInstructions: macExecutionGuidance(
+                  thread.macBackgroundControl,
+                  thread.macBackgroundFallback,
+                  thread.notchVault ?? notchVaultRoot(thread.workspace),
+                ),
+              }
+            : thread.nativeTools
+              ? { nativeTools: thread.nativeTools }
+              : {}),
         threadId: thread.id,
         model: target.harnessModelId,
         resolvedExecutionTarget: target,

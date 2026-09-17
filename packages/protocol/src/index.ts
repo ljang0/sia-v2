@@ -365,6 +365,7 @@ export const messageEventSchema = z.object({
     role: messageRoleSchema,
     parts: z.array(contentPartSchema),
     delta: z.boolean().default(false),
+    phase: z.enum(['commentary', 'final_answer']).optional(),
   }),
 });
 export type MessageEvent = z.infer<typeof messageEventSchema>;

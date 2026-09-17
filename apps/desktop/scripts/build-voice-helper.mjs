@@ -3,6 +3,8 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
+import { devIdentity, signDevelopment } from './dev-signing.mjs';
+
 if (process.platform === 'darwin') {
   const root = resolve(import.meta.dirname, '..');
   const source = join(root, 'native/voice');
@@ -18,7 +20,8 @@ if (process.platform === 'darwin') {
     () => true,
     () => false,
   );
-  if (previous !== digest || !exists) {
+  const rebuilt = previous !== digest || !exists;
+  if (rebuilt) {
     await mkdir(output, { recursive: true });
     for (const arch of ['arm64', 'x86_64']) {
       execFileSync(
@@ -56,11 +59,20 @@ if (process.platform === 'darwin') {
       ],
       { stdio: 'inherit' },
     );
-    execFileSync(
-      '/usr/bin/codesign',
-      ['--force', '--sign', '-', join(output, 'SiaVoiceHelper')],
-      { stdio: 'inherit' },
-    );
     await writeFile(join(output, 'source.sha256'), digest);
+  }
+  const identity = devIdentity({ required: false });
+  const signed = join(output, 'signing.sha256');
+  const key = digest + ':' + (identity?.hash ?? 'adhoc');
+  if (rebuilt || (await readFile(signed, 'utf8').catch(() => '')) !== key) {
+    if (identity)
+      signDevelopment(join(output, 'SiaVoiceHelper'), identity, 'ai.sia.desktop.voice');
+    else
+      execFileSync(
+        '/usr/bin/codesign',
+        ['--force', '--sign', '-', join(output, 'SiaVoiceHelper')],
+        { stdio: 'inherit' },
+      );
+    await writeFile(signed, key);
   }
 }

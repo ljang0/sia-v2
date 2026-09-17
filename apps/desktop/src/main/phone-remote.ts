@@ -375,7 +375,9 @@ export class PhoneRemote {
         const selected = this.#deps.controller
           .snapshot()
           .agents.find((entry) => entry.id === this.#config.agentId);
-        const skills = selected?.workspace ? await nativeRemoteSkills(selected.workspace) : [];
+        const skills = selected?.workspace
+          ? await nativeRemoteSkills(selected.workspace, selected.id)
+          : [];
         if (!this.#available() || generation !== this.#generation) {
           unavailable();
           return;

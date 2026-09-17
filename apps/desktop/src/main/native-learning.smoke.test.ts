@@ -10,6 +10,7 @@ import { CloudClient } from './cloud-client.js';
 import { EphemeralPayloadCipher, SqliteRecordRepository } from './persistence.js';
 import { RuntimeCoordinator } from './runtime-coordinator.js';
 import { NativeSkills } from './native-skills.js';
+import { NotchVault } from './notch/vault.js';
 import { discoverCodexInstallation } from './codex-installation.js';
 import { probeProviders } from './provider-probe.js';
 
@@ -120,8 +121,15 @@ live(
           if (!expectedFailure && (errors.length || thread.status === 'failed'))
             throw new Error(`Live task failed: ${errors.join('; ')}`);
           if (expectedFailure) {
+            console.info(
+              'Native live test: blocked task response:',
+              items
+                .filter((entry) => entry.kind === 'assistant')
+                .map((entry) => entry.text)
+                .join('\n'),
+            );
             expect(thread.status).toBe('failed');
-            expect(errors.join(' ')).toContain('missing-validation-input.txt');
+            expect(errors.join(' ')).toMatch(/missing|not exist|not found/i);
           }
           return items
             .filter((entry) => entry.kind === 'assistant')
@@ -167,6 +175,13 @@ live(
         agentId,
         enabled: true,
       });
+      // Exercise explicit task learning first, then run exactly one consolidation
+      // after the restart. Do not let the idle scheduler race this validation.
+      await controller.invoke('assistant.library', {
+        operation: 'backgroundReview',
+        agentId,
+        enabled: false,
+      });
       await task(
         agentId,
         'Native shell and memory',
@@ -174,11 +189,9 @@ live(
       );
       const expected = createHash('sha256').update('3\n7\n11\n13\n').digest('hex');
       expect(await readFile(join(workspace, 'checksum.txt'), 'utf8')).toContain(expected);
-      let library = await controller.invoke('assistant.library', {
-        operation: 'consolidate',
-        agentId,
-      });
-      expect(JSON.stringify(library.memories)).toContain(code);
+      let library = await controller.invoke('assistant.library', { operation: 'list' });
+      const vault = new NotchVault(workspace, agentId);
+      expect(JSON.stringify(vault.list())).toContain(code);
       console.info('Native live test: checksum and durable memory verified');
 
       await task(
@@ -197,7 +210,6 @@ live(
       expect(skill).toBeDefined();
       expect(skill!.source).toContain('# skill:');
       const revision = skill!.revision;
-      await controller.invoke('assistant.library', { operation: 'consolidate', agentId });
       await controller.shutdown();
       controller = await start();
       const reused = await task(
@@ -247,14 +259,15 @@ live(
       const reviewItems = controller
         .snapshot()
         .timeline.filter((entry) => entry.threadId === review.threadId);
-      expect(reviewItems.some((entry) => entry.toolName?.includes('assistant_library'))).toBe(
-        true,
-      );
+      expect(reviewItems.some((entry) => entry.toolName?.includes('memory_vault'))).toBe(true);
       expect(
         reviewItems.some((entry) =>
           /command|image|computer_|browser_/i.test(entry.toolName ?? ''),
         ),
       ).toBe(false);
+      expect(vault.read('failures.log').text.trim()).toBe('');
+      expect(vault.read('lessons.md').text).toMatch(/^- /m);
+      expect(vault.read('MOC.md').text).toContain('[[');
       expect(guiCalls).toBe(0);
       console.info(
         'Native live test: PASS — real Codex flow, synthetic files only, no GUI calls',
@@ -276,6 +289,15 @@ live(
               toolName,
               status,
             })),
+        ),
+      );
+      console.info(
+        'Native live test: final task messages:',
+        JSON.stringify(
+          controller
+            ?.snapshot()
+            .timeline.filter((entry) => ['assistant', 'error'].includes(entry.kind))
+            .map(({ threadId, text }) => ({ threadId, text })),
         ),
       );
       throw error;

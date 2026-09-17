@@ -1004,6 +1004,9 @@ export class CodexAppServerAdapter implements ProviderAdapter {
                 role: 'assistant',
                 parts: [{ kind: 'text', text }],
                 delta: false,
+                ...(stringAt(item, ['phase']) === 'commentary'
+                  ? { phase: 'commentary' as const }
+                  : { phase: 'final_answer' as const }),
               }),
             );
         }

@@ -528,6 +528,7 @@ export class DesktopActionBackend implements ActionBackend {
     if (request.context.signal?.aborted) return refused('Action cancelled before execution.');
     if (
       this.#macBrowserAccess() &&
+      request.name !== 'memory_vault' &&
       !macExecutionTools(this.#macBackgroundControl()).includes(request.name) &&
       !(this.#macBackgroundControl() && request.name === 'browser_tabs')
     )
@@ -543,6 +544,7 @@ export class DesktopActionBackend implements ActionBackend {
         case 'assistant_library':
         case 'memory_learn':
         case 'memory_suggest':
+        case 'memory_vault':
         case 'skill_save':
         case 'skill_run':
           return this.#assistantAction
