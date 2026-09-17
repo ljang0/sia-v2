@@ -116,10 +116,20 @@ test('core Sia opens first and optional setup connects every work app later', as
       harness.page.getByText(/Google Workspace and Slack are optional/),
     ).toBeVisible();
     await expect(harness.page.getByText('Work apps', { exact: true })).toBeVisible();
-    await harness.page.getByRole('button', { name: 'Connect Google', exact: true }).click();
+    for (const width of [1220, 900]) {
+      await harness.page.setViewportSize({ width, height: 780 });
+      const checklist = harness.page.getByRole('group', { name: 'Choose your connections' });
+      await expect(checklist).toBeVisible();
+      expect(
+        await checklist.evaluate((element) => element.scrollWidth <= element.clientWidth),
+      ).toBe(true);
+      await harness.page.screenshot({
+        path: `test-results/settings-connections-${width}.png`,
+        animations: 'disabled',
+      });
+    }
     await harness.page
-      .getByRole('button', { name: 'Connect Slack', exact: true })
-      .first()
+      .getByRole('button', { name: 'Connect selected apps', exact: true })
       .click();
 
     await expect(harness.page.getByText('Available to agents')).toBeVisible();
@@ -175,14 +185,13 @@ test('a user can connect only a selected set of work apps later', async () => {
     ).toHaveCount(0);
     await harness.page.getByRole('button', { name: 'Settings' }).click();
     await harness.page.getByRole('button', { name: 'Connections' }).click();
-    await harness.page.getByRole('button', { name: 'Connect Google', exact: true }).click();
+    await harness.page.getByRole('checkbox', { name: /Slack/ }).uncheck();
+    await harness.page.getByRole('button', { name: 'Connect selected apps' }).click();
     for (const appName of ['Gmail', 'Google Drive', 'Google Sheets', 'Google Slides']) {
       await harness.page.getByRole('button', { name: `Disable ${appName}` }).click();
     }
-    await harness.page
-      .getByRole('button', { name: 'Connect Slack', exact: true })
-      .first()
-      .click();
+    await harness.page.getByRole('checkbox', { name: /Slack/ }).check();
+    await harness.page.getByRole('button', { name: 'Connect selected apps' }).click();
 
     await expect
       .poll(async () => {

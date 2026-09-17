@@ -147,7 +147,7 @@ it('offers native read aloud without cloud setup and explains unavailable local 
       onSetCompletionSound={vi.fn()}
     />,
   );
-  expect(screen.getByText('Mac voice ready')).toBeTruthy();
+  expect(screen.getByText('Read aloud ready')).toBeTruthy();
   expect((screen.getByRole('checkbox', { name: /Hold Fn/ }) as HTMLInputElement).disabled).toBe(
     true,
   );

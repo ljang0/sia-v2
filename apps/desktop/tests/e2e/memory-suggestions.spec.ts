@@ -10,6 +10,8 @@ test('reviews exact memory changes and executable source before accepting', asyn
   const sia = await launchIsolatedSia({ prefix: 'sia-suggestions-' });
   try {
     const page = sia.page;
+    // This scenario reviews structured suggestions, not the automatic native memory vault.
+    await page.getByRole('radio', { name: /Connected apps \+ confirmations/ }).check();
     await page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
     await page.getByRole('button', { name: 'Create my agent' }).click();
     await page.getByRole('button', { name: 'Exit setup' }).click();

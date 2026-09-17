@@ -35,6 +35,7 @@ interface ComposerProps {
   onRemoveAttachment?: ((attachmentId: string) => Promise<void> | void) | undefined;
   onPreviewAttachment?: ((attachmentId: string) => void) | undefined;
   voiceEnabled?: boolean | undefined;
+  realtimeDictation?: boolean | undefined;
   onAcquireVoiceCapture?: (() => Promise<string>) | undefined;
   onReleaseVoiceCapture?: ((leaseId: string) => Promise<void>) | undefined;
   onTranscribe?: ((audioBase64: string, mimeType: string) => Promise<string>) | undefined;
@@ -65,6 +66,7 @@ export function Composer({
   onRemoveAttachment,
   onPreviewAttachment,
   voiceEnabled = false,
+  realtimeDictation = false,
   onTranscribe,
   onAcquireVoiceCapture,
   onReleaseVoiceCapture,
@@ -259,10 +261,15 @@ export function Composer({
       return;
     setVoiceError(undefined);
     const useRealtime =
-      purpose === 'conversation' &&
+      (purpose === 'conversation' || realtimeDictation) &&
       Boolean(onStartRealtime && onAppendRealtime && onStopRealtime);
+    if (realtimeDictation && !useRealtime) {
+      setVoiceError('Live dictation is unavailable. Restart Sia and try again.');
+      return;
+    }
     if (
       !navigator.mediaDevices?.getUserMedia ||
+      (useRealtime && typeof AudioContext === 'undefined') ||
       (!useRealtime && typeof MediaRecorder === 'undefined')
     ) {
       setVoiceError('Microphone recording is unavailable on this Mac.');
@@ -270,6 +277,7 @@ export function Composer({
     }
     const generation = ++captureGeneration.current;
     captureStarting.current = true;
+    recordingPurpose.current = purpose;
     setVoicePhase('starting');
     try {
       if (onAcquireVoiceCapture) {
@@ -306,7 +314,6 @@ export function Composer({
         : new MediaRecorder(stream);
       mediaStream.current = stream;
       mediaRecorder.current = recorder;
-      recordingPurpose.current = purpose;
       discardRecording.current = false;
       audioChunks.current = [];
       recorder.addEventListener('dataavailable', (event) => {
@@ -344,6 +351,10 @@ export function Composer({
   };
 
   const stopRecording = (discard = false) => {
+    if (realtimeSession.current) {
+      void stopRealtimeRecording(!discard);
+      return;
+    }
     discardRecording.current ||= discard;
     if (recordingTimeout.current) clearTimeout(recordingTimeout.current);
     recordingTimeout.current = undefined;
@@ -370,7 +381,6 @@ export function Composer({
     realtimeAppend.current = Promise.resolve();
     realtimeFailure.current = undefined;
     realtimeFinishing.current = false;
-    recordingPurpose.current = 'conversation';
 
     const context = new AudioContext();
     const source = context.createMediaStreamSource(stream);
@@ -407,6 +417,7 @@ export function Composer({
       const rms = rootMeanSquare(samples);
       updateVoiceLevel(rms);
       const now = performance.now();
+      if (recordingPurpose.current !== 'conversation') return;
       if (rms >= 0.025) {
         heardSpeech = true;
         silenceAt = undefined;
@@ -443,8 +454,7 @@ export function Composer({
       await realtimeAppend.current;
       if (realtimeFailure.current) throw realtimeFailure.current;
       const transcript = await stop(sessionId, commit);
-      if (commit && captureGeneration.current === generation && transcript.trim())
-        await onSend(transcript.trim(), []);
+      if (commit) await acceptTranscript(transcript, generation);
     } catch (cause) {
       await stop(sessionId, false).catch(() => undefined);
       if (commit) {
@@ -507,6 +517,23 @@ export function Composer({
     analyserFrame.current = requestAnimationFrame(measure);
   };
 
+  const acceptTranscript = async (transcript: string, generation: number) => {
+    if (captureGeneration.current !== generation) return;
+    if (recordingPurpose.current === 'conversation') {
+      if (transcript.trim()) await onSend(transcript.trim(), []);
+    } else {
+      const draft = textArea.current?.value ?? value;
+      updateValue(`${draft.trimEnd()}${draft.trim() ? ' ' : ''}${transcript}`);
+    }
+    requestAnimationFrame(() => {
+      const input = textArea.current;
+      if (!input) return;
+      input.style.height = 'auto';
+      input.style.height = `${Math.min(input.scrollHeight, 168)}px`;
+      if (recordingPurpose.current === 'dictation') input.focus();
+    });
+  };
+
   const finishRecording = async (mimeType: string) => {
     const generation = captureGeneration.current;
     mediaStream.current?.getTracks().forEach((track) => track.stop());
@@ -529,19 +556,7 @@ export function Composer({
     setVoicePhase('transcribing');
     try {
       const transcript = await onTranscribe(await blobBase64(blob), mimeType);
-      if (captureGeneration.current !== generation) return;
-      if (recordingPurpose.current === 'conversation') {
-        if (transcript.trim()) await onSend(transcript.trim(), []);
-      } else {
-        updateValue(`${value.trimEnd()}${value.trim() ? ' ' : ''}${transcript}`);
-      }
-      requestAnimationFrame(() => {
-        const input = textArea.current;
-        if (!input) return;
-        input.style.height = 'auto';
-        input.style.height = `${Math.min(input.scrollHeight, 168)}px`;
-        if (recordingPurpose.current === 'dictation') input.focus();
-      });
+      await acceptTranscript(transcript, generation);
     } catch (cause) {
       setVoiceError(
         cause instanceof Error ? cause.message : 'Speech could not be transcribed.',

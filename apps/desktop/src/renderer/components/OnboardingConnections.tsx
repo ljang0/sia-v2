@@ -1,6 +1,8 @@
 import { ComputerAccessMode } from './ComputerAccessMode';
 import { automationApps, automationStatusLabel } from '../../shared/mac-permissions';
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { ConnectionChecklist } from './ConnectionChecklist';
+import { dictationReady } from '../voiceReadiness';
 import type { RendererApi, RendererSnapshot } from '../types';
 import { BrowserWindowPicker } from './BrowserWindowPicker';
 import ui from '../ui.module.css';
@@ -14,65 +16,17 @@ type SetupProps = {
 };
 
 export function SetupConnections({ snapshot, api, pending, run }: SetupProps) {
-  const [selected, setSelected] = useState({ google: true, slack: true });
   const google = snapshot.apps.filter(({ id }) => id !== 'slack');
-  const googleReady =
-    google.length > 0 && google.every((app) => app.status === 'connected' && app.enabled);
-  const slackReady = snapshot.apps.some(
-    (app) => app.id === 'slack' && app.status === 'connected' && app.enabled,
-  );
-  const cloudReady =
-    snapshot.cloudAuth.state === 'signed-in' &&
-    snapshot.cloudAuth.features?.connectors !== false;
+  const googleReady = google.length > 0 && google.every((app) => app.status === 'connected');
   const connecting = snapshot.apps.some((app) => app.status === 'connecting');
-  const choices = [
-    {
-      id: 'google' as const,
-      name: 'Google Workspace',
-      detail: 'Gmail, Drive, Docs, Sheets, and Slides. One Google sign-in for read access.',
-      ready: googleReady,
-    },
-    {
-      id: 'slack' as const,
-      name: 'Slack',
-      detail: 'Search conversations and help with messages in your workspace.',
-      ready: slackReady,
-    },
-  ];
-  const missing = choices.filter((app) => selected[app.id] && !app.ready).map((app) => app.id);
   return (
     <>
-      <fieldset className={styles.connectorChecklist} disabled={pending || connecting}>
-        <legend>Choose your connections</legend>
-        <p className={styles.note}>
-          Connections are optional and selected to start. Uncheck anything you do not use, then
-          connect once. Each provider still asks you to approve its account access.
-        </p>
-        {choices.map(({ id, name, detail, ready }) => (
-          <label className={styles.permission} key={id}>
-            <input
-              type="checkbox"
-              checked={selected[id]}
-              disabled={ready || !cloudReady}
-              onChange={(event) => setSelected({ ...selected, [id]: event.target.checked })}
-            />
-            <span className={styles.connectorDescription}>
-              <strong>{name}</strong>
-              <span>{detail}</span>
-            </span>
-            <span className={ready ? styles.ready : styles.status}>
-              {ready ? 'Connected' : cloudReady ? 'Not connected' : 'Unavailable in this build'}
-            </span>
-          </label>
-        ))}
-        <button
-          className={ui.primaryButton}
-          disabled={!cloudReady || !missing.length}
-          onClick={() => void run(() => api.connectSelectedApps(missing))}
-        >
-          {connecting ? 'Finish account approval…' : 'Connect selected apps'}
-        </button>
-      </fieldset>
+      <ConnectionChecklist
+        snapshot={snapshot}
+        pending={pending}
+        connect={(apps) => run(() => api.connectSelectedApps(apps))}
+        cancel={(app, grant) => run(() => api.disconnectApp(app, grant))}
+      />
       {googleReady && google.some((app) => app.googleAccess !== 'read_write') ? (
         <button
           className={styles.link}
@@ -81,27 +35,6 @@ export function SetupConnections({ snapshot, api, pending, run }: SetupProps) {
         >
           Allow Google edits and sends too
         </button>
-      ) : null}
-      {!cloudReady ? (
-        <p className={styles.note} role="status">
-          Direct Google and Slack connections are unavailable{' '}
-          {snapshot.cloudAuth.state === 'unconfigured'
-            ? 'in this local build'
-            : 'until your Sia account has connector access'}
-          . You can use their websites through your signed-in browser with Use my Mac.
-        </p>
-      ) : null}
-      {connecting ? (
-        <p className={styles.note} role="status">
-          Finish sign-in in the browser. Sia connects the selected accounts in order and updates
-          this checklist as each approval finishes.
-        </p>
-      ) : null}
-      {snapshot.apps.some((app) => app.status === 'error') ? (
-        <p className={styles.error} role="alert">
-          An account connection did not finish. Review its status in Settings → Connections
-          before retrying. Connected accounts are kept.
-        </p>
       ) : null}
       <p className={styles.note}>Manage existing connections in Settings → Connections.</p>
     </>
@@ -234,13 +167,23 @@ function SetupRow({
   );
 }
 
-export function accessChecklist(snapshot: RendererSnapshot) {
+interface AccessItem {
+  label: string;
+  ready: boolean;
+  available: boolean;
+  optional: boolean;
+  detail: string;
+}
+
+export function accessChecklist(snapshot: RendererSnapshot): AccessItem[] {
   const ptt = snapshot.voice.pushToTalk;
   const browserReady =
     snapshot.browser.attached && snapshot.browser.tabs.some((tab) => tab.granted);
-  const core = [
+  const core: AccessItem[] = [
     {
       label: 'Mac apps',
+      available: true,
+      optional: false,
       ready:
         snapshot.computer.accessibility === 'allowed' &&
         snapshot.computer.screenRecording === 'allowed',
@@ -248,13 +191,15 @@ export function accessChecklist(snapshot: RendererSnapshot) {
     },
     {
       label: 'Fn dictation',
-      ready:
-        snapshot.voice.status === 'connected' &&
-        snapshot.voice.dictationAvailable !== false &&
-        Boolean(ptt?.enabled && ptt.accessibility && ptt.microphone),
-      detail: 'Voice, microphone, and shortcut access',
+      ready: dictationReady(snapshot.voice),
+      available: Boolean(ptt?.available) && snapshot.voice.dictationAvailable !== false,
+      optional: false,
+      detail:
+        snapshot.voice.dictationDetail ?? 'Speech Recognition, microphone, and shortcut access',
     },
     {
+      available: true,
+      optional: false,
       label:
         snapshot.computer.accessMode === 'mac' ? 'Browser window access' : 'Chrome websites',
       ready:
@@ -269,34 +214,34 @@ export function accessChecklist(snapshot: RendererSnapshot) {
     },
     {
       label: 'Messages history',
+      available: Boolean(
+        snapshot.computer.messagesAccess && snapshot.computer.messagesAccess !== 'unavailable',
+      ),
+      optional: false,
       ready: snapshot.computer.messagesAccess === 'ready',
       detail: 'Full Disk Access',
     },
   ];
-  if (snapshot.computer.accessMode === 'mac' && snapshot.computer.trust === 'auto') {
-    return [
-      ...core,
-      ...automationApps.map(({ id, name }) => ({
-        label: `${name} automation`,
-        ready: ['ready', 'unavailable'].includes(
-          snapshot.computer.automation?.[id] ?? 'needs_permission',
-        ),
-        detail: automationStatusLabel[snapshot.computer.automation?.[id] ?? 'needs_permission'],
-      })),
-      {
-        label: 'Full bypass',
-        ready: true,
-        detail: 'Task actions run without per-action approval. No service connections needed.',
-      },
-    ];
-  }
   return [
     ...core,
     ...automationApps.map(({ id, name }) => ({
       label: `${name} automation`,
+      available: snapshot.computer.automation?.[id] !== 'unavailable',
+      optional: false,
       ready: snapshot.computer.automation?.[id] === 'ready',
       detail: automationStatusLabel[snapshot.computer.automation?.[id] ?? 'needs_permission'],
     })),
+    ...(snapshot.computer.accessMode === 'mac' && snapshot.computer.trust === 'auto'
+      ? [
+          {
+            label: 'Full bypass',
+            ready: true,
+            available: true,
+            optional: false,
+            detail: 'Task actions run without per-action approval.',
+          },
+        ]
+      : []),
     ...snapshot.apps.map((app) => {
       const direct = app.status === 'connected' && app.enabled;
       const origin = {
@@ -312,6 +257,8 @@ export function accessChecklist(snapshot: RendererSnapshot) {
         snapshot.browser.tabs.some((tab) => tab.granted && tab.origin === origin);
       return {
         label: app.name,
+        available: true,
+        optional: true,
         ready: direct || browser,
         detail: direct
           ? 'Direct connection'
@@ -336,6 +283,8 @@ export function SetupAccessReview({ snapshot }: { snapshot: RendererSnapshot }) 
   if (google.length)
     rows.splice(4, 0, {
       label: 'Google Workspace',
+      available: true,
+      optional: true,
       ready: google.every((item) => item.ready),
       detail: `${google.filter((item) => item.ready).length} of ${google.length} ready · Gmail, Drive, Docs, Sheets, Slides`,
     });
@@ -353,11 +302,11 @@ export function SetupAccessReview({ snapshot }: { snapshot: RendererSnapshot }) 
             <span className={item.ready ? styles.ready : styles.status}>
               {item.ready
                 ? 'Ready'
-                : snapshot.computer.accessMode === 'mac' &&
-                    (item.label === 'Google Workspace' ||
-                      snapshot.apps.some((app) => app.name === item.label))
-                  ? 'Optional'
-                  : 'Needs setup'}
+                : !item.available
+                  ? 'Unavailable'
+                  : item.optional
+                    ? 'Optional'
+                    : 'Needs setup'}
             </span>
           </li>
         ))}

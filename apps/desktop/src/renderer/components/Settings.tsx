@@ -52,6 +52,7 @@ interface SettingsProps {
   onOpenProviderSetup(provider: ProviderId): Promise<void>;
   onCheckForUpdates(): Promise<void>;
   onOpenUpdateDownload(): Promise<void>;
+  onConnectSelectedApps(apps: ('google' | 'slack')[]): Promise<void>;
   onConnectGoogleApps(): Promise<void>;
   onUpgradeGoogleApps(): Promise<void>;
   onConnectApp(app: AppConnection['id']): Promise<void>;
@@ -107,6 +108,7 @@ export function Settings({
   onOpenProviderSetup,
   onCheckForUpdates,
   onOpenUpdateDownload,
+  onConnectSelectedApps,
   onConnectGoogleApps,
   onUpgradeGoogleApps,
   onConnectApp,
@@ -283,6 +285,7 @@ export function Settings({
           {section === 'apps' ? (
             <AppsSettings
               snapshot={snapshot}
+              onConnectSelected={onConnectSelectedApps}
               onConnectGoogle={onConnectGoogleApps}
               onUpgradeGoogle={onUpgradeGoogleApps}
               onConnect={onConnectApp}

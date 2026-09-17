@@ -12,6 +12,7 @@ import { ActionGateway, getActionToolDescriptor } from '@sia/action-gateway';
 
 import { CloudClient } from './cloud-client.js';
 import { DesktopController } from './controller.js';
+import { MacVoiceService } from './mac-voice-service.js';
 import { probeProviders } from './provider-probe.js';
 import type { RuntimeTurnInput } from './runtime-coordinator.js';
 import { canonicalJson } from './update-manifest.js';
@@ -294,6 +295,22 @@ describe('DesktopController', () => {
       expect(requestPermissions).not.toHaveBeenCalled();
       await controller.invoke('computer.requestPermissions', undefined);
       expect(requestPermissions).toHaveBeenCalledTimes(1);
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('includes live voice permission status in a read-only access check without authorizing dictation', async () => {
+    const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+    const voice = new MacVoiceService(repository, vi.fn());
+    const refreshPermissions = vi.fn(async () => {});
+    const prepareDictation = vi.fn(async () => {});
+    Object.assign(voice, { refreshPermissions, prepareDictation });
+    const { controller } = await createHarness({ voice, repository });
+    try {
+      await controller.invoke('computer.permissions', undefined);
+      expect(refreshPermissions).toHaveBeenCalledOnce();
+      expect(prepareDictation).not.toHaveBeenCalled();
     } finally {
       await controller.shutdown();
     }
@@ -3270,11 +3287,21 @@ describe('DesktopController', () => {
       identity,
       fakeServices: false,
       openExternal,
+      restartApp: vi.fn(),
+      defaultWorkspaceRoot: '/tmp/Sia/Agents',
+      createDirectory: async () => undefined,
     });
     await controller.invoke('research.setCapture', {
       enabled: true,
       consentVersion: 'alpha-research-v3-raw',
     });
+    await controller.invoke('agents.save', {
+      name: 'Sia',
+      instructions: '',
+      model: 'gpt-5.6-sol',
+      startOnboarding: true,
+    });
+    await controller.invoke('settings.setOnboarding', { step: 'restart' });
     vi.useFakeTimers();
 
     try {
@@ -3282,6 +3309,9 @@ describe('DesktopController', () => {
         apps: ['google', 'slack'],
       });
       expect(result.opened).toBe(true);
+      await expect(
+        controller.invoke('settings.restartForOnboarding', undefined),
+      ).rejects.toThrow('Finish or cancel account approval');
       expect(openExternal).toHaveBeenCalledTimes(1);
       expect(openExternal).toHaveBeenLastCalledWith('https://connect.example.test/gmail');
 

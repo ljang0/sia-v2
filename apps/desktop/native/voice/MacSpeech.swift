@@ -32,11 +32,18 @@ final class MacSpeech {
         emit(["id": id, "result": value])
     }
     private func fail(_ id: String, _ code: String) { emit(["id": id, "error": code]) }
+    private func speechPermission() -> String {
+        switch SFSpeechRecognizer.authorizationStatus() {
+        case .authorized: return "allowed"
+        case .notDetermined: return "not-requested"
+        default: return "denied"
+        }
+    }
     private func catalog() -> [String: Any] {
         let language = Locale.current.identifier.replacingOccurrences(of: "_", with: "-")
         let defaultVoice = AVSpeechSynthesisVoice(language: language) ?? AVSpeechSynthesisVoice(language: "en-US")
         let voices = AVSpeechSynthesisVoice.speechVoices().prefix(400).map { ["id": $0.identifier, "name": $0.name, "category": $0.language] }
-        return ["voices": voices, "defaultVoiceId": defaultVoice?.identifier ?? "", "dictationAvailable": SFSpeechRecognizer(locale: Locale.current)?.supportsOnDeviceRecognition == true]
+        return ["speechRecognition": speechPermission(), "voices": voices, "defaultVoiceId": defaultVoice?.identifier ?? "", "dictationAvailable": SFSpeechRecognizer(locale: Locale.current)?.supportsOnDeviceRecognition == true]
     }
     func command(_ value: [String: Any]) {
         guard let type = value["type"] as? String else { return }
@@ -45,6 +52,7 @@ final class MacSpeech {
         guard let id = value["id"] as? String, UUID(uuidString: id) != nil else { return }
         switch type {
         case "catalog": reply(id, catalog())
+        case "permissions": reply(id, ["speechRecognition": speechPermission()])
         case "authorize":
             guard SFSpeechRecognizer(locale: Locale.current)?.supportsOnDeviceRecognition == true else { fail(id, "on_device_unavailable"); return }
             if SFSpeechRecognizer.authorizationStatus() == .notDetermined {

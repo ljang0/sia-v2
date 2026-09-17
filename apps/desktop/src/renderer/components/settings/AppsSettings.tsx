@@ -1,25 +1,21 @@
 import {
-  ArrowSquareOut,
   Browser,
   ChatCircleText,
   CircleNotch,
-  EnvelopeSimple,
-  FileText,
-  FolderSimple,
   GoogleLogo,
   PlugsConnected,
-  Presentation,
-  Table,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 import type { AppConnection, RendererSnapshot } from '../../types';
 import styles from '../../ui.module.css';
+import { ConnectionChecklist } from '../ConnectionChecklist';
 import { BrowserWindowPicker } from '../BrowserWindowPicker';
 import { CloudAccountSettings } from './CloudAccountSettings';
 import { errorMessage, InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
 
 export function AppsSettings({
   snapshot,
+  onConnectSelected,
   onConnectGoogle,
   onUpgradeGoogle = async () => undefined,
   onConnect,
@@ -41,6 +37,7 @@ export function AppsSettings({
   onReviewComputerAccess = () => undefined,
 }: {
   snapshot: RendererSnapshot;
+  onConnectSelected(apps: ('google' | 'slack')[]): Promise<void>;
   onConnectGoogle(): Promise<void>;
   onUpgradeGoogle?(): Promise<void>;
   onConnect(app: AppConnection['id']): Promise<void>;
@@ -165,158 +162,180 @@ export function AppsSettings({
             connection.
           </p>
         </div>
-        <div className={styles.connectionGroups}>
-          <section className={styles.connectionGroup} data-connected={googleConnected}>
-            <span className={styles.connectionGroupIcon} aria-hidden="true">
-              <GoogleLogo size={20} weight="bold" />
-            </span>
-            <div className={styles.connectionGroupBody}>
-              <strong>Google Workspace</strong>
-              <span>
-                {googleError
-                  ? googleError.description
-                  : 'Gmail, Drive, Docs, Sheets, and Slides'}
-              </span>
-              <span className={styles.connectionGroupStatus}>
-                {googleConnected
-                  ? googleUpgrading
-                    ? 'Read access stays on. Finish editor approval in your browser'
-                    : googleAccess === 'read_write'
-                      ? 'Editing enabled'
-                      : 'Read-only access'
-                  : googleError
-                    ? 'Needs attention'
-                    : googleNeedsUpgrade
-                      ? 'Older connections found - upgrade with one approval'
-                      : 'One secure Google approval, read-only by default'}
-              </span>
-            </div>
-            {!googleConnected ? (
-              <button
-                type="button"
-                className={styles.primaryButton}
-                disabled={Boolean(pending) || !cloudReady || setupActive}
-                onClick={() =>
-                  run(
-                    'connect-google',
-                    googleError ? () => onConnect(googleError.id) : onConnectGoogle,
-                    'Google Workspace could not be connected.',
-                  )
-                }
-              >
-                {pending === 'connect-google' || setupActive ? (
-                  <CircleNotch className={styles.spin} size={16} aria-hidden="true" />
-                ) : (
-                  <GoogleLogo size={16} weight="bold" aria-hidden="true" />
-                )}
-                {setupActive
-                  ? 'Finish in browser'
-                  : pending === 'connect-google'
-                    ? 'Opening...'
-                    : googleError
-                      ? `Reconnect ${appName(googleError.id)}`
-                      : googleNeedsUpgrade
-                        ? 'Upgrade Google'
-                        : 'Connect Google'}
-              </button>
-            ) : (
-              <div className={styles.connectionGroupActions}>
-                {googleAccess === 'read_only' ? (
+        <ConnectionChecklist
+          snapshot={snapshot}
+          pending={Boolean(pending)}
+          connect={(apps) =>
+            run(
+              'connect-selected',
+              () => onConnectSelected(apps),
+              'The selected apps could not be connected.',
+            )
+          }
+          cancel={(app, grant) =>
+            run(
+              'cancel-setup',
+              () => onDisconnect(app, grant),
+              'Connection setup could not be cancelled.',
+            )
+          }
+        />
+        {googleConnected ||
+        googleError ||
+        googleNeedsUpgrade ||
+        slackConnected ||
+        slack?.status === 'error' ? (
+          <div className={styles.connectionGroups}>
+            {googleConnected || googleError || googleNeedsUpgrade ? (
+              <section className={styles.connectionGroup} data-connected={googleConnected}>
+                <span className={styles.connectionGroupIcon} aria-hidden="true">
+                  <GoogleLogo size={20} weight="bold" />
+                </span>
+                <div className={styles.connectionGroupBody}>
+                  <strong>Google Workspace</strong>
+                  <span>
+                    {googleError
+                      ? googleError.description
+                      : 'Gmail, Drive, Docs, Sheets, and Slides'}
+                  </span>
+                  <span className={styles.connectionGroupStatus}>
+                    {googleConnected
+                      ? googleUpgrading
+                        ? 'Read access stays on. Finish editor approval in your browser'
+                        : googleAccess === 'read_write'
+                          ? 'Editing enabled'
+                          : 'Read-only access'
+                      : googleError
+                        ? 'Needs attention'
+                        : 'Older connections found — upgrade with one approval'}
+                  </span>
+                </div>
+                {!googleConnected ? (
                   <button
                     type="button"
-                    className={styles.secondaryButton}
-                    disabled={Boolean(pending) || !cloudReady || googleUpgrading}
+                    className={styles.primaryButton}
+                    disabled={Boolean(pending) || !cloudReady || setupActive}
                     onClick={() =>
                       run(
-                        'upgrade-google',
-                        onUpgradeGoogle,
-                        'Google editing and sending could not be enabled.',
+                        'connect-google',
+                        googleError ? () => onConnect(googleError.id) : onConnectGoogle,
+                        'Google Workspace could not be connected.',
                       )
                     }
                   >
-                    {googleUpgrading
+                    {pending === 'connect-google' || setupActive ? (
+                      <CircleNotch className={styles.spin} size={16} aria-hidden="true" />
+                    ) : (
+                      <GoogleLogo size={16} weight="bold" aria-hidden="true" />
+                    )}
+                    {setupActive
                       ? 'Finish in browser'
-                      : pending === 'upgrade-google'
+                      : pending === 'connect-google'
                         ? 'Opening...'
-                        : 'Enable editing'}
+                        : googleError
+                          ? `Reconnect ${appName(googleError.id)}`
+                          : 'Upgrade Google'}
                   </button>
-                ) : null}
-                <button
-                  type="button"
-                  className={styles.textButtonDanger}
-                  disabled={Boolean(pending) || !accountReady || googleUpgrading}
-                  aria-label="Disconnect Google Workspace"
-                  onClick={() =>
-                    run(
-                      'disconnect-google',
-                      () => onDisconnect(googleGrant!.id, googleGrant!.connectionId),
-                      'Google Workspace could not be disconnected.',
-                    )
-                  }
-                >
-                  {pending === 'disconnect-google'
-                    ? 'Disconnecting...'
-                    : 'Disconnect Google Workspace'}
-                </button>
-              </div>
-            )}
-          </section>
-          {slack ? (
-            <section className={styles.connectionGroup} data-connected={slackConnected}>
-              <span className={styles.connectionGroupIcon} aria-hidden="true">
-                <PlugsConnected size={20} />
-              </span>
-              <div className={styles.connectionGroupBody}>
-                <strong>Slack</strong>
-                <span>Choose a workspace in your browser - no plugin or API key</span>
-                <span className={styles.connectionGroupStatus}>
-                  {slackConnected ? 'Connected' : 'One secure Slack approval'}
+                ) : (
+                  <div className={styles.connectionGroupActions}>
+                    {googleAccess === 'read_only' ? (
+                      <button
+                        type="button"
+                        className={styles.secondaryButton}
+                        disabled={Boolean(pending) || !cloudReady || googleUpgrading}
+                        onClick={() =>
+                          run(
+                            'upgrade-google',
+                            onUpgradeGoogle,
+                            'Google editing and sending could not be enabled.',
+                          )
+                        }
+                      >
+                        {googleUpgrading
+                          ? 'Finish in browser'
+                          : pending === 'upgrade-google'
+                            ? 'Opening...'
+                            : 'Enable editing'}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className={styles.textButtonDanger}
+                      disabled={Boolean(pending) || !accountReady || googleUpgrading}
+                      aria-label="Disconnect Google Workspace"
+                      onClick={() =>
+                        run(
+                          'disconnect-google',
+                          () => onDisconnect(googleGrant!.id, googleGrant!.connectionId),
+                          'Google Workspace could not be disconnected.',
+                        )
+                      }
+                    >
+                      {pending === 'disconnect-google'
+                        ? 'Disconnecting...'
+                        : 'Disconnect Google Workspace'}
+                    </button>
+                  </div>
+                )}
+              </section>
+            ) : null}
+            {slack && (slackConnected || slack.status === 'error') ? (
+              <section className={styles.connectionGroup} data-connected={slackConnected}>
+                <span className={styles.connectionGroupIcon} aria-hidden="true">
+                  <PlugsConnected size={20} />
                 </span>
-              </div>
-              {!slackConnected ? (
-                <button
-                  type="button"
-                  className={styles.primaryButton}
-                  disabled={Boolean(pending) || !cloudReady || setupActive}
-                  onClick={() =>
-                    run(
-                      'connect-slack',
-                      () => onConnect('slack'),
-                      'Slack could not be connected.',
-                    )
-                  }
-                >
-                  {pending === 'connect-slack' || setupActive ? (
-                    <CircleNotch className={styles.spin} size={16} aria-hidden="true" />
-                  ) : (
-                    <PlugsConnected size={16} aria-hidden="true" />
-                  )}
-                  {setupActive
-                    ? 'Finish in browser'
-                    : pending === 'connect-slack'
-                      ? 'Opening...'
-                      : 'Connect Slack'}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className={styles.textButtonDanger}
-                  disabled={Boolean(pending) || !accountReady}
-                  aria-label="Disconnect Slack"
-                  onClick={() =>
-                    run(
-                      'disconnect-slack',
-                      () => onDisconnect('slack', slack.connectionId),
-                      'Slack could not be disconnected.',
-                    )
-                  }
-                >
-                  {pending === 'disconnect-slack' ? 'Disconnecting...' : 'Disconnect Slack'}
-                </button>
-              )}
-            </section>
-          ) : null}
-        </div>
+                <div className={styles.connectionGroupBody}>
+                  <strong>Slack</strong>
+                  <span>Choose a workspace in your browser - no plugin or API key</span>
+                  <span className={styles.connectionGroupStatus}>
+                    {slackConnected ? 'Connected' : 'One secure Slack approval'}
+                  </span>
+                </div>
+                {!slackConnected ? (
+                  <button
+                    type="button"
+                    className={styles.primaryButton}
+                    disabled={Boolean(pending) || !cloudReady || setupActive}
+                    onClick={() =>
+                      run(
+                        'connect-slack',
+                        () => onConnect('slack'),
+                        'Slack could not be connected.',
+                      )
+                    }
+                  >
+                    {pending === 'connect-slack' || setupActive ? (
+                      <CircleNotch className={styles.spin} size={16} aria-hidden="true" />
+                    ) : (
+                      <PlugsConnected size={16} aria-hidden="true" />
+                    )}
+                    {setupActive
+                      ? 'Finish in browser'
+                      : pending === 'connect-slack'
+                        ? 'Opening...'
+                        : 'Reconnect Slack'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.textButtonDanger}
+                    disabled={Boolean(pending) || !accountReady}
+                    aria-label="Disconnect Slack"
+                    onClick={() =>
+                      run(
+                        'disconnect-slack',
+                        () => onDisconnect('slack', slack.connectionId),
+                        'Slack could not be disconnected.',
+                      )
+                    }
+                  >
+                    {pending === 'disconnect-slack' ? 'Disconnecting...' : 'Disconnect Slack'}
+                  </button>
+                )}
+              </section>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       {googleConnected ? (
         <div className={styles.googleServiceAccess} aria-label="Google Workspace services">
@@ -361,27 +380,11 @@ export function AppsSettings({
           {googleApps
             .filter(({ status }) => status !== 'disconnected')
             .map((app) => (
-              <AppRow
+              <LegacyGrantRow
                 key={app.id}
                 app={app}
-                compactCleanup
-                cloudState={snapshot.cloudAuth.state}
-                setupActive={setupActive}
-                pending={pending}
-                onConnect={() =>
-                  run(
-                    `connect-${app.id}`,
-                    () => onConnect(app.id),
-                    `${appName(app.id)} could not be connected.`,
-                  )
-                }
-                onSetEnabled={(enabled) =>
-                  run(
-                    `set-enabled-${app.id}`,
-                    () => onSetEnabled(app.id, enabled),
-                    `${appName(app.id)} access could not be changed.`,
-                  )
-                }
+                pending={pending === `disconnect-${app.id}`}
+                disabled={Boolean(pending) || !accountReady}
                 onDisconnect={() =>
                   run(
                     `disconnect-${app.id}`,
@@ -394,8 +397,8 @@ export function AppsSettings({
         </div>
       ) : null}
       <div className={styles.settingsNote}>
-        You can disconnect any app without affecting core Sia features. OAuth opens in your
-        browser, and Sia never places connector keys or account tokens in the renderer.
+        You can disconnect any app without affecting core Sia features. Account approval opens
+        in your browser. You control which account and workspace Sia can use.
       </div>
       <details className={styles.settingsDisclosure}>
         <summary>
@@ -437,142 +440,30 @@ export function AppsSettings({
   );
 }
 
-function AppRow({
+function LegacyGrantRow({
   app,
-  compactCleanup = false,
-  cloudState,
-  setupActive,
   pending,
-  onConnect,
-  onSetEnabled,
+  disabled,
   onDisconnect,
 }: {
   app: AppConnection;
-  compactCleanup?: boolean | undefined;
-  cloudState: RendererSnapshot['cloudAuth']['state'];
-  setupActive: boolean;
-  pending?: string | undefined;
-  onConnect(): void;
-  onSetEnabled(enabled: boolean): void;
+  pending: boolean;
+  disabled: boolean;
   onDisconnect(): void;
 }) {
-  const icons = {
-    gmail: EnvelopeSimple,
-    drive: FolderSimple,
-    docs: FileText,
-    sheets: Table,
-    slides: Presentation,
-    slack: PlugsConnected,
-  };
-  const Icon = icons[app.id];
-  const appEnabled = app.enabled !== false;
-  const busy =
-    pending === `connect-${app.id}` ||
-    pending === `disconnect-${app.id}` ||
-    pending === `set-enabled-${app.id}`;
-  const cloudReady = cloudState === 'signed-in';
-  const disabledReason =
-    cloudState === 'unconfigured'
-      ? 'Cloud apps are unavailable in this build'
-      : 'Sign in to Sia cloud first';
-  if (compactCleanup) {
-    return (
-      <div className={styles.legacyConnectionRow}>
-        <span>{app.name}</span>
-        <span>{app.account ?? 'Older grant'}</span>
-        <button
-          type="button"
-          className={styles.textButtonDanger}
-          disabled={busy || !cloudReady}
-          onClick={onDisconnect}
-          aria-label={`Disconnect legacy ${appName(app.id)}`}
-        >
-          {busy ? 'Disconnecting...' : 'Disconnect'}
-        </button>
-      </div>
-    );
-  }
   return (
-    <div className={styles.settingsRow}>
-      <span className={styles.appGlyph} data-app={app.id}>
-        <Icon size={20} aria-hidden="true" />
-      </span>
-      <div className={styles.settingsRowBody}>
-        <div className={styles.rowTitleLine}>
-          <strong>{app.name}</strong>
-          <span
-            className={`${styles.stateLabel} ${
-              app.status === 'connected' && !appEnabled
-                ? styles.connection_disconnected
-                : styles[`connection_${app.status}`]
-            }`}
-          >
-            {app.status === 'connected'
-              ? app.id !== 'slack' && !appEnabled
-                ? 'Off'
-                : 'Connected'
-              : app.status === 'connecting'
-                ? 'Connecting'
-                : app.status === 'error'
-                  ? 'Needs attention'
-                  : 'Not connected'}
-          </span>
-        </div>
-        <p>{app.description}</p>
-        <div className={styles.permissionSummary}>{app.permissions.join('; ')}</div>
-        {app.account ? <div className={styles.rowMeta}>{app.account}</div> : null}
-      </div>
-      {app.status === 'connected' && app.id !== 'slack' ? (
-        <button
-          type="button"
-          className={styles.secondaryButton}
-          disabled={busy || !cloudReady}
-          aria-pressed={appEnabled}
-          aria-label={`${appEnabled ? 'Disable' : 'Enable'} ${appName(app.id)}`}
-          onClick={() => onSetEnabled(!appEnabled)}
-        >
-          {busy ? 'Updating...' : appEnabled ? 'On' : 'Off'}
-        </button>
-      ) : app.status === 'connected' ||
-        app.status === 'connecting' ||
-        app.status === 'error' ? (
-        <button
-          type="button"
-          className={
-            app.status === 'error'
-              ? styles.secondaryButton
-              : app.status === 'connecting'
-                ? styles.secondaryButton
-                : styles.textButtonDanger
-          }
-          disabled={busy || !cloudReady}
-          title={!cloudReady ? disabledReason : undefined}
-          onClick={app.status === 'error' ? onConnect : onDisconnect}
-          aria-label={`${app.status === 'error' ? 'Reconnect' : app.status === 'connecting' ? 'Cancel setup for' : 'Disconnect'} ${appName(app.id)}`}
-        >
-          {busy
-            ? app.status === 'error'
-              ? 'Reconnecting...'
-              : 'Disconnecting...'
-            : app.status === 'connecting'
-              ? 'Cancel setup'
-              : app.status === 'error'
-                ? 'Reconnect'
-                : 'Disconnect'}
-        </button>
-      ) : (
-        <button
-          type="button"
-          className={styles.secondaryButton}
-          disabled={busy || setupActive || !cloudReady}
-          title={!cloudReady ? disabledReason : undefined}
-          onClick={onConnect}
-          aria-label={`Connect ${appName(app.id)}`}
-        >
-          <ArrowSquareOut size={15} aria-hidden="true" />
-          {busy ? 'Connecting...' : 'Connect'}
-        </button>
-      )}
+    <div className={styles.legacyConnectionRow}>
+      <span>{app.name}</span>
+      <span>{app.account ?? 'Older grant'}</span>
+      <button
+        type="button"
+        className={styles.textButtonDanger}
+        disabled={disabled}
+        onClick={onDisconnect}
+        aria-label={`Disconnect legacy ${appName(app.id)}`}
+      >
+        {pending ? 'Disconnecting...' : 'Disconnect'}
+      </button>
     </div>
   );
 }

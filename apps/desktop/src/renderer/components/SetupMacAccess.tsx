@@ -1,4 +1,5 @@
 import type { RendererApi, RendererSnapshot } from '../types';
+import { dictationReady } from '../voiceReadiness';
 import { MacAutomationPermissions } from './MacAutomationPermissions';
 import styles from './Onboarding.module.css';
 
@@ -17,10 +18,7 @@ export function SetupMacAccess({
 }) {
   const ptt = snapshot.voice.pushToTalk;
   const voiceAvailable = Boolean(ptt?.available) && snapshot.voice.dictationAvailable !== false;
-  const voiceReady =
-    snapshot.voice.status === 'connected' &&
-    snapshot.voice.dictationAvailable !== false &&
-    Boolean(ptt?.enabled && ptt.accessibility && ptt.microphone);
+  const voiceReady = dictationReady(snapshot.voice);
   const computerReady =
     snapshot.computer.accessibility === 'allowed' &&
     snapshot.computer.screenRecording === 'allowed';
@@ -71,7 +69,9 @@ export function SetupMacAccess({
       voiceAvailable,
       snapshot.voice.dictationDetail ??
         (voiceAvailable
-          ? 'Hold Fn to dictate. Setup does not start a recording.'
+          ? snapshot.voice.engine === 'macos' && snapshot.voice.speechRecognition !== 'allowed'
+            ? 'Allow Speech Recognition, microphone, and Fn shortcut access. Setup does not record.'
+            : 'Hold Fn to dictate. Setup does not start a recording.'
           : 'Unavailable on this device.'),
     ],
     [

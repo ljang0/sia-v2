@@ -17,7 +17,9 @@ function harness(dictationAvailable = true) {
         voices: [{ id: 'mac-default', name: 'Samantha', category: 'en-US' }],
         defaultVoiceId: 'mac-default',
         dictationAvailable,
+        speechRecognition: 'not-requested',
       };
+    if (command.type === 'permissions') return { speechRecognition: 'denied' };
     if (command.type === 'speak') return { audioBase64: wave.toString('base64') };
     if (command.type === 'finish')
       return { text: command.commit ? 'Make a plan for today.' : '' };
@@ -55,6 +57,49 @@ describe('Mac voice', () => {
     expect(h.factory).toHaveBeenCalledTimes(2);
     expect((await h.service.speak('Ready.')).mimeType).toBe('audio/wav');
     h.service.dispose();
+    h.repository.close();
+  });
+
+  it('rechecks speech access without requesting permission or recording and clears stale grants on failure', async () => {
+    const h = harness();
+    await h.service.refreshPermissions();
+    expect(h.factory).not.toHaveBeenCalled();
+    await h.service.configure();
+    await h.service.prepareDictation();
+    expect(h.service.view().speechRecognition).toBe('allowed');
+    h.pipe.request.mockClear();
+    await h.service.refreshPermissions();
+    expect(h.service.view().speechRecognition).toBe('denied');
+    expect(h.pipe.request).toHaveBeenCalledExactlyOnceWith({ type: 'permissions' });
+    expect(h.pipe.send).not.toHaveBeenCalled();
+    await h.service.prepareDictation();
+    h.pipe.request.mockRejectedValueOnce(new Error('Helper unavailable'));
+    await expect(h.service.refreshPermissions()).rejects.toThrow('Helper unavailable');
+    expect(h.service.view().speechRecognition).toBeUndefined();
+    h.service.dispose();
+    h.repository.close();
+  });
+
+  it('does not restore a cached speech grant or apply a late permission result after disconnect', async () => {
+    const h = harness();
+    await h.service.configure();
+    await h.service.prepareDictation();
+    const restored = new MacVoiceService(h.repository, () => h.pipe);
+    expect(restored.view().status).toBe('connected');
+    expect(restored.view().speechRecognition).toBeUndefined();
+    let finish!: (value: Record<string, unknown>) => void;
+    h.pipe.request.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const check = h.service.refreshPermissions();
+    h.service.disconnect();
+    finish({ speechRecognition: 'allowed' });
+    await expect(check).rejects.toThrow('cancelled');
+    expect(h.service.view()).toMatchObject({ status: 'disconnected' });
+    expect(h.service.view().speechRecognition).toBeUndefined();
     h.repository.close();
   });
 

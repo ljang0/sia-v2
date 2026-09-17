@@ -1874,6 +1874,11 @@ export class DesktopController {
         )
           throw new Error('Finish connecting your apps before restarting setup.');
         if (!this.#restartApp) throw new Error('Restart is unavailable in this build.');
+        if (
+          this.#connectionSetup ||
+          this.#state.connections.some((app) => app.status === 'connecting')
+        )
+          throw new Error('Finish or cancel account approval before restarting.');
         if (this.#runningTurns.size || this.#pushToTalk?.busy)
           throw new Error(
             'Wait for the current task or recording to finish before restarting.',
@@ -3682,6 +3687,8 @@ export class DesktopController {
       ? await this.#computer.requestPermissions()
       : await this.#computer.permissions();
     await this.#refreshCapabilityStatuses();
+    await this.#voice?.refreshPermissions?.().catch(() => undefined);
+    this.#pushToTalk?.refreshPermissions();
     this.#emit();
     return this.snapshot();
   }

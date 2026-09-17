@@ -5,6 +5,9 @@ import type { VoiceView } from '../shared/bridge.js';
 import type { RecordRepository } from './persistence.js';
 import { spokenSummary, type VoiceOperations } from './voice-service.js';
 
+const permissionSchema = z.object({
+  speechRecognition: z.enum(['allowed', 'denied', 'not-requested']),
+});
 const catalogSchema = z.object({
   voices: z
     .array(
@@ -17,6 +20,7 @@ const catalogSchema = z.object({
     .max(400),
   defaultVoiceId: z.string().max(256),
   dictationAvailable: z.boolean(),
+  speechRecognition: permissionSchema.shape.speechRecognition,
 });
 const responseSchema = z
   .object({
@@ -243,6 +247,7 @@ export class MacVoiceService implements VoiceOperations {
       selectedVoiceId: selected.id,
       selectedVoiceName: selected.name,
       dictationAvailable: catalog.dictationAvailable,
+      speechRecognition: catalog.speechRecognition,
       ...(catalog.dictationAvailable
         ? { dictationDetail: undefined }
         : { dictationDetail: messages.on_device_unavailable }),
@@ -273,8 +278,28 @@ export class MacVoiceService implements VoiceOperations {
   async prepareDictation(): Promise<void> {
     this.#connected();
     const generation = this.#generation;
-    await this.#pipe().request({ type: 'authorize' }, 60_000);
-    this.#guard(generation);
+    try {
+      await this.#pipe().request({ type: 'authorize' }, 60_000);
+      this.#guard(generation);
+      this.#view.speechRecognition = 'allowed';
+    } catch (error) {
+      if (generation === this.#generation) this.#view.speechRecognition = undefined;
+      throw error;
+    }
+  }
+  async refreshPermissions(): Promise<void> {
+    if (this.#view.status !== 'connected') return;
+    const generation = this.#generation;
+    try {
+      const permission = permissionSchema.parse(
+        await this.#pipe().request({ type: 'permissions' }),
+      );
+      this.#guard(generation);
+      this.#view.speechRecognition = permission.speechRecognition;
+    } catch (error) {
+      if (generation === this.#generation) this.#view.speechRecognition = undefined;
+      throw error;
+    }
   }
   async startRealtime(): Promise<{ sessionId: string }> {
     this.#connected();

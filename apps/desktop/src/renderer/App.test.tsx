@@ -271,7 +271,8 @@ describe('app privacy routing', () => {
     expect(screen.queryByRole('dialog', { name: 'Connect your work apps' })).toBeNull();
     fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
     fireEvent.click(screen.getByRole('button', { name: 'Connections' }));
-    fireEvent.click(screen.getAllByRole('button', { name: 'Connect Slack' })[0]!);
+    fireEvent.click(screen.getByRole('checkbox', { name: /Google Workspace/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect selected apps' }));
 
     await waitFor(async () =>
       expect((await api.getSnapshot()).apps.map(({ id, status }) => ({ id, status }))).toEqual([

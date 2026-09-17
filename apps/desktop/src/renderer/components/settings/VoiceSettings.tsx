@@ -72,7 +72,7 @@ export function VoiceSettings({
               <SpeakerHigh size={18} />
             </span>
             <div>
-              <strong>{nativeVoice ? 'Mac voice ready' : 'Included voice ready'}</strong>
+              <strong>{nativeVoice ? 'Read aloud ready' : 'Included voice ready'}</strong>
               <span>
                 <CheckCircle size={13} aria-hidden="true" />
                 {voice.selectedVoiceName ?? 'Voice ready'}

@@ -91,20 +91,30 @@ describe('background workspace files through the action gateway', () => {
     await writeFile(join(root, 'report.md'), original);
     const read = await invoke('computer_read_file', { name: 'report.md' });
     const revision = (read.data as { sha256: string }).sha256;
-    const outcomes = await Promise.all([
-      invoke('computer_write_file', {
-        name: 'report.md',
-        text: 'fixed ✓',
-        expected_sha256: revision,
-      }),
-      invoke('computer_write_file', {
-        name: 'report.md',
-        text: 'stale edit',
-        expected_sha256: revision,
-      }),
-    ]);
+    const edits = ['fixed ✓', 'competing edit'];
+    const outcomes = await Promise.all(
+      edits.map((text) =>
+        invoke('computer_write_file', {
+          name: 'report.md',
+          text,
+          expected_sha256: revision,
+        }),
+      ),
+    );
     expect(outcomes.map((result) => result.outcome).sort()).toEqual(['refused', 'verified']);
-    expect(await readFile(join(root, 'report.md'), 'utf8')).toBe('fixed ✓');
+    // Either concurrent request can reach the write lock first after resolving its path.
+    const winner = edits[outcomes.findIndex((result) => result.outcome === 'verified')];
+    expect(await readFile(join(root, 'report.md'), 'utf8')).toBe(winner);
+    expect(
+      (
+        await invoke('computer_write_file', {
+          name: 'report.md',
+          text: 'stale retry',
+          expected_sha256: revision,
+        })
+      ).outcome,
+    ).toBe('refused');
+    expect(await readFile(join(root, 'report.md'), 'utf8')).toBe(winner);
     const current = await invoke('computer_read_file', { name: 'report.md' });
     expect(
       (

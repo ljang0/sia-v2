@@ -55,6 +55,7 @@ interface StoredVoicePreference {
 export interface VoiceOperations {
   view(): VoiceView;
   prepareDictation?(): Promise<void>;
+  refreshPermissions?(): Promise<void>;
   configure(): Promise<VoiceView>;
   refresh(): Promise<VoiceView>;
   select(voiceId: string): Promise<VoiceView>;

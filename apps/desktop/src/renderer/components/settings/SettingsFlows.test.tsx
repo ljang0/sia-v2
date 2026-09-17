@@ -19,6 +19,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={withCloud('signed-out')}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
@@ -34,7 +35,7 @@ describe('cloud account settings', () => {
     });
     const submit = screen.getByRole('button', { name: 'Email me a sign-in code' });
     expect((submit as HTMLButtonElement).disabled).toBe(false);
-    expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: /research/i })).toBeNull();
     fireEvent.click(submit);
 
     await waitFor(() => expect(onStart).toHaveBeenCalledWith('lawrence@example.com'));
@@ -50,6 +51,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={withCloud('code-sent', 'lawrence@example.com')}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
@@ -79,6 +81,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={withCloud('password-required', 'admin@example.com')}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
@@ -106,6 +109,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={withCloud('unconfigured')}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
@@ -129,6 +133,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={withCloud('signed-in', 'lawrence@example.com')}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
@@ -143,17 +148,17 @@ describe('cloud account settings', () => {
     expect(screen.getByText('Available for this account')).toBeTruthy();
     expect(screen.getByText(/workspace administrator may need to approve/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
-    for (const name of ['Connect Google', 'Connect Slack']) {
-      for (const button of screen.getAllByRole('button', { name })) {
-        expect((button as HTMLButtonElement).disabled).toBe(false);
-      }
-    }
+    expect(
+      (screen.getByRole('button', { name: 'Connect selected apps' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false);
   });
 
   it('keeps connector availability explicit before sign-in and for gated accounts', () => {
     const { unmount } = render(
       <AppsSettings
         snapshot={withCloud('signed-out')}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
@@ -163,7 +168,7 @@ describe('cloud account settings', () => {
         onDeleteCloudAccount={vi.fn()}
       />,
     );
-    expect(screen.getByText('Sign in to connect')).toBeTruthy();
+    expect(screen.getAllByText('Sign in to connect')[0]).toBeTruthy();
     unmount();
 
     const snapshot = withCloud('signed-in', 'tester@example.com');
@@ -176,6 +181,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={snapshot}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
@@ -185,13 +191,11 @@ describe('cloud account settings', () => {
         onDeleteCloudAccount={vi.fn()}
       />,
     );
-    expect(screen.getByText('Not enabled for this account')).toBeTruthy();
+    expect(screen.getAllByText('Not enabled for this account')[0]).toBeTruthy();
     expect(screen.getByText(/Existing connections can still be disconnected/)).toBeTruthy();
     expect(
-      (screen.getByRole('button', { name: 'Connect Google' }) as HTMLButtonElement).disabled,
-    ).toBe(true);
-    expect(
-      (screen.getByRole('button', { name: 'Connect Slack' }) as HTMLButtonElement).disabled,
+      (screen.getByRole('button', { name: 'Connect selected apps' }) as HTMLButtonElement)
+        .disabled,
     ).toBe(true);
   });
 
@@ -212,6 +216,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={snapshot}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
@@ -233,11 +238,12 @@ describe('cloud account settings', () => {
   });
 
   it('starts one read-only Google approval and explains the provider consent boundary', async () => {
-    const onConnectGoogle = vi.fn().mockResolvedValue(undefined);
+    const onConnectSelected = vi.fn().mockResolvedValue(undefined);
     render(
       <AppsSettings
         snapshot={withCloud('signed-in', 'lawrence@example.com')}
-        onConnectGoogle={onConnectGoogle}
+        onConnectSelected={onConnectSelected}
+        onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
         onStartCloudSignIn={vi.fn()}
@@ -248,9 +254,10 @@ describe('cloud account settings', () => {
     );
 
     expect(screen.getByText(/Google starts read-only/i)).toBeTruthy();
-    expect(screen.getByText(/one secure Google approval, read-only by default/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Connect Google' }));
-    await waitFor(() => expect(onConnectGoogle).toHaveBeenCalledOnce());
+    expect(screen.getByText(/One Google sign-in for read access/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole('checkbox', { name: /Slack/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect selected apps' }));
+    await waitFor(() => expect(onConnectSelected).toHaveBeenCalledWith(['google']));
   });
 
   it('keeps read access active while a person explicitly enables Google editing', async () => {
@@ -271,6 +278,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={snapshot}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onUpgradeGoogle={onUpgradeGoogle}
         onConnect={vi.fn()}
@@ -304,6 +312,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={snapshot}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={onConnectGoogle}
         onConnect={vi.fn()}
         onDisconnect={onDisconnect}
@@ -337,6 +346,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={snapshot}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onSetEnabled={onSetEnabled}
@@ -356,12 +366,13 @@ describe('cloud account settings', () => {
   });
 
   it('lets people connect Slack without connecting Google', async () => {
-    const onConnect = vi.fn().mockResolvedValue(undefined);
+    const onConnectSelected = vi.fn().mockResolvedValue(undefined);
     render(
       <AppsSettings
         snapshot={withCloud('signed-in', 'lawrence@example.com')}
+        onConnectSelected={onConnectSelected}
         onConnectGoogle={vi.fn()}
-        onConnect={onConnect}
+        onConnect={vi.fn()}
         onDisconnect={vi.fn()}
         onStartCloudSignIn={vi.fn()}
         onCompleteCloudSignIn={vi.fn()}
@@ -370,8 +381,9 @@ describe('cloud account settings', () => {
       />,
     );
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Connect Slack' })[0]!);
-    await waitFor(() => expect(onConnect).toHaveBeenCalledWith('slack'));
+    fireEvent.click(screen.getByRole('checkbox', { name: /Google Workspace/ }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Connect selected apps' })[0]!);
+    await waitFor(() => expect(onConnectSelected).toHaveBeenCalledWith(['slack']));
   });
 
   it('surfaces an interrupted saved grant and provides one-click reconnect', async () => {
@@ -386,6 +398,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={snapshot}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={onConnect}
         onDisconnect={onDisconnect}
@@ -411,6 +424,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={withCloud('signed-in', 'lawrence@example.com')}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}

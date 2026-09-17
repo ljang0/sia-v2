@@ -114,6 +114,22 @@ describe('Fn push-to-talk sessions', () => {
     expect(h.native.send).toHaveBeenCalledWith({ type: 'permissions' });
   });
 
+  it('refreshes live microphone and Accessibility grants without permission requests or capture', () => {
+    const h = harness();
+    h.event({ type: 'ready', accessibility: true, microphone: true });
+    h.native.send.mockClear();
+    h.service.refreshPermissions();
+    expect(h.native.send).toHaveBeenCalledExactlyOnceWith({ type: 'ping' });
+    h.event({ type: 'ready', accessibility: false, microphone: false });
+    expect(h.service.view()).toMatchObject({ accessibility: false, microphone: false });
+    expect(h.voice.startRealtime).not.toHaveBeenCalled();
+    h.service.configure(false);
+    h.native.send.mockClear();
+    h.service.refreshPermissions();
+    expect(h.native.send).not.toHaveBeenCalled();
+    expect(h.createHelper).toHaveBeenCalledTimes(1);
+  });
+
   it('streams audio and sends exactly once to the target pinned at activation', async () => {
     const h = harness();
     const target = h.target();

@@ -262,6 +262,11 @@ export class PushToTalkService {
     }
   }
 
+  /** Read current grants without displaying permission prompts or starting capture. */
+  refreshPermissions(): void {
+    this.#helper?.send({ type: 'ping' });
+  }
+
   syncAccess(): void {
     if (this.#disposed || !this.#options.allowed()) this.releaseRendererCapture();
     if (this.#disposed || this.#suspended || !this.#view.enabled || !this.#options.allowed()) {

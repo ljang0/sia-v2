@@ -312,6 +312,7 @@ export interface VoiceSettingsState {
   engine?: 'macos' | 'elevenlabs';
   dictationAvailable?: boolean;
   dictationDetail?: string | undefined;
+  speechRecognition?: 'allowed' | 'denied' | 'not-requested' | undefined;
   pushToTalk?: PushToTalkView | undefined;
   status: 'disconnected' | 'connected';
   selectedVoiceId?: string | undefined;

@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { prepareDevElectron } from './prepare-dev-electron.mjs';
+import { cleanSigningMetadata, prepareDevElectron } from './prepare-dev-electron.mjs';
 import { selectIdentity, devIdentity, signDevelopment } from './dev-signing.mjs';
 
 test(
@@ -97,6 +97,46 @@ test(
       assert.ok(requirements[0]);
       assert.equal(requirements[0], requirements[1]);
       assert.notEqual(hashes[0], hashes[1]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'staged signing cleanup removes Finder metadata and preserves other attributes',
+  { skip: process.platform !== 'darwin' },
+  () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sia-signing-metadata-'));
+    try {
+      const file = join(directory, 'fixture.txt');
+      writeFileSync(file, 'fixture');
+      execFileSync('/usr/bin/xattr', [
+        '-wx',
+        'com.apple.FinderInfo',
+        '0000000000000000000000100000000000000000000000000000000000000000',
+        directory,
+      ]);
+      execFileSync('/usr/bin/xattr', ['-w', 'com.apple.ResourceFork', 'test resource', file]);
+      const quarantine = '0081;00000000;SiaTest;';
+      execFileSync('/usr/bin/xattr', ['-w', 'com.apple.quarantine', quarantine, file]);
+      cleanSigningMetadata(directory);
+      cleanSigningMetadata(directory);
+      assert.equal(
+        spawnSync('/usr/bin/xattr', ['-p', 'com.apple.FinderInfo', directory]).status,
+        1,
+      );
+      assert.equal(
+        spawnSync('/usr/bin/xattr', ['-p', 'com.apple.ResourceFork', file]).status,
+        1,
+      );
+      assert.equal(
+        execFileSync('/usr/bin/xattr', ['-p', 'com.apple.quarantine', file], {
+          encoding: 'utf8',
+        }).trim(),
+        quarantine,
+      );
+      assert.equal(readFileSync(file, 'utf8'), 'fixture');
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

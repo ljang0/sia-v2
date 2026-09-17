@@ -169,6 +169,8 @@ The shared Accessibility request runs once, before Fn setup. This action never s
 macOS still requires separate approvals for its permission categories and target apps. Denied or
 unavailable access stays visible, and setup can continue with the available access.
 Opening Sia and **Check access** only read permission status; they do not request permissions.
+Rechecks include current Speech Recognition, microphone, and Fn shortcut access. Speech grants
+are never restored from cached preferences. Unsupported features are labeled **Unavailable**.
 Permission checks use Apple's [Automation permission API](https://developer.apple.com/documentation/coreservices/3025784-aedeterminepermissiontoautomatet)
 without reading personal content. A request may open its app. Previously denied access opens
 Privacy & Security → Automation; the user must enable the switch. Check access does not prompt
@@ -177,7 +179,10 @@ not falsely marked ready. The final checklist lists each app separately. Existin
 **Allow all Mac apps** and **Check access** controls in **Settings → Computer**. macOS access does not approve individual Sia actions;
 review any pending action approval separately before it expires.
 Google Workspace and Slack are checked by default; deselect unused accounts and choose
-**Connect selected apps**. Account approvals run in sequence, and connected accounts are skipped.
+**Connect selected apps** in setup or Settings → Connections. Account approvals run in sequence,
+and connected accounts are skipped even when some Google services are turned off. Setup waits
+for approval before continuing. If an approval page was closed, use **Cancel connection setup**
+to cancel the pending grant and queue, then retry; completed accounts are kept.
 Google starts with read access and offers a separate edits/sends consent. Unconfigured builds
 explain the cloud limitation and offer Use my Mac for signed-in websites. Connections and permission
 grants remain optional, with missing access explicitly listed before finishing.
@@ -233,7 +238,10 @@ in Settings → Voice to enumerate installed system voices and choose a default.
 bounded WAV audio in memory using `AVSpeechSynthesizer`; it neither opens the microphone nor requests
 Speech Recognition access. Existing per-agent voice overrides must name an installed Mac voice.
 
-Fn and composer dictation use the same PCM stream and permission boundary. Enabling Fn requests
+Fn and composer dictation use the same live PCM stream and permission boundary. The microphone
+button appends its transcript to the current draft without sending; voice conversation and Fn
+submit only after their explicit recording controls are used. Mac dictation never uses the
+file-upload transcription path. Enabling Fn requests
 Speech Recognition before the shortcut is enabled. Apple’s recognizer must report on-device support
 for the current Mac locale; requests always set `requiresOnDeviceRecognition = true`. Denied grants
 point to System Settings; unsupported recognition leaves read aloud available. The compatibility
@@ -490,5 +498,7 @@ not a silent switch to ad-hoc signing. Quit the development app before upgrading
 Moving from old generic/ad-hoc Electron to this stable identity may require one final permission
 grant. Later rebuilds retain the certificate and designated requirement; byte hashes necessarily
 change with code. macOS can still request newly introduced permissions or revoke grants itself.
-No script resets TCC or grants privacy access. Release builds retain the separate Developer ID
+The staged development bundle removes Finder/resource-fork metadata that [Apple disallows in
+signed apps](https://developer.apple.com/library/archive/qa/qa1940/_index.html); other attributes,
+including quarantine, are preserved. No script resets TCC or grants privacy access. Release builds retain the separate Developer ID
 pipeline. See [Apple’s designated requirement documentation](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements).

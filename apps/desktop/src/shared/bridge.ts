@@ -438,6 +438,7 @@ export interface VoiceView {
   engine?: 'macos' | 'elevenlabs';
   dictationAvailable?: boolean;
   dictationDetail?: string | undefined;
+  speechRecognition?: 'allowed' | 'denied' | 'not-requested' | undefined;
   pushToTalk?: PushToTalkView;
   status: 'disconnected' | 'connected';
   selectedVoiceId?: string;

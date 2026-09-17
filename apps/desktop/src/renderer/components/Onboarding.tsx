@@ -1,3 +1,4 @@
+import { dictationReady } from '../voiceReadiness';
 import { ArrowRight, Check, Cursor, Microphone, Sparkle } from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { OnboardingStep } from '../../shared/bridge';
@@ -83,12 +84,9 @@ export function Onboarding({
   const choice =
     choices.find((item) => `${item.provider}:${item.model}` === model) ??
     choices.find((item) => item.ready);
-  const ptt = snapshot.voice.pushToTalk;
-  const voiceReady =
-    snapshot.voice.dictationAvailable !== false &&
-    ptt?.enabled &&
-    ptt.accessibility &&
-    ptt.microphone;
+  const voiceReady = dictationReady(snapshot.voice);
+  const connectionPending =
+    step === 'apps' && snapshot.apps.some((app) => app.status === 'connecting');
   const computerReady =
     snapshot.computer.accessibility === 'allowed' &&
     snapshot.computer.screenRecording === 'allowed';
@@ -360,7 +358,9 @@ export function Onboarding({
                   </p>
                 ) : null}
                 <SetupBrowser snapshot={snapshot} api={api} pending={pending} run={run} />
-                {accessChecklist(snapshot).some((item) => !item.ready) ? (
+                {accessChecklist(snapshot).some(
+                  (item) => !item.ready && item.available && !item.optional,
+                ) ? (
                   <p className={styles.note} role="status">
                     Some access still needs setup. You can go back to finish connecting it, or
                     continue with the access listed as ready.
@@ -378,7 +378,10 @@ export function Onboarding({
             <button
               className={ui.primaryButton}
               disabled={
-                pending || restarting || (step === 'agent' && (!name.trim() || !choice?.ready))
+                pending ||
+                restarting ||
+                connectionPending ||
+                (step === 'agent' && (!name.trim() || !choice?.ready))
               }
               onClick={() => {
                 if (step === 'welcome')
@@ -431,7 +434,9 @@ export function Onboarding({
                             ? 'Restart Sia and check access'
                             : restarting
                               ? 'Restarting…'
-                              : accessChecklist(snapshot).every((item) => item.ready)
+                              : accessChecklist(snapshot).every(
+                                    (item) => item.ready || !item.available || item.optional,
+                                  )
                                 ? 'Try your agent'
                                 : 'Continue with available access'}
               <ArrowRight size={16} aria-hidden="true" />
@@ -443,7 +448,7 @@ export function Onboarding({
             ) : (
               <button
                 className={styles.link}
-                disabled={pending || restarting}
+                disabled={pending || restarting || connectionPending}
                 onClick={() => go(setupSteps[Math.max(0, index - 1)] ?? 'welcome')}
               >
                 Back
@@ -461,7 +466,7 @@ export function Onboarding({
         <span>Your progress stays on this Mac.</span>
         <button
           className={styles.link}
-          disabled={pending || restarting}
+          disabled={pending || restarting || connectionPending}
           onClick={() => go('complete')}
         >
           Exit setup

@@ -5,7 +5,7 @@ import { demoSnapshot } from '../demo';
 import type { RendererApi } from '../types';
 import { Onboarding, onboardingStep } from './Onboarding';
 import { Composer } from './Composer';
-import { accessChecklist } from './OnboardingConnections';
+import { accessChecklist, SetupAccessReview } from './OnboardingConnections';
 
 afterEach(cleanup);
 
@@ -231,7 +231,7 @@ it('shows unavailable cloud connections without requesting account or Mac access
     (screen.getByRole('button', { name: 'Connect selected apps' }) as HTMLButtonElement)
       .disabled,
   ).toBe(true);
-  expect(screen.getByText(/Direct Google and Slack connections are unavailable/)).toBeTruthy();
+  expect(screen.getByText(/Unavailable in this build\./)).toBeTruthy();
   expect(api.setupMessages).not.toHaveBeenCalled();
   expect(api.connectSelectedApps).not.toHaveBeenCalled();
 });
@@ -387,4 +387,99 @@ it('uses the Mac browser route after restart without requiring a Chrome connecti
   expect(
     accessChecklist(snapshot).find((item) => item.label === 'Browser window access')?.detail,
   ).toContain('sign-in is checked during');
+});
+
+it('keeps setup on the checklist until pending account approval completes or is cancelled', async () => {
+  const snapshot = structuredClone(demoSnapshot);
+  snapshot.preferences.onboarding = { step: 'apps', agentId: snapshot.agents[0]!.id };
+  snapshot.cloudAuth.state = 'signed-in';
+  snapshot.apps.forEach((app) => {
+    app.status = 'disconnected';
+  });
+  snapshot.apps[0]!.status = 'connecting';
+  snapshot.apps[0]!.connectionId = 'pending-google';
+  const api = {
+    refreshComputerPermissions: vi.fn(async () => {}),
+    setOnboarding: vi.fn(async () => {}),
+    disconnectApp: vi.fn(async () => {}),
+    connectSelectedApps: vi.fn(async () => {}),
+  };
+  const props = {
+    snapshot,
+    api: api as unknown as RendererApi,
+    onCustomize: vi.fn(),
+    onSuggest: vi.fn(),
+    onModels: vi.fn(),
+    onAccount: vi.fn(),
+  };
+  const view = render(
+    <Onboarding {...props}>
+      <div />
+    </Onboarding>,
+  );
+  for (const name of ['Review and restart', 'Back', 'Exit setup']) {
+    expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true);
+  }
+  expect(screen.getByText('Awaiting approval')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel connection setup' }));
+  await waitFor(() =>
+    expect(api.disconnectApp).toHaveBeenCalledWith('gmail', 'pending-google'),
+  );
+  expect(api.connectSelectedApps).not.toHaveBeenCalled();
+  snapshot.apps[0]!.status = 'disconnected';
+  view.rerender(
+    <Onboarding {...props}>
+      <div />
+    </Onboarding>,
+  );
+  await waitFor(() =>
+    expect(
+      (screen.getByRole('button', { name: 'Review and restart' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Review and restart' }));
+  await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('restart'));
+});
+
+it('distinguishes unavailable features from missing access and never marks an unknown speech grant ready', () => {
+  const snapshot = structuredClone(demoSnapshot);
+  snapshot.computer.accessMode = 'mac';
+  snapshot.computer.trust = 'auto';
+  snapshot.computer.automation = {
+    safari: 'unavailable',
+    calendar: 'denied',
+    finder: 'ready',
+    messages: 'ready',
+    reminders: 'ready',
+  };
+  snapshot.voice = {
+    engine: 'macos',
+    status: 'connected',
+    voices: [],
+    dictationAvailable: true,
+    pushToTalk: {
+      available: true,
+      enabled: true,
+      accessibility: true,
+      microphone: true,
+      phase: 'idle',
+    },
+  };
+  expect(accessChecklist(snapshot).find((item) => item.label === 'Fn dictation')?.ready).toBe(
+    false,
+  );
+  snapshot.voice.speechRecognition = 'allowed';
+  expect(accessChecklist(snapshot).find((item) => item.label === 'Fn dictation')?.ready).toBe(
+    true,
+  );
+  snapshot.voice.dictationAvailable = false;
+  render(<SetupAccessReview snapshot={snapshot} />);
+  expect(screen.getByText('Fn dictation').closest('li')?.textContent).toContain('Unavailable');
+  expect(screen.getByText('Safari automation').closest('li')?.textContent).toContain(
+    'Unavailable',
+  );
+  expect(screen.getByText('Calendar automation').closest('li')?.textContent).toContain(
+    'Needs setup',
+  );
 });

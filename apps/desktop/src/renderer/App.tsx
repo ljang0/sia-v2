@@ -415,6 +415,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onOpenProviderSetup={(provider) => api.openProviderSetup(provider)}
               onCheckForUpdates={() => api.checkForUpdates()}
               onOpenUpdateDownload={() => api.openUpdateDownload()}
+              onConnectSelectedApps={(apps) => api.connectSelectedApps(apps)}
               onConnectGoogleApps={() => api.connectGoogleApps()}
               onUpgradeGoogleApps={() => api.upgradeGoogleApps()}
               onConnectApp={(id) => api.connectApp(id)}
@@ -518,6 +519,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 findOpen={conversationFindOpen}
                 onFindOpenChange={setConversationFindOpen}
                 voiceEnabled={snapshot.voice.status === 'connected'}
+                realtimeDictation={snapshot.voice.engine === 'macos'}
                 dictationEnabled={snapshot.voice.dictationAvailable !== false}
                 globalVoiceActive={Boolean(
                   snapshot.voice.pushToTalk &&

@@ -654,6 +654,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         ? { dictationAvailable: source.voice.dictationAvailable }
         : {}),
       dictationDetail: source.voice.dictationDetail,
+      speechRecognition: source.voice.speechRecognition,
       pushToTalk: source.voice.pushToTalk,
       status: source.voice.status,
       selectedVoiceId: source.voice.selectedVoiceId,

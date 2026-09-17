@@ -53,6 +53,7 @@ interface ConversationProps {
   findOpen?: boolean | undefined;
   onFindOpenChange?: ((open: boolean) => void) | undefined;
   voiceEnabled?: boolean | undefined;
+  realtimeDictation?: boolean | undefined;
   dictationEnabled?: boolean | undefined;
   globalVoiceActive?: boolean | undefined;
   onAcquireVoiceCapture?: (() => Promise<string>) | undefined;
@@ -97,6 +98,7 @@ export function Conversation({
   findOpen = false,
   onFindOpenChange,
   voiceEnabled,
+  realtimeDictation = false,
   dictationEnabled = true,
   onTranscribeVoice,
   globalVoiceActive = false,
@@ -655,6 +657,7 @@ export function Conversation({
             : undefined
         }
         voiceEnabled={voiceEnabled && dictationEnabled}
+        realtimeDictation={realtimeDictation}
         onAcquireVoiceCapture={onAcquireVoiceCapture}
         onReleaseVoiceCapture={onReleaseVoiceCapture}
         onTranscribe={onTranscribeVoice}

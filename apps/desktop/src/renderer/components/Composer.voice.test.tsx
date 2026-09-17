@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Composer, microphoneLevel, pcm16Base64 } from './Composer';
 
@@ -28,6 +28,7 @@ class TestMediaRecorder extends EventTarget {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('composer voice input', () => {
@@ -196,5 +197,150 @@ describe('shared voice capture ownership', () => {
     expect(release).toHaveBeenCalledWith('lease');
     expect(transcribe).not.toHaveBeenCalled();
     expect(send).not.toHaveBeenCalled();
+  });
+});
+
+describe('Mac live dictation', () => {
+  function liveMicrophone() {
+    const trackStop = vi.fn();
+    const processor = {
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      onaudioprocess: null as
+        | null
+        | ((event: { inputBuffer: { getChannelData(index: number): Float32Array } }) => void),
+    };
+    const close = vi.fn(async () => {});
+    vi.stubGlobal(
+      'AudioContext',
+      class {
+        sampleRate = 32_000;
+        destination = {};
+        createMediaStreamSource() {
+          return { connect: vi.fn(), disconnect: vi.fn() };
+        }
+        createScriptProcessor() {
+          return processor;
+        }
+        createGain() {
+          return { gain: { value: 0 }, connect: vi.fn(), disconnect: vi.fn() };
+        }
+        async resume() {}
+        close = close;
+      },
+    );
+    const getUserMedia = vi.fn(async () => ({ getTracks: () => [{ stop: trackStop }] }));
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia },
+    });
+    const props = {
+      voiceEnabled: true,
+      realtimeDictation: true,
+      onTranscribe: vi.fn(async () => {
+        throw new Error('Mac dictation cannot use file upload');
+      }),
+      onStartRealtime: vi.fn(async () => 'mac-session'),
+      onAppendRealtime: vi.fn(async () => {}),
+      onStopRealtime: vi.fn(async (_id: string, commit: boolean) =>
+        commit ? 'voice request' : '',
+      ),
+      onAcquireVoiceCapture: vi.fn(async () => 'lease'),
+      onReleaseVoiceCapture: vi.fn(async () => {}),
+      onSend: vi.fn(),
+      onStop: vi.fn(),
+    };
+    return { props, trackStop, close, processor, getUserMedia };
+  }
+
+  it('streams PCM and appends to the latest draft without uploading or sending', async () => {
+    const h = liveMicrophone();
+    render(<Composer {...h.props} initialValue="First draft" />);
+    expect(h.getUserMedia).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Dictate message' }));
+    await screen.findByRole('button', { name: 'Stop recording and transcribe' });
+    await act(async () =>
+      h.processor.onaudioprocess?.({
+        inputBuffer: { getChannelData: () => new Float32Array([0.1, 0.1, 0, 0]) },
+      }),
+    );
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message' }), {
+      target: { value: 'Updated draft' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Stop recording and transcribe' }));
+    await waitFor(() =>
+      expect(
+        (screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement).value,
+      ).toBe('Updated draft voice request'),
+    );
+    expect(h.props.onStartRealtime).toHaveBeenCalledOnce();
+    expect(h.props.onAppendRealtime).toHaveBeenCalledWith('mac-session', expect.any(String));
+    expect(h.props.onStopRealtime).toHaveBeenCalledExactlyOnceWith('mac-session', true);
+    expect(h.props.onTranscribe).not.toHaveBeenCalled();
+    expect(h.props.onSend).not.toHaveBeenCalled();
+    expect(h.trackStop).toHaveBeenCalled();
+    expect(h.close).toHaveBeenCalled();
+    expect(h.props.onReleaseVoiceCapture).toHaveBeenCalledWith('lease');
+  });
+
+  it('cancels live dictation on unmount and discards its transcript', async () => {
+    const h = liveMicrophone();
+    const view = render(<Composer {...h.props} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Dictate message' }));
+    await screen.findByRole('button', { name: 'Stop recording and transcribe' });
+    view.unmount();
+    await waitFor(() =>
+      expect(h.props.onStopRealtime).toHaveBeenCalledExactlyOnceWith('mac-session', false),
+    );
+    expect(h.trackStop).toHaveBeenCalled();
+    expect(h.props.onReleaseVoiceCapture).toHaveBeenCalledWith('lease');
+    expect(h.props.onTranscribe).not.toHaveBeenCalled();
+    expect(h.props.onSend).not.toHaveBeenCalled();
+  });
+
+  it('releases the microphone and capture ownership when Speech Recognition is denied', async () => {
+    const h = liveMicrophone();
+    h.props.onStartRealtime.mockRejectedValue(
+      new Error('Allow Speech Recognition in System Settings.'),
+    );
+    render(<Composer {...h.props} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Dictate message' }));
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Allow Speech Recognition',
+    );
+    expect(h.trackStop).toHaveBeenCalled();
+    expect(h.props.onReleaseVoiceCapture).toHaveBeenCalledWith('lease');
+    expect(h.props.onTranscribe).not.toHaveBeenCalled();
+    expect(h.props.onSend).not.toHaveBeenCalled();
+  });
+
+  it('keeps voice conversation auto-submit separate from draft dictation', async () => {
+    const h = liveMicrophone();
+    let now = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const view = render(
+      <Composer {...h.props} voiceConversation onVoiceConversationChange={vi.fn()} />,
+    );
+    await waitFor(() => expect(h.processor.onaudioprocess).not.toBeNull());
+    for (const [time, sample] of [
+      [1000, 0.1],
+      [3000, 0],
+      [4100, 0],
+    ]) {
+      now = time!;
+      await act(async () =>
+        h.processor.onaudioprocess?.({
+          inputBuffer: { getChannelData: () => new Float32Array([sample!, sample!]) },
+        }),
+      );
+    }
+    await waitFor(() =>
+      expect(h.props.onSend).toHaveBeenCalledExactlyOnceWith('voice request', []),
+    );
+    expect(
+      (screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement).value,
+    ).toBe('');
+    expect(h.props.onTranscribe).not.toHaveBeenCalled();
+    view.unmount();
   });
 });

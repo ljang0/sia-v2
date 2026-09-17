@@ -57,6 +57,13 @@ export function prepareDevElectron(executable, descriptions) {
   }
 }
 
+// Apple's QA1940 disallows Finder/resource-fork metadata in signed bundles.
+// Keep other attributes, including quarantine, intact on the staged copy.
+export function cleanSigningMetadata(app) {
+  for (const attribute of ['com.apple.FinderInfo', 'com.apple.ResourceFork'])
+    execFileSync('/usr/bin/xattr', ['-dr', attribute, app]);
+}
+
 export function prepareDevelopmentApp(executable, descriptions) {
   const identity = devIdentity();
   const source = resolve(executable, '../../..');
@@ -91,6 +98,7 @@ export function prepareDevelopmentApp(executable, descriptions) {
   const staging = resolve(devHome, 'Sia Development.pending.app');
   rmSync(staging, { recursive: true, force: true });
   execFileSync('/usr/bin/ditto', [source, staging]);
+  cleanSigningMetadata(staging);
   const stagedExecutable = resolve(staging, 'Contents/MacOS/Electron');
   prepareDevElectron(stagedExecutable, descriptions);
   for (const [key, value] of Object.entries({
