@@ -21,6 +21,7 @@ export function MacAutomationPermissions({
   compact = false,
   summary,
   onComplete,
+  includeApps = true,
 }: {
   permissions: AutomationPermissions | undefined;
   request(app: AutomationApp): Promise<void>;
@@ -34,6 +35,7 @@ export function MacAutomationPermissions({
   compact?: boolean;
   summary?: ReactNode;
   onComplete?(): Promise<void>;
+  includeApps?: boolean;
 }) {
   const [pending, setPending] = useState<string>();
   const [error, setError] = useState<string>();
@@ -45,7 +47,8 @@ export function MacAutomationPermissions({
       mounted.current = false;
     };
   }, []);
-  const needed = automationApps.filter(
+  const apps = includeApps ? automationApps : [];
+  const needed = apps.filter(
     ({ id }) => !['ready', 'unavailable'].includes(permissions?.[id] ?? 'needs_permission'),
   );
   const run = async (checkOnly: boolean) => {
@@ -103,7 +106,7 @@ export function MacAutomationPermissions({
   const accessRows = (
     <ul className={styles.accessList}>
       {children}
-      {automationApps.map(({ id, name, detail }) => {
+      {apps.map(({ id, name, detail }) => {
         const status = permissions?.[id] ?? 'needs_permission';
         return (
           <li className={styles.permission} key={id}>

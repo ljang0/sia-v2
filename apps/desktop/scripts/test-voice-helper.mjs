@@ -19,6 +19,7 @@ if (process.platform === 'darwin') {
         join(source, 'WindowContext.swift'),
         join(source, 'ScreenContextProvider.swift'),
         join(source, 'MacScreenshot.swift'),
+        join(source, 'AutomationPermissions.swift'),
         join(source, 'tests/main.swift'),
         '-o',
         binary,

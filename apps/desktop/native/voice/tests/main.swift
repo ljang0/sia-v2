@@ -3,6 +3,17 @@ import AppKit
 import CoreGraphics
 
 // Exercises the real Notch-derived monitor without installing an OS tap or posting input.
+// Bulk permission setup must not reopen Finder or any already-running app.
+for status in ["ready", "denied", "unavailable", "error", "needs_permission", "not_running"] {
+    assert(!automationTargetNeedsLaunch(status: status, isRunning: true))
+}
+for status in ["ready", "denied", "unavailable", "error"] {
+    assert(!automationTargetNeedsLaunch(status: status, isRunning: false))
+}
+assert(automationTargetNeedsLaunch(status: "not_running", isRunning: false))
+assert(automationTargetNeedsLaunch(status: "needs_permission", isRunning: false))
+print("Automation setup avoids reopening running apps (no host apps launched).")
+
 Task { @MainActor in
     let partialContext = ScreenContext(appName: "Fixture", bundleID: "test.fixture", windowTitle: "Document", outline: "Read this", processID: 123, isFrontmost: false, isPartial: true)
     precondition(partialContext.promptBlock.contains("Target app (not frontmost)"))

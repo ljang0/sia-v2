@@ -162,18 +162,13 @@ export function Onboarding({
         </h1>
         {starting ? (
           <p className={styles.intro}>
-            One setup for your Mac apps, voice, and files. Just approve the macOS prompts as
-            they appear.
+            Set up screen control and voice. Other apps ask for access when you use them.
           </p>
         ) : null}
         {starting ? (
           <>
             <ul className={styles.included} aria-label="Included in setup">
-              {[
-                'Mac apps and screen access',
-                'Microphone and Fn dictation',
-                'Files and Messages',
-              ].map((label) => (
+              {['Screen and keyboard control', 'Microphone and Fn dictation'].map((label) => (
                 <li key={label}>
                   <Check size={17} aria-hidden="true" />
                   {label}

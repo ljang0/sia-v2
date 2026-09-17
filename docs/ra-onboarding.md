@@ -156,10 +156,15 @@ opening or changing the saved database. It does not start a temporary, unsaved w
 
 After any required email sign-in:
 
-1. Click **Set up Sia**. This creates the default assistant and starts one pass through missing Mac permissions.
+1. Click **Set up Sia**. This creates the default assistant and requests missing screen-control and voice permissions.
 2. Approve the macOS prompts. Sia rechecks access when you return.
-   Sia opens your conversation automatically when access is ready. If any permission is skipped,
-   choose **Start using Sia** to continue and finish access later in Settings.
+   Sia opens your conversation automatically when screen control and voice are ready. If any permission
+   is skipped, choose **Start using Sia** to continue and finish access later in Settings.
+
+First run does not launch Finder, Calendar, Reminders, Messages, or browsers to preauthorize them.
+App-specific permissions and Messages history access are requested when a task needs them.
+**Settings → Computer → Allow all Mac apps** remains available for optional bulk app setup.
+That explicit action reuses running apps and launches missing apps hidden where macOS supports it.
 
 The default is **Use my Mac + full bypass**: Sia uses signed-in Mac apps and may send messages or
 change files without per-action approval. **Customize setup** contains the alternative

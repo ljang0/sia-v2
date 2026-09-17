@@ -42,11 +42,12 @@ function setup() {
     agentId: snapshot.agents[0]!.id,
     disabled: false,
     onBusyChange: vi.fn(),
+    onReadyChange: vi.fn(),
   };
   return { snapshot, api, props };
 }
 
-it('requests missing access in one explicit pass, preserves failures, and uses read-only rechecks', async () => {
+it('requests only core access, preserves failures, and never launches apps or Messages setup', async () => {
   const { snapshot, api, props } = setup();
   snapshot.computer.automation!.calendar = 'ready';
   snapshot.computer.automation!.chrome = 'unavailable';
@@ -58,20 +59,14 @@ it('requests missing access in one explicit pass, preserves failures, and uses r
     expect(screen.getByRole('alert').textContent).toContain('Speech access denied'),
   );
   expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1);
-  expect(api.setupMessages).toHaveBeenCalledTimes(1);
-  expect(api.requestAutomationPermission.mock.calls.flat()).toEqual([
-    'system_events',
-    'safari',
-    'reminders',
-    'finder',
-    'messages',
-  ]);
+  expect(api.setupMessages).not.toHaveBeenCalled();
+  expect(api.requestAutomationPermission).not.toHaveBeenCalled();
   expect(props.onBusyChange.mock.calls).toEqual([[true], [false]]);
   fireEvent.click(screen.getByRole('button', { name: 'Check access' }));
   await waitFor(() => expect(api.refreshComputerPermissions).toHaveBeenCalledTimes(2));
   expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1);
   expect(api.configureVoice).toHaveBeenCalledTimes(1);
-  expect(api.requestAutomationPermission).toHaveBeenCalledTimes(5);
+  expect(api.requestAutomationPermission).not.toHaveBeenCalled();
 });
 
 it.each([false, true])(
@@ -93,13 +88,9 @@ it.each([false, true])(
   },
 );
 
-it('skips granted permissions when setup is revisited', async () => {
+it('finishes core setup even when Messages and individual app access are not granted', async () => {
   const { snapshot, api, props } = setup();
   snapshot.computer.accessibility = snapshot.computer.screenRecording = 'allowed';
-  snapshot.computer.messagesAccess = 'ready';
-  snapshot.computer.automation = Object.fromEntries(
-    automationApps.map(({ id }) => [id, 'ready']),
-  ) as AutomationPermissions;
   snapshot.voice = {
     status: 'connected',
     voices: [],
@@ -118,6 +109,7 @@ it('skips granted permissions when setup is revisited', async () => {
   ).toBe(true);
   fireEvent.click(screen.getByRole('button', { name: 'Check access' }));
   await waitFor(() => expect(api.refreshComputerPermissions).toHaveBeenCalledTimes(1));
+  expect(props.onReadyChange).toHaveBeenCalledWith(true);
   for (const [name, method] of Object.entries(api))
     if (name !== 'refreshComputerPermissions') expect(method).not.toHaveBeenCalled();
 });

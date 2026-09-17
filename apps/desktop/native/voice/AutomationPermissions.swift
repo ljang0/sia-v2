@@ -29,10 +29,20 @@ func runAutomationPermissions(request: String?) {
     }
     guard let request else { finish(); return }
     guard let bundle = targets[request] else { exit(2) }
-    // A granted target need not be launched again just to confirm its permission.
-    if check(request, ask: false) == "ready" { finish(); return }
+    // Never send a reopen event to a running app: Finder can create a new window.
+    // Denied and already-granted permissions also do not need a launch.
+    let status = check(request, ask: false)
+    if !automationTargetNeedsLaunch(status: status, isRunning: !NSRunningApplication.runningApplications(withBundleIdentifier: bundle).isEmpty) {
+        finish(); return
+    }
     guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) else { finish(); return }
     let configuration = NSWorkspace.OpenConfiguration()
     configuration.activates = false
+    configuration.hides = true
+    configuration.addsToRecentItems = false
     NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, _ in finish() }
+}
+
+func automationTargetNeedsLaunch(status: String, isRunning: Bool) -> Bool {
+    !isRunning && (status == "not_running" || status == "needs_permission")
 }

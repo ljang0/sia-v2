@@ -88,7 +88,8 @@ it.each(['mac-bypass', 'connected'] as const)(
       api.setComputerTrust.mock.invocationCallOrder[0]!,
     );
     expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1);
-    expect(api.requestAutomationPermission).toHaveBeenCalledTimes(7);
+    expect(api.requestAutomationPermission).not.toHaveBeenCalled();
+    expect(api.setupMessages).not.toHaveBeenCalled();
     expect(api.startRealtimeVoice).not.toHaveBeenCalled();
     expect(api.connectSelectedApps).not.toHaveBeenCalled();
     fireEvent.focus(window);
@@ -269,9 +270,9 @@ it('automatically opens the conversation once access is ready, including after r
   const { snapshot, api, props } = setup('voice');
   snapshot.computer.accessibility = 'not-requested';
   snapshot.computer.screenRecording = 'allowed';
-  snapshot.computer.messagesAccess = 'unavailable';
+  snapshot.computer.messagesAccess = 'needs_full_disk_access';
   snapshot.computer.automation = Object.fromEntries(
-    automationApps.map(({ id }) => [id, 'ready']),
+    automationApps.map(({ id }) => [id, 'needs_permission']),
   ) as typeof snapshot.computer.automation;
   snapshot.voice.pushToTalk = {
     enabled: false,
@@ -306,9 +307,9 @@ it('does not auto-finish a resumed guide just because access is already ready', 
   const { snapshot, api, props } = setup('verify');
   snapshot.computer.accessibility = 'allowed';
   snapshot.computer.screenRecording = 'allowed';
-  snapshot.computer.messagesAccess = 'unavailable';
+  snapshot.computer.messagesAccess = 'needs_full_disk_access';
   snapshot.computer.automation = Object.fromEntries(
-    automationApps.map(({ id }) => [id, 'ready']),
+    automationApps.map(({ id }) => [id, 'needs_permission']),
   ) as typeof snapshot.computer.automation;
   snapshot.voice.pushToTalk = {
     enabled: false,

@@ -26,6 +26,10 @@ test('one-click setup opens a working conversation and stays complete across rel
     expect(created.preferences.onboarding?.agentId).toBe(created.activeAgentId);
     expect(created.computer.trust).toBe('auto');
     expect(created.computer.accessMode).toBe('mac');
+    // First run must not request app-specific grants or open their host apps.
+    expect(Object.values(created.computer.automation ?? {})).toEqual(
+      Array(7).fill('needs_permission'),
+    );
     expect(
       created.connections.every((connection) => connection.status === 'disconnected'),
     ).toBe(true);
