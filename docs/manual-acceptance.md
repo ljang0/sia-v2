@@ -56,10 +56,23 @@ run does not establish reliability across every app or model.
 
 The opt-in [native learning smoke](../apps/desktop/src/main/native-learning.smoke.test.ts) uses a real
 model and disposable files to check saved scripts, memory across controller restart, failure
-reporting, and consolidation. The [course investigation smoke](../apps/desktop/src/main/course-investigation.smoke.test.ts)
+reporting, continuing an interrupted task without repeating its completed write, and consolidation.
+These checks passed with GPT-5.6-Sol. Existing agents keep their memory preferences: verify
+**Settings → Assistant → Memory → Notch-style learning** for the actual agent before expecting
+automatic recall. This is separate from a fresh validation agent's successful memory test.
+The [course investigation smoke](../apps/desktop/src/main/course-investigation.smoke.test.ts)
 uses a real model with **in-memory browser fixtures** to check coursework outside the calendar and
 inaccessible-course reporting. Neither replaces the live GUI checks above. Experimental background
 window control must be validated separately, including its selected foreground fallback policy.
+
+For Fn, ask a short task with Sia's window closed. Verify the multicolor border, one dispatch,
+a brief spoken result, and no opened Sia window. Hold Fn again or press Escape during speech;
+playback must stop and late audio must not restart it. Repeat with **Speak Fn replies** off and
+confirm completion stays silent. A typed task must never trigger Fn narration. Automated state
+tests cover these races; they do not replace checking the physical shortcut and audio device.
+For recovery, interrupt a disposable multi-step task after its first write, restart Sia, and choose
+**Continue task**. Inspect the output to confirm the completed write was not repeated. The phone
+must show the new result rather than the previous blocker.
 
 For background changes, keep another app frontmost and explicitly select **Pause and tell me**.
 Check a Calculator result, a native text edit, and ordinary browser navigation against fresh app

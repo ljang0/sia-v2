@@ -8,7 +8,8 @@ interface VoiceSettingsProps {
   voice: VoiceSettingsState;
   completionSound: boolean;
   agents?: readonly { id: string; name: string }[];
-  onConfigurePushToTalk?: ((enabled: boolean, agentId?: string) => Promise<void>) | undefined;
+  onConfigurePushToTalk?:
+    ((enabled: boolean, agentId?: string, speakReplies?: boolean) => Promise<void>) | undefined;
   onStartSetup?: (() => void) | undefined;
   onConfigure(): Promise<void>;
   onRefresh(): Promise<void>;
@@ -175,6 +176,25 @@ export function VoiceSettings({
                 onChange={(event) => {
                   const enabled = event.currentTarget.checked;
                   void run('push-to-talk', () => onConfigurePushToTalk(enabled, agentId));
+                }}
+              />
+            </label>
+            <label className={styles.voicePreference}>
+              <span>
+                <strong>Speak Fn replies</strong>
+                <small>
+                  Hear a brief result without opening Sia. Hold Fn or press Escape to stop it.
+                </small>
+              </span>
+              <input
+                type="checkbox"
+                checked={pushToTalk.speakReplies !== false}
+                disabled={Boolean(pending) || !pushToTalk.enabled}
+                onChange={(event) => {
+                  const speakReplies = event.currentTarget.checked;
+                  void run('push-to-talk', () =>
+                    onConfigurePushToTalk(pushToTalk.enabled, agentId, speakReplies),
+                  );
                 }}
               />
             </label>

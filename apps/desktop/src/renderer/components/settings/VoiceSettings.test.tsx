@@ -148,8 +148,9 @@ it('offers native read aloud without cloud setup and explains unavailable local 
     />,
   );
   expect(screen.getByText('Read aloud ready')).toBeTruthy();
-  expect((screen.getByRole('checkbox', { name: /Hold Fn/ }) as HTMLInputElement).disabled).toBe(
-    true,
-  );
+  expect(
+    (screen.getByRole('checkbox', { name: /Hold Fn to talk to Sia/ }) as HTMLInputElement)
+      .disabled,
+  ).toBe(true);
   expect(screen.getByText(/Read aloud works;/)).toBeTruthy();
 });

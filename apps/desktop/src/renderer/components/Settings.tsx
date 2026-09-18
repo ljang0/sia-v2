@@ -83,7 +83,8 @@ interface SettingsProps {
   onRefreshVoices(): Promise<void>;
   onSelectVoice(voiceId: string): Promise<void>;
   onDisconnectVoice(): Promise<void>;
-  onConfigurePushToTalk?: ((enabled: boolean, agentId?: string) => Promise<void>) | undefined;
+  onConfigurePushToTalk?:
+    ((enabled: boolean, agentId?: string, speakReplies?: boolean) => Promise<void>) | undefined;
   onStartSetup?: (() => void) | undefined;
   onSetCompletionSound(enabled: boolean): Promise<void>;
   onSetCapturePaused(paused: boolean): Promise<void>;

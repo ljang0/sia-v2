@@ -444,8 +444,8 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onRefreshVoices={() => api.refreshVoices()}
               onSelectVoice={(voiceId) => api.selectVoice(voiceId)}
               onDisconnectVoice={() => api.disconnectVoice()}
-              onConfigurePushToTalk={(enabled, agentId) =>
-                api.configurePushToTalk(enabled, agentId)
+              onConfigurePushToTalk={(enabled, agentId, speakReplies) =>
+                api.configurePushToTalk(enabled, agentId, undefined, speakReplies)
               }
               onStartSetup={() =>
                 void run(async () => {

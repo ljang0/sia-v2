@@ -29,6 +29,7 @@ final class VoiceHelper {
     private var recordingID: String?
     private var processingVoice = false
     private var taskPhase = "idle"
+    private let speaker = ReplySpeaker()
     private var limit: Timer?
     private var statusTimer: Timer?
     private var lastPing = Date()
@@ -47,6 +48,8 @@ final class VoiceHelper {
         monitor = PushToTalkMonitor()
         monitor?.onHoldBegan = { [weak self] in
             guard let self else { return }
+            self.speaker.stop()
+            emit(["type": "speechCancelled"])
             guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
                 self.command(["type": "status", "text": "Allow microphone access for Sia Voice in System Settings.", "dismiss": true])
                 return
@@ -86,6 +89,17 @@ final class VoiceHelper {
     func command(_ value: [String: Any]) {
         guard let type = value["type"] as? String else { return }
         switch type {
+        case "speechPrepare":
+            guard heldID == nil, recordingID == nil, let id = value["id"] as? String else { return }
+            speaker.prepare(id)
+        case "speechAudio":
+            guard let id = value["id"] as? String, let audio = value["audioBase64"] as? String else { return }
+            speaker.append(audio, for: id)
+        case "speechPlay":
+            guard heldID == nil, recordingID == nil, let id = value["id"] as? String else { return }
+            speaker.play(id)
+        case "stopSpeech":
+            speaker.stop()
         case "context":
             contextEnabled = value["enabled"] as? Bool == true
             macContext = value["mac"] as? Bool == true
@@ -197,6 +211,8 @@ final class VoiceHelper {
     }
 
     private func cancel() {
+        speaker.stop()
+        emit(["type": "speechCancelled"])
         let id = sessionID ?? heldID
         heldID = nil
         stop(commit: false)

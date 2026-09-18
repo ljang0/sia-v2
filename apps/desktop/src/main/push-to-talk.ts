@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { z } from 'zod';
 import type { PushToTalkView } from '../shared/bridge.js';
 import type { RecordRepository } from './persistence.js';
-import type { VoiceOperations } from './voice-service.js';
+import { spokenSummary, type VoiceOperations } from './voice-service.js';
 
 const id = z.string().uuid();
 export const nativeVoiceEvent = z.discriminatedUnion('type', [
@@ -43,6 +43,7 @@ export const nativeVoiceEvent = z.discriminatedUnion('type', [
         .regex(/^[A-Za-z0-9+/]+={0,2}$/),
     })
     .strict(),
+  z.object({ type: z.literal('speechCancelled') }).strict(),
   z.object({ type: z.literal('stopped'), id, hasSpeech: z.boolean() }).strict(),
   z.object({ type: z.literal('error'), id, code: z.enum(['microphone', 'capture']) }).strict(),
 ]);
@@ -57,7 +58,12 @@ type Command = {
     | 'status'
     | 'context'
     | 'session'
-    | 'task';
+    | 'task'
+    | 'speechPrepare'
+    | 'speechAudio'
+    | 'speechPlay'
+    | 'stopSpeech';
+  audioBase64?: string;
   phase?: 'idle' | 'working' | 'waiting';
   enabled?: boolean;
   accessibility?: boolean;
@@ -153,6 +159,10 @@ export interface VoiceTarget {
   threadId?: string;
   label: string;
 }
+export interface VoiceTask {
+  threadId: string;
+  turnId: string;
+}
 interface Recording {
   context?: string;
   id: string;
@@ -169,7 +179,8 @@ interface Options {
   createHelper: VoiceHelperFactory;
   allowed(): boolean;
   target(agentId: string): VoiceTarget;
-  send(target: VoiceTarget, text: string, context?: string): Promise<string | void>;
+  send(target: VoiceTarget, text: string, context?: string): Promise<VoiceTask | void>;
+  taskReply(task: VoiceTask): string | undefined;
   taskStatus(threadId: string): 'running' | 'queued' | 'waiting' | 'finished';
   changed(): void;
 }
@@ -179,7 +190,8 @@ export class PushToTalkService {
   readonly #options: Options;
   #contextEnabled = false;
   #macContext = false;
-  readonly #taskThreads = new Set<string>();
+  readonly #taskThreads = new Map<string, { task: VoiceTask; generation: number }>();
+  #speechGeneration = 0;
   #taskPhase: Command['phase'];
   #helper: VoiceHelperTransport | undefined;
   #recording: Recording | undefined;
@@ -192,13 +204,18 @@ export class PushToTalkService {
   constructor(options: Options) {
     this.#options = options;
     const stored = z
-      .object({ enabled: z.boolean(), agentId: id.optional() })
+      .object({
+        enabled: z.boolean(),
+        agentId: id.optional(),
+        speakReplies: z.boolean().optional(),
+      })
       .safeParse(options.repository.get('voice', 'push-to-talk'));
     this.#view = {
       available: options.available,
       enabled: stored.success && stored.data.enabled,
       ...(stored.success && stored.data.agentId ? { agentId: stored.data.agentId } : {}),
       phase: 'idle',
+      speakReplies: stored.success ? stored.data.speakReplies !== false : true,
       accessibility: false,
     };
   }
@@ -216,7 +233,12 @@ export class PushToTalkService {
     return Boolean(this.#recording);
   }
 
-  configure(enabled: boolean, agentId?: string, requestAccessibility = true): void {
+  configure(
+    enabled: boolean,
+    agentId?: string,
+    requestAccessibility = true,
+    speakReplies?: boolean,
+  ): void {
     if (enabled && !this.#options.available)
       throw new Error('Fn push-to-talk is unavailable in this build.');
     if (enabled && !this.#options.allowed())
@@ -230,12 +252,14 @@ export class PushToTalkService {
     this.#view = {
       ...this.#view,
       enabled,
+      speakReplies: speakReplies ?? this.#view.speakReplies ?? true,
       ...(agentId ? { agentId } : {}),
       phase: 'idle',
       detail: undefined,
     };
     this.#options.repository.put('voice', 'push-to-talk', {
       enabled,
+      speakReplies: this.#view.speakReplies,
       ...(this.#view.agentId ? { agentId: this.#view.agentId } : {}),
     });
     this.syncAccess();
@@ -250,16 +274,25 @@ export class PushToTalkService {
   /** Only threads dispatched by Fn can drive the decorative working indicator. */
   syncTasks(): void {
     let phase: NonNullable<Command['phase']> = 'idle';
-    for (const threadId of this.#taskThreads) {
+    for (const [threadId, pending] of this.#taskThreads) {
       const status = this.#options.taskStatus(threadId);
-      if (status === 'finished') this.#taskThreads.delete(threadId);
-      else if (status === 'running' || status === 'queued') phase = 'working';
+      if (status === 'finished') {
+        this.#taskThreads.delete(threadId);
+        const reply = this.#options.taskReply(pending.task);
+        if (reply) void this.#speakReply(reply, pending.generation);
+      } else if (status === 'running' || status === 'queued') phase = 'working';
       else if (phase === 'idle') phase = 'waiting';
     }
     if (this.#helper && phase !== this.#taskPhase) {
       this.#taskPhase = phase;
       this.#helper.send({ type: 'task', phase });
     }
+  }
+
+  cancelTask(threadId: string): void {
+    if (!this.#taskThreads.delete(threadId)) return;
+    this.#stopSpeech();
+    this.syncTasks();
   }
 
   /** Read current grants without displaying permission prompts or starting capture. */
@@ -308,6 +341,7 @@ export class PushToTalkService {
   acquireRendererCapture(): string {
     if (this.#recording || this.#rendererLease)
       throw new Error('Another voice recording is active. Finish or cancel it first.');
+    this.#stopSpeech();
     const leaseId = randomUUID();
     this.#rendererLease = { id: leaseId };
     // Fail closed if the renderer stalls. Window teardown explicitly releases this lease.
@@ -320,6 +354,7 @@ export class PushToTalkService {
   }
 
   cancel(): void {
+    this.#stopSpeech();
     const recording = this.#recording;
     if (!recording) return;
     this.#recording = undefined;
@@ -337,6 +372,10 @@ export class PushToTalkService {
   }
 
   #event(event: NativeEvent): void {
+    if (event.type === 'speechCancelled') {
+      this.#stopSpeech();
+      return;
+    }
     if (event.type === 'ready') {
       this.#view.accessibility = event.accessibility;
       this.#view.microphone = event.microphone ?? false;
@@ -349,6 +388,7 @@ export class PushToTalkService {
       return;
     }
     if (event.type === 'hold') {
+      this.#stopSpeech();
       void this.#begin(
         event.id,
         this.#contextEnabled && event.context ? JSON.stringify(event.context) : undefined,
@@ -460,14 +500,15 @@ export class PushToTalkService {
         this.#fail('No speech detected. Hold Fn to try again.');
         return;
       }
-      const threadId = await (recording.context
+      const task = await (recording.context
         ? this.#options.send(recording.target, text, recording.context)
         : this.#options.send(recording.target, text));
 
       if (this.#recording !== recording) return;
       clearTimeout(recording.timer);
       this.#recording = undefined;
-      if (threadId) this.#taskThreads.add(threadId);
+      if (task)
+        this.#taskThreads.set(task.threadId, { task, generation: this.#speechGeneration });
       this.syncTasks();
       this.#helper?.send({ type: 'session' });
       this.#set('idle');
@@ -476,6 +517,55 @@ export class PushToTalkService {
         this.#fail(
           'The voice request could not be sent. Open Sia to check the conversation, then try again.',
         );
+    }
+  }
+
+  #stopSpeech(): void {
+    this.#speechGeneration++;
+    this.#helper?.send({ type: 'stopSpeech' });
+  }
+
+  async #speakReply(reply: string, generation: number): Promise<void> {
+    const ready = () =>
+      generation === this.#speechGeneration &&
+      this.#view.speakReplies !== false &&
+      this.#view.enabled &&
+      !this.#disposed &&
+      !this.#suspended &&
+      this.#options.allowed() &&
+      !this.#recording &&
+      !this.#rendererLease &&
+      Boolean(this.#helper);
+    if (!ready()) return;
+    const summary = spokenSummary(reply);
+    const sentences = summary.match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g) ?? [summary];
+    const brief = sentences
+      .slice(0, 2)
+      .map((sentence) => sentence.trim())
+      .join(' ');
+    const text =
+      brief.length <= 360 ? brief : 'Your task has an update. The details are in Sia.';
+    if (!text) return;
+    const id = randomUUID();
+    this.#helper?.send({ type: 'speechPrepare', id });
+    try {
+      const { audioBase64 } = await this.#options.voice.speak(text);
+      if (!ready()) return;
+      if (!audioBase64 || audioBase64.length > 4_000_000) {
+        this.#helper?.send({ type: 'stopSpeech' });
+        return;
+      }
+      // Bounded private pipe frames; no audio files or credentials in the helper.
+      for (let offset = 0; offset < audioBase64.length; offset += 12_000)
+        this.#helper?.send({
+          type: 'speechAudio',
+          id,
+          audioBase64: audioBase64.slice(offset, offset + 12_000),
+        });
+      this.#helper?.send({ type: 'speechPlay', id });
+    } catch {
+      // Speech is optional. A playback failure must never change the task result.
+      if (ready()) this.#helper?.send({ type: 'stopSpeech' });
     }
   }
 

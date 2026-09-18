@@ -625,6 +625,7 @@ export interface RendererApi {
     enabled: boolean,
     agentId?: string,
     requestAccessibility?: boolean,
+    speakReplies?: boolean,
   ): Promise<void>;
   acquireVoiceCapture(): Promise<string>;
   releaseVoiceCapture(leaseId: string): Promise<void>;

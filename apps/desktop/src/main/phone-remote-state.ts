@@ -43,7 +43,11 @@ export function remoteState(
       (entry) => entry.sequence > user.sequence && (!next || entry.sequence < next.sequence),
     );
     const last = index === users.length - 1;
-    let response = current
+    const resumed = current.findLastIndex(
+      (entry) => entry.kind === 'notice' && entry.title === 'Continuing task',
+    );
+    const attempt = resumed < 0 ? current : current.slice(resumed + 1);
+    let response = attempt
       .filter((entry) => entry.kind === 'assistant' || entry.kind === 'question')
       .map((entry) => entry.text ?? '')
       .join('\n\n')
@@ -54,12 +58,12 @@ export function remoteState(
       if (dirname(resolve(decoded)) === resolve(outbox)) files.push(basename(decoded));
       return '';
     });
-    const cancelled = current.some(
+    const cancelled = attempt.some(
       (entry) =>
         entry.kind === 'notice' &&
         /cancelled/i.test(`${entry.title ?? ''} ${entry.text ?? ''}`),
     );
-    const error = current
+    const error = attempt
       .filter((entry) => entry.kind === 'error')
       .map((entry) => entry.text ?? entry.title ?? '')
       .join('\n')

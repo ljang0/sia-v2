@@ -1514,8 +1514,10 @@ describe('DesktopController', () => {
   it('retries a failed turn without appending the user message again', async () => {
     let runtimeThreadId = '';
     let attempts = 0;
+    const requests: string[] = [];
     const runtime = {
       async *runTurn(input: { turnId: string; text: string }) {
+        requests.push(input.text);
         attempts += 1;
         if (attempts === 1) throw new Error('provider startup failed');
         yield {
@@ -1563,7 +1565,105 @@ describe('DesktopController', () => {
         .timeline.filter(({ threadId: id, kind }) => id === threadId && kind === 'user'),
     ).toHaveLength(1);
     expect(attempts).toBe(2);
+    expect(requests[1]).toContain('Continue task');
+    expect(requests[1]).toContain('provider startup failed');
+    expect(requests[1]).toContain('verify any uncertain write');
+    expect(requests[1]).toContain('Retry this once');
     await controller.shutdown();
+  });
+
+  it('restores partial progress for Continue task after an app restart', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'sia-recovery-'));
+    const path = join(root, 'state.sqlite');
+    const requests: string[] = [];
+    let attempts = 0;
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        requests.push(input.text);
+        const base = {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+        };
+        if (++attempts === 1) {
+          yield {
+            ...base,
+            type: 'message' as const,
+            payload: {
+              messageId: randomUUID(),
+              role: 'assistant' as const,
+              parts: [
+                {
+                  kind: 'text' as const,
+                  text: 'Created report.txt; the calendar step remains unverified.',
+                },
+              ],
+              delta: false,
+            },
+          };
+          throw new Error('Connection interrupted after the file step');
+        }
+        yield {
+          ...base,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+    };
+    let controller: DesktopController | undefined;
+    try {
+      ({ controller } = await createHarness({
+        fakeServices: false,
+        runtime,
+        repository: new SqliteRecordRepository(path, new PlaintextTestCipher()),
+      }));
+      const { agentId } = await controller.invoke('agents.save', {
+        name: 'Recovery test',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', { agentId });
+      await controller.invoke('threads.send', {
+        threadId,
+        text: 'Write a report and inspect the calendar.',
+      });
+      await vi.waitFor(() =>
+        expect(controller!.snapshot().threads.find((t) => t.id === threadId)?.status).toBe(
+          'failed',
+        ),
+      );
+      await controller.shutdown();
+      ({ controller } = await createHarness({
+        fakeServices: false,
+        runtime,
+        repository: new SqliteRecordRepository(path, new PlaintextTestCipher()),
+      }));
+      expect(attempts).toBe(1); // Opening Sia must never execute interrupted work automatically.
+      await controller.invoke('threads.retry', { threadId });
+      await vi.waitFor(() =>
+        expect(controller!.snapshot().threads.find((t) => t.id === threadId)?.status).toBe(
+          'idle',
+        ),
+      );
+      expect(requests[1]).toContain('Created report.txt');
+      expect(requests[1]).toContain('calendar step remains unverified');
+      expect(requests[1]).toContain('Connection interrupted after the file step');
+      expect(requests[1]).toContain('verify any uncertain write before repeating it');
+      expect(
+        controller
+          .snapshot()
+          .timeline.filter((t) => t.threadId === threadId && t.kind === 'user'),
+      ).toHaveLength(1);
+    } finally {
+      await controller?.shutdown();
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it('clears local Sia state only after the exact cloud account job completes', async () => {
@@ -4817,7 +4917,7 @@ describe('global voice routing', () => {
       expect(nativeSend).toHaveBeenCalledWith({ type: 'task', phase: 'working' }),
     );
     await vi.waitFor(() =>
-      expect(nativeSend).toHaveBeenLastCalledWith({ type: 'task', phase: 'idle' }),
+      expect(nativeSend).toHaveBeenCalledWith({ type: 'task', phase: 'idle' }),
     );
     await controller.shutdown();
   });

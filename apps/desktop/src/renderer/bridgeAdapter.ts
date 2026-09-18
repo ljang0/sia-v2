@@ -384,8 +384,15 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async openMessages() {
       publish(await bridge.computer.openMessages());
     },
-    async configurePushToTalk(enabled, agentId, requestAccessibility) {
-      publish(await bridge.voice.configurePushToTalk(enabled, agentId, requestAccessibility));
+    async configurePushToTalk(enabled, agentId, requestAccessibility, speakReplies) {
+      publish(
+        await bridge.voice.configurePushToTalk(
+          enabled,
+          agentId,
+          requestAccessibility,
+          speakReplies,
+        ),
+      );
     },
     async acquireVoiceCapture() {
       return (await bridge.voice.acquireCapture()).leaseId;

@@ -114,7 +114,11 @@ live(
         const state = controller!.snapshot();
         const thread = state.threads.find((entry) => entry.id === threadId)!;
         if (!['running', 'queued', 'waiting'].includes(thread.status)) {
-          const items = state.timeline.filter((entry) => entry.threadId === threadId);
+          const history = state.timeline.filter((entry) => entry.threadId === threadId);
+          const resumed = history.findLastIndex(
+            (entry) => entry.kind === 'notice' && entry.title === 'Continuing task',
+          );
+          const items = resumed < 0 ? history : history.slice(resumed + 1);
           const errors = items
             .filter((entry) => entry.kind === 'error')
             .map((entry) => entry.text);
@@ -229,7 +233,7 @@ live(
       const missing = await task(
         agentId,
         'Observed missing-file failure',
-        'Calculate and report the SHA-256 checksum of missing-validation-input.txt in this workspace. Do not create the file or search anywhere else. If it is missing, explain that the requested checksum cannot be calculated. No GUI or screenshots.',
+        'First append one line checkpoint-complete to recovery-receipt.txt. Then calculate and report the SHA-256 checksum of missing-validation-input.txt in this workspace. Do not create the missing input or search anywhere else. If it is missing, stop and explain that the requested checksum cannot be calculated. No GUI or screenshots.',
         true,
       );
       library = await controller.invoke('assistant.library', { operation: 'list' });
@@ -239,6 +243,23 @@ live(
       console.info('Native live test: missing-file journal:', JSON.stringify(missingJournal));
       expect(missingJournal?.some((entry) => entry.outcome === 'failed')).toBe(true);
       console.info('Native live test: missing-file blocker retained in the journal');
+      expect((await readFile(join(workspace, 'recovery-receipt.txt'), 'utf8')).trim()).toBe(
+        'checkpoint-complete',
+      );
+      await writeFile(join(workspace, 'missing-validation-input.txt'), 'Recovered input\n');
+      await controller.shutdown();
+      controller = await start();
+      await controller.invoke('threads.retry', { threadId: missing.threadId });
+      const recovered = await waitForThread(missing.threadId);
+      expect(recovered).toContain(
+        createHash('sha256').update('Recovered input\n').digest('hex'),
+      );
+      expect((await readFile(join(workspace, 'recovery-receipt.txt'), 'utf8')).trim()).toBe(
+        'checkpoint-complete',
+      );
+      console.info(
+        'Native live test: resumed after restart without duplicating the completed append',
+      );
 
       await controller.invoke('assistant.library', {
         operation: 'nativeLearning',

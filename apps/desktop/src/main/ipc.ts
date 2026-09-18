@@ -255,6 +255,7 @@ const inputSchemas = {
       enabled: z.boolean(),
       agentId: identifier.optional(),
       requestAccessibility: z.boolean().optional(),
+      speakReplies: z.boolean().optional(),
     })
     .strict(),
   'voice.pushToTalk.cancel': z.undefined(),

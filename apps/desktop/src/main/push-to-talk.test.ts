@@ -4,6 +4,7 @@ import {
   PushToTalkService,
   nativeVoiceEvent,
   type VoiceHelperFactory,
+  type VoiceTask,
 } from './push-to-talk.js';
 import type { VoiceOperations } from './voice-service.js';
 import type { RecordRepository } from './persistence.js';
@@ -54,7 +55,8 @@ function harness() {
     ),
   };
   const repository = { get: vi.fn(), put: vi.fn() } as unknown as RecordRepository;
-  const send = vi.fn(async (): Promise<string | undefined> => undefined);
+  const send = vi.fn(async (): Promise<VoiceTask | undefined> => undefined);
+  const taskReply = vi.fn<(task: VoiceTask) => string | undefined>(() => undefined);
   const tasks = new Map<string, 'running' | 'queued' | 'waiting' | 'finished'>();
   const service = new PushToTalkService({
     repository,
@@ -64,6 +66,7 @@ function harness() {
     allowed: () => allowed,
     target: () => ({ ...target }),
     send,
+    taskReply,
     taskStatus: (threadId) => tasks.get(threadId) ?? 'finished',
     changed: vi.fn(),
   });
@@ -72,6 +75,7 @@ function harness() {
   return {
     service,
     tasks,
+    taskReply,
     voice,
     native,
     send,
@@ -314,7 +318,7 @@ it('includes pinned Fn context only after opting in and clears it when disabled 
 it('dispatches to the pinned voice thread without a result-window callback', async () => {
   const h = harness();
   const target = h.target();
-  h.send.mockResolvedValue(target.threadId);
+  h.send.mockResolvedValue({ threadId: target.threadId, turnId: randomUUID() });
   const id = await listen(h);
   h.changeTarget();
   release(h, id);
@@ -333,7 +337,7 @@ it('keeps the edge on for Fn work after release, pauses for approval, and stops 
   const h = harness();
   const threadId = h.target().threadId;
   h.tasks.set(threadId, 'running');
-  h.send.mockResolvedValue(threadId);
+  h.send.mockResolvedValue({ threadId: threadId, turnId: randomUUID() });
   const id = await listen(h);
   release(h, id);
   await flush();
@@ -364,13 +368,13 @@ it('tracks overlapping Fn tasks without showing activity for unrelated work', as
   expect(h.native.send).not.toHaveBeenCalledWith({ type: 'task', phase: 'working' });
   const first = h.target().threadId;
   h.tasks.set(first, 'running');
-  h.send.mockResolvedValue(first);
+  h.send.mockResolvedValue({ threadId: first, turnId: randomUUID() });
   release(h, await listen(h));
   await flush();
   h.changeTarget();
   const second = h.target().threadId;
   h.tasks.set(second, 'queued');
-  h.send.mockResolvedValue(second);
+  h.send.mockResolvedValue({ threadId: second, turnId: randomUUID() });
   release(h, await listen(h));
   await flush();
   h.tasks.set(first, 'finished');
@@ -387,7 +391,7 @@ it.each(['disable', 'sign-out', 'helper-exit'] as const)(
     const h = harness();
     const thread = h.target().threadId;
     h.tasks.set(thread, 'running');
-    h.send.mockResolvedValue(thread);
+    h.send.mockResolvedValue({ threadId: thread, turnId: randomUUID() });
     release(h, await listen(h));
     await flush();
     if (reason === 'disable') h.service.configure(false);
@@ -408,7 +412,7 @@ it('restores ongoing task glow after wake, but not when work finished during sle
   const h = harness();
   const thread = h.target().threadId;
   h.tasks.set(thread, 'running');
-  h.send.mockResolvedValue(thread);
+  h.send.mockResolvedValue({ threadId: thread, turnId: randomUUID() });
   release(h, await listen(h));
   await flush();
   h.service.suspend(true);
@@ -419,4 +423,84 @@ it('restores ongoing task glow after wake, but not when work finished during sle
   h.tasks.delete(thread);
   h.service.suspend(false);
   expect(h.native.send).toHaveBeenLastCalledWith({ type: 'task', phase: 'idle' });
+});
+
+it('speaks only the pinned Fn result once, with bounded audio frames and no window action', async () => {
+  const h = harness();
+  const task = { threadId: h.target().threadId, turnId: randomUUID() };
+  h.send.mockResolvedValue(task);
+  h.tasks.set(task.threadId, 'running');
+  h.taskReply.mockReturnValue(
+    'Finished the report. It is in your folder. More details follow.',
+  );
+  vi.mocked(h.voice.speak).mockResolvedValue({
+    audioBase64: 'A'.repeat(24_000),
+    mimeType: 'audio/mpeg',
+  });
+  release(h, await listen(h));
+  await flush();
+  expect(h.voice.speak).not.toHaveBeenCalled();
+  h.tasks.set(task.threadId, 'finished');
+  h.service.syncTasks();
+  h.service.syncTasks();
+  await flush();
+  expect(h.taskReply).toHaveBeenCalledExactlyOnceWith(task);
+  expect(h.voice.speak).toHaveBeenCalledExactlyOnceWith(
+    'Finished the report. It is in your folder.',
+  );
+  const frames = h.native.send.mock.calls
+    .map(([command]) => command)
+    .filter((c) => c.type === 'speechAudio');
+  expect(frames).toHaveLength(2);
+  expect(frames.every((c) => c.audioBase64!.length <= 12_000)).toBe(true);
+  expect(h.native.send).toHaveBeenLastCalledWith({ type: 'speechPlay', id: frames[0]!.id });
+});
+
+it.each(['hold', 'escape', 'disable', 'sleep', 'renderer', 'sign-out', 'dispose'] as const)(
+  'discards late Fn speech after %s',
+  async (reason) => {
+    const h = harness();
+    const task = { threadId: h.target().threadId, turnId: randomUUID() };
+    const audio = deferred<{ audioBase64: string; mimeType: 'audio/mpeg' }>();
+    vi.mocked(h.voice.speak).mockReturnValue(audio.promise);
+    h.taskReply.mockReturnValue('Done.');
+    h.send.mockResolvedValue(task);
+    h.tasks.set(task.threadId, 'running');
+    release(h, await listen(h));
+    await flush();
+    h.tasks.set(task.threadId, 'finished');
+    h.service.syncTasks();
+    expect(h.voice.speak).toHaveBeenCalledOnce();
+    if (reason === 'hold') await listen(h);
+    if (reason === 'escape') h.event({ type: 'speechCancelled' });
+    if (reason === 'disable') h.service.configure(false);
+    if (reason === 'sleep') h.service.suspend(true);
+    if (reason === 'renderer') h.service.acquireRendererCapture();
+    if (reason === 'sign-out') {
+      h.setAllowed(false);
+      h.service.syncAccess();
+    }
+    if (reason === 'dispose') h.service.dispose();
+    audio.resolve({ audioBase64: 'AAAA', mimeType: 'audio/mpeg' });
+    await flush();
+    expect(h.native.send).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'speechPlay' }),
+    );
+  },
+);
+
+it.each(['muted', 'cancelled'] as const)('never speaks a %s Fn task', async (reason) => {
+  const h = harness();
+  if (reason === 'muted') h.service.configure(true, h.target().agentId, false, false);
+  const task = { threadId: h.target().threadId, turnId: randomUUID() };
+  h.send.mockResolvedValue(task);
+  h.tasks.set(task.threadId, 'running');
+  h.taskReply.mockReturnValue('A partial result.');
+  release(h, await listen(h));
+  await flush();
+  if (reason === 'cancelled') h.service.cancelTask(task.threadId);
+  h.tasks.set(task.threadId, 'finished');
+  h.service.syncTasks();
+  await flush();
+  expect(h.voice.speak).not.toHaveBeenCalled();
 });

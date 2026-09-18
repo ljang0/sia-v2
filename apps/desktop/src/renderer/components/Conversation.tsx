@@ -494,7 +494,7 @@ export function Conversation({
             >
               <WarningCircle size={18} aria-hidden="true" />
               <div>
-                <strong>The turn stopped</strong>
+                <strong>Task needs attention</strong>
                 <span>{thread.error}</span>
               </div>
               <button
@@ -504,7 +504,7 @@ export function Conversation({
                 data-testid="interrupted-turn-retry"
               >
                 <ArrowClockwise size={15} aria-hidden="true" />
-                Retry
+                Continue task
               </button>
             </div>
           ) : null}

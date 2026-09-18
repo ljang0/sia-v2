@@ -172,11 +172,12 @@ const api: DesktopBridgeApi = {
     detach: () => invoke('browser.detach', undefined),
   },
   voice: {
-    configurePushToTalk: (enabled, agentId, requestAccessibility) =>
+    configurePushToTalk: (enabled, agentId, requestAccessibility, speakReplies) =>
       invoke('voice.pushToTalk.configure', {
         enabled,
         ...(agentId ? { agentId } : {}),
         ...(requestAccessibility !== undefined ? { requestAccessibility } : {}),
+        ...(speakReplies !== undefined ? { speakReplies } : {}),
       }),
     cancelPushToTalk: () => invoke('voice.pushToTalk.cancel', undefined),
     acquireCapture: () => invoke('voice.capture.acquire', undefined),

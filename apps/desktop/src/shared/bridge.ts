@@ -425,6 +425,7 @@ export interface BrowserView {
 }
 
 export interface PushToTalkView {
+  speakReplies?: boolean;
   available: boolean;
   enabled: boolean;
   agentId?: string;
@@ -659,6 +660,7 @@ export interface BridgeRequestMap {
     enabled: boolean;
     agentId?: string;
     requestAccessibility?: boolean;
+    speakReplies?: boolean;
   };
   'voice.pushToTalk.cancel': undefined;
   'voice.capture.acquire': undefined;
@@ -967,6 +969,7 @@ export interface DesktopBridgeApi {
       enabled: boolean,
       agentId?: string,
       requestAccessibility?: boolean,
+      speakReplies?: boolean,
     ): Promise<DesktopSnapshot>;
     cancelPushToTalk(): Promise<void>;
     acquireCapture(): Promise<{ leaseId: string }>;

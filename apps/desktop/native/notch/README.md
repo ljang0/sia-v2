@@ -43,7 +43,10 @@ learning; existing choices are preserved. Turning learning off stops new recordi
 
 Codex App Server owns sessions, streaming, cancellation and tool transport instead of Claude
 Code. Sia retains its UI, action policy, signed-in release checks and a serialized GUI lease.
-Fn uses Sia's on-device speech recognition, not Notch's Groq Whisper service. Screenshots use
+Fn uses Sia's configured ElevenLabs transcription/voice or on-device speech recognition,
+not Notch's Groq Whisper service. `ReplySpeaker.swift` adapts the AVAudioPlayer lifecycle from
+Notch's `Voice/SpeechSpeaker.swift`; Sia supplies audio over a bounded private pipe rather than
+letting the helper read credentials or make network requests. Screenshots use
 Sia's normalized capture/coordinate adapter, with Notch's perceive/act/verify cycle. Background
 CUA and Connected apps retain their distinct capability-limited engines. This transplant does
 not make model decisions, browser state, permissions or task reliability identical to Notch.
@@ -53,5 +56,5 @@ not make model decisions, browser state, permissions or task reliability identic
 `pnpm --filter @sia/desktop test` builds the actual Swift helper, checks source/prompt hashes,
 and tests the vault, runtime review isolation and controller integration. The opt-in
 `native-learning.smoke.test.ts` exercises real Codex commands, durable memory, skill creation,
-restart/reuse and file-only consolidation using disposable fixtures. It does not validate GUI
+restart/reuse, interrupted-task continuation without duplicate writes, and file-only consolidation using disposable fixtures. It does not validate GUI
 reliability. Do not run broad desktop probes automatically on launch.

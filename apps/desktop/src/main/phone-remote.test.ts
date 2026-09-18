@@ -388,3 +388,27 @@ it('connects actual native note links and does not duplicate the legacy journal'
   expect(notes.filter((note) => note.kind === 'journal')).toHaveLength(1);
   expect(JSON.stringify(notes)).not.toContain('PRIVATE');
 });
+
+it('drops the old blocker after a task continues and finishes successfully', async () => {
+  const { state, root } = await setup();
+  state.activeThreadId = 'thread';
+  state.threads = [{ id: 'thread', agentId, status: 'idle' }] as DesktopSnapshot['threads'];
+  state.timeline = [
+    { kind: 'user', text: 'Finish the report' },
+    { kind: 'assistant', text: 'Waiting for access' },
+    { kind: 'error', text: 'Waiting for access' },
+    { kind: 'notice', title: 'Continuing task' },
+    { kind: 'assistant', text: 'Report verified and saved.' },
+  ].map((item, sequence) => ({
+    ...item,
+    id: String(sequence),
+    threadId: 'thread',
+    sequence,
+    timestamp: '',
+  })) as DesktopSnapshot['timeline'];
+  expect(remoteState(state, agentId, root).turns[0]).toMatchObject({
+    status: 'done',
+    error: '',
+    response: 'Report verified and saved.',
+  });
+});

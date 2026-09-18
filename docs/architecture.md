@@ -58,8 +58,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   agent workspaces and profile exports. Its windowless setup command accepts the key only on stdin;
   no key-entry IPC exists. Either gateway mints purpose-bound single-use tokens in the main process.
   Personal voice takes precedence over Apple speech when configured and uses independent preferences.
-  Recorded and generated audio stays in memory and is sent only after the user presses Dictate or
-  Read aloud; it is not added to transcripts or persisted by Sia. Read aloud uses an optional
+  Recorded and generated audio stays in memory and is sent only when the user invokes dictation, Read aloud, or a voice conversation; it is not added to transcripts or persisted by Sia. Read aloud uses an optional
   per-agent voice with the global voice as fallback, permits only one playback session, omits code,
   and ends long narration at a sentence boundary with an explicit on-screen handoff.
 - Optional Fn push-to-talk runs in a bundled Swift helper adapted from Notch. A main-process
@@ -70,6 +69,17 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   heartbeat expiry. Normal Fn sessions show Notch's multicolor gradient border through recording, transcription, and task execution; the helper reserves its
   nonactivating status notice for errors. It uses no screenshot capture. Composer capture obtains an
   exclusive main-process lease before opening the microphone; window teardown releases the lease.
+  Fn replies use Notch's AVAudioPlayer lifecycle in `ReplySpeaker`, with a main-process generation
+  token and bounded audio pipe frames. The exact Fn turn supplies a brief spoken result; typing
+  elsewhere never triggers speech. A new Fn hold, Escape, composer recording, disable, sign-out,
+  sleep or shutdown invalidates pending audio and stops playback. Settings → Voice → Speak Fn
+  replies can mute this behavior. Audio stays in memory, and neither completion nor speech raises
+  Sia's windows.
+- Continue task resumes a failed request through the existing retry route. It rebuilds a bounded
+  recovery summary from the encrypted timeline, including partial progress and the blocker, even
+  after restarting Sia. The agent must inspect current state before repeating uncertain writes.
+  Continuing never auto-runs at startup or re-adds the user's message. Phone status reflects the
+  latest attempt, so an old blocker does not override a subsequently verified completion.
 - Scotty is an optional Sia-owned desktop pet. Its transparent Electron window, generated
   pixel-terrier atlas, animation, position and task tray are bundled in Sia; it never loads
   Codex pet assets or calls Codex's pet UI. Settings → Scotty and the Sia menu control visibility.
