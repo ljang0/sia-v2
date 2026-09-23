@@ -201,11 +201,18 @@ describe('Use my Mac native execution', () => {
       expect(created[1]?.baseInstructions).toContain('EXPERIMENTAL WINDOW CONTROL');
       expect(created[1]?.nativeTools).toBe('mac-background');
       expect(created[1]?.baseInstructions).not.toContain('screencapture');
-      for (const session of created.slice(1, 2)) {
+      // The foreground transplant previously returned before the shared research
+      // rules were attached, even though the background route received them.
+      for (const session of created.slice(0, 2)) {
         expect(session.baseInstructions).toContain('INVESTIGATE THE WHOLE REQUEST');
         expect(session.baseInstructions).toContain('CANVAS COURSE RESEARCH');
         expect(session.baseInstructions).toContain('Open EACH in-scope course');
         expect(session.baseInstructions).toContain('incomplete coverage');
+        expect(session.baseInstructions).toContain('Courses/All Courses');
+        expect(session.baseInstructions).toContain('matching the exact observed email');
+        expect(session.baseInstructions).toContain(
+          'never replaces the current course-to-person link',
+        );
       }
       expect(JSON.stringify(events)).toContain('The document is ready.');
       expect(JSON.stringify(events)).not.toContain('success');

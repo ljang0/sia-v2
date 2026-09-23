@@ -194,6 +194,14 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   announcements, with source links and explicit coverage gaps. Neither an empty calendar nor a
   successful screenshot establishes task completion. The opt-in course investigation smoke tests
   this with real Codex and an entirely synthetic, dynamic-tool-only browser fixture.
+  The foreground engine receives this same guidance after the pinned Notch prompt; runtime tests
+  cover both routes. An abbreviated instructor name can be resolved against an official university
+  directory/profile using the exact course-listed email or another distinguishing identifier.
+  Public identity evidence supplements the live Canvas course relationship; it cannot establish
+  enrollment or a teaching assignment. Missing requested identities remain incomplete results.
+  Report files are verified by readback and linked in Sia/phone, without a model loop to open and
+  repeatedly activate an external editor. Native learning, when enabled, saves dated source-backed
+  navigation and identity notes in the same indexed vault for later verification.
   Account discovery uses observed tabs and the service's full account switcher, including scrolling,
   instead of guessing Google account slot URLs. A spoken organization name may identify an account
   whose primary calendar has the person's name. Before calendar writes, the model must verify the

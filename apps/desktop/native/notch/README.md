@@ -20,6 +20,10 @@ Swift literals; `--check` detects drift. Source extraction explicitly omits deta
 coding workers and app self-modification/relaunch. The brief Sia/Codex adapter is separately
 visible in `src/main/notch/foreground.ts`. The native helper's `--notch-engine` mode runs before
 AppKit initialization: it does not prompt for permissions or capture/control the desktop.
+The Sia presentation adapter reports meaningful progress milestones and returns verified report
+files to the conversation/phone rather than repeatedly activating an external editor. Both Mac
+routes receive the shared investigation guidance, including complete source inventory and official
+identity corroboration after a live course has established the person's teaching role.
 
 ## Memory and skills
 

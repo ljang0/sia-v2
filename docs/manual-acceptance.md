@@ -66,6 +66,16 @@ uses a real model with **in-memory browser fixtures** to check coursework outsid
 inaccessible-course reporting. Neither replaces the live GUI checks above. Experimental background
 window control must be validated separately, including its selected foreground fallback policy.
 
+For a live instructor investigation, start a fresh conversation with a natural request such as
+“Find my professors for this semester through my Canvas.” Verify the full Courses/All Courses list,
+not only favorite dashboard cards. Each reported person needs a current course relationship and
+role. Resolve abbreviated names against an official institutional profile/directory only with a
+matching identifier (for example the course-listed faculty email); cite both sources. If the user
+limits sources to Canvas, preserve that limit. Missing requested identities must not be reported as
+complete. Check that report delivery does not repeatedly launch an editor, and record elapsed time
+and tool calls alongside accuracy. With learning enabled, repeat in a new conversation and confirm
+the agent uses dated navigation notes while rechecking current course facts.
+
 For Fn, ask a short task with Sia's window closed. Verify the multicolor border, one dispatch,
 a brief spoken result, and no opened Sia window. Hold Fn again or press Escape during speech;
 playback must stop and late audio must not restart it. Repeat with **Speak Fn replies** off and

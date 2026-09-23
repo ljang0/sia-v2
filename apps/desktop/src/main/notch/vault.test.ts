@@ -192,6 +192,9 @@ it('keeps the upstream sources pinned and uses screenshot verification and the a
   expect(prompt).toContain('after EVERY state-changing step');
   expect(prompt).toContain('/fixture/vault/MOC.md');
   expect(prompt).not.toMatch(/~\/\.notch|screencapture|Bash call's|BACKGROUND CODING WORKERS/);
+  expect(prompt).toContain('verify its saved contents by reading it back');
+  expect(prompt).not.toContain('open it with `open <file>`');
+  expect(prompt).not.toContain('Narrate each exec_command');
   const review = notchConsolidationInstructions('/fixture/vault');
   for (const instruction of [
     'PROMOTE',
