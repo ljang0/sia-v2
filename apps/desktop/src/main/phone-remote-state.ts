@@ -47,11 +47,13 @@ export function remoteState(
       (entry) => entry.kind === 'notice' && entry.title === 'Continuing task',
     );
     const attempt = resumed < 0 ? current : current.slice(resumed + 1);
-    let response = attempt
-      .filter((entry) => entry.kind === 'assistant' || entry.kind === 'question')
-      .map((entry) => entry.text ?? '')
-      .join('\n\n')
-      .slice(-24000);
+    const responseParts = new Set(
+      attempt
+        .filter((entry) => entry.kind === 'assistant' || entry.kind === 'question')
+        .map((entry) => (entry.text ?? '').trim())
+        .filter(Boolean),
+    );
+    let response = [...responseParts].join('\n\n').slice(-24000);
     const files: string[] = [];
     response = response.replace(/\[Open result\]\(<([^>]+)>\)/g, (_match, path: string) => {
       const decoded = path.replaceAll('%3C', '<').replaceAll('%3E', '>');
@@ -63,9 +65,11 @@ export function remoteState(
         entry.kind === 'notice' &&
         /cancelled/i.test(`${entry.title ?? ''} ${entry.text ?? ''}`),
     );
-    const error = attempt
+    const errors = attempt
       .filter((entry) => entry.kind === 'error')
-      .map((entry) => entry.text ?? entry.title ?? '')
+      .map((entry) => (entry.text ?? entry.title ?? '').trim());
+    const error = [...new Set(errors)]
+      .filter((text) => !responseParts.has(text))
       .join('\n')
       .slice(0, 2000);
     const status: RemoteTurn['status'] =
@@ -75,7 +79,7 @@ export function remoteState(
           ? 'waiting'
           : cancelled
             ? 'cancelled'
-            : error || (last && thread.status === 'failed')
+            : errors.length || (last && thread.status === 'failed')
               ? 'error'
               : 'done';
     return {

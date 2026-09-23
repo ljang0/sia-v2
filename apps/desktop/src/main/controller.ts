@@ -759,7 +759,7 @@ export class DesktopController {
   #libraryView() {
     const view = this.#assistantLibrary.view();
     if (this.computerAccessMode() !== 'mac') return view;
-    if (!this.#fakeServices && !this.macBackgroundControl()) {
+    if (!this.#fakeServices) {
       for (const agent of this.#state.agents) this.#notchVault(agent.id).initialize(view);
     }
     return {
@@ -825,18 +825,31 @@ export class DesktopController {
       view.reviewAgents?.includes(agentId) === true;
     switch (request.name) {
       case 'memory_vault': {
-        if (
-          !this.#assistantLibrary.isNotchReview(request.context.threadId) ||
-          !reviewWorkspace ||
-          reviewWorkspace !== this.#requireAgent(agentId).workspace ||
-          this.computerAccessMode() !== 'mac' ||
-          this.macBackgroundControl() ||
-          !view.nativeLearningAgents?.includes(agentId) ||
-          !view.learningAgents?.includes(agentId) ||
-          !view.reviewAgents?.includes(agentId)
-        )
-          throw new Error('This native vault review is no longer authorized.');
         const args = parseActionArguments('memory_vault', request.arguments);
+        const review = this.#assistantLibrary.isReview(request.context.threadId);
+        const learning =
+          view.nativeLearningAgents?.includes(agentId) &&
+          view.learningAgents?.includes(agentId);
+        if (
+          this.computerAccessMode() !== 'mac' ||
+          (review
+            ? !this.#assistantLibrary.isNotchReview(request.context.threadId) ||
+              reviewWorkspace !== this.#requireAgent(agentId).workspace ||
+              !learning ||
+              !view.reviewAgents?.includes(agentId)
+            : !this.macBackgroundControl())
+        )
+          throw new Error('This memory vault action is no longer authorized.');
+        if (!['list', 'read'].includes(args.operation) && !learning)
+          throw new Error('Automatic learning is paused. Existing notes can still be read.');
+        if (
+          !review &&
+          args.name.startsWith('skills/') &&
+          !['list', 'read'].includes(args.operation)
+        )
+          throw new Error(
+            'Use skill_save for executable background workflows. Native scripts can be read as references.',
+          );
         const vault = this.#notchVault(agentId);
         if (args.operation === 'list')
           return {
@@ -915,7 +928,7 @@ export class DesktopController {
           )
         )
           throw new Error('Credentials cannot be stored as memory.');
-        if (nativeWorkspace && !reviewWorkspace) {
+        if (this.computerAccessMode() === 'mac' && !reviewWorkspace) {
           const vault = this.#notchVault(agentId);
           const lessons = vault.read('lessons.md');
           vault.write(
@@ -1298,9 +1311,14 @@ export class DesktopController {
       )
         return;
       try {
-        const native = this.computerAccessMode() === 'mac' && !this.macBackgroundControl();
+        const native = this.computerAccessMode() === 'mac';
         for (const agentId of this.#assistantLibrary.view().learningAgents ?? [])
-          if (!native) this.#assistantLibrary.consolidate(agentId);
+          if (
+            !native ||
+            (this.macBackgroundControl() &&
+              !this.#assistantLibrary.view().nativeLearningAgents?.includes(agentId))
+          )
+            this.#assistantLibrary.consolidate(agentId);
         for (const agentId of this.#assistantLibrary.view().reviewAgents ?? []) {
           if (native && this.#assistantLibrary.view().nativeLearningAgents?.includes(agentId))
             continue;
@@ -1324,7 +1342,6 @@ export class DesktopController {
         this.#assistantSuspended ||
         this.#releaseAccessLocked() ||
         this.computerAccessMode() !== 'mac' ||
-        this.macBackgroundControl() ||
         this.#runningTurns.size ||
         this.#queuedTurns.length ||
         this.#pushToTalk?.busy
@@ -1600,7 +1617,6 @@ export class DesktopController {
         if (
           command.operation === 'consolidate' &&
           this.computerAccessMode() === 'mac' &&
-          !this.macBackgroundControl() &&
           this.#assistantLibrary.view().nativeLearningAgents?.includes(command.agentId)
         ) {
           await this.#awaitCompletedTurns();
@@ -2368,7 +2384,7 @@ export class DesktopController {
     else this.#state.agents.push(agent);
     this.#state.activeAgentId = agentId;
     if (!existing) {
-      if (this.computerAccessMode() === 'mac' && !this.macBackgroundControl()) {
+      if (this.computerAccessMode() === 'mac') {
         this.#assistantLibrary.change(
           { operation: 'nativeLearning', agentId, enabled: true },
           (id) => this.#requireAgent(id),
@@ -2483,13 +2499,13 @@ export class DesktopController {
       { agentId, title: 'Memory and skill review' },
       activate,
     );
+    const nativeLearning =
+      this.#assistantLibrary.view().nativeLearningAgents?.includes(agentId) === true;
     const workspace =
-      this.computerAccessMode() === 'mac' && !this.macBackgroundControl()
+      this.computerAccessMode() === 'mac' && (!this.macBackgroundControl() || nativeLearning)
         ? agent.workspace
         : undefined;
-    const notch =
-      !!workspace &&
-      this.#assistantLibrary.view().nativeLearningAgents?.includes(agentId) === true;
+    const notch = !!workspace && nativeLearning;
     if (notch) {
       this.#notchVault(agentId).initialize(this.#assistantLibrary.view());
       this.#notchVault(agentId).markConsolidation();
@@ -5884,7 +5900,7 @@ export class DesktopController {
         }
         const notchReview = this.#assistantLibrary.isNotchReview(thread.id);
         let nativeRequest: string | undefined;
-        if (macTask && !this.macBackgroundControl()) {
+        if (macTask) {
           nativeVault = recordVault!;
           const library = this.#assistantLibrary.view();
           nativeVault.initialize(library);
@@ -5898,6 +5914,7 @@ export class DesktopController {
             this.#notchHelperPath,
             {
               operation: 'prepare',
+              background: this.macBackgroundControl(),
               request: turn.text,
               context: turn.context ?? '',
               learning: library.learningAgents?.includes(thread.agentId) === true,

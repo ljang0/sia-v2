@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -69,4 +69,21 @@ export function signDevelopment(path, identity, identifier, extra = []) {
     { stdio: 'inherit' },
   );
   execFileSync('/usr/bin/codesign', ['--verify', '--strict', path], { stdio: 'inherit' });
+}
+
+export function designatedRequirement(path) {
+  const result = spawnSync('/usr/bin/codesign', ['-d', '-r-', path], { encoding: 'utf8' });
+  const requirement = (result.stdout + result.stderr).match(/designated => ([^\r\n]+)/)?.[1];
+  if (result.status !== 0 || !requirement)
+    throw new Error(
+      'Could not verify Sia’s existing signing identity. Restore the signed app before updating.',
+    );
+  return requirement;
+}
+
+export function assertSameIdentity(before, after) {
+  if (designatedRequirement(before) !== designatedRequirement(after))
+    throw new Error(
+      'This update would change Sia’s signing identity and invalidate saved permissions. Restore the original pinned certificate; the installed app was kept.',
+    );
 }

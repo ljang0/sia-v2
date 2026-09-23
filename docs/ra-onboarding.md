@@ -161,10 +161,12 @@ After any required email sign-in:
    Sia opens your conversation automatically when screen control and voice are ready. If any permission
    is skipped, choose **Start using Sia** to continue and finish access later in Settings.
 
-First run does not launch Finder, Calendar, Reminders, Messages, or browsers to preauthorize them.
-App-specific permissions and Messages history access are requested when a task needs them.
-**Settings → Computer → Allow all Mac apps** remains available for optional bulk app setup.
-That explicit action reuses running apps and launches missing apps hidden where macOS supports it.
+In Use my Mac, **Prepare everyday apps now** is selected by default. The same setup pass requests
+missing Automation grants for System Events, Safari, Chrome, Calendar, Reminders, Finder and
+Messages. Already allowed or unavailable apps are skipped; running apps are reused and missing
+apps open hidden where macOS supports it. Uncheck the option to defer those app prompts until a
+task needs them. Connected apps setup does not request these Automation grants.
+**Settings → Computer → Allow all Mac apps** remains available for later bulk setup.
 
 The default is **Use my Mac + full bypass**: Sia uses signed-in Mac apps and may send messages or
 change files without per-action approval. **Customize setup** contains the alternative
@@ -172,8 +174,9 @@ change files without per-action approval. **Customize setup** contains the alter
 model from the admitted catalog and an automatic private workspace. If no model is ready,
 complete AI sign-in first. No API key is required.
 
-Setup includes Accessibility, Screen Recording, microphone, Speech Recognition, the Fn shortcut,
-Messages history (Full Disk Access), and Automation for supported apps. macOS still requires its
+Setup includes Accessibility, Screen Recording, microphone, Speech Recognition when using Mac
+dictation, the Fn shortcut, and selected app Automation grants. Messages history (Full Disk Access)
+remains a separate optional setup when needed. macOS still requires its
 own separate approvals. Sia skips grants already allowed, never records during setup, and does
 not replay permission requests on relaunch. Returning from System Settings or clicking
 **Check access** only reads current status. **Allow remaining access** retries missing grants;
@@ -316,15 +319,20 @@ action approval mode. The skill name is preserved in the header; the filename us
 Skills for a different execution mode remain listed with instructions for switching modes.
 
 Enable **Settings → Assistant → Memory → Notch-style learning** to complete the automatic
-learning cycle: brief request/result/step summaries and failures enter the encrypted journal;
-recent activity, failures, memory topics and saved scripts are supplied on future requests.
+learning cycle. Both foreground and background Mac tasks use the same agent-scoped Notch vault:
+brief activity, failures, lessons, linked notes and the skill registry are supplied on future requests.
+Background tasks can read and update those notes through a scoped vault tool, including preferences
+learned on screen; foreground tasks can recall notes learned in background mode after restarting.
+Native scripts remain workflow references in background mode, whose executable skills use the
+window-action sandbox instead of native AppleScript.
 The agent can save a reusable procedure during a task, and idle consolidation uses one model
 turn after new experience, at most every six hours, to distill lessons and promote repeated
 successes into native skills. Supported improvements are saved automatically. Consolidation
 never executes a script, opens an app or takes a screenshot. New skill names cannot overwrite
 existing files; collisions stay as suggestions. Turning the setting off pauses learning and
 reviews. Existing records/scripts stay available until deleted. This is separate from research
-capture; memory stays encrypted rather than creating a second plaintext Notch vault.
+capture. Conversations and manually saved preferences remain encrypted; the native vault's notes
+and scripts are local plaintext files with private filesystem permissions.
 
 To validate native learning with real Codex turns and disposable local files, opt in explicitly:
 
@@ -336,8 +344,9 @@ Set `SIA_SMOKE_MODEL=gpt-6-astra` to run this check with Astra. The test resolve
 installed Codex binary as the desktop and uses its live model catalog.
 
 This uses the signed-in Codex plan to check file creation/readback, native `.sh` skill discovery,
-reuse and memory recall after restarting the controller, missing-input reporting, and the isolated
-consolidation session. It removes its temporary agent workspace and encrypted database afterward.
+reuse and memory recall after restarting the controller, bidirectional recall between foreground
+and background modes, missing-input reporting, and isolated consolidation in background mode.
+It removes its temporary agent workspace and encrypted database afterward.
 It is skipped in ordinary tests and never runs at app startup. The prompts restrict work to synthetic
 local files; this does not validate GUI clicks, macOS permissions, or account websites.
 
@@ -497,6 +506,14 @@ it for the voice helper too. It prefers an existing Sia/Notch development certif
 Mac, run `pnpm --filter @sia/desktop signing:setup` once, or select your existing identity with
 `SIA_DEV_SIGN_IDENTITY`. The private key stays in Keychain. A missing pinned key is an error,
 not a silent switch to ad-hoc signing. Quit the development app before upgrading Electron itself.
+Before replacing an existing signed Electron bundle, the updater compares the old and new
+designated requirements and refuses an identity-changing replacement. The development bundle
+includes the same permission descriptions as the release, including Screen Recording.
+An explicit missing-screen setup request also registers the Electron app through a one-pixel
+screen-source request before opening System Settings. That result is discarded; it is never
+saved or sent to a model. Status checks and startup do not run this request. Approvals already
+granted are skipped, and selected app permissions that were denied remain visible instead of
+automatically finishing the setup screen.
 
 Moving from old generic/ad-hoc Electron to this stable identity may require one final permission
 grant. Later rebuilds retain the certificate and designated requirement; byte hashes necessarily

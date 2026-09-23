@@ -23,7 +23,7 @@ AppKit initialization: it does not prompt for permissions or capture/control the
 
 ## Memory and skills
 
-Foreground memory lives at `<agent workspace>/.sia-mac/<agent id>/`: `journal.md`,
+Both Mac modes share memory at `<agent workspace>/.sia-mac/<agent id>/`: `journal.md`,
 `failures.log`, `lessons.md`, `MOC.md`, linked Markdown notes and `skills/*.sh`. These are normal
 local files, with private directory/file permissions; they are not encrypted by Sia. Existing
 conversations and manually saved preferences remain in encrypted SQLite. Enabled preferences
@@ -32,11 +32,14 @@ Deleting a preference updates the projection. Previous model history and learned
 contain the fact, so deleting a saved preference is not a comprehensive erasure operation.
 
 Swift reads the last 1,200 journal characters, the last 1,000 bullet-lesson characters and the
-complete MOC, then supplies the script registry. Topic files remain available to the foreground
-agent. Automatic reviews use only `memory_vault`, recheck mode/agent/workspace/learning authorization,
+complete MOC, then supplies the script registry. Sia also injects up to 1,200 characters of
+unresolved failures. Background tasks read the same topic files through `memory_vault`; native
+skills are described as references without runnable shell commands. Saving notes requires active
+learning; executable background skills stay in the scoped gateway registry. Automatic reviews
+in either mode use only `memory_vault`, recheck mode/agent/workspace/learning authorization,
 and reject stale revisions, traversal, links and credentials. Writes save scripts without
 executing them. Long journals are paged, with explicit append for consolidation records.
-Settings and the phone vault read the same files. New foreground Mac agents enable native
+Settings and the phone vault read the same files. New Mac agents in either mode enable native
 learning; existing choices are preserved. Turning learning off stops new recording and reviews.
 
 ## Remaining differences
@@ -56,5 +59,6 @@ not make model decisions, browser state, permissions or task reliability identic
 `pnpm --filter @sia/desktop test` builds the actual Swift helper, checks source/prompt hashes,
 and tests the vault, runtime review isolation and controller integration. The opt-in
 `native-learning.smoke.test.ts` exercises real Codex commands, durable memory, skill creation,
-restart/reuse, interrupted-task continuation without duplicate writes, and file-only consolidation using disposable fixtures. It does not validate GUI
+restart/reuse, bidirectional memory recall across control modes, interrupted-task continuation
+without duplicate writes, and file-only consolidation using disposable fixtures. It does not validate GUI
 reliability. Do not run broad desktop probes automatically on launch.

@@ -5,7 +5,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { cleanSigningMetadata, prepareDevElectron } from './prepare-dev-electron.mjs';
-import { selectIdentity, devIdentity, signDevelopment } from './dev-signing.mjs';
+import {
+  assertSameIdentity,
+  selectIdentity,
+  devIdentity,
+  signDevelopment,
+} from './dev-signing.mjs';
 
 test(
   'development app has release permission descriptions before any helper request',
@@ -37,6 +42,7 @@ test(
         'NSSpeechRecognitionUsageDescription',
         'NSMicrophoneUsageDescription',
         'NSAccessibilityUsageDescription',
+        'NSScreenCaptureDescription',
         'NSAppleEventsUsageDescription',
         'NSLocalNetworkUsageDescription',
       ]) {
@@ -97,6 +103,12 @@ test(
       assert.ok(requirements[0]);
       assert.equal(requirements[0], requirements[1]);
       assert.notEqual(hashes[0], hashes[1]);
+      assertSameIdentity(join(directory, 'v1'), join(directory, 'v2'));
+      signDevelopment(join(directory, 'v2'), identity, 'ai.sia.desktop.changed-identity');
+      assert.throws(
+        () => assertSameIdentity(join(directory, 'v1'), join(directory, 'v2')),
+        /invalidate saved permissions/,
+      );
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { devHome, devIdentity, signDevelopment } from './dev-signing.mjs';
+import { assertSameIdentity, devHome, devIdentity, signDevelopment } from './dev-signing.mjs';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -29,6 +29,7 @@ export function prepareDevElectron(executable, descriptions) {
     'NSSpeechRecognitionUsageDescription',
     'NSMicrophoneUsageDescription',
     'NSAccessibilityUsageDescription',
+    'NSScreenCaptureDescription',
     'NSAppleEventsUsageDescription',
     'NSLocalNetworkUsageDescription',
   ]) {
@@ -141,6 +142,9 @@ export function prepareDevelopmentApp(executable, descriptions) {
   execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', staging], {
     stdio: 'inherit',
   });
+  // A valid signature alone is insufficient: permission grants are bound to the
+  // designated requirement, which must survive Electron and metadata updates.
+  if (existsSync(target)) assertSameIdentity(app, staging);
   rmSync(app, { recursive: true, force: true });
   renameSync(staging, app);
   writeFileSync(marker, digest, { mode: 0o600 });

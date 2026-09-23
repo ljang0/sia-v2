@@ -26,6 +26,9 @@ import {
 export const CODEX_SUPPORTED_VERSIONS = {
   minimum: '0.147.0',
   maximumExclusive: '0.154.0',
+  // The installed desktop build is verified independently; do not admit the
+  // entire next minor or other prereleases merely to expose a newer catalog.
+  additionalVersions: ['0.155.0-alpha.9'],
 } as const;
 
 export interface DynamicToolCall {

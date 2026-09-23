@@ -55,7 +55,8 @@ verification. Compare equivalent tasks before claiming fewer calls or lower late
 run does not establish reliability across every app or model.
 
 The opt-in [native learning smoke](../apps/desktop/src/main/native-learning.smoke.test.ts) uses a real
-model and disposable files to check saved scripts, memory across controller restart, failure
+model and disposable files to check saved scripts, bidirectional memory recall between foreground
+and background modes across controller restart, failure
 reporting, continuing an interrupted task without repeating its completed write, and consolidation.
 These checks passed with GPT-5.6-Sol. Existing agents keep their memory preferences: verify
 **Settings → Assistant → Memory → Notch-style learning** for the actual agent before expecting

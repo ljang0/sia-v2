@@ -38,6 +38,8 @@ export class SpawnCommandRunner implements CommandRunner {
 export interface SupportedVersionRange {
   readonly minimum: string;
   readonly maximumExclusive?: string;
+  /** Exact separately verified builds outside the normal stable release range. */
+  readonly additionalVersions?: readonly string[];
 }
 
 export function parseCliVersion(text: string): string | undefined {
@@ -62,6 +64,7 @@ export function compareVersions(left: string, right: string): number {
 }
 
 export function isVersionSupported(version: string, range: SupportedVersionRange): boolean {
+  if (range.additionalVersions?.includes(version)) return true;
   return (
     compareVersions(version, range.minimum) >= 0 &&
     (range.maximumExclusive === undefined ||

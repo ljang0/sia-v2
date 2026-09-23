@@ -412,3 +412,27 @@ it('drops the old blocker after a task continues and finishes successfully', asy
     response: 'Report verified and saved.',
   });
 });
+
+it('shows a repeated model and host blocker once while preserving failure status', async () => {
+  const { state, root } = await setup();
+  state.activeThreadId = 'thread';
+  state.threads = [{ id: 'thread', agentId, status: 'failed' }] as DesktopSnapshot['threads'];
+  state.timeline = [
+    { kind: 'user', text: 'Check Canvas' },
+    { kind: 'assistant', text: 'Opening Canvas.' },
+    { kind: 'assistant', text: 'Screen access is missing.' },
+    { kind: 'assistant', text: 'Screen access is missing.' },
+    { kind: 'error', text: 'Screen access is missing.' },
+  ].map((item, sequence) => ({
+    ...item,
+    id: String(sequence),
+    threadId: 'thread',
+    sequence,
+    timestamp: '',
+  })) as DesktopSnapshot['timeline'];
+  expect(remoteState(state, agentId, root).turns[0]).toMatchObject({
+    status: 'error',
+    error: '',
+    response: 'Opening Canvas.\n\nScreen access is missing.',
+  });
+});

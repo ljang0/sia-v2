@@ -80,7 +80,7 @@ export function MacAutomationPermissions({
       if (!mounted.current) return;
       setPending('check');
       await refresh();
-      if (!checkOnly) await onComplete?.();
+      if (!checkOnly && !failures.length) await onComplete?.();
       if (failures.length)
         setError(
           `Setup needs attention: ${failures.join('; ')}. Allowed permissions are kept; retry only the missing access.`,

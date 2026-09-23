@@ -195,6 +195,7 @@ describe('Use my Mac native execution', () => {
           'skill_run',
           'computer_read_file',
           'computer_write_file',
+          'memory_vault',
         ]),
       );
       expect(created[1]?.baseInstructions).toContain('EXPERIMENTAL WINDOW CONTROL');
@@ -231,6 +232,7 @@ describe('Use my Mac native execution', () => {
       expect(created[4]?.nativeTools).toBeUndefined();
       expect(created[4]?.baseInstructions).toBeUndefined();
       expect(created[4]?.tools.map((t) => t.name)).toContain('browser_tabs');
+      expect(created[4]?.tools.map((t) => t.name)).not.toContain('memory_vault');
       expect(created[4]?.tools.map((t) => t.name)).not.toContain('computer_task_complete');
     } finally {
       await runtime.dispose();

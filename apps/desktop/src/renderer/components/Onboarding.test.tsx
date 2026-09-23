@@ -88,7 +88,9 @@ it.each(['mac-bypass', 'connected'] as const)(
       api.setComputerTrust.mock.invocationCallOrder[0]!,
     );
     expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1);
-    expect(api.requestAutomationPermission).not.toHaveBeenCalled();
+    expect(api.requestAutomationPermission).toHaveBeenCalledTimes(
+      route === 'mac-bypass' ? 7 : 0,
+    );
     expect(api.setupMessages).not.toHaveBeenCalled();
     expect(api.startRealtimeVoice).not.toHaveBeenCalled();
     expect(api.connectSelectedApps).not.toHaveBeenCalled();

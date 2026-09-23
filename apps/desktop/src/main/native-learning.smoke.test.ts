@@ -230,12 +230,54 @@ live(
         'Native live test: cross-conversation memory and unchanged skill reuse verified after controller restart',
       );
 
+      await controller.invoke('computer.setAccessMode', { mode: 'mac', background: true });
+      await controller.invoke('assistant.library', {
+        operation: 'nativeLearning',
+        agentId,
+        enabled: true,
+      });
+      // Prevent a periodic review from racing the explicit consolidation below.
+      vault.markConsolidation();
+      const background = await task(
+        agentId,
+        'Recall native memory in background',
+        'Read my saved report-label preference from the memory vault and include the label in your reply. Read the linked notes needed to confirm it. Then save a note bg-preference.md that I prefer the report heading Amber summary, and link it from MOC.md. No apps, GUI, network or workspace reports are needed.',
+      );
+      expect(background.response).toContain(code);
+      expect(vault.read('bg-preference.md').text).toContain('Amber summary');
+      expect(vault.read('MOC.md').text).toContain('[[bg-preference]]');
+      expect(registry.list().find((entry) => entry.id === skill!.id)?.revision).toBe(revision);
+      await controller.shutdown();
+      controller = await start();
+      await controller.invoke('computer.setAccessMode', { mode: 'mac', background: false });
+      const fromBackground = await task(
+        agentId,
+        'Recall background memory on screen',
+        'What report heading did I last ask you to remember? Read the relevant saved note and answer without changing files or opening apps.',
+      );
+      expect(fromBackground.response).toContain('Amber summary');
+      console.info(
+        'Native live test: bidirectional memory recall verified across modes and restart',
+      );
+
       const missing = await task(
         agentId,
         'Observed missing-file failure',
         'First append one line checkpoint-complete to recovery-receipt.txt. Then calculate and report the SHA-256 checksum of missing-validation-input.txt in this workspace. Do not create the missing input or search anywhere else. If it is missing, stop and explain that the requested checksum cannot be calculated. No GUI or screenshots.',
         true,
       );
+      // The terminal provider event can be visible before the journal flush ends.
+      await expect
+        .poll(
+          async () =>
+            (
+              await controller!.invoke('assistant.library', { operation: 'list' })
+            ).journal?.some(
+              (entry) => entry.threadId === missing.threadId && entry.outcome === 'failed',
+            ),
+          { timeout: 10000 },
+        )
+        .toBe(true);
       library = await controller.invoke('assistant.library', { operation: 'list' });
       const missingJournal = library.journal?.filter(
         (entry) => entry.threadId === missing.threadId && entry.kind === 'task',
@@ -266,6 +308,7 @@ live(
         agentId,
         enabled: true,
       });
+      await controller.invoke('computer.setAccessMode', { mode: 'mac', background: true });
       const review = await controller.invoke('assistant.library', {
         operation: 'review',
         agentId,

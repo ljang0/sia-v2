@@ -2,6 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CuaService } from './cua-service.js';
 
+const permissionUi = vi.hoisted(() => ({
+  requestMacOSPermissions: vi.fn(),
+  openMacOSScreenRecordingSettings: vi.fn(async () => {}),
+  getSources: vi.fn(async () => []),
+}));
+vi.mock('@trycua/cua-driver/electron', () => permissionUi);
+vi.mock('electron', () => ({ desktopCapturer: { getSources: permissionUi.getSources } }));
+
 const directContext = {
   kind: 'direct_user' as const,
   operation: 'browser_attach' as const,
@@ -26,6 +34,7 @@ function successfulDriver(value: unknown) {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.clearAllMocks();
 });
 
 it.each(['ready', 'unavailable'] as const)(
@@ -40,6 +49,48 @@ it.each(['ready', 'unavailable'] as const)(
     const permissions = vi.spyOn(service, 'permissions').mockResolvedValue(current);
     expect(await service.requestPermissions()).toBe(current);
     expect(permissions).toHaveBeenCalledTimes(1);
+  },
+);
+
+it.runIf(process.platform === 'darwin')(
+  'registers the signed Electron app during an explicit missing-screen permission request',
+  async () => {
+    const service = new CuaService(authorization());
+    vi.spyOn(service, 'permissions').mockResolvedValue({
+      status: 'needs_permission',
+      accessibility: true,
+      screenRecording: false,
+    });
+    permissionUi.requestMacOSPermissions.mockReturnValue({
+      accessibility: true,
+      screenRecording: false,
+    });
+    await service.requestPermissions();
+    expect(permissionUi.getSources).toHaveBeenCalledExactlyOnceWith({
+      types: ['screen'],
+      thumbnailSize: { width: 1, height: 1 },
+      fetchWindowIcons: false,
+    });
+    expect(permissionUi.openMacOSScreenRecordingSettings).toHaveBeenCalledOnce();
+  },
+);
+
+it.runIf(process.platform === 'darwin')(
+  'does not capture or open Screen Recording when only Accessibility is missing',
+  async () => {
+    const service = new CuaService(authorization());
+    vi.spyOn(service, 'permissions').mockResolvedValue({
+      status: 'needs_permission',
+      accessibility: false,
+      screenRecording: true,
+    });
+    permissionUi.requestMacOSPermissions.mockReturnValue({
+      accessibility: false,
+      screenRecording: true,
+    });
+    await service.requestPermissions();
+    expect(permissionUi.getSources).not.toHaveBeenCalled();
+    expect(permissionUi.openMacOSScreenRecordingSettings).not.toHaveBeenCalled();
   },
 );
 

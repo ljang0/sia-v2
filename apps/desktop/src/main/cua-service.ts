@@ -157,7 +157,22 @@ export class CuaService {
     if (process.platform === 'darwin') {
       const cuaElectron = await import('@trycua/cua-driver/electron');
       const requested = cuaElectron.requestMacOSPermissions();
-      if (!requested.screenRecording) await cuaElectron.openMacOSScreenRecordingSettings();
+      if (!requested.screenRecording) {
+        // Register the responsible Electron app with TCC, not just a native
+        // preflight followed by Settings (which can leave Sia absent from the list).
+        // This runs only after the person's explicit setup action. No capture is
+        // retained or sent to a renderer, model, log, or remote endpoint.
+        const { desktopCapturer } = await import('electron');
+        await desktopCapturer
+          .getSources({
+            types: ['screen'],
+            thumbnailSize: { width: 1, height: 1 },
+            fetchWindowIcons: false,
+          })
+          .catch(() => undefined);
+        if (!(await this.permissions()).screenRecording)
+          await cuaElectron.openMacOSScreenRecordingSettings();
+      }
     }
     return this.permissions();
   }

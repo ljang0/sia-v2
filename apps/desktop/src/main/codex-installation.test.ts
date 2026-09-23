@@ -14,8 +14,8 @@ it('prefers the newest admitted installation and excludes future, broken and mis
     }
     const versions: Record<string, string> = {
       codex: '0.150.1',
-      bundled: '0.153.4',
-      future: '0.154.0',
+      bundled: '0.155.0-alpha.9',
+      future: '0.155.0-alpha.10',
     };
     const options = {
       environment: { PATH: root },

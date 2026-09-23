@@ -498,7 +498,7 @@ export class RuntimeCoordinator {
       .filter((tool) =>
         thread.notchReview
           ? tool.name === 'memory_vault'
-          : tool.name !== 'memory_vault' &&
+          : (tool.name !== 'memory_vault' || (mac && thread.macBackgroundControl)) &&
             (thread.nativeTools !== 'disabled' ||
               ['assistant_library', 'memory_suggest'].includes(tool.name)),
       );

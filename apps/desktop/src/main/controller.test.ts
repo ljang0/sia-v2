@@ -5283,100 +5283,164 @@ it('background reviews wait for unlocked idle time and preserve the active conve
   }
 });
 
-it('saves native learning improvements to the filesystem without executing them and exposes them through the same skill UI', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'sia-native-learning-'));
-  const { controller, repository } = await createHarness({ defaultWorkspaceRoot: directory });
+it.each([false, true])(
+  'consolidates the shared vault without executing scripts (background: %s)',
+  async (background) => {
+    const directory = await mkdtemp(join(tmpdir(), 'sia-native-learning-'));
+    const { controller, repository } = await createHarness({ defaultWorkspaceRoot: directory });
+    try {
+      await controller.invoke('computer.setAccessMode', { mode: 'mac', background });
+      const { agentId } = await controller.invoke('agents.save', {
+        name: 'Native learning',
+        instructions: '',
+        model: 'gpt-5.6-sol',
+      });
+      await controller.invoke('assistant.library', {
+        operation: 'nativeLearning',
+        agentId,
+        enabled: true,
+      });
+      const library = new AssistantLibrary(repository);
+      for (let i = 0; i < 2; i++)
+        library.recordMacTask({
+          agentId,
+          threadId: randomUUID(),
+          turnId: randomUUID(),
+          request: 'Inspect Finder',
+          outcome: 'complete',
+          result: {
+            success: true,
+            response: 'Read the Finder folder.',
+            steps: ['Read Finder with its AppleScript dictionary'],
+          },
+        });
+      const review = await controller.invoke('assistant.library', {
+        operation: 'review',
+        agentId,
+      });
+      const threadId = review.threadId!;
+      const turnId = controller
+        .snapshot()
+        .timeline.find(
+          (entry) => entry.threadId === threadId && entry.kind === 'user',
+        )!.turnId!;
+      const invoke = vi.fn();
+      const result = await controller.assistantAction(
+        {
+          name: 'memory_vault',
+          descriptor: getActionToolDescriptor('memory_vault')!,
+          context: {
+            sessionId: 'review',
+            threadId,
+            turnId,
+            provider: 'codex',
+            workspace: directory,
+          },
+          arguments: {
+            operation: 'write',
+            name: 'skills/finder-folder.sh',
+            revision: '',
+            text: '#!/bin/bash\n# skill: Finder folder\n# description: Read the current Finder folder\nprintf never-executed\n',
+          },
+        },
+        invoke,
+      );
+      expect(result.summary).toContain('Saved and read back');
+      expect(invoke).not.toHaveBeenCalled();
+      const view = await controller.invoke('assistant.library', { operation: 'list' });
+      expect(view.suggestions).toEqual([]);
+      expect(view.skills).toEqual([
+        expect.objectContaining({
+          agentId,
+          execution: 'native',
+          title: 'Finder folder',
+          source: expect.stringContaining('# description:'),
+        }),
+      ]);
+      expect(library.view().skills).toEqual([]);
+      const skill = view.skills![0]!;
+      await vi.waitFor(() =>
+        expect(
+          controller.snapshot().threads.find((entry) => entry.id === threadId)?.status,
+        ).toBe('idle'),
+      );
+      await controller.invoke('computer.setAccessMode', { mode: 'mac', background: true });
+      await expect(
+        controller.invoke('assistant.library', {
+          operation: 'runSkill',
+          id: skill.id,
+          input: {},
+        }),
+      ).rejects.toThrow('On my screen');
+      await controller.invoke('assistant.library', { operation: 'deleteSkill', id: skill.id });
+      expect(
+        (await controller.invoke('assistant.library', { operation: 'list' })).skills,
+      ).toEqual([]);
+      await controller.invoke('assistant.library', {
+        operation: 'nativeLearning',
+        agentId,
+        enabled: false,
+      });
+      expect(library.view().reviewAgents).toEqual([]);
+    } finally {
+      await controller.shutdown();
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
+
+it('shares native notes with background tasks, isolates agents, and keeps paused learning read-only', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'sia-shared-memory-'));
+  const { controller } = await createHarness({ defaultWorkspaceRoot: directory });
   try {
+    await controller.invoke('computer.setAccessMode', { mode: 'mac', background: true });
     const { agentId } = await controller.invoke('agents.save', {
-      name: 'Native learning',
+      name: 'Shared memory',
       instructions: '',
       model: 'gpt-5.6-sol',
     });
-    await controller.invoke('assistant.library', {
-      operation: 'nativeLearning',
-      agentId,
-      enabled: true,
-    });
-    const library = new AssistantLibrary(repository);
-    for (let i = 0; i < 2; i++)
-      library.recordMacTask({
-        agentId,
-        threadId: randomUUID(),
-        turnId: randomUUID(),
-        request: 'Inspect Finder',
-        outcome: 'complete',
-        result: {
-          success: true,
-          response: 'Read the Finder folder.',
-          steps: ['Read Finder with its AppleScript dictionary'],
-        },
-      });
-    const review = await controller.invoke('assistant.library', {
-      operation: 'review',
-      agentId,
-    });
-    const threadId = review.threadId!;
-    const turnId = controller
+    const workspace = controller
       .snapshot()
-      .timeline.find((entry) => entry.threadId === threadId && entry.kind === 'user')!.turnId!;
-    const invoke = vi.fn();
-    const result = await controller.assistantAction(
-      {
-        name: 'memory_vault',
-        descriptor: getActionToolDescriptor('memory_vault')!,
-        context: {
-          sessionId: 'review',
-          threadId,
-          turnId,
-          provider: 'codex',
-          workspace: directory,
+      .agents.find((agent) => agent.id === agentId)!.workspace;
+    const vault = new NotchVault(workspace, agentId);
+    vault.write('campus.md', 'Institution: CMU. Verify current courses in Canvas.', '');
+    const other = new NotchVault(workspace, randomUUID());
+    other.write('campus.md', 'Different agent.', '');
+    const { threadId } = await controller.invoke('threads.create', { agentId });
+    const { turnId } = await controller.invoke('threads.send', {
+      threadId,
+      text: 'Read my campus note.',
+    });
+    const action = (operation: string, name: string, text = '', revision = '') =>
+      controller.assistantAction(
+        {
+          name: 'memory_vault',
+          descriptor: getActionToolDescriptor('memory_vault')!,
+          context: { sessionId: 'background', threadId, turnId, provider: 'codex', workspace },
+          arguments: { operation, name, text, revision },
         },
-        arguments: {
-          operation: 'write',
-          name: 'skills/finder-folder.sh',
-          revision: '',
-          text: '#!/bin/bash\n# skill: Finder folder\n# description: Read the current Finder folder\nprintf never-executed\n',
-        },
-      },
-      invoke,
+        vi.fn(),
+      );
+    expect((await action('read', 'campus.md')).data).toMatchObject({
+      text: expect.stringContaining('CMU'),
+    });
+    const saved = await action('write', 'calendar.md', 'Use the observed campus calendar.');
+    expect(saved.outcome).toBe('verified');
+    expect(vault.read('calendar.md').text).toContain('campus calendar');
+    expect(other.read('calendar.md').revision).toBe('');
+    await expect(action('write', 'calendar.md', 'Stale replacement')).rejects.toThrow();
+    await expect(action('read', '../campus.md')).rejects.toThrow();
+    await expect(action('write', 'skills/direct.sh', '#!/bin/bash\necho no')).rejects.toThrow(
+      'skill_save',
     );
-    expect(result.summary).toContain('Saved and read back');
-    expect(invoke).not.toHaveBeenCalled();
-    const view = await controller.invoke('assistant.library', { operation: 'list' });
-    expect(view.suggestions).toEqual([]);
-    expect(view.skills).toEqual([
-      expect.objectContaining({
-        agentId,
-        execution: 'native',
-        title: 'Finder folder',
-        source: expect.stringContaining('# description:'),
-      }),
-    ]);
-    expect(library.view().skills).toEqual([]);
-    const skill = view.skills![0]!;
-    await vi.waitFor(() =>
-      expect(controller.snapshot().threads.find((entry) => entry.id === threadId)?.status).toBe(
-        'idle',
-      ),
-    );
-    await controller.invoke('computer.setAccessMode', { mode: 'mac', background: true });
-    await expect(
-      controller.invoke('assistant.library', {
-        operation: 'runSkill',
-        id: skill.id,
-        input: {},
-      }),
-    ).rejects.toThrow('On my screen');
-    await controller.invoke('assistant.library', { operation: 'deleteSkill', id: skill.id });
-    expect(
-      (await controller.invoke('assistant.library', { operation: 'list' })).skills,
-    ).toEqual([]);
     await controller.invoke('assistant.library', {
-      operation: 'nativeLearning',
+      operation: 'learning',
       agentId,
       enabled: false,
     });
-    expect(library.view().reviewAgents).toEqual([]);
+    expect((await action('read', 'campus.md')).outcome).toBe('verified');
+    await expect(action('write', 'paused.md', 'Must not persist.')).rejects.toThrow('paused');
+    expect(vault.read('paused.md').revision).toBe('');
   } finally {
     await controller.shutdown();
     await rm(directory, { recursive: true, force: true });
@@ -5464,7 +5528,7 @@ it('retains background task results and failures across conversations and native
       expect.objectContaining({ outcome: 'complete' }),
     ]);
     expect(turns[0]!.thread.macBackgroundControl).toBe(true);
-    expect(turns[1]!.text).toContain('<failures>');
+    expect(turns[1]!.text).toContain('<failures');
     expect(turns[1]!.text).toContain('foreground access');
     expect(turns[1]!.text).toContain('Observed the target document window');
     expect(turns[1]!.text).not.toContain('Native executable skills live in');

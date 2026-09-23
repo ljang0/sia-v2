@@ -15,6 +15,29 @@ const live =
     ? it
     : it.skip;
 
+// Negating a login claim must not fail the same check as making one. Remove only
+// this narrow negated clause; a separate instruction to sign in still fails.
+function withoutNegatedLoginClaim(text: string): string {
+  return text.replace(
+    /\b(?:no|not) (?:evidence|proof|indication)(?: that)? (?:you )?need to (?:sign[ -]?in|log[ -]?in)\b/gi,
+    '',
+  );
+}
+const loginRequest =
+  /(?:please|must|need(?:s)?(?: you)? to|requires?(?: you)? to|complete(?: the)?)\s+(?:sign[ -]?in|log[ -]?in|authenticat)/i;
+
+it('distinguishes a denied login inference from a real request to sign in', () => {
+  expect(
+    withoutNegatedLoginClaim('This is not evidence that you need to sign in.'),
+  ).not.toMatch(loginRequest);
+  for (const text of [
+    'You need to sign in.',
+    'Please log in.',
+    'No evidence that you need to sign in. Please sign in anyway.',
+  ])
+    expect(withoutNegatedLoginClaim(text)).toMatch(loginRequest);
+});
+
 live(
   'finds a dictated organization through the full account picker instead of guessed account slots',
   async () => {
@@ -321,9 +344,7 @@ live(
       expect(inspected).toBeGreaterThan(0);
       expect(result?.success).toBe(false);
       expect(result?.response).toMatch(/(?:window|observ|identif|ambigu|access)/i);
-      expect(result?.response).not.toMatch(
-        /(?:please|must|need(?:s)?(?: you)? to|requires?(?: you)? to|complete(?: the)?)\s+(?:sign[ -]?in|log[ -]?in|authenticat)/i,
-      );
+      expect(withoutNegatedLoginClaim(result!.response)).not.toMatch(loginRequest);
       expect(result?.response).not.toMatch(
         /(?:you(?:’re| are)|Canvas is)\s+(?:signed|logged) out/i,
       );

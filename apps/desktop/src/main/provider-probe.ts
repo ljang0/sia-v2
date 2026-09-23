@@ -22,6 +22,7 @@ interface ProviderCommand {
   disabled?: boolean;
   minimumVersion?: string;
   maximumExclusiveVersion?: string;
+  additionalVersions?: readonly string[];
   compatibleReleasePinned?: boolean;
 }
 
@@ -35,6 +36,7 @@ const PROVIDERS: Record<ProviderId, ProviderCommand> = {
     detail: 'Official app server; Sia verifies ChatGPT sign-in without importing credentials.',
     minimumVersion: CODEX_SUPPORTED_VERSIONS.minimum,
     maximumExclusiveVersion: CODEX_SUPPORTED_VERSIONS.maximumExclusive,
+    additionalVersions: CODEX_SUPPORTED_VERSIONS.additionalVersions,
   },
   meta: {
     executable: '',
@@ -157,6 +159,9 @@ async function probeProvider(
       definition.minimumVersion &&
       !isVersionSupported(version, {
         minimum: definition.minimumVersion,
+        ...(definition.additionalVersions
+          ? { additionalVersions: definition.additionalVersions }
+          : {}),
         ...(definition.maximumExclusiveVersion
           ? { maximumExclusive: definition.maximumExclusiveVersion }
           : {}),

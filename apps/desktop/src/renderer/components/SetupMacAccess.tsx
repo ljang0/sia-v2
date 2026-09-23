@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import type { RendererApi, RendererSnapshot } from '../types';
 import { dictationReady } from '../voiceReadiness';
 import { MacAutomationPermissions } from './MacAutomationPermissions';
+import { automationApps } from '../../shared/mac-permissions';
 import styles from './Onboarding.module.css';
 
 export function SetupMacAccess({
@@ -14,6 +15,7 @@ export function SetupMacAccess({
   compact = false,
   onComplete,
   onReadyChange,
+  includeApps = false,
 }: {
   snapshot: RendererSnapshot;
   api: RendererApi;
@@ -24,6 +26,7 @@ export function SetupMacAccess({
   compact?: boolean;
   onComplete?(): Promise<void>;
   onReadyChange?(ready: boolean): void;
+  includeApps?: boolean;
 }) {
   const ptt = snapshot.voice.pushToTalk;
   const voiceAvailable = Boolean(ptt?.available) && snapshot.voice.dictationAvailable !== false;
@@ -81,15 +84,22 @@ export function SetupMacAccess({
     ],
   ] as const;
   const available = rows.filter(([, , supported]) => supported);
-  const ready = available.filter(([, allowed]) => allowed).length;
-  const total = available.length;
+  const appStates = includeApps
+    ? automationApps
+        .map(({ id }) => snapshot.computer.automation?.[id] ?? 'needs_permission')
+        .filter((status) => status !== 'unavailable')
+    : [];
+  const ready =
+    available.filter(([, allowed]) => allowed).length +
+    appStates.filter((status) => status === 'ready').length;
+  const total = available.length + appStates.length;
   useEffect(() => {
     onReadyChange?.(ready === total);
   }, [onReadyChange, ready, total]);
   return (
     <MacAutomationPermissions
       permissions={snapshot.computer.automation}
-      includeApps={false}
+      includeApps={includeApps}
       autoStart={autoStart}
       compact={compact}
       {...(onComplete ? { onComplete } : {})}
@@ -102,7 +112,9 @@ export function SetupMacAccess({
           </strong>
           <span>
             {ready === total
-              ? 'Other apps ask for access when a task needs them.'
+              ? includeApps
+                ? 'Common app access is included below. You can finish any missing access later.'
+                : 'Other apps ask for access when a task needs them.'
               : 'You can start now and finish missing access later.'}
           </span>
         </p>

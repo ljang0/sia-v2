@@ -306,25 +306,29 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   terminals before releasing the screen. No model/GUI probes run automatically at launch.
   Final structured results use Notch's response contract and balanced-object parser, translated to
   Sia's timeline, voice response and output-file link. Partial JSON is never streamed into speech.
-  Foreground memory now executes the copied Swift `JournalStore`, `SkillLibrary` and
+  Both Mac control modes execute the copied Swift `JournalStore`, `SkillLibrary` and
   `AgentResponse` through the helper's headless `--notch-engine` mode. The foreground operating
   prompt and PROMOTE/DISTILL/INDEX recipe are generated from pinned Notch source literals, with
   explicit Codex/Sia adapters. See [the source and adaptation map](../apps/desktop/native/notch/README.md).
   The canonical learned vault is `<workspace>/.sia-mac/<agent id>/`: journal, failures, bullet
   lessons, the complete MOC, linked topic notes and executable `skills/*.sh`. Swift supplies the
-  original 1,200-character journal tail and 1,000-character lesson tail. The desktop and phone
+  original 1,200-character journal tail and 1,000-character lesson tail, plus a bounded
+  1,200-character unresolved-failure tail so new conversations can avoid repeating a failed approach. The desktop and phone
   share the sorted script registry and metadata from the first eight nonempty lines. Ordinary
   kebab-name files are bounded to 16 KB and 100 scripts; links are excluded. Saving never executes.
   These native memory/script files are local plaintext, with private permissions. Encrypted
   conversations/manual preferences remain intact; enabled preferences project into read-only
-  `preferences.md`, and existing task history/scripts migrate once. Foreground tasks use the vault
-  as their memory source. Background tasks also record their outcomes into it for continuity,
-  while retaining their separate capability-restricted execution route and prompt.
-  New foreground Mac agents enable Notch-style learning. Existing opt-outs remain unchanged.
+  `preferences.md`, and existing task history/scripts migrate once. Both modes prepare and record
+  requests against the same vault. Background tasks read linked notes through the scoped
+  `memory_vault` tool, and may write notes only while automatic learning is enabled. Native scripts
+  are exposed as read-only workflow references; executable background skills still use the
+  sandboxed `skill_save`/`skill_run` route. No credentials or browser profiles are copied: background
+  window control operates on the same already-signed-in Mac apps.
+  New Mac agents in either mode enable Notch-style learning. Existing opt-outs remain unchanged.
   Native consolidation uses the source recipe on the agent's pinned Codex model after new
   experience, at most every six hours while idle; explicit review/trigger can request it sooner.
   The review has only `memory_vault` list/read/write/append: no native shell, GUI, accounts or
-  network tools. Every call rechecks the current learning preferences, foreground mode and pinned
+  network tools. Every call rechecks the current learning preferences, Mac access mode and pinned
   workspace. Revisions prevent overwriting concurrent edits; read paging and append preserve long
   journals. Scripts are saved, never executed, during review. Disabling learning/reviews cancels it.
   Legacy suggestion review remains available to existing opt-outs; Connected apps retains reviewed

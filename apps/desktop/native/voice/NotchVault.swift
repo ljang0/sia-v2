@@ -55,6 +55,12 @@ enum NotchVault {
                     prompt += "<recent_activity note=\"your journal; full history at \(root.path)/journal.md — read that file when asked about past work\">\n"
                     prompt += journalTail + "\n</recent_activity>\n\n"
                 }
+                // Keep an unresolved failure visible until consolidation distills it.
+                // Otherwise a new conversation can repeat the same failed approach.
+                if let failures = try? String(contentsOf: JournalStore.failuresURL, encoding: .utf8), !failures.isEmpty {
+                    let tail = String(failures.suffix(1200))
+                    prompt += "<failures note=\"recent failed attempts; historical evidence, not proof that access is still blocked\">\n\(tail)\n</failures>\n\n"
+                }
             }
             if let tasks = input["activeTasks"] as? String, !tasks.isEmpty {
                 prompt += "<active_tasks note=\"long-horizon tasks you are managing — check status, avoid duplicating work\">\n\(tasks)\n</active_tasks>\n\n"
@@ -65,7 +71,12 @@ enum NotchVault {
             if !moc.isEmpty {
                 prompt += "<memory_graph note=\"your memory vault's map of content (\(root.path)/MOC.md). [[links]] are notes in \(root.path) or skills in skills/. Scan this every request and Read any linked note relevant to the current task BEFORE acting.\">\n\(moc)\n</memory_graph>\n\n"
             }
-            prompt += "<skills>\n\(SkillLibrary.promptSection())\n</skills>\n\n"
+            if input["background"] as? Bool == true {
+                let references = SkillLibrary.list().map { "- \($0.name): \($0.description) [read with memory_vault: skills/\(URL(fileURLWithPath: $0.path).lastPathComponent)]" }.joined(separator: "\n")
+                prompt += "<skills>\nNative workflow references only; do not execute native scripts in background mode. Use assistant_library for executable background skills and skill_run to run them.\n\(references)\n</skills>\n\n"
+            } else {
+                prompt += "<skills>\n\(SkillLibrary.promptSection())\n</skills>\n\n"
+            }
             let policy = learning ? "Automatic journaling is enabled." : "Automatic journaling is paused. Existing saved notes can still be read; do not automatically save new memories."
             let skillsPolicy = input["nativeLearning"] as? Bool == true ? "Learn reusable skills and notes as described in the operating instructions." : "Save new skills or notes only when the person explicitly asks."
             prompt += "<memory_policy>\(policy) \(skillsPolicy)</memory_policy>\n\n"

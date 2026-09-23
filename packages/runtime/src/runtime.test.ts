@@ -214,6 +214,20 @@ describe('CLI discovery', () => {
   it('parses and compares semantic CLI versions', () => {
     expect(parseCliVersion('codex-cli 0.147.0')).toBe('0.147.0');
     expect(compareVersions('1.10.0', '1.9.9')).toBe(1);
+    const pinned = {
+      minimum: '0.147.0',
+      maximumExclusive: '0.154.0',
+      additionalVersions: ['0.155.0-alpha.9'],
+    };
+    expect(isVersionSupported('0.155.0-alpha.9', pinned)).toBe(true);
+    for (const version of [
+      '0.154.0',
+      '0.155.0-alpha.8',
+      '0.155.0-alpha.10',
+      '0.155.0',
+      '0.156.0',
+    ])
+      expect(isVersionSupported(version, pinned)).toBe(false);
     expect(
       isVersionSupported('0.147.2', { minimum: '0.147.0', maximumExclusive: '0.148.0' }),
     ).toBe(true);

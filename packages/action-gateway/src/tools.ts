@@ -592,7 +592,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   memory_vault: {
     name: 'memory_vault',
     description:
-      'During an authorized native memory consolidation, list/read/write/append this agent’s Notch-style vault. list: empty name/text/revision. read: name, empty text/revision; returns up to 60000 characters, defaulting to the tail for journal/failures. Use offset to read another portion and check truncated/totalCharacters. write: full text and exact revision from read (empty only for a missing file); never replace a file from a partial read. append: add text to journal.md, failures.log or lessons.md using the exact revision. Skills are saved executable but never executed. preferences.md is read-only. No other folders, accounts, apps or network.',
+      'Read this agent’s shared Notch-style vault during a background Mac task or authorized memory consolidation. Write/append require automatic learning; background tasks save executable workflows with skill_save instead. list: empty name/text/revision. read: name, empty text/revision; returns up to 60000 characters, defaulting to the tail for journal/failures. Use offset to read another portion and check truncated/totalCharacters. write: full text and exact revision from read (empty only for a missing file); never replace a file from a partial read. append: add text to journal.md, failures.log or lessons.md using the exact revision. Consolidation can save native skills but never executes them. preferences.md is read-only. No other folders, accounts, apps or network.',
     inputSchema: z.toJSONSchema(memoryVault),
     annotations: { readOnly: false, requiresApproval: false, takesForeground: false },
   },

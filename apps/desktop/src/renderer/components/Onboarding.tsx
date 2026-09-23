@@ -48,6 +48,7 @@ export function Onboarding({
   const [accessReady, setAccessReady] = useState(false);
   const [permissionPassComplete, setPermissionPassComplete] = useState(false);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
+  const [prepareApps, setPrepareApps] = useState(starting);
   const autoFinished = useRef(false);
   const [error, setError] = useState<string>();
   const [setupRoute, setSetupRoute] = useState<'mac-bypass' | 'connected'>(() =>
@@ -162,7 +163,7 @@ export function Onboarding({
         </h1>
         {starting ? (
           <p className={styles.intro}>
-            Set up screen control and voice. Other apps ask for access when you use them.
+            Set up screen control, voice, and access to the apps you already use.
           </p>
         ) : null}
         {starting ? (
@@ -199,6 +200,23 @@ export function Onboarding({
                 {pending ? 'Setting up Sia…' : 'Set up Sia'}
               </button>
             </div>
+            {setupRoute === 'mac-bypass' ? (
+              <label className={styles.setupChoice}>
+                <input
+                  type="checkbox"
+                  checked={prepareApps}
+                  disabled={busy || connecting}
+                  onChange={(event) => setPrepareApps(event.currentTarget.checked)}
+                />
+                <span>
+                  <strong>Prepare everyday apps now</strong>
+                  <span>
+                    Set up browsers, Calendar, Reminders, Finder, and Messages in one pass. Apps
+                    may open for their macOS approval. Skip this to allow access as needed.
+                  </span>
+                </span>
+              </label>
+            ) : null}
             <details className={styles.details}>
               <summary>Customize setup</summary>
               <fieldset className={styles.setupChoices} disabled={busy || connecting}>
@@ -282,6 +300,7 @@ export function Onboarding({
                 onReadyChange={setAccessReady}
                 compact
                 autoStart={startPermissions}
+                includeApps={setupRoute === 'mac-bypass' && prepareApps}
                 onComplete={async () => {
                   setStartPermissions(false);
                   await run(() => api.setOnboarding('verify'));
