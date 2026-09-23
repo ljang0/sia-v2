@@ -64,6 +64,11 @@ export function Onboarding({
   const choices = modelChoices(snapshot.providers);
   const choice =
     choices.find((item) => `${item.provider}:${item.model}` === model) ??
+    (setupRoute === 'mac-bypass'
+      ? choices.find(
+          (item) => item.ready && item.provider === 'codex' && item.model === 'gpt-6-astra',
+        )
+      : undefined) ??
     choices.find((item) => item.ready);
   const restarting = Boolean(snapshot.preferences.onboarding?.restartPending);
   const connecting = snapshot.apps.some((app) => app.status === 'connecting');

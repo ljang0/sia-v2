@@ -486,10 +486,11 @@ reads a real account or runs native commands; it is skipped by normal checks and
 SIA_CODEX_REAL_SMOKE=1 SIA_COURSE_INVESTIGATION_SMOKE=1 pnpm --filter @sia/desktop exec vitest run src/main/course-investigation.smoke.test.ts
 ```
 
-GPT-6 Astra is available in the model picker when the connected Codex account lists it. Sia
+GPT-6 Astra is available in the model picker when the connected Codex account lists it. Use my
+Mac setup selects it by default when available; an explicit model choice takes precedence. Sia
 checks both PATH and the official installed Mac app for a supported Codex version. Existing
-conversations keep their selected model; select Astra when creating an agent or changing its
-model for new conversations. Cmd+E captures the source app before taking focus, so requests
+conversations keep their selected model; change an existing agent's model for new conversations.
+Cmd+E captures the source app before taking focus, so requests
 like “summarize this selection” retain that context. Partial or blocked task results show that
 the task needs attention instead of announcing completion.
 

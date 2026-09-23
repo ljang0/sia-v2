@@ -107,6 +107,45 @@ it.each(['mac-bypass', 'connected'] as const)(
   },
 );
 
+it('prefers an available Astra model for Use my Mac while honoring a model the user picks', async () => {
+  const { snapshot, api, props } = setup();
+  snapshot.providers[0]!.models = [
+    { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol', description: '', reasoningEfforts: ['high'] },
+    { id: 'gpt-6-astra', label: 'GPT-6 Astra', description: '', reasoningEfforts: ['high'] },
+  ];
+  const view = render(
+    <Onboarding {...props}>
+      <div>Conversation</div>
+    </Onboarding>,
+  );
+  const selector = screen.getByRole('combobox', { name: 'AI access' }) as HTMLSelectElement;
+  expect(selector.value).toBe('codex:gpt-6-astra');
+  fireEvent.click(screen.getByRole('button', { name: 'Set up Sia' }));
+  await waitFor(() =>
+    expect(api.createAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'codex', model: 'gpt-6-astra' }),
+    ),
+  );
+
+  view.unmount();
+  const another = setup();
+  another.snapshot.providers[0]!.models = structuredClone(snapshot.providers[0]!.models ?? []);
+  render(
+    <Onboarding {...another.props}>
+      <div>Conversation</div>
+    </Onboarding>,
+  );
+  fireEvent.change(screen.getByRole('combobox', { name: 'AI access' }), {
+    target: { value: 'codex:gpt-5.6-sol' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Set up Sia' }));
+  await waitFor(() =>
+    expect(another.api.createAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'codex', model: 'gpt-5.6-sol' }),
+    ),
+  );
+});
+
 it.each(['voice', 'access', 'apps', 'restart', 'verify', 'practice'] as const)(
   'resumes saved %s setup on one screen without replaying permission requests',
   async (step) => {
