@@ -36,6 +36,54 @@ const renderConversation = (thread: ThreadDetail) => {
 };
 
 describe('Conversation waiting controls', () => {
+  it('shows an explained task failure once and keeps the continue control', () => {
+    const explanation = 'The browser needs a fresh window snapshot.';
+    renderConversation(
+      baseThread({
+        status: 'error',
+        error: explanation,
+        events: [
+          {
+            id: 'failure',
+            type: 'message',
+            role: 'assistant',
+            content: explanation,
+            timestamp: '2026-08-13T00:00:00.000Z',
+          },
+          {
+            id: 'notice',
+            type: 'notice',
+            tone: 'error',
+            title: 'Task needs attention',
+            detail: explanation,
+          },
+        ],
+      }),
+    );
+    expect(screen.getAllByText(explanation)).toHaveLength(1);
+    expect(screen.getByRole('alert').textContent).toContain('Task needs attention');
+    expect(screen.getByRole('button', { name: 'Continue task' })).toBeTruthy();
+  });
+
+  it('preserves a distinct failure reason after an earlier response', () => {
+    renderConversation(
+      baseThread({
+        status: 'error',
+        error: 'Connection lost.',
+        events: [
+          {
+            id: 'earlier',
+            type: 'message',
+            role: 'assistant',
+            content: 'Checking the window.',
+            timestamp: '2026-08-13T00:00:00.000Z',
+          },
+        ],
+      }),
+    );
+    expect(screen.getByRole('alert').textContent).toContain('Connection lost.');
+  });
+
   it('copies a message without changing the transcript', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {

@@ -59,7 +59,7 @@ export function PrivacySettings({
 
   return (
     <SettingsSectionHeader
-      title="Privacy & research"
+      title="Privacy"
       description="Research participation is optional and separate from model or connection permissions."
     >
       <InlineSettingsError message={error} />
@@ -131,36 +131,39 @@ export function PrivacySettings({
         )}
       </section>
 
-      <div className={styles.privacyFacts}>
-        <div>
-          <LockKey size={17} aria-hidden="true" />
+      <details className={styles.settingsDisclosure}>
+        <summary>How research data is handled</summary>
+        <div className={styles.privacyFacts}>
           <div>
-            <strong>Raw research record</strong>
-            <p>
-              Authorized researchers can inspect complete ordered turns, including content from
-              tools and apps used in the task. Provider credentials, Chrome cookies, Keychain
-              contents, and hidden credentials outside Sia's task surface are never collected.
-              Anything the task can observe may be included raw.
-            </p>
+            <LockKey size={17} aria-hidden="true" />
+            <div>
+              <strong>Raw research record</strong>
+              <p>
+                Authorized researchers can inspect complete ordered turns, including content
+                from tools and apps used in the task. Provider credentials, Chrome cookies,
+                Keychain contents, and hidden credentials outside Sia's task surface are never
+                collected. Anything the task can observe may be included raw.
+              </p>
+            </div>
+          </div>
+          <div>
+            <ShieldCheck size={17} aria-hidden="true" />
+            <div>
+              <strong>Your controls</strong>
+              <p>
+                Pause collection, export local records, or delete your research data.{' '}
+                {snapshot.cloudAuth.state === 'signed-in'
+                  ? 'Deletion also requests removal of active cloud research copies. '
+                  : 'While signed out, captures stay encrypted on this Mac. '}
+                {snapshot.cloudAuth.state === 'signed-in'
+                  ? 'Unsynced records stay in an encrypted outbox until AWS acknowledges them. Synced local copies roll off after 90 days or earlier when the local cache reaches its target size. '
+                  : 'Local-only records are never made eligible for a later upload. '}
+                Deletion turns capture off and resets consent.
+              </p>
+            </div>
           </div>
         </div>
-        <div>
-          <ShieldCheck size={17} aria-hidden="true" />
-          <div>
-            <strong>Your controls</strong>
-            <p>
-              Pause collection, export local records, or delete your research data.{' '}
-              {snapshot.cloudAuth.state === 'signed-in'
-                ? 'Deletion also requests removal of active cloud research copies. '
-                : 'While signed out, captures stay encrypted on this Mac. '}
-              {snapshot.cloudAuth.state === 'signed-in'
-                ? 'Unsynced records stay in an encrypted outbox until AWS acknowledges them. Synced local copies roll off after 90 days or earlier when the local cache reaches its target size. '
-                : 'Local-only records are never made eligible for a later upload. '}
-              Deletion turns capture off and resets consent.
-            </p>
-          </div>
-        </div>
-      </div>
+      </details>
 
       {blocked ? (
         <div className={styles.inlineError} role="alert">

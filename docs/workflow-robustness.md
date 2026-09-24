@@ -5,6 +5,159 @@ the three subsequent `origin/romir` commits through `148b452`.
 This is a source and deterministic-test audit of the major user workflows. It is not an
 all-app live acceptance result. The public release remains gated by [public-release.md](./public-release.md).
 
+## Responsiveness and compact UI
+
+The local Codex reference was inspected read-only at
+`/Applications/ChatGPT.app/Contents/Resources/app.asar`: package
+`openai-codex-electron` version `26.915.31945`. Its bundled shared CSS defines a 46px
+toolbar, 14px base text and a 4px spacing unit. This is an implementation reference, not a
+measured speed comparison. No Codex account data or application state was exported.
+The [official App Server lifecycle](https://learn.chatgpt.com/docs/app-server) uses a persistent
+connection and thread with streamed turns. Sia already reuses matching sessions; it does not
+restart a provider for each follow-up.
+
+- **Codex startup:** concurrent callers now wait for the same complete handshake. Failed
+  initialization disposes its peer and the next request starts a fresh one. Session reset remains
+  reusable; a late pre-reset factory cannot install its old connection over the replacement.
+  Linked JSON-RPC peer tests reproduce both original failures and exercise reset recovery.
+- **Streaming:** renderer snapshots still publish at a 50ms cadence; full encrypted state is
+  checkpointed at most every 500ms for text deltas. Completion, actions, non-streaming changes and
+  shutdown persist immediately. In the same deterministic 30-delta / 20ms fixture, full-state
+  writes fell from 13 to 4 while 13 snapshots reached subscribers. SQLite plus an actual
+  AES-GCM test cipher exercises storage; this measures local write work, not model or network
+  latency. An abrupt process/OS failure can lose up to roughly 500ms of unfinished streamed text.
+  Graceful shutdown preserves the partial response and cancels both pending timers.
+- **Task preparation:** initialize the provider before acquiring the GUI lease, and acquire fresh
+  screen context after ownership. A competing-turn regression proves preparation can proceed
+  while another task owns the screen, without permitting an early action. Duplicate memory-vault
+  initialization was removed. The whole action loop remains exclusive; this is not parallel GUI
+  control or a guarantee that an app never activates itself.
+
+| Before                                                                   | After                                                                          | Why                                                                                        |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| 284px sidebar and 76px chat header                                       | 260px sidebar and 58px header                                                  | More room for the task without shrinking the conversation text.                            |
+| 54px top gap, 30px event gaps and 28px composer bottom padding           | 28px, 22px and 16px respectively; smaller composer padding                     | Less chrome and scrolling at the minimum 960×640 window.                                   |
+| Large empty-thread artwork with automatic bottom scrolling               | Compact artwork; an empty conversation starts at the top                       | The welcome and suggested starts remain accessible instead of opening clipped.             |
+| Failure reason repeated in the answer, banner and timeline notice        | Keep the answer, status and Continue control; suppress identical repeated text | Preserve the reason and recovery action with less clutter. Distinct errors remain visible. |
+| Smooth scrolling on every keyboard find match                            | Immediate keyboard search navigation                                           | Repeated find commands do not queue animations.                                            |
+| Oversized Settings header/navigation/content padding                     | Reduced shell and content spacing                                              | Expose more settings while retaining category labels and row control spacing.              |
+| Scotty’s oversized welcome artwork placed its main action below the fold | Compact preview and copy, followed immediately by the main action              | The primary button is visible at 960×640, with size and animation controls directly below. |
+| Four always-visible icons for Goal, Changes, Command and Schedules       | One labelled Tools menu with the same actions                                  | Keep occasional utilities out of the everyday chat path.                                   |
+| Send feedback occupies a permanent sidebar row                           | Feedback lives in Settings → About and the existing quick switcher             | Keep help reachable without a competing primary navigation item.                           |
+
+The refreshed visual baselines cover light/dark conversation, Settings, connections, quick switcher,
+agent dialog and Activity. The minimum-window check asserts usable conversation height, visible
+composer and an unclipped empty state. Screenshots wait for idle rather than the transient completion
+animation. The Tools menu uses labelled, keyboard-accessible items and returns focus to its trigger
+when a utility closes. Chat, attachments, voice and Stop remain direct controls. No additional
+product feature, permission or service was introduced. Full verification status is recorded below.
+
+The deterministic Electron harness disables background animation throttling only in fake-service
+fixtures and bounds page-close cleanup before terminating its own test process. Real app probes
+retain production window behavior. The launcher-result screenshot stalled again after its functional
+assertions passed. The launcher hides on blur; its result artifacts now use Electron's native
+`capturePage` with `stayHidden`, which supports hidden windows, and reject empty images. The complete
+launcher fixture passed afterward (3.0s), and both light/dark artifacts were visually inspected.
+The production launcher and its blur behavior are unchanged. The earlier timeout is retained as a
+failed gate; its exact window visibility at the timeout was not recorded.
+
+The real profile was visibly checked: Codex plan connected; Use my Mac with Work in background,
+Allow brief foreground control and Bypass action approvals enabled; Accessibility and Screen
+Recording allowed. Sia opened after the earlier Keychain handoff. The initial two real, manually
+submitted Codex turns exercised only public Example Domain/IANA pages:
+
+| Test                                                       | Observed result                                                                                                                                                                                           | Timing from accepted user message                                                   |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Open example.com, inspect it and click Learn more          | Exact-window read returned Example Domain; background accessibility click reached Example Domains at `https://www.iana.org/help/example-domains`. Independently confirmed through the browser UI.         | 40.6s to completion; first browser inventory at 6.9s, first page snapshot at 13.8s. |
+| Reuse the IANA tab and click IANA-managed Reserved Domains | Background click was delivered. Sia's next read refused the window as protected. Independent browser observation subsequently confirmed the correct reserved-domains page. This turn failed verification. | First assistant response at 7.7s; failed turn finished at 40.5s.                    |
+
+Both turns used background action delivery. Chrome became active during the first open and was
+already active during the follow-up. Neither is proof of uninterrupted background use while the
+person works in another app. Chrome/Slack across Spaces, minimized/fullscreen windows and
+cold/warm speed comparisons remain unverified. No real messages were sent or app permissions changed.
+Exact diagnostic evidence: local trajectory `be1e1505-dcea-4a52-a5ec-95a948e1c5fc`, September 24,
+21:00:53–21:06:14 UTC. This is a live development-build check, not signed-release acceptance.
+
+The refusal investigation found a reproducible matcher defect: `sign.?in` matched the start of
+“Signing,” and `log.?in` matched part of “Blogging.” The public
+[IANA page](https://www.iana.org/domains/reserved) has “Root Key Signing Key (DNSSEC)” and
+“Key Signing Ceremonies” links. Replaying those labels through the actual action backend reproduced
+`protected_window`; word boundaries now permit them, while tests retain sign-in, login, signing-in
+progress and secure-field protection. The recorded refusal does not include its matched label, so
+this is a source-confirmed explanation consistent with the observed page, rather than a captured
+native reason. After the user reported Keychain approval, Sia was confirmed open and three more
+public-page turns ran on the corrected build:
+
+- At 21:38:50 UTC, IANA reserved domains was read successfully, including a fresh exact page URL
+  and the “Root Key Signing Key (DNSSEC)” text. The previous false protection block did not recur.
+  The real UI showed Getting ready complete while the turn was still running. Chrome was inactive
+  before opening, briefly active afterward, and inactive at the end. CUA returned `ax_unresolved`
+  with all three background input routes refused; no click was sent. This failed turn took 50.7s.
+- At 21:43:07 UTC, a follow-up targeting the existing page stopped with an expected-URL mismatch;
+  the test window no longer showed IANA. It did not read the replacement page or click elsewhere.
+  This demonstrates stale-target rejection, not successful foreground recovery.
+- At 21:44:44 UTC, a continuous open/read/click attempt opened the public page but its first exact
+  read failed with `session_ended`; no click was sent. The reusable provider conversation had also
+  been used as the CUA session label. A terminal driver session then poisoned later requests.
+
+The installed CUA 0.21.0 source was inspected at commit
+`70db98d1bcd92890d778f4978e0eb107a4b66c1b`:
+[`ax/exact_target.rs`](https://github.com/trycua/cua/blob/70db98d1bcd92890d778f4978e0eb107a4b66c1b/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs)
+requires the exact native id in fresh `AXWindows` membership. Its `get_window_state` deliberately
+returns observation-only state when that identity is unresolved, because input could reach another
+window owned by the same process. Sia's supplemental native reader resolving the page does not
+establish a safe CUA input route. No driver guard was bypassed or dependency replaced.
+
+Native computer sessions are now scoped to each active turn with a fresh opaque label, while Codex
+conversation reuse and explicitly attached browser sessions retain their own lifetimes. New turns
+revoke old refs before resolving targets; cancelled old callers cannot revoke current refs. The
+regression simulates the prior session ending, proves fresh read/click success on the next turn,
+and verifies old refs cannot post input. After the full gate passed, the idle app was quit and
+reopened into the rebuilt source. A one-second process sample initially confirmed the main process
+waiting in `SecItemCopyMatching` / `SecKeychainItemCopyContent`
+(`/private/tmp/sia-session-startup.sample`). On the next continuation, Sia was confirmed open;
+that Keychain handoff is no longer pending.
+
+Two additional turns ran on the rebuilt app at 22:24:19 and 22:26:30 UTC. The first opened IANA,
+but both exact-URL checks rejected the subsequently changed page and withheld its content; no
+click was sent (32.3s). The second found no IANA-titled native window and stopped before reading
+content (9.7s). An independently prepared public tab remained readable through the browser tool.
+The operator then confirmed using Chrome during the test. These runs therefore do not isolate
+window-matching behavior, nor do they exercise the corrected native capture session successfully.
+After the operator confirmed readiness, a steady-window repeat at 23:11:43 UTC found the
+IANA window after opening, but exact-page inspection returned `protected_window` (27.6s). No click
+was sent. The recorded result contains no matched protection label, so the cause remains unresolved.
+True background clicking in this case and brief foreground recovery remain unproven. Do not infer a native driver regression or a
+successful session recovery from these two interrupted tests.
+
+The same live run exposed a misleading progress label: `runtime.start` stayed running for the whole
+turn, so the header fell back to “Getting ready” between browser actions. It now completes when the
+provider first begins visible work; the tool activity remains running until its own result. A gated
+runtime regression proves these two lifetimes separately. No new UI controls were added.
+
+## Consumer UI cleanup
+
+A second pass removes visual clutter from the ordinary chat and settings path:
+
+| Before                                                                          | After                                                                                                                                                       |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent-colored header text and red failed-step text read like a persistent error | Neutral chat headers, activity labels, notices and composer errors; failure icons, explanatory text and Continue controls remain explicit                   |
+| Nine regular Settings categories, plus administrator pages                      | Six primary categories: AI, Connections, Computer, Voice, Privacy and About; More contains Assistant, Scotty, Phone remote and eligible administrator pages |
+| Chrome attachment and website launch controls repeated in Computer              | Connections is the single settings route for browser attachment; Computer links to it                                                                       |
+| Repeated implementation and access-mode explanations                            | Short descriptions alongside the controls they explain; permission status and setup stay visible                                                            |
+| Full local-log controls compete with everyday settings                          | Diagnostics disclosure, with the current local-log state visible in its summary                                                                             |
+| Voice setup and unavailable Fn controls remain prominent                        | Connected voice omits the setup button; unavailable Fn controls are absent unless already enabled; refresh/disconnect live under Manage voices              |
+| Long research policy text occupies the Privacy page                             | Research status and consent controls stay direct; the full explanation is available in a disclosure                                                         |
+
+Phone remote is explicitly labelled a preview on its page. This pass changes presentation and
+navigation, not users' permissions, stored feature choices, research consent or automatic approvals.
+Optional feature backends and existing saved data are retained. The assistant library remains
+available under More; removing or graduating those capabilities is a separate product decision.
+The existing recovery fixture now checks neutral failure text and distinct error icons in both
+color schemes, while retaining its no-replay and stale-request checks. Keyboard menu navigation,
+small-window layouts, zoom, onboarding, memory workflows and admin access are exercised through
+the real renderer with deterministic services. Updated final gate results are recorded below.
+
 ## Defects corrected in this pass
 
 | Priority | Failure                                                                                                                                         | Correction and regression evidence                                                                                                                                                                                                                                            |
@@ -122,6 +275,67 @@ do not establish transport secrecy or real Wi-Fi reliability.
 | Updates and public download                   | Signed manifest, release identity and public artifact staging guards                                                                  | Notarized recipient install/upgrade, published digest and download verification                  |
 
 ## Verification record
+
+- Consumer UI cleanup: the complete `pnpm test:pilot` passed, including build, formatting,
+  quality, type checks, **720 desktop tests (6 explicit skips), 52 runtime tests (6 explicit
+  skips), 135 cloud tests**, other package/native gates, and **46 UI tests (4 explicit live
+  skips)**. Log: `/private/tmp/sia-consumer-ui-pilot.log`. Earlier focused runs exposed a
+  persisted-fixture status mismatch and a color assertion during a theme transition; the fixture
+  now uses the actual failed-state schema and waits for the final color. Both themes retain
+  explicit failure icons and recovery actions. Recovery, Computer, Voice, Assistant and Privacy
+  screenshots were visually inspected. The idle real app was refreshed through View → Reload;
+  the six primary Settings categories and More menu are present, ElevenLabs reports ready, and
+  the enabled Fn controls remain visible. This was a read-only voice UI check, not a microphone
+  or provider round trip. No permissions, voice preferences or account state were changed.
+
+- Computer-session lifecycle: the new later-turn regression failed on the prior implementation,
+  then the action-backend and CUA-service suites passed together (141 tests), including stale refs,
+  no replay, and a late cancellation. Logs: `/private/tmp/sia-computer-session-before.log` and
+  `/private/tmp/sia-computer-session-after.log`. The complete `pnpm test:pilot` passed: build,
+  formatting, quality, type checks, **720 desktop tests (6 explicit skips), 52 runtime tests
+  (6 explicit skips), 135 cloud tests**, other package/native gates, and **46 UI tests
+  (4 explicit live skips)**. Log: `/private/tmp/sia-computer-session-pilot.log`. The new source
+  is built locally; no signed candidate was replaced or published.
+
+- Browser refusal and progress corrections: the regressions failed before the fixes. The full
+  controller suite then passed (121 tests), and the full action-backend suite passed (120 tests,
+  including 13 public-text/authentication cases). Logs: `/private/tmp/sia-progress-before.log`,
+  `/private/tmp/sia-progress-after.log`, `/private/tmp/sia-signing-before.log`, and
+  `/private/tmp/sia-signing-after.log`. The first complete pilot run passed all source gates
+  (719 desktop tests, 6 explicit skips) and 45 UI tests, with 4 explicit live skips, but failed at the
+  launcher-result screenshot. Log: `/private/tmp/sia-browser-progress-pilot.log`. The launcher capture
+  correction passed its complete fixture (`/private/tmp/sia-launcher-native-capture.log`). The final
+  complete `pnpm test:pilot` rerun passed: build, formatting, quality, type checks, **719 desktop tests
+  (6 explicit skips), 52 runtime tests (6 explicit skips), 135 cloud tests**, other package/native
+  gates, and **46 UI tests (4 explicit live skips)**. Log:
+  `/private/tmp/sia-browser-progress-pilot-final.log`. The fixed source is built in `apps/desktop/out`;
+  the signed public candidate still predates these changes. No deployment or release was made.
+
+- Simplified navigation: the complete `pnpm test:pilot` passed before the latest browser/progress corrections, including
+  build, formatting, quality, type checks, 705 desktop tests (6 explicit skips), 52 runtime tests
+  (6 explicit skips), the cloud/native/package gates, and **46 UI tests (4 explicit live skips)**.
+  The menu is exercised through actual clicks and keyboard navigation at 960×640, including focus
+  return after closing each utility. Feedback opens from About; the sidebar no longer exposes it.
+  Git changes, command execution, background terminals, goals and schedules remain covered through
+  the Tools menu. Current light/dark conversation, Settings and Activity screenshots were inspected.
+  Log: `/private/tmp/sia-simplify-pilot-final.log`. Earlier attempts exposed a test menu-name mismatch
+  and an obsolete CSS assertion requiring icon-only toolbar labels; those tests were corrected,
+  while the real viewport and keyboard assertions were retained. That deterministic run made no real
+  provider turn or permission change; the subsequent real browser tests are recorded above.
+
+- Responsiveness/compactness source: the final `pnpm check` portion passed, including build,
+  formatting, quality guard, type checks, 705 desktop unit/component tests (6 explicit skips),
+  52 runtime tests (6 explicit skips), the cloud, action-gateway, tool-bridge and native gates.
+  That `pnpm test:pilot` invocation finished with 45 UI tests passed, 4 explicit real-service skips,
+  and a launcher-result screenshot timeout. The isolated launcher rerun passed, followed by a
+  complete UI rerun on the same product source: **46 passed, 4 explicit real-service skips**.
+  Thus the final source checks and complete deterministic UI gate passed across those runs;
+  the earlier timeout was not reclassified. Logs: `/private/tmp/sia-speed-pilot-verified.log`,
+  `/private/tmp/sia-launcher-diagnostic.log`, and `/private/tmp/sia-speed-ui-final.log`.
+  The new screenshots were inspected across the minimum-window Settings pages, conversation,
+  Activity, switcher and agent dialog; Scotty’s primary action and the empty-thread heading are
+  visible. Live acceptance remains incomplete for the reasons recorded above. These changes are
+  built in `apps/desktop/out`; the previously signed candidate below predates this responsiveness pass.
 
 - Merged Romir changes through `148b452` with the robustness checkpoint `1fa1528`.
   The combined `pnpm test:pilot` passed: 702 desktop unit/component tests (6 explicit skips),

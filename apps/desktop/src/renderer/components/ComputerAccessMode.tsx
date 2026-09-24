@@ -24,10 +24,7 @@ export function ComputerAccessMode({
       <div className={modeStyles.row}>
         <div>
           <strong>How Sia uses your apps</strong>
-          <p>
-            Use your signed-in browser and Mac apps directly, or choose individual connections.
-            Action confirmations are a separate setting.
-          </p>
+          <p>Use your Mac apps directly, or limit tasks to connected services.</p>
         </div>
         <select
           className={modeStyles.select}
@@ -54,9 +51,7 @@ export function ComputerAccessMode({
                 />
                 <span>
                   <strong>On my screen</strong>
-                  <span>
-                    Full native control, including saved scripts. Apps may come forward.
-                  </span>
+                  <span>Full app and file control. Apps may come forward.</span>
                 </span>
               </label>
               <label className={modeStyles.choice}>
@@ -68,18 +63,11 @@ export function ComputerAccessMode({
                 />
                 <span>
                   <strong>Work in background</strong>
-                  <span>
-                    Experimental window controls while you keep working. No Chrome connection.
-                  </span>
+                  <span>Keep working while Sia controls a supported window.</span>
                 </span>
               </label>
             </div>
           </fieldset>
-          <p className={styles.settingsNote}>
-            Applies to your next typed or Fn request. Both modes use this agent's saved memory
-            and task history. Background skills can reuse window actions and create workspace
-            reports without taking focus. Native scripts require On my screen.
-          </p>
           {computer.backgroundControl ? (
             <div className={modeStyles.row}>
               <label htmlFor={`${controlId}-fallback`}>When a step needs the screen</label>
@@ -98,18 +86,14 @@ export function ComputerAccessMode({
               </select>
             </div>
           ) : null}
-          <p className={styles.settingsNote}>
-            Sia requests background input and opening. Apps may still raise their own windows.
-            Some controls cannot work without foreground access.
-          </p>
         </div>
       ) : null}
       <p className={styles.settingsNote}>
         {computer.accessMode === 'mac'
           ? computer.backgroundControl
-            ? 'Sia uses your existing apps, saved lessons and background skills. It can create text, CSV and JSON reports in the task workspace. Some app controls still need brief foreground access. Complete sign-ins and macOS permission prompts yourself.'
-            : 'Sia uses native commands, AppleScript, files and screen images, like Notch. It uses the ordinary app interface and may bring apps forward. No Chrome connection is required. Full bypass runs commands without a workspace sandbox or per-action prompts. Allow Accessibility, Screen Recording and app Automation; complete sign-ins yourself.'
-          : 'Connect Chrome or individual services for structured access. Choose Use my Mac to work through existing browser windows without attaching Chrome.'}
+            ? 'Background control is experimental. Apps may still come forward; saved native scripts need On my screen. Changes apply to your next task.'
+            : 'Sia can control apps and files. With bypass enabled, native commands have full Mac access. Changes apply to your next task.'
+          : 'Connect a browser or service in Connections. Mac app control requires Use my Mac.'}
       </p>
     </div>
   );

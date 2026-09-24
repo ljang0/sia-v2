@@ -54,7 +54,7 @@ test('existing browser-blocked conversations offer inline recovery without openi
         kind: 'activity',
         title: 'Finding browser tabs',
         toolName: 'browser_tabs',
-        status: 'complete',
+        status: 'failed',
       });
       state.timeline.push({
         id: randomUUID(),
@@ -66,6 +66,21 @@ test('existing browser-blocked conversations offer inline recovery without openi
         text: 'Chrome needs to be connected to continue.',
         status: 'complete',
       });
+      const interrupted = state.threads.find(
+        (thread: { id: string }) => thread.id === threadId,
+      );
+      interrupted.status = 'failed';
+      state.timeline.push({
+        id: randomUUID(),
+        threadId,
+        turnId: user.turnId,
+        sequence: sequence + 3,
+        timestamp: new Date().toISOString(),
+        kind: 'error',
+        title: 'Task needs attention',
+        text: 'Connect Chrome before continuing.',
+        status: 'failed',
+      });
       database
         .prepare("UPDATE records SET payload = ? WHERE scope = 'desktop' AND id = 'state'")
         .run(Buffer.from(JSON.stringify(state)));
@@ -74,6 +89,34 @@ test('existing browser-blocked conversations offer inline recovery without openi
     }
     sia = await launchIsolatedSia({ testRoot });
     const recovery = sia.page.getByRole('region', { name: 'Continue with Chrome' });
+    const failure = sia.page.getByTestId('interrupted-turn-banner');
+    await expect(failure.getByRole('button', { name: 'Continue task' })).toBeVisible();
+    for (const colorScheme of ['light', 'dark'] as const) {
+      await sia.page.emulateMedia({ colorScheme });
+      const colors = await failure.evaluate((element) => {
+        const root = getComputedStyle(document.documentElement);
+        const rgb = (name: string) => {
+          const hex = root.getPropertyValue(name).trim().slice(1);
+          return `rgb(${[0, 2, 4].map((start) => parseInt(hex.slice(start, start + 2), 16)).join(', ')})`;
+        };
+        return {
+          text: getComputedStyle(element.querySelector('span')!).color,
+          icon: getComputedStyle(element.querySelector('svg')!).color,
+          neutral: rgb('--text-secondary'),
+          danger: rgb('--text-danger'),
+        };
+      });
+      expect(colors.text).toBe(colors.neutral);
+      expect(colors.icon).toBe(colors.danger);
+      const activity = sia.page.getByRole('button', {
+        name: /Finding browser tabs Status: error/,
+      });
+      await expect
+        .poll(() => activity.evaluate((element) => getComputedStyle(element).color))
+        .toBe(colors.neutral);
+    }
+    await sia.page.emulateMedia({ colorScheme: 'light' });
+
     await expect(
       recovery.getByRole('button', { name: 'Connect Chrome & continue' }),
     ).toBeVisible();
@@ -137,7 +180,7 @@ test('Use my Mac is a persistent access choice independent of action confirmatio
         .evaluate((element) => element.getBoundingClientRect().height),
     ).toBeLessThan(220);
     await expect(
-      sia.page.getByText('Authenticated Chrome (optional)', { exact: true }),
+      sia.page.getByRole('button', { name: 'Connections', exact: true }).last(),
     ).toBeVisible();
     const state = await sia.page.evaluate(() => window.sia.bootstrap());
     expect(state.computer.accessMode).toBe('mac');

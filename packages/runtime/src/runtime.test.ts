@@ -327,6 +327,127 @@ describe('Codex app-server adapter', () => {
     expect(args.at(-1)).toBe('--strict-config');
   });
 
+  it('holds concurrent account requests until the Codex handshake completes', async () => {
+    const peers = linkedPeers();
+    const methods: string[] = [];
+    let finishInitialize!: () => void;
+    const initialized = new Promise<void>((resolve) => {
+      finishInitialize = resolve;
+    });
+    peers.server.onNotification((method) => {
+      methods.push(method);
+    });
+    peers.server.onRequest(async (method) => {
+      methods.push(method);
+      if (method === 'initialize') {
+        await initialized;
+        return {};
+      }
+      if (method === 'account/read') return { account: null };
+      throw new Error(`unexpected ${method}`);
+    });
+    const dispose = vi.fn(async () => {
+      await peers.client.close();
+      await peers.server.close();
+    });
+    const factory = vi.fn(async () => ({ peer: peers.client, dispose }));
+    const adapter = new CodexAppServerAdapter({ peerFactory: factory });
+    const first = adapter.account();
+    await vi.waitFor(() => expect(methods).toEqual(['initialize']));
+    const second = adapter.account();
+    await new Promise((resolve) => setImmediate(resolve));
+    const beforeHandshake = [...methods];
+    finishInitialize();
+    try {
+      await Promise.all([first, second]);
+      expect(beforeHandshake).toEqual(['initialize']);
+      expect(methods).toEqual(['initialize', 'initialized', 'account/read', 'account/read']);
+      expect(factory).toHaveBeenCalledTimes(1);
+    } finally {
+      await adapter.dispose();
+    }
+    expect(dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('disposes a failed Codex handshake and retries with a fresh peer', async () => {
+    const failed = linkedPeers();
+    const fresh = linkedPeers();
+    failed.server.onRequest(async () => {
+      throw new Error('handshake failed');
+    });
+    const methods: string[] = [];
+    fresh.server.onRequest(async (method) => {
+      methods.push(method);
+      return method === 'account/read' ? { account: null } : {};
+    });
+    const disposeFailed = vi.fn(async () => {
+      await failed.client.close();
+      await failed.server.close();
+    });
+    const factory = vi
+      .fn()
+      .mockResolvedValueOnce({ peer: failed.client, dispose: disposeFailed })
+      .mockResolvedValueOnce({
+        peer: fresh.client,
+        dispose: async () => {
+          await fresh.client.close();
+          await fresh.server.close();
+        },
+      });
+    const adapter = new CodexAppServerAdapter({ peerFactory: factory });
+    try {
+      await expect(adapter.account()).rejects.toThrow('handshake failed');
+      expect(disposeFailed).toHaveBeenCalledTimes(1);
+      await expect(adapter.account()).resolves.toMatchObject({ state: 'unauthenticated' });
+      expect(methods).toEqual(['initialize', 'account/read']);
+      expect(factory).toHaveBeenCalledTimes(2);
+    } finally {
+      await adapter.dispose();
+    }
+  });
+
+  it('keeps reset reusable and retires a late pre-reset peer without replacing the new connection', async () => {
+    const old = linkedPeers();
+    const fresh = linkedPeers();
+    let releaseOld!: (value: { peer: JsonRpcPeer; dispose(): Promise<void> }) => void;
+    const pending = new Promise<{ peer: JsonRpcPeer; dispose(): Promise<void> }>((resolve) => {
+      releaseOld = resolve;
+    });
+    const oldDispose = vi.fn(async () => {
+      await old.client.close();
+      await old.server.close();
+    });
+    const freshDispose = vi.fn(async () => {
+      await fresh.client.close();
+      await fresh.server.close();
+    });
+    const methods: string[] = [];
+    fresh.server.onRequest(async (method) => {
+      methods.push(method);
+      return method === 'account/read' ? { account: null } : {};
+    });
+    const factory = vi
+      .fn()
+      .mockReturnValueOnce(pending)
+      .mockResolvedValueOnce({ peer: fresh.client, dispose: freshDispose });
+    const adapter = new CodexAppServerAdapter({ peerFactory: factory });
+    const first = adapter.account();
+    const firstRejected = expect(first).rejects.toThrow('reset during initialization');
+    await adapter.dispose();
+    try {
+      await expect(adapter.account()).resolves.toMatchObject({ state: 'unauthenticated' });
+      releaseOld({ peer: old.client, dispose: oldDispose });
+      await firstRejected;
+      await adapter.account();
+      expect(oldDispose).toHaveBeenCalledTimes(1);
+      expect(factory).toHaveBeenCalledTimes(2);
+      expect(methods).toEqual(['initialize', 'account/read', 'account/read']);
+    } finally {
+      await adapter.dispose();
+    }
+    expect(freshDispose).toHaveBeenCalledTimes(1);
+  });
+
   it('runs an included model through a scoped Responses provider without Codex-plan login', async () => {
     const peers = linkedPeers();
     let threadStartParams: unknown;

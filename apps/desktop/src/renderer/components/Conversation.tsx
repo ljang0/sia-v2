@@ -22,6 +22,7 @@ import type {
   ApprovalDecision,
   AttachmentPreview,
   RendererAttachment,
+  MessageEvent,
   ThreadDetail,
   ThreadEvent,
 } from '../types';
@@ -150,6 +151,12 @@ export function Conversation({
   }>();
   const eventRefs = useRef(new Map<string, HTMLDivElement>());
 
+  const lastAssistant = thread?.events.findLast(
+    (event) => event.type === 'message' && event.role === 'assistant',
+  );
+  const errorAlreadyExplained =
+    lastAssistant?.type === 'message' && lastAssistant.content.trim() === thread?.error?.trim();
+
   const findNeedle = findQuery.trim().toLocaleLowerCase();
   const matchingEventIds = findNeedle
     ? (thread?.events ?? [])
@@ -165,7 +172,7 @@ export function Conversation({
     if (!findOpen || !findQuery || matchingEventIds.length === 0) return;
     eventRefs.current.get(matchingEventIds[findIndex]!)?.scrollIntoView({
       block: 'center',
-      behavior: 'smooth',
+      behavior: 'instant',
     });
   }, [findIndex, findOpen, findQuery, matchingEventIds.join(':')]);
 
@@ -293,6 +300,14 @@ export function Conversation({
 
     const switchedThreads = previousThreadIdRef.current !== thread.id;
     previousThreadIdRef.current = thread.id;
+    if (thread.events.length === 0) {
+      if (switchedThreads) {
+        pinnedToLatestRef.current = true;
+        setShowJumpToLatest(false);
+        scroller.scrollTo?.({ top: 0, behavior: 'instant' });
+      }
+      return;
+    }
     if (switchedThreads) {
       pinnedToLatestRef.current = true;
       setShowJumpToLatest(false);
@@ -495,7 +510,7 @@ export function Conversation({
               <WarningCircle size={18} aria-hidden="true" />
               <div>
                 <strong>Task needs attention</strong>
-                <span>{thread.error}</span>
+                {!errorAlreadyExplained ? <span>{thread.error}</span> : null}
               </div>
               <button
                 type="button"
@@ -511,7 +526,7 @@ export function Conversation({
 
           {thread.events.length === 0 ? (
             <div className={styles.threadEmpty} data-companion-thread-empty>
-              <AgentForm identity={agentHue} size="large" />
+              <AgentForm identity={agentHue} size="medium" />
               <span className={styles.emptyStateKicker}>Ready when you are</span>
               <h2>What would you like to do?</h2>
               <p>Describe the outcome, attach any useful files, or choose a suggested start.</p>
@@ -533,7 +548,7 @@ export function Conversation({
             </div>
           ) : (
             <div className={styles.eventList}>
-              {thread.events.map((event) => (
+              {thread.events.map((event, index) => (
                 <div
                   key={event.id}
                   ref={(node) => {
@@ -549,6 +564,14 @@ export function Conversation({
                 >
                   <EventView
                     event={event}
+                    noticeExplained={
+                      event.type === 'notice' &&
+                      event.tone === 'error' &&
+                      thread.events[index - 1]?.type === 'message' &&
+                      (thread.events[index - 1] as MessageEvent).role === 'assistant' &&
+                      (thread.events[index - 1] as MessageEvent).content.trim() ===
+                        event.detail.trim()
+                    }
                     agentHue={agentHue}
                     busyApprovalId={busyApprovalId}
                     speechPhase={speech.eventId === event.id ? speech.phase : 'idle'}
@@ -715,6 +738,7 @@ function scrollToLatest(scroller: HTMLDivElement, behavior: ScrollBehavior) {
 }
 
 interface EventViewProps {
+  noticeExplained?: boolean;
   event: ThreadEvent;
   agentHue?: number | undefined;
   busyApprovalId?: string | undefined;
@@ -729,6 +753,7 @@ interface EventViewProps {
 
 function EventView({
   event,
+  noticeExplained,
   agentHue,
   busyApprovalId,
   speechPhase,
@@ -755,7 +780,7 @@ function EventView({
         <WarningCircle size={17} aria-hidden="true" />
         <div>
           <strong>{event.title}</strong>
-          <p>{event.detail}</p>
+          {!noticeExplained ? <p>{event.detail}</p> : null}
         </div>
       </div>
     );

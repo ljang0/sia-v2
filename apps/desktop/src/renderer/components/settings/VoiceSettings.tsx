@@ -61,7 +61,7 @@ export function VoiceSettings({
       }
     >
       <InlineSettingsError message={error} />
-      {onStartSetup ? (
+      {onStartSetup && voice.status !== 'connected' ? (
         <button className={styles.secondaryButton} onClick={onStartSetup}>
           Walk me through setup
         </button>
@@ -99,25 +99,28 @@ export function VoiceSettings({
             </select>
           </label>
 
-          <div className={styles.voiceActions}>
-            <button
-              type="button"
-              className={styles.secondaryButton}
-              disabled={Boolean(pending)}
-              onClick={() => void run('refresh', onRefresh)}
-            >
-              <ArrowClockwise size={14} aria-hidden="true" />
-              {pending === 'refresh' ? 'Refreshing…' : 'Refresh voices'}
-            </button>
-            <button
-              type="button"
-              className={styles.textButtonDanger}
-              disabled={Boolean(pending)}
-              onClick={() => void run('disconnect', onDisconnect)}
-            >
-              {pending === 'disconnect' ? 'Turning off…' : 'Turn off'}
-            </button>
-          </div>
+          <details className={styles.settingsDisclosure}>
+            <summary>Manage voices</summary>
+            <div className={styles.voiceActions}>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                disabled={Boolean(pending)}
+                onClick={() => void run('refresh', onRefresh)}
+              >
+                <ArrowClockwise size={14} aria-hidden="true" />
+                {pending === 'refresh' ? 'Refreshing…' : 'Refresh voices'}
+              </button>
+              <button
+                type="button"
+                className={styles.textButtonDanger}
+                disabled={Boolean(pending)}
+                onClick={() => void run('disconnect', onDisconnect)}
+              >
+                {pending === 'disconnect' ? 'Turning off…' : 'Turn off'}
+              </button>
+            </div>
+          </details>
         </div>
       ) : (
         <div className={styles.voiceSetup}>
@@ -147,7 +150,7 @@ export function VoiceSettings({
           </div>
         </div>
       )}
-      {pushToTalk && onConfigurePushToTalk ? (
+      {pushToTalk && (pushToTalk.available || pushToTalk.enabled) && onConfigurePushToTalk ? (
         <div className={styles.voiceShortcut}>
           <div className={styles.voiceSetupBody}>
             {voice.dictationDetail ? (

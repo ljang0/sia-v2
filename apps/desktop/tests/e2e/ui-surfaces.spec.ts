@@ -9,6 +9,20 @@ async function capture(page: Page, info: TestInfo, name: string) {
   expect(await page.evaluate(() => document.body.scrollWidth <= innerWidth)).toBe(true);
 }
 
+async function openSettingsSection(page: Page, label: string) {
+  const nav = page.getByRole('navigation', { name: 'Settings sections' });
+  if (
+    ['Assistant', 'Scotty', 'Phone remote', 'Release review', 'Research archive'].includes(
+      label,
+    )
+  ) {
+    await nav.getByRole('button', { name: 'More settings' }).click();
+    await page.getByRole('menuitem', { name: label, exact: true }).click();
+  } else {
+    await nav.getByRole('button', { name: label, exact: true }).click();
+  }
+}
+
 async function expectSettingsFit(page: Page) {
   const nav = page.getByRole('navigation', { name: 'Settings sections' });
   for (const button of await nav.getByRole('button').all()) {
@@ -51,13 +65,24 @@ test('settings and personal-library surfaces remain readable at supported window
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     await capture(page, info, 'workspace-empty');
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    const more = page.getByRole('button', { name: 'More settings' });
+    await expect(page.getByRole('button', { name: 'Phone remote', exact: true })).toHaveCount(
+      0,
+    );
+    await more.focus();
+    await more.press('Enter');
+    await expect(
+      page.getByRole('menuitem', { name: 'Phone remote', exact: true }),
+    ).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(more).toBeFocused();
+
     for (const viewport of [
       { width: 1220, height: 780, scheme: 'light' as const },
       { width: 960, height: 640, scheme: 'dark' as const },
     ]) {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.emulateMedia({ colorScheme: viewport.scheme });
-      const nav = page.getByRole('navigation', { name: 'Settings sections' });
       for (const label of [
         'Assistant',
         'AI',
@@ -69,7 +94,7 @@ test('settings and personal-library surfaces remain readable at supported window
         'Privacy',
         'About',
       ]) {
-        await nav.getByRole('button', { name: label, exact: true }).click();
+        await openSettingsSection(page, label);
         const content = page.locator('[class*="settingsContent"]');
         await content.evaluate((element) => {
           element.scrollTop = 0;
@@ -80,6 +105,10 @@ test('settings and personal-library surfaces remain readable at supported window
           await expect(
             page.getByRole('combobox', { name: 'Agent', exact: true }),
           ).toBeEnabled();
+        if (label === 'Scotty')
+          await expect(
+            page.getByRole('button', { name: 'Bring Scotty to my desktop' }),
+          ).toBeInViewport({ ratio: 1 });
         if (label === 'Phone remote')
           await expect(page.getByRole('button', { name: 'Enable phone remote' })).toBeVisible();
         await expectSettingsFit(page);
@@ -105,10 +134,7 @@ test('settings and personal-library surfaces remain readable at supported window
         await capture(page, info, `${name}-bottom`);
       }
     }
-    await page
-      .getByRole('navigation', { name: 'Settings sections' })
-      .getByRole('button', { name: 'Assistant', exact: true })
-      .click();
+    await openSettingsSection(page, 'Assistant');
     for (const section of ['Memory', 'Workflows', 'Skills', 'Suggestions']) {
       await page
         .getByRole('navigation', { name: 'Assistant sections' })
@@ -131,20 +157,14 @@ test('settings and personal-library surfaces remain readable at supported window
       BrowserWindow.getAllWindows()[0]!.webContents.setZoomFactor(1.25);
     });
     for (const label of ['Computer', 'Phone remote', 'Privacy', 'About']) {
-      await page
-        .getByRole('navigation', { name: 'Settings sections' })
-        .getByRole('button', { name: label, exact: true })
-        .click();
+      await openSettingsSection(page, label);
       await expectSettingsFit(page);
       await capture(page, info, `zoom-${label.toLowerCase().replaceAll(' ', '-')}`);
     }
     await sia.application.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0]!.webContents.setZoomFactor(2);
     });
-    await page
-      .getByRole('navigation', { name: 'Settings sections' })
-      .getByRole('button', { name: 'Phone remote', exact: true })
-      .click();
+    await openSettingsSection(page, 'Phone remote');
     await capture(page, info, 'phone-200-percent');
     const settingsBounds = await page.locator('[class*="settingsContent"]').boundingBox();
     expect(settingsBounds!.height).toBeGreaterThanOrEqual(120);
@@ -180,11 +200,12 @@ test('conversation tools, access panels and dialogs fit the minimum desktop wind
       ],
       { cwd: workspace },
     );
+    const tools = page.getByRole('button', { name: 'Tools', exact: true });
     for (const label of ['Goal', 'Changes', 'Schedules']) {
-      await page
-        .getByRole('navigation', { name: 'Thread tools' })
-        .getByRole('button', { name: label, exact: true })
-        .click();
+      await tools.click();
+      const menu = page.getByRole('menu', { name: 'Tools', exact: true });
+      await expect(menu).toBeInViewport({ ratio: 1 });
+      await menu.getByRole('menuitem', { name: label, exact: true }).click();
       const panel = page.getByRole('complementary', { name: 'Thread tool' });
       await expect(panel).toBeInViewport({ ratio: 1 });
       if (label === 'Schedules')
@@ -194,11 +215,14 @@ test('conversation tools, access panels and dialogs fit the minimum desktop wind
         await panel.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
       ).toBe(true);
       await page.getByRole('button', { name: 'Close thread tool' }).click();
+      await expect(tools).toBeFocused();
     }
-    await page.getByRole('button', { name: 'Command', exact: true }).click();
+    await tools.click();
+    await page.getByRole('menuitem', { name: 'Command', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Terminal' })).toBeInViewport({ ratio: 1 });
     await capture(page, info, 'terminal');
     await page.getByRole('button', { name: 'Close terminal' }).click();
+    await expect(tools).toBeFocused();
     await page.getByRole('button', { name: 'Access', exact: true }).click();
     const access = page.getByRole('dialog', { name: 'Access', exact: true });
     for (const label of ['Browser', 'Computer', 'Data']) {
@@ -207,6 +231,11 @@ test('conversation tools, access panels and dialogs fit the minimum desktop wind
       await capture(page, info, `access-${label.toLowerCase()}`);
     }
     await page.keyboard.press('Escape');
+    await expect(page.getByRole('button', { name: 'Send feedback', exact: true })).toHaveCount(
+      0,
+    );
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('button', { name: 'About', exact: true }).click();
     await page.getByRole('button', { name: 'Send feedback', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Send feedback' })).toBeInViewport({
       ratio: 1,
@@ -223,6 +252,7 @@ test('conversation tools, access panels and dialogs fit the minimum desktop wind
       feedbackOptions!.y - (feedbackMessage!.y + feedbackMessage!.height),
     ).toBeGreaterThanOrEqual(16);
     await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Close settings', exact: true }).click();
     await page.getByTestId('activity-center-toggle').click();
     await capture(page, info, 'activity-empty');
     await page.getByRole('button', { name: 'Close activity' }).click();
@@ -269,10 +299,7 @@ test('cloud, admin and account settings fit without hiding categories', async ({
     await page.getByRole('button', { name: 'Exit setup', exact: true }).click();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     for (const label of ['Connections', 'Phone remote', 'Release review', 'Research archive']) {
-      await page
-        .getByRole('navigation', { name: 'Settings sections' })
-        .getByRole('button', { name: label, exact: true })
-        .click();
+      await openSettingsSection(page, label);
       await expectSettingsFit(page);
       await capture(page, info, `admin-${label.toLowerCase().replaceAll(' ', '-')}`);
       await page.locator('[class*="settingsContent"]').evaluate((element) => {

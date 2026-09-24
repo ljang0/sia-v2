@@ -92,7 +92,7 @@ reports success before cloud completion, stop testing and notify the pilot owner
 
 ## Optional phone remote
 
-In **Settings → Phone remote**, choose an assistant and enable remote access. If macOS asks for
+In **Settings → More → Phone remote**, choose an assistant and enable remote access. If macOS asks for
 **Local Network**, choose **Allow**. Connect your phone to the same Wi-Fi, scan the QR code with
 its camera, and open the private link. No phone app, connector, or additional account is required.
 The page uses Sia's desktop styling and lets you send/follow up, watch progress, stop the current
@@ -267,9 +267,9 @@ Press **Cmd + E** from another app to open **Ask Sia**. Choose an agent, type a 
 and press Enter; Shift+Enter adds a line and Escape dismisses. Progress and results stay in the
 floating panel; **Review in Sia** opens the full conversation for approvals. No microphone or Accessibility grant is
 needed to type. If another app owns
-Cmd+E, use **Sia → Ask Sia**; Settings → Assistant shows shortcut availability.
+Cmd+E, use **Sia → Ask Sia**; Settings → More → Assistant shows shortcut availability.
 
-Open **Settings → Assistant** to opt into current-window context for Fn requests
+Open **Settings → More → Assistant** to opt into current-window context for Fn requests
 and manage your agent's memory and workflows. Context includes app identity,
 window title, selected text, and a bounded outline of visible static text and controls when available. Browser content is inspected separately through the chosen access mode;
 protected fields and apps are excluded. It defaults off and does not capture a screenshot.
@@ -319,14 +319,14 @@ curated adaptation of Notch's executable skills, not unrestricted host Bash.
 
 In **Use my Mac → On my screen**, native skills use Notch's filesystem implementation. Sia discovers
 `.sia-mac/skills/*.sh` in the agent workspace before every request and shows them under
-**Settings → Assistant → Skills**. Scripts have `#!/bin/bash`, `# skill: <name>` and
+**Settings → More → Assistant → Skills**. Scripts have `#!/bin/bash`, `# skill: <name>` and
 `# description: <when to use it>` headers. They use ordinary Bash/AppleScript and script
 arguments. A matching task can reuse a script after reading its current source; each result
 still needs verification. Saving never executes a script, and native runs follow the selected
 action approval mode. The skill name is preserved in the header; the filename uses a slug.
 Skills for a different execution mode remain listed with instructions for switching modes.
 
-Enable **Settings → Assistant → Memory → Notch-style learning** to complete the automatic
+Enable **Settings → More → Assistant → Memory → Learn from Mac tasks** to complete the automatic
 learning cycle. Both foreground and background Mac tasks use the same agent-scoped Notch vault:
 brief activity, failures, lessons, linked notes and the skill registry are supplied on future requests.
 Background tasks can read and update those notes through a scoped vault tool, including preferences
@@ -382,7 +382,7 @@ Settings → Voice (or the active conversation when the main window is focused).
 The main conversation shows **Ready when you are** while idle. Model and reasoning controls are
 inside **Agent settings**, with workspace details collapsed underneath. Activity rows use plain
 language; expand a row for technical details. A single-agent sidebar shows recent conversations
-without repeating the agent header. Settings → Assistant has separate General, Memory, Workflows,
+without repeating the agent header. Settings → More → Assistant has separate General, Memory, Workflows,
 Skills and Suggestions sections with per-agent counts. Suggestions still require review before
 changing memory or saving a skill.
 
@@ -401,7 +401,7 @@ manual acceptance with disposable content.
 
 ### Scotty desktop companion
 
-Open **Settings → Scotty → Bring Scotty to my desktop**, or **Sia → Show Scotty** in the
+Open **Settings → More → Scotty → Bring Scotty to my desktop**, or **Sia → Show Scotty** in the
 Mac menu bar. Scotty is Sia's pixel Scottish terrier: he floats above other apps while Sia is
 open. Drag him to move, click him or his badge to open the task tray, and use Escape to close
 the tray. Right-click → **Hide Scotty** hides the pet; your position and preferences are saved.

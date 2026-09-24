@@ -2379,6 +2379,123 @@ describe('Use my Mac browser routing', () => {
     };
   }
 
+  it.each([
+    ['Root Key Signing Key (DNSSEC)', false],
+    ['Key Signing Ceremonies', false],
+    ['Blogging information', false],
+    ['Sign in', true],
+    ['Sign-in', true],
+    ['Signin', true],
+    ['SIGN_IN', true],
+    ['Signing in to your account', true],
+    ['Log in', true],
+    ['Log-in', true],
+    ['Login', true],
+    ['Log_in', true],
+    ['Logging in to your account', true],
+  ])(
+    'distinguishes public signing text from authentication: %s',
+    async (label, protectedPage) => {
+      const h = browserHarness();
+      h.navigate('https://www.iana.org/domains/reserved');
+      const implementation = h.cua.call.getMockImplementation() as (
+        tool: string,
+        args: Record<string, unknown>,
+      ) => Promise<unknown>;
+      h.cua.call.mockImplementation(async (tool: string, args: Record<string, unknown>) =>
+        tool === 'get_window_state'
+          ? {
+              snapshot_id: 'iana-fixture',
+              elements: [{ element_index: 1, element_token: 'link', role: 'AXLink', label }],
+            }
+          : implementation(tool, args),
+      );
+      const target = await grantedComputerTarget(h.backend);
+      const result = await h.backend.invoke(
+        request('computer_snapshot', {
+          app_id: target.appId,
+          window_id: target.windowId,
+          expected_url: 'https://www.iana.org/domains/reserved',
+        }),
+      );
+      expect(result.outcome).toBe(protectedPage ? 'refused' : 'verified');
+      if (protectedPage) {
+        expect(dataRecord(result.data).blocker_code).toBe('protected_window');
+        expect(dataRecord(result.data).elements).toBeUndefined();
+        expect(dataRecord(result.data).snapshot_id).toBeUndefined();
+        expect(result.images).toBeUndefined();
+      } else {
+        expect(dataRecord(result.data).source_url).toBe(
+          'https://www.iana.org/domains/reserved',
+        );
+        expect(dataRecord(result.data).elements).toEqual([
+          expect.objectContaining({ label, element_ref: expect.any(String) }),
+        ]);
+      }
+    },
+  );
+
+  it('gives a later turn a fresh computer session and revokes the previous window refs', async () => {
+    const h = browserHarness();
+    const previous = await capture(h);
+    const oldSession = h.cua.call.mock.calls.find(([tool]) => tool === 'get_window_state')![1]
+      .session;
+    const implementation = h.cua.call.getMockImplementation() as (
+      tool: string,
+      args: Record<string, unknown>,
+    ) => Promise<unknown>;
+    h.cua.call.mockImplementation(async (tool: string, args: Record<string, unknown>) => {
+      if (args.session === oldSession) throw new Error('CUA refused: session_ended');
+      return implementation(tool, args);
+    });
+    const next = (name: ActionToolName, args: Record<string, unknown>) => {
+      const value = request(name, args);
+      return { ...value, context: { ...value.context, turnId: 'turn-2' } };
+    };
+    h.cua.call.mockClear();
+    expect((await h.backend.invoke(next('computer_snapshot', previous))).outcome).toBe('stale');
+    expect(h.cua.call).not.toHaveBeenCalled();
+    const inventory = dataRecord((await h.backend.invoke(next('computer_list', {}))).data);
+    const window = (inventory.windows as Record<string, unknown>[])[0]!;
+    const ids = { app_id: window.app_id, window_id: window.window_id };
+    expect(ids.window_id).not.toBe(previous.window_id);
+    const snapshot = await h.backend.invoke(next('computer_snapshot', ids));
+    expect(snapshot.outcome).toBe('verified');
+    const data = dataRecord(snapshot.data);
+    const newSession = h.cua.call.mock.calls.find(([tool]) => tool === 'get_window_state')![1]
+      .session;
+    expect(newSession).toEqual(expect.any(String));
+    expect(newSession).not.toBe(oldSession);
+    const cancelled = request('computer_list', {});
+    const callCount = h.cua.call.mock.calls.length;
+    expect(
+      (
+        await h.backend.invoke({
+          ...cancelled,
+          context: { ...cancelled.context, signal: AbortSignal.abort() },
+        })
+      ).outcome,
+    ).toBe('refused');
+    expect(h.cua.call).toHaveBeenCalledTimes(callCount);
+    expect(
+      (await h.backend.invoke(next('computer_action', { ...previous, action: 'click' })))
+        .outcome,
+    ).toBe('stale');
+    expect(h.cua.call.mock.calls.some(([tool]) => tool === 'click')).toBe(false);
+    const fresh = {
+      ...ids,
+      snapshot_id: data.snapshot_id,
+      element_ref: (data.elements as Record<string, unknown>[])[0]!.element_ref,
+      action: 'click',
+    };
+    expect((await h.backend.invoke(next('computer_action', fresh))).outcome).toBe(
+      'accepted_unverified',
+    );
+    const clicks = h.cua.call.mock.calls.filter(([tool]) => tool === 'click');
+    expect(clicks).toHaveLength(1);
+    expect(clicks[0]![1].session).toBe(newSession);
+  });
+
   it('binds browser facts to the expected course and role query without exposing query secrets', async () => {
     const h = browserHarness();
     const target = await grantedComputerTarget(h.backend);

@@ -31,6 +31,22 @@ test('minimum viewport keeps dialogs, thread tools, and Activity within bounds',
     const tools = sia.page.getByRole('navigation', { name: 'Thread tools' });
     const message = sia.page.getByRole('textbox', { name: 'Message' });
     await expect(tools).toBeVisible();
+    await expect(tools.getByRole('button')).toHaveCount(1);
+    const toolsButton = tools.getByRole('button', { name: 'Tools', exact: true });
+    await expect(sia.page.getByRole('menuitem')).toHaveCount(0);
+    await toolsButton.focus();
+    await sia.page.keyboard.press('ArrowDown');
+    const toolMenu = sia.page.getByRole('menu', { name: 'Tools', exact: true });
+    await expect(toolMenu).toBeInViewport({ ratio: 1 });
+    await expect(toolMenu.getByRole('menuitem')).toHaveCount(4);
+    await expect(toolMenu.getByRole('menuitem', { name: 'Goal', exact: true })).toBeFocused();
+    await sia.page.keyboard.press('Enter');
+    await expect(sia.page.getByRole('complementary', { name: 'Thread tool' })).toBeFocused();
+    await sia.page.keyboard.press('Escape');
+    await expect(toolsButton).toBeFocused();
+    await toolsButton.click();
+    await sia.page.keyboard.press('Escape');
+    await expect(toolsButton).toBeFocused();
     const [toolBounds, messageBounds] = await Promise.all([
       tools.boundingBox(),
       message.boundingBox(),
@@ -38,6 +54,23 @@ test('minimum viewport keeps dialogs, thread tools, and Activity within bounds',
     expect(toolBounds).not.toBeNull();
     expect(messageBounds).not.toBeNull();
     expect(toolBounds!.y + toolBounds!.height).toBeLessThanOrEqual(messageBounds!.y);
+
+    // The minimum window still has room for the actual conversation.
+    const header = await sia.page.locator('[data-companion-room-header]').boundingBox();
+    expect(header!.height).toBeLessThanOrEqual(64);
+    const conversation = await sia.page
+      .getByLabel('Conversation', { exact: true })
+      .boundingBox();
+    expect(conversation!.height).toBeGreaterThan(360);
+    await expect(message).toBeInViewport({ ratio: 1 });
+    expect(
+      await sia.page
+        .getByLabel('Conversation', { exact: true })
+        .evaluate((element) => element.scrollTop),
+    ).toBe(0);
+    await expect(sia.page.locator('[data-companion-thread-empty] [data-size]')).toBeInViewport({
+      ratio: 1,
+    });
 
     await sia.page.getByTestId('activity-center-toggle').click();
     await expect(sia.page.getByRole('heading', { name: 'Activity', level: 1 })).toBeVisible();

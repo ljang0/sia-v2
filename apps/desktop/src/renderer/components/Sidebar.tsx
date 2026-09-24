@@ -16,7 +16,6 @@ import {
   Bell,
   BellSlash,
   Copy,
-  EnvelopeSimple,
   GitFork,
   PushPin,
 } from '@phosphor-icons/react';
@@ -50,7 +49,6 @@ interface SidebarProps {
   onOpenActivity?(): void;
   onOpenSettings(): void;
   onOpenQuickSwitcher?(): void;
-  onOpenFeedback?(): void;
 }
 
 export function Sidebar({
@@ -76,7 +74,6 @@ export function Sidebar({
   onOpenActivity,
   onOpenSettings,
   onOpenQuickSwitcher,
-  onOpenFeedback,
 }: SidebarProps) {
   const [closedAgents, setClosedAgents] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
@@ -432,12 +429,6 @@ export function Sidebar({
           >
             <span className={styles.activityNavMark} aria-hidden="true" />
             <span>Activity</span>
-          </button>
-        ) : null}
-        {onOpenFeedback ? (
-          <button className={styles.settingsButton} type="button" onClick={onOpenFeedback}>
-            <EnvelopeSimple size={17} aria-hidden="true" />
-            <span>Send feedback</span>
           </button>
         ) : null}
         <button className={styles.settingsButton} type="button" onClick={onOpenSettings}>

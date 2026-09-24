@@ -35,7 +35,7 @@ Create **Scout** (sky) live — name, color, repo; the room takes its hue.
 ## Act II — It does real work
 
 - "Fix the TODO in todo.py: greet should return 'Hello, stranger' when name is empty or None.
-  Keep the change minimal, do not run anything." Then open **Changes** → the diff,
+  Keep the change minimal, do not run anything." Then open **Tools** → **Changes** → the diff,
   stage/restore. (Verified: file edited in 12–21 s.)
 - "What's the latest stable version of Node.js right now? Give me your source." (Verified:
   v26.7.0 + nodejs.org link, 3 s; transcript shows the real queries.)

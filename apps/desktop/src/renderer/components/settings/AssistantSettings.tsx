@@ -107,12 +107,8 @@ export function AssistantSettings({
   return (
     <section className={styles.page}>
       <header>
-        <p className={styles.eyebrow}>YOUR ASSISTANT</p>
-        <h2>A little more like you</h2>
-        <p>
-          Keep useful preferences, save repeatable work, and stay with Sia while you use your
-          Mac.
-        </p>
+        <h2>Assistant</h2>
+        <p>Manage saved preferences and reusable tasks.</p>
       </header>
       {error && (
         <p role="alert" className={styles.error}>
@@ -177,7 +173,7 @@ export function AssistantSettings({
               <strong>Use context when I hold Fn</strong>
               <small>
                 {accessMode === 'mac'
-                  ? 'Included in Use my Mac: Sia reads the foreground app and browser when you hold Fn, just like Notch.'
+                  ? 'Use my Mac includes context from the app you are using when you hold Fn.'
                   : 'Share the active app, window outline, title, and selected text with your agent. Browser content still needs a Chrome connection. Protected fields are excluded.'}
               </small>
             </span>
@@ -194,8 +190,7 @@ export function AssistantSettings({
             />
           </label>
           <p className={styles.note}>
-            Hold Fn to dictate and run a task in the background. The screen glow shows when the
-            microphone is recording. Cmd + E opens the command box when you want it.
+            The screen glow shows when the microphone is recording. Release Fn to send.
           </p>
         </div>
         <div className={styles.section} hidden={section !== 'Memory'}>
@@ -232,7 +227,7 @@ export function AssistantSettings({
           {accessMode === 'mac' && (
             <label className={styles.toggle}>
               <span>
-                <strong>Notch-style learning</strong>
+                <strong>Learn from Mac tasks</strong>
                 <small>
                   Remember brief task summaries and failures, reuse native scripts, and save new
                   lessons and skills automatically. Uses your agent’s model for an idle review
@@ -637,7 +632,7 @@ export function AssistantSettings({
           />
         </div>
       </fieldset>
-      <p className={styles.note}>
+      <p className={styles.note} hidden={section !== 'Memory'}>
         Deleting memory removes it from saved guidance. Earlier conversations, journal entries
         and information already sent to your provider are unchanged. Clear the journal
         separately to remove its history from future memory lookups.

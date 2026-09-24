@@ -985,7 +985,11 @@ button.agentAvatar {
 }
 
 .actionError {
-  background: var(--surface-danger);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+
+.actionError > svg {
   color: var(--text-danger);
 }
 
@@ -1207,7 +1211,7 @@ button.agentAvatar {
 
 .messageVoiceError {
   margin: 6px 0 0;
-  color: var(--text-danger);
+  color: var(--text-secondary);
   font-size: var(--text-sm);
 }
 
@@ -1428,8 +1432,8 @@ button.agentAvatar {
 }
 
 .activity_error {
-  border-left-color: var(--border-danger);
-  color: var(--text-danger);
+  border-left-color: var(--border-strong);
+  color: var(--text-secondary);
 }
 
 .activity_queued {
@@ -1469,6 +1473,10 @@ button.agentAvatar {
 }
 
 .status_error {
+  color: var(--text-secondary);
+}
+
+.status_error > svg {
   color: var(--text-danger);
 }
 
@@ -1533,8 +1541,13 @@ button.agentAvatar {
 
 .notice_error,
 .errorBanner {
-  border-left-color: var(--text-danger);
-  background: var(--surface-danger);
+  border-left-color: var(--border-strong);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+
+.notice_error > svg,
+.errorBanner > svg {
   color: var(--text-danger);
 }
 
@@ -2076,7 +2089,7 @@ button.agentAvatar {
 
 .composerError {
   margin: 5px 0 0;
-  color: var(--text-danger);
+  color: var(--text-secondary);
   font-size: var(--text-sm);
   text-align: center;
 }
@@ -2854,14 +2867,14 @@ button.agentAvatar {
   flex: none;
   flex-wrap: wrap;
   gap: 4px;
-  padding: 10px clamp(16px, 2.5vw, 32px);
+  padding: 8px clamp(16px, 2.5vw, 32px);
   border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 76%, transparent);
   background: var(--bg-canvas);
 }
 
 .settingsNav button {
   display: flex;
-  min-height: 36px;
+  min-height: 32px;
   flex: none;
   align-items: center;
   gap: 7px;
@@ -2900,7 +2913,7 @@ button.agentAvatar {
   container-type: inline-size;
   overflow-y: auto;
   scrollbar-gutter: stable;
-  padding: 32px clamp(24px, 4vw, 48px) 56px;
+  padding: 24px clamp(24px, 4vw, 48px) 40px;
 }
 
 @keyframes sectionEnter {
@@ -6088,11 +6101,11 @@ button.agentAvatar {
 
 .threadToolNav button {
   display: inline-flex;
-  width: 28px;
   height: 28px;
   align-items: center;
   justify-content: center;
-  padding: 0;
+  gap: 5px;
+  padding: 0 8px;
   border: 0;
   border-radius: var(--radius-tight);
   background: transparent;
@@ -6104,12 +6117,8 @@ button.agentAvatar {
     color var(--motion-fast) var(--ease-standard);
 }
 
-.threadToolNav button > span {
-  display: none;
-}
-
 .threadToolNav button:hover,
-.threadToolNav button[aria-pressed='true'] {
+.threadToolNav button[data-state='open'] {
   background: var(--bg-hover);
   color: var(--text-primary);
 }
@@ -6199,7 +6208,7 @@ button.agentAvatar {
 }
 
 .conversationOutlinePanel > header span {
-  color: color-mix(in srgb, var(--agent-color) 70%, var(--text-secondary));
+  color: var(--text-secondary);
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
   letter-spacing: 0.04em;
@@ -6326,7 +6335,7 @@ button.agentAvatar {
 }
 
 .conversationOutlineStatus[data-status='running'] {
-  color: color-mix(in srgb, var(--agent-color) 74%, var(--text-primary));
+  color: var(--text-primary);
 }
 
 .conversationOutlineStatus[data-status='running'] svg,
@@ -6340,7 +6349,7 @@ button.agentAvatar {
 }
 
 .conversationOutlineStatus[data-status='error'] {
-  color: var(--text-danger);
+  color: var(--text-secondary);
 }
 
 .conversationOutlineSteps {
@@ -6559,11 +6568,11 @@ button.agentAvatar {
 }
 
 .conversationColumn {
-  padding-top: 54px;
+  padding-top: 28px;
 }
 
 .eventList {
-  gap: 30px;
+  gap: 22px;
 }
 
 .assistantMessage {
@@ -6579,7 +6588,7 @@ button.agentAvatar {
 .userMessage {
   width: min(88%, 640px);
   align-self: flex-end;
-  padding: 14px 16px 15px;
+  padding: 12px 14px;
   border: 1px solid color-mix(in srgb, var(--border-strong) 24%, var(--border-subtle));
   border-radius: var(--radius-surface) var(--radius-surface) var(--radius-tight)
     var(--radius-surface);
@@ -6624,7 +6633,7 @@ button.agentAvatar {
 
 .emptyStateKicker {
   margin-top: 20px;
-  color: color-mix(in srgb, var(--agent-color) 74%, var(--text-secondary));
+  color: var(--text-secondary);
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
   letter-spacing: 0.055em;
@@ -6634,9 +6643,9 @@ button.agentAvatar {
 .threadEmpty {
   align-items: flex-start;
   max-width: 660px;
-  min-height: 52vh;
+  min-height: 36vh;
   margin: 0 auto;
-  padding: 7vh 32px 0;
+  padding: 4vh 28px 0;
   text-align: left;
 }
 
@@ -6644,7 +6653,7 @@ button.agentAvatar {
   max-width: 12ch;
   margin-top: 13px;
   font-family: var(--font-display);
-  font-size: var(--display-xl);
+  font-size: var(--display-lg);
   letter-spacing: -0.045em;
   line-height: 1;
 }
@@ -6656,11 +6665,11 @@ button.agentAvatar {
 }
 
 .composerArea {
-  padding-bottom: 28px;
+  padding-bottom: 16px;
 }
 
 .composer {
-  padding: 14px 14px 11px 16px;
+  padding: 10px 12px 9px;
   border-color: color-mix(in srgb, var(--agent-color) 24%, var(--border-subtle));
   border-radius: var(--radius-dialog);
   background: color-mix(in srgb, var(--agent-color) 3%, var(--bg-raised));
@@ -6670,9 +6679,9 @@ button.agentAvatar {
 }
 
 .composer textarea {
-  min-height: 42px;
-  padding-top: 10px;
-  font-size: var(--text-xl);
+  min-height: 38px;
+  padding-top: 6px;
+  font-size: var(--text-lg);
 }
 
 .sendButton {
@@ -6682,7 +6691,7 @@ button.agentAvatar {
 }
 
 .settingsTopbar {
-  min-height: 84px;
+  min-height: var(--titlebar-height);
   padding-right: 28px;
   padding-left: clamp(28px, 5vw, 58px);
   background: color-mix(in srgb, var(--hue-0) 5%, var(--bg-canvas));
@@ -6792,12 +6801,6 @@ button.agentAvatar {
   gap: 12px;
   color: var(--text-secondary);
   font-size: var(--text-sm);
-}
-
-@media (max-width: 1280px) {
-  .threadToolNav button > span {
-    display: none;
-  }
 }
 
 @media (max-width: 1120px) {
@@ -7213,4 +7216,16 @@ button.agentAvatar {
 }
 .singleAgentRow .agentEditButton {
   opacity: 1;
+}
+
+.settingsDisclosure {
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 20px;
+  padding-top: 14px;
+}
+.settingsDisclosure > summary {
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
 }

@@ -41,6 +41,10 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
 ## State ownership
 
 - SQLite stores agents, immutable thread snapshots, normalized events, approval history, connection identifiers, Sia tokens, and capture/sync records as payloads encrypted by macOS Keychain-backed `safeStorage`.
+- Streaming text publishes UI snapshots at 50ms while encrypted desktop-state checkpoints run
+  at 500ms. Non-streaming changes, completion and graceful shutdown persist immediately. An
+  abrupt termination may lose the last checkpoint interval of an unfinished response.
+
 - Browser/tab capabilities, one-shot action grants, and turn/resource leases are process-local and are never restored after Sia restarts.
 - Chrome and Messages reuse accounts already configured by their owning Mac applications. Chrome
   attaches to a signed-in window without copying cookies. Messages read capabilities access bounded
@@ -90,7 +94,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   latest attempt, so an old blocker does not override a subsequently verified completion.
 - Scotty is an optional Sia-owned desktop pet. Its transparent Electron window, generated
   pixel-terrier atlas, animation, position and task tray are bundled in Sia; it never loads
-  Codex pet assets or calls Codex's pet UI. Settings → Scotty and the Sia menu control visibility.
+  Codex pet assets or calls Codex's pet UI. Settings → More → Scotty and the Sia menu control visibility.
   On macOS both surfaces use nonactivating native panels at status level, joining all Spaces
   including other apps' full-screen Spaces without changing Sia's Dock/activation policy.
   Position, size and motion preferences use the encrypted local repository. Task updates reuse
@@ -115,7 +119,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   The explicit Review in Sia button opens the canonical conversation for approvals and questions.
   Escape or clicking away dismisses the box without canceling work. Sia → Ask Sia works if shortcut registration
   conflicts with another app. No voice helper or TCC grant is required for the launcher.
-- Settings → Assistant owns an encrypted `assistant/library` record: user-authored per-agent memory,
+- Settings → More → Assistant owns an encrypted `assistant/library` record: user-authored per-agent memory,
   guided workflows with named inputs and expected results, context opt-in.
   Memories are injected only for their owning agent on new runtime turns; pausing/deleting affects
   future requests, not provider history. Workflows create a fresh canonical conversation and resolve
@@ -223,6 +227,11 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   **Work in background (experimental)** under Settings → Computer → Where Sia works is separately
   persisted and off by default; **On my screen** selects the native route. The background route uses
   `@trycua/cua-driver` through `CuaService` in the Electron main process, without a VM or driver daemon.
+  Native computer calls use a fresh opaque CUA session for each active turn, separate from the
+  reusable Codex conversation and explicitly attached browser sessions. A new turn revokes prior
+  app/window/snapshot refs and discovers fresh ones; an aborted old call cannot clear current refs.
+  Ended driver sessions are never revived and uncertain input is never replayed. Window ids stay
+  stable across inventory refreshes within the same turn.
   Opting in adds built-in CUA `computer_list`, `computer_snapshot`, `computer_action`,
   `computer_open_app` and `computer_open_url` through ActionGateway and changes the session prompt.
   It uses a distinct `mac-background` Codex session with verified native-tool disablement and a
@@ -315,6 +324,8 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   macOS TCC still controls Accessibility, Screen Recording, Automation and Full Disk Access.
   The agent is instructed to leave credentials and authentication to the user.
 
+  Provider preparation finishes before acquiring GUI ownership; foreground screen context is
+  captured after the lease is held, immediately before sending the turn.
   A whole-task `global_focus` lease prevents concurrent Sia tasks from driving the GUI. Fn audio
   capture can proceed while a task runs; new Mac tasks queue for the screen. Notch's progress-aware
   watchdog is ported (180 seconds without provider activity; one hour maximum, excluding approval

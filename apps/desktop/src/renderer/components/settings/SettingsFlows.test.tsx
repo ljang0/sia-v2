@@ -554,9 +554,7 @@ describe('computer access settings', () => {
     render(
       <ComputerSettings
         snapshot={structuredClone(demoSnapshot)}
-        onAttachBrowser={vi.fn()}
-        onOpenBrowserSite={vi.fn()}
-        onDetachBrowser={vi.fn()}
+        onReviewConnections={vi.fn()}
         macSetupApi={{
           requestComputerPermissions: vi.fn(),
           requestAutomationPermission: vi.fn(),
@@ -570,16 +568,13 @@ describe('computer access settings', () => {
       />,
     );
 
-    expect(
-      screen.getByText(
-        /Your bypass setting controls whether task actions ask for confirmation/i,
-      ),
-    ).toBeTruthy();
+    expect(screen.getByText(/whether actions need your confirmation/i)).toBeTruthy();
     expect(
       screen
         .getByRole('switch', { name: 'Bypass action approvals' })
         .getAttribute('aria-checked'),
     ).toBe('false');
+    fireEvent.click(screen.getByText('Diagnostics'));
     expect(
       screen
         .getByRole('switch', { name: 'Keep a full local log' })
@@ -588,7 +583,8 @@ describe('computer access settings', () => {
     expect(screen.queryByText(/Every grant is narrow, visible, and revocable/)).toBeNull();
   });
 
-  it('does not call Chrome ready until a window is attached', () => {
+  it('uses Connections as the single browser setup route', () => {
+    const onReviewConnections = vi.fn();
     const snapshot = structuredClone(demoSnapshot);
     snapshot.browser = {
       status: 'detached',
@@ -602,9 +598,7 @@ describe('computer access settings', () => {
     render(
       <ComputerSettings
         snapshot={snapshot}
-        onAttachBrowser={vi.fn()}
-        onOpenBrowserSite={vi.fn()}
-        onDetachBrowser={vi.fn()}
+        onReviewConnections={onReviewConnections}
         macSetupApi={{
           requestComputerPermissions: vi.fn(),
           requestAutomationPermission: vi.fn(),
@@ -619,8 +613,9 @@ describe('computer access settings', () => {
     );
 
     expect(screen.queryByText('Everything is unlocked')).toBeNull();
-    expect(screen.getByText(/approve Chrome once/i)).toBeTruthy();
-    expect(screen.getByText(/security step cannot be skipped/i)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Choose window' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Connections' }));
+    expect(onReviewConnections).toHaveBeenCalledOnce();
   });
 
   it('flips trust and the local log through the switches', async () => {
@@ -631,9 +626,7 @@ describe('computer access settings', () => {
     render(
       <ComputerSettings
         snapshot={snapshot}
-        onAttachBrowser={vi.fn()}
-        onOpenBrowserSite={vi.fn()}
-        onDetachBrowser={vi.fn()}
+        onReviewConnections={vi.fn()}
         macSetupApi={{
           requestComputerPermissions: vi.fn(),
           requestAutomationPermission: vi.fn(),
@@ -653,6 +646,7 @@ describe('computer access settings', () => {
     ).toBe('true');
     fireEvent.click(screen.getByRole('switch', { name: 'Bypass action approvals' }));
     await waitFor(() => expect(onSetComputerTrust).toHaveBeenCalledWith('ask'));
+    fireEvent.click(screen.getByText('Diagnostics'));
     await waitFor(() =>
       expect(
         (screen.getByRole('switch', { name: 'Keep a full local log' }) as HTMLButtonElement)
@@ -725,9 +719,7 @@ it('sets up computer, voice and missing app access through one settings action',
     <ComputerSettings
       snapshot={snapshot}
       macSetupApi={macSetupApi}
-      onAttachBrowser={vi.fn()}
-      onOpenBrowserSite={vi.fn()}
-      onDetachBrowser={vi.fn()}
+      onReviewConnections={vi.fn()}
       onSetComputerTrust={vi.fn()}
       onSetTrajectoryLog={vi.fn()}
       onRevealTrajectories={vi.fn()}

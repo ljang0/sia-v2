@@ -18,6 +18,7 @@ import { probeProviders } from './provider-probe.js';
 import type { RuntimeTurnInput } from './runtime-coordinator.js';
 import { canonicalJson } from './update-manifest.js';
 import {
+  EphemeralPayloadCipher,
   PlaintextTestCipher,
   type RecordRepository,
   SqliteRecordRepository,
@@ -1137,7 +1138,97 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
-  it('coalesces rapid streaming deltas before encrypting and publishing full snapshots', async () => {
+  it('finishes getting ready when provider work starts without finishing that work', async () => {
+    let begin!: () => void;
+    let finish!: () => void;
+    const prepared = new Promise<void>((resolve) => {
+      begin = resolve;
+    });
+    const completed = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        await prepared;
+        const base = {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+          sequence: 1,
+        };
+        yield {
+          ...base,
+          type: 'tool' as const,
+          payload: {
+            callId: 'browser-check',
+            name: 'computer_snapshot',
+            phase: 'started' as const,
+            native: false,
+          },
+        };
+        await completed;
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    try {
+      const agent = await controller.invoke('agents.save', {
+        name: 'Progress helper',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: agent.agentId,
+      });
+      await controller.invoke('threads.send', { threadId, text: 'Check the example page' });
+      const startup = () =>
+        controller
+          .snapshot()
+          .timeline.findLast(
+            (item) => item.threadId === threadId && item.toolName === 'runtime.start',
+          );
+      expect(startup()?.status).toBe('running');
+      begin();
+      await vi.waitFor(() =>
+        expect(
+          controller
+            .snapshot()
+            .timeline.find(
+              (item) => item.threadId === threadId && item.toolCallId === 'browser-check',
+            )?.status,
+        ).toBe('running'),
+      );
+      expect(startup()?.status).toBe('complete');
+      expect(
+        controller.snapshot().threads.find((thread) => thread.id === threadId)?.status,
+      ).toBe('running');
+      finish();
+      await vi.waitFor(() =>
+        expect(
+          controller.snapshot().threads.find((thread) => thread.id === threadId)?.status,
+        ).toBe('idle'),
+      );
+    } finally {
+      begin();
+      finish();
+      await controller.shutdown();
+    }
+  });
+
+  it('streams promptly with bounded encrypted checkpoints and a durable final answer', async () => {
     const repository = new CountingRepository();
     let runtimeThreadId = '';
     const runtime = {
@@ -1158,7 +1249,7 @@ describe('DesktopController', () => {
               delta: true,
             },
           };
-          await new Promise((resolve) => setTimeout(resolve, 4));
+          await new Promise((resolve) => setTimeout(resolve, 20));
         }
         yield {
           id: crypto.randomUUID(),
@@ -1203,7 +1294,13 @@ describe('DesktopController', () => {
     );
 
     expect(repository.desktopStateWrites - writesBeforeTurn).toBeLessThan(10);
-    expect(pushes).toBeLessThan(10);
+    expect(pushes).toBeLessThan(25);
+    expect(pushes).toBeGreaterThan(repository.desktopStateWrites - writesBeforeTurn + 4);
+    expect(
+      repository
+        .get<{ timeline: Array<{ detail?: string; text?: string }> }>('desktop', 'state')
+        ?.timeline.find(({ detail }) => detail === 'streamed-answer')?.text,
+    ).toHaveLength(30);
     expect(
       controller.snapshot().timeline.find(({ detail }) => detail === 'streamed-answer')?.text,
     ).toHaveLength(30);
@@ -1267,6 +1364,8 @@ describe('DesktopController', () => {
     await controller.shutdown();
 
     expect(cleanupFinished).toBe(true);
+    expect(repository.closedTimelineText).toContain('partial');
+    await new Promise((resolve) => setTimeout(resolve, 550));
     expect(repository.writesAfterClose).toBe(0);
   });
 
@@ -4973,9 +5072,10 @@ describe('DesktopController', () => {
 });
 
 class CountingRepository implements RecordRepository {
-  readonly #inner = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+  readonly #inner = new SqliteRecordRepository(':memory:', new EphemeralPayloadCipher());
   desktopStateWrites = 0;
   writesAfterClose = 0;
+  closedTimelineText: string[] = [];
   #closed = false;
 
   get<T>(scope: string, id: string): T | undefined {
@@ -5004,6 +5104,10 @@ class CountingRepository implements RecordRepository {
   }
 
   close(): void {
+    this.closedTimelineText =
+      this.#inner
+        .get<{ timeline: Array<{ text?: string }> }>('desktop', 'state')
+        ?.timeline.flatMap((item) => (item.text ? [item.text] : [])) ?? [];
     this.#closed = true;
     this.#inner.close();
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ActionGateway } from '@sia/action-gateway';
+import { ActionGateway, LocalLeaseCoordinator } from '@sia/action-gateway';
 import type {
   ProviderAdapter,
   ProviderSessionOptions,
@@ -14,6 +14,93 @@ import {
 import type { RuntimeThreadConfig } from './runtime-coordinator.js';
 
 describe('Use my Mac native execution', () => {
+  it('prepares the provider before reserving the GUI and captures context only after ownership', async () => {
+    const leases = new LocalLeaseCoordinator();
+    const busy = await leases.startTurn({ threadId: 'busy', turnId: 'busy-turn' });
+    await busy.acquire({ kind: 'global_focus', id: 'foreground' });
+    const lease = await leases.startTurn({ threadId: 'ready', turnId: 'ready-turn' });
+    const created = vi.fn(async (options: ProviderSessionOptions) => ({
+      id: 'session-ready',
+      nativeId: 'native-ready',
+      provider: 'meta' as const,
+      threadId: options.threadId,
+    }));
+    const sent = vi.fn();
+    const macContext = vi.fn(async () => 'Fresh screen context');
+    const adapter: ProviderAdapter = {
+      id: 'meta',
+      productionEnabled: true,
+      probe: async () => ({ available: true, supported: true }),
+      account: async () => ({ state: 'authenticated', billing: 'included' }),
+      createSession: created,
+      async *sendTurn(session, input) {
+        sent(input.text);
+        yield {
+          id: 'complete',
+          threadId: session.threadId,
+          turnId: input.turnId,
+          provider: 'meta',
+          sequence: 0,
+          timestamp: new Date().toISOString(),
+          type: 'completion',
+          payload: { status: 'completed' },
+        };
+      },
+      cancelTurn: async () => undefined,
+      respondToRequest: async () => undefined,
+      dispose: async () => undefined,
+    };
+    const runtime = new RuntimeCoordinator(
+      new ActionGateway({
+        backend: {
+          invoke: async () => ({ outcome: 'verified', summary: 'done' }),
+        },
+      }),
+      {
+        macContext,
+        harnessAdapters: [{ provider: 'meta', harnessId: 'codex_app_server', adapter }],
+      },
+    );
+    const stream = runtime
+      .runTurn({
+        thread: {
+          id: 'ready',
+          provider: 'meta',
+          model: 'included',
+          workspace: '/tmp/ready',
+          instructions: '',
+          computerAccessMode: 'mac',
+          resolvedExecutionTarget: {
+            provider: 'meta',
+            model: 'included',
+            harnessId: 'codex_app_server',
+            harnessModelId: 'included',
+            credentialSource: 'sia_managed',
+            resolutionSource: 'backend_default',
+          },
+        },
+        text: 'Inspect the screen',
+        turnId: 'ready-turn',
+        lease,
+      })
+      [Symbol.asyncIterator]();
+    const first = stream.next();
+    try {
+      await vi.waitFor(() => expect(created).toHaveBeenCalledTimes(1));
+      expect(sent).not.toHaveBeenCalled();
+      expect(macContext).not.toHaveBeenCalled();
+      busy.release();
+      expect((await first).value?.type).toBe('completion');
+      expect(sent).toHaveBeenCalledWith(expect.stringContaining('Fresh screen context'));
+      expect(lease.holds({ kind: 'global_focus', id: 'foreground' })).toBe(true);
+      await stream.next();
+    } finally {
+      busy.release();
+      lease.release();
+      await runtime.dispose();
+    }
+  });
+
   it('grounds relative dates in the Mac timezone, including across UTC midnight', () => {
     const clock = macRequestClock(new Date('2026-09-15T02:00:00Z'), 'America/New_York');
     expect(clock).toContain('Monday, September 14, 2026');

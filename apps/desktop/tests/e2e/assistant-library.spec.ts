@@ -9,7 +9,8 @@ test('background skills use gateway execution and native titles survive restart'
     page = await sia.completeSetup();
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+    await page.getByRole('button', { name: 'More settings' }).click();
+    await page.getByRole('menuitem', { name: 'Assistant', exact: true }).click();
     await page
       .getByRole('navigation', { name: 'Assistant sections' })
       .getByRole('button', { name: /^Skills/ })
@@ -82,8 +83,9 @@ test('personal library saves memory, edits workflow parameters and runs through 
     // This fixture exercises gateway tools and confirmation-mode behavior.
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await page.getByRole('button', { name: 'Assistant', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'A little more like you' })).toBeVisible();
+    await page.getByRole('button', { name: 'More settings' }).click();
+    await page.getByRole('menuitem', { name: 'Assistant', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Assistant', exact: true })).toBeVisible();
     const context = page.getByRole('checkbox', { name: /Use context when I hold Fn/ });
     await expect(context).not.toBeChecked();
     await context.check();
@@ -117,7 +119,8 @@ test('personal library saves memory, edits workflow parameters and runs through 
     });
     await page.reload();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+    await page.getByRole('button', { name: 'More settings' }).click();
+    await page.getByRole('menuitem', { name: 'Assistant', exact: true }).click();
     await expect(context).toBeChecked();
     await page
       .getByRole('navigation', { name: 'Assistant sections' })
@@ -159,7 +162,8 @@ test('automatic learning and executable skills persist and dispatch through the 
     // This fixture exercises gateway tools and confirmation-mode behavior.
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+    await page.getByRole('button', { name: 'More settings' }).click();
+    await page.getByRole('menuitem', { name: 'Assistant', exact: true }).click();
     await page
       .getByRole('navigation', { name: 'Assistant sections' })
       .getByRole('button', { name: /^Memory/ })
@@ -180,7 +184,8 @@ test('automatic learning and executable skills persist and dispatch through the 
     await expect(page.getByText('List my apps', { exact: true })).toBeVisible();
     await page.reload();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+    await page.getByRole('button', { name: 'More settings' }).click();
+    await page.getByRole('menuitem', { name: 'Assistant', exact: true }).click();
     await page
       .getByRole('navigation', { name: 'Assistant sections' })
       .getByRole('button', { name: /^Memory/ })
@@ -211,7 +216,8 @@ test('automatic learning and executable skills persist and dispatch through the 
       ),
     ).toBe(true);
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+    await page.getByRole('button', { name: 'More settings' }).click();
+    await page.getByRole('menuitem', { name: 'Assistant', exact: true }).click();
     await page
       .getByRole('navigation', { name: 'Assistant sections' })
       .getByRole('button', { name: /^Memory/ })

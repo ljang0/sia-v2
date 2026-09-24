@@ -113,7 +113,7 @@ test('one checklist action connects the selected accounts and keeps connected ac
   }
 });
 
-test('Voice settings keeps the Fn controls readable and can replay setup with the existing agent', async () => {
+test('Voice settings hides unavailable Fn controls and can replay setup with the existing agent', async () => {
   const sia = await launchIsolatedSia({ prefix: 'sia-voice-layout-' });
   try {
     await sia.completeSetup();
@@ -122,12 +122,10 @@ test('Voice settings keeps the Fn controls readable and can replay setup with th
     await sia.page.getByRole('button', { name: 'Voice', exact: true }).click();
     for (const width of [1220, 900]) {
       await sia.page.setViewportSize({ width, height: 780 });
-      const select = sia.page.getByLabel('Voice agent when Sia is in the background');
-      await expect(select).toBeVisible();
-      const bounds = await select.boundingBox();
-      expect(bounds!.width).toBeGreaterThan(220);
-      const label = sia.page.getByText('Hold Fn to talk to Sia', { exact: true });
-      expect((await label.boundingBox())!.height).toBeLessThan(50);
+      await expect(
+        sia.page.getByLabel('Voice agent when Sia is in the background'),
+      ).toHaveCount(0);
+      await expect(sia.page.getByRole('checkbox', { name: /Completion sound/ })).toBeVisible();
       await sia.page.screenshot({
         path: `test-results/voice-settings-${width}.png`,
         animations: 'disabled',
@@ -137,9 +135,7 @@ test('Voice settings keeps the Fn controls readable and can replay setup with th
     await sia.application.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0]!.webContents.setZoomFactor(1.25);
     });
-    const zoomedSelect = sia.page.getByLabel('Voice agent when Sia is in the background');
-    await zoomedSelect.scrollIntoViewIfNeeded();
-    expect((await zoomedSelect.boundingBox())!.width).toBeGreaterThan(220);
+    await expect(sia.page.getByRole('checkbox', { name: /Completion sound/ })).toBeVisible();
     await sia.page.screenshot({
       path: 'test-results/voice-settings-zoom.png',
       animations: 'disabled',

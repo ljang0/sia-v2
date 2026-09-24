@@ -57,6 +57,17 @@ export async function launchIsolatedSia(
       ...options.environment,
     },
   });
+  if (options.fakeServices !== false) {
+    // Deterministic fixtures must keep rendering when another app or the lock
+    // screen occludes them. Real-app probes retain production visibility behavior.
+    await application.evaluate(({ app, BrowserWindow }) => {
+      for (const window of BrowserWindow.getAllWindows())
+        window.webContents.setBackgroundThrottling(false);
+      app.on('browser-window-created', (_event, window) =>
+        window.webContents.setBackgroundThrottling(false),
+      );
+    });
+  }
   const page = await readyPage(application);
   const rendererErrors = collectRendererErrors(page);
 
@@ -119,7 +130,10 @@ export async function launchIsolatedSia(
     },
     async close(this: IsolatedSia, closeOptions: { removeTestRoot?: boolean } = {}) {
       if (!this.page.isClosed())
-        await this.page.close({ runBeforeUnload: false }).catch(() => undefined);
+        await Promise.race([
+          this.page.close({ runBeforeUnload: false }).catch(() => undefined),
+          delay(500, () => this.page.isClosed()),
+        ]);
       await closeElectronApplication(this.application);
       if (closeOptions.removeTestRoot !== false) {
         await rm(testRoot, { recursive: true, force: true });

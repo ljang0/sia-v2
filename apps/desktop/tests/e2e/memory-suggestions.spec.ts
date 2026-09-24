@@ -75,7 +75,8 @@ test('reviews exact memory changes and executable source before accepting', asyn
     });
     db.close();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+    await page.getByRole('button', { name: 'More settings' }).click();
+    await page.getByRole('menuitem', { name: 'Assistant', exact: true }).click();
     await page
       .getByRole('navigation', { name: 'Assistant sections' })
       .getByRole('button', { name: /^Suggestions/ })

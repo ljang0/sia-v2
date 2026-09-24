@@ -34,9 +34,8 @@ describe('renderer accessibility CSS policy', () => {
     expect(styles).toMatch(
       /@media \(max-width: 1120px\)[\s\S]*?\.activityPageContent[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/,
     );
-    expect(styles).toMatch(
-      /@media \(max-width: 1280px\)[\s\S]*?\.threadToolNav button > span[\s\S]*?display:\s*none/,
-    );
+    // The labelled Tools menu replaces icon-only buttons. Its viewport and
+    // keyboard behavior are exercised in the real renderer by ux-layout.spec.ts.
   });
 
   it('keeps utility controls in document flow and gives transient surfaces real exits', () => {

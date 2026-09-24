@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test';
+import { writeFile } from 'node:fs/promises';
+import type { BrowserWindow } from 'electron';
 import { launchIsolatedSia } from '../support/electron-harness';
 
 test('launcher uses an isolated bridge, opens from the menu, and dispatches to the chosen agent', async () => {
@@ -71,15 +73,20 @@ test('launcher uses an isolated bridge, opens from the menu, and dispatches to t
       }
     }, original.task!.sessionId);
     expect(rejected).toBe(true);
-    await launcher.screenshot({
-      path: 'test-results/command-launcher-result.png',
-      animations: 'disabled',
-    });
+    // The real launcher hides on blur. Chromium's screenshot can wait indefinitely
+    // for a frame in that state; Electron explicitly supports hidden-window capture.
+    const launcherWindow = await sia.application.browserWindow(launcher);
+    async function captureResult(path: string) {
+      const png = await launcherWindow.evaluate(async (window: BrowserWindow) => {
+        const image = await window.capturePage(undefined, { stayHidden: true });
+        if (image.isEmpty()) throw new Error('The launcher capture was empty.');
+        return image.toPNG().toString('base64');
+      });
+      await writeFile(path, Buffer.from(png, 'base64'));
+    }
+    await captureResult('test-results/command-launcher-result.png');
     await launcher.emulateMedia({ colorScheme: 'dark' });
-    await launcher.screenshot({
-      path: 'test-results/command-launcher-dark.png',
-      animations: 'disabled',
-    });
+    await captureResult('test-results/command-launcher-dark.png');
     await launcher.getByRole('button', { name: 'Open conversation' }).click();
     const state = await page.evaluate(() => window.sia.bootstrap());
     expect(

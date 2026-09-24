@@ -259,7 +259,6 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         onOpenActivity={() => app.openActivity('activity')}
         onOpenSettings={() => app.openSettings()}
         onOpenQuickSwitcher={() => setQuickSwitcherOpen(true)}
-        onOpenFeedback={() => setFeedbackOpen(true)}
       />
 
       <QuickSwitcher
@@ -409,6 +408,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               snapshot={snapshot}
               initialSection={app.settingsSection}
               onClose={app.closeSettings}
+              onOpenFeedback={() => setFeedbackOpen(true)}
               onProbeProvider={(provider) => api.refreshProvider(provider)}
               onOpenProviderSetup={(provider) => api.openProviderSetup(provider)}
               onCheckForUpdates={() => api.checkForUpdates()}
@@ -428,7 +428,6 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onSignOutCloud={() => api.signOutCloud()}
               onDeleteCloudAccount={(confirmation) => api.deleteCloudAccount(confirmation)}
               onAttachBrowser={(windowId) => api.attachBrowser(windowId)}
-              onOpenBrowserSite={(url) => api.openBrowserSite(url)}
               onDetachBrowser={() => api.detachBrowser()}
               macSetupApi={api}
               onSetComputerAccessMode={(mode, background, backgroundFallback) =>

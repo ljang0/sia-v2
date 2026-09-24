@@ -278,13 +278,15 @@ export class RuntimeCoordinator {
   ): AsyncIterable<ThreadEventEnvelope> {
     const mac =
       input.thread.computerAccessMode === 'mac' && input.thread.nativeTools !== 'disabled';
+    // Provider setup does not touch the GUI. Finish it before reserving the
+    // screen, then capture foreground context immediately before the turn.
+    const state = await this.#sessionFor(input.thread, signal);
     // Like Notch's GUI token, one task owns the screen for its whole action loop.
     // The controller releases the turn lease on success, cancellation and failure.
     if (mac && input.lease)
       await input.lease.acquire({ kind: 'global_focus', id: 'foreground' }, signal);
     const nativeContext =
       mac && !input.thread.macBackgroundControl ? await this.#macContext?.() : undefined;
-    const state = await this.#sessionFor(input.thread, signal);
     for await (const event of this.#runSession(
       input.thread,
       input.turnId,
@@ -340,13 +342,13 @@ export class RuntimeCoordinator {
     input: RuntimeReviewInput,
     signal?: AbortSignal,
   ): AsyncIterable<ThreadEventEnvelope> {
+    const state = await this.#sessionFor(input.thread, signal);
     if (
       input.thread.computerAccessMode === 'mac' &&
       input.thread.nativeTools !== 'disabled' &&
       input.lease
     )
       await input.lease.acquire({ kind: 'global_focus', id: 'foreground' }, signal);
-    const state = await this.#sessionFor(input.thread, signal);
     if (!state.adapter.startReview) {
       throw new Error(`${input.thread.provider} does not support dedicated code review.`);
     }

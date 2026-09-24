@@ -1,5 +1,7 @@
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { MacSetupApi } from './SetupMacAccess';
 import {
+  CaretDown,
   CheckSquareOffset,
   Database,
   Desktop,
@@ -48,6 +50,7 @@ interface SettingsProps {
   snapshot: RendererSnapshot;
   initialSection?: SettingsSection | undefined;
   onClose(): void;
+  onOpenFeedback?: (() => void) | undefined;
   onProbeProvider(provider: ProviderId): Promise<void>;
   onOpenProviderSetup(provider: ProviderId): Promise<void>;
   onCheckForUpdates(): Promise<void>;
@@ -65,7 +68,6 @@ interface SettingsProps {
   onSignOutCloud(): Promise<void>;
   onDeleteCloudAccount(confirmation: 'DELETE ACCOUNT'): Promise<void>;
   onAttachBrowser(windowId?: number): Promise<void>;
-  onOpenBrowserSite(url: string): Promise<void>;
   onDetachBrowser(): Promise<void>;
   macSetupApi: MacSetupApi;
   onSetComputerAccessMode?(
@@ -103,6 +105,7 @@ export function Settings({
   snapshot,
   initialSection = 'providers',
   onClose,
+  onOpenFeedback,
   onProbeProvider,
   onOpenProviderSetup,
   onCheckForUpdates,
@@ -120,7 +123,6 @@ export function Settings({
   onSignOutCloud,
   onDeleteCloudAccount,
   onAttachBrowser,
-  onOpenBrowserSite,
   onDetachBrowser,
   macSetupApi,
   onSetComputerAccessMode,
@@ -164,7 +166,6 @@ export function Settings({
       <header className={styles.settingsTopbar}>
         <div>
           <h1>Settings</h1>
-          <p>Choose what Sia can use</p>
         </div>
         <button
           type="button"
@@ -179,14 +180,6 @@ export function Settings({
 
       <div className={styles.settingsLayout}>
         <nav className={styles.settingsNav} aria-label="Settings sections">
-          {assistantApi && (
-            <SettingsNavButton
-              active={section === 'assistant'}
-              icon={<Sparkle size={17} aria-hidden="true" />}
-              label="Assistant"
-              onClick={() => setSection('assistant')}
-            />
-          )}
           <SettingsNavButton
             active={section === 'providers'}
             icon={<Sparkle size={17} aria-hidden="true" />}
@@ -211,22 +204,6 @@ export function Settings({
             label="Voice"
             onClick={() => setSection('voice')}
           />
-          {scottyApi && (
-            <SettingsNavButton
-              active={section === 'scotty'}
-              icon={<PawPrint size={17} aria-hidden="true" />}
-              label="Scotty"
-              onClick={() => setSection('scotty')}
-            />
-          )}
-          {phoneRemoteApi && (
-            <SettingsNavButton
-              active={section === 'phone'}
-              icon={<DeviceMobile size={17} aria-hidden="true" />}
-              label="Phone remote"
-              onClick={() => setSection('phone')}
-            />
-          )}
           <SettingsNavButton
             active={section === 'privacy'}
             icon={<ShieldCheck size={17} aria-hidden="true" />}
@@ -239,22 +216,66 @@ export function Settings({
             label="About"
             onClick={() => setSection('about')}
           />
-          {canReviewRelease ? (
-            <SettingsNavButton
-              active={section === 'release'}
-              icon={<CheckSquareOffset size={17} aria-hidden="true" />}
-              label="Release review"
-              onClick={() => setSection('release')}
-            />
-          ) : null}
-          {canViewResearchArchive ? (
-            <SettingsNavButton
-              active={section === 'research'}
-              icon={<Database size={17} aria-hidden="true" />}
-              label="Research archive"
-              onClick={() => setSection('research')}
-            />
-          ) : null}
+          {(assistantApi || scottyApi || phoneRemoteApi || canReviewRelease) && (
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <button
+                  type="button"
+                  className={
+                    ['assistant', 'scotty', 'phone', 'release', 'research'].includes(section)
+                      ? styles.settingsNavActive
+                      : undefined
+                  }
+                  aria-label="More settings"
+                >
+                  More <CaretDown size={12} aria-hidden="true" />
+                </button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content
+                  className={styles.threadMenuContent}
+                  align="end"
+                  sideOffset={6}
+                >
+                  {assistantApi && (
+                    <SettingsMenuItem
+                      icon={<Sparkle size={17} />}
+                      label="Assistant"
+                      onSelect={() => setSection('assistant')}
+                    />
+                  )}
+                  {scottyApi && (
+                    <SettingsMenuItem
+                      icon={<PawPrint size={17} />}
+                      label="Scotty"
+                      onSelect={() => setSection('scotty')}
+                    />
+                  )}
+                  {phoneRemoteApi && (
+                    <SettingsMenuItem
+                      icon={<DeviceMobile size={17} />}
+                      label="Phone remote"
+                      onSelect={() => setSection('phone')}
+                    />
+                  )}
+                  {canReviewRelease && (
+                    <SettingsMenuItem
+                      icon={<CheckSquareOffset size={17} />}
+                      label="Release review"
+                      onSelect={() => setSection('release')}
+                    />
+                  )}
+                  {canViewResearchArchive && (
+                    <SettingsMenuItem
+                      icon={<Database size={17} />}
+                      label="Research archive"
+                      onSelect={() => setSection('research')}
+                    />
+                  )}
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+          )}
         </nav>
 
         <div key={section} className={styles.settingsContent}>
@@ -303,9 +324,7 @@ export function Settings({
           {section === 'computer' ? (
             <ComputerSettings
               snapshot={snapshot}
-              onAttachBrowser={onAttachBrowser}
-              onOpenBrowserSite={onOpenBrowserSite}
-              onDetachBrowser={onDetachBrowser}
+              onReviewConnections={() => setSection('apps')}
               macSetupApi={macSetupApi}
               {...(onSetComputerAccessMode ? { onSetComputerAccessMode } : {})}
               onSetComputerTrust={onSetComputerTrust}
@@ -338,6 +357,7 @@ export function Settings({
           {section === 'about' ? (
             <AboutSettings
               updates={snapshot.updates}
+              onOpenFeedback={onOpenFeedback}
               onCheckForUpdates={onCheckForUpdates}
               onOpenUpdateDownload={onOpenUpdateDownload}
             />
@@ -388,5 +408,22 @@ function SettingsNavButton({
       {icon}
       <span>{label}</span>
     </button>
+  );
+}
+
+function SettingsMenuItem({
+  icon,
+  label,
+  onSelect,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onSelect(): void;
+}) {
+  return (
+    <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onSelect}>
+      <span aria-hidden="true">{icon}</span>
+      {label}
+    </DropdownMenu.Item>
   );
 }

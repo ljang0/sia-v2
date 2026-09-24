@@ -189,6 +189,8 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   readonly #completedLogins = new Map<string, CodexLoginOutcome>();
   #peerHandle: CodexPeerHandle | undefined;
   #initializing: Promise<JsonRpcPeer> | undefined;
+  #peerGeneration = 0;
+  #disposing: Promise<void> | undefined;
 
   constructor(options: CodexAppServerOptions = {}) {
     this.#options = options;
@@ -602,6 +604,17 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   }
 
   async dispose(): Promise<void> {
+    if (this.#disposing) return await this.#disposing;
+    this.#peerGeneration += 1;
+    this.#disposing = this.#disposePeer();
+    try {
+      await this.#disposing;
+    } finally {
+      this.#disposing = undefined;
+    }
+  }
+
+  async #disposePeer(): Promise<void> {
     for (const request of this.#pendingRequests.values())
       request.reject(new Error('Codex adapter disposed'));
     this.#pendingRequests.clear();
@@ -616,10 +629,14 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     this.#sessions.clear();
     this.#sessionOptions.clear();
     this.#dynamicToolNamesBySession.clear();
-    await this.#peerHandle?.dispose();
+    const handle = this.#peerHandle;
     this.#peerHandle = undefined;
     this.#initializing = undefined;
-    await this.#supervisor.dispose();
+    try {
+      await handle?.dispose();
+    } finally {
+      await this.#supervisor.dispose();
+    }
   }
 
   get #timeout(): number {
@@ -627,31 +644,48 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   }
 
   async #peer(): Promise<JsonRpcPeer> {
-    if (this.#peerHandle) return this.#peerHandle.peer;
+    if (this.#disposing) await this.#disposing;
+    // All callers share the handshake, including after the process handle exists.
     if (this.#initializing) return await this.#initializing;
-    this.#initializing = (async () => {
+    if (this.#peerHandle) return this.#peerHandle.peer;
+    const generation = this.#peerGeneration;
+    const initializing = (async () => {
       const handle = this.#options.peerFactory
         ? await this.#options.peerFactory()
         : await this.#spawnPeer();
+      if (generation !== this.#peerGeneration) {
+        await handle.dispose();
+        throw new Error('Codex connection reset during initialization');
+      }
       this.#peerHandle = handle;
-      handle.peer.onNotification((method, params) => this.#onNotification(method, params));
-      handle.peer.onRequest(async (method, params) => await this.#onRequest(method, params));
-      await handle.peer.request(
-        'initialize',
-        {
-          clientInfo: { name: 'sia', version: '0.1.0' },
-          capabilities: { experimentalApi: true },
-        },
-        { timeoutMs: this.#timeout },
-      );
-      await handle.peer.notify('initialized', {});
-      return handle.peer;
+      try {
+        handle.peer.onNotification((method, params) => this.#onNotification(method, params));
+        handle.peer.onRequest(async (method, params) => await this.#onRequest(method, params));
+        await handle.peer.request(
+          'initialize',
+          {
+            clientInfo: { name: 'sia', version: '0.1.0' },
+            capabilities: { experimentalApi: true },
+          },
+          { timeoutMs: this.#timeout },
+        );
+        await handle.peer.notify('initialized', {});
+        if (generation !== this.#peerGeneration)
+          throw new Error('Codex connection reset during initialization');
+        return handle.peer;
+      } catch (error) {
+        if (this.#peerHandle === handle) {
+          this.#peerHandle = undefined;
+          await handle.dispose().catch(() => undefined);
+        }
+        throw error;
+      }
     })();
+    this.#initializing = initializing;
     try {
-      return await this.#initializing;
-    } catch (error) {
-      this.#initializing = undefined;
-      throw error;
+      return await initializing;
+    } finally {
+      if (this.#initializing === initializing) this.#initializing = undefined;
     }
   }
 

@@ -323,7 +323,8 @@ export class DesktopActionBackend implements ActionBackend {
   readonly #inspectBrowserWindow: DesktopActionBackendOptions['inspectBrowserWindow'];
   readonly #readImageText: DesktopActionBackendOptions['readImageText'];
   readonly #readWindowContext: DesktopActionBackendOptions['readWindowContext'];
-  #computerInventorySession: string | undefined;
+  #computerTurnKey: string | undefined;
+  #computerSessionId: string | undefined;
   readonly #cua: CuaToolCaller;
   readonly #cloud: CloudActionClient | undefined;
   readonly #installedApplications: DesktopActionBackendOptions['installedApplications'];
@@ -504,6 +505,18 @@ export class DesktopActionBackend implements ActionBackend {
   readonly #macWindows = new MacWindowHistory();
 
   async invoke(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
+    // A late cancelled caller must not revoke a newer turn's active window refs.
+    if (request.context.signal?.aborted) return refused('Action cancelled before execution.');
+    if (
+      [
+        'computer_list',
+        'computer_open_app',
+        'computer_open_url',
+        'computer_snapshot',
+        'computer_action',
+      ].includes(request.name)
+    )
+      this.#computerSession(request);
     const computerWrite =
       request.name === 'computer_action' || request.name === 'browser_action';
     const key = `${request.context.threadId}:${request.context.turnId}`;
@@ -816,12 +829,11 @@ export class DesktopActionBackend implements ActionBackend {
   }
 
   async #computerList(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
-    // Preserve exact window identities across inventory refreshes in one Mac session.
-    // Each action still revalidates ownership, expiry and the latest snapshot.
+    // Preserve exact window identities across inventory refreshes within this turn.
+    // Later turns discover fresh targets under a new, host-owned CUA session.
     const mac = this.#macBrowserAccess();
-    if (!mac || this.#computerInventorySession !== request.context.sessionId)
-      this.#resetComputerCapabilities();
-    this.#computerInventorySession = request.context.sessionId;
+    this.#computerSession(request);
+    if (!mac) this.#resetComputerCapabilities();
     const previousApps = [...this.#computerApps.values()];
     const previousWindows = [...this.#computerWindows.values()];
     const liveApps = new Set<string>();
@@ -1080,7 +1092,7 @@ export class DesktopActionBackend implements ActionBackend {
       this.#callCua(request, 'get_window_state', {
         pid: binding.pid,
         window_id: binding.windowId,
-        session: request.context.sessionId,
+        session: this.#computerSession(request),
         include_screenshot: includeScreenshot,
       });
     let includeImage =
@@ -1458,7 +1470,7 @@ export class DesktopActionBackend implements ActionBackend {
       const current = await this.#callCua(request, 'get_window_state', {
         pid: binding.pid,
         window_id: binding.windowId,
-        session: request.context.sessionId,
+        session: this.#computerSession(request),
         include_screenshot: true,
       });
       const denied = resultRefusal(current);
@@ -1487,7 +1499,7 @@ export class DesktopActionBackend implements ActionBackend {
     const base = compact({
       pid: binding.pid,
       window_id: binding.windowId,
-      session: request.context.sessionId,
+      session: this.#computerSession(request),
       delivery_mode: this.#macBrowserAccess()
         ? args.delivery === 'foreground'
           ? 'foreground'
@@ -1511,7 +1523,7 @@ export class DesktopActionBackend implements ActionBackend {
           ? {
               pid: binding.pid,
               window_id: binding.windowId,
-              session: request.context.sessionId,
+              session: this.#computerSession(request),
               delivery_mode: base.delivery_mode,
               x: args.x,
               y: args.y,
@@ -1526,7 +1538,7 @@ export class DesktopActionBackend implements ActionBackend {
         input = {
           pid: binding.pid,
           window_id: binding.windowId,
-          session: request.context.sessionId,
+          session: this.#computerSession(request),
           delivery_mode: base.delivery_mode,
           from_x: args.x,
           from_y: args.y,
@@ -2390,6 +2402,22 @@ export class DesktopActionBackend implements ActionBackend {
     );
   }
 
+  #computerSession(request: ValidatedActionInvocation): string {
+    const key = JSON.stringify([
+      request.context.sessionId,
+      request.context.threadId,
+      request.context.turnId,
+    ]);
+    if (this.#computerTurnKey !== key) {
+      // A provider conversation can outlive CUA's session. New turns get new
+      // authority and refs; never revive an ended session or replay its input.
+      this.#resetComputerCapabilities();
+      this.#computerTurnKey = key;
+      this.#computerSessionId = `sia-computer-${randomUUID()}`;
+    }
+    return this.#computerSessionId!;
+  }
+
   #resetComputerCapabilities(): void {
     this.#computerApps.clear();
     this.#computerWindows.clear();
@@ -3227,7 +3255,8 @@ function windowHasProtectedControls(value: unknown): boolean {
     .some(
       (record) =>
         isProtectedElement(record) ||
-        /(?:secure|password|sign.?in|log.?in|authenticat|verification code|passkey|api.?key|access.?token)/i.test(
+        // Match authentication words, not "signing"/"blogging" in public page labels.
+        /(?:secure|password|\b(?:sign(?:ing)?|log(?:ging)?).?in\b|authenticat|verification code|passkey|api.?key|access.?token)/i.test(
           [record.role, record.subrole, record.title, record.label]
             .filter((item) => typeof item === 'string')
             .join(' '),

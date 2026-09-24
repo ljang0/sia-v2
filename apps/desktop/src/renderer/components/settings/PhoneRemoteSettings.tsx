@@ -57,7 +57,7 @@ export function PhoneRemoteSettings({
   return (
     <SettingsSectionHeader
       title="Phone remote"
-      description="Your assistant, wherever you are on the same Wi-Fi. No phone app or extra account needed."
+      description="Preview: control Sia from a phone on your trusted local network."
     >
       <InlineSettingsError message={error} />
       <div className={phone.card}>

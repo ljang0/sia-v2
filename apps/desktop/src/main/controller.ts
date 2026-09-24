@@ -471,6 +471,7 @@ export class DesktopController {
   #connectionSetup: { controller: AbortController; task: Promise<void> } | undefined;
   #researchRetryTimer: NodeJS.Timeout | undefined;
   #streamCommitTimer: NodeJS.Timeout | undefined;
+  #streamPersistTimer: NodeJS.Timeout | undefined;
   #scheduleTimer: NodeJS.Timeout | undefined;
   #memoryTimer: NodeJS.Timeout | undefined;
   #notchTimer: NodeJS.Timeout | undefined;
@@ -6033,7 +6034,6 @@ export class DesktopController {
         ) {
           macTask = { request: turn.text };
           recordVault = new NotchVault(thread.workspace, thread.agentId);
-          recordVault.initialize(this.#assistantLibrary.view());
         }
         const notchReview = this.#assistantLibrary.isNotchReview(thread.id);
         let nativeRequest: string | undefined;
@@ -6163,7 +6163,17 @@ export class DesktopController {
               },
               signal,
             );
+        const startup = this.#state.timeline.findLast(
+          (item) =>
+            item.threadId === thread.id &&
+            item.turnId === turn.id &&
+            item.toolName === 'runtime.start',
+        );
         for await (const event of events) {
+          // Startup is over once the provider begins visible work. Complete only this
+          // activity so an in-flight tool remains running until its own result arrives.
+          if (startup?.status === 'running' && event.type !== 'usage' && event.type !== 'error')
+            startup.status = 'complete';
           if (event.type === 'completion')
             await recordNative(
               event.payload.status === 'completed' && macTask?.result?.success
@@ -7439,10 +7449,18 @@ export class DesktopController {
       if (!this.#streamCommitTimer) {
         this.#streamCommitTimer = setTimeout(() => {
           this.#streamCommitTimer = undefined;
-          this.#persist();
           this.#emit();
         }, 50);
         this.#streamCommitTimer.unref();
+      }
+      // Keep the visible stream responsive without encrypting the entire history
+      // at UI cadence. Completion, actions and shutdown still persist immediately.
+      if (!this.#streamPersistTimer) {
+        this.#streamPersistTimer = setTimeout(() => {
+          this.#streamPersistTimer = undefined;
+          this.#persist();
+        }, 500);
+        this.#streamPersistTimer.unref();
       }
       return;
     }
@@ -7452,9 +7470,10 @@ export class DesktopController {
   }
 
   #cancelStreamCommit(): void {
-    if (!this.#streamCommitTimer) return;
-    clearTimeout(this.#streamCommitTimer);
+    if (this.#streamCommitTimer) clearTimeout(this.#streamCommitTimer);
+    if (this.#streamPersistTimer) clearTimeout(this.#streamPersistTimer);
     this.#streamCommitTimer = undefined;
+    this.#streamPersistTimer = undefined;
   }
 
   #persist(): void {

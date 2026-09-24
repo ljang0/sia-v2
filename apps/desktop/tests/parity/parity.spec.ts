@@ -249,14 +249,16 @@ test('goals and schedules persist with a deterministic next-run time', async ({}
   });
   try {
     await createAgentAndThread(harness.page);
-    await harness.page.getByRole('button', { name: 'Goal', exact: true }).click();
+    await harness.page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await harness.page.getByRole('menuitem', { name: 'Goal', exact: true }).click();
     await harness.page
       .getByTestId(parityContract.goalsAndSchedules.testIds[0])
       .fill('Publish parity report');
     await harness.page.getByTestId(parityContract.goalsAndSchedules.testIds[1]).click();
 
     await harness.page.getByRole('button', { name: 'Close thread tool' }).click();
-    await harness.page.getByRole('button', { name: 'Schedules', exact: true }).click();
+    await harness.page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await harness.page.getByRole('menuitem', { name: 'Schedules', exact: true }).click();
     await harness.page.getByTestId(parityContract.goalsAndSchedules.testIds[2]).click();
     await harness.page
       .getByTestId(parityContract.goalsAndSchedules.testIds[3])
@@ -286,6 +288,7 @@ test('Changes review stages and restores a real temporary git change', async ({}
     const changedFile = join(workspace, 'notes.txt');
     await writeFile(changedFile, 'changed by parity fixture\n', 'utf8');
 
+    await harness.page.getByRole('button', { name: 'Tools', exact: true }).click();
     await harness.page.getByTestId(parityContract.gitChanges.testIds[0]).click();
     const row = harness.page
       .getByTestId(parityContract.gitChanges.testIds[1])
@@ -316,6 +319,7 @@ test('terminal commands remain scoped to the granted workspace', async ({}, test
   const harness = await launchParityFixture('scopedTerminal');
   try {
     const { workspace } = await createAgentAndThread(harness.page);
+    await harness.page.getByRole('button', { name: 'Tools', exact: true }).click();
     await harness.page.getByTestId(parityContract.scopedTerminal.testIds[0]).click();
     const command = harness.page.getByTestId(parityContract.scopedTerminal.testIds[1]);
     await command.fill('pwd');
@@ -343,6 +347,7 @@ test('background terminals accept input and stop without blocking the thread', a
   const harness = await launchParityFixture('backgroundTerminal');
   try {
     await createAgentAndThread(harness.page);
+    await harness.page.getByRole('button', { name: 'Tools', exact: true }).click();
     await harness.page.getByTestId(parityContract.backgroundTerminal.testIds[0]).click();
     await harness.page
       .getByTestId(parityContract.backgroundTerminal.testIds[1])
@@ -378,6 +383,7 @@ test('workspace snapshots preserve and restore tracked changes without hiding th
     const changedFile = join(workspace, 'notes.txt');
     await writeFile(changedFile, 'saved workspace state\n', 'utf8');
 
+    await harness.page.getByRole('button', { name: 'Tools', exact: true }).click();
     await harness.page.getByTestId(parityContract.workspaceSnapshots.testIds[0]).click();
     await harness.page.getByTestId(parityContract.workspaceSnapshots.testIds[1]).click();
     const snapshots = harness.page.getByTestId(parityContract.workspaceSnapshots.testIds[2]);

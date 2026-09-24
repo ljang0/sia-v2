@@ -50,21 +50,16 @@ export function ScottySettings({ api }: { api: ScottySettingsApi }) {
           <div className={pet.preview}>
             <ScottySprite
               pose={state?.enabled ? 'happy' : 'idle'}
-              size={176}
+              size={112}
               motion={state?.motion ?? true}
             />
           </div>
           <span className={pet.name}>
             <PawPrint size={13} /> YOUR DESKTOP COMPANION
           </span>
-          <h3>
-            Heart in the work.
-            <br />
-            Paws on your desktop.
-          </h3>
+          <h3>Keep Sia within reach</h3>
           <p>
-            Scotty is your pixel Scottish terrier. Drag him anywhere, follow your tasks, and
-            answer Sia without opening the main window.
+            Follow your tasks and answer Sia from your desktop. Drag Scotty wherever you like.
           </p>
           <button
             className={styles.primaryButton}
