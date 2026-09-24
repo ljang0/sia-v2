@@ -23,7 +23,7 @@ async function expectSettingsFit(page: Page) {
 test('settings and personal-library surfaces remain readable at supported window sizes', async ({}, info) => {
   test.setTimeout(90_000);
   const sia = await launchIsolatedSia({ prefix: 'sia-ui-surfaces-' });
-  const page = sia.page;
+  let page = sia.page;
   try {
     await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
     await page.setViewportSize({ width: 960, height: 640 });
@@ -47,7 +47,7 @@ test('settings and personal-library surfaces remain readable at supported window
     await page.getByLabel('Agent name').scrollIntoViewIfNeeded();
     await capture(page, info, 'setup-customize');
     await page.getByRole('radio', { name: /Connected apps \+ confirmations/ }).check();
-    await page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
+    page = await sia.completeSetup();
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     await capture(page, info, 'workspace-empty');
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -160,7 +160,7 @@ test('settings and personal-library surfaces remain readable at supported window
 
 test('conversation tools, access panels and dialogs fit the minimum desktop window', async ({}, info) => {
   const sia = await launchIsolatedSia({ prefix: 'sia-ui-panels-' });
-  const page = sia.page;
+  let page = sia.page;
   try {
     await page.setViewportSize({ width: 960, height: 640 });
     await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
@@ -263,7 +263,7 @@ test('cloud, admin and account settings fit without hiding categories', async ({
       database.close();
     }
     sia = await launchIsolatedSia({ testRoot, environment });
-    const page = sia.page;
+    let page = sia.page;
     await page.setViewportSize({ width: 960, height: 640 });
     await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
     await page.getByRole('button', { name: 'Exit setup', exact: true }).click();

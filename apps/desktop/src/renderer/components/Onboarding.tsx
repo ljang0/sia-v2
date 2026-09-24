@@ -46,9 +46,13 @@ export function Onboarding({
   const [permissionBusy, setPermissionBusy] = useState(false);
   const [startPermissions, setStartPermissions] = useState(false);
   const [accessReady, setAccessReady] = useState(false);
-  const [permissionPassComplete, setPermissionPassComplete] = useState(false);
+  const [permissionPassComplete, setPermissionPassComplete] = useState(
+    Boolean(snapshot.preferences.onboarding?.restarted),
+  );
   const [connectionsOpen, setConnectionsOpen] = useState(false);
-  const [prepareApps, setPrepareApps] = useState(starting);
+  const [prepareApps, setPrepareApps] = useState(
+    snapshot.preferences.onboarding?.permissionSetup?.includeApps ?? starting,
+  );
   const autoFinished = useRef(false);
   const [error, setError] = useState<string>();
   const [setupRoute, setSetupRoute] = useState<'mac-bypass' | 'connected'>(() =>
@@ -64,6 +68,11 @@ export function Onboarding({
   const choices = modelChoices(snapshot.providers);
   const choice =
     choices.find((item) => `${item.provider}:${item.model}` === model) ??
+    (setupRoute === 'mac-bypass'
+      ? choices.find(
+          (item) => item.ready && item.provider === 'codex' && item.model === 'gpt-6-astra',
+        )
+      : undefined) ??
     choices.find((item) => item.ready);
   const restarting = Boolean(snapshot.preferences.onboarding?.restartPending);
   const aiReady = Boolean(agent || choice?.ready);
@@ -102,8 +111,7 @@ export function Onboarding({
       setPermissionPassComplete(false);
       await api.setComputerAccessMode(setupRoute === 'mac-bypass' ? 'mac' : 'connected');
       await api.setComputerTrust(setupRoute === 'mac-bypass' ? 'auto' : 'ask');
-      if (agent) await api.setOnboarding('voice');
-      else if (choice?.ready)
+      if (!agent && choice?.ready)
         await api.createAgent({
           name: name.trim(),
           instructions: starterInstructions,
@@ -112,6 +120,10 @@ export function Onboarding({
           workspace: '',
           startOnboarding: true,
         });
+      await api.setOnboarding('voice', {
+        includeApps: setupRoute === 'mac-bypass' && prepareApps,
+        active: true,
+      });
       setStartPermissions(true);
     });
   const finish = () =>
@@ -123,7 +135,7 @@ export function Onboarding({
     });
 
   // Only a completed, user-started permission pass can advance automatically.
-  // Resuming setup or checking status on focus never starts work or repeats prompts.
+  // An authorized restart resumes only missing steps; passive status checks do not prompt.
   useEffect(() => {
     if (
       !step ||
@@ -304,12 +316,43 @@ export function Onboarding({
                 onBusyChange={setPermissionBusy}
                 onReadyChange={setAccessReady}
                 compact
-                autoStart={startPermissions}
+                autoStart={
+                  startPermissions ||
+                  Boolean(
+                    snapshot.preferences.onboarding?.restarted &&
+                    snapshot.preferences.onboarding?.permissionSetup?.active,
+                  )
+                }
+                onPause={() => {
+                  setStartPermissions(false);
+                  void api
+                    .setOnboarding(step!, {
+                      includeApps: setupRoute === 'mac-bypass' && prepareApps,
+                      active: false,
+                    })
+                    .catch(() =>
+                      setError('Setup paused. Its saved progress could not update.'),
+                    );
+                }}
+                onRestart={async () => {
+                  await api.setOnboarding('verify', {
+                    includeApps: setupRoute === 'mac-bypass' && prepareApps,
+                    active: true,
+                  });
+                  await api.restartForOnboarding();
+                }}
                 includeApps={setupRoute === 'mac-bypass' && prepareApps}
                 onComplete={async () => {
                   setStartPermissions(false);
-                  await run(() => api.setOnboarding('verify'));
-                  setPermissionPassComplete(true);
+                  await run(async () => {
+                    await api.setOnboarding('verify', {
+                      includeApps: setupRoute === 'mac-bypass' && prepareApps,
+                      active: false,
+                    });
+                    if (!snapshot.preferences.onboarding?.restarted)
+                      await api.restartForOnboarding();
+                    else setPermissionPassComplete(true);
+                  });
                 }}
               />
             )}

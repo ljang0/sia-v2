@@ -10,10 +10,20 @@ if (process.platform === 'darwin') {
   const source = join(root, 'native/voice');
   const output = join(root, 'build/native');
   const files = (await readdir(source)).filter((name) => /\.(swift|plist)$/.test(name)).sort();
+  const engine = join(root, 'native/notch/engine');
+  const inputs = [
+    ...files.map((name) => join(source, name)),
+    ...[
+      'Agent/AgentResponse.swift',
+      'Agent/SkillLibrary.swift',
+      'Core/JournalStore.swift',
+      'Host/NotchVault.swift',
+    ].map((name) => join(engine, name)),
+  ];
   const hash = createHash('sha256');
   hash.update(await readFile(new URL(import.meta.url)));
   hash.update(execFileSync('/usr/bin/xcrun', ['swiftc', '--version']));
-  for (const file of files) hash.update(await readFile(join(source, file)));
+  for (const file of inputs) hash.update(await readFile(file));
   const digest = hash.digest('hex');
   const previous = await readFile(join(output, 'source.sha256'), 'utf8').catch(() => '');
   const exists = await readFile(join(output, 'SiaVoiceHelper')).then(
@@ -33,7 +43,7 @@ if (process.platform === 'darwin') {
           '-O',
           '-target',
           `${arch}-apple-macosx14.0`,
-          ...files.filter((name) => name.endsWith('.swift')).map((name) => join(source, name)),
+          ...inputs.filter((name) => name.endsWith('.swift')),
           '-Xlinker',
           '-sectcreate',
           '-Xlinker',

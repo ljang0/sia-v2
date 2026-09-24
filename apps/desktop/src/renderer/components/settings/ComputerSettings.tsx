@@ -1,5 +1,5 @@
 import { ComputerAccessMode } from '../ComputerAccessMode';
-import { SetupMacAccess, type AccessSetupApi } from '../SetupMacAccess';
+import { SetupMacAccess, type MacSetupApi } from '../SetupMacAccess';
 import { Browser, Notebook, ShieldCheck } from '@phosphor-icons/react';
 import { useState, type FormEvent } from 'react';
 import type { RendererSnapshot } from '../../types';
@@ -12,7 +12,7 @@ export function ComputerSettings({
   onAttachBrowser,
   onOpenBrowserSite,
   onDetachBrowser,
-  accessSetupApi,
+  macSetupApi,
   onSetComputerAccessMode,
   onSetComputerTrust,
   onSetTrajectoryLog,
@@ -22,7 +22,7 @@ export function ComputerSettings({
   onAttachBrowser(windowId?: number): Promise<void>;
   onOpenBrowserSite(url: string): Promise<void>;
   onDetachBrowser(): Promise<void>;
-  accessSetupApi: AccessSetupApi;
+  macSetupApi: MacSetupApi;
   onSetComputerAccessMode?(
     mode: 'mac' | 'connected',
     background?: boolean,
@@ -84,8 +84,12 @@ export function ComputerSettings({
       ) : null}
       <SetupMacAccess
         snapshot={snapshot}
-        api={accessSetupApi}
-        agentId={snapshot.voice.pushToTalk?.agentId ?? snapshot.agents[0]?.id}
+        api={macSetupApi}
+        agentId={
+          snapshot.selectedAgentId ??
+          snapshot.voice.pushToTalk?.agentId ??
+          snapshot.agents[0]?.id
+        }
         disabled={Boolean(pending)}
         onBusyChange={setSettingUp}
         includeApps

@@ -187,6 +187,23 @@ through another route. The two approval questions are pending in the preparation
 
 The separate candidate and workflow audit are recorded in [workflow-robustness.md](./workflow-robustness.md).
 It adds stale-login response guards, voice cancellation at service/account boundaries, and included
-ElevenLabs selection for cloud-configured builds. The full deterministic gate passed. The shared
-voice server configuration still requires completion of the operator Keychain transfer and activation;
-the open walkthrough app was preserved. This does not change the public-distribution gates above.
+ElevenLabs selection for cloud-configured builds. Shared voice is now activated in production
+with the approved server-side credential and the existing 20-token-mints-per-user-per-day limit.
+An authenticated synthetic speech round trip passed through the deployed Sia broker, including
+batch/realtime transcription and cancellation. Physical microphone behavior remains a separate
+acceptance check. The open walkthrough app was preserved. This does not change the
+public-distribution gates above.
+
+Romir’s three commits through `148b452` are incorporated with the robustness checkpoint
+`1fa1528`: guided and resumable Mac permissions, microphone prompt ownership, Notch foreground
+memory and investigation/report improvements, and Astra preference when available for a new
+Use my Mac agent. Existing agent model choices and the earlier one-button Codex setup are retained.
+
+The combined merge passed `pnpm test:pilot`: 702 desktop tests, 135 cloud tests and
+46 desktop/phone UI tests, with the existing explicit live skips. Setup tests now follow the
+shutdown and resume with the same isolated profile instead of holding a closed renderer.
+
+The merged universal signed app is available separately under
+`apps/desktop/release/robustness/mac-universal/Sia.app`; its hash and startup limitation are in
+[workflow-robustness.md](./workflow-robustness.md). Its new-profile startup is waiting for local
+Keychain authorization, so it is not a completed recipient-install acceptance result.

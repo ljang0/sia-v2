@@ -1,4 +1,4 @@
-import type { AccessSetupApi } from './SetupMacAccess';
+import type { MacSetupApi } from './SetupMacAccess';
 import {
   CheckSquareOffset,
   Database,
@@ -67,7 +67,7 @@ interface SettingsProps {
   onAttachBrowser(windowId?: number): Promise<void>;
   onOpenBrowserSite(url: string): Promise<void>;
   onDetachBrowser(): Promise<void>;
-  accessSetupApi: AccessSetupApi;
+  macSetupApi: MacSetupApi;
   onSetComputerAccessMode?(
     mode: 'mac' | 'connected',
     background?: boolean,
@@ -122,7 +122,7 @@ export function Settings({
   onAttachBrowser,
   onOpenBrowserSite,
   onDetachBrowser,
-  accessSetupApi,
+  macSetupApi,
   onSetComputerAccessMode,
   onSetComputerTrust,
   onSetTrajectoryLog,
@@ -306,7 +306,7 @@ export function Settings({
               onAttachBrowser={onAttachBrowser}
               onOpenBrowserSite={onOpenBrowserSite}
               onDetachBrowser={onDetachBrowser}
-              accessSetupApi={accessSetupApi}
+              macSetupApi={macSetupApi}
               {...(onSetComputerAccessMode ? { onSetComputerAccessMode } : {})}
               onSetComputerTrust={onSetComputerTrust}
               onSetTrajectoryLog={onSetTrajectoryLog}

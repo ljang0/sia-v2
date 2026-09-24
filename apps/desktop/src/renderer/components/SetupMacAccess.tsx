@@ -1,19 +1,26 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { RendererApi, RendererSnapshot } from '../types';
 import { dictationReady } from '../voiceReadiness';
-import { MacAutomationPermissions } from './MacAutomationPermissions';
-import { automationApps } from '../../shared/mac-permissions';
+import { automationApps, automationStatusLabel } from '../../shared/mac-permissions';
+import ui from '../ui.module.css';
 import styles from './Onboarding.module.css';
 
-export type AccessSetupApi = Pick<
+export type MacSetupApi = Pick<
   RendererApi,
-  | 'getSnapshot'
   | 'requestComputerPermissions'
+  | 'refreshComputerPermissions'
+  | 'requestAutomationPermission'
   | 'configureVoice'
   | 'configurePushToTalk'
-  | 'requestAutomationPermission'
-  | 'refreshComputerPermissions'
 >;
+
+type AccessStep = {
+  id: string;
+  name: string;
+  ready: boolean;
+  detail: string;
+  request(isCurrent: () => boolean): Promise<void>;
+};
 
 export function SetupMacAccess({
   snapshot,
@@ -26,9 +33,11 @@ export function SetupMacAccess({
   onComplete,
   onReadyChange,
   includeApps = false,
+  onRestart,
+  onPause,
 }: {
   snapshot: RendererSnapshot;
-  api: AccessSetupApi;
+  api: MacSetupApi;
   agentId: string | undefined;
   disabled: boolean;
   onBusyChange(busy: boolean): void;
@@ -37,142 +46,291 @@ export function SetupMacAccess({
   onComplete?(): Promise<void>;
   onReadyChange?(ready: boolean): void;
   includeApps?: boolean;
+  onRestart?(): Promise<void>;
+  onPause?(): void;
 }) {
-  // Returning from a system permission panel updates the same checklist without
-  // replaying prompts or requiring a second setup click.
+  const [active, setActive] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const [error, setError] = useState<string>();
+  const requested = useRef(new Set<string>());
+  const requesting = useRef(false);
+  const refreshing = useRef(false);
+  const generation = useRef(0);
+  const mounted = useRef(true);
+  const automaticallyStarted = useRef(false);
+  const latest = useRef({ api, onComplete });
+  latest.current = { api, onComplete };
+  const voiceAvailable =
+    Boolean(snapshot.voice.pushToTalk?.available) &&
+    snapshot.voice.dictationAvailable !== false &&
+    Boolean(agentId);
+  const steps: AccessStep[] = [
+    {
+      id: 'accessibility',
+      name: 'Control your Mac',
+      ready: snapshot.computer.accessibility === 'allowed',
+      detail:
+        'In Accessibility, turn on Sia. If macOS asks, enter your password in its own dialog.',
+      request: () => api.requestComputerPermissions(),
+    },
+    {
+      id: 'screen',
+      name: 'See your screen',
+      ready: snapshot.computer.screenRecording === 'allowed',
+      detail: onRestart
+        ? 'In Screen & System Audio Recording, turn on Sia. If asked to quit, choose Later and use the restart button below.'
+        : 'In Screen & System Audio Recording, turn on Sia. Quit and reopen Sia if macOS asks you to restart.',
+      request: () => api.requestComputerPermissions(),
+    },
+    ...(voiceAvailable
+      ? [
+          {
+            id: 'voice',
+            name: 'Use Fn and your microphone',
+            ready: dictationReady(snapshot.voice),
+            detail:
+              'Allow the microphone and any Speech Recognition prompt. Setup does not record your voice.',
+            request: async (isCurrent: () => boolean) => {
+              if (snapshot.voice.status !== 'connected') await api.configureVoice();
+              if (!isCurrent()) return;
+              await api.configurePushToTalk(true, agentId!, true);
+            },
+          },
+        ]
+      : []),
+    ...(includeApps
+      ? automationApps.flatMap(({ id, name }) => {
+          const status = snapshot.computer.automation?.[id] ?? 'needs_permission';
+          if (status === 'unavailable') return [];
+          return [
+            {
+              id,
+              name,
+              ready: status === 'ready',
+              detail:
+                status === 'denied'
+                  ? `In Automation, expand Sia and turn on ${name}.`
+                  : `Allow Sia to control ${name} in the macOS prompt. ${automationStatusLabel[status]}.`,
+              request: () => api.requestAutomationPermission(id),
+            },
+          ];
+        })
+      : []),
+  ];
+  const ready = steps.filter((step) => step.ready).length;
+  const current = steps.find((step) => !step.ready);
+  const currentRef = useRef(current);
+  currentRef.current = current;
   useEffect(() => {
-    const refresh = () => {
-      void api.refreshComputerPermissions().catch(() => undefined);
+    onReadyChange?.(!current);
+  }, [onReadyChange, Boolean(current)]);
+  useEffect(() => {
+    onBusyChange(active);
+    return () => onBusyChange(false);
+  }, [active, onBusyChange]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      generation.current++;
     };
-    window.addEventListener('focus', refresh);
-    return () => window.removeEventListener('focus', refresh);
-  }, [api]);
-  const ptt = snapshot.voice.pushToTalk;
-  const voiceAvailable = Boolean(ptt?.available) && snapshot.voice.dictationAvailable !== false;
-  const voiceReady = dictationReady(snapshot.voice);
-  const computerReady =
-    snapshot.computer.accessibility === 'allowed' &&
-    snapshot.computer.screenRecording === 'allowed';
-  const prepare = async () => {
-    const failures: string[] = [];
-    const attempt = async (action: () => Promise<void>) => {
-      try {
-        await action();
-      } catch (error) {
-        failures.push(
-          error instanceof Error ? error.message : 'Permission setup did not finish.',
-        );
-      }
-    };
-    let current = snapshot;
-    if (!computerReady)
-      await attempt(async () => {
-        await api.requestComputerPermissions();
-        current = await api.getSnapshot();
-      });
-    if (!dictationReady(current.voice) && agentId && voiceAvailable)
-      await attempt(async () => {
-        if (current.voice.status !== 'connected') {
-          await api.configureVoice();
-          current = await api.getSnapshot();
-        }
-        if (current.voice.dictationAvailable !== false)
-          await api.configurePushToTalk(
-            true,
-            agentId,
-            current.computer.accessibility === 'allowed',
-          );
-      });
-    if (failures.length) throw new Error(failures.join('; '));
+  }, []);
+
+  const start = () => {
+    if (requesting.current) return;
+    requested.current.clear();
+    setError(undefined);
+    setActive(true);
+    setRetry((value) => value + 1);
   };
-  const rows = [
-    [
-      'Accessibility',
-      snapshot.computer.accessibility === 'allowed',
-      true,
-      snapshot.computer.accessibility === 'denied'
-        ? 'Enable Sia in System Settings → Privacy & Security → Accessibility.'
-        : 'Click, type, and use the Fn shortcut.',
-    ],
-    [
-      'Screen Recording',
-      snapshot.computer.screenRecording === 'allowed',
-      true,
-      snapshot.computer.screenRecording === 'denied'
-        ? 'Enable Sia in System Settings → Privacy & Security → Screen Recording. Restart Sia if macOS asks.'
-        : 'See apps and verify task results.',
-    ],
-    [
-      'Voice and microphone',
-      voiceReady,
-      voiceAvailable,
-      snapshot.voice.dictationDetail ??
-        (voiceAvailable
-          ? snapshot.voice.engine === 'macos' && snapshot.voice.speechRecognition !== 'allowed'
-            ? 'Allow Speech Recognition, microphone, and Fn shortcut access. Setup does not record.'
-            : 'Hold Fn to dictate. Setup does not start a recording.'
-          : 'Unavailable on this device.'),
-    ],
-  ] as const;
-  const available = rows.filter(([, , supported]) => supported);
-  const coreReady = available.every(([, allowed]) => allowed);
-  const appStates = includeApps
-    ? automationApps
-        .map(({ id }) => snapshot.computer.automation?.[id] ?? 'needs_permission')
-        .filter((status) => status !== 'unavailable')
-    : [];
-  const ready =
-    available.filter(([, allowed]) => allowed).length +
-    appStates.filter((status) => status === 'ready').length;
-  const total = available.length + appStates.length;
   useEffect(() => {
-    onReadyChange?.(ready === total);
-  }, [onReadyChange, ready, total]);
-  return (
-    <MacAutomationPermissions
-      permissions={snapshot.computer.automation}
-      includeApps={includeApps}
-      autoStart={autoStart}
-      compact={compact}
-      {...(onComplete ? { onComplete } : {})}
-      summary={
-        <p className={styles.accessSummary} role="status">
-          <strong>
-            {ready === total
-              ? 'Ready to use Sia.'
-              : coreReady
-                ? 'Core access is ready.'
-                : `${ready} of ${total} setup permissions ready`}
-          </strong>
-          <span>
-            {ready === total
-              ? includeApps
-                ? 'Common app access is included below. You can finish any missing access later.'
-                : 'Other apps ask for access when a task needs them.'
-              : coreReady
-                ? `${ready} of ${total} permissions ready. Remaining app access is optional; you can finish it later.`
-                : 'Approve the macOS prompts, then return here. Status updates automatically. You can finish missing access later.'}
-          </span>
-        </p>
+    if (!autoStart || disabled || automaticallyStarted.current) return;
+    automaticallyStarted.current = true;
+    start();
+  }, [autoStart, disabled]);
+
+  // The shared checklist owns passive refresh, including return from Settings while paused.
+  const refreshAccess = async (reportError = false) => {
+    if (refreshing.current || requesting.current) return;
+    refreshing.current = true;
+    try {
+      await latest.current.api.refreshComputerPermissions();
+    } catch {
+      if (reportError && mounted.current) setError('Access could not be checked. Try again.');
+    } finally {
+      refreshing.current = false;
+    }
+  };
+  useEffect(() => {
+    const refresh = () => void refreshAccess();
+    const timer = active ? window.setInterval(refresh, 2000) : undefined;
+    window.addEventListener('focus', refresh);
+    return () => {
+      if (timer) clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [active]);
+
+  useEffect(() => {
+    if (!active || disabled || requesting.current) return;
+    const step = currentRef.current;
+    if (step && requested.current.has(step.id)) return;
+    const pass = generation.current;
+    if (step) requested.current.add(step.id);
+    requesting.current = true;
+    setPending(true);
+    setError(undefined);
+    void (async () => {
+      try {
+        if (step) {
+          await step.request(() => pass === generation.current);
+          if (pass !== generation.current) return;
+          await latest.current.api.refreshComputerPermissions();
+        } else {
+          setActive(false);
+          await latest.current.onComplete?.();
+        }
+      } catch (cause) {
+        if (pass === generation.current)
+          setError(cause instanceof Error ? cause.message : 'Setup needs another try.');
+      } finally {
+        requesting.current = false;
+        if (mounted.current) {
+          setPending(false);
+          setRetry((value) => value + 1);
+        }
       }
-      request={(app) => api.requestAutomationPermission(app)}
-      refresh={() => api.refreshComputerPermissions()}
-      disabled={disabled}
-      prepare={prepare}
-      onBusyChange={onBusyChange}
-      needsPreparation={!computerReady || (!voiceReady && voiceAvailable)}
-    >
-      {rows.map(([name, ready, available, detail]) => (
-        <li className={styles.permission} key={name}>
-          <div>
-            <strong>{name}</strong>
-            <p>{detail}</p>
-          </div>
-          <span className={ready ? styles.ready : styles.status}>
-            {ready ? 'Allowed' : available ? 'Needs access' : 'Unavailable'}
+    })();
+  }, [active, disabled, current?.id, retry]);
+
+  const pause = () => {
+    generation.current++;
+    setActive(false);
+    setPending(false);
+    setError(undefined);
+  };
+  return (
+    <section aria-label="Guided Mac permissions">
+      {!compact && <h3>Set up Mac access in one go</h3>}
+      <p className={styles.accessSummary} role="status">
+        <strong>
+          {current ? `${ready} of ${steps.length} permissions ready` : 'Mac access is ready.'}
+        </strong>
+        <span>
+          Sia opens each step and moves on when access is granted. You approve macOS dialogs;
+          your password stays with macOS.
+        </span>
+      </p>
+      {active && current && (
+        <div className={styles.permissionGuide}>
+          <span className={styles.eyebrow}>
+            STEP {steps.indexOf(current) + 1} OF {steps.length}
           </span>
-        </li>
-      ))}
-    </MacAutomationPermissions>
+          <h3>{current.name}</h3>
+          <p>{current.detail}</p>
+          <p className={styles.note}>
+            Keep this guide open. Already allowed permissions are skipped.
+          </p>
+          <div className={styles.siteButtons}>
+            <button
+              className={ui.secondaryButton}
+              disabled={pending}
+              onClick={() => {
+                requested.current.delete(current.id);
+                setRetry((value) => value + 1);
+              }}
+            >
+              I don’t see the prompt
+            </button>
+            {current.id === 'screen' && onRestart && (
+              <button
+                className={styles.link}
+                disabled={pending}
+                onClick={() => {
+                  pause();
+                  void onRestart().catch(() => setError('Sia could not restart. Try again.'));
+                }}
+              >
+                I enabled it — restart Sia
+              </button>
+            )}
+            <button
+              className={styles.link}
+              onClick={() => {
+                pause();
+                onPause?.();
+              }}
+            >
+              Finish later
+            </button>
+          </div>
+        </div>
+      )}
+      {!active && current && (
+        <button
+          className={ui.primaryButton}
+          disabled={disabled || requesting.current}
+          onClick={start}
+        >
+          Set up permissions
+        </button>
+      )}
+      {error && (
+        <p className={styles.error} role="alert">
+          {error}
+        </p>
+      )}
+      <ul className={styles.accessList} aria-label="Core permissions">
+        {steps
+          .filter((step) => ['accessibility', 'screen', 'voice'].includes(step.id))
+          .map((step) => (
+            <li className={styles.permission} key={step.id}>
+              <div>
+                <strong>{step.name}</strong>
+                <p>{step.detail}</p>
+              </div>
+              <span className={step.ready ? styles.ready : styles.status}>
+                {step.ready ? 'Allowed' : 'Needs access'}
+              </span>
+            </li>
+          ))}
+        {!voiceAvailable && (
+          <li className={styles.permission}>
+            <div>
+              <strong>Voice and microphone</strong>
+              <p>
+                {snapshot.voice.dictationDetail ?? 'Voice setup is unavailable on this device.'}
+              </p>
+            </div>
+            <span className={styles.status}>Unavailable</span>
+          </li>
+        )}
+      </ul>
+      <button
+        className={styles.link}
+        disabled={disabled || pending}
+        onClick={() => void refreshAccess(true)}
+      >
+        Check access
+      </button>
+      {includeApps && (
+        <details className={styles.details}>
+          <summary>App permissions</summary>
+          <ul className={styles.accessList}>
+            {steps
+              .filter((step) => !['accessibility', 'screen', 'voice'].includes(step.id))
+              .map((step) => (
+                <li className={styles.permission} key={step.id}>
+                  <strong>{step.name}</strong>
+                  <span className={step.ready ? styles.ready : styles.status}>
+                    {step.ready ? 'Allowed' : 'Needs access'}
+                  </span>
+                </li>
+              ))}
+          </ul>
+        </details>
+      )}
+    </section>
   );
 }

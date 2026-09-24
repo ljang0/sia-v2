@@ -9,11 +9,11 @@ import type { RecordRepository } from '../../src/main/persistence';
 test('reviews exact memory changes and executable source before accepting', async () => {
   const sia = await launchIsolatedSia({ prefix: 'sia-suggestions-' });
   try {
-    const page = sia.page;
+    let page = sia.page;
     // This scenario reviews structured suggestions, not the automatic native memory vault.
     await page.getByText('Customize setup', { exact: true }).click();
     await page.getByRole('radio', { name: /Connected apps \+ confirmations/ }).check();
-    await page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
+    page = await sia.completeSetup();
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     const agentId = (await page.evaluate(() => window.sia.bootstrap())).agents[0]!.id;
     // Seed only this disposable plaintext fixture; use the real proposal validation path.

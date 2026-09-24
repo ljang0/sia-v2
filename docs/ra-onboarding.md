@@ -151,22 +151,29 @@ cancelling a pending transcript creates no message. Use a disposable account for
 ### Desktop setup
 
 At launch, Sia explains why macOS may ask for its Keychain encryption key: it protects saved
-conversations and settings. If Keychain access is declined, Sia offers restart or quit without
+conversations and settings. This explanation is shown and focused before the first protected read.
+If the macOS “Sia Safe Storage” prompt is hidden, select Sia in the Dock or use Command–Tab.
+Choose **Always Allow** in macOS to retain this approval for the same signed app.
+If Keychain access is declined, Sia offers restart or quit without
 opening or changing the saved database. It does not start a temporary, unsaved workspace.
 
 After any required email sign-in:
 
 1. Click **Set up Sia**. This creates the default assistant and requests missing screen-control and voice permissions.
-2. Approve the macOS prompts. Sia rechecks access when you return.
-   Sia opens your conversation automatically when screen control and voice are ready. If any permission
-   is skipped, choose **Start using Sia** to continue and finish access later in Settings.
+2. Follow the on-screen guide and approve each macOS prompt. Sia opens one missing permission at a
+   time, waits for verified access, and advances automatically. **I don’t see the prompt** reopens
+   the current step; denied access opens its System Settings pane.
+3. Sia restarts after the completed permission pass and opens your conversation. If Screen Recording
+   requires an earlier restart, choose **I enabled it — restart Sia**. Setup resumes the remaining
+   permissions using your saved choice of apps. **Finish later** stops the pass; **Start using Sia**
+   continues with the access already granted.
 
 In Use my Mac, **Prepare everyday apps now** is selected by default. The same setup pass requests
 missing Automation grants for System Events, Safari, Chrome, Calendar, Reminders, Finder and
 Messages. Already allowed or unavailable apps are skipped; running apps are reused and missing
 apps open hidden where macOS supports it. Uncheck the option to defer those app prompts until a
 task needs them. Connected apps setup does not request these Automation grants.
-**Settings → Computer → Allow all Mac apps** remains available for later bulk setup.
+**Settings → Computer → Grant all permissions** runs the same guided pass later.
 
 The default is **Use my Mac + full bypass**: Sia uses signed-in Mac apps and may send messages or
 change files without per-action approval. **Customize setup** contains the alternative
@@ -177,10 +184,11 @@ complete AI sign-in first. No API key is required.
 Setup includes Accessibility, Screen Recording, microphone, Speech Recognition when using Mac
 dictation, the Fn shortcut, and selected app Automation grants. Messages history (Full Disk Access)
 remains a separate optional setup when needed. macOS still requires its
-own separate approvals. Sia skips grants already allowed, never records during setup, and does
-not replay permission requests on relaunch. Returning from System Settings or clicking
-**Check access** only reads current status. **Allow remaining access** retries missing grants;
-**Permission details** shows denied, unavailable, or unchecked access. You can start chatting
+own approvals; a single Sia button cannot replace them with a single password prompt. Passwords
+are entered only in macOS dialogs, never Sia or the agent. Sia skips grants already allowed and
+never records during setup. Returning from System Settings only reads current status. A setup
+restart resumes an explicitly active pass, while a paused pass stays paused. **Permission details**
+shows which access is ready. You can start chatting
 without optional permissions. A closed app may need to be opened before its Automation grant can
 be checked.
 
@@ -486,10 +494,11 @@ reads a real account or runs native commands; it is skipped by normal checks and
 SIA_CODEX_REAL_SMOKE=1 SIA_COURSE_INVESTIGATION_SMOKE=1 pnpm --filter @sia/desktop exec vitest run src/main/course-investigation.smoke.test.ts
 ```
 
-GPT-6 Astra is available in the model picker when the connected Codex account lists it. Sia
+GPT-6 Astra is available in the model picker when the connected Codex account lists it. Use my
+Mac setup selects it by default when available; an explicit model choice takes precedence. Sia
 checks both PATH and the official installed Mac app for a supported Codex version. Existing
-conversations keep their selected model; select Astra when creating an agent or changing its
-model for new conversations. Cmd+E captures the source app before taking focus, so requests
+conversations keep their selected model; change an existing agent's model for new conversations.
+Cmd+E captures the source app before taking focus, so requests
 like “summarize this selection” retain that context. Partial or blocked task results show that
 the task needs attention instead of announcing completion.
 

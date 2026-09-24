@@ -557,8 +557,7 @@ describe('computer access settings', () => {
         onAttachBrowser={vi.fn()}
         onOpenBrowserSite={vi.fn()}
         onDetachBrowser={vi.fn()}
-        accessSetupApi={{
-          getSnapshot: vi.fn(async () => structuredClone(demoSnapshot)),
+        macSetupApi={{
           requestComputerPermissions: vi.fn(),
           requestAutomationPermission: vi.fn(),
           refreshComputerPermissions: vi.fn(),
@@ -606,8 +605,7 @@ describe('computer access settings', () => {
         onAttachBrowser={vi.fn()}
         onOpenBrowserSite={vi.fn()}
         onDetachBrowser={vi.fn()}
-        accessSetupApi={{
-          getSnapshot: vi.fn(async () => structuredClone(demoSnapshot)),
+        macSetupApi={{
           requestComputerPermissions: vi.fn(),
           requestAutomationPermission: vi.fn(),
           refreshComputerPermissions: vi.fn(),
@@ -636,8 +634,7 @@ describe('computer access settings', () => {
         onAttachBrowser={vi.fn()}
         onOpenBrowserSite={vi.fn()}
         onDetachBrowser={vi.fn()}
-        accessSetupApi={{
-          getSnapshot: vi.fn(async () => structuredClone(demoSnapshot)),
+        macSetupApi={{
           requestComputerPermissions: vi.fn(),
           requestAutomationPermission: vi.fn(),
           refreshComputerPermissions: vi.fn(),
@@ -698,6 +695,8 @@ it('sets up computer, voice and missing app access through one settings action',
   snapshot.computer.accessibility = 'not-requested';
   snapshot.computer.screenRecording = 'not-requested';
   snapshot.computer.automation = {
+    system_events: 'ready',
+    safari: 'ready',
     finder: 'ready',
     messages: 'ready',
     reminders: 'ready',
@@ -715,38 +714,74 @@ it('sets up computer, voice and missing app access through one settings action',
       phase: 'idle',
     },
   };
-  const accessSetupApi = {
-    getSnapshot: vi.fn(async () => structuredClone(snapshot)),
+  const macSetupApi = {
     requestComputerPermissions: vi.fn(async () => {}),
     requestAutomationPermission: vi.fn(async () => {}),
     refreshComputerPermissions: vi.fn(async () => {}),
     configureVoice: vi.fn(async () => {}),
     configurePushToTalk: vi.fn(async () => {}),
   };
-  render(
+  const content = () => (
     <ComputerSettings
       snapshot={snapshot}
-      accessSetupApi={accessSetupApi}
+      macSetupApi={macSetupApi}
       onAttachBrowser={vi.fn()}
       onOpenBrowserSite={vi.fn()}
       onDetachBrowser={vi.fn()}
       onSetComputerTrust={vi.fn()}
       onSetTrajectoryLog={vi.fn()}
       onRevealTrajectories={vi.fn()}
-    />,
+    />
   );
-  expect(accessSetupApi.requestComputerPermissions).not.toHaveBeenCalled();
+  const view = render(content());
+  const redraw = () => view.rerender(content());
+  macSetupApi.requestComputerPermissions.mockImplementation(async () => {
+    await Promise.resolve();
+    if (snapshot.computer.accessibility !== 'allowed')
+      snapshot.computer.accessibility = 'allowed';
+    else snapshot.computer.screenRecording = 'allowed';
+    redraw();
+  });
+  macSetupApi.configureVoice.mockImplementation(async () => {
+    await Promise.resolve();
+    snapshot.voice.status = 'connected';
+    redraw();
+  });
+  macSetupApi.configurePushToTalk.mockImplementation(async () => {
+    await Promise.resolve();
+    snapshot.voice.pushToTalk = {
+      ...snapshot.voice.pushToTalk!,
+      enabled: true,
+      microphone: true,
+      accessibility: true,
+    };
+    redraw();
+  });
+  macSetupApi.requestAutomationPermission.mockImplementation(async () => {
+    await Promise.resolve();
+    snapshot.computer.automation!.calendar = 'ready';
+    redraw();
+  });
+  expect(macSetupApi.requestComputerPermissions).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Set up permissions' }));
-  await waitFor(() => expect(accessSetupApi.refreshComputerPermissions).toHaveBeenCalledOnce());
-  expect(accessSetupApi.requestComputerPermissions).toHaveBeenCalledOnce();
-  expect(accessSetupApi.configureVoice).toHaveBeenCalledOnce();
-  expect(accessSetupApi.configurePushToTalk).toHaveBeenCalledOnce();
-  expect(accessSetupApi.requestAutomationPermission).toHaveBeenCalledWith('calendar');
+  await waitFor(() => expect(macSetupApi.configureVoice).toHaveBeenCalledOnce());
+  await waitFor(() => expect(macSetupApi.configurePushToTalk).toHaveBeenCalledOnce());
+  await waitFor(() => expect(screen.getByText('Mac access is ready.')).toBeTruthy());
+  expect(macSetupApi.requestComputerPermissions).toHaveBeenCalledTimes(2);
+  expect(macSetupApi.configureVoice).toHaveBeenCalledOnce();
+  expect(macSetupApi.configurePushToTalk).toHaveBeenCalledOnce();
+  expect(macSetupApi.requestAutomationPermission).toHaveBeenCalledWith('calendar');
   expect(screen.queryByRole('button', { name: 'Allow all Mac apps' })).toBeNull();
   expect(screen.queryByText('Mac computer use')).toBeNull();
+  await waitFor(() =>
+    expect(
+      (screen.getByRole('button', { name: 'Check access' }) as HTMLButtonElement).disabled,
+    ).toBe(false),
+  );
+  const refreshes = macSetupApi.refreshComputerPermissions.mock.calls.length;
   fireEvent.click(screen.getByRole('button', { name: 'Check access' }));
   await waitFor(() =>
-    expect(accessSetupApi.refreshComputerPermissions).toHaveBeenCalledTimes(2),
+    expect(macSetupApi.refreshComputerPermissions).toHaveBeenCalledTimes(refreshes + 1),
   );
-  expect(accessSetupApi.requestComputerPermissions).toHaveBeenCalledOnce();
+  expect(macSetupApi.requestComputerPermissions).toHaveBeenCalledTimes(2);
 });

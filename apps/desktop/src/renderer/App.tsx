@@ -430,7 +430,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onAttachBrowser={(windowId) => api.attachBrowser(windowId)}
               onOpenBrowserSite={(url) => api.openBrowserSite(url)}
               onDetachBrowser={() => api.detachBrowser()}
-              accessSetupApi={api}
+              macSetupApi={api}
               onSetComputerAccessMode={(mode, background, backgroundFallback) =>
                 api.setComputerAccessMode(mode, background, backgroundFallback)
               }

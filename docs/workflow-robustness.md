@@ -1,6 +1,7 @@
 # Workflow robustness
 
-Source review of `codex/codex-setup`, based on `afb0c53` plus the current working tree.
+Source review of `codex/codex-setup`: robustness checkpoint `1fa1528`, incorporating
+the three subsequent `origin/romir` commits through `148b452`.
 This is a source and deterministic-test audit of the major user workflows. It is not an
 all-app live acceptance result. The public release remains gated by [public-release.md](./public-release.md).
 
@@ -110,7 +111,7 @@ do not establish transport secrecy or real Wi-Fi reliability.
 | Install, Codex setup and permissions          | `index.ts`, `codex-installer.ts`, discovery/probe, controller setup; archive tamper/wrong-version/idempotency and onboarding fixtures | Clean Mac download, browser sign-in, each denied OS permission, resumable interrupted setup      |
 | Sia login, MFA and logout                     | `identity.ts`, controller identity boundary, encrypted repository; normal auth/MFA and new stale-response regressions                 | Fresh recipient email, revocation and upgrade continuity; approved long-lived session deployment |
 | Typed chat, cancel and continue               | Controller turn loop, `runtime-coordinator.ts`, `task-recovery.ts`; leases, approval revocation, failed-turn recovery tests           | Provider exit mid-action, exactly-once recovery of external writes                               |
-| Dictation, voice conversation and read aloud  | Renderer voice lifecycle, `voice-service.ts`, factory, push-to-talk/native helper; new lifecycle regressions                          | Physical audio devices, sleep/wake and authenticated shared-voice round trip                     |
+| Dictation, voice conversation and read aloud  | Renderer voice lifecycle, `voice-service.ts`, factory, push-to-talk/native helper; new lifecycle regressions                          | Physical audio devices and sleep/wake; authenticated synthetic shared-voice round trip passed    |
 | Foreground/background desktop and browser     | CUA queue, action backend and native exact-window matching; bounded-call and synthetic geometry tests                                 | Chrome/Slack across Spaces, minimized/full-screen windows, no-op clicks and recovery             |
 | Google, Slack and Messages                    | Controller connection polling/ownership, cloud services and typed action gateway; OAuth and scope fixtures                            | Disposable-account reconnect/revoke, Slack multiple workspaces, Messages Full Disk Access        |
 | Files, attachments, Git and commands          | `workspace-operations.ts`; real Git fixtures, path/symlink guards, snapshots, bounded output and process-group cancellation           | Interrupted large file operations, disk pressure and packaged helper behavior                    |
@@ -122,19 +123,40 @@ do not establish transport secrecy or real Wi-Fi reliability.
 
 ## Verification record
 
+- Merged Romir changes through `148b452` with the robustness checkpoint `1fa1528`.
+  The combined `pnpm test:pilot` passed: 702 desktop unit/component tests (6 explicit skips),
+  135 cloud tests, 46 desktop/phone UI tests (4 explicit live skips), and the runtime,
+  action-gateway, tool-bridge, native, build, formatting and type gates.
+  The UI harness now observes the real setup shutdown and reopens the same disposable profile;
+  only Electron’s detached relaunch and process-local fake OS grants are controlled by the fixture.
+  It verifies persisted setup completion, relaunch, replay without duplicate agents, and settings
+  layouts. This is not a real macOS permission-dialog or OS relaunch acceptance result.
+
 - Before fixes: eight focused identity/voice cases failed; controller sign-out added a ninth failure.
 - After initial fixes: 22 focused identity/voice tests passed. Full `pnpm test:pilot` passed: 696 desktop unit/component tests (6 explicit skips),
   135 cloud tests and 46 desktop/phone UI tests (4 explicit live skips), plus runtime,
   action-gateway, tool-bridge, native, formatting, build and type checks. A subsequently added
   removed-voice regression is verified separately; no product source changed after that full gate.
-- Shared voice: destination-specific approval received; transfer is waiting for local Keychain access.
-  The hosted-voice-only production change set is prepared but has not been executed. An anonymous
-  request to the deployed voice catalog returned HTTP 401. No authenticated shared-voice result
-  is claimed yet.
-- A separate universal signed candidate was built at
-  `apps/desktop/release/robustness/mac-universal/Sia.app`; strict nested code-signature verification
-  passed. Its `app.asar` SHA-256 is `cae4fdbdaf984940af39dc23862dc79806c19dd2ea738030bf3a3a44b1f29785`.
-  It is not notarized, published or launched for live acceptance. The existing open app was preserved.
+- Shared voice: after destination-specific approval, the saved operator key was transferred to
+  Sia AWS Secrets Manager in `us-east-1`. The approved change changed only `EnableHostedVoice`
+  to `true`; the `sia-alpha` stack reached `UPDATE_COMPLETE` on September 24, 2026. The existing
+  limit remains 20 token mints per signed-in user per day. No session-lifetime or email-sender
+  configuration was changed.
+- Authenticated shared voice passed using the existing encrypted Sia sign-in, with the original
+  profile opened read-only and temporary auth state held only in an encrypted in-memory store.
+  The deployed catalog returned 21 voices and all three token types. The actual desktop
+  `CloudClient` and `ElevenLabsVoiceService` generated a synthetic sentence and recovered it
+  through both batch and realtime transcription; recording cancellation passed. The speech
+  round trip took 3.59 seconds. An anonymous catalog request returned HTTP 401. This proves
+  the deployed account/broker/provider path, not physical microphone or packaged UI behavior.
+- The merged universal signed candidate is
+  `apps/desktop/release/robustness/mac-universal/Sia.app`. Strict nested code-signature verification
+  passed; the app and native helper contain both x86_64 and arm64. Its `app.asar` SHA-256 is
+  `3e7de63c0440e98adc55c4cc6ded13faecc739416f02cfd84eadb4c242e47412`.
+  It was launched with a separate empty profile and remained running beyond 30 seconds, but
+  displayed the secure-storage startup screen awaiting Keychain authorization. Completion to
+  sign-in is not claimed. It is not notarized or published; the existing walkthrough app/profile
+  remains unchanged.
 - Final focused identity/voice/factory suite: 26 tests passed, including the removed-voice regression.
 - No model-backed turns, real messages, private microphone capture or public publication were run
-  during this audit. No third-party key is included in source, fixtures or documentation.
+  during this audit. The approved synthetic voice check made paid ElevenLabs requests. No third-party key is included in source, fixtures or documentation.

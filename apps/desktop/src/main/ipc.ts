@@ -199,6 +199,10 @@ const inputSchemas = {
   'settings.openDirectory': z.undefined(),
   'settings.setOnboarding': z
     .object({
+      permissionSetup: z
+        .object({ includeApps: z.boolean(), active: z.boolean() })
+        .strict()
+        .optional(),
       step: z.enum([
         'welcome',
         'agent',

@@ -1,4 +1,4 @@
-import type { BrowserWindow } from 'electron';
+import { app, type BrowserWindow } from 'electron';
 
 // Paint an explanation before synchronous Keychain calls can wait for a system
 // prompt. This inert page has no scripts, forms, links, or credential fields.
@@ -19,9 +19,17 @@ small { display: block; margin-top: 24px; line-height: 1.5; color: light-dark(#6
 </style></head><body><main aria-label="Opening Sia">
 <div class="brand">sia</div><h1>Opening your secure workspace…</h1>
 <p>Sia uses its own Keychain encryption key to protect your saved conversations and settings.</p>
-<p>If macOS asks, allow Sia to use that key to continue.</p>
+<p>In the macOS “Sia Safe Storage” prompt, choose Always Allow to avoid the same request on future launches.</p>
+<p>If you don’t see the prompt, select Sia in the Dock or use Command–Tab to return to Sia. The prompt belongs to macOS and can appear behind another app.</p>
 <small>Your Mac password stays with macOS. Sia never sees it.</small>
 </main></body></html>`)}`,
   );
   await painted;
+  // A background launch can otherwise block on synchronous Keychain access
+  // while its system prompt remains on a different app/Space. Establish focus
+  // before the first protected read; never activate or automate SecurityAgent.
+  window.show();
+  app.focus({ steal: true });
+  window.focus();
+  await new Promise<void>((resolve) => setImmediate(resolve));
 }

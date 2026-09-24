@@ -4,8 +4,8 @@ import { launchIsolatedSia } from '../support/electron-harness';
 test('launcher uses an isolated bridge, opens from the menu, and dispatches to the chosen agent', async () => {
   const sia = await launchIsolatedSia({ prefix: 'sia-launcher-' });
   try {
-    const page = sia.page;
-    await page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
+    let page = sia.page;
+    page = await sia.completeSetup();
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     await expect(page.getByText('Ready when you are', { exact: true })).toBeVisible();
     await expect(page.getByText('Recent conversations', { exact: true })).toBeVisible();

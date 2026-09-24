@@ -1,241 +1,187 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { StrictMode } from 'react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { demoSnapshot } from '../demo';
-import type { RendererApi } from '../types';
-import {
-  automationApps,
-  type AutomationApp,
-  type AutomationPermissions,
-} from '../../shared/mac-permissions';
 import { SetupMacAccess } from './SetupMacAccess';
-import { SetupConnections } from './OnboardingConnections';
+import { demoSnapshot } from '../demo';
 
-afterEach(cleanup);
-
-function setup() {
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+function setup(autoStart = false) {
   const snapshot = structuredClone(demoSnapshot);
   snapshot.computer.accessibility = 'not-requested';
   snapshot.computer.screenRecording = 'not-requested';
-  snapshot.computer.messagesAccess = 'needs_full_disk_access';
-  snapshot.computer.automation = Object.fromEntries(
-    automationApps.map(({ id }) => [id, 'needs_permission']),
-  ) as AutomationPermissions;
-  snapshot.voice = {
-    status: 'disconnected',
-    voices: [],
-    pushToTalk: {
-      available: true,
-      enabled: false,
-      accessibility: false,
-      microphone: false,
-      phase: 'idle',
-    },
+  snapshot.voice.pushToTalk = {
+    available: false,
+    enabled: false,
+    accessibility: false,
+    microphone: false,
+    phase: 'idle',
+  };
+  snapshot.computer.automation = {
+    system_events: 'ready',
+    safari: 'needs_permission',
+    chrome: 'unavailable',
+    calendar: 'ready',
+    reminders: 'ready',
+    finder: 'ready',
+    messages: 'ready',
   };
   const api = {
-    getSnapshot: vi.fn(async () => structuredClone(snapshot)),
     requestComputerPermissions: vi.fn(async () => {}),
+    refreshComputerPermissions: vi.fn(async () => {}),
+    requestAutomationPermission: vi.fn(async () => {}),
     configureVoice: vi.fn(async () => {}),
     configurePushToTalk: vi.fn(async () => {}),
-    setupMessages: vi.fn(async () => {}),
-    requestAutomationPermission: vi.fn(async (_app: AutomationApp) => {}),
-    refreshComputerPermissions: vi.fn(async () => {}),
   };
-  const props = {
-    snapshot,
-    api: api as unknown as RendererApi,
-    agentId: snapshot.agents[0]!.id,
-    disabled: false,
-    onBusyChange: vi.fn(),
-    onReadyChange: vi.fn(),
-  };
-  return { snapshot, api, props };
+  const complete = vi.fn(async () => {});
+  const pause = vi.fn();
+  const busy = vi.fn();
+  const content = () => (
+    <StrictMode>
+      <SetupMacAccess
+        snapshot={snapshot}
+        api={api}
+        agentId="agent"
+        disabled={false}
+        onBusyChange={busy}
+        onComplete={complete}
+        onPause={pause}
+        includeApps
+        autoStart={autoStart}
+      />
+    </StrictMode>
+  );
+  const view = render(content());
+  return { snapshot, api, complete, pause, view, rerender: () => view.rerender(content()) };
 }
 
-it('requests only core access, preserves failures, and never launches apps or Messages setup', async () => {
-  const { snapshot, api, props } = setup();
-  snapshot.computer.automation!.calendar = 'ready';
-  snapshot.computer.automation!.chrome = 'unavailable';
-  api.configureVoice.mockRejectedValue(new Error('Speech access denied'));
-  render(<SetupMacAccess {...props} />);
+it('one start waits for verified access, advances without more clicks, and never overlaps prompts', async () => {
+  const { snapshot, api, complete, rerender } = setup();
   expect(api.requestComputerPermissions).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Set up permissions' }));
+  await waitFor(() => expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1));
+  fireEvent.focus(window);
+  rerender();
+  expect(api.requestAutomationPermission).not.toHaveBeenCalled();
+  expect(complete).not.toHaveBeenCalled();
+  snapshot.computer.accessibility = 'allowed';
+  rerender();
+  await waitFor(() => expect(api.requestComputerPermissions).toHaveBeenCalledTimes(2));
+  expect(api.requestAutomationPermission).not.toHaveBeenCalled();
+  snapshot.computer.screenRecording = 'allowed';
+  rerender();
   await waitFor(() =>
-    expect(screen.getByRole('alert').textContent).toContain('Speech access denied'),
+    expect(api.requestAutomationPermission).toHaveBeenCalledExactlyOnceWith('safari'),
   );
-  expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1);
-  expect(api.setupMessages).not.toHaveBeenCalled();
-  expect(api.requestAutomationPermission).not.toHaveBeenCalled();
-  expect(props.onBusyChange.mock.calls).toEqual([[true], [false]]);
-  fireEvent.click(screen.getByRole('button', { name: 'Check access' }));
-  await waitFor(() => expect(api.refreshComputerPermissions).toHaveBeenCalledTimes(2));
-  expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1);
-  expect(api.configureVoice).toHaveBeenCalledTimes(1);
-  expect(api.requestAutomationPermission).not.toHaveBeenCalled();
-});
-
-it.each([false, true])(
-  'requests helper Accessibility only when the main app already has access: %s',
-  async (allowed) => {
-    const { snapshot, api, props } = setup();
-    if (allowed) snapshot.computer.accessibility = 'allowed';
-    render(<SetupMacAccess {...props} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Set up permissions' }));
-    await waitFor(() => expect(api.refreshComputerPermissions).toHaveBeenCalledTimes(1));
-    expect(api.configurePushToTalk).toHaveBeenCalledExactlyOnceWith(
-      true,
-      props.agentId,
-      allowed,
-    );
-    expect(api.configureVoice.mock.invocationCallOrder[0]).toBeLessThan(
-      api.configurePushToTalk.mock.invocationCallOrder[0]!,
-    );
-  },
-);
-
-it('prepares selected everyday apps in the same pass without replaying granted access', async () => {
-  const { snapshot, api, props } = setup();
+  expect(complete).not.toHaveBeenCalled(); // Request returned, but user has not granted it.
   snapshot.computer.automation!.safari = 'ready';
-  snapshot.computer.automation!.chrome = 'unavailable';
-  render(<SetupMacAccess {...props} includeApps />);
-  fireEvent.click(screen.getByRole('button', { name: 'Set up permissions' }));
-  await waitFor(() => expect(api.refreshComputerPermissions).toHaveBeenCalledTimes(1));
-  expect(api.requestAutomationPermission.mock.calls.map((call) => call[0])).toEqual([
-    'system_events',
-    'calendar',
-    'reminders',
-    'finder',
-    'messages',
-  ]);
-  expect(api.setupMessages).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button', { name: 'Check access' }));
-  await waitFor(() => expect(api.refreshComputerPermissions).toHaveBeenCalledTimes(2));
-  expect(api.requestAutomationPermission).toHaveBeenCalledTimes(5);
+  rerender();
+  await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+  expect(screen.getByText('Mac access is ready.')).toBeTruthy();
+  expect(api.configureVoice).not.toHaveBeenCalled();
 });
 
-it('finishes core setup even when Messages and individual app access are not granted', async () => {
-  const { snapshot, api, props } = setup();
-  snapshot.computer.accessibility = snapshot.computer.screenRecording = 'allowed';
-  snapshot.voice = {
-    status: 'connected',
-    voices: [],
-    pushToTalk: {
-      available: true,
-      enabled: true,
-      accessibility: true,
-      microphone: true,
-      phase: 'idle',
-    },
-  };
-  render(<SetupMacAccess {...props} />);
+it('an explicitly authorized automatic pass starts once even under StrictMode and focus checks', async () => {
+  const { api, rerender } = setup(true);
+  await waitFor(() => expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1));
+  fireEvent.focus(window);
+  rerender();
+  await waitFor(() => expect(api.refreshComputerPermissions).toHaveBeenCalled());
+  expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1);
+});
+
+it('keeps a denial incomplete and retries only the current step when the person requests recovery', async () => {
+  const { snapshot, api, complete, rerender } = setup();
+  snapshot.computer.accessibility = 'allowed';
+  snapshot.computer.screenRecording = 'allowed';
+  snapshot.computer.automation!.safari = 'denied';
+  rerender();
+  fireEvent.click(screen.getByRole('button', { name: 'Set up permissions' }));
+  await waitFor(() => expect(api.requestAutomationPermission).toHaveBeenCalledTimes(1));
+  await waitFor(() =>
+    expect(
+      (screen.getByRole('button', { name: 'I don’t see the prompt' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false),
+  );
+  expect(screen.getByText('In Automation, expand Sia and turn on Safari.')).toBeTruthy();
+  expect(complete).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'I don’t see the prompt' }));
+  await waitFor(() => expect(api.requestAutomationPermission).toHaveBeenCalledTimes(2));
+  expect(api.requestComputerPermissions).not.toHaveBeenCalled();
+});
+
+it('stops the pass while a native request is pending and does not continue after its late result', async () => {
+  const { snapshot, api, complete, pause, rerender } = setup();
+  const request = Promise.withResolvers<void>();
+  api.requestComputerPermissions.mockImplementation(() => request.promise);
+  fireEvent.click(screen.getByRole('button', { name: 'Set up permissions' }));
+  await waitFor(() => expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1));
+  fireEvent.click(screen.getByRole('button', { name: 'Finish later' }));
+  expect(pause).toHaveBeenCalledOnce();
+  snapshot.computer.accessibility = 'allowed';
+  snapshot.computer.screenRecording = 'allowed';
+  rerender();
+  await act(async () => {
+    request.resolve();
+    await request.promise;
+  });
+  expect(api.requestAutomationPermission).not.toHaveBeenCalled();
+  expect(complete).not.toHaveBeenCalled();
   expect(
     (screen.getByRole('button', { name: 'Set up permissions' }) as HTMLButtonElement).disabled,
-  ).toBe(true);
-  fireEvent.click(screen.getByRole('button', { name: 'Check access' }));
-  await waitFor(() => expect(api.refreshComputerPermissions).toHaveBeenCalledTimes(1));
-  expect(props.onReadyChange).toHaveBeenCalledWith(true);
-  for (const [name, method] of Object.entries(api))
-    if (name !== 'refreshComputerPermissions') expect(method).not.toHaveBeenCalled();
+  ).toBe(false);
 });
 
-it('shows unsupported dictation as unavailable and does not request it', async () => {
-  const { snapshot, api, props } = setup();
-  snapshot.voice.dictationAvailable = false;
-  snapshot.voice.dictationDetail = 'Dictation is unavailable for this language.';
-  render(<SetupMacAccess {...props} />);
-  expect(screen.getByText('Dictation is unavailable for this language.')).toBeTruthy();
+it('does not enable Fn after the person pauses a pending voice setup', async () => {
+  const { snapshot, api, complete, rerender } = setup();
+  snapshot.computer.accessibility = 'allowed';
+  snapshot.computer.screenRecording = 'allowed';
+  snapshot.voice.status = 'disconnected';
+  snapshot.voice.dictationAvailable = true;
+  snapshot.voice.pushToTalk!.available = true;
+  const voice = Promise.withResolvers<void>();
+  api.configureVoice.mockImplementation(() => voice.promise);
+  rerender();
   fireEvent.click(screen.getByRole('button', { name: 'Set up permissions' }));
-  await waitFor(() => expect(api.refreshComputerPermissions).toHaveBeenCalledTimes(1));
-  expect(api.configurePushToTalk).not.toHaveBeenCalled();
-});
-
-it('does not claim selected app setup is ready when a grant was denied', () => {
-  const { snapshot, props } = setup();
-  snapshot.computer.accessibility = snapshot.computer.screenRecording = 'allowed';
-  snapshot.voice.dictationAvailable = false;
-  for (const { id } of automationApps) snapshot.computer.automation![id] = 'ready';
-  snapshot.computer.automation!.safari = 'denied';
-  render(<SetupMacAccess {...props} includeApps />);
-  expect(props.onReadyChange).toHaveBeenCalledWith(false);
-  expect(screen.getByText('Allow in System Settings')).toBeTruthy();
-  expect(screen.getByText('Core access is ready.')).toBeTruthy();
-  expect(screen.getByText(/Remaining app access is optional/)).toBeTruthy();
-});
-
-it('connects only checked accounts and disables already connected accounts', async () => {
-  const snapshot = structuredClone(demoSnapshot);
-  snapshot.cloudAuth.state = 'signed-in';
-  snapshot.apps.forEach((app) => {
-    app.status = 'disconnected';
+  await waitFor(() => expect(api.configureVoice).toHaveBeenCalledOnce());
+  fireEvent.click(screen.getByRole('button', { name: 'Finish later' }));
+  await act(async () => {
+    voice.resolve();
+    await voice.promise;
   });
-  const connectSelectedApps = vi.fn(async () => {});
-  const props = {
-    snapshot,
-    api: { connectSelectedApps } as unknown as RendererApi,
-    pending: false,
-    run: async (action: () => Promise<unknown>) => {
-      await action();
-    },
-  };
-  const view = render(<SetupConnections {...props} />);
-  const google = screen.getByRole('checkbox', { name: /Google Workspace/ }) as HTMLInputElement;
-  const slack = screen.getByRole('checkbox', { name: /Slack/ }) as HTMLInputElement;
-  expect(google.checked).toBe(true);
-  expect(slack.checked).toBe(true);
-  fireEvent.click(slack);
-  fireEvent.click(screen.getByRole('button', { name: 'Connect selected apps' }));
-  await waitFor(() => expect(connectSelectedApps).toHaveBeenCalledExactlyOnceWith(['google']));
-  snapshot.apps
-    .filter((app) => app.id !== 'slack')
-    .forEach((app) => {
-      app.status = 'connected';
-      app.enabled = true;
-    });
-  view.rerender(<SetupConnections {...props} />);
-  expect(google.disabled).toBe(true);
-  expect(
-    (screen.getByRole('button', { name: 'Connect selected apps' }) as HTMLButtonElement)
-      .disabled,
-  ).toBe(true);
+  expect(api.configurePushToTalk).not.toHaveBeenCalled();
+  expect(api.requestAutomationPermission).not.toHaveBeenCalled();
+  expect(complete).not.toHaveBeenCalled();
 });
 
-it('refreshes on return from System Settings without requesting access again', async () => {
-  const { api, props } = setup();
-  const view = render(<SetupMacAccess {...props} includeApps />);
-  fireEvent.focus(window);
+it('keeps core statuses visible and allows passive checks without starting a permission pass', async () => {
+  const { api, view } = setup();
+  const core = screen.getByRole('list', { name: 'Core permissions' });
+  expect(core.closest('details')).toBeNull();
+  expect(core.textContent).toContain('Control your Mac');
+  expect(core.textContent).toContain('See your screen');
+  fireEvent.click(screen.getByRole('button', { name: 'Check access' }));
   await waitFor(() => expect(api.refreshComputerPermissions).toHaveBeenCalledOnce());
+  fireEvent.focus(window);
+  await waitFor(() => expect(api.refreshComputerPermissions).toHaveBeenCalledTimes(2));
   expect(api.requestComputerPermissions).not.toHaveBeenCalled();
-  expect(api.configureVoice).not.toHaveBeenCalled();
   expect(api.requestAutomationPermission).not.toHaveBeenCalled();
   view.unmount();
   fireEvent.focus(window);
-  expect(api.refreshComputerPermissions).toHaveBeenCalledOnce();
+  expect(api.refreshComputerPermissions).toHaveBeenCalledTimes(2);
 });
 
-it('keeps core permission statuses and recovery guidance visible in compact onboarding', () => {
-  const { snapshot, props } = setup();
-  snapshot.computer.accessibility = 'denied';
-  snapshot.computer.screenRecording = 'denied';
-  render(<SetupMacAccess {...props} compact includeApps />);
-  const core = screen.getByRole('list', { name: 'Core permissions' });
-  expect(core.closest('details')).toBeNull();
-  expect(core.textContent).toContain('Accessibility');
-  expect(core.textContent).toContain('Privacy & Security');
-  expect(core.textContent).toContain('Restart Sia if macOS asks');
-  expect(screen.getByRole('button', { name: 'Allow remaining access' })).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Check access' }).closest('details')).toBeNull();
-});
-
-it('uses newly granted Mac access for voice in the same setup pass', async () => {
-  const { snapshot, api, props } = setup();
-  api.requestComputerPermissions.mockImplementation(async () => {
-    snapshot.computer.accessibility = 'allowed';
-    snapshot.computer.screenRecording = 'allowed';
-  });
-  render(<SetupMacAccess {...props} />);
+it('explains unavailable dictation without attempting to configure it', async () => {
+  const { snapshot, api, rerender } = setup();
+  snapshot.voice.dictationAvailable = false;
+  snapshot.voice.dictationDetail = 'Dictation is unavailable for this language.';
+  rerender();
+  expect(screen.getByText('Dictation is unavailable for this language.')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Set up permissions' }));
-  await waitFor(() =>
-    expect(api.configurePushToTalk).toHaveBeenCalledExactlyOnceWith(true, props.agentId, true),
-  );
-  expect(api.requestComputerPermissions).toHaveBeenCalledOnce();
+  await waitFor(() => expect(api.requestComputerPermissions).toHaveBeenCalledOnce());
+  expect(api.configureVoice).not.toHaveBeenCalled();
 });

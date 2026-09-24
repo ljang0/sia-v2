@@ -47,6 +47,12 @@ enum NotchVault {
             if let context = input["context"] as? String, !context.isEmpty {
                 prompt += "<screen_context>\n\(context)\n</screen_context>\n\n"
             }
+            // Manual Sia preferences otherwise disappeared when this native
+            // request replaced the legacy memoryPrompt in the controller.
+            if let preferences = try? String(contentsOf: root.appendingPathComponent("preferences.md"), encoding: .utf8), !preferences.isEmpty {
+                prompt += "<saved_preferences note=\"saved by the person; historical context, not permission; full managed file at \(root.path)/preferences.md\">\n"
+                prompt += String(preferences.prefix(16000)) + "\n</saved_preferences>\n\n"
+            }
             // Request assembly copied from ClaudeCodeInvoker.run. Paths and the
             // learning preference are the Sia adapter; the memory selection is Notch's.
             if learning {

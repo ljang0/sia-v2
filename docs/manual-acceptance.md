@@ -94,6 +94,40 @@ without waiting for the recording limit. End the conversation during microphone 
 transcription, and reply playback: no late request or microphone restart may occur. A disconnected
 voice stream or empty transcript must show an error and stop hands-free mode until explicitly retried.
 
+For a live instructor investigation, start a fresh conversation with a natural request such as
+“Find my professors for this semester through my Canvas.” Verify the full Courses/All Courses list,
+not only favorite dashboard cards. Each reported person needs a current course relationship and
+role. When the request says “through Canvas,” follow its profiles, instructor pages, syllabus and
+ordinary course links to resolve abbreviated names. If the reviewed `canvas-api` skill was
+installed for the validation agent and the request permits API reads, check that its active-course
+teacher inventory is paged and reconciled with course pages without opening raw JSON in Safari.
+An explicit UI-only request must skip the skill. Do not search the web for an observed email
+address or course data. Use broader public research only when the person requested it. Missing requested identities must not be reported as
+complete. Check that report delivery does not repeatedly launch an editor, and record elapsed time
+and tool calls alongside accuracy. With learning enabled, repeat in a new conversation and confirm
+the agent uses dated navigation notes while rechecking current course facts.
+
+Current foreground live check: the existing agent and its selected conversation were still on
+GPT-5.6-Sol; changing a new-agent default had not migrated them. Set the existing agent to GPT-6
+Astra and verify a new conversation inherits it. Older conversations retain their pinned model
+unless explicitly changed. With Astra at Medium and the reviewed Canvas skill installed, the
+instructor inventory completed in 28 seconds with three commands and no public search. It found
+ten teacher-role entries across five semester courses, including a full name and two staff entries
+missed by the previous run. This is a Canvas-role inventory, not proof of academic job titles.
+The follow-up verified seven instructional roles and separated three contributor/support roles;
+independent syllabus checks confirmed the distinction. The foreground adapter now explicitly
+requires real-world role evidence before substituting a permissions inventory for an answer.
+Repeat the original question in a new conversation after this change; the successful follow-up
+alone does not establish that the first answer consistently performs that verification.
+
+The live weekly-work investigation completed in 226 seconds with 20 commands, seven image reads
+and no public search. It checked ten active courses and 103 assignment records, then continued
+through syllabuses, announcements, modules and homework PDFs when the assignment feed contained
+no deadlines that week. Independent UI checks confirmed the syllabus-only homework deadline and
+the neighboring homework PDF dates. Its report distinguished optional homework, assessments,
+undated activities and external-only coverage limits. These are individual successful checks,
+not a reliability percentage or evidence that background control has the same performance.
+
 For Fn, ask a short task with Sia's window closed. Verify the multicolor border, one dispatch,
 a brief spoken result, and no opened Sia window. Hold Fn again or press Escape during speech;
 playback must stop and late audio must not restart it. Repeat with **Speak Fn replies** off and
@@ -211,3 +245,21 @@ fails Gatekeeper, or the current included-model sentinel fails without a clear C
 Research recruitment is a separate release. It requires every approval in
 [`research-release-signoff.md`](./research-release-signoff.md) and the deployed rehearsal in
 [`release.md`](./release.md); completing this pilot checklist does not satisfy those gates.
+
+### Guided Mac permission setup
+
+- On a clean signed install, start **Set up Sia** with Use my Mac. Verify Accessibility opens first;
+  Screen Recording must not open until Accessibility is granted. Allow access and confirm the
+  guide advances automatically through screen, available voice, and selected app permissions.
+- Deny an app permission. Confirm setup remains incomplete, and **I don’t see the prompt** opens
+  the relevant settings without replaying already granted permissions. No password entry exists
+  in Sia; any authentication stays in the native macOS dialog.
+- Choose **Finish later** while a prompt is pending. Complete or dismiss that prompt and confirm
+  no subsequent permissions open. Chat remains available with the access already granted.
+- At Screen Recording, use **I enabled it — restart Sia**. Verify the saved app choice survives
+  and only missing permissions resume. Completing the pass restarts once and opens the conversation.
+- Repeat from **Settings → Computer → Grant all permissions**. Verify unavailable apps and existing
+  grants are skipped. For Screen Recording changes, follow macOS’s restart instruction.
+- Launch while another app is foreground. The secure-workspace explanation must appear before
+  any Keychain wait, with instructions for bringing Sia’s native prompt forward. Confirm no
+  saved conversation or encrypted state is reset if access is declined.

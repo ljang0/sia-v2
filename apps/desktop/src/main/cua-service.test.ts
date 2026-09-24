@@ -3,12 +3,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CuaService } from './cua-service.js';
 
 const permissionUi = vi.hoisted(() => ({
-  requestMacOSPermissions: vi.fn(),
-  openMacOSScreenRecordingSettings: vi.fn(async () => {}),
+  accessibility: vi.fn(),
+  openExternal: vi.fn(async () => {}),
   getSources: vi.fn(async () => []),
 }));
-vi.mock('@trycua/cua-driver/electron', () => permissionUi);
-vi.mock('electron', () => ({ desktopCapturer: { getSources: permissionUi.getSources } }));
+vi.mock('electron', () => ({
+  desktopCapturer: { getSources: permissionUi.getSources },
+  systemPreferences: { isTrustedAccessibilityClient: permissionUi.accessibility },
+  shell: { openExternal: permissionUi.openExternal },
+}));
 
 const directContext = {
   kind: 'direct_user' as const,
@@ -61,36 +64,33 @@ it.runIf(process.platform === 'darwin')(
       accessibility: true,
       screenRecording: false,
     });
-    permissionUi.requestMacOSPermissions.mockReturnValue({
-      accessibility: true,
-      screenRecording: false,
-    });
     await service.requestPermissions();
     expect(permissionUi.getSources).toHaveBeenCalledExactlyOnceWith({
       types: ['screen'],
       thumbnailSize: { width: 1, height: 1 },
       fetchWindowIcons: false,
     });
-    expect(permissionUi.openMacOSScreenRecordingSettings).toHaveBeenCalledOnce();
+    expect(permissionUi.openExternal).toHaveBeenCalledExactlyOnceWith(
+      'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
+    );
   },
 );
 
-it.runIf(process.platform === 'darwin')(
-  'does not capture or open Screen Recording when only Accessibility is missing',
-  async () => {
+it.runIf(process.platform === 'darwin').each([true, false])(
+  'requests Accessibility alone before Screen Recording (screen allowed: %s)',
+  async (screenRecording) => {
     const service = new CuaService(authorization());
     vi.spyOn(service, 'permissions').mockResolvedValue({
       status: 'needs_permission',
       accessibility: false,
-      screenRecording: true,
-    });
-    permissionUi.requestMacOSPermissions.mockReturnValue({
-      accessibility: false,
-      screenRecording: true,
+      screenRecording,
     });
     await service.requestPermissions();
     expect(permissionUi.getSources).not.toHaveBeenCalled();
-    expect(permissionUi.openMacOSScreenRecordingSettings).not.toHaveBeenCalled();
+    expect(permissionUi.accessibility).toHaveBeenCalledExactlyOnceWith(true);
+    expect(permissionUi.openExternal).toHaveBeenCalledExactlyOnceWith(
+      'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
+    );
   },
 );
 
@@ -103,19 +103,17 @@ it.runIf(process.platform === 'darwin')(
       accessibility: true,
       screenRecording: false,
     });
-    permissionUi.requestMacOSPermissions
-      .mockImplementationOnce(() => {
-        throw new Error('Permission service unavailable');
-      })
-      .mockReturnValue({ accessibility: true, screenRecording: false });
+    permissionUi.openExternal
+      .mockRejectedValueOnce(new Error('Permission service unavailable'))
+      .mockResolvedValue(undefined);
     const first = service.requestPermissions();
     expect(service.requestPermissions()).toBe(first);
     await expect(first).rejects.toThrow('Permission service unavailable');
     const retry = service.requestPermissions();
     expect(service.requestPermissions()).toBe(retry);
     await expect(retry).resolves.toMatchObject({ screenRecording: false });
-    expect(permissionUi.requestMacOSPermissions).toHaveBeenCalledTimes(2);
-    expect(permissionUi.getSources).toHaveBeenCalledOnce();
+    expect(permissionUi.openExternal).toHaveBeenCalledTimes(2);
+    expect(permissionUi.getSources).toHaveBeenCalledTimes(2);
   },
 );
 

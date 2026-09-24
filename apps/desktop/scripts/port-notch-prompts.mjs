@@ -45,8 +45,12 @@ foreground = foreground
     'Run the supplied native screenshot command, then view_image on its PNG. Use its exact image-to-screen transform; the image is already normalized, so do not divide by Retina scale again.',
   )
   .replace(
-    /Set every Bash call's `description` to one short\s+present-tense line/,
-    'Narrate each exec_command with one short present-tense commentary line',
+    /Set every Bash call's `description` to one short\s+present-tense line \("Opening Safari" \/ "Filling the address\s+field"\) so the UI narrates live\./,
+    'Sia shows tool activity automatically. Give brief progress commentary at meaningful milestones or when the approach changes, rather than before every command.',
+  )
+  .replace(
+    'open it with `open <file>` so it appears on screen,',
+    'verify its saved contents by reading it back; Sia presents the result in the conversation and phone remote, so do not launch or repeatedly activate another app unless the person asks to open the file;',
   );
 const consolidation = literal(
   await read('ConsolidationScheduler.swift'),

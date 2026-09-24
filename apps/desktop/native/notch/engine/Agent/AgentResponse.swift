@@ -1,4 +1,4 @@
-// Source: ../notch/upstream/AgentResponse.swift; see ../notch/README.md for adapter changes.
+// Source: ../../upstream/AgentResponse.swift; see ../../README.md for adapter changes.
 import Foundation
 
 /// The JSON contract the invoked agent must return (see the system prompt

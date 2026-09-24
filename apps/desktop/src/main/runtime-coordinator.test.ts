@@ -201,11 +201,23 @@ describe('Use my Mac native execution', () => {
       expect(created[1]?.baseInstructions).toContain('EXPERIMENTAL WINDOW CONTROL');
       expect(created[1]?.nativeTools).toBe('mac-background');
       expect(created[1]?.baseInstructions).not.toContain('screencapture');
+      // Foreground uses the pinned Notch recipe; the window driver has its own
+      // tool-specific guidance. Do not stack that second recipe onto Notch.
+      expect(created[0]?.baseInstructions).not.toContain('INVESTIGATE THE WHOLE REQUEST');
+      expect(created[0]?.baseInstructions).not.toContain('CANVAS COURSE RESEARCH');
+      expect(created[0]?.baseInstructions).toContain('matching saved skills');
+      expect(created[0]?.baseInstructions).toContain('UI-only or no-API');
       for (const session of created.slice(1, 2)) {
         expect(session.baseInstructions).toContain('INVESTIGATE THE WHOLE REQUEST');
         expect(session.baseInstructions).toContain('CANVAS COURSE RESEARCH');
         expect(session.baseInstructions).toContain('Open EACH in-scope course');
         expect(session.baseInstructions).toContain('incomplete coverage');
+        expect(session.baseInstructions).toContain('Courses/All Courses');
+        expect(session.baseInstructions).toContain('"Through Canvas" is a source limit');
+        expect(session.baseInstructions).toContain('Do not generate site: queries');
+        expect(session.baseInstructions).toContain(
+          'never let a public page establish current enrollment',
+        );
       }
       expect(JSON.stringify(events)).toContain('The document is ready.');
       expect(JSON.stringify(events)).not.toContain('success');

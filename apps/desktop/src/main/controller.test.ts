@@ -66,6 +66,7 @@ async function createHarness(
     openExternal?: (url: string) => Promise<void>;
     openMessages?: () => Promise<void>;
     openMessagesPermissions?: () => Promise<void>;
+    requestMicrophonePermission?: () => Promise<void>;
     restartApp?: () => void;
     installCodex?: () => Promise<void>;
     workspaceOperations?: ConstructorParameters<
@@ -113,6 +114,9 @@ async function createHarness(
       : {}),
     ...(options.openMessagesPermissions
       ? { openMessagesPermissions: options.openMessagesPermissions }
+      : {}),
+    ...(options.requestMicrophonePermission
+      ? { requestMicrophonePermission: options.requestMicrophonePermission }
       : {}),
     chooseDirectory: async () => '/tmp/sia-workspace',
     ...(options.defaultWorkspaceRoot
@@ -252,7 +256,10 @@ describe('DesktopController', () => {
       startOnboarding: true,
     });
     await h.controller.invoke('computer.setTrust', { trust: 'ask' });
-    await h.controller.invoke('settings.setOnboarding', { step: 'restart' });
+    await h.controller.invoke('settings.setOnboarding', {
+      step: 'restart',
+      permissionSetup: { includeApps: true, active: true },
+    });
     restartApp.mockImplementation(() => {
       expect(
         h.repository.get<{ preferences: { onboarding: unknown } }>('desktop', 'state')
@@ -267,6 +274,7 @@ describe('DesktopController', () => {
       step: 'verify',
       restartPending: false,
       restarted: true,
+      permissionSetup: { includeApps: true, active: true },
     });
     expect(restored.controller.snapshot().browser.status).toBe('detached');
     expect(restored.controller.computerTrust()).toBe('ask');
@@ -315,12 +323,18 @@ describe('DesktopController', () => {
     const voice = new MacVoiceService(repository, vi.fn());
     const refreshPermissions = vi.fn(async () => {});
     const prepareDictation = vi.fn(async () => {});
+    const requestMicrophonePermission = vi.fn(async () => {});
     Object.assign(voice, { refreshPermissions, prepareDictation });
-    const { controller } = await createHarness({ voice, repository });
+    const { controller } = await createHarness({
+      voice,
+      repository,
+      requestMicrophonePermission,
+    });
     try {
       await controller.invoke('computer.permissions', undefined);
       expect(refreshPermissions).toHaveBeenCalledOnce();
       expect(prepareDictation).not.toHaveBeenCalled();
+      expect(requestMicrophonePermission).not.toHaveBeenCalled();
     } finally {
       await controller.shutdown();
     }
@@ -5128,6 +5142,7 @@ describe('connect Chrome and continue', () => {
 
 describe('global voice routing', () => {
   it('pins the focused thread and creates a correctly resolved thread for background requests', async () => {
+    const requestMicrophonePermission = vi.fn(async () => {});
     const voice = {
       view: () => ({ status: 'connected' as const, voices: [] }),
       configure: vi.fn(),
@@ -5142,6 +5157,7 @@ describe('global voice routing', () => {
     };
     const { controller } = await createHarness({
       voice,
+      requestMicrophonePermission,
       defaultWorkspaceRoot: '/tmp/sia-voice-agents',
       createDirectory: vi.fn(async () => undefined),
     });
@@ -5168,10 +5184,12 @@ describe('global voice routing', () => {
         return { send: nativeSend, stop: vi.fn() };
       },
     });
+    expect(requestMicrophonePermission).not.toHaveBeenCalled();
     await controller.invoke('voice.pushToTalk.configure', {
       enabled: true,
       agentId: first.agentId,
     });
+    expect(requestMicrophonePermission).toHaveBeenCalledOnce();
     await controller.invoke('threads.select', { threadId: firstThread });
     emit({ type: 'hold', id: '00000000-0000-4000-8000-000000000001' });
     await Promise.resolve();

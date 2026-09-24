@@ -418,8 +418,8 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async setupMessages() {
       publish(await bridge.computer.setupMessages());
     },
-    async setOnboarding(step) {
-      publish(await bridge.settings.setOnboarding(step));
+    async setOnboarding(step, permissionSetup) {
+      publish(await bridge.settings.setOnboarding(step, permissionSetup));
     },
     async setCompletionSound(enabled) {
       publish(await bridge.settings.setCompletionSound(enabled));

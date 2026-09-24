@@ -5,7 +5,7 @@ test('one-click setup opens a working conversation and stays complete across rel
   let sia = await launchIsolatedSia({ prefix: 'sia-onboarding-' });
   const testRoot = sia.testRoot;
   try {
-    const page = sia.page;
+    let page = sia.page;
     await page.setViewportSize({ width: 1220, height: 780 });
     await expect(page.getByRole('heading', { name: 'Let’s set up Sia.' })).toBeVisible();
     await expect(page.getByLabel('Agent name')).toBeHidden();
@@ -19,7 +19,7 @@ test('one-click setup opens a working conversation and stays complete across rel
     // Exercise setup without the optional app-specific permission pass.
     await page.getByRole('checkbox', { name: /Prepare everyday apps now/ }).uncheck();
     // SIA_FAKE_SERVICES simulates permission APIs; this cannot prompt the host OS.
-    await page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
+    page = await sia.completeSetup();
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     const created = await page.evaluate(() => window.sia.bootstrap());
     expect(created.agents).toHaveLength(1);
@@ -79,7 +79,7 @@ test('one checklist action connects the selected accounts and keeps connected ac
     },
   });
   try {
-    await sia.page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
+    await sia.completeSetup();
     await expect(sia.page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     await sia.page.getByRole('button', { name: 'Settings', exact: true }).click();
     await sia.page.getByRole('button', { name: 'Connections', exact: true }).click();
@@ -116,7 +116,7 @@ test('one checklist action connects the selected accounts and keeps connected ac
 test('Voice settings keeps the Fn controls readable and can replay setup with the existing agent', async () => {
   const sia = await launchIsolatedSia({ prefix: 'sia-voice-layout-' });
   try {
-    await sia.page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
+    await sia.completeSetup();
     await expect(sia.page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     await sia.page.getByRole('button', { name: 'Settings', exact: true }).click();
     await sia.page.getByRole('button', { name: 'Voice', exact: true }).click();
@@ -149,7 +149,7 @@ test('Voice settings keeps the Fn controls readable and can replay setup with th
     });
     await sia.page.getByRole('button', { name: 'Walk me through setup' }).click();
     await expect(sia.page.getByRole('heading', { name: 'Let’s set up Sia.' })).toBeVisible();
-    await sia.page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
+    await sia.completeSetup();
     await expect(sia.page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     expect((await sia.page.evaluate(() => window.sia.bootstrap())).agents).toHaveLength(1);
     expect(sia.rendererErrors).toEqual([]);

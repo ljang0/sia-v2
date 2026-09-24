@@ -132,6 +132,8 @@ it.runIf(process.platform === 'darwin')(
         nativeLearning: true,
       });
     const first = (await prepare()).prompt!;
+    expect(first).toContain('<saved_preferences');
+    expect(first).toContain('JUNIPER');
     expect(first).toContain('Safari / Canvas');
     expect(first).toContain('[[topic-54]]');
     expect(first).toContain('Expand all accounts.');
@@ -139,6 +141,15 @@ it.runIf(process.platform === 'darwin')(
     expect(first).toContain('Sum integers');
     expect(first.indexOf('<recent_activity')).toBeLessThan(first.indexOf('<lessons'));
     expect(first).toContain('USER REQUEST (spoken): Read this course');
+    const paused = await vault.engine(helper, {
+      operation: 'prepare',
+      request: 'Read my preferences',
+      learning: false,
+      nativeLearning: false,
+    });
+    expect(paused.prompt).toContain('JUNIPER');
+    vault.initialize({ ...view, memories: [] });
+    expect((await prepare()).prompt).not.toContain('JUNIPER');
     await vault.engine(helper, {
       operation: 'record',
       request: 'Sum numbers',
@@ -192,6 +203,9 @@ it('keeps the upstream sources pinned and uses screenshot verification and the a
   expect(prompt).toContain('after EVERY state-changing step');
   expect(prompt).toContain('/fixture/vault/MOC.md');
   expect(prompt).not.toMatch(/~\/\.notch|screencapture|Bash call's|BACKGROUND CODING WORKERS/);
+  expect(prompt).toContain('verify its saved contents by reading it back');
+  expect(prompt).not.toContain('open it with `open <file>`');
+  expect(prompt).not.toContain('Narrate each exec_command');
   const review = notchConsolidationInstructions('/fixture/vault');
   for (const instruction of [
     'PROMOTE',

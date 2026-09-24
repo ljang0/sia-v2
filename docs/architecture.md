@@ -156,7 +156,8 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   list/read/create, and Finder selection metadata. Arguments are JSON data, targets are exact native
   identifiers, and creates read back their native object. An unconfirmed create is never reported as
   success. macOS Automation permission remains app-specific; scripts cannot bypass it.
-  Onboarding and Computer settings share a typed, fixed-target permission route for System Events, Safari, Chrome, Calendar,
+  Onboarding and Computer settings share `SetupMacAccess`, a sequential, user-started permission
+  guide with typed, fixed-target requests for System Events, Safari, Chrome, Calendar,
   Reminders, Finder, and Messages. The native helper's permission-only mode uses
   `AEDeterminePermissionToAutomateTarget`; background checks never prompt or launch apps.
   Explicit requests open only the selected app and may show its macOS consent prompt.
@@ -188,27 +189,20 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   with the port of Notch's `ClaudeCodeInvoker` prompt. Native shell, file operations and image
   viewing are enabled in `danger-full-access`; provider web search, inherited plugins/MCPs,
   project instruction discovery and subagents are disabled. Connected-browser tools are not exposed.
-  The default native route exposes only
-  Sia library/memory/schedule tools through ActionGateway, with no CUA tools. Its instructions require
-  ordinary app navigation: for Canvas, observed course cards followed by People or actual course
-  materials, rather than raw API pages or guessed course IDs. API navigation is reserved for explicit
-  developer requests. Native input instructions require activating and checking the intended process
-  before global input; screenshots of another app are not evidence for the requested page. These are
-  model instructions, not a shell enforcement boundary. Clipboard reads also require freshness and
-  page/content corroboration: an immediate `pbpaste` after Cmd+C can return the previous page.
-  Native and background prompts share investigation guidance: inventory the requested scope, pursue
-  relevant alternate sources, and distinguish absence in one view from verified absence across the
-  account. Canvas coursework requires per-course Assignments, Modules, syllabus and relevant
-  announcements, with source links and explicit coverage gaps. Neither an empty calendar nor a
-  successful screenshot establishes task completion. The opt-in course investigation smoke tests
-  this with real Codex and an entirely synthetic, dynamic-tool-only browser fixture.
-  Account discovery uses observed tabs and the service's full account switcher, including scrolling,
-  instead of guessing Google account slot URLs. A spoken organization name may identify an account
-  whose primary calendar has the person's name. Before calendar writes, the model must verify the
-  live account, destination and existing events; a partial list cannot establish global absence.
-  Campus abbreviations are reconciled with established institution context before navigation.
-  A window observation failure is not evidence that the account needs sign-in. These discovery
-  requirements are shared model instructions, not deterministic guarantees of model behavior.
+  The default native route exposes only Sia library/memory/schedule tools through ActionGateway,
+  with no CUA tools. Its foreground operating prompt comes from the pinned Notch source, followed
+  by the Codex tool-name, screenshot-coordinate, presentation and permission adapters. It does not
+  append the separate background window-control recipe or a hardcoded Canvas investigation plan.
+  Matching saved skills can use the already signed-in apps; an explicit UI-only/no-API request
+  takes precedence. Private account data and observed email addresses must not go to public search.
+  A separately installed, reviewed `canvas-api` skill reads active CMU courses/teachers or a course's
+  assignments through Safari. It accepts only those GET routes and validated page/course numbers;
+  it does not navigate to JSON pages, read credentials, or run in background window-control mode.
+  Both routes require verified outcomes and honest coverage gaps. The background prompt separately
+  guides course inventories, per-course materials, account switchers and destination verification.
+  These are model instructions, not a shell enforcement boundary or a guarantee of completion.
+  Report files are verified by readback and linked in Sia/phone, without repeatedly activating an
+  external editor. Native learning uses the same indexed vault for later verification.
   Every Mac turn receives the current local date/time and timezone, including after a session
   resumes. A structured unsuccessful task result ends as needing attention across desktop,
   phone, schedules, journal and notifications, even when Codex completed its response normally.
@@ -332,7 +326,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   Final structured results use Notch's response contract and balanced-object parser, translated to
   Sia's timeline, voice response and output-file link. Partial JSON is never streamed into speech.
   Both Mac control modes execute the copied Swift `JournalStore`, `SkillLibrary` and
-  `AgentResponse` through the helper's headless `--notch-engine` mode. The foreground operating
+  `AgentResponse` from `native/notch/engine/` through the helper's headless `--notch-engine` mode. The foreground operating
   prompt and PROMOTE/DISTILL/INDEX recipe are generated from pinned Notch source literals, with
   explicit Codex/Sia adapters. See [the source and adaptation map](../apps/desktop/native/notch/README.md).
   The canonical learned vault is `<workspace>/.sia-mac/<agent id>/`: journal, failures, bullet
@@ -343,7 +337,8 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   kebab-name files are bounded to 16 KB and 100 scripts; links are excluded. Saving never executes.
   These native memory/script files are local plaintext, with private permissions. Encrypted
   conversations/manual preferences remain intact; enabled preferences project into read-only
-  `preferences.md`, and existing task history/scripts migrate once. Both modes prepare and record
+  `preferences.md`; up to 16,000 characters are included in every native request, even when
+  learning is paused. Existing task history/scripts migrate once. Both modes prepare and record
   requests against the same vault. Background tasks read linked notes through the scoped
   `memory_vault` tool, and may write notes only while automatic learning is enabled. Native scripts
   are exposed as read-only workflow references; executable background skills still use the
@@ -401,8 +396,15 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   restarts Sia; progress is sent through typed provider snapshots without login URLs or credentials.
   A connected account is checked before setup completes. Core permission statuses remain visible,
   and the permission pass reads fresh grants before configuring voice.
-  Permission steps are optional and use the typed bridge;
-  the animated cursor is only an illustration. Native voice readiness publishes actual microphone
+  Permission steps are optional and use the typed bridge.
+  The guide waits for observed grants before advancing and never treats a request returning as consent.
+  Passive focus/poll checks do not replay prompts. A persisted `permissionSetup` records the app
+  choice and whether an authorized pass should resume after the setup restart; pausing prevents
+  further steps even if an outstanding native request completes. Accessibility and Screen Recording
+  are requested separately so one Settings pane cannot hide the other. Protected macOS approval
+  dialogs remain user-operated, with no credential entry or model turn in setup. Explicit Fn setup
+  requests microphone consent from the signed Electron app, not the background voice helper;
+  previously denied access opens the Microphone pane. The helper only observes the grant. Native voice readiness publishes actual microphone
   and Accessibility grants, including changes while returning from System Settings. Practice
   suggestions use the regular composer and never send themselves or replace an existing draft.
 - The renderer permission handler admits only an audio-only microphone request from Sia's own main
