@@ -153,10 +153,11 @@ do not establish transport secrecy or real Wi-Fi reliability.
   `apps/desktop/release/robustness/mac-universal/Sia.app`. Strict nested code-signature verification
   passed; the app and native helper contain both x86_64 and arm64. Its `app.asar` SHA-256 is
   `3e7de63c0440e98adc55c4cc6ded13faecc739416f02cfd84eadb4c242e47412`.
-  It was launched with a separate empty profile and remained running beyond 30 seconds, but
-  displayed the secure-storage startup screen awaiting Keychain authorization. Completion to
-  sign-in is not claimed. It is not notarized or published; the existing walkthrough app/profile
-  remains unchanged.
+  It was launched with a separate empty profile, stayed running beyond the startup/update-check
+  window, and visibly reached the real email sign-in screen. The secure-storage page was shown
+  during startup; this observation does not establish the absence of an OS Keychain prompt.
+  No sign-in or physical-microphone action was performed in this candidate. It is not notarized
+  or published; the existing walkthrough app/profile remains unchanged.
 - Final focused identity/voice/factory suite: 26 tests passed, including the removed-voice regression.
 - No model-backed turns, real messages, private microphone capture or public publication were run
   during this audit. The approved synthetic voice check made paid ElevenLabs requests. No third-party key is included in source, fixtures or documentation.

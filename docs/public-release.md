@@ -205,5 +205,6 @@ shutdown and resume with the same isolated profile instead of holding a closed r
 
 The merged universal signed app is available separately under
 `apps/desktop/release/robustness/mac-universal/Sia.app`; its hash and startup limitation are in
-[workflow-robustness.md](./workflow-robustness.md). Its new-profile startup is waiting for local
-Keychain authorization, so it is not a completed recipient-install acceptance result.
+[workflow-robustness.md](./workflow-robustness.md). Its separate empty profile visibly reached
+email sign-in and stayed running beyond the startup/update-check window. This is a startup
+smoke check on the operator’s Mac, not completed recipient-install or physical-voice acceptance.
