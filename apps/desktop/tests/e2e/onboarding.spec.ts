@@ -16,6 +16,8 @@ test('one-click setup opens a working conversation and stays complete across rel
       path: 'test-results/onboarding-welcome.png',
       animations: 'disabled',
     });
+    // Exercise setup without the optional app-specific permission pass.
+    await page.getByRole('checkbox', { name: /Prepare everyday apps now/ }).uncheck();
     // SIA_FAKE_SERVICES simulates permission APIs; this cannot prompt the host OS.
     await page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();

@@ -346,6 +346,7 @@ export interface ComputerInspectorState {
 }
 
 export interface ProviderSetup {
+  setup?: import('../shared/bridge').ProviderSetupProgress | undefined;
   id: ProviderId;
   name: string;
   model: string;

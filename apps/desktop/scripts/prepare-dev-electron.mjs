@@ -13,6 +13,7 @@ import { assertSameIdentity, devHome, devIdentity, signDevelopment } from './dev
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { rememberDevelopmentLaunch } from './development-launch.mjs';
 
 // TCC attributes a child helper's permission request to the responsible app. The
 // downloaded development Electron bundle needs the same descriptions as Sia.app.
@@ -79,6 +80,11 @@ export function prepareDevelopmentApp(executable, descriptions) {
         identity: identity.hash,
         version: readFileSync(resolve(source, 'Contents/Info.plist'), 'utf8'),
         script: readFileSync(new URL(import.meta.url), 'utf8'),
+        bootstrap: readFileSync(
+          new URL('./prepare-dev-bootstrap.mjs', import.meta.url),
+          'utf8',
+        ),
+        launch: readFileSync(new URL('./development-launch.mjs', import.meta.url), 'utf8'),
       }),
     )
     .digest('hex');
@@ -102,6 +108,10 @@ export function prepareDevelopmentApp(executable, descriptions) {
   cleanSigningMetadata(staging);
   const stagedExecutable = resolve(staging, 'Contents/MacOS/Electron');
   prepareDevElectron(stagedExecutable, descriptions);
+  execFileSync(process.execPath, [
+    resolve(import.meta.dirname, 'prepare-dev-bootstrap.mjs'),
+    resolve(staging, 'Contents/Resources/default_app.asar'),
+  ]);
   for (const [key, value] of Object.entries({
     CFBundleIdentifier: 'ai.sia.desktop.dev',
     CFBundleName: 'Sia Development',
@@ -159,4 +169,8 @@ if (
   const require = createRequire(import.meta.url);
   const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url)));
   prepareDevelopmentApp(require('electron'), manifest.build.mac.extendInfo);
+  if (process.argv.includes('--remember-launch')) {
+    const profile = process.argv.find((arg) => arg.startsWith('--user-data='))?.slice(12);
+    rememberDevelopmentLaunch(resolve(import.meta.dirname, '..'), profile);
+  }
 }

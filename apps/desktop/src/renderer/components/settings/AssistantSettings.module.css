@@ -1,12 +1,13 @@
 .page {
-  max-width: 800px;
-  padding-bottom: 40px;
+  max-width: 900px;
+  margin: 0 auto;
   color: var(--text-primary);
 }
 .page h2 {
-  font-size: 28px;
-  letter-spacing: -0.8px;
-  margin: 6px 0 10px;
+  font-family: var(--font-display);
+  font-size: var(--display-md);
+  letter-spacing: var(--tracking-display);
+  margin: 6px 0 8px;
 }
 .page h3 {
   font-size: 18px;
@@ -19,7 +20,8 @@
 .page p {
   line-height: 1.55;
   margin: 4px 0 12px;
-  opacity: 0.75;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
 }
 .eyebrow {
   font-size: 10px;
@@ -43,12 +45,14 @@
 .page textarea,
 .page select {
   width: 100%;
+  min-width: 0;
+  min-height: 40px;
   box-sizing: border-box;
   padding: 10px 12px;
-  border: 1px solid #8885;
-  border-radius: 9px;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-control);
   color: inherit;
-  background: transparent;
+  background: var(--bg-control);
   font: inherit;
 }
 .page textarea {
@@ -59,14 +63,15 @@
   cursor: pointer;
   font: inherit;
   font-size: 12px;
+  min-height: 36px;
   padding: 8px 12px;
-  border: 1px solid #8885;
-  border-radius: 9px;
-  background: transparent;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-control);
+  background: var(--bg-raised);
   color: inherit;
 }
-.page button:hover {
-  background: #8881;
+.page button:hover:not(:disabled) {
+  background: var(--bg-hover);
 }
 .page button:disabled {
   opacity: 0.45;
@@ -74,7 +79,8 @@
 }
 .page small {
   display: block;
-  opacity: 0.65;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
   line-height: 1.5;
   margin-top: 4px;
 }
@@ -83,21 +89,22 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px;
-  border: 1px solid #8883;
+  border: 1px solid var(--border-subtle);
   border-radius: 14px;
   gap: 24px;
 }
 .toggle input {
   width: 18px;
   height: 18px;
-  accent-color: #4d9173;
+  accent-color: var(--bg-accent);
   flex: 0 0 auto;
 }
 .heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 12px 18px;
   margin-top: 22px;
 }
 .heading button {
@@ -111,7 +118,7 @@
   display: grid;
   gap: 12px;
   padding: 16px;
-  border: 1px solid #8883;
+  border: 1px solid var(--border-subtle);
   border-radius: 14px;
 }
 .card p {
@@ -126,7 +133,7 @@
   gap: 8px;
 }
 .empty {
-  border: 1px dashed #8884;
+  border: 1px dashed var(--border-control);
   border-radius: 12px;
   padding: 18px;
   font-size: 13px;
@@ -135,24 +142,24 @@
   display: grid;
   gap: 16px;
   padding: 20px;
-  border: 1px solid #63968088;
-  background: #63968008;
+  border: 1px solid var(--border-control);
+  background: var(--bg-subtle);
   border-radius: 14px;
 }
 .step {
   display: grid;
   gap: 12px;
   padding-top: 12px;
-  border-top: 1px solid #8883;
+  border-top: 1px solid var(--border-subtle);
 }
 .step button {
   justify-self: start;
 }
-.error {
+.page .error {
   padding: 12px;
-  background: #c7474715;
+  background: var(--surface-danger);
   border-radius: 8px;
-  color: #c74747;
+  color: var(--text-danger);
 }
 .note {
   font-size: 12px;
@@ -176,21 +183,22 @@
   flex-wrap: wrap;
   gap: 6px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #8883;
+  border-bottom: 1px solid var(--border-subtle);
 }
 .sections button {
   display: flex;
   align-items: center;
   gap: 8px;
   border-color: transparent;
+  background: transparent;
 }
 .sections button[aria-pressed='true'] {
-  background: #63968020;
-  border-color: #63968070;
+  background: var(--bg-selected);
+  border-color: var(--border-control);
 }
 .sections span {
   font-size: 10px;
-  background: #8882;
+  background: var(--bg-hover);
   border-radius: 20px;
   padding: 2px 6px;
 }

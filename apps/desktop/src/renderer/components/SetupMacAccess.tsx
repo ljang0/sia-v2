@@ -5,6 +5,16 @@ import { MacAutomationPermissions } from './MacAutomationPermissions';
 import { automationApps } from '../../shared/mac-permissions';
 import styles from './Onboarding.module.css';
 
+export type AccessSetupApi = Pick<
+  RendererApi,
+  | 'getSnapshot'
+  | 'requestComputerPermissions'
+  | 'configureVoice'
+  | 'configurePushToTalk'
+  | 'requestAutomationPermission'
+  | 'refreshComputerPermissions'
+>;
+
 export function SetupMacAccess({
   snapshot,
   api,
@@ -18,7 +28,7 @@ export function SetupMacAccess({
   includeApps = false,
 }: {
   snapshot: RendererSnapshot;
-  api: RendererApi;
+  api: AccessSetupApi;
   agentId: string | undefined;
   disabled: boolean;
   onBusyChange(busy: boolean): void;
@@ -28,6 +38,15 @@ export function SetupMacAccess({
   onReadyChange?(ready: boolean): void;
   includeApps?: boolean;
 }) {
+  // Returning from a system permission panel updates the same checklist without
+  // replaying prompts or requiring a second setup click.
+  useEffect(() => {
+    const refresh = () => {
+      void api.refreshComputerPermissions().catch(() => undefined);
+    };
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, [api]);
   const ptt = snapshot.voice.pushToTalk;
   const voiceAvailable = Boolean(ptt?.available) && snapshot.voice.dictationAvailable !== false;
   const voiceReady = dictationReady(snapshot.voice);
@@ -45,15 +64,23 @@ export function SetupMacAccess({
         );
       }
     };
-    if (!computerReady) await attempt(() => api.requestComputerPermissions());
-    if (!voiceReady && agentId && voiceAvailable)
+    let current = snapshot;
+    if (!computerReady)
       await attempt(async () => {
-        if (snapshot.voice.status !== 'connected') await api.configureVoice();
-        if (snapshot.voice.dictationAvailable !== false)
+        await api.requestComputerPermissions();
+        current = await api.getSnapshot();
+      });
+    if (!dictationReady(current.voice) && agentId && voiceAvailable)
+      await attempt(async () => {
+        if (current.voice.status !== 'connected') {
+          await api.configureVoice();
+          current = await api.getSnapshot();
+        }
+        if (current.voice.dictationAvailable !== false)
           await api.configurePushToTalk(
             true,
             agentId,
-            snapshot.computer.accessibility === 'allowed',
+            current.computer.accessibility === 'allowed',
           );
       });
     if (failures.length) throw new Error(failures.join('; '));
@@ -63,13 +90,17 @@ export function SetupMacAccess({
       'Accessibility',
       snapshot.computer.accessibility === 'allowed',
       true,
-      'Click, type, and use the Fn shortcut.',
+      snapshot.computer.accessibility === 'denied'
+        ? 'Enable Sia in System Settings → Privacy & Security → Accessibility.'
+        : 'Click, type, and use the Fn shortcut.',
     ],
     [
       'Screen Recording',
       snapshot.computer.screenRecording === 'allowed',
       true,
-      'See apps and verify task results.',
+      snapshot.computer.screenRecording === 'denied'
+        ? 'Enable Sia in System Settings → Privacy & Security → Screen Recording. Restart Sia if macOS asks.'
+        : 'See apps and verify task results.',
     ],
     [
       'Voice and microphone',
@@ -84,6 +115,7 @@ export function SetupMacAccess({
     ],
   ] as const;
   const available = rows.filter(([, , supported]) => supported);
+  const coreReady = available.every(([, allowed]) => allowed);
   const appStates = includeApps
     ? automationApps
         .map(({ id }) => snapshot.computer.automation?.[id] ?? 'needs_permission')
@@ -108,14 +140,18 @@ export function SetupMacAccess({
           <strong>
             {ready === total
               ? 'Ready to use Sia.'
-              : `${ready} of ${total} setup permissions ready`}
+              : coreReady
+                ? 'Core access is ready.'
+                : `${ready} of ${total} setup permissions ready`}
           </strong>
           <span>
             {ready === total
               ? includeApps
                 ? 'Common app access is included below. You can finish any missing access later.'
                 : 'Other apps ask for access when a task needs them.'
-              : 'You can start now and finish missing access later.'}
+              : coreReady
+                ? `${ready} of ${total} permissions ready. Remaining app access is optional; you can finish it later.`
+                : 'Approve the macOS prompts, then return here. Status updates automatically. You can finish missing access later.'}
           </span>
         </p>
       }

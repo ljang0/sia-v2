@@ -1561,8 +1561,9 @@ button.agentAvatar {
   align-items: flex-start;
   gap: 12px;
   padding: 12px 16px 12px;
-  background: var(--agent-color);
-  color: var(--agent-ink);
+  border-top: 3px solid var(--agent-color);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
 }
 
 .approvalHeader h3,
@@ -1581,7 +1582,7 @@ button.agentAvatar {
 
 .approvalHeader p {
   margin-top: 1px;
-  color: color-mix(in srgb, var(--agent-ink) 74%, transparent);
+  color: var(--text-secondary);
   font-size: var(--text-sm);
 }
 
@@ -1593,12 +1594,12 @@ button.agentAvatar {
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-control);
-  background: color-mix(in srgb, var(--agent-ink) 12%, transparent);
-  color: var(--agent-ink);
+  background: color-mix(in srgb, var(--agent-color) 12%, transparent);
+  color: var(--text-primary);
 }
 
 .approvalHeader .approvalStatus {
-  color: color-mix(in srgb, var(--agent-ink) 74%, transparent);
+  color: var(--text-secondary);
 }
 
 .approvalStatus {
@@ -2467,6 +2468,15 @@ button.agentAvatar {
   line-height: 1.5;
 }
 
+.feedbackDialog > .localField,
+.feedbackDialog > .dialogActions {
+  margin-top: 20px;
+}
+
+.feedbackDialog > .forkIsolationOption {
+  margin-top: 16px;
+}
+
 .consentSummary {
   display: grid;
   gap: 12px;
@@ -2842,27 +2852,22 @@ button.agentAvatar {
 .settingsNav {
   display: flex;
   flex: none;
-  gap: 22px;
-  overflow-x: auto;
-  padding: 0 clamp(22px, 4vw, 46px);
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 10px clamp(16px, 2.5vw, 32px);
   border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 76%, transparent);
   background: var(--bg-canvas);
-  scrollbar-width: none;
-}
-
-.settingsNav::-webkit-scrollbar {
-  display: none;
 }
 
 .settingsNav button {
   display: flex;
-  min-height: 48px;
+  min-height: 36px;
   flex: none;
   align-items: center;
   gap: 7px;
-  padding: 1px 2px 0;
+  padding: 7px 8px;
   border: 0;
-  border-radius: 0;
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
@@ -2875,7 +2880,7 @@ button.agentAvatar {
 }
 
 .settingsNav button:hover {
-  background: transparent;
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -2885,17 +2890,17 @@ button.agentAvatar {
 }
 
 .settingsNav .settingsNavActive {
-  background: transparent;
-  box-shadow: inset 0 -2px var(--text-primary);
+  background: var(--bg-selected);
   color: var(--text-primary);
   font-weight: var(--weight-semibold);
 }
 
 .settingsContent {
   min-height: 0;
+  container-type: inline-size;
   overflow-y: auto;
-  padding: 48px clamp(32px, 6vw, 76px) 76px;
-  animation: sectionEnter var(--motion-surface) var(--ease-out-soft) both;
+  scrollbar-gutter: stable;
+  padding: 32px clamp(24px, 4vw, 48px) 56px;
 }
 
 @keyframes sectionEnter {
@@ -4040,8 +4045,10 @@ button.agentAvatar {
 
 .rowTitleLine {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
+  overflow-wrap: anywhere;
 }
 
 .rowTitleLine strong,
@@ -4220,6 +4227,7 @@ button.agentAvatar {
   grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
+  padding: 18px 0;
   border-bottom: 1px solid var(--border-subtle);
   transition: background-color var(--motion-fast) var(--ease-standard);
 }
@@ -6686,7 +6694,6 @@ button.agentAvatar {
 }
 
 .settingsNav {
-  gap: 28px;
   background: color-mix(in srgb, var(--hue-0) 3%, var(--bg-canvas));
 }
 
@@ -6694,6 +6701,29 @@ button.agentAvatar {
   max-width: 1040px;
   width: 100%;
   margin: 0 auto;
+}
+
+/* React to the available pane width, including a collapsed sidebar or zoom. */
+@container (max-width: 520px) {
+  .settingsRow,
+  .accessRow {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .settingsRow > button,
+  .accessRow > button {
+    width: fit-content;
+    max-width: 100%;
+    grid-column: 2;
+    justify-self: start;
+    white-space: normal;
+  }
+
+  .captureSettings,
+  .privacyFacts {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .googleServiceAccess {
@@ -6934,6 +6964,9 @@ button.agentAvatar {
   }
 
   .settingsNav {
+    max-height: 90px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 7px;
   }
 
@@ -7164,7 +7197,7 @@ button.agentAvatar {
 }
 .singleAgentRow .newConversationButton {
   min-width: 0;
-  white-space: nowrap;
+  white-space: normal;
   background: var(--shell-hover);
   color: var(--shell-text);
   border-color: var(--shell-line);

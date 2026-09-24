@@ -152,7 +152,18 @@ interface ComputerWindowBinding {
   readonly expiresAt: number;
 }
 
+type BackgroundInputRoute = 'accessibility' | 'window_pointer' | 'pid_keyboard';
+interface BackgroundInputStatus {
+  readonly exact_window: { readonly status: string };
+  readonly routes: readonly {
+    readonly route: BackgroundInputRoute;
+    readonly status: 'available' | 'refused';
+    readonly reason?: string;
+  }[];
+}
+
 interface WindowSnapshotCapability {
+  readonly backgroundInput?: BackgroundInputStatus;
   readonly browserUrl?: string;
   readonly capturedAt: number;
   readonly protectedControls: boolean;
@@ -957,17 +968,21 @@ export class DesktopActionBackend implements ActionBackend {
     }
     if (!installed && requested !== 'notes')
       return refused('Application discovery is unavailable in this build.');
-    await this.#openApplication(installed ? application : requested, {
-      background: this.#macBrowserAccess(),
-    });
     const mac = this.#macBrowserAccess();
+    const background =
+      request.arguments.delivery === 'background' ||
+      (mac && request.arguments.delivery !== 'foreground');
+    await this.#openApplication(installed ? application : requested, { background });
     if (!mac) this.#resetComputerCapabilities();
     if (mac) await delay(350, undefined, { signal: request.context.signal });
     const inventory = mac ? await this.#computerList(request) : undefined;
     return {
       outcome: 'verified',
       summary: `Requested opening ${entry?.name ?? 'Apple Notes'}. ${inventory ? 'Use the returned window ids to inspect the app; no extra computer_list is needed.' : 'Call computer_list for fresh window grants before continuing.'}`,
-      ...(inventory?.data ? { data: inventory.data } : {}),
+      data: {
+        ...asRecord(inventory?.data),
+        delivery_requested: background ? 'background' : 'foreground',
+      },
       verification: {
         evidence:
           'The trusted desktop host submitted the installed application to LaunchServices; inspect its current windows next.',
@@ -1047,16 +1062,20 @@ export class DesktopActionBackend implements ActionBackend {
     request: ValidatedActionInvocation,
   ): Promise<ActionExecutionResult> {
     const browser = this.#isNativeBrowser(binding);
-    const browserState = browser ? await this.#nativeBrowserState(binding) : undefined;
-    if (browserState && browserState.status !== 'ready')
+    let browserState = browser ? await this.#nativeBrowserState(binding) : undefined;
+    // A missing helper AX window is not a driver refusal. Let CUA resolve and
+    // initialize the exact window once, then revalidate browser metadata before
+    // releasing any captured content or minting an input capability.
+    if (browserState?.status === 'protected')
       return this.#browserObservationRefused(binding, browserState);
-    const browserUrl = browserState?.status === 'ready' ? browserState.url : undefined;
-    if (request.arguments.expected_url) {
-      if (!browserUrl || !samePageUrl(browserUrl, String(request.arguments.expected_url)))
-        return stale(
-          'The observed browser page does not match expected_url. No page content was read. Wait for navigation or inspect the intended window; do not assign this page to the requested course or account item.',
-        );
-    }
+    if (
+      browserState?.status === 'ready' &&
+      request.arguments.expected_url &&
+      !samePageUrl(browserState.url, String(request.arguments.expected_url))
+    )
+      return stale(
+        'The observed browser page does not match expected_url. No page content was read. Wait for navigation or inspect the intended window; do not assign this page to the requested course or account item.',
+      );
     const capture = (includeScreenshot: boolean) =>
       this.#callCua(request, 'get_window_state', {
         pid: binding.pid,
@@ -1085,6 +1104,35 @@ export class DesktopActionBackend implements ActionBackend {
     }
     let refusalResult = resultRefusal(raw);
     if (refusalResult) return refusalResult;
+    if (browserState?.status === 'unavailable') {
+      if (windowHasProtectedControls(raw))
+        return this.#browserObservationRefused(binding, { status: 'protected' });
+      browserState = await this.#nativeBrowserState(binding);
+      if (browserState.status !== 'ready') {
+        const refusal = this.#browserObservationRefused(binding, browserState);
+        return {
+          ...refusal,
+          summary:
+            browserState.status === 'protected'
+              ? refusal.summary
+              : 'Tried CUA observation of this exact window, but its browser page identity could not be verified afterward. No captured content or input targets were returned. This is not evidence of a login screen.',
+          data: {
+            ...asRecord(refusal.data),
+            driver_observation_attempted: true,
+            driver_screenshot_available: Boolean(screenshotDimensions(raw)),
+            driver_element_count: findElementRecords(raw, 'window').length,
+          },
+        };
+      }
+    }
+    const browserUrl = browserState?.status === 'ready' ? browserState.url : undefined;
+    if (
+      request.arguments.expected_url &&
+      (!browserUrl || !samePageUrl(browserUrl, String(request.arguments.expected_url)))
+    )
+      return stale(
+        'The observed browser page does not match expected_url. No page content was returned. Wait for navigation or inspect the intended window; do not assign this page to the requested course or account item.',
+      );
 
     // AX can temporarily return no controls even while a window is usable.
     // Capture pixels once instead of turning an empty AX response into an app failure.
@@ -1191,7 +1239,16 @@ export class DesktopActionBackend implements ActionBackend {
       .filter(isDefined);
     const pixels =
       !includeImage || windowHasProtectedControls(raw) ? undefined : screenshotDimensions(raw);
+    const backgroundInput = windowBackgroundInput(raw, binding);
+    const observationOnly =
+      backgroundInput?.routes.every((route) => route.status === 'refused') ?? false;
+    const backgroundPixels =
+      !backgroundInput ||
+      backgroundInput.routes.some(
+        (route) => route.route === 'window_pointer' && route.status === 'available',
+      );
     const capability: WindowSnapshotCapability = {
+      ...(backgroundInput ? { backgroundInput } : {}),
       ...(browserUrl ? { browserUrl } : {}),
       capturedAt: Date.now(),
       protectedControls: windowHasProtectedControls(raw),
@@ -1231,12 +1288,20 @@ export class DesktopActionBackend implements ActionBackend {
             }
           : {}),
         elements,
+        background_input: backgroundInput,
+        observation_only: backgroundInput ? observationOnly : undefined,
+        ...(observationOnly ? { next_step: windowInputRecovery(request) } : {}),
         ...(elements.length === 0
           ? {
               accessibility_empty: true,
-              next_step: pixels
-                ? 'Accessibility returned no controls. Inspect this screenshot and use its fresh pixel targets if the needed controls are visible; do not infer the app is unavailable.'
-                : 'Accessibility returned no controls. Request include_image:true for visual inspection before concluding the app is unavailable.',
+              next_step: observationOnly
+                ? windowInputRecovery(request)
+                : pixels && backgroundPixels
+                  ? 'Accessibility returned no controls. Inspect this screenshot and use its fresh pixel targets if the needed controls are visible; do not infer the app is unavailable.'
+                  : pixels
+                    ? 'The image can be inspected, but background pixel input is unavailable. Check background_input for a supported route. ' +
+                      windowInputRecovery(request)
+                    : 'Accessibility returned no controls. Request include_image:true for visual inspection before concluding the app is unavailable.',
             }
           : {}),
         ...(this.#macBrowserAccess() &&
@@ -1248,7 +1313,8 @@ export class DesktopActionBackend implements ActionBackend {
         )
           ? { loading: true, observation_pending: true }
           : {}),
-        pixel_actions_available: Boolean(pixels),
+        pixel_actions_available:
+          Boolean(pixels) && (!this.#macBrowserAccess() || backgroundPixels),
         screenshot_size: pixels,
       }),
       verification: {
@@ -1348,6 +1414,20 @@ export class DesktopActionBackend implements ActionBackend {
       typeof args.x === 'number' &&
       typeof args.y === 'number' &&
       ['click', 'drag'].includes(String(args.action));
+    const backgroundDelivery = this.#macBrowserAccess() && args.delivery !== 'foreground';
+    const inputRoute: BackgroundInputRoute = ['type', 'key'].includes(String(args.action))
+      ? 'pid_keyboard'
+      : pixel || args.action === 'scroll'
+        ? 'window_pointer'
+        : 'accessibility';
+    if (backgroundDelivery) {
+      const unavailable = backgroundRouteRefusal(
+        capability.backgroundInput,
+        inputRoute,
+        request,
+      );
+      if (unavailable) return unavailable;
+    }
     if (pixel) {
       const size = capability.pixels;
       const points =
@@ -1385,6 +1465,14 @@ export class DesktopActionBackend implements ActionBackend {
       if (denied) return denied;
       if (windowHasProtectedControls(current))
         return refused('Pixel actions are blocked on windows containing protected controls.');
+      if (backgroundDelivery) {
+        const unavailable = backgroundRouteRefusal(
+          windowBackgroundInput(current, binding),
+          'window_pointer',
+          request,
+        );
+        if (unavailable) return unavailable;
+      }
       const currentSize = screenshotDimensions(current);
       if (
         !currentSize ||
@@ -2503,6 +2591,9 @@ function classifyFailure(error: unknown): ActionExecutionResult {
     return stale(message);
   }
   if (
+    /\b(off_space_or_ax_unresolved|minimized_or_hidden_window|same_pid_keyboard_ambiguity)\b/.test(
+      normalized,
+    ) ||
     normalized.includes('foreground') ||
     normalized.includes('frontmost') ||
     (normalized.includes('background') && normalized.includes('unavailable'))
@@ -2755,6 +2846,85 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
+}
+
+// Read only the SDK's structured payload, never page text or descendant elements.
+// This is advisory availability: CUA still revalidates the exact target on every input.
+function windowBackgroundInput(
+  value: unknown,
+  target: Pick<ComputerWindowBinding, 'pid' | 'windowId'>,
+): BackgroundInputStatus | undefined {
+  const raw = asRecord(value)?.background_input;
+  if (raw === undefined) return undefined;
+  const report = asRecord(raw);
+  const exact = asRecord(report?.exact_window);
+  const routeNames = ['accessibility', 'window_pointer', 'pid_keyboard'] as const;
+  const invalid: BackgroundInputStatus = {
+    exact_window: { status: 'unverified' },
+    routes: routeNames.map((route) => ({
+      route,
+      status: 'refused',
+      reason: 'unverified_window_input',
+    })),
+  };
+  if (
+    exact?.pid !== target.pid ||
+    exact?.window_id !== target.windowId ||
+    !['matched', 'not_found', 'owner_mismatch', 'ax_unresolved'].includes(
+      String(exact?.status),
+    ) ||
+    !Array.isArray(report?.routes) ||
+    report.routes.length !== routeNames.length
+  )
+    return invalid;
+  const routes: BackgroundInputStatus['routes'][number][] = [];
+  for (const name of routeNames) {
+    const matches = report.routes.map(asRecord).filter((route) => route?.route === name);
+    const entry = matches[0];
+    if (
+      matches.length !== 1 ||
+      !entry ||
+      !['available', 'refused'].includes(String(entry.status))
+    )
+      return invalid;
+    // An unresolved/foreign window can never advertise usable background input.
+    if (exact.status !== 'matched' && entry.status !== 'refused') return invalid;
+    routes.push({
+      route: name,
+      status: entry.status as 'available' | 'refused',
+      ...(entry.status === 'refused' &&
+      typeof entry.reason === 'string' &&
+      /^[a-z_]{1,80}$/.test(entry.reason)
+        ? { reason: entry.reason }
+        : {}),
+    });
+  }
+  return { exact_window: { status: String(exact.status) }, routes };
+}
+
+function windowInputRecovery(request: ValidatedActionInvocation): string {
+  return request.context.backgroundOnly
+    ? 'This window is observation-only for the unavailable background routes. Foreground recovery is disabled for this turn. Do not retry pixels or keys when their route is refused. The person can bring the app onto this desktop or allow brief foreground control in Settings → Computer for a new request.'
+    : 'For an unavailable background route, brief foreground recovery is permitted. Use computer_open_app with the installed application id and delivery:"foreground", then inspect the exact intended window again before continuing. Prefer a supported background route afterward. Never replay an uncertain send or other write.';
+}
+
+function backgroundRouteRefusal(
+  report: BackgroundInputStatus | undefined,
+  route: BackgroundInputRoute,
+  request: ValidatedActionInvocation,
+): ActionExecutionResult | undefined {
+  const status = report?.routes.find((entry) => entry.route === route);
+  if (!status || status.status === 'available') return undefined;
+  if (['not_found', 'owner_mismatch', 'unverified'].includes(report!.exact_window.status))
+    return stale(
+      'The driver could not verify this exact window for input. Discover and inspect the intended window again.',
+    );
+  return {
+    outcome: 'needs_foreground',
+    summary: `The ${route} background route is unavailable; no input was attempted.`,
+    reason: status.reason ?? 'background_input_unavailable',
+    data: { background_input: report, next_step: windowInputRecovery(request) },
+  };
 }
 
 function firstString(

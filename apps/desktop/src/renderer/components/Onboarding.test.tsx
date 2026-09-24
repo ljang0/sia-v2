@@ -18,6 +18,7 @@ function setup(step: OnboardingStep = 'welcome') {
   };
   if (step === 'welcome' || step === 'agent') snapshot.agents = [];
   const api = {
+    getSnapshot: vi.fn(async () => structuredClone(snapshot)),
     setComputerAccessMode: vi.fn(async () => {}),
     setComputerTrust: vi.fn(async () => {}),
     setOnboarding: vi.fn(async (_step: OnboardingStep) => {}),
@@ -161,9 +162,8 @@ it('blocks setup when no admitted model is ready', () => {
       <div />
     </Onboarding>,
   );
-  expect(
-    (screen.getByRole('button', { name: 'Set up Sia' }) as HTMLButtonElement).disabled,
-  ).toBe(true);
+  expect(screen.queryByRole('button', { name: 'Set up Sia' })).toBeNull();
+  expect(screen.getByText(/Connect AI access above/)).toBeTruthy();
   expect(screen.getAllByRole('button', { name: 'Try again' }).length).toBeGreaterThan(0);
   expect(api.createAgent).not.toHaveBeenCalled();
 });

@@ -1,5 +1,8 @@
 # Release gate
 
+Public-download preparation for the next candidate is tracked in
+[`public-release.md`](./public-release.md). Its status is separate from the prior pilot approval.
+
 The current signed-artifact evidence and remaining release gates are recorded in
 [`release-evidence-2026-08-28-alpha.24.md`](./release-evidence-2026-08-28-alpha.24.md). Signing and
 private publication authorize operator/internal QA only; they do not establish recipient or
@@ -82,6 +85,14 @@ Do not reuse the legacy `sia-cloud` sync/backup stack. The release client requir
 the `sia-alpha` control-plane template in this repository. After deployment, replace the placeholder
 Meta and Composio secret values, verify the deletion alarm has a confirmed subscription, and map
 `ApiBaseUrl`, `CognitoRegion`, and `DesktopClientId` to the three `SIA_RELEASE_*` variables.
+
+The packaged verifier pins the existing `Sia` product/executable name, `ai.sia.desktop` bundle
+identifier, and Developer ID team in `apps/desktop/build/release-identity.json`. Electron derives
+its macOS encryption service from the application name; renaming it or changing signing identity
+can cause additional Keychain prompts or make existing encrypted data inaccessible. The development
+app currently uses the same runtime name with a different signing identity, so its prompts do not
+establish clean-install behavior for the distributed app. Do not rename the release storage service,
+clear Keychain entries, or disable encryption to suppress an authorization prompt.
 
 Before distribution, install the signed artifact on both a clean macOS account and an account that
 has run the previous Sia build. Complete `docs/manual-acceptance.md`, prepare release notes, confirm

@@ -192,6 +192,8 @@ export function Composer({
     if (
       !voiceConversation ||
       !voiceCanListen ||
+      !voiceEnabled ||
+      voiceError ||
       disabled ||
       running ||
       sending ||
@@ -204,7 +206,16 @@ export function Composer({
       if (voiceRestartTimer.current) clearTimeout(voiceRestartTimer.current);
       voiceRestartTimer.current = undefined;
     };
-  }, [disabled, running, sending, voiceCanListen, voiceConversation, voicePhase]);
+  }, [
+    disabled,
+    running,
+    sending,
+    voiceCanListen,
+    voiceConversation,
+    voiceEnabled,
+    voiceError,
+    voicePhase,
+  ]);
 
   const submit = async () => {
     const content = value.trim();
@@ -317,21 +328,25 @@ export function Composer({
       if (typeof AudioContext !== 'undefined') monitorAudio(stream, purpose === 'conversation');
     } catch (cause) {
       releaseCapture();
-      onVoiceConversationChange?.(false);
-      setVoicePhase('idle');
+      if (captureGeneration.current === generation) {
+        onVoiceConversationChange?.(false);
+        setVoicePhase('idle');
+      }
       const sessionId = realtimeSession.current;
       realtimeSession.current = undefined;
       releaseRealtimeAudio(realtimeProcessor, realtimeSource, realtimeGain, realtimeContext);
       if (sessionId) void onStopRealtime?.(sessionId, false).catch(() => undefined);
       mediaStream.current?.getTracks().forEach((track) => track.stop());
       mediaStream.current = undefined;
-      setVoiceError(
-        cause instanceof DOMException && cause.name === 'NotAllowedError'
-          ? 'Allow microphone access in System Settings to dictate.'
-          : cause instanceof Error
-            ? cause.message
-            : 'Sia could not start the microphone.',
-      );
+      if (captureGeneration.current === generation) {
+        setVoiceError(
+          cause instanceof DOMException && cause.name === 'NotAllowedError'
+            ? 'Allow microphone access in System Settings to dictate.'
+            : cause instanceof Error
+              ? cause.message
+              : 'Sia could not start the microphone.',
+        );
+      }
     } finally {
       captureStarting.current = false;
     }
@@ -388,12 +403,21 @@ export function Composer({
     let heardSpeech = false;
     let silenceAt: number | undefined;
     processor.onaudioprocess = (event) => {
-      if (realtimeFinishing.current) return;
+      if (
+        realtimeFinishing.current ||
+        captureGeneration.current !== generation ||
+        realtimeSession.current !== sessionId
+      )
+        return;
       const samples = event.inputBuffer.getChannelData(0);
       const payload = pcm16Base64(samples, context.sampleRate);
       realtimeAppend.current = realtimeAppend.current
-        .then(() => append(sessionId, payload))
+        .then(() => {
+          if (captureGeneration.current !== generation || realtimeFailure.current) return;
+          return append(sessionId, payload);
+        })
         .catch((cause) => {
+          if (captureGeneration.current !== generation) return;
           realtimeFailure.current = cause;
           processor.onaudioprocess = null;
           if (!realtimeFinishing.current) {
@@ -416,6 +440,8 @@ export function Composer({
       }
     };
     await context.resume();
+    if (captureGeneration.current !== generation || realtimeSession.current !== sessionId)
+      return;
     setVoicePhase('recording');
     recordingTimeout.current = setTimeout(() => void stopRealtimeRecording(true, stop), 60_000);
   };
@@ -443,12 +469,13 @@ export function Composer({
       const transcript = await stop(sessionId, commit);
       if (commit) await acceptTranscript(transcript, generation);
     } catch (cause) {
-      await stop(sessionId, false).catch(() => undefined);
-      if (commit) {
+      if (captureGeneration.current === generation && (commit || realtimeFailure.current)) {
         setVoiceError(
           cause instanceof Error ? cause.message : 'Speech could not be transcribed.',
         );
+        if (recordingPurpose.current === 'conversation') onVoiceConversationChange?.(false);
       }
+      await stop(sessionId, false).catch(() => undefined);
     } finally {
       releaseCapture();
       realtimeAppend.current = Promise.resolve();
@@ -460,7 +487,10 @@ export function Composer({
 
   const cancelActiveRecording = () => {
     captureGeneration.current += 1;
-    if (captureStarting.current) setVoicePhase('idle');
+    if (captureStarting.current) {
+      mediaStream.current?.getTracks().forEach((track) => track.stop());
+      setVoicePhase('idle');
+    }
     if (realtimeSession.current) void stopRealtimeRecording(false);
     else stopRecording(true);
   };
@@ -506,8 +536,10 @@ export function Composer({
 
   const acceptTranscript = async (transcript: string, generation: number) => {
     if (captureGeneration.current !== generation) return;
+    if (!transcript.trim())
+      throw new Error('No speech was detected. Check your microphone and try again.');
     if (recordingPurpose.current === 'conversation') {
-      if (transcript.trim()) await onSend(transcript.trim(), []);
+      await onSend(transcript.trim(), []);
     } else {
       const draft = textArea.current?.value ?? value;
       updateValue(`${draft.trimEnd()}${draft.trim() ? ' ' : ''}${transcript}`);
@@ -545,9 +577,12 @@ export function Composer({
       const transcript = await onTranscribe(await blobBase64(blob), mimeType);
       await acceptTranscript(transcript, generation);
     } catch (cause) {
-      setVoiceError(
-        cause instanceof Error ? cause.message : 'Speech could not be transcribed.',
-      );
+      if (captureGeneration.current === generation) {
+        setVoiceError(
+          cause instanceof Error ? cause.message : 'Speech could not be transcribed.',
+        );
+        if (recordingPurpose.current === 'conversation') onVoiceConversationChange?.(false);
+      }
     } finally {
       releaseCapture();
       setVoicePhase('idle');
@@ -645,13 +680,15 @@ export function Composer({
                     disabled ||
                     running ||
                     sending ||
-                    voiceConversation ||
+                    (voiceConversation && voicePhase !== 'recording') ||
                     voicePhase === 'transcribing' ||
                     voicePhase === 'starting'
                   }
                   aria-label={
                     voicePhase === 'recording'
-                      ? 'Stop recording and transcribe'
+                      ? voiceConversation
+                        ? 'Finish speaking'
+                        : 'Stop recording and transcribe'
                       : voicePhase === 'starting'
                         ? 'Starting microphone'
                         : voicePhase === 'transcribing'
@@ -659,11 +696,19 @@ export function Composer({
                           : 'Dictate message'
                   }
                   aria-pressed={voicePhase === 'recording' && !voiceConversation}
-                  title={voicePhase === 'recording' ? 'Stop and transcribe' : 'Dictate message'}
+                  title={
+                    voicePhase === 'recording'
+                      ? voiceConversation
+                        ? 'Finish speaking'
+                        : 'Stop and transcribe'
+                      : 'Dictate message'
+                  }
                   data-testid="composer-voice-input"
                 >
                   {voicePhase === 'transcribing' && !voiceConversation ? (
                     <SpinnerGap className={styles.spin} size={15} aria-hidden="true" />
+                  ) : voicePhase === 'recording' ? (
+                    <Stop size={15} weight="fill" aria-hidden="true" />
                   ) : (
                     <Microphone size={15} weight="fill" aria-hidden="true" />
                   )}
@@ -675,9 +720,8 @@ export function Composer({
                       voiceConversation ? styles.composerVoiceRecording : ''
                     }`}
                     onClick={() => {
-                      if (voiceConversation && voicePhase === 'recording') {
-                        cancelActiveRecording();
-                      }
+                      if (voiceConversation) cancelActiveRecording();
+                      else setVoiceError(undefined);
                       onVoiceConversationChange(!voiceConversation);
                     }}
                     disabled={disabled && !voiceConversation}
@@ -705,26 +749,34 @@ export function Composer({
             />
             <span className={styles.composerContext} role="status">
               {voiceConversation
-                ? voicePhase === 'transcribing'
-                  ? 'Voice · transcribing…'
-                  : running || !voiceCanListen
-                    ? 'Voice · waiting…'
-                    : 'Voice · listening…'
-                : voicePhase === 'recording'
-                  ? 'Listening…'
-                  : voicePhase === 'transcribing'
-                    ? 'Transcribing…'
-                    : presence === 'working'
-                      ? `Working · ${executionLabel ?? 'Local'}`
-                      : presence === 'waiting'
-                        ? 'Waiting for you'
-                        : presence === 'complete'
-                          ? 'Done'
-                          : presence === 'error'
-                            ? 'Needs attention'
-                            : presence === 'speaking'
-                              ? 'Speaking…'
-                              : (executionLabel ?? 'Local')}
+                ? voiceError
+                  ? 'Voice stopped'
+                  : voicePhase === 'starting'
+                    ? 'Voice · starting microphone…'
+                    : voicePhase === 'transcribing'
+                      ? 'Voice · transcribing…'
+                      : running || !voiceCanListen
+                        ? 'Voice · waiting…'
+                        : voicePhase === 'recording'
+                          ? 'Voice · listening…'
+                          : 'Voice · ready'
+                : voicePhase === 'starting'
+                  ? 'Starting microphone…'
+                  : voicePhase === 'recording'
+                    ? 'Listening · click stop to finish'
+                    : voicePhase === 'transcribing'
+                      ? 'Transcribing…'
+                      : presence === 'working'
+                        ? `Working · ${executionLabel ?? 'Local'}`
+                        : presence === 'waiting'
+                          ? 'Waiting for you'
+                          : presence === 'complete'
+                            ? 'Done'
+                            : presence === 'error'
+                              ? 'Needs attention'
+                              : presence === 'speaking'
+                                ? 'Speaking…'
+                                : (executionLabel ?? 'Local')}
             </span>
           </div>
           {stoppable ? (

@@ -34,7 +34,7 @@ describe('app privacy routing', () => {
 
     expect(await screen.findByRole('dialog', { name: 'Sign in to Sia' })).toBeTruthy();
     expect(screen.getByRole('textbox', { name: 'Email' })).toBeTruthy();
-    expect(screen.getByText(/email invited to the pilot/)).toBeTruthy();
+    expect(screen.getByText(/Enter your email/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Start in local mode' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Create your first agent' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Access' })).toBeNull();

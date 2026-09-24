@@ -1,11 +1,116 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CognitoIdentityManager } from './identity.js';
-import { PlaintextTestCipher, SqliteRecordRepository } from './persistence.js';
+import {
+  EphemeralPayloadCipher,
+  PlaintextTestCipher,
+  SqliteRecordRepository,
+} from './persistence.js';
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe('CognitoIdentityManager', () => {
+  it.each(['success', 'rejected'] as const)(
+    'ignores a late %s refresh after switching accounts',
+    async (outcome) => {
+      const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+      const identity = new CognitoIdentityManager({
+        region: 'us-east-1',
+        clientId: 'clientid123456789',
+        repository,
+      });
+      let finishRefresh!: (response: Response) => void;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (_input: URL | RequestInfo, init?: RequestInit) => {
+          const body = JSON.parse(String(init?.body));
+          if (body.AuthFlow === 'REFRESH_TOKEN_AUTH')
+            return await new Promise<Response>((resolve) => {
+              finishRefresh = resolve;
+            });
+          if (body.AuthFlow === 'USER_AUTH')
+            return Response.json({
+              AuthenticationResult: {
+                IdToken: body.AuthParameters.USERNAME,
+                AccessToken: 'access',
+                RefreshToken: 'refresh',
+                ExpiresIn: 3600,
+              },
+            });
+          return Response.json({});
+        }),
+      );
+      await identity.startEmailSignIn('first@example.com');
+      const refresh = identity.refreshSession();
+      await identity.signOut();
+      expect(repository.get('auth', 'cognito')).toBeUndefined();
+      if (outcome === 'rejected') await identity.startEmailSignIn('second@example.com');
+      finishRefresh(
+        outcome === 'success'
+          ? Response.json({
+              AuthenticationResult: {
+                IdToken: 'late-id',
+                AccessToken: 'late-access',
+                ExpiresIn: 3600,
+              },
+            })
+          : Response.json({ __type: 'NotAuthorizedException' }, { status: 400 }),
+      );
+      await refresh;
+      if (outcome === 'success') {
+        expect(identity.status()).toEqual({ state: 'signed_out' });
+        expect(repository.get('auth', 'cognito')).toBeUndefined();
+      } else {
+        expect(identity.status()).toMatchObject({
+          state: 'signed_in',
+          email: 'second@example.com',
+        });
+        await expect(identity.read()).resolves.toBe('second@example.com');
+      }
+      repository.close();
+    },
+  );
+
+  it('does not finish an email challenge after sign-out', async () => {
+    const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+    const identity = new CognitoIdentityManager({
+      region: 'us-east-1',
+      clientId: 'clientid123456789',
+      repository,
+    });
+    let finish!: (response: Response) => void;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: URL | RequestInfo, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body));
+        if (body.AuthFlow)
+          return Response.json({ ChallengeName: 'EMAIL_OTP', Session: 'pending-challenge' });
+        return await new Promise<Response>((resolve) => {
+          finish = resolve;
+        });
+      }),
+    );
+    await identity.startEmailSignIn('person@example.com');
+    const completion = identity.completeEmailSignIn('123456');
+    await identity.signOut();
+    finish(
+      Response.json({
+        AuthenticationResult: {
+          IdToken: 'late-id',
+          AccessToken: 'late-access',
+          RefreshToken: 'late-refresh',
+        },
+      }),
+    );
+    await completion;
+    expect(identity.status()).toEqual({ state: 'signed_out' });
+    expect(repository.get('auth', 'cognito')).toBeUndefined();
+    repository.close();
+  });
+
   it('completes passwordless email OTP and persists only the renewable encrypted session', async () => {
     const calls: Array<Record<string, unknown>> = [];
     vi.stubGlobal(
@@ -57,6 +162,82 @@ describe('CognitoIdentityManager', () => {
     });
     expect(stored).not.toHaveProperty('accessToken');
     repository.close();
+  });
+
+  it('restores encrypted sign-in beyond a month and revokes it on explicit sign-out', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sia-remembered-sign-in-'));
+    const database = join(directory, 'session.db');
+    const cipher = new EphemeralPayloadCipher();
+    const firstSignIn = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(firstSignIn);
+    const calls: Array<{ operation: string; body: Record<string, unknown> }> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: URL | RequestInfo, init?: RequestInit) => {
+        const operation = new Headers(init?.headers).get('x-amz-target')!.split('.').at(-1)!;
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        calls.push({ operation, body });
+        if (operation === 'RevokeToken') return Response.json({});
+        if (body.AuthFlow === 'USER_AUTH') {
+          return Response.json({
+            ChallengeName: 'EMAIL_OTP',
+            Session: 'remembered-sign-in-challenge',
+          });
+        }
+        return Response.json({
+          AuthenticationResult: {
+            IdToken: 'renewed-id-token',
+            AccessToken: 'renewed-access-token',
+            ...(operation === 'RespondToAuthChallenge'
+              ? { RefreshToken: 'saved-refresh-token' }
+              : {}),
+            ExpiresIn: 3600,
+          },
+        });
+      }),
+    );
+    let repository = new SqliteRecordRepository(database, cipher);
+    const options = { region: 'us-east-1', clientId: 'clientid123456789' };
+    try {
+      let identity = new CognitoIdentityManager({ ...options, repository });
+      await identity.startEmailSignIn('person@example.com');
+      await identity.completeEmailSignIn('12345678');
+      for (const days of [31, 365, 3649]) {
+        repository.close();
+        clock.mockReturnValue(firstSignIn + days * 24 * 60 * 60 * 1000);
+        repository = new SqliteRecordRepository(database, cipher);
+        identity = new CognitoIdentityManager({ ...options, repository });
+        await expect(identity.initialize()).resolves.toMatchObject({ state: 'signed_in' });
+        await expect(identity.read()).resolves.toBe('renewed-id-token');
+        expect(calls.at(-1)).toMatchObject({
+          operation: 'InitiateAuth',
+          body: {
+            AuthFlow: 'REFRESH_TOKEN_AUTH',
+            AuthParameters: { REFRESH_TOKEN: 'saved-refresh-token' },
+          },
+        });
+      }
+      expect(calls.filter(({ body }) => body.AuthFlow === 'USER_AUTH')).toHaveLength(1);
+      await expect(identity.signOut()).resolves.toEqual({ state: 'signed_out' });
+      expect(calls.at(-1)).toEqual({
+        operation: 'RevokeToken',
+        body: {
+          ClientId: options.clientId,
+          Token: 'saved-refresh-token',
+        },
+      });
+      expect(repository.get('auth', 'cognito')).toBeUndefined();
+      repository.close();
+      repository = new SqliteRecordRepository(database, cipher);
+      const reopened = new CognitoIdentityManager({ ...options, repository });
+      const requests = calls.length;
+      await expect(reopened.initialize()).resolves.toEqual({ state: 'signed_out' });
+      expect(calls).toHaveLength(requests);
+    } finally {
+      repository.close();
+      clock.mockRestore();
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it('falls back to password then TOTP for an MFA-protected admin without persisting the password', async () => {

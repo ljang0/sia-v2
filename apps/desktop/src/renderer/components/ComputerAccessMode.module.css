@@ -102,3 +102,11 @@
     gap: 12px;
   }
 }
+
+@container (max-width: 480px) {
+  .row,
+  .choices {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+}

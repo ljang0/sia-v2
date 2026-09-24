@@ -211,7 +211,9 @@ describe('Fn push-to-talk sessions', () => {
 
   it('shares exclusive microphone ownership with the composer', async () => {
     const h = harness();
+    expect(h.service.captureBusy).toBe(false);
     const lease = h.service.acquireRendererCapture();
+    expect(h.service.captureBusy).toBe(true);
     h.event({ type: 'hold', id: randomUUID() });
     await flush();
     expect(h.voice.startRealtime).not.toHaveBeenCalled();
@@ -221,6 +223,7 @@ describe('Fn push-to-talk sessions', () => {
     const id = await listen(h);
     expect(() => h.service.acquireRendererCapture()).toThrow(/Another voice recording/);
     h.event({ type: 'cancelled', id });
+    expect(h.service.captureBusy).toBe(false);
     expect(h.service.acquireRendererCapture()).toBeTruthy();
   });
 

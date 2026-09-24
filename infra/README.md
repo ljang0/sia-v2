@@ -4,6 +4,20 @@ This stack is intentionally a relay/control plane. The desktop presents the Cogn
 
 Configure the desktop with the complete API output URL, including its stage path (for example, `/alpha`). Local development may inject an ID token with `SIA_DEV_ID_TOKEN`; never ship or persist that override.
 
+## Remembered sign-in
+
+The desktop client requests a 3,650-day (10-year) refresh-token lifetime, Cognito's maximum.
+Sia keeps this renewable session in Keychain-encrypted local storage and refreshes its one-hour
+ID/access tokens automatically, including after restart. Sign-out deletes the saved session and
+requests token revocation; a definitive rejection also clears it, while a temporary network outage
+preserves it. This is long-lived sign-in, not an unlimited or irrevocable session.
+
+Deploy the `DesktopClient.RefreshTokenValidity` change before claiming the new lifetime is active.
+Do not assume previously issued 30-day sessions are extended retroactively; they may need one more
+email-code sign-in. Do not force users to sign out or clear their local state during rollout.
+[Amazon Cognito's refresh-token documentation](https://docs.aws.amazon.com/cognito/latest/developerguide/amazon-cognito-user-pools-using-the-refresh-token.html)
+defines the maximum and notes that rotation retains the original session's remaining lifetime.
+
 ## Build and deploy
 
 1. Run `pnpm --filter @sia/cloud build`. This compiles TypeScript and creates four self-contained, content-hashed Node 22 Lambda bundles under `apps/cloud/lambda/`; CloudFormation points only at those generated directories.

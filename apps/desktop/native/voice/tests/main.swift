@@ -14,6 +14,45 @@ assert(automationTargetNeedsLaunch(status: "not_running", isRunning: false))
 assert(automationTargetNeedsLaunch(status: "needs_permission", isRunning: false))
 print("Automation setup avoids reopening running apps (no host apps launched).")
 
+// Same-size overlapping browser windows must resolve by exact title, never by order.
+let sharedFrame = CGRect(x: 0, y: 125, width: 1512, height: 857)
+let otherFrame = CGRect(x: 10, y: 125, width: 1512, height: 857)
+let inbox = WindowContext.Identity(frame: sharedFrame, title: "Inbox — Fixture")
+let docs = WindowContext.Identity(frame: sharedFrame, title: "Documents — Fixture")
+let calendar = WindowContext.Identity(frame: sharedFrame, title: "Calendar — Fixture")
+precondition(WindowContext.matchingIndex(target: inbox, candidates: [docs, calendar, inbox]) == 2)
+precondition(WindowContext.matchingIndex(target: inbox, candidates: [inbox, docs, calendar]) == 0)
+precondition(WindowContext.matchingIndex(target: inbox, candidates: [inbox, inbox]) == nil)
+precondition(WindowContext.matchingIndex(target: inbox, candidates: [docs, calendar]) == nil)
+// AX can expose only the focused window. Identical geometry must not substitute
+// that unrelated window for the requested browser page.
+precondition(WindowContext.matchingIndex(target: inbox, candidates: [docs]) == nil)
+precondition(WindowContext.matchingIndex(target: inbox, candidates: [inbox]) == 0)
+precondition(WindowContext.matchingIndex(target: inbox, candidates: [WindowContext.Identity(frame: sharedFrame, title: nil)]) == nil)
+precondition(WindowContext.matchingIndex(target: inbox, candidates: [WindowContext.Identity(frame: otherFrame, title: inbox.title)]) == nil)
+for missing in [nil, "", "  "] as [String?] {
+    let untitled = WindowContext.Identity(frame: sharedFrame, title: missing)
+    precondition(WindowContext.matchingIndex(target: untitled, candidates: [untitled, untitled]) == nil)
+    precondition(WindowContext.matchingIndex(target: untitled, candidates: [untitled]) == 0)
+}
+precondition(WindowContext.matchingIndex(target: inbox, candidates: []) == nil)
+precondition(WindowContext.matchingIndex(target: inbox, candidates: [WindowContext.Identity(frame: otherFrame, title: inbox.title), docs, inbox]) == 2)
+// Real Chromium can expose a different AX title than WindowServer. Native IDs
+// bind the intended window despite that mismatch, movement, or same-size siblings.
+let requested = WindowContext.Identity(frame: sharedFrame, title: "Public page — Chrome", windowID: 91)
+let exactNative = WindowContext.Identity(frame: otherFrame, title: "Public page", windowID: 91)
+let wrongNative = WindowContext.Identity(frame: sharedFrame, title: requested.title, windowID: 92)
+let unknownNative = WindowContext.Identity(frame: sharedFrame, title: requested.title)
+precondition(WindowContext.matchingIndex(target: requested, candidates: [wrongNative, exactNative]) == 1)
+precondition(WindowContext.matchingIndex(target: requested, candidates: [exactNative, wrongNative]) == 0)
+precondition(WindowContext.matchingIndex(target: requested, candidates: [wrongNative]) == nil)
+precondition(WindowContext.matchingIndex(target: requested, candidates: [exactNative, exactNative]) == nil)
+precondition(WindowContext.matchingIndex(target: requested, candidates: [unknownNative, exactNative]) == 1)
+precondition(WindowContext.matchingIndex(target: requested, candidates: [wrongNative, unknownNative]) == 1)
+precondition(WindowContext.matchingIndex(target: requested, candidates: [unknownNative, unknownNative]) == nil)
+precondition(WindowContext.matchingIndex(target: requested, candidates: [WindowContext.Identity(frame: sharedFrame, title: "Other page")]) == nil)
+print("Exact-window matching handles overlapping windows and refuses ambiguous identities.")
+
 Task { @MainActor in
     let partialContext = ScreenContext(appName: "Fixture", bundleID: "test.fixture", windowTitle: "Document", outline: "Read this", processID: 123, isFrontmost: false, isPartial: true)
     precondition(partialContext.promptBlock.contains("Target app (not frontmost)"))

@@ -30,7 +30,7 @@ release approval by themselves.
 
 Codex installation discovery selects the newest admitted installed binary, including the copy
 bundled with the official desktop app. The stable range remains `>=0.147.0 <0.154.0`;
-`0.155.0-alpha.9` is an additional exact build, independently checked for ChatGPT authentication,
+`0.155.0-alpha.9` and `0.155.0-alpha.9.2` are additional exact builds, independently checked for ChatGPT authentication,
 ephemeral session isolation in connected/review/foreground/background modes, and its live Astra
 catalog. Other `0.155` prereleases and releases remain excluded until tested. The exact exception
 lives in `CODEX_SUPPORTED_VERSIONS` and is shared by discovery, probing and runtime startup.
@@ -39,10 +39,25 @@ their selected model and harness. Model discovery uses the official
 [App Server model catalog](https://learn.chatgpt.com/docs/app-server); it does not invent account
 access from a static model label.
 
+When Codex is missing or incompatible, **Set up Codex** in onboarding or
+Settings → AI access downloads the Sia-pinned stable `0.153.0` from the official npm registry.
+It checks the embedded SHA-512 before unpacking fixed members into a private installation under
+`<userData>/tools/codex`, verifies the executable version, and atomically selects the completed
+installation. No npm, terminal command, administrator access, or global CLI replacement is needed.
+The button shows progress and allows retry on failure. Sia restarts only when tasks, recordings,
+and account approvals are idle, then discovers the newest admitted installed build (including
+managed and official desktop copies) and checks ChatGPT subscription sign-in. An installed binary
+alone never means Connected. The same setup action continues to official ChatGPT browser sign-in
+after restart, then verifies the plan before showing Connected. A single-use, 15-minute continuation
+stores only setup intent; ordinary launches, expired intent, and cancelled sign-ins never reopen
+login automatically. Progress and errors are visible in onboarding and AI settings. Sia does not
+copy credentials or put sign-in URLs in renderer snapshots. Updating the pinned release requires updating the
+platform archive integrity values and admission evidence together.
+
 The opt-in no-turn candidate check is:
 
 ```sh
-SIA_CODEX_REAL_SMOKE=1 SIA_CODEX_CANDIDATE_COMMAND='/Applications/ChatGPT.app/Contents/Resources/codex' SIA_SMOKE_MODEL=gpt-6-astra pnpm --filter @sia/runtime exec vitest run src/codex-isolation.smoke.test.ts
+SIA_CODEX_REAL_SMOKE=1 SIA_CODEX_CANDIDATE_COMMAND='/Applications/ChatGPT.app/Contents/Resources/codex' SIA_CODEX_CANDIDATE_VERSION=0.155.0-alpha.9.2 SIA_SMOKE_MODEL=gpt-6-astra pnpm --filter @sia/runtime exec vitest run src/codex-isolation.smoke.test.ts
 ```
 
 It creates isolated sessions but sends no model turn or app action. Use the opt-in desktop

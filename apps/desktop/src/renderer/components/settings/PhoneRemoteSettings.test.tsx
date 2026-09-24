@@ -8,6 +8,23 @@ import type {
 } from '../../../shared/phone-remote';
 
 afterEach(cleanup);
+it('explains how to enable phone remote when no assistant exists', async () => {
+  const api = vi.fn<PhoneRemoteApi>(async () => ({
+    enabled: false,
+    running: false,
+    detail: 'Ready to pair.',
+  }));
+  render(<PhoneRemoteSettings api={api} agents={[]} />);
+  expect(
+    await screen.findByText('Set up an assistant in Sia before connecting your phone.'),
+  ).toBeTruthy();
+  expect((screen.getByLabelText('Assistant') as HTMLSelectElement).disabled).toBe(true);
+  expect(
+    (screen.getByRole('button', { name: 'Enable phone remote' }) as HTMLButtonElement).disabled,
+  ).toBe(true);
+  expect(api.mock.calls.every(([command]) => command.operation === 'status')).toBe(true);
+});
+
 it('enables the chosen assistant, displays pairing, copies through the typed bridge, rotates and disables', async () => {
   let state: Settings = { enabled: false, running: false, detail: 'Ready to pair.' };
   const api = vi.fn<PhoneRemoteApi>(async (command) => {

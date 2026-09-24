@@ -29,7 +29,7 @@ Electron main -------------- Sia cloud API
                          `-- legacy included-model direct adapter (persisted threads only)
 ```
 
-The provider runtime can propose a Sia action, but only the main-process ActionGateway can authorize it. Confirmation mode (`computer.trust === 'ask'`, the default) renders a request tied to the exact action digest. A person can explicitly enable autonomous mode (`computer.trust === 'auto'`), where the controller authorizes eligible computer, browser, connector, message, upload, and schedule actions after capability and input validation. Eligible action results, timeline items, and automatic authorizations are appended to the always-on local `TrajectoryRecorder` (`<userData>/trajectories/<threadId>/events.jsonl` plus image files). A Google Workspace invocation atomically removes earlier diagnostic rows for that turn and suppresses later rows; only the normal local user-facing transcript remains. Complete thread directories roll off after 90 days or when the local trajectory store exceeds 128 MiB, oldest first; this is separate from the encrypted consented-research outbox. New schedules are bounded to one run for `once` or ten runs for recurring cadences unless the person explicitly chooses another limit. The model-visible schedule surface is limited to create/list/update/delete for controller-owned once/hourly/daily/weekly tasks in the current thread; it cannot write an OS crontab or arbitrary shell schedule. Codex provider-native work uses `approvalPolicy: never` inside the verified workspace-write sandbox, while host-side effects still cross the ActionGateway.
+The provider runtime can propose a Sia action, but only the main-process ActionGateway can authorize it. Confirmation mode (`computer.trust === 'ask'`) renders a request tied to the exact action digest. A person can explicitly enable autonomous mode (`computer.trust === 'auto'`), where the controller authorizes eligible computer, browser, connector, message, upload, and schedule actions after capability and input validation. Eligible action results, timeline items, and automatic authorizations are appended to the always-on local `TrajectoryRecorder` (`<userData>/trajectories/<threadId>/events.jsonl` plus image files). A Google Workspace invocation atomically removes earlier diagnostic rows for that turn and suppresses later rows; only the normal local user-facing transcript remains. Complete thread directories roll off after 90 days or when the local trajectory store exceeds 128 MiB, oldest first; this is separate from the encrypted consented-research outbox. New schedules are bounded to one run for `once` or ten runs for recurring cadences unless the person explicitly chooses another limit. The model-visible schedule surface is limited to create/list/update/delete for controller-owned once/hourly/daily/weekly tasks in the current thread; it cannot write an OS crontab or arbitrary shell schedule. Codex provider-native work uses `approvalPolicy: never` inside the verified workspace-write sandbox, while host-side effects still cross the ActionGateway.
 
 There is no generic renderer IPC, generic connector catalog, raw CUA server, arbitrary CDP/JavaScript route, cookie API, visualization tool, or cross-provider subagent abstraction.
 
@@ -46,7 +46,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   attaches to a signed-in window without copying cookies. Messages read capabilities access bounded
   local `chat.db` rows only with Full Disk Access, and exact sends follow the autonomous/confirmation setting.
 - Provider authentication stays in each official CLI. Sia does not inspect, copy, or store provider API keys or consumer-login files.
-- The default macOS voice service uses installed system voices through `AVSpeechSynthesizer`,
+- Local macOS builds without cloud configuration use installed system voices through `AVSpeechSynthesizer`,
   returning bounded WAV audio in memory. Dictation uses `SFSpeechRecognizer` with on-device
   recognition required and checked for the current locale. Read aloud works without cloud setup or
   microphone access; unsupported or denied dictation never silently falls back to a server.
@@ -57,10 +57,18 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   macOS Keychain-backed safeStorage in the device's Sia application-support directory, outside
   agent workspaces and profile exports. Its windowless setup command accepts the key only on stdin;
   no key-entry IPC exists. Either gateway mints purpose-bound single-use tokens in the main process.
-  Personal voice takes precedence over Apple speech when configured and uses independent preferences.
+  Cloud-configured builds use included ElevenLabs for every signed-in account, including Macs
+  with an older personal credential. Local builds can use personal voice ahead of Apple speech.
+  Voice preferences are independent. Disconnect, sign-out, account deletion and shutdown cancel
+  pending token/catalog requests and active speech sockets; late results cannot restart voice.
   Recorded and generated audio stays in memory and is sent only when the user invokes dictation, Read aloud, or a voice conversation; it is not added to transcripts or persisted by Sia. Read aloud uses an optional
   per-agent voice with the global voice as fallback, permits only one playback session, omits code,
   and ends long narration at a sentence boundary with an explicit on-screen handoff.
+- Composer dictation shows an explicit stop control and finishes when clicked. Hands-free voice
+  also offers **Finish speaking** if silence detection does not end an utterance. Streaming errors
+  and empty transcripts stop automatic listening and show an error instead of silently retrying.
+  Ending voice mode cancels startup and pending transcription, discards late results, and stops
+  a loading or playing reply without re-enabling the microphone.
 - Optional Fn push-to-talk runs in a bundled Swift helper adapted from Notch. A main-process
   `PushToTalkService` owns its recording state, pins the destination at activation, and streams bounded
   16 kHz PCM into the selected voice service. Release commits; Escape, sign-out, sleep, and helper
@@ -166,7 +174,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   Sleep hides it; wake rechecks remaining tasks. No task content is sent to the decorative overlay.
   The native view respects Reduced Motion and fades out without activating a window.
 - `computer_list` also discovers installed apps from fixed application directories. Launch validates
-  a currently installed bundle and excludes sensitive apps and script runners. These capability-bound computer tools also provide optional background control in Use my Mac. New profiles default to Use my Mac; existing preferences, including the Connected apps fallback for legacy profiles, are preserved. The mode is persisted independently of action confirmations. Safari’s system-owned Cryptex app link is recognized without admitting arbitrary symlinks. Native
+  a currently installed bundle and excludes sensitive apps and script runners. These capability-bound computer tools also provide optional background control in Use my Mac. New profiles default to Use my Mac with automatic action approval. Existing access modes and approval preferences are preserved; legacy profiles without a saved approval preference retain confirmations. macOS permissions remain separate. The access mode is persisted independently of action confirmations. Safari’s system-owned Cryptex app link is recognized without admitting arbitrary symlinks. Native
   click/drag can use screenshot pixels bound to a recent host-owned window capability. The backend
   validates PNG dimensions, coordinates, live app/window ownership, and protected controls again
   before delivery; no global-coordinate tool is exposed. Windows with protected controls omit
@@ -258,9 +266,23 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   fresh post-action image and cannot use a text-only snapshot. Right-clicks use a current element or
   screenshot target; double-clicks require screenshot coordinates. Dropdown selection uses the
   driver's `set_value` support. Browser tab shortcuts are restricted to ordinary navigation.
+  A missing browser window in the supplemental native helper triggers one exact-window CUA
+  observation before Sia gives up. The host then rechecks browser metadata and the expected page;
+  captured content and input capabilities remain withheld until those checks pass. Known protected
+  pages never enter recovery. If both observations fail, the result distinguishes the CUA attempt
+  from the helper failure without exposing page content or switching to foreground control.
+  The supplemental native helper resolves the same requested window by native window ID when
+  available, with process ownership checked separately. WindowServer and accessibility titles can
+  disagree during browser navigation. Systems without that optional macOS SPI retain strict geometry
+  and title matching; a known conflicting native ID never falls through to that heuristic.
   Empty background accessibility automatically requests one image unless the caller explicitly
   selected text-only output. Protected/refused reads never use this fallback, and unavailable
-  screenshots never grant pixel input. An unconfirmed delivery with a foreground escalation
+  screenshots never grant pixel input. Sia preserves the driver’s exact-window `background_input`
+  report, including separate accessibility, pointer and keyboard availability. An off-Space or
+  AX-unresolved window may provide observation pixels without accepting any background input;
+  those snapshots no longer advertise pixel actions. Input checks the relevant route, and pixel
+  delivery rechecks it after the fresh capture. Driver-side target checks remain authoritative.
+  An unconfirmed delivery with a foreground escalation
   suggestion still receives post-action observation: the input may already have worked. The model
   inspects that result before declaring failure or choosing another observed control; Sia never
   automatically retries the input in the foreground.
@@ -274,7 +296,10 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   foreground control** setting permits an explicit foreground attempt after fresh observation,
   with ordinary action approvals still applying. Changing the fallback creates a new session on
   the next request and cannot relax a running turn. No automatic input replay occurs.
-  App launching uses `open -g`; URL opening requests `activate:false` by default. These avoid
+  With foreground recovery enabled, `computer_open_app` accepts explicit `delivery:"foreground"`
+  to activate the installed app, followed by a fresh observation of the intended exact window.
+  The task then prefers background routes again where available; no uncertain write is replayed.
+  App launching uses `open -g` by default in Use my Mac; URL opening requests `activate:false` by default. These avoid
   requesting activation, but apps may still raise their own windows. No all-app background guarantee
   is made. Browser snapshots
   can require `expected_url`, including query filters, and refuse a mismatched page before returning
@@ -371,7 +396,12 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   lives in encrypted desktop preferences, and starter creation uses `agents.save` plus the normal
   catalog/resolver and private workspace path. The guide records its agent and next step in the
   same commit as first-thread creation; repeated setup requests reuse that agent. Existing
-  profiles are not enrolled automatically. Permission steps are optional and use the typed bridge;
+  profiles are not enrolled automatically. Codex setup uses a single action for the managed installer
+  and official ChatGPT browser sign-in. A one-use, expiring continuation resumes after the installer
+  restarts Sia; progress is sent through typed provider snapshots without login URLs or credentials.
+  A connected account is checked before setup completes. Core permission statuses remain visible,
+  and the permission pass reads fresh grants before configuring voice.
+  Permission steps are optional and use the typed bridge;
   the animated cursor is only an illustration. Native voice readiness publishes actual microphone
   and Accessibility grants, including changes while returning from System Settings. Practice
   suggestions use the regular composer and never send themselves or replace an existing draft.

@@ -229,6 +229,10 @@ export class PushToTalkService {
   view(): PushToTalkView {
     return { ...this.#view };
   }
+  get captureBusy(): boolean {
+    return Boolean(this.#recording || this.#rendererLease);
+  }
+
   get busy(): boolean {
     return Boolean(this.#recording);
   }

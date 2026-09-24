@@ -12,6 +12,7 @@ import { ActionGateway, getActionToolDescriptor } from '@sia/action-gateway';
 
 import { CloudClient } from './cloud-client.js';
 import { DesktopController } from './controller.js';
+import { ElevenLabsVoiceService } from './voice-service.js';
 import { MacVoiceService } from './mac-voice-service.js';
 import { probeProviders } from './provider-probe.js';
 import type { RuntimeTurnInput } from './runtime-coordinator.js';
@@ -66,6 +67,10 @@ async function createHarness(
     openMessages?: () => Promise<void>;
     openMessagesPermissions?: () => Promise<void>;
     restartApp?: () => void;
+    installCodex?: () => Promise<void>;
+    workspaceOperations?: ConstructorParameters<
+      typeof DesktopController
+    >[0]['workspaceOperations'];
     repository?: RecordRepository;
     capabilitySetup?: ConstructorParameters<typeof DesktopController>[0]['capabilitySetup'];
     trajectory?: ConstructorParameters<typeof DesktopController>[0]['trajectory'];
@@ -102,6 +107,10 @@ async function createHarness(
     openExternal: options.openExternal ?? (async () => undefined),
     openMessages: options.openMessages ?? (async () => undefined),
     ...(options.restartApp ? { restartApp: options.restartApp } : {}),
+    ...(options.installCodex ? { installCodex: options.installCodex } : {}),
+    ...(options.workspaceOperations
+      ? { workspaceOperations: options.workspaceOperations }
+      : {}),
     ...(options.openMessagesPermissions
       ? { openMessagesPermissions: options.openMessagesPermissions }
       : {}),
@@ -242,6 +251,7 @@ describe('DesktopController', () => {
       model: 'gpt-5.6-sol',
       startOnboarding: true,
     });
+    await h.controller.invoke('computer.setTrust', { trust: 'ask' });
     await h.controller.invoke('settings.setOnboarding', { step: 'restart' });
     restartApp.mockImplementation(() => {
       expect(
@@ -334,6 +344,7 @@ describe('DesktopController', () => {
         chromeDebugStatus: async () => 'off',
       },
     });
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
     expect(automationPermissions).toHaveBeenCalledWith();
     expect(controller.snapshot().computer.automation?.calendar).toBe('denied');
     await controller.invoke('computer.requestAutomation', { app: 'calendar' });
@@ -371,6 +382,7 @@ describe('DesktopController', () => {
       defaultWorkspaceRoot: '/tmp/Sia/Agents',
       createDirectory: async () => undefined,
     });
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
     await controller.invoke('settings.setOnboarding', { step: 'agent' });
     await expect(
       controller.invoke('settings.setOnboarding', { step: 'voice' }),
@@ -2752,8 +2764,9 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
-  it('defaults to content-bounded, correctly classified computer approvals', async () => {
+  it('uses content-bounded, correctly classified computer approvals in confirmation mode', async () => {
     const controller = await createController();
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
     expect(controller.snapshot().computer.trust).toBe('ask');
     const agent = await controller.invoke('agents.save', {
       name: 'Personal',
@@ -3894,7 +3907,7 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
-  it('uses deterministic fake Codex readiness and status-aware provider help', async () => {
+  it('uses deterministic fake Codex readiness without reopening sign-in', async () => {
     const openExternal = vi.fn(async () => undefined);
     const { controller } = await createHarness({ openExternal });
     expect(controller.snapshot().providers.find(({ id }) => id === 'codex')).toMatchObject({
@@ -3903,7 +3916,7 @@ describe('DesktopController', () => {
       account: 'Deterministic test runtime',
     });
     await controller.invoke('providers.login', { providerId: 'codex' });
-    expect(openExternal).toHaveBeenCalledWith('https://developers.openai.com/codex/auth/');
+    expect(openExternal).not.toHaveBeenCalled();
     await expect(controller.invoke('providers.login', { providerId: 'meta' })).rejects.toThrow(
       'configured Sia cloud',
     );
@@ -3911,6 +3924,120 @@ describe('DesktopController', () => {
       'external alpha',
     );
     await controller.shutdown();
+  });
+
+  it('installs Codex once, blocks new turns, and restarts without claiming authentication', async () => {
+    let finish!: () => void;
+    const installCodex = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const restartApp = vi.fn();
+    const openExternal = vi.fn();
+    const { controller } = await createHarness({
+      fakeServices: false,
+      installCodex,
+      restartApp,
+      openExternal,
+      providerProbe: async (id) =>
+        (await deterministicProviderProbe(id)).map((provider) =>
+          provider.id === 'codex'
+            ? { ...provider, status: 'needs_install' as const }
+            : provider,
+        ),
+    });
+    try {
+      const pending = controller.invoke('providers.login', { providerId: 'codex' });
+      await vi.waitFor(() => expect(installCodex).toHaveBeenCalledOnce());
+      await expect(
+        controller.invoke('providers.login', { providerId: 'codex' }),
+      ).rejects.toThrow('in progress');
+      await expect(
+        controller.invoke('threads.send', { threadId: 'none', text: 'Do work' }),
+      ).rejects.toThrow('in progress');
+      await expect(controller.invoke('voice.capture.acquire', undefined)).rejects.toThrow(
+        'in progress',
+      );
+      await expect(
+        controller.invoke('terminal.start', { threadId: 'none', command: 'sleep 30' }),
+      ).rejects.toThrow('in progress');
+      await expect(
+        controller.invoke('terminal.run', { threadId: 'none', command: 'sleep 30' }),
+      ).rejects.toThrow('in progress');
+      expect(restartApp).not.toHaveBeenCalled();
+      finish();
+      const result = await pending;
+      expect(restartApp).toHaveBeenCalledOnce();
+      expect(openExternal).not.toHaveBeenCalled();
+      expect(result.snapshot.providers.find(({ id }) => id === 'codex')?.status).toBe(
+        'needs_install',
+      );
+      await expect(controller.invoke('threads.retry', { threadId: 'none' })).rejects.toThrow(
+        'in progress',
+      );
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('does not install or restart while a user background terminal is running', async () => {
+    let busy = true;
+    const installCodex = vi.fn(async () => undefined);
+    const restartApp = vi.fn();
+    const { controller } = await createHarness({
+      fakeServices: false,
+      installCodex,
+      restartApp,
+      workspaceOperations: { hasRunningTerminals: () => busy } as never,
+      providerProbe: async (id) =>
+        (await deterministicProviderProbe(id)).map((provider) =>
+          provider.id === 'codex'
+            ? { ...provider, status: 'needs_install' as const }
+            : provider,
+        ),
+    });
+    try {
+      await expect(
+        controller.invoke('providers.login', { providerId: 'codex' }),
+      ).rejects.toThrow('terminal process');
+      expect(installCodex).not.toHaveBeenCalled();
+      expect(restartApp).not.toHaveBeenCalled();
+      busy = false;
+      await controller.invoke('providers.login', { providerId: 'codex' });
+      expect(restartApp).toHaveBeenCalledOnce();
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('allows a failed Codex download to be retried without restarting early', async () => {
+    const installCodex = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Download failed'))
+      .mockResolvedValue(undefined);
+    const restartApp = vi.fn();
+    const { controller } = await createHarness({
+      fakeServices: false,
+      installCodex,
+      restartApp,
+      providerProbe: async (id) =>
+        (await deterministicProviderProbe(id)).map((provider) =>
+          provider.id === 'codex' ? { ...provider, status: 'incompatible' as const } : provider,
+        ),
+    });
+    try {
+      await expect(
+        controller.invoke('providers.login', { providerId: 'codex' }),
+      ).rejects.toThrow('Download failed');
+      expect(restartApp).not.toHaveBeenCalled();
+      await controller.invoke('providers.login', { providerId: 'codex' });
+      expect(installCodex).toHaveBeenCalledTimes(2);
+      expect(restartApp).toHaveBeenCalledOnce();
+    } finally {
+      await controller.shutdown();
+    }
   });
 
   it('opens and completes the managed Codex ChatGPT login before marking it connected', async () => {
@@ -3959,6 +4086,153 @@ describe('DesktopController', () => {
     expect(runtime.cancelCodexChatGptLogin).not.toHaveBeenCalled();
     await controller.shutdown();
   });
+
+  it.each(['needs_install', 'incompatible'] as const)(
+    'continues %s setup through restart and browser sign-in with no second setup click',
+    async (initialStatus) => {
+      let installed = false;
+      let signedIn = false;
+      let finishLogin!: () => void;
+      const providerProbe = async (id?: Parameters<typeof probeProviders>[0]) =>
+        (await deterministicProviderProbe(id)).map((provider) =>
+          provider.id === 'codex'
+            ? {
+                ...provider,
+                status: signedIn
+                  ? ('ready' as const)
+                  : installed
+                    ? ('needs_login' as const)
+                    : initialStatus,
+              }
+            : provider,
+        );
+      const openExternal = vi.fn(async () => undefined);
+      const runtime = {
+        startCodexChatGptLogin: vi.fn(async () => ({
+          loginId: 'setup-login',
+          authUrl: 'https://auth.openai.com/authorize?client_id=fixture',
+        })),
+        waitForCodexChatGptLogin: vi.fn(
+          () =>
+            new Promise<void>((resolve) => {
+              finishLogin = () => {
+                signedIn = true;
+                resolve();
+              };
+            }),
+        ),
+        cancelCodexChatGptLogin: vi.fn(async () => undefined),
+        listModels: vi.fn(async () => []),
+        dispose: vi.fn(async () => undefined),
+      };
+      const first = await createHarness({
+        fakeServices: false,
+        providerProbe,
+        installCodex: async () => {
+          installed = true;
+        },
+        restartApp: vi.fn(),
+        openExternal,
+      });
+      const result = await first.controller.invoke('providers.login', { providerId: 'codex' });
+      expect(result.snapshot.providers.find(({ id }) => id === 'codex')?.setup?.phase).toBe(
+        'restarting',
+      );
+      expect(openExternal).not.toHaveBeenCalled();
+      // Reopen persisted records in a fresh repository, as a real process restart does.
+      const savedState = first.repository.get('desktop', 'state');
+      const continuation = first.repository.get('setup', 'codex-login');
+      await first.controller.shutdown();
+      const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+      repository.put('desktop', 'state', savedState);
+      repository.put('setup', 'codex-login', continuation);
+      const restored = await createHarness({
+        fakeServices: false,
+        repository,
+        providerProbe,
+        runtime,
+        openExternal,
+      });
+      const pending = restored.controller.resumeCodexSetup();
+      await vi.waitFor(() => expect(runtime.waitForCodexChatGptLogin).toHaveBeenCalledOnce());
+      const waiting = restored.controller.snapshot();
+      expect(waiting.providers.find(({ id }) => id === 'codex')?.setup?.phase).toBe(
+        'signing-in',
+      );
+      expect(JSON.stringify(waiting)).not.toContain('auth.openai.com/authorize');
+      expect(restored.repository.get('setup', 'codex-login')).toBeUndefined();
+      await restored.controller.resumeCodexSetup();
+      await expect(
+        restored.controller.invoke('providers.login', { providerId: 'codex' }),
+      ).rejects.toThrow('in progress');
+      expect(runtime.startCodexChatGptLogin).toHaveBeenCalledOnce();
+      finishLogin();
+      await pending;
+      expect(
+        restored.controller.snapshot().providers.find(({ id }) => id === 'codex'),
+      ).toMatchObject({ status: 'ready' });
+      expect(
+        restored.controller.snapshot().providers.find(({ id }) => id === 'codex')?.setup,
+      ).toBeUndefined();
+      expect(openExternal).toHaveBeenCalledExactlyOnceWith(
+        'https://auth.openai.com/authorize?client_id=fixture',
+      );
+      await restored.controller.resumeCodexSetup();
+      expect(runtime.startCodexChatGptLogin).toHaveBeenCalledOnce();
+      await restored.controller.shutdown();
+    },
+  );
+
+  it.each(['ordinary', 'expired', 'connected', 'failed'] as const)(
+    'does not reopen browser sign-in after %s setup',
+    async (scenario) => {
+      const openExternal = vi.fn(async () => undefined);
+      const runtime = {
+        startCodexChatGptLogin: vi.fn(async () => ({
+          loginId: 'setup-login',
+          authUrl: 'https://auth.openai.com/authorize?client_id=fixture',
+        })),
+        waitForCodexChatGptLogin: vi.fn(async () => {
+          throw new Error('Sign-in cancelled');
+        }),
+        cancelCodexChatGptLogin: vi.fn(async () => undefined),
+        listModels: vi.fn(async () => []),
+        dispose: vi.fn(async () => undefined),
+      };
+      const { controller, repository } = await createHarness({
+        fakeServices: false,
+        openExternal,
+        runtime,
+        providerProbe: async (id) =>
+          (await deterministicProviderProbe(id)).map((provider) =>
+            provider.id === 'codex' && scenario !== 'connected'
+              ? { ...provider, status: 'needs_login' as const }
+              : provider,
+          ),
+      });
+      if (scenario !== 'ordinary')
+        repository.put('setup', 'codex-login', {
+          expiresAt: Date.now() + (scenario === 'expired' ? -1 : 60_000),
+        });
+      await controller.resumeCodexSetup();
+      await controller.resumeCodexSetup();
+      expect(runtime.startCodexChatGptLogin).toHaveBeenCalledTimes(
+        scenario === 'failed' ? 1 : 0,
+      );
+      expect(repository.get('setup', 'codex-login')).toBeUndefined();
+      if (scenario === 'failed') {
+        expect(runtime.cancelCodexChatGptLogin).toHaveBeenCalledWith('setup-login');
+        expect(
+          controller.snapshot().providers.find(({ id }) => id === 'codex')?.setup?.phase,
+        ).toBe('error');
+        await expect(
+          controller.invoke('providers.login', { providerId: 'codex' }),
+        ).rejects.toThrow('cancelled');
+        expect(runtime.startCodexChatGptLogin).toHaveBeenCalledTimes(2);
+      }
+      await controller.shutdown();
+    },
+  );
 
   it('grants only top-level attached tab origins, never nested link URLs', async () => {
     const browserComputer = {
@@ -4389,6 +4663,31 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('disconnects included voice at sign-out before awaiting other work', async () => {
+    const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+    const voice = new ElevenLabsVoiceService({
+      repository,
+      gateway: {
+        configured: true,
+        voiceCatalog: async () => ({
+          provider: {
+            available: true,
+            voices: [{ id: 'test-voice', name: 'Test voice' }],
+            tokenTypes: ['realtime_scribe'],
+          },
+        }),
+        mintVoiceToken: vi.fn(),
+      },
+    });
+    const { controller } = await createHarness({ repository, voice });
+    await controller.invoke('voice.configure', undefined);
+    expect(voice.view().status).toBe('connected');
+    await controller.invoke('auth.signOut', undefined);
+    expect(voice.view().status).toBe('disconnected');
+    expect(repository.get('voice', 'managed')).toBeUndefined();
+    await controller.shutdown();
+  });
+
   it('keeps Meta fail-closed without an authenticated relay capability probe', async () => {
     let state: 'signed_out' | 'signed_in' = 'signed_out';
     const identity = {
@@ -4743,6 +5042,7 @@ describe('connect Chrome and continue', () => {
   it('offers window choice first, then continues exactly once in the pinned conversation and preserves drafts', async () => {
     const h = await recoveryHarness();
     const { controller, threadId, userMessageId } = h;
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
     try {
       const choice = await controller.invoke('browser.connectAndContinue', {
         threadId,
@@ -4845,6 +5145,7 @@ describe('global voice routing', () => {
       defaultWorkspaceRoot: '/tmp/sia-voice-agents',
       createDirectory: vi.fn(async () => undefined),
     });
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
     const first = await controller.invoke('agents.save', {
       name: 'Voice agent',
       instructions: 'Help with tasks.',
@@ -4928,6 +5229,7 @@ it('runs a saved workflow through the canonical turn queue and persists editable
     defaultWorkspaceRoot: '/tmp/Sia/Agents',
     createDirectory: async () => undefined,
   });
+  await controller.invoke('computer.setTrust', { trust: 'ask' });
   try {
     const created = await controller.invoke('agents.save', {
       name: 'Workflow agent',
@@ -5544,8 +5846,40 @@ it('retains background task results and failures across conversations and native
   }
 });
 
+it('defaults new profiles to automatic action approval and preserves it after agent creation and restart', async () => {
+  const { controller, repository } = await createHarness();
+  expect(controller.computerAccessMode()).toBe('mac');
+  expect(controller.computerTrust()).toBe('auto');
+  expect(controller.snapshot().computer.trust).toBe('auto');
+  await controller.invoke('agents.save', {
+    name: 'Fresh profile agent',
+    instructions: 'Help with tasks.',
+    model: 'gpt-5.6-sol',
+    workspace: '/tmp/sia-workspace',
+  });
+  expect(controller.computerTrust()).toBe('auto');
+  const restored = await createHarness({ repository });
+  expect(restored.controller.computerTrust()).toBe('auto');
+  await restored.controller.shutdown();
+});
+
+it('preserves confirmations for legacy profiles without an approval preference', async () => {
+  const { repository } = await createHarness();
+  const stored = repository.get<{ preferences: { computerTrust?: string } }>(
+    'desktop',
+    'state',
+  )!;
+  delete stored.preferences.computerTrust;
+  repository.put('desktop', 'state', stored);
+  const restored = await createHarness({ repository });
+  expect(restored.controller.computerTrust()).toBe('ask');
+  expect(restored.controller.snapshot().computer.trust).toBe('ask');
+  await restored.controller.shutdown();
+});
+
 it('persists Use my Mac separately from action confirmations and avoids Chrome preparation', async () => {
   const { controller, repository } = await createHarness();
+  await controller.invoke('computer.setTrust', { trust: 'ask' });
   expect(controller.computerAccessMode()).toBe('mac');
   expect(controller.macBackgroundControl()).toBe(false);
   expect(controller.macBackgroundFallback()).toBe('pause');

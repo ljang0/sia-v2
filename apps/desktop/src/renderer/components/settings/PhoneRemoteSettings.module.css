@@ -1,4 +1,5 @@
 .card {
+  min-width: 0;
   border: 1px solid var(--border-subtle);
   border-radius: 20px;
   padding: 26px;
@@ -9,6 +10,9 @@
   align-items: center;
   gap: 15px;
   margin-bottom: 28px;
+}
+.intro > div {
+  min-width: 0;
 }
 .mark {
   width: 48px;
@@ -35,6 +39,7 @@
 }
 .live,
 .off {
+  flex: none;
   margin-left: auto;
   display: flex;
   align-items: center;
@@ -62,6 +67,8 @@
   color: var(--text-secondary);
 }
 .agent select {
+  min-width: 0;
+  width: 100%;
   border: 1px solid var(--border-control);
   border-radius: 10px;
   padding: 10px;
@@ -124,6 +131,7 @@
   color: var(--text-tertiary);
 }
 .link {
+  flex-wrap: wrap;
   margin-top: 22px;
   padding: 12px 14px;
   display: flex;
@@ -134,6 +142,7 @@
   border-radius: 12px;
 }
 .link code {
+  overflow-wrap: anywhere;
   font-size: 12px;
   color: var(--text-secondary);
 }
@@ -143,8 +152,12 @@
   color: var(--text-tertiary);
   margin: 16px 0 0;
 }
+.agent + .note {
+  margin: 0 0 16px;
+}
 .actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 18px;
   align-items: center;
   margin-top: 24px;
@@ -158,4 +171,32 @@
 .footnotes strong {
   font-weight: 600;
   color: var(--text-primary);
+}
+
+@container (max-width: 420px) {
+  .card {
+    padding: 16px;
+  }
+  .intro {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .mark {
+    width: 40px;
+    height: 40px;
+  }
+  .live,
+  .off {
+    grid-column: 2;
+    margin-left: 0;
+  }
+  .qr {
+    width: min(216px, 100%);
+    height: auto;
+    aspect-ratio: 1;
+  }
+  .steps {
+    min-width: 0;
+  }
 }

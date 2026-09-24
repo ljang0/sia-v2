@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CodexAppServerAdapter } from './providers/codex.js';
+import { CODEX_SUPPORTED_VERSIONS, CodexAppServerAdapter } from './providers/codex.js';
 
 const realSmoke = process.env.SIA_CODEX_REAL_SMOKE === '1' ? it : it.skip;
 
@@ -8,12 +8,18 @@ describe('Codex isolation smoke', () => {
     'retains ChatGPT auth while creating a verified ephemeral session (native tools: %s)',
     async (nativeTools) => {
       const candidate = process.env.SIA_CODEX_CANDIDATE_COMMAND;
+      const expectedVersion = process.env.SIA_CODEX_CANDIDATE_VERSION;
+      if (candidate && !expectedVersion)
+        throw new Error('Set SIA_CODEX_CANDIDATE_VERSION for an exact candidate check.');
       const adapter = new CodexAppServerAdapter({
         sessionEphemeral: true,
         ...(candidate
           ? {
               command: candidate,
-              supportedVersions: { minimum: '0.155.0', maximumExclusive: '0.156.0' },
+              supportedVersions: {
+                ...CODEX_SUPPORTED_VERSIONS,
+                additionalVersions: [expectedVersion!],
+              },
             }
           : {}),
       });
@@ -23,10 +29,10 @@ describe('Codex isolation smoke', () => {
           available: true,
           supported: true,
         });
-        if (candidate) expect(probe.version).toBe('0.155.0-alpha.9');
+        if (candidate) expect(probe.version).toBe(expectedVersion);
         else
           expect(probe.version).toMatch(
-            /^0\.(?:147|148|149|150|151|152|153)\.\d+$|^0\.155\.0-alpha\.9$/,
+            /^0\.(?:147|148|149|150|151|152|153)\.\d+$|^0\.155\.0-alpha\.9(?:\.2)?$/,
           );
         expect(await adapter.account()).toMatchObject({
           state: 'authenticated',

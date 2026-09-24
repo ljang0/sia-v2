@@ -2,6 +2,7 @@
 // See README.md. Unlike Fn capture, this reads only a host-granted exact window.
 import AppKit
 import ApplicationServices
+import Darwin
 
 enum WindowContext {
     static func attribute<T>(_ element: AXUIElement, _ key: String) -> T? {
@@ -10,27 +11,90 @@ enum WindowContext {
         return value as? T
     }
 
-    /// Public AX has no WindowServer id. Never substitute the frontmost window.
+    struct Identity {
+        let frame: CGRect
+        let title: String?
+        var windowID: CGWindowID? = nil
+    }
+
+    // The bundled CUA driver uses this macOS SPI to bind AXWindow to CGWindowID.
+    // Resolve it optionally so unsupported systems retain the strict public-AX
+    // fallback instead of failing to launch. Never infer identity from focus.
+    private typealias WindowIDReader = @convention(c) (AXUIElement, UnsafeMutablePointer<CGWindowID>) -> AXError
+    private static let readWindowID: WindowIDReader? = {
+        guard let handle = dlopen(nil, RTLD_LAZY) else { return nil }
+        defer { dlclose(handle) }
+        guard let symbol = dlsym(handle, "_AXUIElementGetWindow") else { return nil }
+        return unsafeBitCast(symbol, to: WindowIDReader.self)
+    }()
+
+    private static func nativeWindowID(_ window: AXUIElement, pid: pid_t) -> CGWindowID? {
+        var owner: pid_t = 0
+        var id: CGWindowID = 0
+        guard AXUIElementGetPid(window, &owner) == .success, owner == pid,
+              let readWindowID, readWindowID(window, &id) == .success, id > 0 else { return nil }
+        return id
+    }
+
+    /// Geometry alone is ambiguous when browsers stack windows at identical bounds.
+    /// Native IDs take precedence: WindowServer and AX titles can disagree during
+    /// navigation and Chromium decorates them differently. Known conflicting IDs
+    /// must never fall through to title/geometry matching.
+    static func matchingIndex(target: Identity, candidates: [Identity]) -> Int? {
+        if let id = target.windowID {
+            let exact = candidates.indices.filter { candidates[$0].windowID == id }
+            if !exact.isEmpty { return exact.count == 1 ? exact.first : nil }
+        }
+        let matches = candidates.indices.filter { index in
+            if target.windowID != nil, candidates[index].windowID != nil { return false }
+            let frame = candidates[index].frame
+            return abs(frame.minX - target.frame.minX) < 1 && abs(frame.minY - target.frame.minY) < 1 &&
+                abs(frame.width - target.frame.width) < 1 && abs(frame.height - target.frame.height) < 1
+        }
+        if let title = target.title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let titled = matches.filter { candidates[$0].title == title }
+            return titled.count == 1 ? titled.first : nil
+        }
+        return matches.count == 1 ? matches.first : nil
+    }
+
+    /// Resolve only a window owned by the requested process; never substitute focus.
     static func resolve(pid: pid_t, windowID: CGWindowID) -> AXUIElement? {
         guard AXIsProcessTrusted(),
               let info = (CGWindowListCopyWindowInfo(.optionIncludingWindow, windowID) as? [[String: Any]])?.first,
               (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid,
+              (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value == windowID,
               let bounds = info[kCGWindowBounds as String] as? NSDictionary,
               let frame = CGRect(dictionaryRepresentation: bounds) else { return nil }
+        let target = Identity(frame: frame, title: info[kCGWindowName as String] as? String, windowID: windowID)
         let root = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(root, 0.08)
         AXUIElementSetAttributeValue(root, "AXManualAccessibility" as CFString, kCFBooleanTrue)
         AXUIElementSetAttributeValue(root, "AXEnhancedUserInterface" as CFString, kCFBooleanTrue)
-        let windows: [AXUIElement] = attribute(root, kAXWindowsAttribute) ?? []
-        let matches = windows.filter { window in
+        var windows: [AXUIElement] = attribute(root, kAXWindowsAttribute) ?? []
+        // Chromium can omit AXWindows while exposing its window through focus or
+        // root children. These are candidates only: every route must still match
+        // the requested native ID or strict fallback below, never substitute focus.
+        let children: [AXUIElement] = attribute(root, kAXChildrenAttribute) ?? []
+        let focused: AXUIElement? = attribute(root, kAXFocusedWindowAttribute)
+        for candidate in children + [focused].compactMap({ $0 }) {
+            let role: String = attribute(candidate, kAXRoleAttribute) ?? ""
+            if role == kAXWindowRole,
+               nativeWindowID(candidate, pid: pid) == windowID || !(target.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               !windows.contains(where: { CFEqual($0, candidate) }) {
+                windows.append(candidate)
+            }
+        }
+        let candidates: [(element: AXUIElement, identity: Identity)] = windows.compactMap { window in
             guard let position: AXValue = attribute(window, kAXPositionAttribute),
                   let size: AXValue = attribute(window, kAXSizeAttribute),
-                  AXValueGetType(position) == .cgPoint, AXValueGetType(size) == .cgSize else { return false }
+                  AXValueGetType(position) == .cgPoint, AXValueGetType(size) == .cgSize else { return nil }
             var p = CGPoint.zero; var s = CGSize.zero
-            guard AXValueGetValue(position, .cgPoint, &p), AXValueGetValue(size, .cgSize, &s) else { return false }
-            return abs(p.x - frame.minX) < 1 && abs(p.y - frame.minY) < 1 && abs(s.width - frame.width) < 1 && abs(s.height - frame.height) < 1
+            guard AXValueGetValue(position, .cgPoint, &p), AXValueGetValue(size, .cgSize, &s) else { return nil }
+            return (window, Identity(frame: CGRect(origin: p, size: s), title: attribute(window, kAXTitleAttribute), windowID: nativeWindowID(window, pid: pid)))
         }
-        return matches.count == 1 ? matches.first : nil
+        guard let index = matchingIndex(target: target, candidates: candidates.map(\.identity)) else { return nil }
+        return candidates[index].element
     }
 
     /// Notch reads static text as well as controls, converts NSNumber values, and

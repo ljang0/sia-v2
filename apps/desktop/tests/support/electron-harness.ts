@@ -131,6 +131,8 @@ export async function createAgentAndThread(
     .getByRole('dialog', { name: 'New agent' })
     .getByRole('button', { name: 'Create agent' })
     .click();
+  // Submission starts async IPC; a completed click does not mean creation finished.
+  await expect(page.getByRole('dialog', { name: 'New agent' })).toBeHidden();
   const snapshot = await page.evaluate(async () => await window.sia.bootstrap());
   if (!snapshot.activeAgentId || !snapshot.activeThreadId) {
     throw new Error('The deterministic fixture did not create an active agent and thread.');

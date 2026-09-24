@@ -2463,12 +2463,115 @@ describe('Use my Mac browser routing', () => {
       window_id: target.windowId,
     });
     expect(unavailable.summary).toContain('not evidence of a login');
+    expect(dataRecord(unavailable.data)).toMatchObject({
+      driver_observation_attempted: true,
+      driver_screenshot_available: false,
+      driver_element_count: 1,
+    });
+    expect(unavailable.images).toBeUndefined();
+    expect(dataRecord(unavailable.data).elements).toBeUndefined();
+    expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state')).toHaveLength(
+      1,
+    );
+    h.cua.call.mockClear();
     h.inspect.mockResolvedValue({ status: 'protected' });
     const protectedPage = await h.backend.invoke(
       request('computer_snapshot', { app_id: target.appId, window_id: target.windowId }),
     );
     expect(dataRecord(protectedPage.data).blocker_code).toBe('protected_window');
     expect(h.cua.call.mock.calls.some(([tool]) => tool === 'get_window_state')).toBe(false);
+  });
+
+  it('recovers a missing helper window through one exact CUA observation before allowing a background click', async () => {
+    const h = browserHarness();
+    h.inspect.mockResolvedValueOnce({ status: 'unavailable', reason: 'ambiguous' });
+    const args = await capture(h);
+    const captures = h.cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state');
+    expect(captures).toHaveLength(1);
+    expect(captures[0]?.[1]).toMatchObject({
+      pid: 42,
+      window_id: 91,
+      include_screenshot: true,
+    });
+    expect(
+      (await h.backend.invoke(request('computer_action', { ...args, action: 'click' })))
+        .outcome,
+    ).toBe('accepted_unverified');
+    expect(h.cua.call.mock.calls.find(([tool]) => tool === 'click')?.[1]).toMatchObject({
+      pid: 42,
+      window_id: 91,
+      delivery_mode: 'background',
+      element_token: 'link',
+    });
+  });
+
+  it('stops a driver refusal without replaying observation or issuing input', async () => {
+    const h = browserHarness();
+    const target = await grantedComputerTarget(h.backend);
+    h.inspect.mockResolvedValue({ status: 'unavailable', reason: 'ambiguous' });
+    const implementation = h.cua.call.getMockImplementation() as (
+      tool: string,
+      args: Record<string, unknown>,
+    ) => Promise<unknown>;
+    h.cua.call.mockImplementation(async (tool: string, args: Record<string, unknown>) => {
+      if (tool === 'get_window_state') throw new Error('CUA refused: window_not_found');
+      return implementation(tool, args);
+    });
+    const result = await h.backend.invoke(
+      request('computer_snapshot', { app_id: target.appId, window_id: target.windowId }),
+    );
+    expect(result.outcome).not.toBe('verified');
+    expect(result.images).toBeUndefined();
+    expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state')).toHaveLength(
+      1,
+    );
+    expect(h.cua.call.mock.calls.some(([tool]) => tool === 'click')).toBe(false);
+  });
+
+  it('keeps expected-page validation after driver recovery and never publishes mismatched content', async () => {
+    const h = browserHarness();
+    const target = await grantedComputerTarget(h.backend);
+    h.inspect.mockResolvedValueOnce({ status: 'unavailable', reason: 'ambiguous' });
+    const result = await h.backend.invoke(
+      request('computer_snapshot', {
+        app_id: target.appId,
+        window_id: target.windowId,
+        expected_url: 'https://example.com/another-page',
+      }),
+    );
+    expect(result.outcome).toBe('stale');
+    expect(result.images).toBeUndefined();
+    expect(dataRecord(result.data).snapshot_id).toBeUndefined();
+    expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state')).toHaveLength(
+      1,
+    );
+    expect(h.cua.call.mock.calls.some(([tool]) => tool === 'click')).toBe(false);
+  });
+
+  it('drops recovered driver content when it contains protected controls', async () => {
+    const h = browserHarness();
+    const target = await grantedComputerTarget(h.backend);
+    h.inspect.mockResolvedValue({ status: 'unavailable', reason: 'ambiguous' });
+    const implementation = h.cua.call.getMockImplementation() as (
+      tool: string,
+      args: Record<string, unknown>,
+    ) => Promise<unknown>;
+    h.cua.call.mockImplementation(async (tool: string, args: Record<string, unknown>) =>
+      tool === 'get_window_state'
+        ? {
+            snapshot_id: 'private',
+            elements: [
+              { role: 'AXSecureTextField', label: 'Password', value: 'must-not-leak' },
+            ],
+          }
+        : implementation(tool, args),
+    );
+    const result = await h.backend.invoke(
+      request('computer_snapshot', { app_id: target.appId, window_id: target.windowId }),
+    );
+    expect(result.outcome).toBe('refused');
+    expect(JSON.stringify(result)).not.toContain('must-not-leak');
+    expect(result.images).toBeUndefined();
   });
 
   it('keeps the native browser route when Chrome also has an attached tab', async () => {
@@ -2660,7 +2763,7 @@ describe('Use my Mac browser routing', () => {
   });
 
   it.each(['protected', 'unavailable'] as const)(
-    'does not capture private or unverified browser state (%s)',
+    'does not publish private or unverified browser state (%s)',
     async (status) => {
       const h = browserHarness();
       h.inspect.mockResolvedValue({ status });
@@ -2670,7 +2773,11 @@ describe('Use my Mac browser routing', () => {
       );
       expect(result.outcome).toBe('refused');
       expect(result.images).toBeUndefined();
-      expect(h.cua.call.mock.calls.some(([tool]) => tool === 'get_window_state')).toBe(false);
+      expect(dataRecord(result.data).snapshot_id).toBeUndefined();
+      expect(dataRecord(result.data).elements).toBeUndefined();
+      expect(
+        h.cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state'),
+      ).toHaveLength(status === 'unavailable' ? 1 : 0);
     },
   );
 
@@ -2868,16 +2975,238 @@ it('routes native vault reviews through the controller authorization boundary', 
   expect(cua.call).not.toHaveBeenCalled();
 });
 
-it('requests background application launch for the Mac window route', async () => {
-  const cua = fakeCua(async () => ({ apps: [], windows: [] }));
-  const openApplication = vi.fn(async () => undefined);
-  const backend = new DesktopActionBackend({
-    cua,
-    openApplication,
-    macBrowserAccess: () => true,
-    macBackgroundControl: () => true,
+it.each([undefined, 'background', 'foreground'] as const)(
+  'routes Mac application opening with explicit delivery: %s',
+  async (delivery) => {
+    const cua = fakeCua(async () => ({ apps: [], windows: [] }));
+    const openApplication = vi.fn(async () => undefined);
+    const backend = new DesktopActionBackend({
+      cua,
+      openApplication,
+      macBrowserAccess: () => true,
+      macBackgroundControl: () => true,
+    });
+    const result = await backend.invoke(
+      request('computer_open_app', { application: 'notes', ...(delivery ? { delivery } : {}) }),
+    );
+    expect(result.outcome).toBe('verified');
+    expect(openApplication).toHaveBeenCalledExactlyOnceWith('notes', {
+      background: delivery !== 'foreground',
+    });
+    expect(dataRecord(result.data).delivery_requested).toBe(delivery ?? 'background');
+  },
+);
+
+describe('native window input availability', () => {
+  function harness() {
+    const png = Buffer.alloc(24);
+    Buffer.from('89504e470d0a1a0a', 'hex').copy(png);
+    png.write('IHDR', 12);
+    png.writeUInt32BE(800, 16);
+    png.writeUInt32BE(600, 20);
+    const state = {
+      status: 'ax_unresolved',
+      windowId: 91,
+      keyboardOnly: false,
+      reportInElement: false,
+      malformed: false,
+      protected: false,
+    };
+    const cua = fakeCua(async (tool) => {
+      if (tool === 'list_apps')
+        return { apps: [{ pid: 42, name: 'Slack', bundle_id: 'com.tinyspeck.slackmacgap' }] };
+      if (tool === 'list_windows')
+        return { windows: [{ pid: 42, window_id: 91, app_name: 'Slack' }] };
+      if (tool === 'get_window_state') {
+        const report = {
+          exact_window: { status: state.status, pid: 42, window_id: state.windowId },
+          routes: ['accessibility', 'window_pointer', 'pid_keyboard'].map((route) => ({
+            route,
+            status:
+              state.status === 'matched' && !(state.keyboardOnly && route === 'pid_keyboard')
+                ? 'available'
+                : 'refused',
+            reason:
+              state.status === 'matched'
+                ? 'same_pid_keyboard_ambiguity'
+                : 'off_space_or_ax_unresolved',
+          })),
+          secret: 'not forwarded',
+        };
+        return {
+          value: {
+            snapshot_id: 'native-snapshot',
+            ...(state.reportInElement
+              ? {}
+              : { background_input: state.malformed ? {} : report }),
+            elements: state.protected
+              ? [{ role: 'AXSecureTextField' }]
+              : state.reportInElement
+                ? [{ role: 'AXStaticText', background_input: report }]
+                : [],
+          },
+          images: [{ mimeType: 'image/png', dataBase64: png.toString('base64') }],
+        };
+      }
+      return { effect: 'unverifiable', delivery: { mode: 'background' } };
+    });
+    const backend = new DesktopActionBackend({
+      cua,
+      macBrowserAccess: () => true,
+      macBackgroundControl: () => true,
+    });
+    return { backend, cua, state };
+  }
+
+  it.each([true, false])(
+    'keeps an unresolved Slack screenshot observation-only and respects foreground policy (%s)',
+    async (backgroundOnly) => {
+      const { backend, cua } = harness();
+      const target = await grantedComputerTarget(backend);
+      const ids = { app_id: target.appId, window_id: target.windowId };
+      const snapshotRequest = request('computer_snapshot', { ...ids, include_image: true });
+      const scopedSnapshot = {
+        ...snapshotRequest,
+        context: { ...snapshotRequest.context, backgroundOnly },
+      };
+      const snapshot = await backend.invoke(scopedSnapshot);
+      const data = dataRecord(snapshot.data);
+      expect(snapshot.outcome).toBe('verified');
+      expect(snapshot.images).toHaveLength(1);
+      expect(data).toMatchObject({
+        observation_only: true,
+        pixel_actions_available: false,
+        screenshot_size: { width: 800, height: 600 },
+      });
+      expect(dataRecord(data.background_input).exact_window).toEqual({
+        status: 'ax_unresolved',
+      });
+      expect(JSON.stringify(data)).not.toContain('not forwarded');
+      expect(data.next_step).toContain(
+        backgroundOnly ? 'disabled for this turn' : 'delivery:"foreground"',
+      );
+      const action = request('computer_action', {
+        ...ids,
+        snapshot_id: data.snapshot_id,
+        action: 'click',
+        x: 20,
+        y: 30,
+      });
+      expect(
+        (await backend.invoke({ ...action, context: { ...action.context, backgroundOnly } }))
+          .outcome,
+      ).toBe('needs_foreground');
+      expect(cua.call.mock.calls.some(([tool]) => tool === 'click')).toBe(false);
+    },
+  );
+
+  it('uses empty-AX screenshot controls when the exact pointer route is available, despite a refused keyboard route', async () => {
+    const { backend, cua, state } = harness();
+    state.status = 'matched';
+    state.keyboardOnly = true;
+    const target = await grantedComputerTarget(backend);
+    const ids = { app_id: target.appId, window_id: target.windowId };
+    const snapshot = await backend.invoke(
+      request('computer_snapshot', { ...ids, include_image: true }),
+    );
+    const data = dataRecord(snapshot.data);
+    expect(data).toMatchObject({ observation_only: false, pixel_actions_available: true });
+    expect(
+      (
+        await backend.invoke(
+          request('computer_action', {
+            ...ids,
+            snapshot_id: data.snapshot_id,
+            action: 'key',
+            value: 'return',
+          }),
+        )
+      ).outcome,
+    ).toBe('needs_foreground');
+    expect(cua.call.mock.calls.some(([tool]) => tool === 'press_key')).toBe(false);
+    expect(
+      (
+        await backend.invoke(
+          request('computer_action', {
+            ...ids,
+            snapshot_id: data.snapshot_id,
+            action: 'click',
+            x: 20,
+            y: 30,
+          }),
+        )
+      ).outcome,
+    ).toBe('accepted_unverified');
+    expect(cua.call.mock.calls.filter(([tool]) => tool === 'click')).toHaveLength(1);
   });
-  const result = await backend.invoke(request('computer_open_app', { application: 'notes' }));
-  expect(result.outcome).toBe('verified');
-  expect(openApplication).toHaveBeenCalledExactlyOnceWith('notes', { background: true });
+
+  it('rechecks route availability before pixel input and resumes after a fresh matched observation', async () => {
+    const { backend, cua, state } = harness();
+    state.status = 'matched';
+    const target = await grantedComputerTarget(backend);
+    const ids = { app_id: target.appId, window_id: target.windowId };
+    const snapshot = await backend.invoke(
+      request('computer_snapshot', { ...ids, include_image: true }),
+    );
+    state.status = 'ax_unresolved';
+    const action = {
+      ...ids,
+      snapshot_id: dataRecord(snapshot.data).snapshot_id,
+      action: 'click',
+      x: 20,
+      y: 30,
+    };
+    expect((await backend.invoke(request('computer_action', action))).outcome).toBe(
+      'needs_foreground',
+    );
+    expect(cua.call.mock.calls.some(([tool]) => tool === 'click')).toBe(false);
+    state.status = 'matched';
+    const fresh = await backend.invoke(
+      request('computer_snapshot', { ...ids, include_image: true }),
+    );
+    expect(
+      (
+        await backend.invoke(
+          request('computer_action', {
+            ...action,
+            snapshot_id: dataRecord(fresh.data).snapshot_id,
+          }),
+        )
+      ).outcome,
+    ).toBe('accepted_unverified');
+    expect(cua.call.mock.calls.filter(([tool]) => tool === 'click')).toHaveLength(1);
+  });
+
+  it.each(['foreign-window', 'malformed', 'protected', 'page-content'] as const)(
+    'does not use invalid report authority or bypass protected controls: %s',
+    async (scenario) => {
+      const { backend, cua, state } = harness();
+      state.status = 'matched';
+      state.windowId = scenario === 'foreign-window' ? 92 : 91;
+      state.malformed = scenario === 'malformed';
+      state.protected = scenario === 'protected';
+      state.reportInElement = scenario === 'page-content';
+      const target = await grantedComputerTarget(backend);
+      const ids = { app_id: target.appId, window_id: target.windowId };
+      const snapshot = await backend.invoke(
+        request('computer_snapshot', { ...ids, include_image: true }),
+      );
+      const data = dataRecord(snapshot.data);
+      if (scenario === 'page-content') {
+        expect(data.background_input).toBeUndefined();
+        return;
+      }
+      expect(data.pixel_actions_available).toBe(false);
+      await backend.invoke(
+        request('computer_action', {
+          ...ids,
+          snapshot_id: data.snapshot_id,
+          action: 'click',
+          x: 20,
+          y: 30,
+        }),
+      );
+      expect(cua.call.mock.calls.some(([tool]) => tool === 'click')).toBe(false);
+    },
+  );
 });

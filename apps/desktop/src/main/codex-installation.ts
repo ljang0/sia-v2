@@ -19,6 +19,7 @@ export async function discoverCodexInstallation(
   options: {
     environment?: NodeJS.ProcessEnv;
     bundledCommands?: readonly string[];
+    managedCommand?: string;
     version?: (command: string) => Promise<string>;
   } = {},
 ): Promise<string | undefined> {
@@ -37,6 +38,7 @@ export async function discoverCodexInstallation(
       : []);
   const candidates = [
     ...new Set([
+      ...(options.managedCommand ? [options.managedCommand] : []),
       ...(environment.PATH ?? '')
         .split(delimiter)
         .filter(Boolean)

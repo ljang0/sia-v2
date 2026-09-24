@@ -678,10 +678,7 @@ export function Conversation({
                       : 'idle'
         }
         onVoiceConversationChange={(active) => {
-          if (!active && voiceConversation && speech.phase !== 'idle') {
-            stopSpeech();
-            return;
-          }
+          if (!active && voiceConversation && speech.phase !== 'idle') stopSpeech();
           setVoiceConversation(active);
         }}
         onDraftChange={onDraftChange}

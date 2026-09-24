@@ -103,9 +103,8 @@ export function MacAutomationPermissions({
     automaticStarted.current = true;
     void runRef.current(false);
   }, [autoStart, disabled]);
-  const accessRows = (
+  const appRows = (
     <ul className={styles.accessList}>
-      {children}
       {apps.map(({ id, name, detail }) => {
         const status = permissions?.[id] ?? 'needs_permission';
         return (
@@ -124,16 +123,16 @@ export function MacAutomationPermissions({
   );
   return (
     <section aria-label="Mac app permissions">
-      {compact ? (
-        summary
-      ) : (
+      {!compact ? (
         <>
           <h3>{prepare ? 'Your access checklist' : 'Mac app access'}</h3>
           <p className={styles.note}>
-            Approve the macOS prompts. Access already allowed is skipped.
+            One button starts setup for missing permissions. Approve each macOS prompt, then
+            return to Sia. Already allowed access is skipped.
           </p>
         </>
-      )}
+      ) : null}
+      {summary}
       <div className={styles.siteButtons}>
         {!compact || needed.length > 0 || needsPreparation || Boolean(pending) ? (
           <button
@@ -148,7 +147,7 @@ export function MacAutomationPermissions({
                   ? 'Access ready'
                   : 'Allow remaining access'
                 : prepare
-                  ? 'Allow all required access'
+                  ? 'Set up permissions'
                   : 'Allow all Mac apps'}
           </button>
         ) : null}
@@ -158,7 +157,7 @@ export function MacAutomationPermissions({
             disabled={disabled || Boolean(pending)}
             onClick={() => void run(true)}
           >
-            Check access
+            {pending === 'check' ? 'Checking…' : 'Check access'}
           </button>
         ) : null}
       </div>
@@ -174,21 +173,34 @@ export function MacAutomationPermissions({
           {error}
         </p>
       ) : null}
-      {compact ? (
+      {children ? (
+        <ul className={styles.accessList} aria-label="Core permissions">
+          {children}
+        </ul>
+      ) : null}
+      {compact && includeApps ? (
         <details className={styles.details}>
-          <summary>Permission details</summary>
-          <button
-            className={styles.link}
-            disabled={disabled || Boolean(pending)}
-            onClick={() => void run(true)}
-          >
-            Check access
-          </button>
-          {accessRows}
+          <summary>
+            Everyday app permissions{' '}
+            <span>
+              {apps.filter(({ id }) => permissions?.[id] === 'ready').length} of {apps.length}{' '}
+              ready
+            </span>
+          </summary>
+          {appRows}
         </details>
-      ) : (
-        accessRows
-      )}
+      ) : includeApps ? (
+        appRows
+      ) : null}
+      {compact ? (
+        <button
+          className={styles.link}
+          disabled={disabled || Boolean(pending)}
+          onClick={() => void run(true)}
+        >
+          {pending === 'check' ? 'Checking…' : 'Check access'}
+        </button>
+      ) : null}
     </section>
   );
 }

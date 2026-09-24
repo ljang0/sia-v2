@@ -597,6 +597,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         model: provider.model,
         description: provider.detail,
         status: mapProviderStatus(provider.status),
+        ...(provider.setup ? { setup: { ...provider.setup } } : {}),
         account: provider.account,
         version: provider.version,
         billedBy: provider.billing,

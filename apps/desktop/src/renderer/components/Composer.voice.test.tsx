@@ -242,7 +242,7 @@ describe('Mac live dictation', () => {
       }),
       onStartRealtime: vi.fn(async () => 'mac-session'),
       onAppendRealtime: vi.fn(async () => {}),
-      onStopRealtime: vi.fn(async (_id: string, commit: boolean) =>
+      onStopRealtime: vi.fn(async (_id: string, commit: boolean): Promise<string> =>
         commit ? 'voice request' : '',
       ),
       onAcquireVoiceCapture: vi.fn(async () => 'lease'),
@@ -312,6 +312,115 @@ describe('Mac live dictation', () => {
     expect(h.props.onReleaseVoiceCapture).toHaveBeenCalledWith('lease');
     expect(h.props.onTranscribe).not.toHaveBeenCalled();
     expect(h.props.onSend).not.toHaveBeenCalled();
+  });
+
+  it('surfaces stream failures and stops conversation instead of reopening the microphone', async () => {
+    const h = liveMicrophone();
+    const onChange = vi.fn();
+    h.props.onAppendRealtime.mockRejectedValue(new Error('Voice connection interrupted.'));
+    render(<Composer {...h.props} voiceConversation onVoiceConversationChange={onChange} />);
+    await waitFor(() => expect(h.processor.onaudioprocess).not.toBeNull());
+    await act(async () =>
+      h.processor.onaudioprocess?.({
+        inputBuffer: { getChannelData: () => new Float32Array([0.1, 0.1]) },
+      }),
+    );
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Voice connection interrupted.',
+    );
+    expect(onChange).toHaveBeenCalledWith(false);
+    expect(h.props.onStopRealtime).toHaveBeenCalledWith('mac-session', false);
+    expect(h.trackStop).toHaveBeenCalled();
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 350)));
+    expect(h.props.onStartRealtime).toHaveBeenCalledOnce();
+    expect(h.props.onSend).not.toHaveBeenCalled();
+  });
+
+  it('ends conversation while its voice session is starting and discards the late session', async () => {
+    const h = liveMicrophone();
+    let resolve!: (session: string) => void;
+    h.props.onStartRealtime.mockImplementation(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
+    const onChange = vi.fn();
+    const view = render(
+      <Composer {...h.props} voiceConversation onVoiceConversationChange={onChange} />,
+    );
+    await waitFor(() => expect(h.props.onStartRealtime).toHaveBeenCalledOnce());
+    expect(screen.getByText('Voice · starting microphone…')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'End voice conversation' }));
+    view.rerender(
+      <Composer {...h.props} voiceConversation={false} onVoiceConversationChange={onChange} />,
+    );
+    expect(h.trackStop).toHaveBeenCalled();
+    await act(async () => resolve('late-session'));
+    expect(h.props.onStopRealtime).toHaveBeenCalledWith('late-session', false);
+    expect(h.props.onReleaseVoiceCapture).toHaveBeenCalledWith('lease');
+    expect(h.processor.onaudioprocess).toBeNull();
+    expect(h.props.onSend).not.toHaveBeenCalled();
+  });
+
+  it('stops hands-free mode on an empty transcript and does not silently retry', async () => {
+    const h = liveMicrophone();
+    h.props.onStopRealtime.mockResolvedValue('');
+    const onChange = vi.fn();
+    render(<Composer {...h.props} voiceConversation onVoiceConversationChange={onChange} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Finish speaking' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('No speech was detected.');
+    expect(onChange).toHaveBeenCalledWith(false);
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 350)));
+    expect(h.props.onStartRealtime).toHaveBeenCalledOnce();
+    expect(h.props.onSend).not.toHaveBeenCalled();
+  });
+
+  it('discards a pending transcript when the conversation is ended', async () => {
+    const h = liveMicrophone();
+    let resolve!: (transcript: string) => void;
+    h.props.onStopRealtime.mockImplementation(async (_id, commit) =>
+      commit
+        ? new Promise<string>((done) => {
+            resolve = done;
+          })
+        : '',
+    );
+    const onChange = vi.fn();
+    const view = render(
+      <Composer {...h.props} voiceConversation onVoiceConversationChange={onChange} />,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Finish speaking' }));
+    await waitFor(() =>
+      expect(h.props.onStopRealtime).toHaveBeenCalledWith('mac-session', true),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'End voice conversation' }));
+    view.rerender(
+      <Composer {...h.props} voiceConversation={false} onVoiceConversationChange={onChange} />,
+    );
+    await act(async () => resolve('Do not send this after cancellation.'));
+    expect(h.props.onSend).not.toHaveBeenCalled();
+    expect(h.props.onReleaseVoiceCapture).toHaveBeenCalledWith('lease');
+    expect(h.trackStop).toHaveBeenCalled();
+  });
+
+  it('allows finishing a conversation utterance without waiting for silence detection', async () => {
+    const h = liveMicrophone();
+    const view = render(
+      <Composer {...h.props} voiceConversation onVoiceConversationChange={vi.fn()} />,
+    );
+    await waitFor(() => expect(h.processor.onaudioprocess).not.toBeNull());
+    await act(async () =>
+      h.processor.onaudioprocess?.({
+        inputBuffer: { getChannelData: () => new Float32Array([0.01, 0.01]) },
+      }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Finish speaking' }));
+    await waitFor(() =>
+      expect(h.props.onSend).toHaveBeenCalledExactlyOnceWith('voice request', []),
+    );
+    expect(h.trackStop).toHaveBeenCalled();
+    view.unmount();
   });
 
   it('keeps voice conversation auto-submit separate from draft dictation', async () => {

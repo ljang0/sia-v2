@@ -54,9 +54,14 @@ use whitespace and a hairline divider before adding another box.
 ## Merge checklist
 
 - One clear primary action per surface; no duplicate controls or provider-specific layout fork.
+- Onboarding places the optional everyday-app access checkbox before the setup button. Keep it a
+  compact, unboxed choice with approval guidance so it does not compete with the primary action.
 - Conversation remains dominant. Tool activity is compact and progressively disclosed.
-- Settings use one horizontal, scrollable section rail; do not introduce a second sidebar inside
-  the application shell.
+- Settings use one horizontal section rail that wraps when space is tight, keeping every category
+  visible. The content pane scrolls independently; avoid a second sidebar inside the application shell.
+  Settings rows adapt to the pane width, including zoom, and long descriptions retain vertical padding.
+  At very large text sizes the rail has a visible vertical scroll affordance so it cannot consume
+  the entire window.
 - Active agent, provider/model, workspace, local/cloud status, and research-capture state are always understandable — the room's hue and the topbar dot must agree with the sidebar.
 - Loading, empty, error, offline, queued, denied, cancelled, and recovery states exist.
 - Every consequential approval names the operation, target, data leaving the Mac, focus behavior, and reversibility, under the requesting agent's hue band.
@@ -73,3 +78,24 @@ use whitespace and a hairline divider before adding another box.
   `companion.module.css`; feature-heavy legacy styles remain in `ui.module.css` until migrated.
   New component surfaces must not exceed 400 lines.
 - The development audit matrix (`#audit` in DEV) and the real Electron E2E both pass before visual baselines are accepted.
+
+## Surface checks
+
+`tests/e2e/ui-surfaces.spec.ts` records onboarding, every settings category (including the isolated
+admin archive fixture), the assistant library, conversation tools, Access tabs, feedback, Activity,
+and quick navigation. It checks category visibility, pane overflow, dialog bounds, and spacing at
+1220×780, 960×640, 125% zoom, and usable settings space at 200% zoom. Screenshots are written to the Playwright test-results directory.
+The existing accessibility test also covers forced colors and 200% zoom. These use disposable fake-service
+profiles; no provider turn or personal account is involved. Phone layouts have a separate gate:
+`pnpm --filter @sia/desktop test:remote`, covering compact phones, landscape, and dark appearance.
+
+## New-user setup
+
+| Before                                                      | After                                                                                          | Why                                                  |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Install/update then a separate sign-in action after restart | Set up Codex resumes browser sign-in once after restart, with visible stage and retry feedback | No terminal or second setup action                   |
+| Disabled Set up Sia button while no model is ready          | Resolve AI access first, then show Set up Sia                                                  | One actionable next step                             |
+| Core permission statuses hidden with optional apps          | Core checklist always visible; everyday apps expandable                                        | See missing access and recovery guidance immediately |
+
+One permission action requests only missing access. macOS owns approval dialogs; returning to Sia
+checks status without repeating prompts. Interrupted or denied access does not erase allowed grants.

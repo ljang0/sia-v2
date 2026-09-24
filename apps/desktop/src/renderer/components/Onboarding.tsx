@@ -66,21 +66,20 @@ export function Onboarding({
     choices.find((item) => `${item.provider}:${item.model}` === model) ??
     choices.find((item) => item.ready);
   const restarting = Boolean(snapshot.preferences.onboarding?.restartPending);
+  const aiReady = Boolean(agent || choice?.ready);
+  const codexSetupBusy = snapshot.providers.some(
+    ({ setup }) => setup && setup.phase !== 'error',
+  );
   const connecting = snapshot.apps.some((app) => app.status === 'connecting');
-  const busy = pending || permissionBusy || restarting;
+  const busy = pending || permissionBusy || restarting || codexSetupBusy;
 
   useEffect(() => {
     title.current?.focus();
   }, [starting]);
-  // Resuming setup and returning from Settings only check status. They never replay prompts.
+  // Resuming setup only checks status. The shared checklist handles focus refreshes.
   useEffect(() => {
     if (!step || starting || restarting) return;
-    const refresh = () => {
-      void api.refreshComputerPermissions().catch(() => undefined);
-    };
-    window.addEventListener('focus', refresh);
-    refresh();
-    return () => window.removeEventListener('focus', refresh);
+    void api.refreshComputerPermissions().catch(() => undefined);
   }, [api, Boolean(step), starting, restarting]);
 
   const run = async (action: () => Promise<unknown>) => {
@@ -191,17 +190,8 @@ export function Onboarding({
                 ? 'Sia can use your apps, send messages, and change files without asking each time.'
                 : 'Sia asks before taking actions in connected apps.'}
             </p>
-            <div className={styles.actions}>
-              <button
-                className={ui.primaryButton}
-                disabled={busy || connecting || (!agent && (!name.trim() || !choice?.ready))}
-                onClick={start}
-              >
-                {pending ? 'Setting up Sia…' : 'Set up Sia'}
-              </button>
-            </div>
-            {setupRoute === 'mac-bypass' ? (
-              <label className={styles.setupChoice}>
+            {setupRoute === 'mac-bypass' && aiReady ? (
+              <label className={styles.prepareApps}>
                 <input
                   type="checkbox"
                   checked={prepareApps}
@@ -211,12 +201,27 @@ export function Onboarding({
                 <span>
                   <strong>Prepare everyday apps now</strong>
                   <span>
-                    Set up browsers, Calendar, Reminders, Finder, and Messages in one pass. Apps
-                    may open for their macOS approval. Skip this to allow access as needed.
+                    Browsers, Calendar, Reminders, Finder, and Messages may open for macOS
+                    approval. You can also connect them later.
                   </span>
                 </span>
               </label>
             ) : null}
+            {aiReady ? (
+              <div className={styles.actions}>
+                <button
+                  className={ui.primaryButton}
+                  disabled={busy || connecting || (!agent && (!name.trim() || !choice?.ready))}
+                  onClick={start}
+                >
+                  {pending ? 'Setting up Sia…' : 'Set up Sia'}
+                </button>
+              </div>
+            ) : (
+              <p className={styles.note}>
+                Connect AI access above, then continue to permissions. No terminal is needed.
+              </p>
+            )}
             <details className={styles.details}>
               <summary>Customize setup</summary>
               <fieldset className={styles.setupChoices} disabled={busy || connecting}>

@@ -1,4 +1,4 @@
-import type { AutomationApp } from '../../shared/mac-permissions';
+import type { AccessSetupApi } from './SetupMacAccess';
 import {
   CheckSquareOffset,
   Database,
@@ -67,9 +67,7 @@ interface SettingsProps {
   onAttachBrowser(windowId?: number): Promise<void>;
   onOpenBrowserSite(url: string): Promise<void>;
   onDetachBrowser(): Promise<void>;
-  onRequestPermissions(): Promise<void>;
-  onRequestAutomation?(app: AutomationApp): Promise<void>;
-  onRefreshPermissions?(): Promise<void>;
+  accessSetupApi: AccessSetupApi;
   onSetComputerAccessMode?(
     mode: 'mac' | 'connected',
     background?: boolean,
@@ -124,9 +122,7 @@ export function Settings({
   onAttachBrowser,
   onOpenBrowserSite,
   onDetachBrowser,
-  onRequestPermissions,
-  onRequestAutomation,
-  onRefreshPermissions,
+  accessSetupApi,
   onSetComputerAccessMode,
   onSetComputerTrust,
   onSetTrajectoryLog,
@@ -310,9 +306,7 @@ export function Settings({
               onAttachBrowser={onAttachBrowser}
               onOpenBrowserSite={onOpenBrowserSite}
               onDetachBrowser={onDetachBrowser}
-              onRequestPermissions={onRequestPermissions}
-              {...(onRequestAutomation ? { onRequestAutomation } : {})}
-              {...(onRefreshPermissions ? { onRefreshPermissions } : {})}
+              accessSetupApi={accessSetupApi}
               {...(onSetComputerAccessMode ? { onSetComputerAccessMode } : {})}
               onSetComputerTrust={onSetComputerTrust}
               onSetTrajectoryLog={onSetTrajectoryLog}

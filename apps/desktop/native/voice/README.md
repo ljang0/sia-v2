@@ -18,7 +18,13 @@ Adapted at the repository owner's request from
 - `Context/ScreenContextProvider.swift`: frontmost-app, selected-text capture, and bounded accessibility outlines, narrowed to explicit
   Fn gestures with Sia’s opt-in and protected-surface filtering. `WindowContext.swift` also adapts
   its static-text/NSNumber reading for explicit Use my Mac snapshots of an exact granted window.
-  The latter checks window ownership and unambiguous geometry, scans security metadata first,
+  The latter collects AXWindows, root window children and the focused-window candidate (without
+  assuming focus is the target) and verifies process ownership. It prefers the exact native window ID
+  using the same optionally resolved macOS SPI as [TryCua 0.21.0](https://github.com/trycua/cua/blob/cua-driver-rs-v0.21.0/libs/cua-driver/rust/crates/platform-macos/src/ax/window_scope.rs),
+  so differences between WindowServer and accessibility titles do not block the requested window.
+  If an ID is unavailable, fallback requires matching geometry and every available target title;
+  supplemental candidates then need a nonempty target title. Known conflicting IDs and duplicate
+  matches are refused. It scans security metadata first,
   and caps traversal at 2,000 nodes, 40 levels, 12,000 text characters, and a 1.5 second deadline.
   It does not return editable values or mint action references.
 - `Core/NotchWindowController.swift` and expanded-view concepts: nonactivating status panel, adapted

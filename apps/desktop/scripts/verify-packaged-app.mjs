@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { verifyReleaseIdentity, releaseIdentity } from './release-identity.mjs';
 
 const requestedArch = process.argv
   .find((argument) => argument.startsWith('--arch='))
@@ -511,6 +512,14 @@ function verifyReleaseSignature() {
   ) {
     throw new Error(`Packaged app is not a hardened Developer ID release:\n${output}`);
   }
+  verifyReleaseIdentity({
+    productName: readPlistRaw('CFBundleName'),
+    executable: readPlistRaw('CFBundleExecutable'),
+    bundleIdentifier: readPlistRaw('CFBundleIdentifier'),
+    signature: output,
+  });
+  if (readPlistRaw('CFBundleShortVersionString') !== desktopPackage.version)
+    throw new Error('Packaged version does not match the release source.');
   runSystem('/usr/sbin/spctl', ['--assess', '--type', 'execute', '--verbose=4', appPath]);
   runSystem('/usr/bin/xcrun', ['stapler', 'validate', appPath]);
 
@@ -520,7 +529,7 @@ function verifyReleaseSignature() {
   if (
     !dmgOutput.includes('Format=disk image') ||
     !dmgOutput.includes('Authority=Developer ID Application:') ||
-    !/TeamIdentifier=(?!not set)\S+/.test(dmgOutput)
+    !dmgOutput.split('\n').includes(`TeamIdentifier=${releaseIdentity.teamIdentifier}`)
   ) {
     throw new Error(`Release DMG is not signed with Developer ID:\n${dmgOutput}`);
   }

@@ -65,7 +65,9 @@ enum BrowserWindow {
         }
         walk(window, 0)
         if protected { return ["status": "protected"] }
-        guard complete, Date() < deadline, NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == bundle else { return ["status": "unavailable", "reason": "incomplete"] }
+        guard complete, Date() < deadline, NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == bundle,
+              let live = WindowContext.resolve(pid: pid, windowID: windowID), CFEqual(window, live),
+              Date() < deadline else { return ["status": "unavailable", "reason": "incomplete"] }
         // An empty browser window can be navigated without exposing a web account.
         if url == nil, webAreas == 0, ["Start Page", "New Tab", "Safari"].contains(title) { url = "about:blank" }
         guard let url, url.utf8.count <= 8192 else { return ["status": "unavailable", "reason": "page"] }

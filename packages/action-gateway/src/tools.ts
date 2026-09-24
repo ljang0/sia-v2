@@ -65,6 +65,7 @@ const memoryVault = z
   .strict();
 const computerOpenApp = z
   .object({
+    delivery: z.enum(['background', 'foreground']).optional(),
     application: z
       .string()
       .trim()
@@ -641,11 +642,17 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_open_app: {
     name: 'computer_open_app',
     description:
-      'Open or bring forward a supported non-sensitive macOS app. Use this when a browser on another Space does not expose its window state. Use an application id from computer_list installed_apps. In Use my Mac the result includes fresh app/window ids; inspect those directly. In Connected apps, call computer_list after opening.',
+      'Open a supported non-sensitive macOS app. Use my Mac defaults to background opening. When foreground recovery is permitted, explicitly pass delivery:"foreground" to bring an app forward if its window is off-Space or cannot accept background input. Then inspect the exact intended window again before acting. Use an application id from computer_list installed_apps. In Use my Mac the result includes fresh app/window ids; inspect those directly. In Connected apps, call computer_list after opening.',
     inputSchema: object(
       {
         application: string(
           'Installed application bundle id from computer_list installed_apps',
+        ),
+        delivery: string(
+          'Background by default in Use my Mac; foreground requires permission.',
+          {
+            enum: ['background', 'foreground'],
+          },
         ),
       },
       ['application'],

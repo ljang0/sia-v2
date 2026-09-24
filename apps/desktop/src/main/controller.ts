@@ -119,6 +119,7 @@ interface ControllerOptions {
   openMessages?(): Promise<void>;
   openMessagesPermissions?(): Promise<void>;
   restartApp?(): void;
+  installCodex?(): Promise<void>;
   /** Always-on local trajectory log; absent in unit tests that do not care about it. */
   trajectory?: TrajectoryRecorder;
   /** Runs a read-only shell command (lsof); injectable for tests. */
@@ -147,6 +148,7 @@ interface ControllerOptions {
   exportJson(value: unknown): Promise<string | null>;
   notify?(notice: { threadId: string; title: string; body: string }): void;
   workspaceOperations?: {
+    hasRunningTerminals?(): boolean;
     readDiff(workspace: string): Promise<WorkspaceDiffView>;
     stage(workspace: string, paths: readonly string[]): Promise<WorkspaceDiffView>;
     restore(workspace: string, paths: readonly string[]): Promise<WorkspaceDiffView>;
@@ -405,7 +407,7 @@ const INITIAL_STATE: PersistedState = {
     connectors: true,
     schedules: true,
   },
-  preferences: { completionSound: false, computerAccessMode: 'mac' },
+  preferences: { completionSound: false, computerAccessMode: 'mac', computerTrust: 'auto' },
   usageByTurn: {},
 };
 
@@ -421,6 +423,10 @@ export class DesktopController {
   readonly #openMessages: (() => Promise<void>) | undefined;
   readonly #openMessagesPermissions: (() => Promise<void>) | undefined;
   readonly #restartApp: (() => void) | undefined;
+  readonly #installCodex: (() => Promise<void>) | undefined;
+  #codexSetupPending = false;
+  #codexSetup: ProviderView['setup'];
+  #pendingTerminalOperations = 0;
   readonly #chooseDirectory: () => Promise<string | null>;
   readonly #defaultWorkspaceRoot: string | undefined;
   readonly #createDirectory: (path: string) => Promise<void>;
@@ -521,6 +527,7 @@ export class DesktopController {
     this.#openMessages = options.openMessages;
     this.#openMessagesPermissions = options.openMessagesPermissions;
     this.#restartApp = options.restartApp;
+    this.#installCodex = options.installCodex;
     this.#chooseDirectory = options.chooseDirectory;
     this.#defaultWorkspaceRoot = options.defaultWorkspaceRoot
       ? normalizeWorkspace(options.defaultWorkspaceRoot)
@@ -561,6 +568,7 @@ export class DesktopController {
       repository: this.#repository,
       voice: this.#voice,
       allowed: () =>
+        !this.#codexSetupPending &&
         !this.#releaseAccessLocked() &&
         this.#voice?.view().status === 'connected' &&
         this.#voice.view().dictationAvailable !== false,
@@ -728,6 +736,7 @@ export class DesktopController {
   remoteAccessAllowed(): boolean {
     return (
       !this.#shuttingDown &&
+      !this.#codexSetupPending &&
       !this.#accountDeletionInProgress &&
       !this.#signOutInProgress &&
       !this.#releaseAccessLocked()
@@ -1422,7 +1431,12 @@ export class DesktopController {
       threads: structuredClone(this.#state.threads),
       timeline: structuredClone(this.#state.timeline),
       approvals: structuredClone(this.#state.approvals),
-      providers: structuredClone(this.#providers),
+      providers: this.#providers.map((provider) => ({
+        ...structuredClone(provider),
+        ...(provider.id === 'codex' && this.#codexSetup
+          ? { setup: { ...this.#codexSetup } }
+          : {}),
+      })),
       connections: structuredClone(this.#state.connections),
       capture: structuredClone(this.#state.capture),
       computer: {
@@ -1543,6 +1557,8 @@ export class DesktopController {
     method: M,
     input: BridgeRequestMap[M],
   ): Promise<BridgeResultMap[M]> {
+    if (method !== 'bootstrap' && method !== 'voice.capture.release')
+      this.#requireCodexSetupIdle();
     if (this.#accountDeletionInProgress && method !== 'bootstrap') {
       throw new Error('Sia account deletion is in progress. Wait for it to finish.');
     }
@@ -2037,6 +2053,7 @@ export class DesktopController {
         this.#pushToTalk?.cancel();
         return undefined as BridgeResultMap[M];
       case 'voice.capture.acquire':
+        this.#requireCodexSetupIdle();
         return {
           leaseId: this.#pushToTalk?.acquireRendererCapture() ?? randomUUID(),
         } as BridgeResultMap[M];
@@ -2947,6 +2964,7 @@ export class DesktopController {
     context?: string,
   ): BridgeResultMap['threads.send'] {
     this.#requireSignedInReleaseAccount();
+    this.#requireCodexSetupIdle();
     if (this.#state.capture.status === 'blocked') {
       throw new Error(
         this.#state.capture.blockedReason ??
@@ -3099,6 +3117,7 @@ export class DesktopController {
 
   #retryTurn(threadId: string): BridgeResultMap['threads.retry'] {
     this.#requireSignedInReleaseAccount();
+    this.#requireCodexSetupIdle();
     const thread = this.#requireThread(threadId);
     if (thread.status !== 'failed') throw new Error('Only a failed turn can be retried.');
     this.#requireReadyProvider(thread.provider, thread.model);
@@ -3376,22 +3395,34 @@ export class DesktopController {
   }
 
   async #runTerminal(input: BridgeRequestMap['terminal.run']): Promise<TerminalResultView> {
+    this.#requireCodexSetupIdle();
     const thread = this.#requireIdleThread(input.threadId, 'run a terminal command');
-    return await this.#requireWorkspaceOperations().runTerminal(
-      thread.workspace,
-      input.command.trim(),
-    );
+    this.#pendingTerminalOperations += 1;
+    try {
+      return await this.#requireWorkspaceOperations().runTerminal(
+        thread.workspace,
+        input.command.trim(),
+      );
+    } finally {
+      this.#pendingTerminalOperations -= 1;
+    }
   }
 
   async #startBackgroundTerminal(
     input: BridgeRequestMap['terminal.start'],
   ): Promise<BackgroundTerminalView> {
+    this.#requireCodexSetupIdle();
     const thread = this.#requireIdleThread(input.threadId, 'start a background process');
     const service = this.#requireWorkspaceOperations();
     if (!service.startBackgroundTerminal) {
       throw new Error('Background processes are unavailable in this build.');
     }
-    return await service.startBackgroundTerminal(thread.workspace, input.command.trim());
+    this.#pendingTerminalOperations += 1;
+    try {
+      return await service.startBackgroundTerminal(thread.workspace, input.command.trim());
+    } finally {
+      this.#pendingTerminalOperations -= 1;
+    }
   }
 
   async #listBackgroundTerminals(threadId: string): Promise<BridgeResultMap['terminal.list']> {
@@ -3501,6 +3532,7 @@ export class DesktopController {
 
   async #runDueSchedules(): Promise<void> {
     if (
+      this.#codexSetupPending ||
       this.#scheduleRunInFlight ||
       this.#accountDeletionInProgress ||
       !this.#schedulesAvailable()
@@ -3647,6 +3679,11 @@ export class DesktopController {
     } else this.#providers = updated;
     await this.#refreshMetaProviderState();
     await this.#refreshProviderModels(providerId);
+    if (
+      this.#codexSetup?.phase === 'error' &&
+      this.#providers.find(({ id }) => id === 'codex')?.status === 'ready'
+    )
+      this.#codexSetup = undefined;
     this.#emit();
     return this.snapshot();
   }
@@ -3669,7 +3706,34 @@ export class DesktopController {
     }
   }
 
+  #requireCodexSetupIdle(): void {
+    if (this.#codexSetupPending)
+      throw new Error('Codex setup is in progress. Follow the setup status in Sia.');
+  }
+
+  #requireSafeCodexRestart(): void {
+    this.#requireSignedInReleaseAccount();
+    if (this.#signOutInProgress || this.#accountDeletionInProgress)
+      throw new Error('Finish the account change before setting up Codex.');
+    if (
+      this.#runningTurns.size ||
+      this.#queuedTurns.length ||
+      this.#pushToTalk?.captureBusy ||
+      this.#pendingTerminalOperations ||
+      this.#workspaceOperations?.hasRunningTerminals?.() ||
+      this.#connectionSetup ||
+      this.#state.connections.some((app) => app.status === 'connecting')
+    ) {
+      throw new Error(
+        'Finish the current task, terminal process, recording, or account approval, then try Codex setup again.',
+      );
+    }
+    if (this.#shuttingDown)
+      throw new Error('Sia is closing. Open it again to finish Codex setup.');
+  }
+
   async #providerLogin(providerId: ProviderId): Promise<BridgeResultMap['providers.login']> {
+    this.#requireCodexSetupIdle();
     const provider = this.#providers.find(({ id }) => id === providerId);
     if (!provider) throw new Error('Provider status is unavailable. Check again first.');
     if (provider.status === 'disabled') {
@@ -3688,43 +3752,107 @@ export class DesktopController {
     }
     const installation =
       provider.status === 'needs_install' || provider.status === 'incompatible';
-    if (providerId === 'codex' && !installation) {
-      if (!this.#runtime) {
-        if (!this.#fakeServices) {
+    if (providerId === 'codex') {
+      if (provider.status === 'ready') return { opened: false, snapshot: this.snapshot() };
+      this.#codexSetupPending = true;
+      try {
+        if (installation) {
+          if (!this.#installCodex || !this.#restartApp || this.#fakeServices)
+            throw new Error('Automatic Codex setup is unavailable in this build.');
+          this.#requireSafeCodexRestart();
+          this.#setCodexSetup(
+            'installing',
+            provider.status === 'incompatible'
+              ? 'Updating Codex for Sia…'
+              : 'Downloading and installing Codex…',
+          );
+          await this.#installCodex();
+          this.#requireSafeCodexRestart();
+          // Only this explicit setup action can authorize sign-in after restart.
+          // No credential, login URL or token is persisted in the continuation.
+          this.#repository.put('setup', 'codex-login', { expiresAt: Date.now() + 15 * 60_000 });
+          this.#commit();
+          this.#setCodexSetup(
+            'restarting',
+            'Restarting Sia. ChatGPT sign-in will continue automatically.',
+          );
+          this.#restartApp();
+          return { opened: true, snapshot: this.snapshot() };
+        }
+        if (!this.#runtime)
           throw new Error(
             'Codex sign-in is temporarily unavailable. Restart Sia and try again.',
           );
-        }
-        await this.#openExternal('https://developers.openai.com/codex/auth/');
-        return { opened: true, snapshot: this.snapshot() };
-      }
-      const login = await this.#runtime.startCodexChatGptLogin();
-      try {
-        await this.#openExternal(login.authUrl);
-        await this.#runtime.waitForCodexChatGptLogin(login.loginId);
-      } catch (error) {
-        await this.#runtime.cancelCodexChatGptLogin(login.loginId).catch(() => undefined);
-        throw error;
-      }
-      const snapshot = await this.#probeProviders('codex');
-      const connected = snapshot.providers.find(({ id }) => id === 'codex');
-      if (connected?.status !== 'ready') {
-        throw new Error(
-          'ChatGPT sign-in finished, but Codex could not verify the connected plan.',
+        this.#setCodexSetup(
+          'signing-in',
+          'Finish signing in with ChatGPT in your browser. Sia will check the connection automatically.',
         );
+        const login = await this.#runtime.startCodexChatGptLogin();
+        try {
+          await this.#openExternal(login.authUrl);
+          await this.#runtime.waitForCodexChatGptLogin(login.loginId);
+        } catch (error) {
+          await this.#runtime.cancelCodexChatGptLogin(login.loginId).catch(() => undefined);
+          throw error;
+        }
+        this.#requireSignedInReleaseAccount();
+        this.#setCodexSetup('checking', 'Checking your ChatGPT connection…');
+        const snapshot = await this.#probeProviders('codex');
+        if (snapshot.providers.find(({ id }) => id === 'codex')?.status !== 'ready')
+          throw new Error(
+            'ChatGPT sign-in finished, but Codex could not verify the connected plan. Try setup again.',
+          );
+        this.#codexSetup = undefined;
+        return { opened: true, snapshot: this.snapshot() };
+      } catch (error) {
+        this.#repository.remove('setup', 'codex-login');
+        this.#setCodexSetup(
+          'error',
+          'Codex setup did not finish. Your progress is saved; try setup again.',
+        );
+        throw error;
+      } finally {
+        if (this.#codexSetup?.phase !== 'restarting') this.#codexSetupPending = false;
+        this.#emit();
       }
-      return { opened: true, snapshot };
     }
     const urls: Partial<Record<ProviderId, string>> = {
-      codex: installation
-        ? 'https://developers.openai.com/codex/cli/'
-        : 'https://developers.openai.com/codex/auth/',
       claude: 'https://docs.anthropic.com/en/docs/claude-code/getting-started',
     };
     const url = urls[providerId];
     if (!url) throw new Error('This provider has no supported sign-in flow in the alpha.');
     await this.#openExternal(url);
     return { opened: true, snapshot: this.snapshot() };
+  }
+
+  #setCodexSetup(phase: NonNullable<ProviderView['setup']>['phase'], message: string): void {
+    this.#codexSetup = { phase, message };
+    this.#emit();
+  }
+
+  /** Called after the window loads, never on an ordinary launch without setup intent. */
+  async resumeCodexSetup(): Promise<void> {
+    if (this.#codexSetupPending || this.#releaseAccessLocked() || this.#shuttingDown) return;
+    const continuation = this.#repository.get<{ expiresAt: number }>('setup', 'codex-login');
+    if (!continuation) return;
+    // Consume before awaiting anything: a failed/cancelled login must not reopen
+    // itself on the next launch or create concurrent browser sign-in sessions.
+    this.#repository.remove('setup', 'codex-login');
+    if (!Number.isFinite(continuation.expiresAt) || continuation.expiresAt < Date.now()) return;
+    const status = this.#providers.find(({ id }) => id === 'codex')?.status;
+    if (status === 'ready') return;
+    if (status !== 'needs_login') {
+      this.#setCodexSetup(
+        'error',
+        'Codex could not finish updating. Choose Set up Codex to try again.',
+      );
+      return;
+    }
+    try {
+      await this.#providerLogin('codex');
+    } catch {
+      // The visible setup error remains actionable. Never reopen a browser in a loop.
+    }
   }
 
   async #refreshCapabilityStatuses(): Promise<void> {
@@ -4490,6 +4618,7 @@ export class DesktopController {
   }
 
   async #stopAllWorkForAuthenticationBoundary(): Promise<void> {
+    this.#voice?.disconnect();
     const queuedTurnIds = this.#queuedTurns.map(({ id }) => id);
     const affectedThreadIds = new Set(this.#queuedTurns.map(({ threadId }) => threadId));
     this.#queuedTurns = [];
@@ -4541,6 +4670,7 @@ export class DesktopController {
     const inFlightResearchSync = this.#researchSync;
     let cloudCompleted = false;
     this.#accountDeletionInProgress = true;
+    this.#voice?.disconnect();
     this.#state.capture.status = 'deleting';
     this.#commit();
 

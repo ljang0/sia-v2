@@ -776,6 +776,10 @@ it.each([
     name: 'computer_open_url',
     arguments: { url: 'https://example.com', delivery: 'foreground' },
   },
+  {
+    name: 'computer_open_app',
+    arguments: { application: 'com.tinyspeck.slackmacgap', delivery: 'foreground' },
+  },
 ])('honors background-only policy before approval or dispatch for $name', async (action) => {
   const backend = verifiedBackend();
   const requestApproval = vi.fn(async () => ({ approved: true }));

@@ -351,6 +351,50 @@ describe('Conversation waiting controls', () => {
     });
   });
 
+  it('ends voice conversation while a spoken reply is still loading', async () => {
+    const onSpeak = vi.fn(
+      async () =>
+        await new Promise<{ audioBase64: string; mimeType: 'audio/mpeg' }>(() => undefined),
+    );
+    const onAcquireVoiceCapture = vi.fn(async () => 'lease');
+    const props = {
+      voiceEnabled: true,
+      onSpeak,
+      onAcquireVoiceCapture,
+      onTranscribeVoice: vi.fn(async () => 'voice request'),
+      onSend: vi.fn(async () => undefined),
+      onStop: vi.fn(async () => undefined),
+      onRetry: vi.fn(async () => undefined),
+      onResolveApproval: vi.fn(async () => undefined),
+    };
+    const thread = baseThread({ status: 'running' });
+    const view = render(<Conversation thread={thread} {...props} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Start voice conversation' }));
+    view.rerender(
+      <Conversation
+        thread={{
+          ...thread,
+          status: 'idle',
+          events: [
+            {
+              id: 'spoken-reply',
+              type: 'message',
+              role: 'assistant',
+              content: 'Finished your request.',
+              timestamp: '2026-09-23T00:00:00.000Z',
+            },
+          ],
+        }}
+        {...props}
+      />,
+    );
+    await waitFor(() => expect(onSpeak).toHaveBeenCalledWith('Finished your request.'));
+    fireEvent.click(screen.getByRole('button', { name: 'End voice conversation' }));
+    expect(screen.getByRole('button', { name: 'Start voice conversation' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Cancel read aloud' })).toBeNull();
+    expect(onAcquireVoiceCapture).not.toHaveBeenCalled();
+  });
+
   it('keeps only one read-aloud request active across replies', async () => {
     const onSpeak = vi.fn(
       async () =>

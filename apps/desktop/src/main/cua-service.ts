@@ -98,6 +98,7 @@ export class CuaService {
   readonly #driverFactory: (() => DriverLike | Promise<DriverLike>) | undefined;
   #driver: DriverLike | undefined;
   #driverGeneration = 0;
+  #permissionRequest: Promise<ComputerView> | undefined;
   #callTail: Promise<void> = Promise.resolve();
   #authorizationContext: CuaAuthorizationContext | undefined;
 
@@ -151,7 +152,16 @@ export class CuaService {
     }
   }
 
-  async requestPermissions(): Promise<ComputerView> {
+  requestPermissions(): Promise<ComputerView> {
+    // Setup and the inspector can request access together. Keep one OS prompt
+    // sequence in flight; subsequent clicks share its result and can retry later.
+    this.#permissionRequest ??= this.#requestPermissions().finally(() => {
+      this.#permissionRequest = undefined;
+    });
+    return this.#permissionRequest;
+  }
+
+  async #requestPermissions(): Promise<ComputerView> {
     const current = await this.permissions();
     if (current.status === 'ready' || current.status === 'unavailable') return current;
     if (process.platform === 'darwin') {

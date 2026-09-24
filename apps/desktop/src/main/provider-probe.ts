@@ -175,7 +175,9 @@ async function probeProvider(
         definition,
         'incompatible',
         version,
-        `Update to a supported CLI (${definition.minimumVersion} or newer${upper}).`,
+        id === 'codex'
+          ? `Codex ${version} is installed but has not been verified for Sia. Install Sia’s supported version to continue.`
+          : `Update to a supported CLI (${definition.minimumVersion} or newer${upper}).`,
       );
     }
     if (id === 'codex') {
@@ -196,7 +198,7 @@ async function probeProvider(
           definition,
           'needs_login',
           version,
-          'Sign in with the Codex CLI, then check again.',
+          'Choose Set up Codex to sign in with ChatGPT in your browser. No terminal is needed.',
         );
       }
       if (!chatGptSubscription) {

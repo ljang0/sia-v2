@@ -81,8 +81,9 @@ export function PhoneRemoteSettings({
               <select
                 value={agentId}
                 onChange={(event) => setAgentId(event.target.value)}
-                disabled={pending}
+                disabled={pending || agents.length === 0}
               >
+                {agents.length === 0 && <option value="">No assistants yet</option>}
                 {agents.map((agent) => (
                   <option value={agent.id} key={agent.id}>
                     {agent.name}
@@ -90,6 +91,11 @@ export function PhoneRemoteSettings({
                 ))}
               </select>
             </label>
+            {agents.length === 0 && (
+              <p className={phone.note}>
+                Set up an assistant in Sia before connecting your phone.
+              </p>
+            )}
             <button
               className={styles.primaryButton}
               disabled={pending || !agentId || !state}

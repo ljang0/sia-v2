@@ -262,11 +262,13 @@ describe('DirectUserBackgroundTerminalService', () => {
       maxOutputBytes: 4_096,
     });
 
+    expect(terminal.busy).toBe(false);
     const started = await terminal.start(
       root,
       'read line; printf \'received:%s\' "$line"; sleep 5',
     );
     expect(started).toMatchObject({ cwd: await realpath(root), status: 'running' });
+    expect(terminal.busy).toBe(true);
     await terminal.write(root, started.id, 'hello\n');
 
     let session = started;
@@ -280,6 +282,7 @@ describe('DirectUserBackgroundTerminalService', () => {
     }
     expect(session.output).toContain('received:hello');
     expect(await terminal.stop(root, started.id)).toMatchObject({ status: 'stopped' });
+    expect(terminal.busy).toBe(false);
     terminal.dispose();
   });
 });

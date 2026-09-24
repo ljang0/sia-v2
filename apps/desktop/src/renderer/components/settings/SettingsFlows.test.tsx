@@ -557,7 +557,14 @@ describe('computer access settings', () => {
         onAttachBrowser={vi.fn()}
         onOpenBrowserSite={vi.fn()}
         onDetachBrowser={vi.fn()}
-        onRequestPermissions={vi.fn()}
+        accessSetupApi={{
+          getSnapshot: vi.fn(async () => structuredClone(demoSnapshot)),
+          requestComputerPermissions: vi.fn(),
+          requestAutomationPermission: vi.fn(),
+          refreshComputerPermissions: vi.fn(),
+          configureVoice: vi.fn(),
+          configurePushToTalk: vi.fn(),
+        }}
         onSetComputerTrust={vi.fn()}
         onSetTrajectoryLog={vi.fn()}
         onRevealTrajectories={vi.fn()}
@@ -599,7 +606,14 @@ describe('computer access settings', () => {
         onAttachBrowser={vi.fn()}
         onOpenBrowserSite={vi.fn()}
         onDetachBrowser={vi.fn()}
-        onRequestPermissions={vi.fn()}
+        accessSetupApi={{
+          getSnapshot: vi.fn(async () => structuredClone(demoSnapshot)),
+          requestComputerPermissions: vi.fn(),
+          requestAutomationPermission: vi.fn(),
+          refreshComputerPermissions: vi.fn(),
+          configureVoice: vi.fn(),
+          configurePushToTalk: vi.fn(),
+        }}
         onSetComputerTrust={vi.fn()}
         onSetTrajectoryLog={vi.fn()}
         onRevealTrajectories={vi.fn()}
@@ -622,7 +636,14 @@ describe('computer access settings', () => {
         onAttachBrowser={vi.fn()}
         onOpenBrowserSite={vi.fn()}
         onDetachBrowser={vi.fn()}
-        onRequestPermissions={vi.fn()}
+        accessSetupApi={{
+          getSnapshot: vi.fn(async () => structuredClone(demoSnapshot)),
+          requestComputerPermissions: vi.fn(),
+          requestAutomationPermission: vi.fn(),
+          refreshComputerPermissions: vi.fn(),
+          configureVoice: vi.fn(),
+          configurePushToTalk: vi.fn(),
+        }}
         onSetComputerTrust={onSetComputerTrust}
         onSetTrajectoryLog={onSetTrajectoryLog}
         onRevealTrajectories={vi.fn()}
@@ -671,3 +692,61 @@ function withoutResearchConsent(): RendererSnapshot {
     },
   };
 }
+
+it('sets up computer, voice and missing app access through one settings action', async () => {
+  const snapshot = structuredClone(demoSnapshot);
+  snapshot.computer.accessibility = 'not-requested';
+  snapshot.computer.screenRecording = 'not-requested';
+  snapshot.computer.automation = {
+    finder: 'ready',
+    messages: 'ready',
+    reminders: 'ready',
+    chrome: 'unavailable',
+    calendar: 'needs_permission',
+  };
+  snapshot.voice = {
+    status: 'disconnected',
+    voices: [],
+    pushToTalk: {
+      available: true,
+      enabled: false,
+      accessibility: false,
+      microphone: false,
+      phase: 'idle',
+    },
+  };
+  const accessSetupApi = {
+    getSnapshot: vi.fn(async () => structuredClone(snapshot)),
+    requestComputerPermissions: vi.fn(async () => {}),
+    requestAutomationPermission: vi.fn(async () => {}),
+    refreshComputerPermissions: vi.fn(async () => {}),
+    configureVoice: vi.fn(async () => {}),
+    configurePushToTalk: vi.fn(async () => {}),
+  };
+  render(
+    <ComputerSettings
+      snapshot={snapshot}
+      accessSetupApi={accessSetupApi}
+      onAttachBrowser={vi.fn()}
+      onOpenBrowserSite={vi.fn()}
+      onDetachBrowser={vi.fn()}
+      onSetComputerTrust={vi.fn()}
+      onSetTrajectoryLog={vi.fn()}
+      onRevealTrajectories={vi.fn()}
+    />,
+  );
+  expect(accessSetupApi.requestComputerPermissions).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Set up permissions' }));
+  await waitFor(() => expect(accessSetupApi.refreshComputerPermissions).toHaveBeenCalledOnce());
+  expect(accessSetupApi.requestComputerPermissions).toHaveBeenCalledOnce();
+  expect(accessSetupApi.configureVoice).toHaveBeenCalledOnce();
+  expect(accessSetupApi.configurePushToTalk).toHaveBeenCalledOnce();
+  expect(accessSetupApi.requestAutomationPermission).toHaveBeenCalledWith('calendar');
+  expect(screen.queryByRole('button', { name: 'Allow all Mac apps' })).toBeNull();
+  expect(screen.queryByText('Mac computer use')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Check access' }));
+  await waitFor(() =>
+    expect(accessSetupApi.refreshComputerPermissions).toHaveBeenCalledTimes(2),
+  );
+  expect(accessSetupApi.requestComputerPermissions).toHaveBeenCalledOnce();
+});

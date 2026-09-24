@@ -2,7 +2,14 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { createRequire } from 'node:module';
+import {
+  developmentLaunchFile,
+  rememberDevelopmentLaunch,
+  restoreDevelopmentLaunch,
+} from './development-launch.mjs';
+import { prepareDefaultApplication } from './prepare-dev-bootstrap.mjs';
 import test from 'node:test';
 import { cleanSigningMetadata, prepareDevElectron } from './prepare-dev-electron.mjs';
 import {
@@ -149,6 +156,101 @@ test(
         quarantine,
       );
       assert.equal(readFileSync(file, 'utf8'), 'fixture');
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  },
+);
+
+test('bare launches restore only the saved real profile; explicit Electron invocations stay intact', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'sia-launch-state-'));
+  try {
+    const appPath = join(directory, 'Sia checkout');
+    mkdirSync(appPath);
+    writeFileSync(
+      join(appPath, 'package.json'),
+      JSON.stringify({ name: '@sia/desktop', main: 'out/main/index.js' }),
+    );
+    const file = developmentLaunchFile(directory);
+    const profile = join(directory, 'Personal profile');
+    rememberDevelopmentLaunch(appPath, profile, file);
+    const argv = ['/electron', '-psn_0_1'];
+    const environment = {
+      SIA_TEST_PLAINTEXT_STORAGE: '1',
+      SIA_FAKE_SERVICES: '1',
+      ELECTRON_RENDERER_URL: 'old-server',
+    };
+    assert.equal(restoreDevelopmentLaunch(argv, environment, file), true);
+    assert.deepEqual(argv, ['/electron', appPath]);
+    assert.deepEqual(environment, { SIA_TEST_USER_DATA: profile, SIA_FAKE_SERVICES: '0' });
+    for (const args of [
+      ['/electron', '/test/app'],
+      ['/electron', '--version'],
+    ]) {
+      const before = [...args],
+        env = { SIA_FAKE_SERVICES: '1' };
+      assert.equal(restoreDevelopmentLaunch(args, env, '/does-not-exist'), false);
+      assert.deepEqual(args, before);
+      assert.equal(env.SIA_FAKE_SERVICES, '1');
+    }
+    assert.throws(
+      () => rememberDevelopmentLaunch(appPath, 'relative-profile', file),
+      /invalid/,
+    );
+    writeFileSync(
+      join(appPath, 'package.json'),
+      JSON.stringify({ name: 'other-app', main: 'index.js' }),
+    );
+    assert.throws(() => restoreDevelopmentLaunch(['/electron'], {}, file), /not a Sia/);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test(
+  'real Electron bare launch loads Sia as unpackaged and restores its profile',
+  { skip: process.platform !== 'darwin', timeout: 60000 },
+  async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sia-default-launch-'));
+    try {
+      const require = createRequire(import.meta.url);
+      const electron = require('electron');
+      const bundle = join(directory, 'Sia Fixture.app');
+      execFileSync('/usr/bin/ditto', [resolve(electron, '../../..'), bundle]);
+      await prepareDefaultApplication(join(bundle, 'Contents/Resources/default_app.asar'));
+      const appPath = join(directory, 'fixture');
+      const profile = join(directory, 'profile');
+      const output = join(directory, 'result.json');
+      mkdirSync(join(appPath, 'out/main'), { recursive: true });
+      writeFileSync(
+        join(appPath, 'package.json'),
+        JSON.stringify({ name: '@sia/desktop', main: 'out/main/index.js', type: 'module' }),
+      );
+      writeFileSync(
+        join(appPath, 'out/main/index.js'),
+        `
+      import { app } from 'electron';
+      import { writeFileSync } from 'node:fs';
+      app.setPath('userData', process.env.SIA_TEST_USER_DATA);
+      app.whenReady().then(() => {
+      writeFileSync(${JSON.stringify(output)}, JSON.stringify({ appPath: app.getAppPath(), profile: app.getPath('userData'), packaged: app.isPackaged }));
+      app.exit(0);
+      });
+    `,
+      );
+      execFileSync(process.execPath, ['--check', join(appPath, 'out/main/index.js')]);
+      mkdirSync(profile);
+      rememberDevelopmentLaunch(appPath, profile, developmentLaunchFile(directory));
+      execFileSync(join(bundle, 'Contents/MacOS/Electron'), [], {
+        env: { HOME: directory, PATH: '/usr/bin:/bin', TMPDIR: tmpdir() },
+        timeout: 30000,
+        stdio: 'pipe',
+      });
+      assert.deepEqual(JSON.parse(readFileSync(output, 'utf8')), {
+        appPath,
+        profile,
+        packaged: false,
+      });
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

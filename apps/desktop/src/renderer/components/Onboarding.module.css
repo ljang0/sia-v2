@@ -73,6 +73,39 @@
   min-height: 43px;
   padding: 10px 18px;
 }
+.prepareApps {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 20px;
+  padding: 8px 0;
+  border-radius: var(--radius-tight);
+  cursor: pointer;
+}
+.prepareApps input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--bg-accent);
+}
+.prepareApps:has(input:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 4px;
+}
+.prepareApps strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+}
+.prepareApps span > span {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
 .link {
   background: none;
   border: 0;
@@ -143,7 +176,13 @@
   background: var(--bg-control);
 }
 .setupChoice input {
+  flex: none;
   margin-top: 4px;
+  accent-color: var(--bg-accent);
+}
+.setupChoice:has(input:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
 }
 .setupChoice strong,
 .setupChoice span > span {

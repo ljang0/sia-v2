@@ -1,3 +1,7 @@
+[hidden] {
+  display: none !important;
+}
+
 @font-face {
   font-family: 'Bricolage Grotesque';
   font-style: normal;

@@ -15,6 +15,11 @@ export interface ResolvedExecutionTargetView {
 export type ProviderStatus =
   'ready' | 'needs_install' | 'needs_login' | 'incompatible' | 'disabled' | 'unavailable';
 
+export interface ProviderSetupProgress {
+  phase: 'installing' | 'restarting' | 'signing-in' | 'checking' | 'error';
+  message: string;
+}
+
 export interface ProviderView {
   id: ProviderId;
   label: string;
@@ -26,6 +31,7 @@ export interface ProviderView {
   billing: string;
   restriction?: string;
   models?: ProviderModelView[];
+  setup?: ProviderSetupProgress;
 }
 
 export interface ProviderModelView {

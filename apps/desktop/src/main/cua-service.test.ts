@@ -94,6 +94,31 @@ it.runIf(process.platform === 'darwin')(
   },
 );
 
+it.runIf(process.platform === 'darwin')(
+  'shares overlapping permission requests and permits a later retry after failure',
+  async () => {
+    const service = new CuaService(authorization());
+    vi.spyOn(service, 'permissions').mockResolvedValue({
+      status: 'needs_permission',
+      accessibility: true,
+      screenRecording: false,
+    });
+    permissionUi.requestMacOSPermissions
+      .mockImplementationOnce(() => {
+        throw new Error('Permission service unavailable');
+      })
+      .mockReturnValue({ accessibility: true, screenRecording: false });
+    const first = service.requestPermissions();
+    expect(service.requestPermissions()).toBe(first);
+    await expect(first).rejects.toThrow('Permission service unavailable');
+    const retry = service.requestPermissions();
+    expect(service.requestPermissions()).toBe(retry);
+    await expect(retry).resolves.toMatchObject({ screenRecording: false });
+    expect(permissionUi.requestMacOSPermissions).toHaveBeenCalledTimes(2);
+    expect(permissionUi.getSources).toHaveBeenCalledOnce();
+  },
+);
+
 it('keeps simulated permission setup away from the native permission API', async () => {
   const service = new CuaService(authorization(), { fakePermissions: true });
   expect(await service.permissions()).toMatchObject({

@@ -1,6 +1,6 @@
 {
   "name": "@sia/desktop",
-  "version": "0.1.0-alpha.24",
+  "version": "0.1.0-alpha.25",
   "private": true,
   "description": "A local-first personal computer assistant for macOS.",
   "author": "Lawrence Jang",
@@ -31,7 +31,7 @@
     "typecheck": "tsc --noEmit",
     "native:build": "node scripts/build-voice-helper.mjs",
     "predev": "pnpm native:build && pnpm remote:build && node scripts/prepare-dev-electron.mjs",
-    "native:test": "node scripts/build-voice-helper.mjs && node scripts/port-notch-prompts.mjs --check && node --test scripts/prepare-dev-electron.test.mjs && node scripts/test-voice-helper.mjs",
+    "native:test": "node scripts/build-voice-helper.mjs && node scripts/port-notch-prompts.mjs --check && node --test scripts/prepare-dev-electron.test.mjs scripts/release-identity.test.mjs && node scripts/test-voice-helper.mjs",
     "remote:build": "vite build --config vite.remote.config.ts",
     "test:remote": "pnpm remote:build && playwright test --config playwright.remote.config.ts"
   },
@@ -47,6 +47,7 @@
     "@ubjs/node-darwin-x64": "0.31.0-3"
   },
   "devDependencies": {
+    "@electron/asar": "3.4.1",
     "@phosphor-icons/react": "^2.1.10",
     "@playwright/test": "^1.62.1",
     "@radix-ui/react-alert-dialog": "^1.1.15",

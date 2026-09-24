@@ -56,6 +56,7 @@ export class CognitoIdentityManager implements IdTokenSource {
   #accessTokenValue: string | undefined;
   #pending: PendingChallenge | undefined;
   #refreshing: Promise<string | undefined> | undefined;
+  #authGeneration = 0;
 
   constructor(options: {
     region?: string;
@@ -73,6 +74,7 @@ export class CognitoIdentityManager implements IdTokenSource {
     if (this.#developmentIdToken) return this.status();
     if (!this.configured) return this.status();
     const stored = this.#repository.get<unknown>('auth', 'cognito');
+    this.#authGeneration += 1;
     this.#tokens = parseStoredTokens(stored);
     if (stored !== undefined) {
       if (this.#tokens) this.#repository.put('auth', 'cognito', this.#tokens);
@@ -82,7 +84,7 @@ export class CognitoIdentityManager implements IdTokenSource {
     // Cognito group changes are reflected only in newly issued tokens; keeping a
     // still-valid token can otherwise leave the desktop on stale access policy
     // for up to an hour after an approved tester is enrolled.
-    if (this.#tokens) await this.#refresh().catch(() => undefined);
+    if (this.#tokens) await this.#refreshOnce().catch(() => undefined);
     return this.status();
   }
 
@@ -124,22 +126,20 @@ export class CognitoIdentityManager implements IdTokenSource {
     if (this.#developmentIdToken) return this.#developmentIdToken;
     if (!this.#tokens) return undefined;
     if (this.#tokens.expiresAt > Date.now() + 60_000) return this.#tokens.idToken;
-    return await (this.#refreshing ??= this.#refresh().finally(() => {
-      this.#refreshing = undefined;
-    }));
+    return await this.#refreshOnce();
   }
 
   async refreshSession(): Promise<CloudIdentityStatus> {
     if (this.#developmentIdToken || !this.#tokens) return this.status();
-    await (this.#refreshing ??= this.#refresh().finally(() => {
-      this.#refreshing = undefined;
-    }));
+    await this.#refreshOnce();
     return this.status();
   }
 
   async startEmailSignIn(emailValue: string): Promise<CloudIdentityStatus> {
     this.#assertConfiguredForUserAuth();
     const email = normalizeEmail(emailValue);
+    const generation = ++this.#authGeneration;
+    this.#refreshing = undefined;
     this.#pending = undefined;
     let response: Record<string, unknown>;
     try {
@@ -148,6 +148,7 @@ export class CognitoIdentityManager implements IdTokenSource {
         ClientId: this.#clientId,
         AuthParameters: { USERNAME: email, PREFERRED_CHALLENGE: 'EMAIL_OTP' },
       });
+      if (generation !== this.#authGeneration) return this.status();
       if (
         response.ChallengeName === 'SELECT_CHALLENGE' &&
         !stringArray(response.AvailableChallenges).includes('EMAIL_OTP') &&
@@ -165,6 +166,7 @@ export class CognitoIdentityManager implements IdTokenSource {
         });
       }
     } catch (error) {
+      if (generation !== this.#authGeneration) return this.status();
       // Cognito does not offer passwordless EMAIL_OTP as a first factor after a
       // user has enrolled TOTP MFA. Invited participants stay passwordless;
       // the MFA-protected bootstrap admin falls back to password, then TOTP.
@@ -178,6 +180,7 @@ export class CognitoIdentityManager implements IdTokenSource {
       }
       throw error;
     }
+    if (generation !== this.#authGeneration) return this.status();
     if (record(response.AuthenticationResult).IdToken) {
       this.#storeTokens(response, email);
       return this.status();
@@ -211,6 +214,7 @@ export class CognitoIdentityManager implements IdTokenSource {
       ChallengeResponses: { USERNAME: pending.username, EMAIL_OTP_CODE: code },
       Session: requiredString(pending.session, 'Cognito session'),
     });
+    if (this.#pending !== pending) return this.status();
     if (response.ChallengeName === 'SOFTWARE_TOKEN_MFA') {
       this.#pending = {
         kind: 'totp',
@@ -244,6 +248,7 @@ export class CognitoIdentityManager implements IdTokenSource {
         PASSWORD: passwordValue,
       },
     });
+    if (this.#pending !== pending) return this.status();
     if (response.ChallengeName === 'SELECT_CHALLENGE') {
       response = await this.#cognito('RespondToAuthChallenge', {
         ChallengeName: 'SELECT_CHALLENGE',
@@ -270,6 +275,7 @@ export class CognitoIdentityManager implements IdTokenSource {
       pending.username = username;
     }
 
+    if (this.#pending !== pending) return this.status();
     if (response.ChallengeName === 'SOFTWARE_TOKEN_MFA') {
       const parameters = record(response.ChallengeParameters);
       this.#pending = {
@@ -302,34 +308,42 @@ export class CognitoIdentityManager implements IdTokenSource {
       },
       Session: requiredString(pending.session, 'Cognito MFA session'),
     });
+    if (this.#pending !== pending) return this.status();
     this.#storeTokens(response, pending.email, true);
     this.#pending = undefined;
     return this.status();
   }
 
   async beginMfaEnrollment(): Promise<{ secretCode: string }> {
+    const generation = this.#authGeneration;
     const accessToken = await this.#accessToken();
+    if (generation !== this.#authGeneration) throw new Error('Sign-in changed. Try again.');
     if (!accessToken) throw new Error('Sign in again before securing admin access.');
     const response = await this.#cognito('AssociateSoftwareToken', {
       AccessToken: accessToken,
     });
+    if (generation !== this.#authGeneration) throw new Error('Sign-in changed. Try again.');
     return { secretCode: requiredString(response.SecretCode, 'Authenticator setup secret') };
   }
 
   async completeMfaEnrollment(codeValue: string): Promise<CloudIdentityStatus> {
+    const generation = this.#authGeneration;
     const accessToken = await this.#accessToken();
+    if (generation !== this.#authGeneration) throw new Error('Sign-in changed. Try again.');
     if (!accessToken) throw new Error('Sign in again before securing admin access.');
     const response = await this.#cognito('VerifySoftwareToken', {
       AccessToken: accessToken,
       UserCode: validTotp(codeValue),
       FriendlyDeviceName: 'Sia admin',
     });
+    if (generation !== this.#authGeneration) return this.status();
     if (response.Status !== 'SUCCESS')
       throw new Error('That authenticator code was not accepted.');
     await this.#cognito('SetUserMFAPreference', {
       AccessToken: accessToken,
       SoftwareTokenMfaSettings: { Enabled: true, PreferredMfa: true },
     });
+    if (generation !== this.#authGeneration) return this.status();
     if (this.#tokens) {
       this.#tokens.mfaVerified = true;
       this.#repository.put('auth', 'cognito', this.#tokens);
@@ -338,6 +352,8 @@ export class CognitoIdentityManager implements IdTokenSource {
   }
 
   async signOut(): Promise<CloudIdentityStatus> {
+    this.#authGeneration += 1;
+    this.#refreshing = undefined;
     const refreshToken = this.#tokens?.refreshToken;
     this.#tokens = undefined;
     this.#accessTokenValue = undefined;
@@ -352,7 +368,17 @@ export class CognitoIdentityManager implements IdTokenSource {
     return this.status();
   }
 
+  #refreshOnce(): Promise<string | undefined> {
+    if (this.#refreshing) return this.#refreshing;
+    const refreshing = this.#refresh().finally(() => {
+      if (this.#refreshing === refreshing) this.#refreshing = undefined;
+    });
+    this.#refreshing = refreshing;
+    return refreshing;
+  }
+
   async #refresh(): Promise<string | undefined> {
+    const generation = this.#authGeneration;
     const current = this.#tokens;
     if (!current || !this.#clientId) return undefined;
     try {
@@ -361,6 +387,7 @@ export class CognitoIdentityManager implements IdTokenSource {
         ClientId: this.#clientId,
         AuthParameters: { REFRESH_TOKEN: current.refreshToken },
       });
+      if (generation !== this.#authGeneration || this.#tokens !== current) return undefined;
       const result = record(response.AuthenticationResult);
       const idToken = requiredString(result.IdToken, 'ID token');
       const accessToken = requiredString(result.AccessToken, 'access token');
@@ -376,6 +403,7 @@ export class CognitoIdentityManager implements IdTokenSource {
       this.#repository.put('auth', 'cognito', this.#tokens);
       return idToken;
     } catch (error) {
+      if (generation !== this.#authGeneration || this.#tokens !== current) return undefined;
       // Only an explicit Cognito rejection ends the session. Transient failures
       // (offline, timeout, 5xx) keep the stored tokens so identity-bound local
       // state is not destroyed by a network blip; the next read retries.
@@ -411,7 +439,7 @@ export class CognitoIdentityManager implements IdTokenSource {
   async #accessToken(): Promise<string | undefined> {
     if (!this.#tokens) return undefined;
     if (this.#tokens.expiresAt <= Date.now() + 60_000 || !this.#accessTokenValue) {
-      await this.#refresh();
+      await this.#refreshOnce();
     }
     return this.#accessTokenValue;
   }

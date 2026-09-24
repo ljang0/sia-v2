@@ -28,6 +28,27 @@ SIA_REAL_CODEX_E2E=1 SIA_REAL_CUA_E2E=1 pnpm test:e2e:real:no-turn
 Run Chrome probing only with a dedicated visible test window and a unique
 `SIA_REAL_BROWSER_WINDOW_MATCH` value.
 
+## New-user setup and Keychain continuity
+
+On a clean macOS test account, use the exact signed release artifact and an unlocked login
+Keychain. **Set up Codex** must install or update the managed version, resume official browser
+sign-in after any restart, and show **Connected** without terminal commands or a manual download.
+Cancel browser sign-in once and verify that retry stays in Sia; ordinary launches must not reopen it.
+**Set up permissions** must show individual statuses, skip granted access, and refresh after returning
+from System Settings. The tester completes any macOS approval dialogs.
+
+Check both a fresh install and an upgrade from the previous signed release. Create a disposable
+conversation, quit/reopen twice, then update and reopen. Conversations and settings must remain
+readable without repeated Keychain password requests. Record any initial authorization and whether
+it persists; do not infer this from signing verification or mocked storage tests.
+
+macOS owns Keychain prompts and the Mac password never enters Sia. If an authorization is needed,
+**Allow** covers one access; **Always Allow** can retain access for the identified app. An unlocked
+Keychain and consistent signing identity are prerequisites, not proof of this acceptance check.
+Never clear a Keychain item, reset saved data, or weaken encryption to make this check pass. See
+[Apple's Keychain guidance](https://support.apple.com/guide/keychain-access/if-youre-asked-for-access-to-your-keychain-kyca1243/mac)
+and [Electron's signing guidance](https://www.electronjs.org/docs/latest/api/safe-storage).
+
 ## Use my Mac task validation
 
 Run these tasks only when the tester explicitly requests live computer control. They are not
@@ -65,6 +86,13 @@ The [course investigation smoke](../apps/desktop/src/main/course-investigation.s
 uses a real model with **in-memory browser fixtures** to check coursework outside the calendar and
 inaccessible-course reporting. Neither replaces the live GUI checks above. Experimental background
 window control must be validated separately, including its selected foreground fallback policy.
+
+For composer voice, record a short disposable sentence with **Dictate message**, then click its
+stop control. Verify the transcript enters the draft without sending. In **Start voice conversation**,
+verify silence detection submits one utterance; **Finish speaking** must also submit quiet speech
+without waiting for the recording limit. End the conversation during microphone startup,
+transcription, and reply playback: no late request or microphone restart may occur. A disconnected
+voice stream or empty transcript must show an error and stop hands-free mode until explicitly retried.
 
 For Fn, ask a short task with Sia's window closed. Verify the multicolor border, one dispatch,
 a brief spoken result, and no opened Sia window. Hold Fn again or press Escape during speech;

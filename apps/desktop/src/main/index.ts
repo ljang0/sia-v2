@@ -51,10 +51,11 @@ import { RuntimeCoordinator } from './runtime-coordinator.js';
 import { CognitoIdentityManager } from './identity.js';
 import { configureMetaCloudAvailability, probeProviders } from './provider-probe.js';
 import { discoverCodexInstallation } from './codex-installation.js';
+import { installManagedCodex, managedCodexCommand } from './codex-installer.js';
 import { macProviderPath } from './provider-path.js';
 import { WorkspaceOperationsService } from './workspace-operations.js';
-import { MacVoiceService, createMacSpeechTransport } from './mac-voice-service.js';
-import { ElevenLabsVoiceService } from './voice-service.js';
+import { createMacSpeechTransport } from './mac-voice-service.js';
+import { createVoiceService } from './voice-factory.js';
 import {
   PersonalVoiceCredential,
   PersonalVoiceGateway,
@@ -229,7 +230,12 @@ async function performApplicationCreation(): Promise<void> {
   configureMetaCloudAvailability(Boolean(cloudConfiguration.apiBaseUrl));
 
   if (!controller) {
-    const codexCommand = fakeServices ? undefined : await discoverCodexInstallation();
+    const codexToolsRoot = join(app.getPath('userData'), 'tools', 'codex');
+    const codexCommand = fakeServices
+      ? undefined
+      : await discoverCodexInstallation({
+          managedCommand: managedCodexCommand(codexToolsRoot),
+        });
     const databasePath = join(app.getPath('userData'), 'sia.sqlite');
     const { repository, startupNotice } = openApplicationRepository(
       databasePath,
@@ -289,6 +295,7 @@ async function performApplicationCreation(): Promise<void> {
       notchHelperPath: app.isPackaged
         ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
         : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper'),
+      installCodex: () => installManagedCodex(codexToolsRoot),
       providerProbe: (only) =>
         probeProviders(
           only,
@@ -366,20 +373,23 @@ async function performApplicationCreation(): Promise<void> {
       workspaceOperations: new WorkspaceOperationsService({
         privateWorktreeRoot: join(app.getPath('userData'), 'worktrees'),
       }),
-      voice: personalVoice?.configured
-        ? new ElevenLabsVoiceService({
-            repository,
-            gateway: new PersonalVoiceGateway(() => personalVoice.read()),
-          })
-        : process.platform === 'darwin' && !fakeServices
-          ? new MacVoiceService(repository, () =>
-              createMacSpeechTransport(
-                app.isPackaged
-                  ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
-                  : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper'),
-              ),
-            )
-          : new ElevenLabsVoiceService({ repository, gateway: cloud }),
+      voice: createVoiceService({
+        repository,
+        cloud,
+        ...(personalVoice?.configured
+          ? { personal: new PersonalVoiceGateway(() => personalVoice.read()) }
+          : {}),
+        ...(process.platform === 'darwin' && !fakeServices
+          ? {
+              macTransport: () =>
+                createMacSpeechTransport(
+                  app.isPackaged
+                    ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
+                    : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper'),
+                ),
+            }
+          : {}),
+      }),
       ...(startupNotice ? { startupNotice } : {}),
     });
     const actionBackend = new DesktopActionBackend({
@@ -603,6 +613,7 @@ async function performApplicationCreation(): Promise<void> {
   } else {
     await window.loadFile(join(import.meta.dirname, '../renderer/index.html'));
   }
+  void activeController.resumeCodexSetup().catch(() => undefined);
 }
 
 function relaunchApplication(): void {
