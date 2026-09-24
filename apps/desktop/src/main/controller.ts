@@ -118,6 +118,7 @@ interface ControllerOptions {
   openExternal(url: string): Promise<void>;
   openMessages?(): Promise<void>;
   openMessagesPermissions?(): Promise<void>;
+  requestMicrophonePermission?(): Promise<void>;
   restartApp?(): void;
   /** Always-on local trajectory log; absent in unit tests that do not care about it. */
   trajectory?: TrajectoryRecorder;
@@ -420,6 +421,7 @@ export class DesktopController {
   readonly #openExternal: (url: string) => Promise<void>;
   readonly #openMessages: (() => Promise<void>) | undefined;
   readonly #openMessagesPermissions: (() => Promise<void>) | undefined;
+  readonly #requestMicrophonePermission: (() => Promise<void>) | undefined;
   readonly #restartApp: (() => void) | undefined;
   readonly #chooseDirectory: () => Promise<string | null>;
   readonly #defaultWorkspaceRoot: string | undefined;
@@ -520,6 +522,7 @@ export class DesktopController {
     this.#revealDirectory = options.revealDirectory;
     this.#openMessages = options.openMessages;
     this.#openMessagesPermissions = options.openMessagesPermissions;
+    this.#requestMicrophonePermission = options.requestMicrophonePermission;
     this.#restartApp = options.restartApp;
     this.#chooseDirectory = options.chooseDirectory;
     this.#defaultWorkspaceRoot = options.defaultWorkspaceRoot
@@ -1884,7 +1887,7 @@ export class DesktopController {
       case 'settings.openDirectory':
         return { path: await this.#grantChosenDirectory() } as unknown as BridgeResultMap[M];
       case 'settings.setOnboarding': {
-        const { step } = input as BridgeRequestMap['settings.setOnboarding'];
+        const { step, permissionSetup } = input as BridgeRequestMap['settings.setOnboarding'];
         const previous = this.#state.preferences.onboarding;
         const candidateId = step === 'welcome' ? this.#state.activeAgentId : previous?.agentId;
         const agent = this.#state.agents.find(({ id }) => id === candidateId);
@@ -1896,6 +1899,7 @@ export class DesktopController {
         }
         this.#state.preferences.onboarding = {
           ...(step === 'welcome' ? {} : previous),
+          ...(permissionSetup ? { permissionSetup } : {}),
           step,
           ...(agent ? { agentId: agent.id } : {}),
         };
@@ -2024,7 +2028,10 @@ export class DesktopController {
       case 'voice.pushToTalk.configure': {
         if (!this.#pushToTalk) throw new Error('Fn push-to-talk is unavailable in this build.');
         const value = input as BridgeRequestMap['voice.pushToTalk.configure'];
-        if (value.enabled) await this.#voice?.prepareDictation?.();
+        if (value.enabled) {
+          await this.#voice?.prepareDictation?.();
+          await this.#requestMicrophonePermission?.();
+        }
         this.#pushToTalk.configure(
           value.enabled,
           value.agentId,

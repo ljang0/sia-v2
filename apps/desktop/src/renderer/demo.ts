@@ -1051,10 +1051,11 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
     },
     async setupMessages() {},
     async requestAutomationPermission() {},
-    async setOnboarding(step) {
+    async setOnboarding(step, permissionSetup) {
       mutate((current) => {
         current.preferences.onboarding = {
           step,
+          ...(permissionSetup ? { permissionSetup } : {}),
           ...(current.selectedAgentId ? { agentId: current.selectedAgentId } : {}),
         };
       });

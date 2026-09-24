@@ -111,11 +111,8 @@ final class VoiceHelper {
                 let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
                 _ = AXIsProcessTrustedWithOptions(options)
             }
-            if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
-                AVCaptureDevice.requestAccess(for: .audio) { _ in }
-            } else if AVCaptureDevice.authorizationStatus(for: .audio) != .authorized {
-                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") { NSWorkspace.shared.open(url) }
-            }
+            // Microphone consent belongs to the signed Electron app's visible
+            // setup window. This helper only observes the resulting grant.
         case "start":
             guard let id = value["id"] as? String, id == heldID, capture == nil else { return }
             sessionID = id

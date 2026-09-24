@@ -633,7 +633,10 @@ export interface RendererApi {
   refreshVoices(): Promise<void>;
   selectVoice(voiceId: string): Promise<void>;
   disconnectVoice(): Promise<void>;
-  setOnboarding(step: OnboardingStep): Promise<void>;
+  setOnboarding(
+    step: OnboardingStep,
+    permissionSetup?: { includeApps: boolean; active: boolean },
+  ): Promise<void>;
   restartForOnboarding(): Promise<void>;
   setupMessages(): Promise<void>;
   setCompletionSound(enabled: boolean): Promise<void>;

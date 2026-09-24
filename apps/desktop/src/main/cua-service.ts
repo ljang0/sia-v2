@@ -155,14 +155,17 @@ export class CuaService {
     const current = await this.permissions();
     if (current.status === 'ready' || current.status === 'unavailable') return current;
     if (process.platform === 'darwin') {
-      const cuaElectron = await import('@trycua/cua-driver/electron');
-      const requested = cuaElectron.requestMacOSPermissions();
-      if (!requested.screenRecording) {
-        // Register the responsible Electron app with TCC, not just a native
-        // preflight followed by Settings (which can leave Sia absent from the list).
-        // This runs only after the person's explicit setup action. No capture is
-        // retained or sent to a renderer, model, log, or remote endpoint.
-        const { desktopCapturer } = await import('electron');
+      const { systemPreferences, shell, desktopCapturer } = await import('electron');
+      // Request one permission at a time. Opening Screen Recording while the
+      // Accessibility prompt is still pending hides the first step on macOS.
+      if (!current.accessibility) {
+        systemPreferences.isTrustedAccessibilityClient(true);
+        await shell.openExternal(
+          'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
+        );
+      } else if (!current.screenRecording) {
+        // Register the responsible, signed Electron app with TCC. This explicit
+        // setup request retains no image and sends nothing to the agent.
         await desktopCapturer
           .getSources({
             types: ['screen'],
@@ -171,7 +174,9 @@ export class CuaService {
           })
           .catch(() => undefined);
         if (!(await this.permissions()).screenRecording)
-          await cuaElectron.openMacOSScreenRecordingSettings();
+          await shell.openExternal(
+            'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
+          );
       }
     }
     return this.permissions();

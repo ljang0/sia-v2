@@ -512,6 +512,7 @@ export interface OnboardingProgress {
   agentId?: string;
   restartPending?: boolean;
   restarted?: boolean;
+  permissionSetup?: { includeApps: boolean; active: boolean };
 }
 
 export interface SaveAgentInput {
@@ -633,7 +634,10 @@ export interface BridgeRequestMap {
   'providers.probe': { providerId?: ProviderId };
   'providers.login': { providerId: ProviderId };
   'settings.openDirectory': undefined;
-  'settings.setOnboarding': { step: OnboardingStep };
+  'settings.setOnboarding': {
+    step: OnboardingStep;
+    permissionSetup?: OnboardingProgress['permissionSetup'];
+  };
   'settings.restartForOnboarding': undefined;
   'computer.setupMessages': undefined;
   'settings.setCompletionSound': { enabled: boolean };
@@ -924,7 +928,10 @@ export interface DesktopBridgeApi {
   };
   settings: {
     openDirectory(): Promise<{ path: string | null }>;
-    setOnboarding(step: OnboardingStep): Promise<DesktopSnapshot>;
+    setOnboarding(
+      step: OnboardingStep,
+      permissionSetup?: OnboardingProgress['permissionSetup'],
+    ): Promise<DesktopSnapshot>;
     restartForOnboarding(): Promise<DesktopSnapshot>;
     setCompletionSound(enabled: boolean): Promise<DesktopSnapshot>;
   };

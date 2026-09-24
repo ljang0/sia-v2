@@ -11,6 +11,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { openApplicationRepository } from './application-repository.js';
 import { showStorageStartup } from './storage-startup.js';
+import { requestMicrophonePermission } from './microphone-permission.js';
 
 import {
   app,
@@ -313,6 +314,7 @@ async function performApplicationCreation(): Promise<void> {
       },
       openExternal: openSafeExternal,
       openMessages: () => shell.openExternal('sms:', { activate: true }),
+      ...(!fakeServices ? { requestMicrophonePermission } : {}),
       openMessagesPermissions: () =>
         fakeServices
           ? Promise.resolve()

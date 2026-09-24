@@ -1,4 +1,4 @@
-// Source: ../notch/upstream/JournalStore.swift; see ../notch/README.md for adapter changes.
+// Source: ../../upstream/JournalStore.swift; see ../../README.md for adapter changes.
 import Foundation
 
 /// Persistent memory: every interaction, action, and worker completion is

@@ -66,6 +66,31 @@ it.each(['mac-bypass', 'connected'] as const)(
       );
       return snapshot.agents[0]!.id;
     });
+    const redraw = () =>
+      view.rerender(
+        <Onboarding {...props}>
+          <div>Conversation</div>
+        </Onboarding>,
+      );
+    api.requestComputerPermissions.mockImplementation(async () => {
+      await Promise.resolve();
+      snapshot.computer.accessibility = 'allowed';
+      snapshot.computer.screenRecording = 'allowed';
+      redraw();
+    });
+    api.requestAutomationPermission.mockImplementation(async (...args: unknown[]) => {
+      await Promise.resolve();
+      const id = args[0] as keyof NonNullable<typeof snapshot.computer.automation>;
+      snapshot.computer.automation = {
+        calendar: 'needs_permission',
+        reminders: 'needs_permission',
+        finder: 'needs_permission',
+        messages: 'needs_permission',
+        ...snapshot.computer.automation,
+        [id]: 'ready',
+      };
+      redraw();
+    });
     expect(api.createAgent).not.toHaveBeenCalled();
     expect(api.requestComputerPermissions).not.toHaveBeenCalled();
     expect(screen.getByRole('textbox', { name: 'Agent name' }).closest('details')!.open).toBe(
@@ -76,7 +101,15 @@ it.each(['mac-bypass', 'connected'] as const)(
       fireEvent.click(screen.getByRole('radio', { name: /Connected apps \+ confirmations/ }));
     }
     fireEvent.click(screen.getByRole('button', { name: 'Set up Sia' }));
-    await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('verify'));
+    await waitFor(() => expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1));
+    expect(api.createAgent).toHaveBeenCalledTimes(1);
+    expect(snapshot.computer.accessibility).toBe('allowed');
+    await waitFor(() =>
+      expect(api.setOnboarding).toHaveBeenCalledWith('verify', {
+        includeApps: route === 'mac-bypass',
+        active: false,
+      }),
+    );
     expect(api.createAgent).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ name: 'Sia', workspace: '', startOnboarding: true }),
     );
@@ -101,7 +134,7 @@ it.each(['mac-bypass', 'connected'] as const)(
       </Onboarding>,
     );
     expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1);
-    expect(api.restartForOnboarding).not.toHaveBeenCalled();
+    expect(api.restartForOnboarding).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'Start using Sia' }));
     await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('complete'));
   },
@@ -163,6 +196,46 @@ it.each(['voice', 'access', 'apps', 'restart', 'verify', 'practice'] as const)(
     expect(api.restartForOnboarding).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Start using Sia' }));
     await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('complete'));
+  },
+);
+
+it.each([true, false])(
+  'resumes only an active saved permission pass after restart (%s)',
+  async (active) => {
+    const { snapshot, api, props } = setup('verify');
+    snapshot.preferences.onboarding = {
+      ...snapshot.preferences.onboarding!,
+      restarted: true,
+      permissionSetup: { includeApps: true, active },
+    };
+    snapshot.computer.accessMode = 'mac';
+    snapshot.computer.accessibility = 'allowed';
+    snapshot.computer.screenRecording = 'allowed';
+    snapshot.computer.automation = {
+      system_events: 'ready',
+      safari: 'needs_permission',
+      chrome: 'unavailable',
+      calendar: 'ready',
+      reminders: 'ready',
+      finder: 'ready',
+      messages: 'ready',
+    };
+    render(
+      <Onboarding {...props}>
+        <div />
+      </Onboarding>,
+    );
+    if (active)
+      await waitFor(() =>
+        expect(api.requestAutomationPermission).toHaveBeenCalledExactlyOnceWith('safari'),
+      );
+    else {
+      expect(screen.getByRole('button', { name: 'Grant all permissions' })).toBeTruthy();
+      expect(api.requestAutomationPermission).not.toHaveBeenCalled();
+    }
+    expect(api.requestComputerPermissions).not.toHaveBeenCalled();
+    expect(api.restartForOnboarding).not.toHaveBeenCalled();
+    expect(api.setOnboarding).not.toHaveBeenCalledWith('complete');
   },
 );
 
@@ -292,7 +365,12 @@ it('replays setup with the existing agent without creating another', async () =>
     </Onboarding>,
   );
   fireEvent.click(screen.getByRole('button', { name: 'Set up Sia' }));
-  await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('voice'));
+  await waitFor(() =>
+    expect(api.setOnboarding).toHaveBeenCalledWith(
+      'voice',
+      expect.objectContaining({ active: true }),
+    ),
+  );
   expect(api.createAgent).not.toHaveBeenCalled();
 });
 
@@ -307,7 +385,7 @@ it('keeps existing profiles out of first-run and recovers a deleted starter', ()
   expect(onboardingStep(snapshot)).toBeUndefined();
 });
 
-it('automatically opens the conversation once access is ready, including after returning from Settings', async () => {
+it('restarts only after access is verified and finishes the authorized pass after restart', async () => {
   const { snapshot, api, props } = setup('voice');
   snapshot.computer.accessibility = 'not-requested';
   snapshot.computer.screenRecording = 'allowed';
@@ -330,14 +408,24 @@ it('automatically opens the conversation once access is ready, including after r
     </StrictMode>
   );
   const view = render(content());
-  fireEvent.click(screen.getByRole('button', { name: 'Allow remaining access' }));
-  await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('verify'));
+  fireEvent.click(screen.getByRole('button', { name: 'Grant all permissions' }));
+  await waitFor(() => expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1));
+  expect(api.restartForOnboarding).not.toHaveBeenCalled();
   expect(api.setOnboarding).not.toHaveBeenCalledWith('complete');
   snapshot.computer.accessibility = 'allowed';
   view.rerender(content());
+  await waitFor(() => expect(api.restartForOnboarding).toHaveBeenCalledTimes(1));
+  expect(api.setOnboarding).not.toHaveBeenCalledWith('complete');
+  view.unmount();
+  snapshot.preferences.onboarding = {
+    step: 'verify',
+    agentId: snapshot.agents[0]!.id,
+    restarted: true,
+  };
+  const resumed = render(content());
   await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('complete'));
   fireEvent.focus(window);
-  view.rerender(content());
+  resumed.rerender(content());
   expect(api.setOnboarding.mock.calls.filter(([step]) => step === 'complete')).toHaveLength(1);
   expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1);
   expect(api.createThread.mock.calls.length + api.selectThread.mock.calls.length).toBe(1);

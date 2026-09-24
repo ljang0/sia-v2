@@ -398,6 +398,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
             </main>
           ) : app.settingsOpen ? (
             <Settings
+              macSetupApi={api}
               assistantApi={api}
               scottyApi={api.scotty}
               phoneRemoteApi={api.phoneRemote}
@@ -431,8 +432,6 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onOpenBrowserSite={(url) => api.openBrowserSite(url)}
               onDetachBrowser={() => api.detachBrowser()}
               onRequestPermissions={() => api.requestComputerPermissions()}
-              onRequestAutomation={(app) => api.requestAutomationPermission(app)}
-              onRefreshPermissions={() => api.refreshComputerPermissions()}
               onSetComputerAccessMode={(mode, background, backgroundFallback) =>
                 api.setComputerAccessMode(mode, background, backgroundFallback)
               }

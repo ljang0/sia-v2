@@ -133,7 +133,11 @@ const api: DesktopBridgeApi = {
   },
   settings: {
     openDirectory: () => invoke('settings.openDirectory', undefined),
-    setOnboarding: (step) => invoke('settings.setOnboarding', { step }),
+    setOnboarding: (step, permissionSetup) =>
+      invoke('settings.setOnboarding', {
+        step,
+        ...(permissionSetup ? { permissionSetup } : {}),
+      }),
     restartForOnboarding: () => invoke('settings.restartForOnboarding', undefined),
     setCompletionSound: (enabled) => invoke('settings.setCompletionSound', { enabled }),
   },

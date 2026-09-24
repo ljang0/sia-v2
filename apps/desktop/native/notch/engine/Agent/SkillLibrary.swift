@@ -1,4 +1,4 @@
-// Source: ../notch/upstream/SkillLibrary.swift; see ../notch/README.md for adapter changes.
+// Source: ../../upstream/SkillLibrary.swift; see ../../README.md for adapter changes.
 import Foundation
 
 /// Self-extending skills: executable shell scripts in ~/.notch/skills/,

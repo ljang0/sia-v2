@@ -1,4 +1,3 @@
-import type { AutomationApp } from '../../shared/mac-permissions';
 import {
   CheckSquareOffset,
   Database,
@@ -41,6 +40,7 @@ export type SettingsSection =
   | 'research';
 
 interface SettingsProps {
+  macSetupApi?: import('./SetupMacAccess').MacSetupApi;
   scottyApi?: import('../../shared/scotty').ScottySettingsApi | undefined;
   phoneRemoteApi?: import('../../shared/phone-remote').PhoneRemoteApi | undefined;
   assistantApi?: Pick<RendererApi, 'assistantLibrary'>;
@@ -68,8 +68,6 @@ interface SettingsProps {
   onOpenBrowserSite(url: string): Promise<void>;
   onDetachBrowser(): Promise<void>;
   onRequestPermissions(): Promise<void>;
-  onRequestAutomation?(app: AutomationApp): Promise<void>;
-  onRefreshPermissions?(): Promise<void>;
   onSetComputerAccessMode?(
     mode: 'mac' | 'connected',
     background?: boolean,
@@ -101,6 +99,7 @@ export function Settings({
   scottyApi,
   phoneRemoteApi,
   assistantApi,
+  macSetupApi,
   onRunWorkflow,
   snapshot,
   initialSection = 'providers',
@@ -125,8 +124,6 @@ export function Settings({
   onOpenBrowserSite,
   onDetachBrowser,
   onRequestPermissions,
-  onRequestAutomation,
-  onRefreshPermissions,
   onSetComputerAccessMode,
   onSetComputerTrust,
   onSetTrajectoryLog,
@@ -307,12 +304,11 @@ export function Settings({
           {section === 'computer' ? (
             <ComputerSettings
               snapshot={snapshot}
+              {...(macSetupApi ? { macSetupApi } : {})}
               onAttachBrowser={onAttachBrowser}
               onOpenBrowserSite={onOpenBrowserSite}
               onDetachBrowser={onDetachBrowser}
               onRequestPermissions={onRequestPermissions}
-              {...(onRequestAutomation ? { onRequestAutomation } : {})}
-              {...(onRefreshPermissions ? { onRefreshPermissions } : {})}
               {...(onSetComputerAccessMode ? { onSetComputerAccessMode } : {})}
               onSetComputerTrust={onSetComputerTrust}
               onSetTrajectoryLog={onSetTrajectoryLog}

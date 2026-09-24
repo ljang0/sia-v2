@@ -1,6 +1,5 @@
 import { ComputerAccessMode } from '../ComputerAccessMode';
-import { MacAutomationPermissions } from '../MacAutomationPermissions';
-import type { AutomationApp } from '../../../shared/mac-permissions';
+import { SetupMacAccess, type MacSetupApi } from '../SetupMacAccess';
 import { Browser, Desktop, Notebook, ShieldCheck } from '@phosphor-icons/react';
 import { useState, type FormEvent } from 'react';
 import type { RendererSnapshot } from '../../types';
@@ -10,24 +9,22 @@ import { errorMessage, InlineSettingsError, SettingsSectionHeader } from './Sett
 
 export function ComputerSettings({
   snapshot,
+  macSetupApi,
   onAttachBrowser,
   onOpenBrowserSite,
   onDetachBrowser,
   onRequestPermissions,
-  onRequestAutomation,
-  onRefreshPermissions,
   onSetComputerAccessMode,
   onSetComputerTrust,
   onSetTrajectoryLog,
   onRevealTrajectories,
 }: {
   snapshot: RendererSnapshot;
+  macSetupApi?: MacSetupApi;
   onAttachBrowser(windowId?: number): Promise<void>;
   onOpenBrowserSite(url: string): Promise<void>;
   onDetachBrowser(): Promise<void>;
   onRequestPermissions(): Promise<void>;
-  onRequestAutomation?(app: AutomationApp): Promise<void>;
-  onRefreshPermissions?(): Promise<void>;
   onSetComputerAccessMode?(
     mode: 'mac' | 'connected',
     background?: boolean,
@@ -40,6 +37,7 @@ export function ComputerSettings({
   const [pending, setPending] = useState<'computer' | 'browser' | 'site' | 'trust' | 'log'>();
   const trusted = snapshot.computer.trust === 'auto';
   const [error, setError] = useState<string>();
+  const [permissionBusy, setPermissionBusy] = useState(false);
   const [site, setSite] = useState('');
   const computerReady =
     snapshot.computer.accessibility === 'allowed' &&
@@ -79,7 +77,7 @@ export function ComputerSettings({
       {onSetComputerAccessMode ? (
         <ComputerAccessMode
           computer={snapshot.computer}
-          disabled={Boolean(pending)}
+          disabled={Boolean(pending) || permissionBusy}
           showBackgroundOption
           change={(mode, background, backgroundFallback) =>
             void run('computer', () =>
@@ -88,12 +86,18 @@ export function ComputerSettings({
           }
         />
       ) : null}
-      {onRequestAutomation && onRefreshPermissions ? (
-        <MacAutomationPermissions
-          permissions={snapshot.computer.automation}
-          request={onRequestAutomation}
-          refresh={onRefreshPermissions}
+      {macSetupApi ? (
+        <SetupMacAccess
+          snapshot={snapshot}
+          api={macSetupApi}
+          agentId={
+            snapshot.selectedAgentId ??
+            snapshot.voice.pushToTalk?.agentId ??
+            snapshot.agents[0]?.id
+          }
           disabled={Boolean(pending)}
+          onBusyChange={setPermissionBusy}
+          includeApps
         />
       ) : null}
       {!snapshot.browser.attached &&
@@ -114,7 +118,7 @@ export function ComputerSettings({
           <button
             type="button"
             className={styles.secondaryButton}
-            disabled={Boolean(pending)}
+            disabled={Boolean(pending) || permissionBusy}
             onClick={() => void run('computer', onRequestPermissions)}
           >
             {pending === 'computer' ? 'Opening...' : computerReady ? 'Review access' : 'Set up'}
@@ -141,7 +145,7 @@ export function ComputerSettings({
             className={
               snapshot.browser.attached ? styles.textButtonDanger : styles.secondaryButton
             }
-            disabled={Boolean(pending)}
+            disabled={Boolean(pending) || permissionBusy}
             onClick={() =>
               void run(
                 'browser',
@@ -186,7 +190,7 @@ export function ComputerSettings({
               aria-label="Website address"
               autoComplete="off"
               spellCheck={false}
-              disabled={Boolean(pending)}
+              disabled={Boolean(pending) || permissionBusy}
               data-testid="browser-open-site-input"
             />
             <button
@@ -225,7 +229,7 @@ export function ComputerSettings({
             aria-checked={trusted}
             aria-label="Bypass action approvals"
             className={styles.secondaryButton}
-            disabled={Boolean(pending)}
+            disabled={Boolean(pending) || permissionBusy}
             onClick={() =>
               void run('trust', () => onSetComputerTrust(trusted ? 'ask' : 'auto'))
             }
@@ -262,7 +266,7 @@ export function ComputerSettings({
             aria-checked={snapshot.computer.trajectoryLog}
             aria-label="Keep a full local log"
             className={styles.secondaryButton}
-            disabled={Boolean(pending)}
+            disabled={Boolean(pending) || permissionBusy}
             onClick={() =>
               void run('log', () => onSetTrajectoryLog(!snapshot.computer.trajectoryLog))
             }
