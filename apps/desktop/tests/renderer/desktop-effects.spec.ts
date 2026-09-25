@@ -138,8 +138,21 @@ test('navigation stays stable, previews do not select, and the compact rail keep
   const groups = () =>
     nav.locator('section').evaluateAll((elements) => elements.map((el) => el.textContent));
   const before = await groups();
-  await nav.getByRole('button', { name: 'Personal admin', exact: true }).click();
+  const personal = nav.getByRole('button', { name: 'Personal admin', exact: true });
+  const inbox = nav.getByRole('button', { name: 'Triage today’s inbox', exact: true });
+  await personal.click();
+  await expect(personal).toHaveAttribute('aria-expanded', 'false');
+  await expect(inbox).toBeHidden();
+  await personal.press('Enter');
+  await expect(personal).toHaveAttribute('aria-expanded', 'true');
+  await expect(inbox).toBeVisible();
+  await expect(task).toHaveAttribute('aria-current', 'page');
+  await inbox.click();
+  await expect(inbox).toHaveAttribute('aria-current', 'page');
   expect(await groups()).toEqual(before);
+  await page.screenshot({ path: info.outputPath('collapsible-menu.png') });
+  await nav.getByRole('button', { name: 'Research partner', exact: true }).click();
+  await expect(task).toBeHidden();
   await nav.getByRole('searchbox', { name: 'Find a thread' }).fill('Weekly');
   await expect(task).toBeVisible();
   await expect(

@@ -27,6 +27,14 @@ status, recency, and drafts stay visible. Hovering or focusing a task previews i
 selecting it or marking it read. Escape, scrolling, and leaving dismiss the preview. The collapsed
 rail retains new conversation, search, agents, new agent, Activity, and Settings.
 
+Agent navigation follows the supplied multi-level collapsible menu: a compact, bordered card,
+icon-led rows, nested conversations, and rotating disclosure chevrons in Sia’s evergreen palette.
+Agent rows expand or collapse with a click, Enter, or Space; new-conversation and agent menus remain
+separate buttons. Expanding a group keeps the current conversation; its menu also offers Open agent.
+Collapsed conversations leave the focus order, search reveals matching groups,
+and selecting a conversation elsewhere reopens its group. Calm and Reduce Motion skip the fold
+animation. Existing task previews, drafts, statuses, and conversation actions remain available.
+
 Opening a launcher result selects its exact existing conversation, closes Settings or Activity, and
 uses a short exit/arrival transition. Calm and Reduce Motion skip this transition. Failed handoffs
 restore the launcher; they do not discard the request or start another turn.

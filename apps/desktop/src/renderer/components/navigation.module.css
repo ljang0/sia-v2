@@ -71,24 +71,170 @@ aside.navigation {
   outline: none;
 }
 .navigation .scroll {
-  padding: 2px 10px 16px;
+  padding: 2px 10px 12px;
   scrollbar-gutter: stable;
 }
-.navigation .group {
-  margin-bottom: 18px;
+.menuCard {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px;
+  border: 1px solid var(--shell-line);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--shell-bg-deep) 36%, transparent);
 }
-.navigation .tasks {
-  margin: 6px 0 0 13px;
-  padding-left: 8px;
-  border-left-color: var(--shell-line);
+.group {
+  --navigation-duration: 220ms;
+  min-width: 0;
+}
+.group[data-identity='0'] {
+  --agent-color: var(--hue-0);
+}
+.group[data-identity='1'] {
+  --agent-color: var(--hue-1);
+}
+.group[data-identity='2'] {
+  --agent-color: var(--hue-2);
+}
+.group[data-identity='3'] {
+  --agent-color: var(--hue-3);
+}
+.groupHeader {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  border-radius: 8px;
+  color: var(--shell-dim);
+  transition:
+    background 150ms ease,
+    color 150ms ease;
+}
+.groupHeader:hover,
+.groupHeader[data-open='true'] {
+  background: var(--shell-hover);
+  color: var(--shell-text);
+}
+.group[data-selected='true'] .groupHeader {
+  background: var(--shell-selected);
+  color: var(--shell-text);
+}
+.groupTrigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 40px;
+  flex: 1;
+  padding: 6px 6px 6px 8px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.groupIcon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+.groupLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.groupTrigger[aria-expanded='true'] .groupLabel {
+  font-weight: 550;
+}
+.chevron {
+  flex: none;
+  margin-left: auto;
+  color: var(--shell-muted);
+  transition: transform var(--navigation-duration) var(--ease-standard);
+}
+.groupTrigger[aria-expanded='true'] .chevron {
+  transform: rotate(90deg);
+}
+.groupActions {
+  display: flex;
+  flex: none;
+  padding-right: 4px;
+}
+.groupActions > button {
+  width: 23px;
+  height: 28px;
+  opacity: 1;
+  color: var(--shell-muted);
+}
+.groupContent {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows var(--navigation-duration) var(--ease-standard),
+    opacity var(--navigation-duration) ease,
+    visibility 0s var(--navigation-duration);
+}
+.groupContent[data-open='true'] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
+.groupClip {
+  min-height: 0;
+  overflow: hidden;
+}
+.tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 3px 0 4px 12px;
+  padding: 0 0 0 8px;
+  border-left: 1px solid var(--shell-line);
 }
 .navigation .task {
-  margin-bottom: 3px;
-  border-radius: 9px;
+  margin: 0;
+  border-radius: 7px;
 }
 .navigation .task > button:first-child {
-  min-height: 60px;
-  padding: 10px 3px 10px 10px;
+  min-height: 52px;
+  padding: 8px 3px 8px 7px;
+  gap: 8px;
+}
+.navigation .task > button:first-child::before {
+  content: none;
+}
+.taskIcon {
+  flex: none;
+  color: var(--shell-muted);
+}
+.task [aria-current='page'] .taskIcon {
+  color: var(--shell-text);
+}
+.navigation .footer {
+  display: grid;
+  gap: 2px;
+  margin: 0 10px 12px;
+  padding: 5px;
+  border: 1px solid var(--shell-line);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--shell-bg-deep) 36%, transparent);
+}
+.footer button {
+  min-height: 36px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+[data-appearance='calm'] .group {
+  --navigation-duration: 0ms;
 }
 .navigation .taskTitle {
   display: -webkit-box;
@@ -198,12 +344,11 @@ aside.rail {
   aside.navigation {
     flex-basis: 252px;
   }
-  .navigation .tasks {
-    margin-left: 3px;
-    padding-left: 5px;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
+  .group {
+    --navigation-duration: 0ms;
+  }
   .preview {
     animation: none;
   }

@@ -2,8 +2,7 @@ import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
-  CaretDown,
-  CaretRight,
+  ChatCircle,
   DotsThree,
   GearSix,
   MagnifyingGlass,
@@ -20,7 +19,7 @@ import {
   PushPin,
   Pulse,
 } from '@phosphor-icons/react';
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { AgentSummary, ThreadSummary } from '../types';
 import styles from '../ui.module.css';
 import { AgentForm } from './AgentForm';
@@ -28,6 +27,7 @@ import { StatusMark } from './StatusMark';
 import navigation from './navigation.module.css';
 import { TaskPreviewButton } from './TaskPreviewButton';
 import { SiaMark } from './SiaMark';
+import { NavigationGroup } from './NavigationGroup';
 
 interface SidebarProps {
   agents: AgentSummary[];
@@ -83,16 +83,42 @@ export function Sidebar({
   const [closedAgents, setClosedAgents] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
   const taskList = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
+  const threadAgentId = agents.find((agent) =>
+    agent.threads.some((thread) => thread.id === selectedThreadId),
+  )?.id;
+  useEffect(() => {
+    if (!threadAgentId) return;
+    setClosedAgents((current) => {
+      if (!current.has(threadAgentId)) return current;
+      const next = new Set(current);
+      next.delete(threadAgentId);
+      return next;
+    });
+  }, [selectedThreadId, threadAgentId]);
+  const revealSelection = () => {
     const list = taskList.current;
     const selected = list?.querySelector<HTMLElement>('[aria-current="page"]');
-    if (!list || !selected || activePage !== 'conversation' || collapsed) return;
+    if (
+      !list ||
+      !selected ||
+      selected.closest('[inert]') ||
+      activePage !== 'conversation' ||
+      collapsed
+    )
+      return;
     const row = selected.getBoundingClientRect();
     const viewport = list.getBoundingClientRect();
     // Scroll only this pane: scrollIntoView can move Electron's hidden root viewport too.
     if (row.bottom > viewport.bottom) list.scrollTop += row.bottom - viewport.bottom + 12;
     else if (row.top < viewport.top) list.scrollTop -= viewport.top - row.top + 12;
-  }, [selectedThreadId, activePage, collapsed, query]);
+  };
+  useLayoutEffect(revealSelection, [
+    selectedThreadId,
+    activePage,
+    collapsed,
+    query,
+    closedAgents,
+  ]);
 
   const [editingThread, setEditingThread] = useState<ThreadSummary>();
   const [editingTitle, setEditingTitle] = useState('');
@@ -278,215 +304,183 @@ export function Sidebar({
           <Plus size={15} aria-hidden="true" />
         </button>
       </div>
-      <div ref={taskList} className={`${styles.sidebarScroll} ${navigation.scroll}`}>
-        <div className={styles.agentList}>
+      <div
+        ref={taskList}
+        className={`${styles.sidebarScroll} ${navigation.scroll}`}
+        onTransitionEnd={(event) => {
+          if (event.propertyName === 'grid-template-rows') revealSelection();
+        }}
+      >
+        <div className={navigation.menuCard}>
           {orderedAgents.map((agent) => {
-            const expanded =
-              Boolean(query.trim()) || agents.length === 1 || !closedAgents.has(agent.id);
+            const expanded = Boolean(query.trim()) || !closedAgents.has(agent.id);
             const selected = agent.id === selectedAgentId;
             return (
-              <section
-                className={`${styles.agentGroup} ${navigation.group} ${selected ? styles.agentGroupSelected : ''}`}
-                data-identity={agent.hue}
+              <NavigationGroup
                 key={agent.id}
-              >
-                <div
-                  className={`${styles.agentRow} ${selected ? styles.agentRowSelected : ''} ${agents.length === 1 ? styles.singleAgentRow : ''}`}
-                >
-                  {agents.length === 1 ? (
+                identity={agent.hue}
+                label={agent.name}
+                selected={selected}
+                open={expanded}
+                icon={
+                  <span data-presence={agentPresence(agent)}>
+                    <AgentForm identity={agent.hue} state={agentPresence(agent)} size="small" />
+                  </span>
+                }
+                onToggle={() => {
+                  if (query.trim()) return;
+                  setClosedAgents((current) => {
+                    const next = new Set(current);
+                    if (expanded) next.add(agent.id);
+                    else next.delete(agent.id);
+                    return next;
+                  });
+                }}
+                actions={
+                  <>
                     <button
                       type="button"
-                      className={styles.agentNameButton}
-                      onClick={() => onSelectAgent(agent.id)}
+                      className={styles.agentEditButton}
+                      onClick={() => onCreateThread(agent.id)}
+                      aria-label={`Start a thread with ${agent.name}`}
+                      title="New thread"
                     >
-                      <AgentForm
-                        identity={agent.hue}
-                        state={agentPresence(agent)}
-                        size="small"
-                      />
-                      <span className={styles.agentName}>{agent.name}</span>
+                      <Plus size={14} aria-hidden="true" />
                     </button>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        className={styles.disclosureButton}
-                        onClick={() => {
-                          setClosedAgents((current) => {
-                            const next = new Set(current);
-                            if (next.has(agent.id)) next.delete(agent.id);
-                            else next.add(agent.id);
-                            return next;
-                          });
-                        }}
-                        aria-label={
-                          expanded ? `Collapse ${agent.name}` : `Expand ${agent.name}`
-                        }
-                        aria-expanded={expanded}
-                      >
-                        {expanded ? (
-                          <CaretDown size={13} aria-hidden="true" />
-                        ) : (
-                          <CaretRight size={13} aria-hidden="true" />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.agentNameButton}
-                        onClick={() => onSelectAgent(agent.id)}
-                      >
-                        <span
-                          className={styles.agentAvatar}
-                          data-presence={agentPresence(agent)}
-                          data-identity={agent.hue}
+                    <AgentMenu
+                      agent={agent}
+                      onOpen={() => onSelectAgent(agent.id)}
+                      onEdit={() => onEditAgent(agent)}
+                      onSetPinned={
+                        onSetAgentPinned
+                          ? () => void onSetAgentPinned(agent.id, !agent.pinned)
+                          : undefined
+                      }
+                      onSetNotifications={
+                        onSetAgentNotifications
+                          ? () =>
+                              void onSetAgentNotifications(
+                                agent.id,
+                                !agent.notificationsEnabled,
+                              )
+                          : undefined
+                      }
+                      onDuplicate={
+                        onDuplicateAgent ? () => void onDuplicateAgent(agent.id) : undefined
+                      }
+                    />
+                  </>
+                }
+              >
+                <div className={navigation.tasks}>
+                  {agent.threads.length ? (
+                    agent.threads.map((thread) =>
+                      editingThread?.id === thread.id ? (
+                        <form
+                          className={styles.threadRenameForm}
+                          key={thread.id}
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            const title = editingTitle.trim();
+                            if (!title || pendingThreadAction) return;
+                            setPendingThreadAction(true);
+                            void onRenameThread(thread.id, title).then(
+                              () => {
+                                setEditingThread(undefined);
+                                setPendingThreadAction(false);
+                              },
+                              () => setPendingThreadAction(false),
+                            );
+                          }}
                         >
-                          <AgentForm
-                            identity={agent.hue}
-                            state={agentPresence(agent)}
-                            size="small"
-                          />
-                        </span>
-                        <span className={styles.agentName}>{agent.name}</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.agentEditButton}
-                        onClick={() => onCreateThread(agent.id)}
-                        aria-label={`Start a thread with ${agent.name}`}
-                        title="New thread"
-                      >
-                        <Plus size={14} aria-hidden="true" />
-                      </button>
-                    </>
-                  )}
-                  <AgentMenu
-                    agent={agent}
-                    onEdit={() => onEditAgent(agent)}
-                    onSetPinned={
-                      onSetAgentPinned
-                        ? () => void onSetAgentPinned(agent.id, !agent.pinned)
-                        : undefined
-                    }
-                    onSetNotifications={
-                      onSetAgentNotifications
-                        ? () =>
-                            void onSetAgentNotifications(agent.id, !agent.notificationsEnabled)
-                        : undefined
-                    }
-                    onDuplicate={
-                      onDuplicateAgent ? () => void onDuplicateAgent(agent.id) : undefined
-                    }
-                  />
-                </div>
-
-                {expanded ? (
-                  <div
-                    className={`${styles.threadList} ${navigation.tasks} ${agents.length === 1 ? styles.flatThreadList : ''}`}
-                  >
-                    {agent.threads.length ? (
-                      agent.threads.map((thread) =>
-                        editingThread?.id === thread.id ? (
-                          <form
-                            className={styles.threadRenameForm}
-                            key={thread.id}
-                            onSubmit={(event) => {
-                              event.preventDefault();
-                              const title = editingTitle.trim();
-                              if (!title || pendingThreadAction) return;
-                              setPendingThreadAction(true);
-                              void onRenameThread(thread.id, title).then(
-                                () => {
-                                  setEditingThread(undefined);
-                                  setPendingThreadAction(false);
-                                },
-                                () => setPendingThreadAction(false),
-                              );
+                          <input
+                            autoFocus
+                            value={editingTitle}
+                            maxLength={120}
+                            aria-label={`Rename ${thread.title}`}
+                            onChange={(event) => setEditingTitle(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Escape') setEditingThread(undefined);
                             }}
+                          />
+                          <button
+                            type="submit"
+                            className={styles.threadRenameSave}
+                            disabled={!editingTitle.trim() || pendingThreadAction}
                           >
-                            <input
-                              autoFocus
-                              value={editingTitle}
-                              maxLength={120}
-                              aria-label={`Rename ${thread.title}`}
-                              onChange={(event) => setEditingTitle(event.target.value)}
-                              onKeyDown={(event) => {
-                                if (event.key === 'Escape') setEditingThread(undefined);
-                              }}
-                            />
-                            <button
-                              type="submit"
-                              className={styles.threadRenameSave}
-                              disabled={!editingTitle.trim() || pendingThreadAction}
-                            >
-                              Save
-                            </button>
-                          </form>
-                        ) : (
-                          <div
-                            key={thread.id}
-                            className={`${styles.threadRow} ${navigation.task} ${
+                            Save
+                          </button>
+                        </form>
+                      ) : (
+                        <div
+                          key={thread.id}
+                          className={`${styles.threadRow} ${navigation.task} ${
+                            thread.id === selectedThreadId && activePage === 'conversation'
+                              ? styles.threadRowSelected
+                              : ''
+                          }`}
+                        >
+                          <TaskPreviewButton
+                            thread={thread}
+                            selected={
                               thread.id === selectedThreadId && activePage === 'conversation'
-                                ? styles.threadRowSelected
-                                : ''
-                            }`}
+                            }
+                            className={styles.threadSelectButton}
+                            onSelect={() => onSelectThread(thread.id)}
                           >
-                            <TaskPreviewButton
-                              thread={thread}
-                              selected={
-                                thread.id === selectedThreadId && activePage === 'conversation'
-                              }
-                              className={styles.threadSelectButton}
-                              onSelect={() => onSelectThread(thread.id)}
-                            >
-                              <ThreadLabel thread={thread} />
-                              {thread.status !== 'idle' ? (
-                                <StatusMark status={thread.status} />
-                              ) : thread.unread ? (
-                                <span className={styles.threadUnreadDot} aria-label="Unread" />
-                              ) : null}
-                            </TaskPreviewButton>
-                            <ThreadMenu
-                              thread={thread}
-                              onFork={
-                                onForkThread
-                                  ? () => {
-                                      setForkingThread(thread);
-                                      setForkTitle(`${thread.title} fork`);
-                                      setForkIsolated(false);
-                                    }
-                                  : undefined
-                              }
-                              onArchive={
-                                onArchiveThread
-                                  ? () => void onArchiveThread(thread.id)
-                                  : undefined
-                              }
-                              onSetUnread={
-                                onSetThreadUnread
-                                  ? () => void onSetThreadUnread(thread.id, !thread.unread)
-                                  : undefined
-                              }
-                              onRename={() => {
-                                setEditingThread(thread);
-                                setEditingTitle(thread.title);
-                              }}
-                              onDelete={() => setDeletingThread(thread)}
+                            <ChatCircle
+                              className={navigation.taskIcon}
+                              size={15}
+                              aria-hidden="true"
                             />
-                          </div>
-                        ),
-                      )
-                    ) : query ? null : (
-                      <button
-                        className={styles.newThreadInline}
-                        type="button"
-                        onClick={() => onCreateThread(agent.id)}
-                      >
-                        Start the first thread
-                      </button>
-                    )}
-                  </div>
-                ) : null}
-              </section>
+                            <ThreadLabel thread={thread} />
+                            {thread.status !== 'idle' ? (
+                              <StatusMark status={thread.status} />
+                            ) : thread.unread ? (
+                              <span className={styles.threadUnreadDot} aria-label="Unread" />
+                            ) : null}
+                          </TaskPreviewButton>
+                          <ThreadMenu
+                            thread={thread}
+                            onFork={
+                              onForkThread
+                                ? () => {
+                                    setForkingThread(thread);
+                                    setForkTitle(`${thread.title} fork`);
+                                    setForkIsolated(false);
+                                  }
+                                : undefined
+                            }
+                            onArchive={
+                              onArchiveThread
+                                ? () => void onArchiveThread(thread.id)
+                                : undefined
+                            }
+                            onSetUnread={
+                              onSetThreadUnread
+                                ? () => void onSetThreadUnread(thread.id, !thread.unread)
+                                : undefined
+                            }
+                            onRename={() => {
+                              setEditingThread(thread);
+                              setEditingTitle(thread.title);
+                            }}
+                            onDelete={() => setDeletingThread(thread)}
+                          />
+                        </div>
+                      ),
+                    )
+                  ) : query ? null : (
+                    <button
+                      className={styles.newThreadInline}
+                      type="button"
+                      onClick={() => onCreateThread(agent.id)}
+                    >
+                      Start the first thread
+                    </button>
+                  )}
+                </div>
+              </NavigationGroup>
             );
           })}
           {query && orderedAgents.length === 0 ? (
@@ -495,7 +489,7 @@ export function Sidebar({
         </div>
       </div>
 
-      <div className={styles.sidebarFooter}>
+      <div className={`${styles.sidebarFooter} ${navigation.footer}`}>
         {onOpenQuickSwitcher ? (
           <button className={styles.settingsButton} type="button" onClick={onOpenQuickSwitcher}>
             <MagnifyingGlass size={17} aria-hidden="true" />
@@ -803,12 +797,14 @@ function ThreadMenu({
 
 function AgentMenu({
   agent,
+  onOpen,
   onEdit,
   onSetPinned,
   onSetNotifications,
   onDuplicate,
 }: {
   agent: AgentSummary;
+  onOpen(): void;
   onEdit(): void;
   onSetPinned?: (() => void) | undefined;
   onSetNotifications?: (() => void) | undefined;
@@ -827,6 +823,10 @@ function AgentMenu({
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content className={styles.threadMenuContent} sideOffset={4} align="end">
+          <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onOpen}>
+            <ChatCircle size={14} aria-hidden="true" />
+            Open agent
+          </DropdownMenu.Item>
           <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onEdit}>
             <NotePencil size={14} aria-hidden="true" />
             Edit room
