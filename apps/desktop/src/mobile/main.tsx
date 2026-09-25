@@ -4,22 +4,28 @@ import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   ArrowUp,
-  Check,
+  ArrowDown,
   CircleNotch,
   Desktop,
-  DownloadSimple,
   Microphone,
   Plus,
-  SquaresFour,
   Stop,
   X,
-  ArrowLeft,
+  ChatCircle,
+  Stack,
+  Graph,
+  ArrowUpRight,
+  DotsThree,
+  WifiHigh,
+  ShieldCheck,
+  Trash,
 } from '@phosphor-icons/react';
-import type { RemoteState, RemoteTurn } from '../shared/phone-remote';
+import type { RemoteState } from '../shared/phone-remote';
 import { SiaMark } from '../renderer/components/SiaMark';
-import { SafeMarkdown } from '../renderer/components/SafeMarkdown';
-import { remoteBase, remoteRequest, RemoteRequestError, requestId } from './api';
+import { remoteRequest, RemoteRequestError, requestId } from './api';
 import { MemoryGraph } from './memory-graph';
+import { Sheet, Welcome, Activity, statusLabels } from './remote-ui';
+import { Turn } from './turn';
 import '../renderer/tokens.css';
 import './remote.css';
 
@@ -47,8 +53,16 @@ function App() {
   const [text, setText] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
-  const [menu, setMenu] = useState(false);
-  const [graph, setGraph] = useState(location.pathname.endsWith('/graph'));
+  const [sheet, setSheet] = useState<'options' | 'connection'>('options');
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const openSheet = (next: 'options' | 'connection') => {
+    setSheet(next);
+    setSheetOpen(true);
+  };
+  const [view, setView] = useState<'chat' | 'activity' | 'memory'>(
+    location.pathname.endsWith('/graph') ? 'memory' : 'chat',
+  );
+  const [showLatest, setShowLatest] = useState(false);
   const [listening, setListening] = useState(false);
   const [hint, setHint] = useState('');
   const [recents, setRecents] = useState<string[]>(() => {
@@ -141,21 +155,57 @@ function App() {
         top: conversation.current.scrollHeight,
         behavior: 'instant',
       });
-  }, [state, graph]);
+  }, [state, view]);
   useEffect(() => () => dictation.current?.abort(), []);
+  useEffect(() => {
+    if (view !== 'chat') {
+      dictation.current?.stop();
+      setListening(false);
+    }
+  }, [view]);
 
+  useEffect(() => {
+    const node = composer.current;
+    if (node) {
+      node.style.height = 'auto';
+      node.style.height = `${Math.min(node.scrollHeight, 130)}px`;
+    }
+  }, [text, view]);
+  const refreshAfterAction = async () => {
+    try {
+      setState(await remoteRequest<RemoteState>('state'));
+    } catch {
+      setOnline(false);
+      setConnection('Sent to your Mac. Reconnecting for updates…');
+    }
+  };
+  const choosePrompt = (prompt: string) => {
+    setText(prompt);
+    setHint('');
+    composer.current?.focus();
+  };
+  const openTurn = (id: string) => {
+    nearBottom.current = false;
+    setView('chat');
+    requestAnimationFrame(() => {
+      document
+        .getElementById(`turn-${id}`)
+        ?.scrollIntoView({ block: 'start', behavior: 'instant' });
+    });
+  };
   const send = async (message = text) => {
     const trimmed = message.trim();
     if (!trimmed || pending || !online || latest?.status === 'working') return;
     setPending(true);
     setError('');
     dictation.current?.stop();
+    setHint('');
     if (!retry.current || retry.current.text !== trimmed)
       retry.current = { id: requestId(), text: trimmed, session: state?.session ?? null };
     try {
       await remoteRequest('command', retry.current);
       retry.current = undefined;
-      setText('');
+      setText((current) => (current.trim() === trimmed ? '' : current));
       nearBottom.current = true;
       const updated = [
         trimmed.slice(0, 140),
@@ -167,7 +217,7 @@ function App() {
       } catch {
         /* Private browsing may disable storage. */
       }
-      setState(await remoteRequest<RemoteState>('state'));
+      await refreshAfterAction();
     } catch (cause) {
       if (cause instanceof RemoteRequestError) retry.current = undefined;
       setError(
@@ -183,13 +233,15 @@ function App() {
     if (pending || !online) return;
     setPending(true);
     setError('');
-    setMenu(false);
+    setSheetOpen(false);
     try {
       await remoteRequest(path, { session: state?.session ?? null });
       retry.current = undefined;
-      setState(await remoteRequest<RemoteState>('state'));
+      await refreshAfterAction();
       if (path === 'clear') {
         setText('');
+        nearBottom.current = true;
+        setView('chat');
         composer.current?.focus();
       }
     } catch (cause) {
@@ -233,7 +285,12 @@ function App() {
       setHint('Use your phone’s keyboard microphone to dictate.');
       setListening(false);
     };
-    recognition.onend = () => setListening(false);
+    recognition.onend = () => {
+      setListening(false);
+      setHint((current) =>
+        current.startsWith('Listening…') ? 'Review your words, then send.' : current,
+      );
+    };
     try {
       recognition.start();
       setListening(true);
@@ -242,106 +299,107 @@ function App() {
       setHint('Use your phone’s keyboard microphone to dictate.');
     }
   };
-  const chips = [
-    ...new Set([
-      ...recents.slice(0, 2),
-      'What’s on my Mac right now?',
-      'Organize my Downloads folder',
-      'Summarize the page I have open',
-    ]),
-  ].slice(0, 3);
   return (
     <main className="phone-shell">
+      <span className="visually-hidden" role="status">
+        {latest && online ? `Last task: ${statusLabels[latest.status]}.` : ''}
+      </span>
       <header className="phone-header">
         <div className="phone-brand">
           <SiaMark />
-          <span>sia</span>
-          <span className="phone-tag">remote</span>
+          <span>
+            sia<span className="brand-period">.</span>
+          </span>
         </div>
-        <span
-          className={`connection-dot ${online ? 'online' : ''}`}
-          role="status"
-          aria-label={online ? 'Connected to your Mac' : 'Mac disconnected'}
+        <button
+          className={`connection-pill ${online ? 'online' : ''}`}
+          onClick={() => openSheet('connection')}
+          aria-label="Connection details"
         >
-          <i />
-          {online ? 'On your Mac' : 'Reconnecting'}
-        </span>
+          <span
+            className="connection-dot"
+            role="status"
+            aria-label={online ? 'Connected to your Mac' : 'Mac disconnected'}
+          >
+            <i />
+          </span>
+          {online ? 'Mac connected' : 'Reconnecting'}
+          <Desktop size={15} />
+        </button>
+        <button
+          className="icon header-more"
+          aria-label="More options"
+          onClick={() => openSheet('options')}
+        >
+          <DotsThree size={25} weight="bold" />
+        </button>
       </header>
-      {graph ? (
+      {!online && (
+        <p className="connection-banner" role="status">
+          {connection}
+        </p>
+      )}
+      {view === 'memory' ? (
         <>
-          <div className="graph-heading">
-            <button className="icon" aria-label="Back to chat" onClick={() => setGraph(false)}>
-              <ArrowLeft size={21} />
-            </button>
-            <div>
-              <h1>Your assistant’s memory</h1>
-              <p>Explore what {state?.agent ?? 'Sia'} has learned.</p>
-            </div>
+          <div className="page-heading">
+            <span className="eyebrow">A LITTLE MORE YOU, EVERY DAY</span>
+            <h1>Made of memories.</h1>
+            <p>What {state?.agent ?? 'Sia'} has learned along the way.</p>
           </div>
-          <MemoryGraph online={online} />
+          {state ? (
+            <MemoryGraph online={online} />
+          ) : (
+            <div className="memory-empty">
+              <p>Reconnect to your Mac to see your memories.</p>
+            </div>
+          )}
         </>
+      ) : view === 'activity' ? (
+        <Activity
+          turns={state?.turns ?? []}
+          online={online}
+          onOpen={openTurn}
+          onStart={() => setView('chat')}
+        />
       ) : (
         <>
-          <div className="phone-context">
-            <Desktop size={15} />
-            <span>
-              {state?.agent ?? 'Sia'}{' '}
-              <span className="muted">
-                · {state?.mode === 'connected' ? 'Connected apps' : 'Use my Mac'}
-              </span>
-            </span>
-            {state && (
-              <span className="context-approval">
-                {state.approval === 'auto' ? 'Full bypass' : 'Ask first'}
-              </span>
-            )}
-          </div>
-          {!online && (
-            <p className="connection-banner" role="status">
-              {connection}
-            </p>
+          {!!state?.turns.length && (
+            <div className="conversation-heading">
+              <div>
+                <span className="assistant-avatar">
+                  <SiaMark />
+                </span>
+                <span>
+                  <strong>{state.agent}</strong>
+                  <small>
+                    {state.mode === 'connected' ? 'Connected apps' : 'Working with your Mac'}
+                  </small>
+                </span>
+              </div>
+              <button
+                className="icon"
+                aria-label="New chat"
+                disabled={busy || pending || !online}
+                onClick={() => void action('clear')}
+              >
+                <Plus size={21} />
+              </button>
+            </div>
           )}
           <div
             className="conversation"
             ref={conversation}
             onScroll={() => {
               const node = conversation.current;
-              if (node)
+              if (node) {
                 nearBottom.current =
-                  node.scrollHeight - node.scrollTop - node.clientHeight < 140;
+                  node.scrollHeight - node.scrollTop - node.clientHeight < 100;
+                setShowLatest(!nearBottom.current);
+              }
             }}
           >
             {!state?.turns.length ? (
-              <div className="remote-empty">
-                <div className="hero-mark">
-                  <SiaMark />
-                </div>
-                <span className="eyebrow">A LITTLE DISTANCE. SAME ASSISTANT.</span>
-                <h1>
-                  Your Mac,
-                  <br />
-                  within reach.
-                </h1>
-                <p>
-                  Ask from here.
-                  <br />
-                  Sia takes care of it on your Mac.
-                </p>
-                <div className="remote-chips">
-                  {chips.map((chip) => (
-                    <button
-                      key={chip}
-                      onClick={() => {
-                        setText(chip);
-                        composer.current?.focus();
-                      }}
-                    >
-                      {chip}
-                      <ArrowUp size={15} />
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <Welcome recents={recents} onChoose={choosePrompt} />
             ) : (
               <div className="turns">
                 {state.turns.map((turn) => (
@@ -351,6 +409,22 @@ function App() {
             )}
           </div>
           <footer className="phone-footer">
+            {showLatest && !!state?.turns.length && (
+              <button
+                className="jump-latest"
+                onClick={() => {
+                  nearBottom.current = true;
+                  conversation.current?.scrollTo({
+                    top: conversation.current.scrollHeight,
+                    behavior: 'instant',
+                  });
+                  setShowLatest(false);
+                }}
+              >
+                <ArrowDown size={14} />
+                Latest reply
+              </button>
+            )}
             {error && (
               <div className="remote-error" role="alert">
                 {error}
@@ -368,37 +442,19 @@ function App() {
                 {hint}
               </p>
             )}
-            {menu && (
-              <div className="composer-menu">
-                <button
-                  onClick={() => {
-                    setGraph(true);
-                    setMenu(false);
-                  }}
-                >
-                  <SquaresFour size={18} />
-                  Memory graph
-                </button>
-                <button
-                  disabled={busy || pending || !online}
-                  onClick={() => void action('clear')}
-                >
-                  <Plus size={18} />
-                  New chat
-                </button>
-                <button
-                  onClick={() => {
-                    setRecents([]);
-                    try {
-                      localStorage.removeItem('sia-remote-recents');
-                    } catch {
-                      /* Storage unavailable. */
-                    }
-                    setMenu(false);
-                  }}
-                >
-                  Clear recent prompts on this phone
-                </button>
+            {busy && (
+              <div className="live-task-line" role="status">
+                <span className={`activity-light ${latest?.status}`} />
+                {latest?.status === 'waiting'
+                  ? 'Sia needs your attention'
+                  : online
+                    ? 'Sia is working on your Mac'
+                    : 'Reconnecting for task updates'}
+                <span>
+                  {latest?.status === 'working'
+                    ? 'You can leave this page'
+                    : 'Check the latest reply'}
+                </span>
               </div>
             )}
             <form
@@ -408,27 +464,14 @@ function App() {
                 void send();
               }}
             >
-              <button
-                type="button"
-                className="icon"
-                aria-label={menu ? 'Close menu' : 'More options'}
-                aria-expanded={menu}
-                onClick={() => setMenu(!menu)}
-              >
-                {menu ? <X size={22} /> : <Plus size={22} />}
-              </button>
               <textarea
                 ref={composer}
                 aria-label="Message Sia"
                 rows={1}
                 maxLength={8000}
                 value={text}
-                placeholder={busy ? 'Add a follow-up…' : 'Ask Sia anything…'}
-                onChange={(event) => {
-                  setText(event.currentTarget.value);
-                  event.currentTarget.style.height = 'auto';
-                  event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 130)}px`;
-                }}
+                placeholder={busy ? 'Write a follow-up…' : 'What can I take off your hands?'}
+                onChange={(event) => setText(event.currentTarget.value)}
                 onKeyDown={(event) => {
                   if (
                     event.key === 'Enter' &&
@@ -440,123 +483,177 @@ function App() {
                   }
                 }}
               />
-              {busy && (!text.trim() || latest?.status === 'working') ? (
+              <div className="composer-controls">
+                <span className="composer-context">
+                  <Desktop size={14} />
+                  {state?.mode === 'connected' ? 'Connected apps' : 'Use my Mac'}
+                </span>
                 <button
                   type="button"
-                  className="send stop"
-                  disabled={pending || !online}
-                  aria-label="Stop task"
-                  onClick={() => void action('cancel')}
-                >
-                  <Stop size={17} weight="fill" />
-                </button>
-              ) : text.trim() ? (
-                <button
-                  className="send"
-                  disabled={pending || !online}
-                  aria-label="Send message"
-                >
-                  {pending ? <CircleNotch className="spin" size={20} /> : <ArrowUp size={22} />}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className={`send ${listening ? 'stop' : ''}`}
+                  className={`icon ${listening ? 'recording' : ''}`}
                   aria-label={listening ? 'Stop dictation' : 'Dictate message'}
                   disabled={pending}
                   onClick={microphone}
                 >
-                  <Microphone size={21} />
+                  <Microphone size={20} />
                 </button>
-              )}
+                {busy && (!text.trim() || latest?.status === 'working') ? (
+                  <button
+                    type="button"
+                    className="send stop"
+                    disabled={pending || !online}
+                    aria-label="Stop task"
+                    onClick={() => void action('cancel')}
+                  >
+                    <Stop size={16} weight="fill" />
+                  </button>
+                ) : (
+                  <button
+                    className="send"
+                    disabled={!text.trim() || pending || !online}
+                    aria-label="Send message"
+                  >
+                    {pending ? (
+                      <CircleNotch className="spin" size={20} />
+                    ) : (
+                      <ArrowUp size={21} weight="bold" />
+                    )}
+                  </button>
+                )}
+              </div>
             </form>
             <div className="footer-caption">
               {pending
                 ? 'Sending to your Mac…'
-                : busy
-                  ? 'You can leave this page. Sia keeps working.'
-                  : state && state.workers > 0
+                : latest?.status === 'working' && text.trim()
+                  ? 'Your follow-up is ready to send when this task finishes.'
+                  : state && state.workers > 0 && !busy
                     ? `${state.workers} ${state.workers === 1 ? 'task is' : 'tasks are'} running on your Mac.`
-                    : 'Same Wi-Fi. Sia open. Mac awake.'}
+                    : 'Your Mac does the work. You keep moving.'}
             </div>
           </footer>
         </>
       )}
+      <nav className="phone-nav" aria-label="Main navigation">
+        {(
+          [
+            { id: 'chat', label: 'Chat', icon: ChatCircle },
+            { id: 'activity', label: 'Tasks', icon: Stack },
+            { id: 'memory', label: 'Memory', icon: Graph },
+          ] as const
+        ).map((item) => (
+          <button
+            key={item.id}
+            aria-current={view === item.id ? 'page' : undefined}
+            onClick={() => {
+              setView(item.id);
+              setHint('');
+            }}
+          >
+            <span className="nav-icon">
+              <item.icon size={21} weight={view === item.id ? 'fill' : 'regular'} />
+              {item.id === 'activity' && busy && <i className="nav-dot" />}
+            </span>
+            {item.label}
+          </button>
+        ))}
+      </nav>
+      <Sheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        title={
+          sheet === 'connection'
+            ? online
+              ? 'Your Mac, connected.'
+              : 'Let’s reconnect.'
+            : 'Make yourself at home.'
+        }
+        description={
+          sheet === 'connection'
+            ? 'Your phone is a window into Sia on your Mac.'
+            : 'A few things to keep close.'
+        }
+      >
+        {sheet === 'connection' ? (
+          <>
+            <div className="device-card">
+              <div className="device-icon">
+                <Desktop size={38} weight="duotone" />
+              </div>
+              <strong>{state?.agent ?? 'Sia'} on your Mac</strong>
+              <span className={`device-status ${online ? 'online' : ''}`}>
+                <i />
+                {online ? 'Connected and ready' : 'Waiting for your Mac'}
+              </span>
+            </div>
+            <div className="connection-facts">
+              <p>
+                <WifiHigh size={20} />
+                <span>
+                  <strong>Stay on the same Wi-Fi</strong>
+                  <small>Keep Sia open and your Mac awake.</small>
+                </span>
+              </p>
+              <p>
+                <ShieldCheck size={20} />
+                <span>
+                  <strong>
+                    {!state
+                      ? 'Uses your Mac’s settings'
+                      : state.approval === 'auto'
+                        ? 'Full bypass is on'
+                        : 'Confirm actions on your Mac'}
+                  </strong>
+                  <small>Change this in Sia’s Computer settings.</small>
+                </span>
+              </p>
+            </div>
+            {!online && <p className="connection-banner">{connection}</p>}
+          </>
+        ) : (
+          <div className="sheet-actions">
+            <button disabled={busy || pending || !online} onClick={() => void action('clear')}>
+              <Plus size={22} />
+              <span>
+                <strong>New chat</strong>
+                <small>Start fresh. Keep your history on your Mac.</small>
+              </span>
+              <ArrowUpRight size={18} />
+            </button>
+            <button
+              onClick={() => {
+                setView('memory');
+                setSheetOpen(false);
+              }}
+            >
+              <Graph size={22} />
+              <span>
+                <strong>Memory graph</strong>
+                <small>Explore what your assistant remembers.</small>
+              </span>
+              <ArrowUpRight size={18} />
+            </button>
+            <button
+              onClick={() => {
+                setRecents([]);
+                try {
+                  localStorage.removeItem('sia-remote-recents');
+                } catch {
+                  /* Storage unavailable. */
+                }
+                setSheetOpen(false);
+              }}
+            >
+              <Trash size={22} />
+              <span>
+                <strong>Clear recent prompts</strong>
+                <small>Only removes suggestions on this phone.</small>
+              </span>
+            </button>
+          </div>
+        )}
+      </Sheet>
     </main>
-  );
-}
-function Turn({ turn, agent }: { turn: RemoteTurn; agent: string }) {
-  return (
-    <section className="remote-turn">
-      <div className="user-message">{turn.text}</div>
-      <div className="assistant-heading">
-        <SiaMark state={turn.status === 'working' ? 'working' : 'idle'} />
-        <strong>{agent}</strong>
-        <span>
-          {turn.status === 'working' ? (
-            <>
-              <span className="working-dot" />
-              Working
-            </>
-          ) : turn.status === 'waiting' ? (
-            'Needs you'
-          ) : turn.status === 'cancelled' ? (
-            'Stopped'
-          ) : turn.status === 'error' ? (
-            'Needs attention'
-          ) : (
-            <>
-              <Check size={13} />
-              Finished
-            </>
-          )}
-        </span>
-      </div>
-      {turn.steps.length > 0 && (
-        <details className="task-steps">
-          <summary>
-            {turn.status === 'working'
-              ? turn.steps.at(-1)
-              : `${turn.steps.length} ${turn.steps.length === 1 ? 'step' : 'steps'}`}
-          </summary>
-          <ol>
-            {turn.steps.map((step, index) => (
-              <li key={index}>{step}</li>
-            ))}
-          </ol>
-        </details>
-      )}
-      {turn.response && (
-        <div className="remote-response">
-          <SafeMarkdown content={turn.response} />
-        </div>
-      )}
-      {turn.status === 'working' && !turn.response && (
-        <div className="thinking-dots" aria-label="Sia is thinking">
-          <i />
-          <i />
-          <i />
-        </div>
-      )}
-      {turn.error && <p className="task-error">{turn.error}</p>}
-      {turn.status === 'waiting' && (
-        <p className="waiting-note">
-          Reply below if Sia asked a question. Approve computer actions in Sia on your Mac.
-        </p>
-      )}
-      {turn.files.map((file) => (
-        <a
-          className="result-file"
-          href={new URL(`outbox/${encodeURIComponent(file)}`, remoteBase).href}
-          download={file}
-          key={file}
-        >
-          <DownloadSimple size={19} />
-          <span>{file}</span>
-          <span className="muted">Save</span>
-        </a>
-      ))}
-    </section>
   );
 }
 createRoot(document.getElementById('root')!).render(<App />);

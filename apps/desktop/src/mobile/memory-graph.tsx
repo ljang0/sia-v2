@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { List, Minus, Plus, X } from '@phosphor-icons/react';
+import { List, MagnifyingGlass, Minus, Plus } from '@phosphor-icons/react';
 import type { RemoteNote, RemoteVault } from '../shared/phone-remote';
 import { SafeMarkdown } from '../renderer/components/SafeMarkdown';
 import { remoteRequest } from './api';
+import { Sheet } from './remote-ui';
 
 interface Point {
   id: string;
@@ -65,6 +66,7 @@ export function MemoryGraph({ online }: { online: boolean }) {
   const [note, setNote] = useState<RemoteNote>();
   const [error, setError] = useState('');
   const [list, setList] = useState(false);
+  const [query, setQuery] = useState('');
   const [loaded, setLoaded] = useState(false);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const moved = useRef(false);
@@ -105,10 +107,7 @@ export function MemoryGraph({ online }: { online: boolean }) {
     setPoints(next);
   }, [vault]);
   useEffect(() => {
-    if (!noteId) {
-      setNote(undefined);
-      return;
-    }
+    if (!noteId) return;
     const controller = new AbortController();
     setNote(undefined);
     void remoteRequest<RemoteNote>(
@@ -149,6 +148,17 @@ export function MemoryGraph({ online }: { online: boolean }) {
           {error}
         </p>
       )}
+      {list && (
+        <label className="memory-search">
+          <MagnifyingGlass size={18} />
+          <input
+            aria-label="Search memories"
+            placeholder="Find a memory…"
+            value={query}
+            onChange={(event) => setQuery(event.currentTarget.value)}
+          />
+        </label>
+      )}
       {loaded && !vault.nodes.length ? (
         <div className="memory-empty">
           <h2>A memory starts with a conversation.</h2>
@@ -156,13 +166,20 @@ export function MemoryGraph({ online }: { online: boolean }) {
         </div>
       ) : list ? (
         <div className="memory-list">
-          {vault.nodes.map((node) => (
-            <button key={node.id} onClick={() => setNoteId(node.id)}>
-              <i data-kind={node.kind} />
-              <span>{node.title}</span>
-              <small>{node.kind}</small>
-            </button>
-          ))}
+          {!vault.nodes.some((node) =>
+            `${node.title} ${node.kind}`.toLowerCase().includes(query.toLowerCase()),
+          ) && <p className="composer-hint">No memories match “{query}”. Try another word.</p>}
+          {vault.nodes
+            .filter((node) =>
+              `${node.title} ${node.kind}`.toLowerCase().includes(query.toLowerCase()),
+            )
+            .map((node) => (
+              <button key={node.id} onClick={() => setNoteId(node.id)}>
+                <i data-kind={node.kind} />
+                <span>{node.title}</span>
+                <small>{node.kind}</small>
+              </button>
+            ))}
         </div>
       ) : (
         <svg
@@ -298,25 +315,25 @@ export function MemoryGraph({ online }: { online: boolean }) {
           </span>
         ))}
       </div>
-      {noteId && (
-        <aside className="memory-note" aria-label="Memory details">
-          <header>
-            <div>
-              <span className="eyebrow">{note?.kind ?? 'MEMORY'}</span>
-              <h2>{note?.title ?? 'Loading…'}</h2>
-            </div>
-            <button
-              className="icon"
-              aria-label="Close memory"
-              autoFocus
-              onClick={() => setNoteId(undefined)}
-            >
-              <X size={22} />
-            </button>
-          </header>
-          <div className="note-body">{note && <SafeMarkdown content={note.content} />}</div>
-        </aside>
-      )}
+      <Sheet
+        open={!!noteId}
+        onClose={() => setNoteId(undefined)}
+        title={note?.title ?? 'Loading memory…'}
+        description={
+          note?.kind
+            ? `From your assistant’s ${note.kind === 'memory' ? 'memory' : note.kind}.`
+            : 'Opening this memory from your Mac.'
+        }
+        closeLabel="Close memory"
+      >
+        <div className="note-body">
+          {note ? (
+            <SafeMarkdown content={note.content} />
+          ) : (
+            <p role="status">{error || 'Loading…'}</p>
+          )}
+        </div>
+      </Sheet>
     </section>
   );
 }

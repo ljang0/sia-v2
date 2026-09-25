@@ -66,7 +66,7 @@ const test = base.extend<{
           thread.status = 'idle';
         };
         if (input.text.toLowerCase().includes('quick')) finish();
-        else timers.push(setTimeout(finish, 900));
+        else timers.push(setTimeout(finish, input.text.includes('keep working') ? 30000 : 900));
         return { turnId, snapshot: state };
       }
       if (method === 'threads.cancel') {
@@ -153,7 +153,11 @@ test('phone layout, send, immediate completion, persistence and result download'
   await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Your Mac, within reach.' })).toBeVisible();
   await expect(page.getByRole('textbox')).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath('phone-home.png') });
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.screenshot({
+    path: testInfo.outputPath('phone-home.png'),
+    animations: 'disabled',
+  });
   await page.getByRole('textbox').fill('A quick answer please');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByText('The answer is', { exact: false })).toBeVisible();
@@ -202,12 +206,12 @@ test('stops the current task and starts a new conversation without deleting the 
 }) => {
   await page.goto(remote.url);
   await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
-  await page.getByRole('textbox').fill('Read the current page');
+  await page.getByRole('textbox').fill('Read the current page and keep working');
   await page.getByRole('button', { name: 'Send message' }).click();
   await page.getByRole('button', { name: 'Stop task' }).click();
   await expect(page.getByText('Stopped', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'More options' }).click();
-  await page.getByRole('button', { name: 'New chat', exact: true }).click();
+  await page.getByRole('button', { name: /^New chat Start fresh/ }).click();
   await expect(page.getByRole('heading', { name: 'Your Mac, within reach.' })).toBeVisible();
   expect(remote.state.timeline.some((item) => item.kind === 'user')).toBe(true);
 });
@@ -219,7 +223,7 @@ test('memory graph and note reading, plus accessible list view', async ({
   await page.goto(remote.url);
   await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
   await page.getByRole('button', { name: 'More options' }).click();
-  await page.getByRole('button', { name: 'Memory graph', exact: true }).click();
+  await page.getByRole('button', { name: /^Memory graph Explore/ }).click();
   await expect(page.getByText('4 memories · 1 link')).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('phone-memory.png') });
   await page.getByRole('button', { name: 'Show memory list' }).click();
@@ -227,7 +231,7 @@ test('memory graph and note reading, plus accessible list view', async ({
   await expect(page.getByRole('heading', { name: 'Keep it brief' })).toBeVisible();
   await expect(page.getByText('Prefer short answers about [[Work]].')).toBeVisible();
   await page.getByRole('button', { name: 'Close memory' }).click();
-  await page.getByRole('button', { name: 'Back to chat' }).click();
+  await page.getByRole('button', { name: 'Chat', exact: true }).click();
   await expect(page.getByRole('textbox')).toBeVisible();
 });
 
@@ -260,6 +264,8 @@ test('keeps the composer usable on compact phones, landscape and dark appearance
   for (const viewport of [
     { width: 320, height: 568 },
     { width: 844, height: 390 },
+    { width: 390, height: 390 },
+    { width: 430, height: 932 },
     { width: 390, height: 844 },
   ]) {
     await page.setViewportSize(viewport);
@@ -275,4 +281,274 @@ test('keeps the composer usable on compact phones, landscape and dark appearance
     .locator('.phone-shell')
     .evaluate((node) => getComputedStyle(node).backgroundColor);
   expect(surface).toBe('rgb(25, 30, 27)');
+});
+
+test('suggestions stay editable and drafts survive navigation', async ({ page, remote }) => {
+  await page.goto(remote.url);
+  await page.getByRole('button', { name: /Plan my week/ }).click();
+  await expect(page.getByRole('textbox')).toHaveValue(/Help me plan my week/);
+  expect(remote.sends).toHaveLength(0);
+  await page.getByRole('textbox').fill('My unsent draft');
+  await page.getByRole('button', { name: 'Tasks', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Room for your next idea.' })).toBeVisible();
+  await page.getByRole('button', { name: 'With files 0' }).click();
+  await expect(page.getByRole('heading', { name: 'Good things take shape.' })).toBeVisible();
+  await page.getByRole('button', { name: 'Memory', exact: true }).click();
+  await expect(page.getByText('4 memories · 1 link')).toBeVisible();
+  await page.getByRole('button', { name: 'Chat', exact: true }).click();
+  await expect(page.getByRole('textbox')).toHaveValue('My unsent draft');
+  expect(remote.sends).toHaveLength(0);
+});
+
+test('task cards lead back to replies and downloadable results', async ({
+  page,
+  remote,
+}, testInfo) => {
+  await page.goto(remote.url);
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  await page.getByRole('textbox').fill('A quick answer');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByText('Finished', { exact: true })).toBeVisible();
+  await page.getByRole('textbox').fill('Make a quick report');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByRole('link', { name: /report.txt/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Tasks', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'All tasks 2' })).toBeVisible();
+  await page.getByRole('button', { name: 'With files 1' }).click();
+  await expect(page.getByRole('button', { name: /Finished A quick answer/ })).toHaveCount(0);
+  await page.screenshot({
+    path: testInfo.outputPath('phone-tasks.png'),
+    animations: 'disabled',
+  });
+  await page.getByRole('button', { name: /Finished Make a quick report/ }).click();
+  await expect(page.getByRole('link', { name: /report.txt/ })).toBeInViewport();
+  expect(remote.sends).toHaveLength(2);
+});
+
+test('a working task preserves the follow-up and a waiting task accepts it', async ({
+  page,
+  remote,
+}) => {
+  await page.goto(remote.url);
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  await page.getByRole('textbox').fill('Please keep working');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByRole('button', { name: 'Stop task' })).toBeVisible();
+  await page.getByRole('textbox').fill('A quick follow-up');
+  await page.getByRole('textbox').press('Enter');
+  expect(remote.sends).toHaveLength(1);
+  await expect(page.getByRole('textbox')).toHaveValue('A quick follow-up');
+  await page.getByRole('button', { name: 'Tasks', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Working Please keep working/ })).toBeVisible();
+  remote.state.threads[0]!.status = 'waiting';
+  await expect(
+    page.getByRole('button', { name: /Needs you Please keep working/ }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: /Needs you Please keep working/ }).click();
+  await expect(
+    page.getByText('Reply below if Sia asked a question.', { exact: false }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByRole('textbox')).toHaveValue('');
+  expect(remote.sends).toEqual(['Please keep working', 'A quick follow-up']);
+});
+
+test('connection sheet traps focus, closes with Escape and restores focus', async ({
+  page,
+  remote,
+}, testInfo) => {
+  await page.goto(remote.url);
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  await page.getByRole('button', { name: 'Connection details' }).click();
+  const panel = page.getByRole('dialog', { name: 'Your Mac, connected.' });
+  await expect(panel).toBeVisible();
+  await expect(panel.getByText('Full bypass is on')).toBeVisible();
+  await expect(panel.getByText('Keep Sia open and your Mac awake.')).toBeVisible();
+  await panel.getByRole('button', { name: 'Close panel' }).press('Tab');
+  await expect(panel.getByRole('button', { name: 'Close panel' })).toBeFocused();
+  await page.screenshot({
+    path: testInfo.outputPath('phone-connection.png'),
+    animations: 'disabled',
+  });
+  await page.keyboard.press('Escape');
+  await expect(panel).not.toBeVisible();
+  // WebKit does not focus tapped buttons, so explicitly focus the opener when testing keyboard return.
+  await page.getByRole('button', { name: 'Connection details' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(panel).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Connection details' })).toBeFocused();
+  expect(remote.sends).toHaveLength(0);
+});
+
+test('memory search filters notes and recovers from no results', async ({ page, remote }) => {
+  await page.goto(remote.url);
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  await page.getByRole('button', { name: 'Memory', exact: true }).click();
+  await page.getByRole('button', { name: 'Show memory list' }).click();
+  await page.getByRole('textbox', { name: 'Search memories' }).fill('brief');
+  await expect(page.getByRole('button', { name: /Morning summary/ })).toHaveCount(0);
+  await page.getByRole('button', { name: /Keep it brief/ }).click();
+  await expect(page.getByRole('dialog', { name: 'Keep it brief' })).toBeVisible();
+  await page.getByRole('button', { name: 'Close memory' }).click();
+  await page.getByRole('textbox', { name: 'Search memories' }).fill('no matching memory');
+  await expect(page.getByText(/No memories match/)).toBeVisible();
+  await page.getByRole('textbox', { name: 'Search memories' }).fill('');
+  await expect(page.getByRole('button', { name: /Morning summary/ })).toBeVisible();
+});
+
+test('acknowledged commands survive a failed status refresh without claiming send failed', async ({
+  page,
+  remote,
+}) => {
+  await page.goto(remote.url);
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  let loseUpdates = false;
+  await page.route('**/state', (route) =>
+    loseUpdates ? route.abort('failed') : route.continue(),
+  );
+  await page.route('**/command', async (route) => {
+    const response = await route.fetch();
+    loseUpdates = true;
+    await route.fulfill({ response });
+  });
+  await page.getByRole('textbox').fill('A quick answer');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByRole('textbox')).toHaveValue('');
+  await expect(page.getByRole('status', { name: 'Mac disconnected' })).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  expect(remote.sends).toEqual(['A quick answer']);
+  loseUpdates = false;
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  await expect(page.getByText('Finished', { exact: true })).toBeVisible();
+});
+
+test('reduced motion keeps the home screen still without disabling navigation', async ({
+  page,
+  remote,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto(remote.url);
+  await expect(page.getByRole('heading', { name: 'Your Mac, within reach.' })).toBeVisible();
+  const duration = await page
+    .locator('.hero-presence')
+    .evaluate((node) => getComputedStyle(node).animationDuration);
+  expect(parseFloat(duration)).toBeLessThanOrEqual(0.001);
+  await page.getByRole('button', { name: 'More ideas' }).click();
+  await expect(page.getByRole('button', { name: /Find that file/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Tasks', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'A little less to do.' })).toBeVisible();
+});
+
+test('starter cards remain fully reachable above the composer on shorter phones', async ({
+  page,
+  remote,
+}) => {
+  await page.goto(remote.url);
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  for (const viewport of [
+    { width: 390, height: 664 },
+    { width: 320, height: 568 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const card = page.getByRole('button', { name: /Pick up where I left off/ });
+    await expect(card).toBeInViewport({ ratio: 1 });
+    const cardRect = await card.boundingBox();
+    const composerRect = await page.locator('.phone-footer').boundingBox();
+    expect(cardRect!.y + cardRect!.height).toBeLessThanOrEqual(composerRect!.y);
+  }
+});
+
+test('revoking access also removes cached memories from the phone', async ({
+  page,
+  remote,
+}) => {
+  await page.goto(remote.url);
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  await page.getByRole('button', { name: 'Memory', exact: true }).click();
+  await page.getByRole('button', { name: 'Show memory list' }).click();
+  await page.getByRole('button', { name: /Keep it brief/ }).click();
+  await expect(page.getByRole('dialog', { name: 'Keep it brief' })).toBeVisible();
+  await page.route('**/state', (route) =>
+    route.fulfill({
+      status: 404,
+      json: { error: 'Remote unavailable. Scan the current QR code in Sia on your Mac.' },
+    }),
+  );
+  await expect(page.getByText('Reconnect to your Mac to see your memories.')).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByText('Prefer short answers about [[Work]].')).toHaveCount(0);
+});
+
+test('typing the next draft during an acknowledgement does not erase it', async ({
+  page,
+  remote,
+}) => {
+  await page.goto(remote.url);
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  let release!: () => void;
+  const acknowledgement = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/command', async (route) => {
+    const response = await route.fetch();
+    await acknowledgement;
+    await route.fulfill({ response });
+  });
+  await page.getByRole('textbox').fill('A quick answer');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect.poll(() => remote.sends.length).toBe(1);
+  await page.getByRole('textbox').fill('This is my next draft');
+  release();
+  await expect(page.getByRole('button', { name: 'Send message' })).toBeEnabled();
+  await expect(page.getByRole('textbox')).toHaveValue('This is my next draft');
+  expect(remote.sends).toEqual(['A quick answer']);
+});
+
+test('unsupported browser dictation guides users to the keyboard microphone', async ({
+  page,
+  remote,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'SpeechRecognition', { value: undefined });
+    Object.defineProperty(window, 'webkitSpeechRecognition', { value: undefined });
+  });
+  await page.goto(remote.url);
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  await page.getByRole('button', { name: 'Dictate message' }).click();
+  await expect(
+    page.getByText('Tap the microphone on your phone’s keyboard to dictate.'),
+  ).toBeVisible();
+  await expect(page.getByRole('textbox')).toBeFocused();
+  await page.getByRole('textbox').fill('A quick answer');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByText('Finished', { exact: true })).toBeVisible();
+  await expect(
+    page.getByText('Tap the microphone on your phone’s keyboard to dictate.'),
+  ).toHaveCount(0);
+});
+
+test('a failure already explained in the reply is shown once and still needs attention', async ({
+  page,
+  remote,
+}) => {
+  await page.goto(remote.url);
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  await page.getByRole('textbox').fill('A quick answer');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByText('Finished', { exact: true })).toBeVisible();
+  const detail = 'I could only verify part of the result. Please reopen the page to continue.';
+  remote.state.timeline.find((item) => item.kind === 'assistant')!.text =
+    `I checked the first source.\n\n${detail}`;
+  remote.state.threads[0]!.status = 'failed';
+  remote.state.timeline.push({
+    id: randomUUID(),
+    threadId: remote.state.activeThreadId!,
+    sequence: remote.state.timeline.length + 1,
+    timestamp: '',
+    kind: 'error',
+    text: detail,
+  });
+  await expect(page.getByText('Needs attention', { exact: true })).toBeVisible();
+  await expect(page.getByText(detail, { exact: true })).toHaveCount(1);
 });

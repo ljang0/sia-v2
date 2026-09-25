@@ -95,10 +95,24 @@ reports success before cloud completion, stop testing and notify the pilot owner
 In **Settings → More → Phone remote**, choose an assistant and enable remote access. If macOS asks for
 **Local Network**, choose **Allow**. Connect your phone to the same Wi-Fi, scan the QR code with
 its camera, and open the private link. No phone app, connector, or additional account is required.
-The page uses Sia's desktop styling and lets you send/follow up, watch progress, stop the current
-task, download results from SiaOutbox (up to 20 MB), and explore the selected agent's memories,
-journal, workflows and saved scripts. **New chat** clears the remote view without deleting the
-Mac's history. Your phone can also follow the selected agent's current desktop/Fn conversation.
+The phone page shares Sia's colors and typography, with three thumb-accessible views:
+
+- **Chat**: choose an editable suggestion or write your own request, follow progress, send a
+  follow-up, stop a task, and download results from SiaOutbox (up to 20 MB). Drafts survive switching
+  views. While Sia is working, a follow-up stays in the composer until the task finishes or asks
+  for input; it is not silently queued.
+- **Tasks**: see the requests in the current chat, their actual status, and tasks with downloadable
+  files. Tap a card to return to its reply. The Mac retains older chat history.
+- **Memory**: explore the selected agent's memory graph or switch to a searchable list of memories,
+  journals, workflows, and saved scripts. Tap a note to read it.
+
+Tap **Mac connected** for connection requirements and the current approval setting. The **More
+options** menu includes **New chat**, which clears the remote view without deleting the Mac's
+history, and an option to clear recent prompt suggestions on this phone. Your phone can also
+follow the selected agent's current desktop/Fn conversation. The layout follows light/dark
+appearance, respects reduced motion, and keeps the composer visible as the phone keyboard opens.
+A dropped connection preserves unsent text; retrying a command with an uncertain acknowledgement
+uses the same request identifier to avoid duplicate tasks.
 
 Phone requests use the assistant's existing Codex route and the Mac's current **Use my Mac** /
 **Connected apps** and **Full bypass** / **Ask first** settings. Approve pending computer actions
@@ -110,8 +124,11 @@ subnet. It stops on sleep/lock, follows network changes, and resumes when the Ma
 Sia must remain open and the Mac awake and unlocked. Scan again after a Wi-Fi address change.
 Guest/campus Wi-Fi that isolates devices may prevent pairing; use a network that permits peers.
 
-`pnpm --filter @sia/desktop test:remote` runs the isolated phone-browser checks with simulated
-tasks. It does not launch Electron, call a model, move the cursor, or open host apps.
+`pnpm --filter @sia/desktop test:remote` runs the isolated phone-browser checks in Chromium and
+WebKit with simulated tasks. Install their test engines once with
+`pnpm --filter @sia/desktop exec playwright install chromium webkit`. These checks cover sending,
+retrying, stopping, task navigation, file downloads, searchable memory, accessible panels,
+reduced motion, and compact/landscape layouts. It does not launch Electron, call a model, move the cursor, or open host apps.
 
 ## Optional Fn push-to-talk
 

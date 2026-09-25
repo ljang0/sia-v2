@@ -5,9 +5,12 @@ export default defineConfig({
   timeout: 20000,
   workers: 1,
   reporter: 'list',
+  projects: [
+    { name: 'phone-chromium', use: { browserName: 'chromium' } },
+    { name: 'phone-webkit', use: { browserName: 'webkit' } },
+  ],
   use: {
     ...devices['iPhone 13'],
-    defaultBrowserType: 'chromium',
     headless: true,
     screenshot: 'only-on-failure',
   },
