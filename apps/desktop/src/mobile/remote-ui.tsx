@@ -15,6 +15,7 @@ import {
 } from '@phosphor-icons/react';
 import type { RemoteTurn } from '../shared/phone-remote';
 import { SiaMark } from '../renderer/components/SiaMark';
+import { LiquidMetalButton } from './liquid-metal-button';
 
 export function Sheet({
   open,
@@ -261,10 +262,10 @@ export function Activity({
                 ? 'Files Sia creates in this chat will be easy to find here.'
                 : 'Ask Sia to take something off your list. You can follow its progress here.'}
             </p>
-            <button className="text-action" onClick={onStart}>
+            <LiquidMetalButton className="text-action" tone="sage" onClick={onStart}>
               Ask Sia
               <ArrowRight size={17} />
-            </button>
+            </LiquidMetalButton>
           </div>
         )}
       </div>

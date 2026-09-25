@@ -666,3 +666,138 @@ test('graphics context loss restores the fallback without losing the draft', asy
   await expect(page.getByRole('heading', { name: 'A little less to do.' })).toBeVisible();
   expect(remote.sends).toHaveLength(0);
 });
+
+test('keyboard resize and Safari viewport pan keep the composer on the visible screen', async ({
+  page,
+  remote,
+}) => {
+  await page.goto(remote.url);
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  const input = page.getByRole('textbox', { name: 'Message Sia' });
+  const original = await page.evaluate(() => ({
+    height: visualViewport!.height,
+    top: visualViewport!.offsetTop,
+  }));
+  await input.fill('Keep my draft while the keyboard opens');
+  await expect(input).toHaveCSS('font-size', '16px');
+  // Mobile keyboards shrink and pan the visual viewport without resizing the layout viewport.
+  await page.evaluate(() => {
+    Object.defineProperty(visualViewport!, 'height', { configurable: true, value: 380 });
+    Object.defineProperty(visualViewport!, 'offsetTop', { configurable: true, value: 120 });
+    visualViewport!.dispatchEvent(new Event('resize'));
+    visualViewport!.dispatchEvent(new Event('scroll'));
+  });
+  await expect(page.locator('html')).toHaveAttribute('data-phone-keyboard', 'open');
+  await expect(page.getByRole('navigation')).toBeHidden();
+  const shell = await page.locator('.phone-shell').boundingBox();
+  const composer = await page.locator('.remote-composer').boundingBox();
+  expect(shell!.y).toBeCloseTo(120, 0);
+  expect(shell!.height).toBeCloseTo(380, 0);
+  expect(composer!.y + composer!.height).toBeLessThanOrEqual(500);
+  expect(composer!.y).toBeGreaterThan(120);
+  await expect(input).toBeFocused();
+  await expect(input).toHaveValue('Keep my draft while the keyboard opens');
+  // Safari may pan again without a resize; don't lose the header above the visible viewport.
+  await page.evaluate(() => {
+    Object.defineProperty(visualViewport!, 'offsetTop', { configurable: true, value: 160 });
+    visualViewport!.dispatchEvent(new Event('scroll'));
+  });
+  await expect
+    .poll(async () => (await page.locator('.phone-shell').boundingBox())!.y)
+    .toBe(160);
+  await input.blur();
+  await page.evaluate(({ height, top }) => {
+    Object.defineProperty(visualViewport!, 'height', { configurable: true, value: height });
+    Object.defineProperty(visualViewport!, 'offsetTop', { configurable: true, value: top });
+    visualViewport!.dispatchEvent(new Event('resize'));
+  }, original);
+  await expect(page.locator('html')).toHaveAttribute('data-phone-keyboard', 'closed');
+  await expect(page.getByRole('navigation')).toBeVisible();
+  await expect(input).toHaveValue('Keep my draft while the keyboard opens');
+  expect(remote.sends).toHaveLength(0);
+});
+
+test('pinch zoom is not treated as the phone keyboard opening', async ({ page, remote }) => {
+  await page.goto(remote.url);
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  const before = await page.locator('.phone-shell').boundingBox();
+  await page.evaluate(() => {
+    Object.defineProperty(visualViewport!, 'scale', { configurable: true, value: 1.5 });
+    Object.defineProperty(visualViewport!, 'height', { configurable: true, value: 340 });
+    Object.defineProperty(visualViewport!, 'offsetTop', { configurable: true, value: 80 });
+    visualViewport!.dispatchEvent(new Event('resize'));
+    visualViewport!.dispatchEvent(new Event('scroll'));
+  });
+  await page.waitForTimeout(100);
+  await expect(page.locator('html')).toHaveAttribute('data-phone-keyboard', 'closed');
+  expect(await page.locator('.phone-shell').boundingBox()).toEqual(before);
+  await expect(page.getByRole('navigation')).toBeVisible();
+});
+
+test('liquid metal buttons animate, pause, keep disabled actions inert, and submit once', async ({
+  page,
+  remote,
+}) => {
+  await page.addInitScript(() => {
+    const draw = WebGL2RenderingContext.prototype.drawArrays;
+    (window as unknown as AuroraProbe).auroraProbe = { frames: 0, pixels: 0 };
+    WebGL2RenderingContext.prototype.drawArrays = function (mode, first, count) {
+      draw.call(this, mode, first, count);
+      (window as unknown as AuroraProbe).auroraProbe.frames++;
+    };
+  });
+  const frames = () =>
+    page.evaluate(() => (window as unknown as AuroraProbe).auroraProbe.frames);
+  await page.goto(remote.url);
+  const send = page.getByRole('button', { name: 'Send message' });
+  await expect(send).toBeDisabled();
+  await expect(send.locator('canvas')).toHaveCount(0);
+  const metal = page
+    .getByRole('button', { name: 'Connection details' })
+    .locator('.metal-surface');
+  await expect(metal).toHaveAttribute('data-metal', 'ready');
+  const first = await frames();
+  await expect.poll(frames).toBeGreaterThan(first);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(100);
+  const hidden = await frames();
+  await page.waitForTimeout(200);
+  expect(await frames()).toBe(hidden);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect.poll(frames).toBeGreaterThan(hidden);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForTimeout(100);
+  const still = await frames();
+  await page.waitForTimeout(200);
+  expect(await frames()).toBe(still);
+  await page.getByRole('textbox').fill('A quick answer');
+  await send.press('Enter');
+  await expect(page.getByText('Finished', { exact: true })).toBeVisible();
+  expect(remote.sends).toEqual(['A quick answer']);
+  await expect(send).toBeDisabled();
+});
+
+test('metal fallback stays usable without WebGL2', async ({ page, remote }) => {
+  await page.addInitScript(() => {
+    const getContext = HTMLCanvasElement.prototype.getContext;
+    Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+      value: function (type: string, options: unknown) {
+        return type === 'webgl2' ? null : getContext.call(this, type, options);
+      },
+    });
+  });
+  await page.goto(remote.url);
+  await expect(
+    page.getByRole('button', { name: 'Connection details' }).locator('.metal-surface'),
+  ).toHaveAttribute('data-metal', 'fallback');
+  await page.getByRole('textbox').fill('A quick answer');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByText('Finished', { exact: true })).toBeVisible();
+  expect(remote.sends).toEqual(['A quick answer']);
+});

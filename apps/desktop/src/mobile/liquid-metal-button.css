@@ -1,0 +1,162 @@
+/* Joly UI's layered metallic rim, translated into Sia's mineral palette. */
+.liquid-metal-button {
+  --metal-face: linear-gradient(175deg, #fbfcf8, #e3ebe4);
+  --metal-ink: #243e34;
+  --metal-shadow: rgb(30 53 43 / 14%);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  border: 0;
+  border-radius: 999px;
+  padding: 2px 20px;
+  isolation: isolate;
+  overflow: hidden;
+  color: var(--metal-ink);
+  background: linear-gradient(
+    135deg,
+    #f2fff5 5%,
+    #819c91 24%,
+    #f8fffb 46%,
+    #9da9a6 69%,
+    #d8f1e2 90%
+  );
+  box-shadow:
+    0 3px 8px var(--metal-shadow),
+    inset 0 0 0 1px rgb(67 91 77 / 16%);
+  transition:
+    transform 160ms var(--phone-ease),
+    box-shadow 180ms ease;
+  font-weight: 600;
+}
+.liquid-metal-button::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: inherit;
+  background: var(--metal-face);
+  z-index: 1;
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 32%),
+    inset 0 -1px 2px rgb(23 58 52 / 12%);
+  pointer-events: none;
+}
+.metal-surface {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.metal-surface canvas {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 250ms ease;
+}
+.metal-surface[data-metal='ready'] canvas {
+  opacity: 0.85;
+}
+.metal-content {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: inherit;
+  pointer-events: none;
+}
+.liquid-metal-button.connection-pill {
+  padding-inline: 12px;
+  min-height: 44px;
+}
+.liquid-metal-button[data-view='icon'] {
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  flex: none;
+}
+.liquid-metal-button[data-tone='sage'] {
+  --metal-face: linear-gradient(170deg, #356650, #183e31);
+  --metal-ink: #f0fff5;
+  color: var(--metal-ink);
+}
+.liquid-metal-button[data-tone='danger'] {
+  --metal-face: linear-gradient(170deg, #8c4438, #602b24);
+  --metal-ink: #fff5f2;
+  color: var(--metal-ink);
+}
+.liquid-metal-button:disabled {
+  --metal-face: var(--bg-subtle);
+  color: var(--text-tertiary);
+  background: var(--border-subtle);
+  box-shadow: none;
+  opacity: 0.75;
+  cursor: default;
+}
+.liquid-metal-button:disabled .metal-surface {
+  display: none;
+}
+.liquid-metal-button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+.liquid-metal-button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.96);
+  transition-duration: 70ms;
+  box-shadow: 0 1px 2px var(--metal-shadow);
+}
+.metal-ripple {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(180 236 208 / 45%), transparent 70%);
+  pointer-events: none;
+  z-index: 3;
+  animation: metal-ripple 500ms ease-out forwards;
+}
+@keyframes metal-ripple {
+  from {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0.75;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(10);
+    opacity: 0;
+  }
+}
+@media (hover: hover) {
+  .liquid-metal-button:hover:not(:disabled) {
+    box-shadow:
+      0 6px 14px var(--metal-shadow),
+      inset 0 0 0 1px rgb(175 230 198 / 45%);
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .liquid-metal-button {
+    --metal-face: linear-gradient(175deg, #36483e, #202e27);
+    --metal-ink: #edf7ee;
+    --metal-shadow: rgb(0 0 0 / 24%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .liquid-metal-button,
+  .metal-surface canvas {
+    transition: none;
+  }
+  .metal-ripple {
+    display: none;
+  }
+}
+
+@media (max-width: 350px) {
+  .liquid-metal-button.connection-pill {
+    padding-inline: 9px;
+  }
+}

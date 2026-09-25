@@ -36,13 +36,16 @@ button:active:not(:disabled) {
   transition-duration: 70ms;
 }
 .phone-shell {
+  position: fixed;
+  top: var(--phone-top, 0px);
+  inset-inline: 0;
+  width: 100%;
   height: var(--phone-height, 100dvh);
   max-width: 600px;
   margin: auto;
   display: flex;
   flex-direction: column;
   background: var(--bg-canvas);
-  position: relative;
   overflow: hidden;
   isolation: isolate;
 }
@@ -391,30 +394,6 @@ button:active:not(:disabled) {
   margin-right: auto;
   color: var(--text-secondary);
   font-size: 10px;
-}
-.send {
-  border: 0;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: var(--shell-bg);
-  color: var(--shell-text);
-  flex: none;
-}
-.send:disabled {
-  opacity: 1;
-  color: var(--text-tertiary);
-  background: var(--bg-subtle);
-}
-.stop {
-  background: var(--bg-selected);
-  color: var(--text-primary);
-}
-.recording {
-  color: var(--text-danger);
-  background: var(--surface-danger);
 }
 .footer-caption {
   font-size: 9px;
@@ -883,7 +862,7 @@ button:active:not(:disabled) {
 }
 .phone-sheet {
   position: fixed;
-  bottom: 0;
+  bottom: var(--phone-bottom, 0px);
   left: 50%;
   transform: translateX(-50%);
   width: min(100%, 600px);
@@ -1316,12 +1295,6 @@ button:active:not(:disabled) {
     0 0 0 3px var(--focus-halo),
     0 4px 20px color-mix(in srgb, var(--aurora-emerald) 10%, transparent);
 }
-.send:not(.stop):not(:disabled) {
-  background: linear-gradient(145deg, #245a49, #163c35);
-  box-shadow:
-    0 3px 10px rgb(23 58 52 / 16%),
-    inset 0 1px 0 rgb(255 255 255 / 14%);
-}
 .phone-nav [aria-current] .nav-icon {
   animation: nav-arrive 240ms var(--phone-ease);
 }
@@ -1549,4 +1522,44 @@ button:active:not(:disabled) {
   clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
+}
+
+/* The app follows the visual viewport; only its conversation scrolls above the keyboard. */
+html[data-phone-keyboard='open'] .phone-nav,
+html[data-phone-keyboard='open'] .footer-caption {
+  display: none;
+}
+html[data-phone-keyboard='open'] .phone-footer {
+  padding-bottom: 8px;
+}
+html[data-phone-keyboard='open'] .remote-empty {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding-block: 12px;
+}
+html[data-phone-keyboard='open'] .remote-empty > :not(.hero-copy),
+html[data-phone-keyboard='open'] .hero-copy > :not(h1) {
+  display: none;
+}
+html[data-phone-keyboard='open'] .hero-copy h1 {
+  font-size: 28px;
+  margin: 0;
+}
+html[data-phone-keyboard='open'] .remote-composer {
+  display: flex;
+  align-items: flex-end;
+  padding: 5px;
+}
+html[data-phone-keyboard='open'] .remote-composer textarea {
+  min-width: 0;
+  flex: 1;
+  padding: 10px;
+  max-height: 100px;
+}
+html[data-phone-keyboard='open'] .composer-context {
+  display: none;
+}
+.memory-search input {
+  font-size: 16px;
 }

@@ -115,6 +115,11 @@ and violet aurora ribbons with a fine flowing shape texture fill the welcome scr
 behind conversations. Adapted from React Bits Shape Waves, the effect works over the existing
 Wi-Fi link, pauses while the page is hidden, and becomes a still composition with reduced motion
 enabled or graphics unavailable.
+The connection and main action buttons use a gently moving metal rim with touch feedback.
+Their labels, disabled states, and keyboard controls work with reduced motion or graphics disabled.
+When the phone keyboard opens, the composer stays above it, navigation makes room for typing,
+and the header follows the visible screen instead of sliding out of view. Closing the keyboard
+restores the full layout and keeps your draft. Pinch-to-zoom remains available.
 A dropped connection preserves unsent text; retrying a command with an uncertain acknowledgement
 uses the same request identifier to avoid duplicate tasks.
 

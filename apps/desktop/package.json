@@ -48,6 +48,7 @@
   },
   "devDependencies": {
     "@electron/asar": "3.4.1",
+    "@paper-design/shaders": "0.0.81",
     "@phosphor-icons/react": "^2.1.10",
     "@playwright/test": "^1.62.1",
     "@radix-ui/react-alert-dialog": "^1.1.15",

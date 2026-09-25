@@ -25,10 +25,13 @@ import { SiaMark } from '../renderer/components/SiaMark';
 import { remoteRequest, RemoteRequestError, requestId } from './api';
 import { MemoryGraph } from './memory-graph';
 import { Aurora } from './aurora';
+import { usePhoneViewport } from './use-phone-viewport';
+import { LiquidMetalButton } from './liquid-metal-button';
 import { Sheet, Welcome, Activity, statusLabels } from './remote-ui';
 import { Turn } from './turn';
 import '../renderer/tokens.css';
 import './remote.css';
+import './liquid-metal-button.css';
 
 type Recognition = {
   lang: string;
@@ -48,6 +51,7 @@ type Recognition = {
   abort(): void;
 };
 function App() {
+  usePhoneViewport();
   const [state, setState] = useState<RemoteState>();
   const [online, setOnline] = useState(false);
   const [connection, setConnection] = useState('Connecting to your Mac…');
@@ -140,17 +144,6 @@ function App() {
     };
   }, []);
   useEffect(() => {
-    const resize = () => {
-      document.documentElement.style.setProperty(
-        '--phone-height',
-        `${window.visualViewport?.height ?? window.innerHeight}px`,
-      );
-    };
-    window.visualViewport?.addEventListener('resize', resize);
-    resize();
-    return () => window.visualViewport?.removeEventListener('resize', resize);
-  }, []);
-  useEffect(() => {
     if (state?.turns.length && nearBottom.current)
       conversation.current?.scrollTo({
         top: conversation.current.scrollHeight,
@@ -183,7 +176,7 @@ function App() {
   const choosePrompt = (prompt: string) => {
     setText(prompt);
     setHint('');
-    composer.current?.focus();
+    composer.current?.focus({ preventScroll: true });
   };
   const openTurn = (id: string) => {
     nearBottom.current = false;
@@ -243,7 +236,7 @@ function App() {
         setText('');
         nearBottom.current = true;
         setView('chat');
-        composer.current?.focus();
+        composer.current?.focus({ preventScroll: true });
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Try again when your Mac reconnects.');
@@ -266,7 +259,7 @@ function App() {
       (window as unknown as { webkitSpeechRecognition?: new () => Recognition })
         .webkitSpeechRecognition;
     if (!window.isSecureContext || !RecognitionClass) {
-      composer.current?.focus();
+      composer.current?.focus({ preventScroll: true });
       setHint('Tap the microphone on your phone’s keyboard to dictate.');
       return;
     }
@@ -316,7 +309,7 @@ function App() {
             sia<span className="brand-period">.</span>
           </span>
         </div>
-        <button
+        <LiquidMetalButton
           className={`connection-pill ${online ? 'online' : ''}`}
           onClick={() => openSheet('connection')}
           aria-label="Connection details"
@@ -330,7 +323,7 @@ function App() {
           </span>
           {online ? 'Mac connected' : 'Reconnecting'}
           <Desktop size={15} />
-        </button>
+        </LiquidMetalButton>
         <button
           className="icon header-more"
           aria-label="More options"
@@ -493,27 +486,34 @@ function App() {
                   <Desktop size={14} />
                   {state?.mode === 'connected' ? 'Connected apps' : 'Use my Mac'}
                 </span>
-                <button
+                <LiquidMetalButton
                   type="button"
+                  viewMode="icon"
+                  tone={listening ? 'danger' : 'neutral'}
                   className={`icon ${listening ? 'recording' : ''}`}
                   aria-label={listening ? 'Stop dictation' : 'Dictate message'}
                   disabled={pending}
                   onClick={microphone}
                 >
                   <Microphone size={20} />
-                </button>
+                </LiquidMetalButton>
                 {busy && (!text.trim() || latest?.status === 'working') ? (
-                  <button
+                  <LiquidMetalButton
                     type="button"
                     className="send stop"
+                    viewMode="icon"
+                    tone="danger"
                     disabled={pending || !online}
                     aria-label="Stop task"
                     onClick={() => void action('cancel')}
                   >
                     <Stop size={16} weight="fill" />
-                  </button>
+                  </LiquidMetalButton>
                 ) : (
-                  <button
+                  <LiquidMetalButton
+                    type="submit"
+                    viewMode="icon"
+                    tone="sage"
                     className="send"
                     disabled={!text.trim() || pending || !online}
                     aria-label="Send message"
@@ -523,7 +523,7 @@ function App() {
                     ) : (
                       <ArrowUp size={21} weight="bold" />
                     )}
-                  </button>
+                  </LiquidMetalButton>
                 )}
               </div>
             </form>

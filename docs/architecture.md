@@ -401,6 +401,14 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   so it works on the HTTP LAN link without WebGPU or another framework. Rendering is capped at
   30 fps and a 600 × 590 buffer, stops on hidden pages, and uses static CSS gradients for reduced
   motion, initialization failure, or graphics context loss. It never handles pointer input.
+  Main action buttons adapt Joly UI's Liquid Metal Button with a lazily loaded Paper Shaders
+  effect, capped at 30 fps and 16,000 pixels per button. Hidden, offscreen, disabled and reduced-motion
+  states stop continuous rendering; disposal releases the graphics context. Button actions remain
+  ordinary native buttons and use the same remote command routes even when graphics are unavailable.
+  The phone shell follows visual viewport height and vertical offset on both resize and scroll;
+  keyboard mode reclaims navigation space, while pinch zoom keeps the layout unchanged. Programmatic
+  composer focus prevents document scrolling. Tests simulate keyboard resize/pan separately from
+  window resizing; physical iOS keyboard behavior still requires device acceptance.
 
 - First-run guidance is gated by the same release sign-in check as the workspace. Its progress
   lives in encrypted desktop preferences, and starter creation uses `agents.save` plus the normal
