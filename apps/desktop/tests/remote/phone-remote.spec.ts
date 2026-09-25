@@ -434,6 +434,10 @@ test('reduced motion keeps the home screen still without disabling navigation', 
     .locator('.hero-presence')
     .evaluate((node) => getComputedStyle(node).animationDuration);
   expect(parseFloat(duration)).toBeLessThanOrEqual(0.001);
+  const lights = await page
+    .locator('.aurora-veil')
+    .evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).animationName));
+  expect(lights).toEqual(['none', 'none', 'none']);
   await page.getByRole('button', { name: 'More ideas' }).click();
   await expect(page.getByRole('button', { name: /Find that file/ })).toBeVisible();
   await page.getByRole('button', { name: 'Tasks', exact: true }).click();
@@ -551,4 +555,35 @@ test('a failure already explained in the reply is shown once and still needs att
   });
   await expect(page.getByText('Needs attention', { exact: true })).toBeVisible();
   await expect(page.getByText(detail, { exact: true })).toHaveCount(1);
+});
+
+test('aurora moves without blocking controls and pauses when the phone page is hidden', async ({
+  page,
+  remote,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto(remote.url);
+  await expect(page.getByRole('heading', { name: 'Your Mac, within reach.' })).toBeVisible();
+  const curtain = page.locator('.aurora-emerald');
+  const before = await curtain.evaluate((node) => getComputedStyle(node).transform);
+  await expect
+    .poll(() => curtain.evaluate((node) => getComputedStyle(node).transform))
+    .not.toBe(before);
+  await page.getByRole('button', { name: /Plan my week/ }).click();
+  await expect(page.getByRole('textbox')).toHaveValue(/Help me plan my week/);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect
+    .poll(() => curtain.evaluate((node) => getComputedStyle(node).animationPlayState))
+    .toBe('paused');
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect
+    .poll(() => curtain.evaluate((node) => getComputedStyle(node).animationPlayState))
+    .toBe('running');
+  expect(remote.sends).toHaveLength(0);
 });

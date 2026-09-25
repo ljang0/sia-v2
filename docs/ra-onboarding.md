@@ -110,7 +110,9 @@ Tap **Mac connected** for connection requirements and the current approval setti
 options** menu includes **New chat**, which clears the remote view without deleting the Mac's
 history, and an option to clear recent prompt suggestions on this phone. Your phone can also
 follow the selected agent's current desktop/Fn conversation. The layout follows light/dark
-appearance, respects reduced motion, and keeps the composer visible as the phone keyboard opens.
+appearance and keeps the composer visible as the phone keyboard opens. Animated emerald, cyan,
+and violet aurora gradients fill the welcome screen and soften behind conversations. The lights
+pause while the page is hidden and become a still composition with reduced motion enabled.
 A dropped connection preserves unsent text; retrying a command with an uncertain acknowledgement
 uses the same request identifier to avoid duplicate tasks.
 

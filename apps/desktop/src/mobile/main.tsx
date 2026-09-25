@@ -24,6 +24,7 @@ import type { RemoteState } from '../shared/phone-remote';
 import { SiaMark } from '../renderer/components/SiaMark';
 import { remoteRequest, RemoteRequestError, requestId } from './api';
 import { MemoryGraph } from './memory-graph';
+import { Aurora } from './aurora';
 import { Sheet, Welcome, Activity, statusLabels } from './remote-ui';
 import { Turn } from './turn';
 import '../renderer/tokens.css';
@@ -300,7 +301,11 @@ function App() {
     }
   };
   return (
-    <main className="phone-shell">
+    <main
+      className="phone-shell"
+      data-scene={view === 'chat' && !state?.turns.length ? 'welcome' : 'workspace'}
+    >
+      <Aurora />
       <span className="visually-hidden" role="status">
         {latest && online ? `Last task: ${statusLabels[latest.status]}.` : ''}
       </span>

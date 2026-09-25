@@ -1,6 +1,13 @@
 /* Native Sia typography and mineral surfaces, composed for a phone. */
 :root {
   --phone-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --aurora-emerald: #41c68e;
+  --aurora-cyan: #59b8d1;
+  --aurora-violet: #aaa0dd;
+  --aurora-strength: 0.44;
+  --aurora-ink-start: #265a49;
+  --aurora-ink-middle: #2e627e;
+  --aurora-ink-end: #6d4f88;
 }
 body {
   background: var(--bg-app);
@@ -19,12 +26,14 @@ button:disabled {
 }
 button {
   transition:
-    background 0.2s,
-    color 0.2s,
-    transform 0.2s var(--phone-ease);
+    background 160ms,
+    color 160ms,
+    box-shadow 180ms,
+    transform 180ms var(--phone-ease);
 }
 button:active:not(:disabled) {
-  transform: scale(0.97);
+  transform: scale(0.96);
+  transition-duration: 70ms;
 }
 .phone-shell {
   height: var(--phone-height, 100dvh);
@@ -35,6 +44,7 @@ button:active:not(:disabled) {
   background: var(--bg-canvas);
   position: relative;
   overflow: hidden;
+  isolation: isolate;
 }
 .phone-header {
   padding: calc(env(safe-area-inset-top) + 16px) 22px 12px;
@@ -116,7 +126,7 @@ button:active:not(:disabled) {
   max-width: 480px;
   margin: auto;
   padding: 0 24px 24px;
-  animation: arrive 0.65s var(--phone-ease) both;
+  animation: arrive 0.4s var(--phone-ease) both;
 }
 .hero-art {
   position: relative;
@@ -127,16 +137,21 @@ button:active:not(:disabled) {
   place-items: center;
   isolation: isolate;
 }
-.hero-art::before {
-  content: '';
+.hero-halo {
   position: absolute;
-  inset: 10px -12px -4px;
+  width: 146px;
+  height: 146px;
   border-radius: 50%;
   background: radial-gradient(
-    ellipse,
-    color-mix(in srgb, var(--hue-3) 17%, transparent),
-    transparent 69%
+    circle,
+    color-mix(in srgb, var(--aurora-emerald) 18%, transparent),
+    transparent 68%
   );
+  border: 1px solid color-mix(in srgb, var(--aurora-emerald) 18%, transparent);
+  box-shadow:
+    0 0 45px color-mix(in srgb, var(--aurora-cyan) 16%, transparent),
+    inset 0 0 28px color-mix(in srgb, var(--aurora-emerald) 10%, transparent);
+  transform: rotateX(55deg) rotate(-25deg);
 }
 .hero-presence {
   display: grid;
@@ -144,10 +159,19 @@ button:active:not(:disabled) {
   width: 76px;
   height: 76px;
   border-radius: 27px;
-  background: linear-gradient(140deg, var(--bg-raised), var(--bg-selected));
+  --sia-orbit-size: 30px;
+  --sia-core-size: 7px;
+  --agent-color: var(--text-success);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--bg-raised) 95%, transparent),
+    color-mix(in srgb, var(--bg-selected) 70%, transparent)
+  );
   box-shadow:
-    0 12px 26px rgb(23 58 52 / 10%),
-    inset 0 0 0 1px color-mix(in srgb, var(--bg-raised) 85%, transparent);
+    0 15px 38px rgb(23 58 52 / 13%),
+    0 0 34px color-mix(in srgb, var(--aurora-emerald) 22%, transparent),
+    inset 0 1px 1px var(--bg-raised);
+  border: 1px solid color-mix(in srgb, var(--aurora-emerald) 28%, var(--bg-raised));
   transform: rotate(-9deg);
   animation: hover-mark 7s ease-in-out infinite;
 }
@@ -156,30 +180,10 @@ button:active:not(:disabled) {
   height: 48px;
   transform: rotate(9deg);
 }
-.orbit {
-  position: absolute;
-  border: 1px solid color-mix(in srgb, var(--text-success) 17%, transparent);
-  border-radius: 50%;
-  width: 180px;
-  height: 88px;
-  transform: rotate(-28deg);
-  z-index: -1;
-}
-.orbit-two {
-  transform: rotate(28deg);
-  width: 180px;
-  height: 88px;
-}
-.orbit-three {
-  width: 204px;
-  height: 137px;
-  opacity: 0.45;
-  transform: rotate(-10deg);
-}
-.orbit-spark {
+.hero-spark {
   position: absolute;
   border-radius: 50%;
-  background: #79a78a;
+  background: var(--aurora-emerald);
   box-shadow: 0 0 0 5px color-mix(in srgb, var(--hue-3) 9%, transparent);
   width: 6px;
   height: 6px;
@@ -214,7 +218,16 @@ button:active:not(:disabled) {
   margin: 13px 0 14px;
 }
 .hero-copy h1 span {
-  color: var(--text-success);
+  color: var(--aurora-ink-start);
+  background: linear-gradient(
+    105deg,
+    var(--aurora-ink-start) 10%,
+    var(--aurora-ink-middle) 56%,
+    var(--aurora-ink-end)
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 .hero-copy p {
   color: var(--text-secondary);
@@ -262,13 +275,21 @@ button:active:not(:disabled) {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  animation: arrive 0.45s var(--phone-ease) both;
+  animation: arrive 280ms var(--phone-ease) backwards;
 }
 .idea-card[data-tone='sage'] {
-  background: color-mix(in srgb, var(--bg-selected) 50%, var(--bg-raised));
+  background: linear-gradient(
+    140deg,
+    color-mix(in srgb, var(--aurora-emerald) 10%, var(--bg-raised)),
+    var(--bg-raised)
+  );
 }
 .idea-card[data-tone='sand'] {
-  background: color-mix(in srgb, var(--surface-warning) 38%, var(--bg-raised));
+  background: linear-gradient(
+    140deg,
+    color-mix(in srgb, var(--aurora-violet) 12%, var(--bg-raised)),
+    var(--bg-raised)
+  );
 }
 .idea-icon {
   color: var(--text-success);
@@ -875,10 +896,10 @@ button:active:not(:disabled) {
   border-radius: 30px 30px 0 0;
   z-index: 11;
   box-shadow: var(--shadow-dialog);
-  animation: sheet-enter 0.38s var(--phone-ease);
+  animation: sheet-enter 240ms var(--phone-ease);
 }
 .phone-sheet[data-state='closed'] {
-  animation: sheet-exit 0.18s ease-in both;
+  animation: sheet-exit 140ms ease-in both;
 }
 .sheet-overlay[data-state='closed'] {
   animation: fade 0.18s ease reverse both;
@@ -1193,6 +1214,156 @@ button:active:not(:disabled) {
 .memory-search input:focus-visible {
   outline: none;
 }
+/* Static gradient textures; transform and opacity let the browser composite their motion. */
+.phone-aurora {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 590px;
+  max-height: 78%;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 1;
+  transition: opacity 400ms ease;
+  contain: paint;
+  mask-image: linear-gradient(#000 40%, transparent 100%);
+  -webkit-mask-image: linear-gradient(#000 40%, transparent 100%);
+}
+.phone-shell[data-scene='workspace'] .phone-aurora {
+  opacity: 0.48;
+}
+.aurora-veil {
+  position: absolute;
+  inset: -22% -40% 10%;
+  border-radius: 42% 58% 40% 60%;
+  filter: blur(24px);
+  opacity: var(--aurora-strength);
+  will-change: transform;
+  transform-origin: 50% 25%;
+}
+.aurora-emerald {
+  filter: blur(14px);
+  opacity: calc(var(--aurora-strength) * 1.2);
+  background: radial-gradient(
+    ellipse at 42% 38%,
+    transparent 29%,
+    var(--aurora-emerald) 36%,
+    color-mix(in srgb, var(--aurora-emerald) 48%, transparent) 43%,
+    transparent 54%
+  );
+  animation: aurora-sway 13s -4s ease-in-out infinite alternate;
+}
+.aurora-cyan {
+  background: radial-gradient(
+    ellipse at 60% 10%,
+    transparent 24%,
+    var(--aurora-cyan) 36%,
+    transparent 52%
+  );
+  animation: aurora-flow 17s -8s ease-in-out infinite alternate;
+}
+.aurora-violet {
+  background: radial-gradient(
+    ellipse at 65% 35%,
+    transparent 32%,
+    var(--aurora-violet) 41%,
+    transparent 52%
+  );
+  animation: aurora-drift 19s -12s ease-in-out infinite alternate;
+}
+.aurora-horizon {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at 50% 0%,
+    color-mix(in srgb, var(--aurora-emerald) 14%, transparent),
+    transparent 66%
+  );
+}
+.phone-aurora[data-paused='true'] .aurora-veil {
+  animation-play-state: paused;
+}
+.remote-composer {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--bg-raised), var(--bg-raised)) padding-box,
+    linear-gradient(
+        115deg,
+        color-mix(in srgb, var(--aurora-emerald) 45%, var(--border-subtle)),
+        var(--border-subtle) 48%,
+        color-mix(in srgb, var(--aurora-violet) 40%, var(--border-subtle))
+      )
+      border-box;
+}
+.remote-composer:focus-within,
+.remote-composer.listening {
+  border-color: var(--focus-ring);
+  box-shadow:
+    0 0 0 3px var(--focus-halo),
+    0 4px 20px color-mix(in srgb, var(--aurora-emerald) 10%, transparent);
+}
+.send:not(.stop):not(:disabled) {
+  background: linear-gradient(145deg, #245a49, #163c35);
+  box-shadow:
+    0 3px 10px rgb(23 58 52 / 16%),
+    inset 0 1px 0 rgb(255 255 255 / 14%);
+}
+.phone-nav [aria-current] .nav-icon {
+  animation: nav-arrive 240ms var(--phone-ease);
+}
+@media (hover: hover) {
+  .idea-card:hover,
+  .task-card:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--aurora-emerald) 60%, var(--border-subtle));
+    box-shadow: 0 6px 18px rgb(23 58 52 / 7%);
+  }
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --aurora-emerald: #40e7a0;
+    --aurora-cyan: #38b6cf;
+    --aurora-violet: #9680f0;
+    --aurora-strength: 0.34;
+    --aurora-ink-start: #b8ffd2;
+    --aurora-ink-middle: #a4e3f1;
+    --aurora-ink-end: #d4bffd;
+  }
+}
+@keyframes aurora-sway {
+  from {
+    transform: translate3d(-7%, -7%, 0) rotate(-21deg) scaleY(0.85);
+  }
+  to {
+    transform: translate3d(7%, 5%, 0) rotate(16deg) scaleY(1.18);
+  }
+}
+@keyframes aurora-flow {
+  from {
+    transform: translate3d(8%, 5%, 0) rotate(15deg) scaleX(0.92);
+  }
+  to {
+    transform: translate3d(-8%, -9%, 0) rotate(-14deg) scaleX(1.15);
+  }
+}
+@keyframes aurora-drift {
+  from {
+    transform: translate3d(-6%, 4%, 0) rotate(-12deg) scaleY(1.12);
+    opacity: calc(var(--aurora-strength) * 0.6);
+  }
+  to {
+    transform: translate3d(6%, -6%, 0) rotate(16deg) scaleY(0.88);
+    opacity: var(--aurora-strength);
+  }
+}
+@keyframes nav-arrive {
+  from {
+    transform: scale(0.87);
+  }
+  to {
+    transform: scale(1);
+  }
+}
 @keyframes arrive {
   from {
     opacity: 0;
@@ -1255,14 +1426,6 @@ button:active:not(:disabled) {
     transform: scale(0.76);
     margin-top: 0;
     margin-bottom: 0;
-  }
-  .hero-art .orbit {
-    width: 145px;
-    height: 64px;
-  }
-  .hero-art .orbit-three {
-    width: 155px;
-    height: 90px;
   }
   .hero-copy h1 {
     font-size: 40px;
@@ -1368,6 +1531,32 @@ button:active:not(:disabled) {
     animation-iteration-count: 1;
     transition-duration: 0.001ms;
     scroll-behavior: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phone-nav [aria-current] .nav-icon {
+    animation: none;
+  }
+  .phone-shell button:active:not(:disabled) {
+    transition-duration: 0s;
+  }
+  .phone-sheet[data-state='closed'],
+  .sheet-overlay[data-state='closed'] {
+    animation-duration: 0.001ms;
+  }
+  .phone-shell .aurora-veil {
+    animation: none;
+    will-change: auto;
+  }
+  .phone-shell .aurora-emerald {
+    transform: rotate(-15deg);
+  }
+  .phone-shell .aurora-cyan {
+    transform: rotate(12deg);
+  }
+  .phone-shell .aurora-violet {
+    transform: rotate(-8deg);
   }
 }
 

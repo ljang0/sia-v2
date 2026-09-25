@@ -107,14 +107,12 @@ export function Welcome({
   return (
     <div className="remote-empty">
       <div className="hero-art" aria-hidden="true">
-        <div className="orbit orbit-one" />
-        <div className="orbit orbit-two" />
-        <div className="orbit orbit-three" />
+        <div className="hero-halo" />
         <div className="hero-presence">
           <SiaMark />
         </div>
-        <span className="orbit-spark spark-one" />
-        <span className="orbit-spark spark-two" />
+        <span className="hero-spark spark-one" />
+        <span className="hero-spark spark-two" />
       </div>
       <div className="hero-copy">
         <span className="eyebrow">A LITTLE DISTANCE. SAME ASSISTANT.</span>
