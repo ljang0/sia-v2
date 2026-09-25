@@ -1287,10 +1287,14 @@ describe('DesktopController', () => {
     });
 
     await controller.invoke('threads.send', { threadId, text: 'Stream the answer' });
-    await vi.waitFor(() =>
-      expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
-        'idle',
-      ),
+    // The stream deliberately waits 600ms before completion. Allow scheduler delays
+    // on a busy Mac; the bounds below still enforce responsive, batched persistence.
+    await vi.waitFor(
+      () =>
+        expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+          'idle',
+        ),
+      { timeout: 3000 },
     );
 
     expect(repository.desktopStateWrites - writesBeforeTurn).toBeLessThan(10);
