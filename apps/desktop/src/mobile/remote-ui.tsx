@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   ArrowUpRight,
@@ -100,11 +100,27 @@ const ideas = [
 export function Welcome({
   recents,
   onChoose,
+  typing,
 }: {
   recents: string[];
   onChoose: (text: string) => void;
+  typing: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const suggestions = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    // Measure the natural height so wrapping, more ideas, and recents all ease correctly.
+    const measure = () =>
+      suggestions.current?.style.setProperty(
+        '--suggestions-height',
+        `${content.current!.getBoundingClientRect().height}px`,
+      );
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(content.current!);
+    return () => observer.disconnect();
+  }, []);
   return (
     <div className="remote-empty">
       <div className="hero-art" aria-hidden="true">
@@ -128,42 +144,51 @@ export function Welcome({
           Hand them off from wherever you are.
         </p>
       </div>
-      <div className="ideas-heading">
-        <span>A PLACE TO START</span>
-        <button onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
-          {expanded ? 'Show less' : 'More ideas'}
-          <ArrowRight size={14} />
-        </button>
-      </div>
-      <div className="idea-grid">
-        {ideas.slice(0, expanded ? 4 : 2).map((idea, index) => (
-          <button
-            className="idea-card"
-            key={idea.title}
-            data-tone={index % 2 === 0 ? 'sage' : 'sand'}
-            onClick={() => onChoose(idea.prompt)}
-          >
-            <span className="idea-icon">
-              <idea.icon size={22} weight="duotone" />
-            </span>
-            <ArrowUpRight className="idea-arrow" size={16} />
-            <strong>{idea.title}</strong>
-            <span>{idea.detail}</span>
-          </button>
-        ))}
-      </div>
-      {!!recents.length && (
-        <div className="recent-prompts">
-          <span className="eyebrow">PICK IT BACK UP</span>
-          {recents.slice(0, 2).map((prompt) => (
-            <button key={prompt} onClick={() => onChoose(prompt)}>
-              <ClockCounterClockwise size={17} />
-              <span>{prompt}</span>
-              <ArrowUpRight size={15} />
+      <div
+        className="welcome-suggestions"
+        ref={suggestions}
+        inert={typing}
+        aria-hidden={typing || undefined}
+      >
+        <div className="welcome-suggestions-content" ref={content}>
+          <div className="ideas-heading">
+            <span>A PLACE TO START</span>
+            <button onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
+              {expanded ? 'Show less' : 'More ideas'}
+              <ArrowRight size={14} />
             </button>
-          ))}
+          </div>
+          <div className="idea-grid">
+            {ideas.slice(0, expanded ? 4 : 2).map((idea, index) => (
+              <button
+                className="idea-card"
+                key={idea.title}
+                data-tone={index % 2 === 0 ? 'sage' : 'sand'}
+                onClick={() => onChoose(idea.prompt)}
+              >
+                <span className="idea-icon">
+                  <idea.icon size={22} weight="duotone" />
+                </span>
+                <ArrowUpRight className="idea-arrow" size={16} />
+                <strong>{idea.title}</strong>
+                <span>{idea.detail}</span>
+              </button>
+            ))}
+          </div>
+          {!!recents.length && (
+            <div className="recent-prompts">
+              <span className="eyebrow">PICK IT BACK UP</span>
+              {recents.slice(0, 2).map((prompt) => (
+                <button key={prompt} onClick={() => onChoose(prompt)}>
+                  <ClockCounterClockwise size={17} />
+                  <span>{prompt}</span>
+                  <ArrowUpRight size={15} />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -717,6 +717,114 @@ test('keyboard resize and Safari viewport pan keep the composer on the visible s
   expect(remote.sends).toHaveLength(0);
 });
 
+test('typing eases the welcome layout while preserving the waves and composer geometry', async ({
+  page,
+  remote,
+}, testInfo) => {
+  await page.goto(remote.url);
+  await expect(page.locator('.remote-empty')).toHaveCSS('opacity', '1');
+  await expect(page.locator('.phone-aurora')).toHaveAttribute('data-renderer', 'waves');
+  const input = page.getByRole('textbox', { name: 'Message Sia' });
+  await input.fill('A draft that stays right here');
+  const originalHeight = await page.evaluate(() => visualViewport!.height);
+  const movement = await page.evaluate(async () => {
+    const hero = document.querySelector('.hero-art')!;
+    const canvas = document.querySelector<HTMLCanvasElement>('.aurora-waves')!;
+    const composer = document.querySelector('.remote-composer')!;
+    const read = () => ({
+      hero: parseFloat(getComputedStyle(hero).height),
+      composer: composer.getBoundingClientRect().height,
+      field: canvas.height,
+    });
+    const before = read();
+    Object.defineProperty(visualViewport!, 'height', { configurable: true, value: 380 });
+    visualViewport!.dispatchEvent(new Event('resize'));
+    const samples: ReturnType<typeof read>[] = [];
+    const start = performance.now();
+    while (performance.now() - start < 600) {
+      await new Promise(requestAnimationFrame);
+      samples.push(read());
+    }
+    return { before, samples, sameCanvas: canvas === document.querySelector('.aurora-waves') };
+  });
+  const end = movement.samples.at(-1)!;
+  expect(end.hero).toBeLessThan(movement.before.hero);
+  expect(
+    movement.samples.filter(
+      (sample) => sample.hero < movement.before.hero && sample.hero > end.hero,
+    ).length,
+  ).toBeGreaterThan(2);
+  expect(
+    movement.samples.every(
+      (sample) => Math.abs(sample.composer - movement.before.composer) < 1,
+    ),
+  ).toBe(true);
+  expect(movement.samples.every((sample) => sample.field === movement.before.field)).toBe(true);
+  expect(movement.sameCanvas).toBe(true);
+  await expect(page.locator('.hero-art')).toBeInViewport({ ratio: 1 });
+  await expect(page.getByRole('heading', { name: 'Your Mac, within reach.' })).toBeInViewport({
+    ratio: 1,
+  });
+  await expect(page.locator('.aurora-waves')).toHaveCSS('opacity', '1');
+  await expect(page.locator('.phone-aurora')).toHaveAttribute('data-paused', 'false');
+  await expect(page.locator('.welcome-suggestions')).toHaveAttribute('inert', '');
+  await expect(page.getByRole('button', { name: /Plan my week/ })).toHaveCount(0);
+  await expect(input).toBeFocused();
+  await page.screenshot({ path: testInfo.outputPath('phone-typing-light.png') });
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.screenshot({ path: testInfo.outputPath('phone-typing-dark.png') });
+  await input.blur();
+  await page.evaluate((height) => {
+    Object.defineProperty(visualViewport!, 'height', { configurable: true, value: height });
+    visualViewport!.dispatchEvent(new Event('resize'));
+  }, originalHeight);
+  await expect(page.getByRole('button', { name: /Plan my week/ })).toBeVisible();
+  await expect
+    .poll(() =>
+      page.locator('.hero-art').evaluate((node) => parseFloat(getComputedStyle(node).height)),
+    )
+    .toBe(movement.before.hero);
+  await expect(input).toHaveValue('A draft that stays right here');
+  expect(remote.sends).toHaveLength(0);
+});
+
+test('headline and composer colors drift slowly, pause offscreen, and respect reduced motion', async ({
+  page,
+  remote,
+}) => {
+  await page.goto(remote.url);
+  const surfaces = page.locator('.hero-copy h1 span, .remote-composer');
+  const colors = () =>
+    surfaces.evaluateAll((nodes) =>
+      nodes.map((node) => getComputedStyle(node).backgroundPosition),
+    );
+  const speeds = await surfaces.evaluateAll((nodes) =>
+    nodes.map((node) => parseFloat(getComputedStyle(node).animationDuration)),
+  );
+  expect(speeds.every((seconds) => seconds >= 15)).toBe(true);
+  const before = await colors();
+  await expect.poll(colors).not.toEqual(before);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(page.locator('.phone-aurora')).toHaveAttribute('data-paused', 'true');
+  const paused = await colors();
+  await page.waitForTimeout(200);
+  expect(await colors()).toEqual(paused);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect.poll(colors).not.toEqual(paused);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const still = await colors();
+  await page.waitForTimeout(200);
+  expect(await colors()).toEqual(still);
+  await expect(page.getByRole('textbox')).toBeEditable();
+  expect(remote.sends).toHaveLength(0);
+});
+
 test('pinch zoom is not treated as the phone keyboard opening', async ({ page, remote }) => {
   await page.goto(remote.url);
   await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();

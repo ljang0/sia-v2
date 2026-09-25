@@ -117,9 +117,12 @@ Wi-Fi link, pauses while the page is hidden, and becomes a still composition wit
 enabled or graphics unavailable.
 The connection and main action buttons use a gently moving metal rim with touch feedback.
 Their labels, disabled states, and keyboard controls work with reduced motion or graphics disabled.
-When the phone keyboard opens, the composer stays above it, navigation makes room for typing,
-and the header follows the visible screen instead of sliding out of view. Closing the keyboard
-restores the full layout and keeps your draft. Pinch-to-zoom remains available.
+When the phone keyboard opens, the composer keeps its shape above it, while the welcome screen
+and navigation gently make room for typing. The waves stay visible and keep flowing; the
+“within reach” headline and message box slowly shift between Sia's colors. These effects pause
+when the page is hidden and stay still with reduced motion. The header follows the visible
+screen instead of sliding out of view. Closing the keyboard restores the full layout and keeps
+your draft. Pinch-to-zoom remains available.
 A dropped connection preserves unsent text; retrying a command with an uncertain acknowledgement
 uses the same request identifier to avoid duplicate tasks.
 

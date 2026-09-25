@@ -406,7 +406,10 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   states stop continuous rendering; disposal releases the graphics context. Button actions remain
   ordinary native buttons and use the same remote command routes even when graphics are unavailable.
   The phone shell follows visual viewport height and vertical offset on both resize and scroll;
-  keyboard mode reclaims navigation space, while pinch zoom keeps the layout unchanged. Programmatic
+  keyboard mode eases the welcome content and navigation out of the way without changing composer
+  layout or resizing the wave field. Collapsing controls become inert immediately; the decorative
+  headline/composer gradients share the field's hidden-page pause and reduced-motion behavior.
+  Pinch zoom keeps the layout unchanged. Programmatic
   composer focus prevents document scrolling. Tests simulate keyboard resize/pan separately from
   window resizing; physical iOS keyboard behavior still requires device acceptance.
 

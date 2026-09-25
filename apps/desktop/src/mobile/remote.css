@@ -1,6 +1,7 @@
 /* Native Sia typography and mineral surfaces, composed for a phone. */
 :root {
   --phone-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --typing-duration: 440ms;
   --aurora-emerald: #41c68e;
   --aurora-cyan: #59b8d1;
   --aurora-violet: #aaa0dd;
@@ -130,6 +131,7 @@ button:active:not(:disabled) {
   margin: auto;
   padding: 0 24px 24px;
   animation: arrive 0.4s var(--phone-ease) both;
+  transition: padding var(--typing-duration) var(--phone-ease);
 }
 .hero-art {
   position: relative;
@@ -139,6 +141,9 @@ button:active:not(:disabled) {
   display: grid;
   place-items: center;
   isolation: isolate;
+  transition:
+    height var(--typing-duration) var(--phone-ease),
+    transform var(--typing-duration) var(--phone-ease);
 }
 .hero-halo {
   position: absolute;
@@ -206,6 +211,14 @@ button:active:not(:disabled) {
 .hero-copy {
   text-align: center;
 }
+.hero-copy > .eyebrow {
+  display: block;
+  height: 12px;
+  overflow: hidden;
+  transition:
+    height var(--typing-duration) var(--phone-ease),
+    opacity 220ms ease;
+}
 .eyebrow {
   font-size: 9px;
   letter-spacing: 0.15em;
@@ -219,15 +232,21 @@ button:active:not(:disabled) {
   letter-spacing: -0.065em;
   line-height: 1.01;
   margin: 13px 0 14px;
+  transition:
+    font-size var(--typing-duration) var(--phone-ease),
+    margin var(--typing-duration) var(--phone-ease);
 }
 .hero-copy h1 span {
   color: var(--aurora-ink-start);
   background: linear-gradient(
     105deg,
-    var(--aurora-ink-start) 10%,
-    var(--aurora-ink-middle) 56%,
-    var(--aurora-ink-end)
+    var(--aurora-ink-start),
+    var(--aurora-ink-middle) 32%,
+    var(--aurora-ink-end) 64%,
+    var(--aurora-ink-start)
   );
+  background-size: 260% 100%;
+  animation: gradient-drift 18s ease-in-out infinite alternate;
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -237,6 +256,22 @@ button:active:not(:disabled) {
   font-size: 13px;
   line-height: 1.65;
   margin: 0;
+  max-height: 50px;
+  overflow: hidden;
+  transition:
+    max-height var(--typing-duration) var(--phone-ease),
+    opacity 220ms ease;
+}
+.welcome-suggestions {
+  height: var(--suggestions-height, auto);
+  overflow: hidden;
+  transition:
+    height var(--typing-duration) var(--phone-ease),
+    opacity 220ms ease,
+    visibility 0s;
+}
+.welcome-suggestions-content {
+  display: flow-root;
 }
 .ideas-heading {
   display: flex;
@@ -266,6 +301,8 @@ button:active:not(:disabled) {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+  /* Leave a pixel inside the collapsing clip for WebKit's fractional row rounding. */
+  padding-block: 1px;
 }
 .idea-card {
   min-width: 0;
@@ -345,6 +382,15 @@ button:active:not(:disabled) {
   padding: 8px 18px 0;
   background: var(--bg-canvas);
   flex: none;
+  transition: padding-bottom var(--typing-duration) var(--phone-ease);
+}
+.phone-shell[data-scene='welcome'] .phone-footer::before {
+  content: '';
+  position: absolute;
+  inset: -32px 0 100%;
+  background: linear-gradient(transparent, var(--bg-canvas));
+  z-index: -1;
+  pointer-events: none;
 }
 .remote-composer {
   background: var(--bg-raised);
@@ -400,6 +446,12 @@ button:active:not(:disabled) {
   color: var(--text-tertiary);
   text-align: center;
   margin: 8px 0 6px;
+  max-height: 40px;
+  overflow: hidden;
+  transition:
+    max-height var(--typing-duration) var(--phone-ease),
+    margin var(--typing-duration) var(--phone-ease),
+    opacity 220ms ease;
 }
 .composer-hint {
   font-size: 12px;
@@ -413,6 +465,14 @@ button:active:not(:disabled) {
   flex: none;
   background: var(--bg-canvas);
   border-top: 1px solid color-mix(in srgb, var(--border-subtle) 50%, transparent);
+  height: calc(65px + env(safe-area-inset-bottom));
+  overflow: hidden;
+  transition:
+    height var(--typing-duration) var(--phone-ease),
+    padding var(--typing-duration) var(--phone-ease),
+    opacity 220ms ease,
+    border-color 220ms ease,
+    visibility 0s;
 }
 .phone-nav button {
   flex: 1;
@@ -1197,8 +1257,7 @@ button:active:not(:disabled) {
 .phone-aurora {
   position: absolute;
   inset: 0 0 auto;
-  height: 590px;
-  max-height: 78%;
+  height: min(590px, calc(var(--phone-full-height, 100svh) * 0.78));
   overflow: hidden;
   pointer-events: none;
   z-index: -1;
@@ -1279,18 +1338,28 @@ button:active:not(:disabled) {
 .remote-composer {
   border-color: transparent;
   background:
-    linear-gradient(var(--bg-raised), var(--bg-raised)) padding-box,
     linear-gradient(
         115deg,
-        color-mix(in srgb, var(--aurora-emerald) 45%, var(--border-subtle)),
-        var(--border-subtle) 48%,
-        color-mix(in srgb, var(--aurora-violet) 40%, var(--border-subtle))
+        color-mix(in srgb, var(--aurora-emerald) 7%, var(--bg-raised)),
+        var(--bg-raised) 30%,
+        color-mix(in srgb, var(--aurora-cyan) 7%, var(--bg-raised)) 60%,
+        color-mix(in srgb, var(--aurora-violet) 9%, var(--bg-raised))
+      )
+      padding-box,
+    linear-gradient(
+        115deg,
+        color-mix(in srgb, var(--aurora-emerald) 65%, var(--border-subtle)),
+        color-mix(in srgb, var(--aurora-cyan) 55%, var(--border-subtle)) 32%,
+        color-mix(in srgb, var(--aurora-violet) 60%, var(--border-subtle)) 64%,
+        color-mix(in srgb, var(--aurora-emerald) 65%, var(--border-subtle))
       )
       border-box;
+  background-size: 260% 100%;
+  animation: gradient-drift 22s ease-in-out infinite alternate;
 }
 .remote-composer:focus-within,
 .remote-composer.listening {
-  border-color: var(--focus-ring);
+  border-color: transparent;
   box-shadow:
     0 0 0 3px var(--focus-halo),
     0 4px 20px color-mix(in srgb, var(--aurora-emerald) 10%, transparent);
@@ -1324,6 +1393,21 @@ button:active:not(:disabled) {
   to {
     transform: scale(1);
   }
+}
+@keyframes gradient-drift {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
+}
+/* Reuse the wave field's visibility/reduced-motion lifecycle for CSS decoration. */
+.phone-shell:has(.phone-aurora[data-paused='true']) .hero-copy h1 span,
+.phone-shell:has(.phone-aurora[data-paused='true']) .remote-composer,
+.phone-shell:has(.phone-aurora[data-paused='true']) .hero-presence,
+.phone-shell:has(.phone-aurora[data-paused='true']) .hero-spark {
+  animation-play-state: paused;
 }
 @keyframes arrive {
   from {
@@ -1410,6 +1494,9 @@ button:active:not(:disabled) {
     font-size: 36px;
     margin: 18px 0 12px;
   }
+  .ideas-heading {
+    margin-top: 0;
+  }
 }
 @media (max-height: 500px) {
   .phone-header {
@@ -1420,6 +1507,7 @@ button:active:not(:disabled) {
     font-size: 27px;
   }
   .phone-nav {
+    height: calc(45px + env(safe-area-inset-bottom));
     padding-top: 0;
     padding-bottom: env(safe-area-inset-bottom);
   }
@@ -1482,6 +1570,9 @@ button:active:not(:disabled) {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  :root {
+    --typing-duration: 0.001ms;
+  }
   .phone-shell *,
   .phone-shell *::before,
   .phone-shell *::after,
@@ -1510,6 +1601,10 @@ button:active:not(:disabled) {
   .aurora-waves {
     transition: none;
   }
+  .hero-copy h1 span,
+  .remote-composer {
+    animation: none;
+  }
 }
 
 .visually-hidden {
@@ -1524,42 +1619,45 @@ button:active:not(:disabled) {
   border: 0;
 }
 
-/* The app follows the visual viewport; only its conversation scrolls above the keyboard. */
-html[data-phone-keyboard='open'] .phone-nav,
+/* Track the keyboard immediately; ease the content inside that visible area instead. */
+html[data-phone-keyboard='open'] .phone-nav {
+  height: 0;
+  padding-block: 0;
+  border-color: transparent;
+  opacity: 0;
+  visibility: hidden;
+  transition-delay: 0s, 0s, 0s, 0s, var(--typing-duration);
+}
 html[data-phone-keyboard='open'] .footer-caption {
-  display: none;
+  max-height: 0;
+  margin-block: 0;
+  opacity: 0;
 }
 html[data-phone-keyboard='open'] .phone-footer {
   padding-bottom: 8px;
 }
 html[data-phone-keyboard='open'] .remote-empty {
-  display: grid;
-  place-items: center;
-  min-height: 100%;
-  padding-block: 12px;
+  padding-block: 0 12px;
 }
-html[data-phone-keyboard='open'] .remote-empty > :not(.hero-copy),
-html[data-phone-keyboard='open'] .hero-copy > :not(h1) {
-  display: none;
+html[data-phone-keyboard='open'] .hero-art {
+  height: 76px;
+  transform: scale(0.6);
+}
+html[data-phone-keyboard='open'] .welcome-suggestions {
+  height: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition-delay: 0s, 0s, var(--typing-duration);
+}
+html[data-phone-keyboard='open'] .hero-copy > .eyebrow {
+  height: 0;
+  opacity: 0;
+}
+html[data-phone-keyboard='open'] .hero-copy p {
+  max-height: 0;
+  opacity: 0;
 }
 html[data-phone-keyboard='open'] .hero-copy h1 {
-  font-size: 28px;
-  margin: 0;
-}
-html[data-phone-keyboard='open'] .remote-composer {
-  display: flex;
-  align-items: flex-end;
-  padding: 5px;
-}
-html[data-phone-keyboard='open'] .remote-composer textarea {
-  min-width: 0;
-  flex: 1;
-  padding: 10px;
-  max-height: 100px;
-}
-html[data-phone-keyboard='open'] .composer-context {
-  display: none;
-}
-.memory-search input {
-  font-size: 16px;
+  font-size: 32px;
+  margin: 4px 0 0;
 }

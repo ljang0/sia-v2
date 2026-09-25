@@ -51,7 +51,7 @@ type Recognition = {
   abort(): void;
 };
 function App() {
-  usePhoneViewport();
+  const keyboardOpen = usePhoneViewport();
   const [state, setState] = useState<RemoteState>();
   const [online, setOnline] = useState(false);
   const [connection, setConnection] = useState('Connecting to your Mac…');
@@ -397,7 +397,7 @@ function App() {
             }}
           >
             {!state?.turns.length ? (
-              <Welcome recents={recents} onChoose={choosePrompt} />
+              <Welcome recents={recents} onChoose={choosePrompt} typing={keyboardOpen} />
             ) : (
               <div className="turns">
                 {state.turns.map((turn) => (
@@ -539,7 +539,12 @@ function App() {
           </footer>
         </>
       )}
-      <nav className="phone-nav" aria-label="Main navigation">
+      <nav
+        className="phone-nav"
+        aria-label="Main navigation"
+        inert={keyboardOpen}
+        aria-hidden={keyboardOpen || undefined}
+      >
         {(
           [
             { id: 'chat', label: 'Chat', icon: ChatCircle },

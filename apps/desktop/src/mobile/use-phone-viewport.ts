@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 /** Follow the visible screen, including Safari's keyboard-driven viewport pan. */
 export function usePhoneViewport() {
+  const [keyboard, setKeyboard] = useState(false);
   useEffect(() => {
     const root = document.documentElement;
     const viewport = window.visualViewport;
@@ -26,12 +27,15 @@ export function usePhoneViewport() {
       const obscured = Math.max(fullHeight, window.innerHeight) - height > 120;
       keyboardOpen = obscured && (!!editing || keyboardOpen);
       root.style.setProperty('--phone-height', `${height}px`);
+      // Keep the decorative field's geometry stable through keyboard resize frames.
+      root.style.setProperty('--phone-full-height', `${fullHeight}px`);
       root.style.setProperty('--phone-top', `${top}px`);
       root.style.setProperty(
         '--phone-bottom',
         `${Math.max(0, window.innerHeight - height - top)}px`,
       );
       root.dataset.phoneKeyboard = keyboardOpen ? 'open' : 'closed';
+      setKeyboard(keyboardOpen);
     };
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(update);
@@ -49,9 +53,15 @@ export function usePhoneViewport() {
       window.removeEventListener('resize', schedule);
       document.removeEventListener('focusin', schedule);
       document.removeEventListener('focusout', schedule);
-      for (const name of ['--phone-height', '--phone-top', '--phone-bottom'])
+      for (const name of [
+        '--phone-height',
+        '--phone-full-height',
+        '--phone-top',
+        '--phone-bottom',
+      ])
         root.style.removeProperty(name);
       delete root.dataset.phoneKeyboard;
     };
   }, []);
+  return keyboard;
 }
