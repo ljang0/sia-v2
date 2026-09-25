@@ -42,3 +42,41 @@ ConsolidationScheduler PROMOTE/DISTILL instructions through Sia's existing runti
 `6c74c30c31a2ce31a852209eba86f28c8371409e`, at the repository owner's request. The source repository at
 that revision does not include a license file. Attribution and adaptation details are preserved in
 `apps/desktop/native/voice/README.md`; no replacement license is asserted for the original sources.
+
+## React Bits Shape Waves
+
+The phone aurora adapts the noise field and three-band shape treatment from
+[Shape Waves](https://reactbits.dev/backgrounds/shape-waves),
+`src/ts-default/Backgrounds/ShapeWaves/ShapeWaves.tsx` in
+[DavidHDev/react-bits](https://github.com/DavidHDev/react-bits/tree/28335f42448beecab58f6c7ab35c6c670264a617).
+Sia translates the WGSL field to WebGL 1 for the HTTP phone connection, adds colored
+aurora ribbons, and replaces the GPU framework/interaction/glow passes with a bounded
+single pass and static fallback. This is an application adaptation, not the standalone component.
+
+The original license follows verbatim:
+
+MIT + Commons Clause License Condition v1.0
+
+Copyright (c) 2026 David Haz
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, and distribute the Software **as part of an application, website, or product**, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+## Commons Clause Restriction
+
+You may use this Software, including for any commercial purpose, **so long as you do not sell, sublicense, or redistribute the components themselves-whether alone, in a bundle, or as a ported version.**
+
+## No Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

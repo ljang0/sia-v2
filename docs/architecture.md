@@ -397,6 +397,10 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   Sia retains its model/permission boundaries; Notch's Claude MCP permission endpoint and
   Tailscale address advertisement are not part of this same-Wi-Fi port. The phone stores only
   recent prompts locally, and offers a control to clear them. It never stores provider credentials.
+  Its decorative aurora adapts React Bits Shape Waves' noise field to a single WebGL 1 pass,
+  so it works on the HTTP LAN link without WebGPU or another framework. Rendering is capped at
+  30 fps and a 600 × 590 buffer, stops on hidden pages, and uses static CSS gradients for reduced
+  motion, initialization failure, or graphics context loss. It never handles pointer input.
 
 - First-run guidance is gated by the same release sign-in check as the workspace. Its progress
   lives in encrypted desktop preferences, and starter creation uses `agents.save` plus the normal

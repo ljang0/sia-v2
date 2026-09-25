@@ -1214,7 +1214,7 @@ button:active:not(:disabled) {
 .memory-search input:focus-visible {
   outline: none;
 }
-/* Static gradient textures; transform and opacity let the browser composite their motion. */
+/* Shape Waves field above a static fallback, confined to the decorative header. */
 .phone-aurora {
   position: absolute;
   inset: 0 0 auto;
@@ -1232,13 +1232,30 @@ button:active:not(:disabled) {
 .phone-shell[data-scene='workspace'] .phone-aurora {
   opacity: 0.48;
 }
+.aurora-fallback,
+.aurora-waves {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transition: opacity 500ms ease;
+}
+.aurora-waves {
+  display: block;
+  opacity: 0;
+}
+.phone-aurora[data-renderer='waves'] .aurora-waves {
+  opacity: 1;
+}
+.phone-aurora[data-renderer='waves'] .aurora-fallback {
+  opacity: 0;
+}
 .aurora-veil {
   position: absolute;
   inset: -22% -40% 10%;
   border-radius: 42% 58% 40% 60%;
   filter: blur(24px);
   opacity: var(--aurora-strength);
-  will-change: transform;
   transform-origin: 50% 25%;
 }
 .aurora-emerald {
@@ -1251,7 +1268,7 @@ button:active:not(:disabled) {
     color-mix(in srgb, var(--aurora-emerald) 48%, transparent) 43%,
     transparent 54%
   );
-  animation: aurora-sway 13s -4s ease-in-out infinite alternate;
+  transform: rotate(-15deg);
 }
 .aurora-cyan {
   background: radial-gradient(
@@ -1260,7 +1277,7 @@ button:active:not(:disabled) {
     var(--aurora-cyan) 36%,
     transparent 52%
   );
-  animation: aurora-flow 17s -8s ease-in-out infinite alternate;
+  transform: rotate(12deg);
 }
 .aurora-violet {
   background: radial-gradient(
@@ -1269,7 +1286,7 @@ button:active:not(:disabled) {
     var(--aurora-violet) 41%,
     transparent 52%
   );
-  animation: aurora-drift 19s -12s ease-in-out infinite alternate;
+  transform: rotate(-8deg);
 }
 .aurora-horizon {
   position: absolute;
@@ -1279,9 +1296,6 @@ button:active:not(:disabled) {
     color-mix(in srgb, var(--aurora-emerald) 14%, transparent),
     transparent 66%
   );
-}
-.phone-aurora[data-paused='true'] .aurora-veil {
-  animation-play-state: paused;
 }
 .remote-composer {
   border-color: transparent;
@@ -1328,32 +1342,6 @@ button:active:not(:disabled) {
     --aurora-ink-start: #b8ffd2;
     --aurora-ink-middle: #a4e3f1;
     --aurora-ink-end: #d4bffd;
-  }
-}
-@keyframes aurora-sway {
-  from {
-    transform: translate3d(-7%, -7%, 0) rotate(-21deg) scaleY(0.85);
-  }
-  to {
-    transform: translate3d(7%, 5%, 0) rotate(16deg) scaleY(1.18);
-  }
-}
-@keyframes aurora-flow {
-  from {
-    transform: translate3d(8%, 5%, 0) rotate(15deg) scaleX(0.92);
-  }
-  to {
-    transform: translate3d(-8%, -9%, 0) rotate(-14deg) scaleX(1.15);
-  }
-}
-@keyframes aurora-drift {
-  from {
-    transform: translate3d(-6%, 4%, 0) rotate(-12deg) scaleY(1.12);
-    opacity: calc(var(--aurora-strength) * 0.6);
-  }
-  to {
-    transform: translate3d(6%, -6%, 0) rotate(16deg) scaleY(0.88);
-    opacity: var(--aurora-strength);
   }
 }
 @keyframes nav-arrive {
@@ -1545,18 +1533,9 @@ button:active:not(:disabled) {
   .sheet-overlay[data-state='closed'] {
     animation-duration: 0.001ms;
   }
-  .phone-shell .aurora-veil {
-    animation: none;
-    will-change: auto;
-  }
-  .phone-shell .aurora-emerald {
-    transform: rotate(-15deg);
-  }
-  .phone-shell .aurora-cyan {
-    transform: rotate(12deg);
-  }
-  .phone-shell .aurora-violet {
-    transform: rotate(-8deg);
+  .aurora-fallback,
+  .aurora-waves {
+    transition: none;
   }
 }
 
