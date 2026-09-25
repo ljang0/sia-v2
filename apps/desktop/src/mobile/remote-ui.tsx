@@ -15,7 +15,7 @@ import {
 } from '@phosphor-icons/react';
 import type { RemoteTurn } from '../shared/phone-remote';
 import { SiaMark } from '../renderer/components/SiaMark';
-import { LiquidMetalButton } from './liquid-metal-button';
+import { LiquidMetalButton } from '../renderer/components/effects/liquid-metal-button';
 
 export function Sheet({
   open,

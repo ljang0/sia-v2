@@ -175,6 +175,50 @@ test('phone layout, send, immediate completion, persistence and result download'
   expect(errors).toEqual([]);
 });
 
+test('Home Screen branding loads a real opaque iPhone icon through the paired link', async ({
+  page,
+  remote,
+}) => {
+  for (const route of ['', 'graph']) {
+    await page.goto(new URL(route, remote.url).href);
+    await expect(page).toHaveTitle('Sia');
+    await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute(
+      'content',
+      'Sia',
+    );
+    const icon = page.locator('link[rel="apple-touch-icon"]');
+    await expect(icon).toHaveAttribute('sizes', '180x180');
+    const url = new URL((await icon.getAttribute('href'))!, page.url());
+    expect(url.pathname.startsWith(new URL(remote.url).pathname)).toBe(true);
+    const response = await page.request.get(url.href);
+    expect(response.status()).toBe(200);
+    expect(response.headers()['content-type']).toBe('image/png');
+    const image = await page.evaluate(async (src) => {
+      const image = new Image();
+      image.src = src;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d')!;
+      context.drawImage(image, 0, 0);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      return {
+        width: canvas.width,
+        height: canvas.height,
+        opaque: pixels.every((channel, index) => index % 4 !== 3 || channel === 255),
+      };
+    }, url.href);
+    expect(image).toEqual({ width: 180, height: 180, opaque: true });
+    expect(
+      (
+        await page.request.get(new URL(`/assets/${url.pathname.split('/').at(-1)}`, url).href)
+      ).status(),
+    ).toBe(404);
+  }
+  expect(remote.sends).toHaveLength(0);
+});
+
 test('lost acknowledgement is retryable without duplicating the command', async ({
   page,
   remote,

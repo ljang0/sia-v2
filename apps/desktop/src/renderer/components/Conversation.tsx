@@ -33,6 +33,8 @@ import { ApprovalCard } from './ApprovalCard';
 import { Composer } from './Composer';
 import { ConversationOutline, hasConversationOutline } from './ConversationOutline';
 import { SafeMarkdown } from './SafeMarkdown';
+import { Aurora } from './effects/aurora';
+import { LiquidMetalButton } from './effects/liquid-metal-button';
 
 interface ConversationProps {
   thread?: ThreadDetail | undefined;
@@ -339,13 +341,14 @@ export function Conversation({
 
   if (!thread) {
     return (
-      <main className={styles.mainPane} data-companion-conversation>
+      <main className={styles.mainPane} data-companion-conversation data-scene="welcome">
+        <Aurora className={styles.conversationAurora} />
         <div className={styles.emptyState} data-companion-empty>
           <AgentForm identity={agentHue ?? 0} size="large" />
           <span className={styles.emptyStateKicker}>
             {agentName ? `${agentName} is ready` : 'Start here'}
           </span>
-          <h1>
+          <h1 className={styles.gradientHeading}>
             {agentName ? `Start a thread with ${agentName}.` : 'Create your first agent.'}
           </h1>
           <p>
@@ -354,13 +357,13 @@ export function Conversation({
               : 'Give it a name and one short instruction. Sia chooses a model, color, and private folder.'}
           </p>
           {onCreateThread ? (
-            <button className={styles.primaryButton} type="button" onClick={onCreateThread}>
+            <LiquidMetalButton tone="sage" onClick={onCreateThread}>
               New thread
-            </button>
+            </LiquidMetalButton>
           ) : onCreateAgent ? (
-            <button className={styles.primaryButton} type="button" onClick={onCreateAgent}>
+            <LiquidMetalButton tone="sage" onClick={onCreateAgent}>
               Create your first agent
-            </button>
+            </LiquidMetalButton>
           ) : null}
           {onOpenApps ? (
             <button className={styles.textButton} type="button" onClick={onOpenApps}>
@@ -399,6 +402,7 @@ export function Conversation({
     <main
       className={styles.mainPane}
       data-companion-conversation
+      data-scene={thread.events.length ? 'conversation' : 'welcome'}
       data-file-dragging={draggingFiles ? 'true' : undefined}
       onDragEnter={(event) => {
         if (!onDropAttachments || !hasFiles(event.dataTransfer)) return;
@@ -422,6 +426,7 @@ export function Conversation({
         if (files.length) void onDropAttachments(files);
       }}
     >
+      <Aurora className={styles.conversationAurora} />
       {findOpen ? (
         <div className={styles.conversationFind} role="search">
           <MagnifyingGlass size={15} aria-hidden="true" />
@@ -528,7 +533,7 @@ export function Conversation({
             <div className={styles.threadEmpty} data-companion-thread-empty>
               <AgentForm identity={agentHue} size="medium" />
               <span className={styles.emptyStateKicker}>Ready when you are</span>
-              <h2>What would you like to do?</h2>
+              <h2 className={styles.gradientHeading}>What would you like to do?</h2>
               <p>Describe the outcome, attach any useful files, or choose a suggested start.</p>
               {onOpenApps ? (
                 <button className={styles.textButton} type="button" onClick={onOpenApps}>

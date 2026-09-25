@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, type ComponentPropsWithoutRef } from 'react';
 import { Sparkle } from '@phosphor-icons/react';
 import type { createMetalField } from './liquid-metal-field';
+import './liquid-metal-button.css';
 
 type Props = ComponentPropsWithoutRef<'button'> & {
   label?: string;
   viewMode?: 'text' | 'icon';
   tone?: 'neutral' | 'sage' | 'danger';
+  size?: 'regular' | 'compact';
 };
 
 /** Joly UI's reflective rim and press ripple, adapted to a native, accessible Sia button. */
@@ -13,6 +15,7 @@ export function LiquidMetalButton({
   label = 'Get started',
   viewMode = 'text',
   tone = 'neutral',
+  size = 'regular',
   children,
   className = '',
   type = 'button',
@@ -30,6 +33,7 @@ export function LiquidMetalButton({
       setRipple(undefined);
       return;
     }
+    if (typeof matchMedia !== 'function' || typeof IntersectionObserver === 'undefined') return;
     const motion = matchMedia('(prefers-reduced-motion: reduce)');
     let field: Awaited<ReturnType<typeof createMetalField>> | undefined;
     let disposed = false;
@@ -124,6 +128,7 @@ export function LiquidMetalButton({
       className={`liquid-metal-button ${className}`}
       data-tone={tone}
       data-view={viewMode}
+      data-size={size}
       aria-label={props['aria-label'] ?? (viewMode === 'icon' ? label : undefined)}
       onPointerEnter={(event) => {
         if (event.pointerType === 'mouse') speed.current = 0.8;
@@ -134,7 +139,10 @@ export function LiquidMetalButton({
         props.onPointerLeave?.(event);
       }}
       onClick={(event) => {
-        if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        if (
+          typeof matchMedia === 'function' &&
+          !matchMedia('(prefers-reduced-motion: reduce)').matches
+        ) {
           const rect = event.currentTarget.getBoundingClientRect();
           setRipple({
             x: event.detail ? event.clientX - rect.left : rect.width / 2,

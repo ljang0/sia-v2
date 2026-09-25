@@ -95,6 +95,9 @@ reports success before cloud completion, stop testing and notify the pilot owner
 In **Settings → More → Phone remote**, choose an assistant and enable remote access. If macOS asks for
 **Local Network**, choose **Allow**. Connect your phone to the same Wi-Fi, scan the QR code with
 its camera, and open the private link. No phone app, connector, or additional account is required.
+On iPhone, use Safari's **Share → Add to Home Screen** to save **Sia** with its green app icon.
+If you already saved an older shortcut, remove that shortcut and add it again after refreshing
+the phone page to pick up the new name and icon.
 The phone page shares Sia's colors and typography, with three thumb-accessible views:
 
 - **Chat**: choose an editable suggestion or write your own request, follow progress, send a
@@ -297,6 +300,13 @@ and press Enter; Shift+Enter adds a line and Escape dismisses. Progress and resu
 floating panel; **Review in Sia** opens the full conversation for approvals. No microphone or Accessibility grant is
 needed to type. If another app owns
 Cmd+E, use **Sia → Ask Sia**; Settings → More → Assistant shows shortcut availability.
+
+The desktop conversation and launcher share the phone's aurora field and metallic action buttons.
+The background softens during conversations; focusing the message box keeps the layout stable.
+Effects respect **System Settings → Accessibility → Display → Reduce motion** and pause when
+the window is hidden. Run `pnpm --filter @sia/desktop test:renderer` for headless light/dark,
+compact-window, keyboard, and reduced-motion checks using demo data, without opening Electron
+or accessing your local profile.
 
 Open **Settings → More → Assistant** to opt into current-window context for Fn requests
 and manage your agent's memory and workflows. Context includes app identity,

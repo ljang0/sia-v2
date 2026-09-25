@@ -1,4 +1,6 @@
 .launcher {
+  position: relative;
+  isolation: isolate;
   --panel: #f8f9f8;
   --ink: #252c29;
   --muted: #758079;
@@ -6,17 +8,33 @@
   box-sizing: border-box;
   height: 100vh;
   padding: 16px 20px;
-  background: var(--panel);
+  background:
+    linear-gradient(var(--panel), var(--panel)) padding-box,
+    linear-gradient(115deg, var(--aurora-emerald), var(--aurora-cyan), var(--aurora-violet))
+      border-box;
   color: var(--ink);
   font:
     13px -apple-system,
     BlinkMacSystemFont,
     sans-serif;
-  border: 1px solid #252c291c;
+  border: 1px solid transparent;
   border-radius: 18px;
   overflow: auto;
   display: flex;
   flex-direction: column;
+}
+.aurora {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  overflow: hidden;
+  contain: paint;
+  opacity: 0.32;
+  mask-image: linear-gradient(#000, transparent 100%);
+  transition: opacity 400ms var(--ease-out-soft);
+}
+.launcher:focus-within .aurora {
+  opacity: 0.48;
 }
 .launcher header,
 .launcher footer {
@@ -46,7 +64,7 @@
   font: inherit;
   font-size: 11px;
 }
-.launcher button,
+.launcher button:not([data-size]),
 .launcher select {
   -webkit-app-region: no-drag;
   font: inherit;
@@ -63,11 +81,11 @@
   justify-content: center;
   gap: 5px;
 }
-.launcher button:hover {
+.launcher button:not([data-size]):hover {
   background: var(--line);
   color: var(--ink);
 }
-.launcher button:disabled {
+.launcher button:not([data-size]):disabled {
   opacity: 0.35;
   cursor: default;
 }
@@ -122,14 +140,6 @@
   margin-left: auto;
   color: var(--muted);
   font-size: 11px;
-}
-.launcher button[type='submit'] {
-  width: 30px;
-  height: 30px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--ink);
-  color: var(--panel);
 }
 .result {
   min-height: 0;
@@ -220,7 +230,6 @@
     --ink: #e4e9e6;
     --muted: #929d96;
     --line: #ffffff12;
-    border-color: #ffffff1c;
   }
   .launcher select option {
     background: var(--panel);
@@ -230,7 +239,7 @@
   }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .launcher button {
+  .launcher button:not([data-size]) {
     transition:
       background 120ms ease,
       color 120ms ease;
@@ -247,5 +256,18 @@
       opacity: 1;
       transform: translateY(0);
     }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurora {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  .aurora {
+    display: none;
+  }
+  .launcher {
+    border-color: ButtonText;
   }
 }

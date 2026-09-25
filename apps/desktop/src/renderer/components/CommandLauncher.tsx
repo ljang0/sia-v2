@@ -2,6 +2,8 @@ import { ArrowUp, ArrowUpRight, Plus, X } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import type { LauncherState } from '../../shared/launcher';
 import styles from './CommandLauncher.module.css';
+import { Aurora } from './effects/aurora';
+import { LiquidMetalButton } from './effects/liquid-metal-button';
 export function CommandLauncher() {
   const [state, setState] = useState<LauncherState>({ agents: [] });
   const [agentId, setAgentId] = useState('');
@@ -86,6 +88,7 @@ export function CommandLauncher() {
         }
       }}
     >
+      <Aurora className={styles.aurora} />
       <header>
         <span className={styles.mark} aria-hidden="true" />
         <strong>Sia</strong>
@@ -187,14 +190,17 @@ export function CommandLauncher() {
             <span className={styles.keyboardHint}>
               {working ? 'You can keep working elsewhere' : '↵ to send'}
             </span>
-            <button
+            <LiquidMetalButton
               type="submit"
+              viewMode="icon"
+              size="compact"
+              tone="sage"
               aria-label={busy ? 'Sending request' : 'Send request'}
               title="Send request"
               disabled={busy || working || !text.trim()}
             >
               <ArrowUp size={17} weight="bold" aria-hidden="true" />
-            </button>
+            </LiquidMetalButton>
           </footer>
         </form>
       ) : (

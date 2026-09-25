@@ -1,13 +1,18 @@
 import { useEffect, useRef } from 'react';
 import { createAuroraField } from './aurora-field';
+import './aurora.css';
 
-/** Decorative only: no touch tracking or interference with the phone's controls. */
-export function Aurora() {
+/** Decorative only: no pointer tracking or interference with the app's controls. */
+export function Aurora({ className = '' }: { className?: string | undefined }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const root = rootRef.current!;
     const canvas = canvasRef.current!;
+    if (typeof matchMedia !== 'function' || typeof ResizeObserver === 'undefined') {
+      root.dataset.paused = 'true';
+      return;
+    }
     const motion = matchMedia('(prefers-reduced-motion: reduce)');
     const appearance = matchMedia('(prefers-color-scheme: dark)');
     let field: ReturnType<typeof createAuroraField> | undefined;
@@ -22,7 +27,7 @@ export function Aurora() {
     };
     const tick = (now: number) => {
       if (!field || document.hidden || motion.matches) return;
-      // Cap decoration at 30 fps, independent of 60/120 Hz phone displays.
+      // Cap decoration at 30 fps, independent of display refresh rate.
       if (!previous || now - previous >= 1000 / 30) {
         elapsed += previous ? Math.min(now - previous, 100) / 1000 : 0;
         previous = now;
@@ -95,7 +100,7 @@ export function Aurora() {
     };
   }, []);
   return (
-    <div className="phone-aurora" aria-hidden="true" ref={rootRef}>
+    <div className={`sia-aurora ${className}`} aria-hidden="true" ref={rootRef}>
       <div className="aurora-fallback">
         <div className="aurora-veil aurora-emerald" />
         <div className="aurora-veil aurora-cyan" />

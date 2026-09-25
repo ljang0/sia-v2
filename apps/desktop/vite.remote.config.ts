@@ -11,6 +11,8 @@ export default defineConfig({
   build: {
     outDir: resolve(import.meta.dirname, 'out/remote'),
     emptyOutDir: true,
+    // iOS Home Screen icons need a fetchable file, even when the artwork is tiny.
+    assetsInlineLimit: 0,
     rollupOptions: {
       output: {
         // The phone receives this bundle independently of the packaged Mac app.

@@ -33,7 +33,8 @@
     "predev": "pnpm native:build && pnpm remote:build && node scripts/prepare-dev-electron.mjs",
     "native:test": "node scripts/build-voice-helper.mjs && node scripts/port-notch-prompts.mjs --check && node --test scripts/prepare-dev-electron.test.mjs scripts/release-identity.test.mjs && node scripts/test-voice-helper.mjs",
     "remote:build": "vite build --config vite.remote.config.ts",
-    "test:remote": "pnpm remote:build && playwright test --config playwright.remote.config.ts"
+    "test:remote": "pnpm remote:build && playwright test --config playwright.remote.config.ts",
+    "test:renderer": "playwright test --config playwright.renderer.config.ts"
   },
   "dependencies": {
     "@trycua/cua-driver": "0.21.0",

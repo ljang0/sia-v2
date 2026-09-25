@@ -26,9 +26,11 @@
     0 3px 8px var(--metal-shadow),
     inset 0 0 0 1px rgb(67 91 77 / 16%);
   transition:
-    transform 160ms var(--phone-ease),
+    transform 160ms var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1)),
     box-shadow 180ms ease;
   font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
 }
 .liquid-metal-button::before {
   content: '';
@@ -71,15 +73,21 @@
   gap: inherit;
   pointer-events: none;
 }
-.liquid-metal-button.connection-pill {
-  padding-inline: 12px;
-  min-height: 44px;
-}
 .liquid-metal-button[data-view='icon'] {
   width: 46px;
   height: 46px;
   padding: 0;
   flex: none;
+}
+.liquid-metal-button[data-size='compact'] {
+  min-height: 36px;
+  padding-inline: 14px;
+  font-size: 13px;
+}
+.liquid-metal-button[data-size='compact'][data-view='icon'] {
+  width: 36px;
+  height: 36px;
+  padding: 0;
 }
 .liquid-metal-button[data-tone='sage'] {
   --metal-face: linear-gradient(170deg, #356650, #183e31);
@@ -155,8 +163,13 @@
   }
 }
 
-@media (max-width: 350px) {
-  .liquid-metal-button.connection-pill {
-    padding-inline: 9px;
+@media (forced-colors: active) {
+  .liquid-metal-button {
+    border: 1px solid ButtonText;
+    color: ButtonText;
+  }
+  .liquid-metal-button::before,
+  .metal-surface {
+    display: none;
   }
 }

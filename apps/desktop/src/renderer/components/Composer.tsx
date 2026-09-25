@@ -12,6 +12,7 @@ import {
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import styles from '../ui.module.css';
 import { SiaPresence, type SiaPresenceState } from './SiaPresence';
+import { LiquidMetalButton } from './effects/liquid-metal-button';
 
 interface ComposerAttachment {
   id: string;
@@ -780,27 +781,30 @@ export function Composer({
             </span>
           </div>
           {stoppable ? (
-            <button
+            <LiquidMetalButton
               type="button"
-              className={styles.stopButton}
+              size="compact"
+              className={styles.composerAction}
               onClick={() => void onStop()}
               aria-label="Stop current turn"
             >
               <Stop weight="fill" size={13} aria-hidden="true" />
               Stop
-            </button>
+            </LiquidMetalButton>
           ) : null}
           {!running ? (
-            <button
+            <LiquidMetalButton
               type="button"
-              className={styles.sendButton}
+              size="compact"
+              viewMode="icon"
+              tone="sage"
               onClick={() => void submit()}
               disabled={disabled || (!value.trim() && attachments.length === 0) || sending}
               aria-label="Send message"
               data-testid="composer-send"
             >
               <ArrowUp weight="bold" size={16} aria-hidden="true" />
-            </button>
+            </LiquidMetalButton>
           ) : null}
         </div>
       </div>

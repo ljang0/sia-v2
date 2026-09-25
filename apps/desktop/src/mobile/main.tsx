@@ -24,14 +24,13 @@ import type { RemoteState } from '../shared/phone-remote';
 import { SiaMark } from '../renderer/components/SiaMark';
 import { remoteRequest, RemoteRequestError, requestId } from './api';
 import { MemoryGraph } from './memory-graph';
-import { Aurora } from './aurora';
+import { Aurora } from '../renderer/components/effects/aurora';
 import { usePhoneViewport } from './use-phone-viewport';
-import { LiquidMetalButton } from './liquid-metal-button';
+import { LiquidMetalButton } from '../renderer/components/effects/liquid-metal-button';
 import { Sheet, Welcome, Activity, statusLabels } from './remote-ui';
 import { Turn } from './turn';
 import '../renderer/tokens.css';
 import './remote.css';
-import './liquid-metal-button.css';
 
 type Recognition = {
   lang: string;
@@ -298,7 +297,7 @@ function App() {
       className="phone-shell"
       data-scene={view === 'chat' && !state?.turns.length ? 'welcome' : 'workspace'}
     >
-      <Aurora />
+      <Aurora className="phone-aurora" />
       <span className="visually-hidden" role="status">
         {latest && online ? `Last task: ${statusLabels[latest.status]}.` : ''}
       </span>
@@ -534,7 +533,7 @@ function App() {
                   ? 'Your follow-up is ready to send when this task finishes.'
                   : state && state.workers > 0 && !busy
                     ? `${state.workers} ${state.workers === 1 ? 'task is' : 'tasks are'} running on your Mac.`
-                    : 'Your Mac does the work. You keep moving.'}
+                    : ''}
             </div>
           </footer>
         </>

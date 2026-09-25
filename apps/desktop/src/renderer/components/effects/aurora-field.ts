@@ -1,6 +1,6 @@
 import { fragmentShader, vertexShader } from './aurora-shaders';
 
-/** One bounded WebGL pass, available on the phone's HTTP LAN link. */
+/** One bounded WebGL pass, including on the phone's HTTP LAN link. */
 export function createAuroraField(canvas: HTMLCanvasElement) {
   const gl = canvas.getContext('webgl', {
     alpha: true,
@@ -46,9 +46,10 @@ export function createAuroraField(canvas: HTMLCanvasElement) {
     const resolution = gl.getUniformLocation(program, 'resolution');
     return {
       resize(width: number, height: number) {
-        // Soft decoration needs no retina-resolution buffer. Bound work even on tablets.
-        canvas.width = Math.max(1, Math.min(600, Math.round(width)));
-        canvas.height = Math.max(1, Math.min(590, Math.round(height)));
+        // Preserve the field's proportions with bounded work even on large desktop displays.
+        const scale = Math.min(1, 600 / Math.max(1, width), 590 / Math.max(1, height));
+        canvas.width = Math.max(1, Math.round(width * scale));
+        canvas.height = Math.max(1, Math.round(height * scale));
         gl.viewport(0, 0, canvas.width, canvas.height);
         gl.uniform2f(resolution, canvas.width, canvas.height);
       },

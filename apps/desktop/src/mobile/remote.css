@@ -2,13 +2,6 @@
 :root {
   --phone-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --typing-duration: 440ms;
-  --aurora-emerald: #41c68e;
-  --aurora-cyan: #59b8d1;
-  --aurora-violet: #aaa0dd;
-  --aurora-strength: 0.44;
-  --aurora-ink-start: #265a49;
-  --aurora-ink-middle: #2e627e;
-  --aurora-ink-end: #6d4f88;
 }
 body {
   background: var(--bg-app);
@@ -379,7 +372,7 @@ button:active:not(:disabled) {
 }
 .phone-footer {
   position: relative;
-  padding: 8px 18px 0;
+  padding: 6px 18px 4px;
   background: var(--bg-canvas);
   flex: none;
   transition: padding-bottom var(--typing-duration) var(--phone-ease);
@@ -453,6 +446,10 @@ button:active:not(:disabled) {
     margin var(--typing-duration) var(--phone-ease),
     opacity 220ms ease;
 }
+.footer-caption:empty {
+  max-height: 0;
+  margin-block: 0;
+}
 .composer-hint {
   font-size: 12px;
   margin: 0 8px 8px;
@@ -461,11 +458,11 @@ button:active:not(:disabled) {
 .phone-nav {
   display: flex;
   gap: 8px;
-  padding: 4px 22px calc(env(safe-area-inset-bottom) + 8px);
+  padding: 2px 22px calc(env(safe-area-inset-bottom) + 2px);
   flex: none;
   background: var(--bg-canvas);
   border-top: 1px solid color-mix(in srgb, var(--border-subtle) 50%, transparent);
-  height: calc(65px + env(safe-area-inset-bottom));
+  height: calc(49px + env(safe-area-inset-bottom));
   overflow: hidden;
   transition:
     height var(--typing-duration) var(--phone-ease),
@@ -480,13 +477,14 @@ button:active:not(:disabled) {
   align-items: center;
   flex-direction: column;
   gap: 2px;
-  min-height: 52px;
+  min-height: 44px;
   border: 0;
   background: transparent;
   color: var(--text-tertiary);
   font-size: 10px;
+  line-height: 12px;
   font-weight: 550;
-  padding: 4px;
+  padding: 3px 4px;
   border-radius: 18px;
 }
 .nav-icon {
@@ -494,7 +492,7 @@ button:active:not(:disabled) {
   place-items: center;
   position: relative;
   width: 52px;
-  height: 29px;
+  height: 24px;
   border-radius: 20px;
   transition: background 0.25s;
 }
@@ -1270,71 +1268,6 @@ button:active:not(:disabled) {
 .phone-shell[data-scene='workspace'] .phone-aurora {
   opacity: 0.48;
 }
-.aurora-fallback,
-.aurora-waves {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  transition: opacity 500ms ease;
-}
-.aurora-waves {
-  display: block;
-  opacity: 0;
-}
-.phone-aurora[data-renderer='waves'] .aurora-waves {
-  opacity: 1;
-}
-.phone-aurora[data-renderer='waves'] .aurora-fallback {
-  opacity: 0;
-}
-.aurora-veil {
-  position: absolute;
-  inset: -22% -40% 10%;
-  border-radius: 42% 58% 40% 60%;
-  filter: blur(24px);
-  opacity: var(--aurora-strength);
-  transform-origin: 50% 25%;
-}
-.aurora-emerald {
-  filter: blur(14px);
-  opacity: calc(var(--aurora-strength) * 1.2);
-  background: radial-gradient(
-    ellipse at 42% 38%,
-    transparent 29%,
-    var(--aurora-emerald) 36%,
-    color-mix(in srgb, var(--aurora-emerald) 48%, transparent) 43%,
-    transparent 54%
-  );
-  transform: rotate(-15deg);
-}
-.aurora-cyan {
-  background: radial-gradient(
-    ellipse at 60% 10%,
-    transparent 24%,
-    var(--aurora-cyan) 36%,
-    transparent 52%
-  );
-  transform: rotate(12deg);
-}
-.aurora-violet {
-  background: radial-gradient(
-    ellipse at 65% 35%,
-    transparent 32%,
-    var(--aurora-violet) 41%,
-    transparent 52%
-  );
-  transform: rotate(-8deg);
-}
-.aurora-horizon {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    ellipse at 50% 0%,
-    color-mix(in srgb, var(--aurora-emerald) 14%, transparent),
-    transparent 66%
-  );
-}
 .remote-composer {
   border-color: transparent;
   background:
@@ -1373,17 +1306,6 @@ button:active:not(:disabled) {
     transform: translateY(-2px);
     border-color: color-mix(in srgb, var(--aurora-emerald) 60%, var(--border-subtle));
     box-shadow: 0 6px 18px rgb(23 58 52 / 7%);
-  }
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --aurora-emerald: #40e7a0;
-    --aurora-cyan: #38b6cf;
-    --aurora-violet: #9680f0;
-    --aurora-strength: 0.34;
-    --aurora-ink-start: #b8ffd2;
-    --aurora-ink-middle: #a4e3f1;
-    --aurora-ink-end: #d4bffd;
   }
 }
 @keyframes nav-arrive {
@@ -1660,4 +1582,14 @@ html[data-phone-keyboard='open'] .hero-copy p {
 html[data-phone-keyboard='open'] .hero-copy h1 {
   font-size: 32px;
   margin: 4px 0 0;
+}
+
+.liquid-metal-button.connection-pill {
+  padding-inline: 12px;
+  min-height: 44px;
+}
+@media (max-width: 350px) {
+  .liquid-metal-button.connection-pill {
+    padding-inline: 9px;
+  }
 }

@@ -1043,6 +1043,7 @@ button.agentAvatar {
 
 .mainPane {
   position: relative;
+  isolation: isolate;
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -1050,6 +1051,51 @@ button.agentAvatar {
   flex-direction: column;
   background: var(--bg-canvas);
   animation: pageEnter var(--motion-surface) var(--ease-out-soft) both;
+}
+
+.conversationAurora {
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 auto;
+  height: min(580px, 78%);
+  overflow: hidden;
+  contain: paint;
+  opacity: 0.85;
+  mask-image: linear-gradient(#000 20%, transparent 100%);
+  transition: opacity 700ms var(--ease-out-soft);
+}
+
+.mainPane[data-scene='conversation'] .conversationAurora {
+  opacity: 0.2;
+}
+
+.gradientHeading {
+  color: var(--aurora-ink-start);
+  background: linear-gradient(
+    110deg,
+    var(--aurora-ink-start),
+    var(--aurora-ink-middle) 32%,
+    var(--aurora-ink-end) 64%,
+    var(--aurora-ink-start)
+  );
+  background-size: 260% 100%;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: auroraDrift 18s ease-in-out infinite alternate;
+}
+
+@keyframes auroraDrift {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
+}
+
+.mainPane:has(.conversationAurora[data-paused='true']) .gradientHeading,
+.mainPane:has(.conversationAurora[data-paused='true']) .composer {
+  animation-play-state: paused;
 }
 
 .threadScroll {
@@ -1714,8 +1760,6 @@ button.agentAvatar {
 .primaryButton,
 .secondaryButton,
 .dangerButton,
-.stopButton,
-.sendButton,
 .textButtonDanger {
   display: inline-flex;
   min-height: 36px;
@@ -1787,9 +1831,7 @@ button.agentAvatar {
 
 .primaryButton:disabled,
 .secondaryButton:disabled,
-.dangerButton:disabled,
-.stopButton:disabled,
-.sendButton:disabled {
+.dangerButton:disabled {
   cursor: default;
   opacity: 0.45;
   transform: none;
@@ -1999,7 +2041,7 @@ button.agentAvatar {
   width: min(100%, calc(var(--composer-max) + 64px));
   margin: 0 auto;
   padding: 14px 32px 24px;
-  background: var(--bg-canvas);
+  background: transparent;
 }
 
 .composer {
@@ -2065,26 +2107,8 @@ button.agentAvatar {
   white-space: nowrap;
 }
 
-.sendButton {
-  width: 32px;
-  min-height: 32px;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: var(--bg-accent);
-  color: var(--text-on-accent);
-}
-
-.sendButton:hover:not(:disabled) {
-  background: var(--bg-accent-hover);
-}
-
-.stopButton {
-  min-height: 34px;
-  padding: 0 12px;
-  border: 1px solid color-mix(in srgb, var(--border-strong) 62%, var(--border-subtle));
-  border-radius: var(--radius-round);
-  background: var(--bg-raised);
-  color: var(--text-primary);
+.composerAction {
+  gap: 6px;
 }
 
 .composerError {
@@ -5097,10 +5121,11 @@ button.agentAvatar {
   gap: 18px;
   padding: 9px 13px;
   border: 0;
-  background: var(--bg-raised);
+  background: color-mix(in srgb, var(--bg-raised) 94%, transparent);
   color: var(--text-primary);
   font: inherit;
   cursor: pointer;
+  transition: background 200ms var(--ease-standard);
 }
 
 .starterPrompts button:hover {
@@ -5109,6 +5134,14 @@ button.agentAvatar {
 
 .starterPrompts button span:last-child {
   color: var(--text-tertiary);
+  transition:
+    transform 220ms var(--ease-out-soft),
+    color 220ms ease;
+}
+
+.starterPrompts button:hover span:last-child {
+  color: var(--text-primary);
+  transform: translate(2px, -2px);
 }
 
 .eventSearchAnchor {
@@ -6650,12 +6683,12 @@ button.agentAvatar {
 }
 
 .threadEmpty h2 {
-  max-width: 12ch;
+  max-width: 16ch;
   margin-top: 13px;
   font-family: var(--font-display);
-  font-size: var(--display-lg);
+  font-size: clamp(30px, 3vw, 42px);
   letter-spacing: -0.045em;
-  line-height: 1;
+  line-height: 1.08;
 }
 
 .threadEmpty p {
@@ -6670,24 +6703,51 @@ button.agentAvatar {
 
 .composer {
   padding: 10px 12px 9px;
-  border-color: color-mix(in srgb, var(--agent-color) 24%, var(--border-subtle));
+  border-color: transparent;
   border-radius: var(--radius-dialog);
-  background: color-mix(in srgb, var(--agent-color) 3%, var(--bg-raised));
+  background:
+    linear-gradient(
+        115deg,
+        color-mix(in srgb, var(--aurora-emerald) 5%, var(--bg-raised)),
+        var(--bg-raised) 35%,
+        color-mix(in srgb, var(--aurora-cyan) 5%, var(--bg-raised)) 65%,
+        color-mix(in srgb, var(--aurora-violet) 6%, var(--bg-raised))
+      )
+      padding-box,
+    linear-gradient(
+        110deg,
+        color-mix(in srgb, var(--aurora-emerald) 45%, var(--border-subtle)),
+        color-mix(in srgb, var(--aurora-cyan) 40%, var(--border-subtle)) 32%,
+        color-mix(in srgb, var(--aurora-violet) 45%, var(--border-subtle)) 64%,
+        color-mix(in srgb, var(--aurora-emerald) 45%, var(--border-subtle))
+      )
+      border-box;
+  background-size: 260% 100%;
+  animation: auroraDrift 22s ease-in-out infinite alternate;
   box-shadow:
-    0 18px 48px color-mix(in srgb, var(--agent-color) 8%, transparent),
+    0 8px 28px color-mix(in srgb, var(--aurora-emerald) 6%, transparent),
     var(--shadow-composer);
+  transition:
+    box-shadow 360ms var(--ease-out-soft),
+    border-color 360ms ease;
+}
+
+.composer:focus-within {
+  border-color: transparent;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--aurora-emerald) 16%, transparent),
+    0 10px 36px color-mix(in srgb, var(--aurora-cyan) 10%, transparent),
+    var(--shadow-composer);
+}
+
+.composer.composerDisabled {
+  animation-play-state: paused;
 }
 
 .composer textarea {
   min-height: 38px;
   padding-top: 6px;
   font-size: var(--text-lg);
-}
-
-.sendButton {
-  width: 36px;
-  min-height: 36px;
-  border-radius: var(--radius-control);
 }
 
 .settingsTopbar {
@@ -6993,6 +7053,15 @@ button.agentAvatar {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .gradientHeading,
+  .composer {
+    animation: none;
+  }
+  .conversationAurora,
+  .composer,
+  .starterPrompts button span:last-child {
+    transition: none;
+  }
   :where(button, a, input, textarea, select, summary) {
     transition-duration: 0.01ms;
   }
@@ -7091,6 +7160,17 @@ button.agentAvatar {
 }
 
 @media (forced-colors: active) {
+  .conversationAurora {
+    display: none;
+  }
+  .gradientHeading {
+    background: none;
+    -webkit-text-fill-color: currentColor;
+    color: CanvasText;
+  }
+  .composer {
+    border-color: ButtonText;
+  }
   :focus {
     outline: 2px solid Highlight;
     outline-offset: 2px;

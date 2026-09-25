@@ -448,7 +448,7 @@ export class PhoneRemote {
       const path =
         route === '' || route === 'index.html' || route === 'graph'
           ? 'index.html'
-          : /^assets\/[a-zA-Z0-9_.-]+\.(js|css|woff2|svg)$/.test(route)
+          : /^assets\/[a-zA-Z0-9_.-]+\.(js|css|woff2|svg|png)$/.test(route)
             ? route
             : undefined;
       if (path) {
@@ -463,6 +463,7 @@ export class PhoneRemote {
           '.css': 'text/css; charset=utf-8',
           '.woff2': 'font/woff2',
           '.svg': 'image/svg+xml',
+          '.png': 'image/png',
         };
         response.writeHead(200, { 'Content-Type': types[extname(path)]! });
         response.end(data);
