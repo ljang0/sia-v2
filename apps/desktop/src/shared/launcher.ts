@@ -1,4 +1,5 @@
 export interface LauncherState {
+  appearance?: 'calm' | 'expressive';
   agents: { id: string; name: string }[];
   agentId?: string;
   task?: {

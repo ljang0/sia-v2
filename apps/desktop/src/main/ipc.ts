@@ -216,6 +216,7 @@ const inputSchemas = {
       ]),
     })
     .strict(),
+  'settings.setAppearance': z.object({ appearance: z.enum(['calm', 'expressive']) }).strict(),
   'settings.setCompletionSound': z.object({ enabled: z.boolean() }).strict(),
   'feedback.compose': z
     .object({

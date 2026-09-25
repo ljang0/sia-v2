@@ -1,4 +1,4 @@
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -605,10 +605,7 @@ test('a failure already explained in the reply is shown once and still needs att
 
 type AuroraProbe = Window & { auroraProbe: { frames: number; pixels: number } };
 
-test('aurora renders moving pixels, pauses when hidden, and respects live motion changes', async ({
-  page,
-  remote,
-}) => {
+async function trackAurora(page: Page) {
   await page.addInitScript(() => {
     const probe = { frames: 0, pixels: 0 };
     (window as unknown as AuroraProbe).auroraProbe = probe;
@@ -629,6 +626,13 @@ test('aurora renders moving pixels, pauses when hidden, and respects live motion
       probe.pixels = pixels.reduce((sum, value) => sum + value, 0);
     };
   });
+}
+
+test('aurora renders moving pixels, pauses when hidden, and respects live motion changes', async ({
+  page,
+  remote,
+}) => {
+  await trackAurora(page);
   const probe = () => page.evaluate(() => (window as unknown as AuroraProbe).auroraProbe);
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto(remote.url);
@@ -669,7 +673,7 @@ test('aurora renders moving pixels, pauses when hidden, and respects live motion
   expect(remote.sends).toHaveLength(0);
 });
 
-test('phone keeps its static aurora and working controls when graphics are unavailable', async ({
+test('phone keeps its fallback aurora and working controls when graphics are unavailable', async ({
   page,
   remote,
 }) => {
@@ -690,22 +694,43 @@ test('phone keeps its static aurora and working controls when graphics are unava
   expect(remote.sends).toEqual(['A quick answer']);
 });
 
-test('graphics context loss restores the fallback without losing the draft', async ({
+test('graphics context loss recovers moving waves without losing the draft', async ({
   page,
   remote,
 }) => {
+  await trackAurora(page);
   await page.goto(remote.url);
   await expect(page.locator('.phone-aurora')).toHaveAttribute('data-renderer', 'waves');
   await page.getByRole('textbox').fill('Keep this draft');
-  await page.locator('.aurora-waves').evaluate((canvas) => {
+  const context = await page.locator('.aurora-waves').evaluateHandle((canvas) => {
     const gl = (canvas as HTMLCanvasElement).getContext('webgl')!;
     const extension = gl.getExtension('WEBGL_lose_context');
     if (!extension) throw new Error('Context-loss test requires WEBGL_lose_context');
-    extension.loseContext();
+    return extension;
   });
+  await context.evaluate((extension) => extension.loseContext());
   await expect(page.locator('.phone-aurora')).toHaveAttribute('data-renderer', 'fallback');
   await expect(page.locator('.aurora-fallback')).toHaveCSS('opacity', '1');
   await expect(page.getByRole('textbox')).toHaveValue('Keep this draft');
+  await context.evaluate((extension) => extension.restoreContext());
+  await context.dispose();
+  await expect(page.locator('.phone-aurora')).toHaveAttribute('data-renderer', 'waves');
+  await expect(page.locator('.aurora-waves')).toHaveCSS('opacity', '1');
+  const pixels = () =>
+    page.evaluate(() => (window as unknown as AuroraProbe).auroraProbe.pixels);
+  await expect.poll(pixels).toBeGreaterThan(0);
+  const first = await pixels();
+  await expect.poll(pixels).not.toBe(first);
+  await expect(page.getByRole('textbox')).toHaveValue('Keep this draft');
+  await page.evaluate(() => {
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+  });
+  await expect(page.locator('.phone-aurora')).toHaveAttribute('data-paused', 'true');
+  await page.evaluate(() =>
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })),
+  );
+  await expect(page.locator('.phone-aurora')).toHaveAttribute('data-paused', 'false');
+  await expect(page.locator('.phone-aurora')).toHaveAttribute('data-renderer', 'waves');
   await page.getByRole('button', { name: 'Tasks', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'A little less to do.' })).toBeVisible();
   expect(remote.sends).toHaveLength(0);

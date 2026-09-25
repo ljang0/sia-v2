@@ -2,6 +2,7 @@ import { ArrowUp, ArrowUpRight, Plus, X } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import type { LauncherState } from '../../shared/launcher';
 import styles from './CommandLauncher.module.css';
+import { AppearanceContext } from './effects/appearance';
 import { Aurora } from './effects/aurora';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
 export function CommandLauncher() {
@@ -10,6 +11,10 @@ export function CommandLauncher() {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const panel = useRef<HTMLElement>(null);
+  const opening = useRef(false);
+  const handoff = useRef(0);
+  const exitAnimation = useRef<Animation | undefined>(undefined);
   const field = useRef<HTMLTextAreaElement>(null);
   const session = useRef<string | undefined>(undefined);
   useEffect(() => {
@@ -41,12 +46,19 @@ export function CommandLauncher() {
           if (active) setError('Open Sia to finish setting up.');
         });
     };
+    const cancelHandoff = () => {
+      handoff.current++;
+      exitAnimation.current?.cancel();
+    };
+    window.addEventListener('blur', cancelHandoff);
     const unsubscribe = window.siaLauncher.onState(receive);
     refresh();
     field.current?.focus();
     window.addEventListener('focus', refresh);
     return () => {
       active = false;
+      cancelHandoff();
+      window.removeEventListener('blur', cancelHandoff);
       unsubscribe();
       window.removeEventListener('focus', refresh);
     };
@@ -67,6 +79,45 @@ export function CommandLauncher() {
       setBusy(false);
     }
   }
+  async function openConversation(sessionId?: string) {
+    if (opening.current) return;
+    opening.current = true;
+    const ticket = ++handoff.current;
+    await action(async () => {
+      let animation: Animation | undefined;
+      try {
+        if (
+          state.appearance !== 'calm' &&
+          typeof matchMedia === 'function' &&
+          !matchMedia('(prefers-reduced-motion: reduce)').matches &&
+          panel.current?.animate
+        ) {
+          animation = panel.current.animate(
+            [
+              { opacity: 1, transform: 'translateY(0) scale(1)' },
+              { opacity: 0, transform: 'translateY(5px) scale(0.98)' },
+            ],
+            { duration: 160, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'forwards' },
+          );
+          exitAnimation.current = animation;
+          await animation.finished.catch(() => undefined);
+        }
+        if (ticket !== handoff.current) return;
+        await window.siaLauncher.openSia(sessionId);
+      } finally {
+        animation?.cancel();
+        exitAnimation.current = undefined;
+        opening.current = false;
+      }
+    });
+  }
+  function dismiss() {
+    handoff.current++;
+    exitAnimation.current?.cancel();
+    void window.siaLauncher
+      .dismiss()
+      .catch(() => setError('Could not close the launcher. Try again.'));
+  }
   async function send() {
     if (busy || working || !text.trim() || !agentId) return;
     await action(async () => {
@@ -78,13 +129,15 @@ export function CommandLauncher() {
       setText('');
     });
   }
-  return (
+  const content = (
     <main
+      ref={panel}
+      data-appearance={state.appearance ?? 'expressive'}
       className={styles.launcher}
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.preventDefault();
-          void window.siaLauncher.dismiss();
+          dismiss();
         }
       }}
     >
@@ -93,7 +146,7 @@ export function CommandLauncher() {
         <span className={styles.mark} aria-hidden="true" />
         <strong>Sia</strong>
         <kbd className={styles.hint}>⌘ E</kbd>
-        <button aria-label="Close launcher" onClick={() => void window.siaLauncher.dismiss()}>
+        <button aria-label="Close launcher" onClick={dismiss}>
           <X size={14} aria-hidden="true" />
         </button>
       </header>
@@ -131,10 +184,7 @@ export function CommandLauncher() {
                 Stop
               </button>
             )}
-            <button
-              disabled={busy}
-              onClick={() => void action(() => window.siaLauncher.openSia(task.sessionId))}
-            >
+            <button disabled={busy} onClick={() => void openConversation(task.sessionId)}>
               {task.status === 'waiting' ? 'Review in Sia' : 'Open conversation'}{' '}
               <ArrowUpRight size={13} aria-hidden="true" />
             </button>
@@ -206,9 +256,7 @@ export function CommandLauncher() {
       ) : (
         <div className={styles.empty}>
           <p>Your assistant is a moment away.</p>
-          <button onClick={() => void action(() => window.siaLauncher.openSia())}>
-            Open Sia to get started
-          </button>
+          <button onClick={() => void openConversation()}>Open Sia to get started</button>
         </div>
       )}
       {error && (
@@ -217,5 +265,8 @@ export function CommandLauncher() {
         </p>
       )}
     </main>
+  );
+  return (
+    <AppearanceContext value={state.appearance ?? 'expressive'}>{content}</AppearanceContext>
   );
 }

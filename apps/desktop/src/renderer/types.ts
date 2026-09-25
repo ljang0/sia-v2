@@ -31,6 +31,7 @@ export interface AgentSummary {
 }
 
 export interface ThreadSummary {
+  preview?: { label: 'Request' | 'Latest reply' | 'Latest activity'; text: string } | undefined;
   id: string;
   agentId: string;
   title: string;
@@ -433,6 +434,7 @@ export interface RendererSnapshot {
   voice: VoiceSettingsState;
   preferences: {
     completionSound: boolean;
+    appearance?: 'calm' | 'expressive';
     onboarding?: OnboardingProgress;
   };
   updates: {
@@ -496,6 +498,7 @@ export interface ResearchBatchSummary {
 export type ApprovalDecision = 'approve' | 'reject';
 
 export interface RendererApi {
+  onOpenConversation?(listener: () => void): () => void;
   scotty?: import('../shared/scotty').ScottySettingsApi;
   phoneRemote?: import('../shared/phone-remote').PhoneRemoteApi;
   assistantLibrary(
@@ -640,6 +643,7 @@ export interface RendererApi {
   ): Promise<void>;
   restartForOnboarding(): Promise<void>;
   setupMessages(): Promise<void>;
+  setAppearance(appearance: 'calm' | 'expressive'): Promise<void>;
   setCompletionSound(enabled: boolean): Promise<void>;
   composeFeedback(
     message: string,

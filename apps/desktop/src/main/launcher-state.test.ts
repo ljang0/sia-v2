@@ -110,3 +110,12 @@ it('invalidates old controls when another surface starts a new turn in the same 
   expect(() => session.target(old, state)).toThrow();
   expect(session.view(state).task!.response).toBe('');
 });
+
+it('keeps the launcher in sync with the saved appearance', () => {
+  const state = snapshot();
+  state.preferences = { completionSound: false, appearance: 'calm' };
+  const session = new LauncherSession();
+  expect(session.view(state).appearance).toBe('calm');
+  state.preferences.appearance = 'expressive';
+  expect(session.view(state).appearance).toBe('expressive');
+});

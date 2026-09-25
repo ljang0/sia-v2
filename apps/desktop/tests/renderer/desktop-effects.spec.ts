@@ -121,3 +121,150 @@ test('launcher retains native form submission, dismiss, and agent selection', as
   ]);
   expect(probe.dismissals).toBe(1);
 });
+
+test('navigation stays stable, previews do not select, and the compact rail keeps every route', async ({
+  page,
+}, info) => {
+  await page.goto('/#demo');
+  const nav = page.getByRole('complementary', { name: 'Agent navigation' });
+  const task = nav.getByRole('button', { name: 'Weekly research update', exact: true });
+  await task.hover();
+  await expect(page.getByRole('tooltip')).toBeVisible();
+  await expect(page.getByRole('tooltip')).toContainText('Latest reply');
+  await expect(task).toHaveAttribute('aria-current', 'page');
+  await page.screenshot({ path: info.outputPath('task-preview.png') });
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('tooltip')).toHaveCount(0);
+  const groups = () =>
+    nav.locator('section').evaluateAll((elements) => elements.map((el) => el.textContent));
+  const before = await groups();
+  await nav.getByRole('button', { name: 'Personal admin', exact: true }).click();
+  expect(await groups()).toEqual(before);
+  await nav.getByRole('searchbox', { name: 'Find a thread' }).fill('Weekly');
+  await expect(task).toBeVisible();
+  await expect(
+    nav.getByRole('button', { name: 'Triage today’s inbox', exact: true }),
+  ).toHaveCount(0);
+  await nav.getByRole('button', { name: 'Collapse sidebar' }).click();
+  for (const name of [
+    'New conversation',
+    'Search conversations',
+    'Create agent',
+    'Activity',
+    'Open settings',
+  ]) {
+    await expect(nav.getByRole('button', { name, exact: true })).toBeVisible();
+  }
+  await nav.getByRole('button', { name: 'Activity', exact: true }).click();
+  await expect(nav.getByRole('button', { name: 'Activity', exact: true })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await nav.getByRole('button', { name: 'Expand sidebar' }).click();
+  await expect(nav.getByRole('button', { name: 'Activity', exact: true })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+});
+
+test('appearance stops and restores decorative graphics across settings and conversation', async ({
+  page,
+}, info) => {
+  await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'no-preference' });
+  await page.goto('/#demo');
+  await page.getByRole('button', { name: 'New conversation', exact: true }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+  const calm = page.getByRole('radio', { name: /Calm/ });
+  const expressive = page.getByRole('radio', { name: /Expressive/ });
+  await expect(expressive).toBeChecked();
+  await calm.check();
+  await expect(calm).toBeChecked();
+  await page.screenshot({ path: info.outputPath('appearance.png') });
+  await page.getByRole('button', { name: 'Close settings', exact: true }).click();
+  await expect(page.locator('.sia-aurora')).toHaveAttribute('data-renderer', 'still');
+  await expect(page.getByRole('heading', { name: 'What would you like to do?' })).toHaveCSS(
+    'animation-name',
+    'none',
+  );
+  await page.getByRole('textbox', { name: 'Message', exact: true }).fill('Keep this draft');
+  const surface = page.getByRole('button', { name: 'Send message' }).locator('.metal-surface');
+  await expect(surface.locator('canvas')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+  await expect(calm).toBeChecked();
+  await expressive.check();
+  await page.getByRole('button', { name: 'Close settings', exact: true }).click();
+  await expect(page.locator('.sia-aurora')).toHaveAttribute('data-renderer', 'waves');
+  await expect(surface).toHaveAttribute('data-metal', 'ready');
+  await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue(
+    'Keep this draft',
+  );
+});
+
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  test(`launcher handoff is recoverable with ${reducedMotion} motion`, async ({ page }) => {
+    await page.setViewportSize({ width: 560, height: 340 });
+    await page.emulateMedia({ reducedMotion });
+    await page.addInitScript(() => {
+      Object.assign(window, {
+        openAttempts: [] as unknown[],
+        siaLauncher: {
+          state: async () => ({
+            agents: [{ id: 'work', name: 'Work' }],
+            task: {
+              sessionId: 'existing-task',
+              agentId: 'work',
+              title: 'Verified course list',
+              status: 'idle',
+              progress: 'Ready',
+              response: 'Three courses verified',
+              truncated: false,
+            },
+          }),
+          onState: () => () => {},
+          openSia: async (id: string) => {
+            (window as unknown as { openAttempts: string[] }).openAttempts.push(id);
+            throw new Error('Could not open Sia. Try again.');
+          },
+        },
+      });
+    });
+    await page.goto('/#launcher');
+    const open = page.getByRole('button', { name: 'Open conversation' });
+    await open.click();
+    await expect(page.getByText('Could not open Sia. Try again.')).toBeVisible();
+    await expect(open).toBeEnabled();
+    await expect(page.locator('main')).toHaveCSS('opacity', '1');
+    expect(
+      await page.evaluate(() => (window as unknown as { openAttempts: string[] }).openAttempts),
+    ).toEqual(['existing-task']);
+  });
+}
+
+test('navigation reveals a distant selected task without scrolling the app window', async ({
+  page,
+}) => {
+  test.setTimeout(60000);
+  await page.setViewportSize({ width: 900, height: 680 });
+  await page.goto('/#demo');
+  const nav = page.getByRole('complementary', { name: 'Agent navigation' });
+  for (let index = 0; index < 4; index++) {
+    await nav.getByRole('button', { name: 'New conversation', exact: true }).click();
+  }
+  await page.keyboard.press('ControlOrMeta+k');
+  await page.getByRole('combobox', { name: 'Search rooms and actions' }).fill('Triage');
+  await page.getByRole('option', { name: /Triage today’s inbox/ }).click();
+  const selected = nav.getByRole('button', { name: 'Triage today’s inbox', exact: true });
+  await expect(selected).toHaveAttribute('aria-current', 'page');
+  const bounds = await selected.boundingBox();
+  expect(bounds!.y).toBeGreaterThan(180);
+  expect(bounds!.y + bounds!.height).toBeLessThan(580);
+  expect(
+    await page.evaluate(() => ({
+      document: document.documentElement.scrollTop,
+      body: document.body.scrollTop,
+    })),
+  ).toEqual({ document: 0, body: 0 });
+  await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
+});

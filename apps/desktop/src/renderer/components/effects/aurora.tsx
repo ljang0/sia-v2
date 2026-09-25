@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { createAuroraField } from './aurora-field';
 import './aurora.css';
+import { useAppearance } from './appearance';
 
 /** Decorative only: no pointer tracking or interference with the app's controls. */
 export function Aurora({ className = '' }: { className?: string | undefined }) {
+  const calm = useAppearance() === 'calm';
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -20,6 +22,7 @@ export function Aurora({ className = '' }: { className?: string | undefined }) {
     let previous = 0;
     let elapsed = 18;
     let failed = false;
+    let contextLost = false;
     const stop = () => {
       cancelAnimationFrame(frame);
       frame = 0;
@@ -42,14 +45,14 @@ export function Aurora({ className = '' }: { className?: string | undefined }) {
     };
     const sync = () => {
       stop();
-      root.dataset.paused = String(document.hidden || motion.matches);
-      if (motion.matches) {
+      root.dataset.paused = String(document.hidden || motion.matches || calm);
+      if (motion.matches || calm) {
         field?.dispose();
         field = undefined;
         root.dataset.renderer = 'still';
         return;
       }
-      if (failed) {
+      if (failed || contextLost) {
         root.dataset.renderer = 'fallback';
         return;
       }
@@ -74,18 +77,37 @@ export function Aurora({ className = '' }: { className?: string | undefined }) {
       field?.theme(getComputedStyle(root));
       if (!document.hidden) field?.render(elapsed);
     };
-    const onLoss = () => {
+    const onLoss = (event: Event) => {
+      // Allow Safari to restore a context evicted while the phone was backgrounded.
+      event.preventDefault();
+      contextLost = true;
       stop();
       field?.dispose();
       field = undefined;
       failed = true;
       root.dataset.renderer = 'fallback';
     };
-    const onVisibility = () => sync();
+    const onRestore = () => {
+      contextLost = false;
+      failed = false;
+      sync();
+    };
+    const onResume = () => {
+      if (!document.hidden) failed = false;
+      sync();
+      if (!document.hidden) resize();
+    };
+    const onPageHide = () => {
+      stop();
+      root.dataset.paused = 'true';
+    };
     const observer = new ResizeObserver(resize);
     observer.observe(root);
     canvas.addEventListener('webglcontextlost', onLoss);
-    document.addEventListener('visibilitychange', onVisibility);
+    canvas.addEventListener('webglcontextrestored', onRestore);
+    document.addEventListener('visibilitychange', onResume);
+    window.addEventListener('pageshow', onResume);
+    window.addEventListener('pagehide', onPageHide);
     motion.addEventListener('change', sync);
     appearance.addEventListener('change', onTheme);
     sync();
@@ -94,11 +116,14 @@ export function Aurora({ className = '' }: { className?: string | undefined }) {
       observer.disconnect();
       field?.dispose();
       canvas.removeEventListener('webglcontextlost', onLoss);
-      document.removeEventListener('visibilitychange', onVisibility);
+      canvas.removeEventListener('webglcontextrestored', onRestore);
+      document.removeEventListener('visibilitychange', onResume);
+      window.removeEventListener('pageshow', onResume);
+      window.removeEventListener('pagehide', onPageHide);
       motion.removeEventListener('change', sync);
       appearance.removeEventListener('change', onTheme);
     };
-  }, []);
+  }, [calm]);
   return (
     <div className={`sia-aurora ${className}`} aria-hidden="true" ref={rootRef}>
       <div className="aurora-fallback">

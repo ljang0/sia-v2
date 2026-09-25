@@ -468,6 +468,7 @@ export interface DesktopSnapshot {
   voice: VoiceView;
   preferences: {
     completionSound: boolean;
+    appearance?: 'calm' | 'expressive';
     onboarding?: OnboardingProgress;
   };
   providerUsage?: ProviderUsageView[];
@@ -646,6 +647,7 @@ export interface BridgeRequestMap {
   };
   'settings.restartForOnboarding': undefined;
   'computer.setupMessages': undefined;
+  'settings.setAppearance': { appearance: 'calm' | 'expressive' };
   'settings.setCompletionSound': { enabled: boolean };
   'feedback.compose': { message: string; threadId?: string; includeDiagnostics: boolean };
   'updates.check': undefined;
@@ -768,6 +770,7 @@ export interface BridgeResultMap {
   'settings.setOnboarding': DesktopSnapshot;
   'settings.restartForOnboarding': DesktopSnapshot;
   'computer.setupMessages': DesktopSnapshot;
+  'settings.setAppearance': DesktopSnapshot;
   'settings.setCompletionSound': DesktopSnapshot;
   'feedback.compose': { opened: boolean };
   'updates.check': UpdateView;
@@ -833,7 +836,9 @@ export interface BridgeErrorShape {
 }
 
 export type DesktopPushEvent =
-  { type: 'snapshot'; snapshot: DesktopSnapshot } | { type: 'fatal'; error: BridgeErrorShape };
+  | { type: 'open-conversation' }
+  | { type: 'snapshot'; snapshot: DesktopSnapshot }
+  | { type: 'fatal'; error: BridgeErrorShape };
 
 export interface DesktopBridgeApi {
   scotty: import('./scotty.js').ScottySettingsApi;
@@ -939,6 +944,7 @@ export interface DesktopBridgeApi {
       permissionSetup?: OnboardingProgress['permissionSetup'],
     ): Promise<DesktopSnapshot>;
     restartForOnboarding(): Promise<DesktopSnapshot>;
+    setAppearance(appearance: 'calm' | 'expressive'): Promise<DesktopSnapshot>;
     setCompletionSound(enabled: boolean): Promise<DesktopSnapshot>;
   };
   feedback: {

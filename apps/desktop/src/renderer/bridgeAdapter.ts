@@ -1,3 +1,4 @@
+import { threadPreviews } from './threadPreviews';
 import { agentIdentity } from './agentIdentity';
 import type {
   ApprovalView,
@@ -50,6 +51,11 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
   };
 
   return {
+    onOpenConversation(listener) {
+      return bridge.subscribe((event) => {
+        if (event.type === 'open-conversation') listener();
+      });
+    },
     scotty: (input) => bridge.scotty(input),
     phoneRemote: (input) => bridge.phoneRemote(input),
     async getSnapshot() {
@@ -59,7 +65,7 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       listeners.add(listener);
       const unsubscribe = bridge.subscribe((event) => {
         if (event.type === 'snapshot') publish(event.snapshot);
-        else onError?.(event.error.message);
+        else if (event.type === 'fatal') onError?.(event.error.message);
       });
       return () => {
         listeners.delete(listener);
@@ -421,6 +427,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async setOnboarding(step, permissionSetup) {
       publish(await bridge.settings.setOnboarding(step, permissionSetup));
     },
+    async setAppearance(appearance) {
+      publish(await bridge.settings.setAppearance(appearance));
+    },
     async setCompletionSound(enabled) {
       publish(await bridge.settings.setCompletionSound(enabled));
     },
@@ -474,6 +483,7 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
 }
 
 export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
+  const previews = threadPreviews(source.timeline);
   const threadMap = new Map(source.threads.map((thread) => [thread.id, thread]));
   const agents: AgentSummary[] = source.agents.map((agent) => ({
     id: agent.id,
@@ -500,6 +510,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         id: thread.id,
         agentId: thread.agentId,
         title: thread.title,
+        preview: previews.get(thread.id),
         updatedAt: thread.updatedAt,
         status: mapThreadStatus(thread.status),
         queueReason: thread.queueReason,
@@ -710,6 +721,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         id: thread.id,
         agentId: thread.agentId,
         title: thread.title,
+        preview: previews.get(thread.id),
         updatedAt: thread.updatedAt,
         status: mapThreadStatus(thread.status),
         queueReason: thread.queueReason,

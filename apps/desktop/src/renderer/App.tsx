@@ -11,7 +11,7 @@ import {
   X,
   WarningCircle,
 } from '@phosphor-icons/react';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Onboarding } from './components/Onboarding';
 import { AgentDialog } from './components/AgentDialog';
 import { AppSkeleton, WorkspaceNotice } from './components/AppStates';
@@ -22,6 +22,7 @@ import { RoomHeader } from './components/RoomHeader';
 import { QuickSwitcher, type QuickSwitcherAction } from './components/QuickSwitcher';
 import { Settings } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
+import { AppearanceContext } from './components/effects/appearance';
 import { SiaSignInDialog } from './components/settings/SiaSignInDialog';
 import {
   ActivityDashboard,
@@ -50,6 +51,8 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     Boolean(
       import.meta.env?.DEV && typeof location !== 'undefined' && location.hash === '#audit',
     );
+  const workspace = useRef<HTMLElement>(null);
+  const [reveal, setReveal] = useState(0);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [conversationFindOpen, setConversationFindOpen] = useState(false);
@@ -92,6 +95,34 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [app, auditMode, signInRequired]);
+  useEffect(
+    () =>
+      app.api.onOpenConversation?.(() => {
+        app.closeSettings();
+        app.closeActivity();
+        setQuickSwitcherOpen(false);
+        setConversationFindOpen(false);
+        setReveal((current) => current + 1);
+      }),
+    [app.api, app.closeSettings, app.closeActivity],
+  );
+  useLayoutEffect(() => {
+    if (
+      !reveal ||
+      app.snapshot?.preferences.appearance === 'calm' ||
+      typeof matchMedia !== 'function' ||
+      matchMedia('(prefers-reduced-motion: reduce)').matches
+    )
+      return;
+    const animation = workspace.current?.animate?.(
+      [
+        { opacity: 0, transform: 'translateY(8px) scale(.995)' },
+        { opacity: 1, transform: 'translateY(0) scale(1)' },
+      ],
+      { duration: 240, easing: 'cubic-bezier(.2,.7,.2,1)' },
+    );
+    return () => animation?.cancel();
+  }, [reveal, app.snapshot?.preferences.appearance]);
   if (auditMode) {
     return (
       <Suspense fallback={<div className={styles.auditLoading}>Loading UI audit...</div>}>
@@ -204,12 +235,18 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     },
   ];
 
-  return (
-    <div className={`${styles.appShell} ${companion.companionShell}`}>
+  const content = (
+    <div
+      data-appearance={snapshot.preferences.appearance ?? 'expressive'}
+      className={`${styles.appShell} ${companion.companionShell}`}
+    >
       <Sidebar
         agents={snapshot.agents}
         selectedAgentId={snapshot.selectedAgentId}
         selectedThreadId={snapshot.selectedThreadId}
+        activePage={
+          app.settingsOpen ? 'settings' : app.activityOpen ? 'activity' : 'conversation'
+        }
         collapsed={app.sidebarCollapsed}
         onToggle={app.toggleSidebar}
         onSelectAgent={(agentId) => {
@@ -285,6 +322,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
       />
 
       <section
+        ref={workspace}
         className={styles.workspace}
         data-identity={roomAgent?.hue}
         data-companion-workspace
@@ -451,6 +489,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                   app.closeActivity();
                 })
               }
+              onSetAppearance={(appearance) => api.setAppearance(appearance)}
               onSetCompletionSound={(enabled) => api.setCompletionSound(enabled)}
               onSetCapturePaused={(paused) => api.setCapturePaused(paused)}
               onExport={() => api.exportResearchData()}
@@ -654,6 +693,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         }
       />
     </div>
+  );
+  return (
+    <AppearanceContext value={snapshot.preferences.appearance ?? 'expressive'}>
+      {content}
+    </AppearanceContext>
   );
 }
 

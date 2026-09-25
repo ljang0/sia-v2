@@ -1,6 +1,14 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import App from './App';
 import { createDemoRendererApi, demoSnapshot } from './demo';
@@ -22,6 +30,29 @@ describe('app privacy routing', () => {
 
     expect(await screen.findByRole('region', { name: 'Archived' })).toBeTruthy();
     expect(screen.queryByRole('dialog', { name: 'Move through Sia' })).toBeNull();
+  });
+
+  it('opens the selected launcher conversation even when Settings is already open', async () => {
+    const api = createDemoRendererApi(structuredClone(demoSnapshot));
+    let reveal: (() => void) | undefined;
+    api.onOpenConversation = (listener) => {
+      reveal = listener;
+      return () => {
+        reveal = undefined;
+      };
+    };
+    render(<App api={api} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeTruthy();
+    await act(async () => {
+      await api.selectThread('thread-inbox');
+    });
+    act(() => reveal?.());
+    expect(screen.queryByRole('heading', { name: 'Settings' })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Triage today’s inbox' }).getAttribute('aria-current'),
+    ).toBe('page');
+    expect(screen.getByRole('button', { name: 'Access' })).toBeTruthy();
   });
 
   it('requires email sign-in before any app access when cloud is configured', async () => {

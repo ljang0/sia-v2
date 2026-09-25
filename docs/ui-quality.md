@@ -13,6 +13,24 @@ check; offer advanced settings and optional features when relevant. Avoid develo
 mandatory tutorials, and long sequences of setup screens. Archived conversations remain available
 in Activity and search, without a dedicated sidebar item.
 
+## Appearance and navigation
+
+Settings → Appearance offers **Expressive** (the default aurora, drifting gradients, and reflective
+buttons) and **Calm** (still decorative surfaces). The choice persists in the existing encrypted
+profile and applies to the desktop and ⌘E launcher; it does not alter phone appearance. Both respect
+macOS Reduce Motion. Calm disposes decorative GPU effects, rather than only hiding their output.
+Task progress and essential status indicators remain visible in either mode.
+
+The desktop sidebar keeps New conversation and filtering above the scrolling task list. Pinned
+agents come first, followed by names; changing selection never reorders groups. Two-line task titles,
+status, recency, and drafts stay visible. Hovering or focusing a task previews its latest turn without
+selecting it or marking it read. Escape, scrolling, and leaving dismiss the preview. The collapsed
+rail retains new conversation, search, agents, new agent, Activity, and Settings.
+
+Opening a launcher result selects its exact existing conversation, closes Settings or Activity, and
+uses a short exit/arrival transition. Calm and Reduce Motion skip this transition. Failed handoffs
+restore the launcher; they do not discard the request or start another turn.
+
 ## The room rule
 
 - **The dock** (`--shell-*` tokens) is the evergreen agent navigation: agents, contextual threads,

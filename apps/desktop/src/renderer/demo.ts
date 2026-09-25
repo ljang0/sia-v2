@@ -145,7 +145,23 @@ const agents: AgentSummary[] = [
     model: 'gpt-5.6-sol',
     workspace: '/Users/lawrencejang/Projects/sia-research',
     threads: [threads['thread-research']!, threads['thread-browser']!].map(
-      ({ events: _events, ...thread }) => thread,
+      ({ events, ...thread }) => {
+        const message = events.findLast((event) => event.type === 'message');
+        return {
+          ...thread,
+          ...(message?.type === 'message'
+            ? {
+                preview: {
+                  label:
+                    message.role === 'assistant'
+                      ? ('Latest reply' as const)
+                      : ('Request' as const),
+                  text: message.content.slice(0, 420),
+                },
+              }
+            : {}),
+        };
+      },
     ),
   },
   {
@@ -160,7 +176,23 @@ const agents: AgentSummary[] = [
     provider: 'meta',
     model: 'Sia Meta',
     workspace: '/Users/lawrencejang/Documents',
-    threads: [threads['thread-inbox']!].map(({ events: _events, ...thread }) => thread),
+    threads: [threads['thread-inbox']!].map(({ events, ...thread }) => {
+      const message = events.findLast((event) => event.type === 'message');
+      return {
+        ...thread,
+        ...(message?.type === 'message'
+          ? {
+              preview: {
+                label:
+                  message.role === 'assistant'
+                    ? ('Latest reply' as const)
+                    : ('Request' as const),
+                text: message.content.slice(0, 420),
+              },
+            }
+          : {}),
+      };
+    }),
   },
 ];
 
@@ -1058,6 +1090,11 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
           ...(permissionSetup ? { permissionSetup } : {}),
           ...(current.selectedAgentId ? { agentId: current.selectedAgentId } : {}),
         };
+      });
+    },
+    async setAppearance(appearance) {
+      mutate((current) => {
+        current.preferences.appearance = appearance;
       });
     },
     async setCompletionSound(enabled) {

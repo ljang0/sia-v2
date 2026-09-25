@@ -99,13 +99,13 @@ app.setName('Sia');
 if (!gotLock) {
   app.quit();
 } else {
-  app.on('second-instance', showOrCreateApplicationWindow);
+  app.on('second-instance', () => showOrCreateApplicationWindow());
 
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
   });
 
-  app.on('activate', showOrCreateApplicationWindow);
+  app.on('activate', () => showOrCreateApplicationWindow());
 
   app.on('before-quit', (event) => {
     phoneRemote?.dispose();
@@ -145,15 +145,21 @@ async function completeShutdown(closingController: DesktopController): Promise<v
 }
 
 function showOrCreateApplicationWindow(): void {
-  if (shutdownStarted) return;
-  void createApplication()
-    .then(() => {
-      if (!mainWindow || mainWindow.isDestroyed()) return;
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.show();
-      mainWindow.focus();
-    })
-    .catch(reportStartupFailure);
+  void revealApplicationWindow().catch(reportStartupFailure);
+}
+
+async function revealApplicationWindow(revealConversation = false): Promise<void> {
+  if (shutdownStarted) throw new Error('Sia is closing. Reopen Sia to continue.');
+  await createApplication();
+  if (!mainWindow || mainWindow.isDestroyed())
+    throw new Error('Sia could not open. Please try again.');
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  if (revealConversation)
+    mainWindow.webContents.send('sia:event', {
+      type: 'open-conversation',
+    } satisfies import('../shared/bridge.js').DesktopPushEvent);
+  mainWindow.show();
+  mainWindow.focus();
 }
 
 function createApplication(): Promise<void> {
@@ -600,7 +606,7 @@ async function performApplicationCreation(): Promise<void> {
   const activeController = controller;
   commandLauncher ??= createCommandLauncher(
     activeController,
-    showOrCreateApplicationWindow,
+    () => revealApplicationWindow(true),
     rendererDevUrl,
   );
   commandLauncher.suspend(

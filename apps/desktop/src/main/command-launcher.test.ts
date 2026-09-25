@@ -133,3 +133,38 @@ it('hands the pre-focus context to the host send route once without exposing it 
     launcher.dispose();
   }
 });
+
+it('keeps the panel recoverable until the main window opens successfully', async () => {
+  const snapshot = { agents: [], threads: [], timeline: [] } as unknown as DesktopSnapshot;
+  const controller = {
+    snapshot: () => snapshot,
+    subscribe: () => vi.fn(),
+    captureLauncherContext: async () => undefined,
+  } as unknown as DesktopController;
+  const openSia = vi.fn().mockRejectedValueOnce(new Error('Unable to open'));
+  const launcher = createCommandLauncher(controller, openSia);
+  try {
+    await launcher.toggle();
+    const window = electron.windows[0];
+    const open = () =>
+      electron.handlers.get('sia:launcher:open')!({
+        senderFrame: window.webContents.mainFrame,
+      });
+    await expect(open()).rejects.toThrow('Unable to open');
+    expect(window.visible).toBe(true);
+    let finish!: () => void;
+    openSia.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const pending = open();
+    expect(window.visible).toBe(true);
+    finish();
+    await pending;
+    expect(window.visible).toBe(false);
+  } finally {
+    launcher.dispose();
+  }
+});

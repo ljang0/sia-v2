@@ -768,6 +768,23 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('persists appearance without changing existing preferences or conversations', async () => {
+    const { controller, repository } = await createHarness();
+    const before = controller.snapshot();
+    const updated = await controller.invoke('settings.setAppearance', { appearance: 'calm' });
+    expect(updated.preferences).toEqual({ ...before.preferences, appearance: 'calm' });
+    expect(updated.threads).toEqual(before.threads);
+    expect(
+      repository.get<{ preferences: { appearance: string } }>('desktop', 'state')?.preferences
+        .appearance,
+    ).toBe('calm');
+    expect(
+      (await controller.invoke('settings.setAppearance', { appearance: 'expressive' }))
+        .preferences.appearance,
+    ).toBe('expressive');
+    await controller.shutdown();
+  });
+
   it('persists the local completion-sound preference', async () => {
     const { controller, repository } = await createHarness();
 

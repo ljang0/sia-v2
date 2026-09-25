@@ -7309,3 +7309,11 @@ button.agentAvatar {
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
 }
+
+/* Calm keeps the color palette without continuous decorative motion. */
+.appShell[data-appearance='calm'] .gradientHeading,
+.appShell[data-appearance='calm'] .composer,
+.appShell[data-appearance='calm'] .composer::before,
+.appShell[data-appearance='calm'] .composer::after {
+  animation: none;
+}

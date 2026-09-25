@@ -201,6 +201,7 @@ interface PersistedState {
   cloudFeatures: CloudFeatureFlags;
   preferences: {
     completionSound: boolean;
+    appearance?: 'calm' | 'expressive';
     onboarding?: NonNullable<DesktopSnapshot['preferences']['onboarding']>;
     /** All eligible actions run without in-app approval only when explicitly set to 'auto'. */
     computerAccessMode?: 'mac' | 'connected';
@@ -1964,6 +1965,12 @@ export class DesktopController {
         await this.#openMessagesPermissions();
         await this.#refreshCapabilityStatuses();
         this.#emit();
+        return this.snapshot() as BridgeResultMap[M];
+      case 'settings.setAppearance':
+        this.#state.preferences.appearance = (
+          input as BridgeRequestMap['settings.setAppearance']
+        ).appearance;
+        this.#commit();
         return this.snapshot() as BridgeResultMap[M];
       case 'settings.setCompletionSound':
         this.#state.preferences.completionSound = (

@@ -2,6 +2,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { MacSetupApi } from './SetupMacAccess';
 import {
   CaretDown,
+  Palette,
   CheckSquareOffset,
   Database,
   Desktop,
@@ -27,9 +28,11 @@ import { ResearchArchiveSettings } from './settings/ResearchArchiveSettings';
 import { ProvidersSettings } from './settings/ProvidersSettings';
 import { PhoneRemoteSettings } from './settings/PhoneRemoteSettings';
 import { ScottySettings } from './settings/ScottySettings';
+import { AppearanceSettings } from './settings/AppearanceSettings';
 import { VoiceSettings } from './settings/VoiceSettings';
 
 export type SettingsSection =
+  | 'appearance'
   | 'assistant'
   | 'providers'
   | 'apps'
@@ -86,6 +89,7 @@ interface SettingsProps {
   onConfigurePushToTalk?:
     ((enabled: boolean, agentId?: string, speakReplies?: boolean) => Promise<void>) | undefined;
   onStartSetup?: (() => void) | undefined;
+  onSetAppearance?: ((appearance: 'calm' | 'expressive') => Promise<void>) | undefined;
   onSetCompletionSound(enabled: boolean): Promise<void>;
   onSetCapturePaused(paused: boolean): Promise<void>;
   onExport(): Promise<void>;
@@ -134,6 +138,7 @@ export function Settings({
   onRefreshVoices,
   onSelectVoice,
   onDisconnectVoice,
+  onSetAppearance,
   onSetCompletionSound,
   onStartSetup,
   onConfigurePushToTalk,
@@ -180,6 +185,14 @@ export function Settings({
 
       <div className={styles.settingsLayout}>
         <nav className={styles.settingsNav} aria-label="Settings sections">
+          {onSetAppearance && (
+            <SettingsNavButton
+              active={section === 'appearance'}
+              icon={<Palette size={17} aria-hidden="true" />}
+              label="Appearance"
+              onClick={() => setSection('appearance')}
+            />
+          )}
           <SettingsNavButton
             active={section === 'providers'}
             icon={<Sparkle size={17} aria-hidden="true" />}
@@ -279,6 +292,12 @@ export function Settings({
         </nav>
 
         <div key={section} className={styles.settingsContent}>
+          {section === 'appearance' && onSetAppearance && (
+            <AppearanceSettings
+              value={snapshot.preferences.appearance ?? 'expressive'}
+              onChange={onSetAppearance}
+            />
+          )}
           {section === 'scotty' && scottyApi && <ScottySettings api={scottyApi} />}
           {section === 'phone' && phoneRemoteApi && (
             <PhoneRemoteSettings api={phoneRemoteApi} agents={snapshot.agents} />

@@ -21,6 +21,7 @@ export class LauncherSession {
   }
   view(snapshot: DesktopSnapshot): LauncherState {
     const result: LauncherState = {
+      appearance: snapshot.preferences?.appearance ?? 'expressive',
       agents: snapshot.agents.map(({ id, name }) => ({ id, name })),
       ...(snapshot.activeAgentId ? { agentId: snapshot.activeAgentId } : {}),
     };

@@ -139,6 +139,7 @@ const api: DesktopBridgeApi = {
         ...(permissionSetup ? { permissionSetup } : {}),
       }),
     restartForOnboarding: () => invoke('settings.restartForOnboarding', undefined),
+    setAppearance: (appearance) => invoke('settings.setAppearance', { appearance }),
     setCompletionSound: (enabled) => invoke('settings.setCompletionSound', { enabled }),
   },
   feedback: {

@@ -18,7 +18,17 @@ const metal = readFileSync(
   fileURLToPath(new URL('./components/effects/liquid-metal-button.css', import.meta.url)),
   'utf8',
 );
-const css = `${tokens}\n${styles}\n${companion}\n${aurora}\n${metal}`;
+const navigation = readFileSync(
+  fileURLToPath(new URL('./components/navigation.module.css', import.meta.url)),
+  'utf8',
+);
+const appearance = readFileSync(
+  fileURLToPath(
+    new URL('./components/settings/AppearanceSettings.module.css', import.meta.url),
+  ),
+  'utf8',
+);
+const css = `${tokens}\n${styles}\n${companion}\n${aurora}\n${metal}\n${navigation}\n${appearance}`;
 
 describe('renderer accessibility CSS policy', () => {
   it('keeps explicit reduced-motion, increased-contrast, and forced-color modes', () => {

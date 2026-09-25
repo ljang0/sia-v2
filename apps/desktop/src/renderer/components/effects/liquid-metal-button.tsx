@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ComponentPropsWithoutRef } from 'reac
 import { Sparkle } from '@phosphor-icons/react';
 import type { createMetalField } from './liquid-metal-field';
 import './liquid-metal-button.css';
+import { useAppearance } from './appearance';
 
 type Props = ComponentPropsWithoutRef<'button'> & {
   label?: string;
@@ -23,13 +24,14 @@ export function LiquidMetalButton({
   onClick,
   ...props
 }: Props) {
+  const calm = useAppearance() === 'calm';
   const surface = useRef<HTMLSpanElement>(null);
   const speed = useRef(0.35);
   const rippleId = useRef(0);
   const [ripple, setRipple] = useState<{ x: number; y: number; id: number }>();
   useEffect(() => {
     const host = surface.current!;
-    if (disabled) {
+    if (disabled || calm) {
       setRipple(undefined);
       return;
     }
@@ -118,7 +120,7 @@ export function LiquidMetalButton({
       field?.dispose();
       delete host.dataset.metal;
     };
-  }, [disabled]);
+  }, [disabled, calm]);
 
   return (
     <button
@@ -140,6 +142,7 @@ export function LiquidMetalButton({
       }}
       onClick={(event) => {
         if (
+          !calm &&
           typeof matchMedia === 'function' &&
           !matchMedia('(prefers-reduced-motion: reduce)').matches
         ) {

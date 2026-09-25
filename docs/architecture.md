@@ -400,7 +400,8 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   Its decorative aurora adapts React Bits Shape Waves' noise field to a single WebGL 1 pass,
   so it works on the HTTP LAN link without WebGPU or another framework. Rendering is capped at
   30 fps and a 600 × 590 buffer, stops on hidden pages, and uses static CSS gradients for reduced
-  motion, initialization failure, or graphics context loss. It never handles pointer input.
+  motion. Initialization failure or graphics context loss retains a gently moving CSS fallback;
+  restored graphics contexts and returning pages rebuild or resume the waves automatically. It never handles pointer input.
   Main action buttons adapt Joly UI's Liquid Metal Button with a lazily loaded Paper Shaders
   effect, capped at 30 fps and 16,000 pixels per button. Hidden, offscreen, disabled and reduced-motion
   states stop continuous rendering; disposal releases the graphics context. Button actions remain

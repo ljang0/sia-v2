@@ -18,12 +18,15 @@ import {
   Copy,
   GitFork,
   PushPin,
+  Pulse,
 } from '@phosphor-icons/react';
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { AgentSummary, ThreadSummary } from '../types';
 import styles from '../ui.module.css';
 import { AgentForm } from './AgentForm';
 import { StatusMark } from './StatusMark';
+import navigation from './navigation.module.css';
+import { TaskPreviewButton } from './TaskPreviewButton';
 import { SiaMark } from './SiaMark';
 
 interface SidebarProps {
@@ -31,6 +34,7 @@ interface SidebarProps {
   selectedAgentId?: string | undefined;
   selectedThreadId?: string | undefined;
   collapsed: boolean;
+  activePage?: 'conversation' | 'activity' | 'settings';
   onToggle(): void;
   onSelectAgent(agentId: string): void;
   onSelectThread(threadId: string): void;
@@ -56,6 +60,7 @@ export function Sidebar({
   selectedAgentId,
   selectedThreadId,
   collapsed,
+  activePage = 'conversation',
   onToggle,
   onSelectAgent,
   onSelectThread,
@@ -77,6 +82,18 @@ export function Sidebar({
 }: SidebarProps) {
   const [closedAgents, setClosedAgents] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
+  const taskList = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const list = taskList.current;
+    const selected = list?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!list || !selected || activePage !== 'conversation' || collapsed) return;
+    const row = selected.getBoundingClientRect();
+    const viewport = list.getBoundingClientRect();
+    // Scroll only this pane: scrollIntoView can move Electron's hidden root viewport too.
+    if (row.bottom > viewport.bottom) list.scrollTop += row.bottom - viewport.bottom + 12;
+    else if (row.top < viewport.top) list.scrollTop -= viewport.top - row.top + 12;
+  }, [selectedThreadId, activePage, collapsed, query]);
+
   const [editingThread, setEditingThread] = useState<ThreadSummary>();
   const [editingTitle, setEditingTitle] = useState('');
   const [deletingThread, setDeletingThread] = useState<ThreadSummary>();
@@ -84,7 +101,7 @@ export function Sidebar({
   const [forkingThread, setForkingThread] = useState<ThreadSummary>();
   const [forkTitle, setForkTitle] = useState('');
   const [forkIsolated, setForkIsolated] = useState(false);
-  const showSearch = agents.reduce((total, agent) => total + agent.threads.length, 0) >= 6;
+  const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) ?? agents[0];
 
   const orderedAgents = useMemo(() => {
     const normalizedQuery = collapsed ? '' : query.trim().toLocaleLowerCase();
@@ -106,16 +123,14 @@ export function Sidebar({
       )
       .sort((a, b) => {
         if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-        if (a.id === selectedAgentId) return -1;
-        if (b.id === selectedAgentId) return 1;
         return a.name.localeCompare(b.name);
       });
-  }, [agents, collapsed, query, selectedAgentId]);
+  }, [agents, collapsed, query]);
 
   if (collapsed) {
     return (
       <aside
-        className={styles.sidebarCollapsed}
+        className={`${styles.sidebarCollapsed} ${navigation.rail}`}
         aria-label="Agent navigation"
         data-companion-sidebar
       >
@@ -129,6 +144,28 @@ export function Sidebar({
         >
           <SidebarSimple size={18} aria-hidden="true" />
         </button>
+        {selectedAgent && (
+          <button
+            className={styles.iconButton}
+            type="button"
+            onClick={() => onCreateThread(selectedAgent.id)}
+            aria-label="New conversation"
+            title="New conversation · ⌘N"
+          >
+            <NotePencil size={18} />
+          </button>
+        )}
+        {onOpenQuickSwitcher && (
+          <button
+            className={styles.iconButton}
+            type="button"
+            onClick={onOpenQuickSwitcher}
+            aria-label="Search conversations"
+            title="Search · ⌘K"
+          >
+            <MagnifyingGlass size={18} />
+          </button>
+        )}
         <div className={styles.collapsedAgents}>
           {orderedAgents.map((agent) => (
             <button
@@ -150,6 +187,28 @@ export function Sidebar({
         <button
           className={styles.iconButton}
           type="button"
+          onClick={onCreateAgent}
+          aria-label="Create agent"
+          title="New agent"
+        >
+          <Plus size={18} />
+        </button>
+        {onOpenActivity && (
+          <button
+            className={styles.iconButton}
+            type="button"
+            onClick={onOpenActivity}
+            aria-label="Activity"
+            aria-current={activePage === 'activity' ? 'page' : undefined}
+            title="Activity"
+          >
+            <Pulse size={18} />
+          </button>
+        )}
+        <button
+          className={styles.iconButton}
+          type="button"
+          aria-current={activePage === 'settings' ? 'page' : undefined}
           onClick={onOpenSettings}
           aria-label="Open settings"
           title="Settings"
@@ -161,7 +220,11 @@ export function Sidebar({
   }
 
   return (
-    <aside className={styles.sidebar} aria-label="Agent navigation" data-companion-sidebar>
+    <aside
+      className={`${styles.sidebar} ${navigation.navigation}`}
+      aria-label="Agent navigation"
+      data-companion-sidebar
+    >
       <div className={styles.sidebarTitlebar}>
         <div className={styles.wordmark}>
           <SiaMark className={styles.wordmarkSymbol} />
@@ -178,40 +241,52 @@ export function Sidebar({
         </button>
       </div>
 
-      <div className={styles.sidebarScroll}>
-        <div className={styles.sidebarSectionHeader}>
-          <span>{agents.length === 1 ? 'Recent conversations' : 'Agents'}</span>
+      <div className={navigation.primaryActions}>
+        {selectedAgent && (
           <button
-            className={styles.iconButtonSmall}
+            className={navigation.newTask}
+            aria-label="New conversation"
+            aria-keyshortcuts="Meta+N"
             type="button"
-            onClick={onCreateAgent}
-            aria-label="Create agent"
-            title="New agent"
+            onClick={() => onCreateThread(selectedAgent.id)}
           >
-            <Plus size={15} aria-hidden="true" />
+            <NotePencil size={18} aria-hidden="true" />
+            <span>New conversation</span>
+            <kbd>⌘N</kbd>
           </button>
-        </div>
-
-        {showSearch ? (
-          <label className={styles.threadSearch}>
-            <MagnifyingGlass size={14} aria-hidden="true" />
-            <input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Find a thread"
-              aria-label="Find a thread"
-            />
-          </label>
-        ) : null}
-
+        )}
+        <label className={navigation.search}>
+          <MagnifyingGlass size={16} aria-hidden="true" />
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Find a conversation"
+            aria-label="Find a thread"
+          />
+        </label>
+      </div>
+      <div className={styles.sidebarSectionHeader}>
+        <span>{agents.length === 1 ? 'Conversations' : 'Your agents'}</span>
+        <button
+          className={styles.iconButtonSmall}
+          type="button"
+          onClick={onCreateAgent}
+          aria-label="Create agent"
+          title="New agent"
+        >
+          <Plus size={15} aria-hidden="true" />
+        </button>
+      </div>
+      <div ref={taskList} className={`${styles.sidebarScroll} ${navigation.scroll}`}>
         <div className={styles.agentList}>
           {orderedAgents.map((agent) => {
-            const expanded = agents.length === 1 || !closedAgents.has(agent.id);
+            const expanded =
+              Boolean(query.trim()) || agents.length === 1 || !closedAgents.has(agent.id);
             const selected = agent.id === selectedAgentId;
             return (
               <section
-                className={`${styles.agentGroup} ${selected ? styles.agentGroupSelected : ''}`}
+                className={`${styles.agentGroup} ${navigation.group} ${selected ? styles.agentGroupSelected : ''}`}
                 data-identity={agent.hue}
                 key={agent.id}
               >
@@ -221,11 +296,15 @@ export function Sidebar({
                   {agents.length === 1 ? (
                     <button
                       type="button"
-                      className={styles.newConversationButton}
-                      onClick={() => onCreateThread(agent.id)}
-                      aria-label={`Start a thread with ${agent.name}`}
+                      className={styles.agentNameButton}
+                      onClick={() => onSelectAgent(agent.id)}
                     >
-                      <Plus size={15} aria-hidden="true" /> New conversation
+                      <AgentForm
+                        identity={agent.hue}
+                        state={agentPresence(agent)}
+                        size="small"
+                      />
+                      <span className={styles.agentName}>{agent.name}</span>
                     </button>
                   ) : (
                     <>
@@ -302,7 +381,7 @@ export function Sidebar({
 
                 {expanded ? (
                   <div
-                    className={`${styles.threadList} ${agents.length === 1 ? styles.flatThreadList : ''}`}
+                    className={`${styles.threadList} ${navigation.tasks} ${agents.length === 1 ? styles.flatThreadList : ''}`}
                   >
                     {agent.threads.length ? (
                       agent.threads.map((thread) =>
@@ -345,15 +424,19 @@ export function Sidebar({
                         ) : (
                           <div
                             key={thread.id}
-                            className={`${styles.threadRow} ${
-                              thread.id === selectedThreadId ? styles.threadRowSelected : ''
+                            className={`${styles.threadRow} ${navigation.task} ${
+                              thread.id === selectedThreadId && activePage === 'conversation'
+                                ? styles.threadRowSelected
+                                : ''
                             }`}
                           >
-                            <button
-                              type="button"
+                            <TaskPreviewButton
+                              thread={thread}
+                              selected={
+                                thread.id === selectedThreadId && activePage === 'conversation'
+                              }
                               className={styles.threadSelectButton}
-                              onClick={() => onSelectThread(thread.id)}
-                              aria-label={thread.title}
+                              onSelect={() => onSelectThread(thread.id)}
                             >
                               <ThreadLabel thread={thread} />
                               {thread.status !== 'idle' ? (
@@ -361,7 +444,7 @@ export function Sidebar({
                               ) : thread.unread ? (
                                 <span className={styles.threadUnreadDot} aria-label="Unread" />
                               ) : null}
-                            </button>
+                            </TaskPreviewButton>
                             <ThreadMenu
                               thread={thread}
                               onFork={
@@ -416,7 +499,7 @@ export function Sidebar({
         {onOpenQuickSwitcher ? (
           <button className={styles.settingsButton} type="button" onClick={onOpenQuickSwitcher}>
             <MagnifyingGlass size={17} aria-hidden="true" />
-            <span>Jump to</span>
+            <span>Search everything</span>
             <kbd className={styles.navShortcut}>⌘K</kbd>
           </button>
         ) : null}
@@ -426,12 +509,18 @@ export function Sidebar({
             type="button"
             onClick={onOpenActivity}
             data-testid="activity-center-toggle"
+            aria-current={activePage === 'activity' ? 'page' : undefined}
           >
-            <span className={styles.activityNavMark} aria-hidden="true" />
+            <Pulse size={17} aria-hidden="true" />
             <span>Activity</span>
           </button>
         ) : null}
-        <button className={styles.settingsButton} type="button" onClick={onOpenSettings}>
+        <button
+          className={styles.settingsButton}
+          type="button"
+          onClick={onOpenSettings}
+          aria-current={activePage === 'settings' ? 'page' : undefined}
+        >
           <GearSix size={17} aria-hidden="true" />
           <span>Settings</span>
         </button>
@@ -572,7 +661,7 @@ function ThreadLabel({ thread }: { thread: ThreadSummary }) {
   const state = threadStateLabel(thread);
   return (
     <span className={styles.threadCopy} data-thread-draft={draft ? 'true' : undefined}>
-      <span className={styles.threadTitle}>{thread.title}</span>
+      <span className={`${styles.threadTitle} ${navigation.taskTitle}`}>{thread.title}</span>
       <span className={styles.threadMeta}>
         {draft ? (
           <>

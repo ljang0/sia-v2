@@ -93,3 +93,27 @@
     transition: none;
   }
 }
+
+/* Keep a gentle aurora visible while a phone recovers its graphics context. */
+@media (prefers-reduced-motion: no-preference) {
+  .sia-aurora[data-renderer='fallback'][data-paused='false'] .aurora-veil {
+    animation: auroraFallbackDrift 14s ease-in-out infinite alternate;
+  }
+  .sia-aurora[data-renderer='fallback'] .aurora-cyan {
+    animation-delay: -7s;
+  }
+  .sia-aurora[data-renderer='fallback'] .aurora-violet {
+    animation-delay: -4s;
+    animation-direction: alternate-reverse;
+  }
+}
+@keyframes auroraFallbackDrift {
+  from {
+    translate: -2% 0;
+    rotate: -5deg;
+  }
+  to {
+    translate: 3% 4%;
+    rotate: 7deg;
+  }
+}

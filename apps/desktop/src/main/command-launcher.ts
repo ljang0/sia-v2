@@ -25,7 +25,7 @@ export const launcherInput = z.discriminatedUnion('kind', [
  * Independent of the voice helper and its TCC permissions. */
 export function createCommandLauncher(
   controller: DesktopController,
-  openSia: () => void,
+  openSia: () => void | Promise<void>,
   rendererDevUrl?: string,
 ) {
   let window: BrowserWindow | undefined;
@@ -63,8 +63,8 @@ export function createCommandLauncher(
           await controller.invoke('threads.select', {
             threadId: session.target(z.string().uuid().parse(raw), controller.snapshot()),
           });
+        await openSia();
         window.hide();
-        openSia();
         return;
       }
       if (channel === 'state') return state();
