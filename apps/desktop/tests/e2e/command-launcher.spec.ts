@@ -9,12 +9,14 @@ test('launcher uses an isolated bridge, opens from the menu, and dispatches to t
     let page = sia.page;
     page = await sia.completeSetup();
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
-    await expect(page.getByText('Ready when you are', { exact: true })).toBeVisible();
-    await expect(page.getByText('Recent conversations', { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'What would you like to do?' }),
+    ).toBeVisible();
     await expect(page.getByTestId('thread-model-select')).not.toBeVisible();
     const newConversation = page.getByRole('button', { name: 'Start a thread with Sia' });
     const bounds = await newConversation.boundingBox();
-    expect(bounds!.width).toBeGreaterThan(140);
+    expect(bounds!.width).toBeGreaterThan(18);
+    expect(bounds!.width).toBeLessThan(60);
     expect(bounds!.height).toBeLessThan(55);
     await page.screenshot({
       path: 'test-results/conversation-clean.png',

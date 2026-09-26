@@ -14,7 +14,7 @@ it('explains how to enable phone remote when no assistant exists', async () => {
     running: false,
     detail: 'Ready to pair.',
   }));
-  render(<PhoneRemoteSettings api={api} agents={[]} />);
+  render(<PhoneRemoteSettings api={api} agents={[]} providers={[]} />);
   expect(
     await screen.findByText('Set up an assistant in Sia before connecting your phone.'),
   ).toBeTruthy();
@@ -45,9 +45,10 @@ it('enables the chosen assistant, displays pairing, copies through the typed bri
     <PhoneRemoteSettings
       api={api}
       agents={[
-        { id: 'a', name: 'Personal' },
-        { id: 'b', name: 'Work' },
+        { id: 'a', name: 'Personal', provider: 'codex', model: 'gpt-6-astra' },
+        { id: 'b', name: 'Work', provider: 'codex', model: 'gpt-6-astra' },
       ]}
+      providers={[]}
     />,
   );
   await waitFor(() =>
@@ -60,6 +61,12 @@ it('enables the chosen assistant, displays pairing, copies through the typed bri
   fireEvent.click(screen.getByRole('button', { name: 'Enable phone remote' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith({ operation: 'enable', agentId: 'b' }));
   expect(await screen.findByRole('img', { name: /Scan this private QR code/ })).toBeTruthy();
+  expect(screen.getByText('This phone uses Work · gpt-6-astra.')).toBeTruthy();
+  expect((screen.getByLabelText('Assistant') as HTMLSelectElement).value).toBe('b');
+  fireEvent.change(screen.getByLabelText('Assistant'), { target: { value: 'a' } });
+  expect(screen.getByText(/Switching creates a new private link/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Switch assistant' }));
+  await waitFor(() => expect(api).toHaveBeenCalledWith({ operation: 'enable', agentId: 'a' }));
   fireEvent.click(screen.getByRole('button', { name: 'Copy private link' }));
   await waitFor(() => expect(api).toHaveBeenCalledWith({ operation: 'copy' }));
   expect(await screen.findByRole('button', { name: 'Copied' })).toBeTruthy();
@@ -72,4 +79,38 @@ it('enables the chosen assistant, displays pairing, copies through the typed bri
   );
   fireEvent.click(screen.getByRole('button', { name: 'Turn off remote' }));
   expect(await screen.findByRole('button', { name: 'Enable phone remote' })).toBeTruthy();
+});
+
+it('warns when the phone assistant model is no longer available', async () => {
+  const api = vi.fn<PhoneRemoteApi>(async () => ({
+    enabled: true,
+    running: true,
+    agentId: 'a',
+    detail: 'Ready.',
+  }));
+  render(
+    <PhoneRemoteSettings
+      api={api}
+      agents={[{ id: 'a', name: 'Personal', provider: 'codex', model: 'retired-model' }]}
+      providers={[
+        {
+          id: 'codex',
+          name: 'Codex',
+          status: 'ready',
+          model: 'gpt-6-astra',
+          description: 'Connected',
+          billedBy: '',
+          models: [
+            {
+              id: 'gpt-6-astra',
+              label: 'GPT-6 Astra',
+              description: '',
+              reasoningEfforts: [],
+            },
+          ],
+        },
+      ]}
+    />,
+  );
+  expect(await screen.findByText(/choose an available model/)).toBeTruthy();
 });

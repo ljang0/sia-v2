@@ -1231,9 +1231,17 @@ button:active:not(:disabled) {
   mask-image: linear-gradient(#000 40%, transparent 100%);
   -webkit-mask-image: linear-gradient(#000 40%, transparent 100%);
 }
-.phone-aurora[data-renderer='waves'] .aurora-fallback {
+.phone-aurora[data-renderer='dither'] .aurora-fallback {
   /* Safari may clear a suspended canvas without reporting a lost context. */
-  opacity: 0.65;
+  opacity: 0.6;
+}
+.phone-aurora .dither-aurora-field {
+  opacity: 0.47;
+}
+@media (prefers-color-scheme: dark) {
+  .phone-aurora .dither-aurora-field {
+    opacity: 0.55;
+  }
 }
 .phone-shell[data-scene='workspace'] .phone-aurora {
   opacity: 0.72;

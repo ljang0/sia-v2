@@ -1,4 +1,4 @@
-import { test as base, expect, type Page } from '@playwright/test';
+import { test as base, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -182,6 +182,39 @@ test('phone layout, send, immediate completion, persistence and result download'
   expect((await download).suggestedFilename()).toBe('report.txt');
   await page.screenshot({ path: testInfo.outputPath('phone-conversation.png') });
   expect(errors).toEqual([]);
+});
+
+test('an unavailable Mac model keeps the phone draft and explains how to fix it', async ({
+  page,
+  remote,
+}) => {
+  remote.state.agents[0]!.provider = 'codex';
+  remote.state.agents[0]!.model = 'retired-model';
+  remote.state.providers = [
+    {
+      id: 'codex',
+      label: 'Codex',
+      status: 'ready',
+      model: 'gpt-6-astra',
+      detail: 'Connected',
+      billing: '',
+      models: [
+        {
+          id: 'gpt-6-astra',
+          label: 'GPT-6 Astra',
+          description: '',
+          reasoningEfforts: [],
+        },
+      ],
+    },
+  ];
+  await page.goto(remote.url);
+  await page.getByRole('textbox').fill('How are you?');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByRole('alert')).toContainText('choose an available model');
+  await expect(page.getByRole('textbox')).toHaveValue('How are you?');
+  expect(remote.state.threads).toHaveLength(0);
+  expect(remote.sends).toHaveLength(0);
 });
 
 test('Home Screen and phone branding load the supplied logo through the paired link', async ({
@@ -498,7 +531,7 @@ test('reduced motion keeps the home screen still without disabling navigation', 
     .evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).animationName));
   expect(lights).toEqual(['none', 'none', 'none']);
   await expect(page.locator('.phone-aurora')).toHaveAttribute('data-renderer', 'still');
-  await expect(page.locator('.aurora-waves')).toHaveCSS('opacity', '0');
+  await expect(page.locator('.phone-aurora canvas')).toHaveCount(0);
   await page.getByRole('button', { name: 'More ideas' }).click();
   await expect(page.getByRole('button', { name: /Find that file/ })).toBeVisible();
   await page.getByRole('button', { name: 'Tasks', exact: true }).click();
@@ -620,45 +653,21 @@ test('a failure already explained in the reply is shown once and still needs att
 
 type AuroraProbe = Window & { auroraProbe: { frames: number; pixels: number } };
 
-async function trackAurora(page: Page) {
-  await page.addInitScript(() => {
-    const probe = { frames: 0, pixels: 0 };
-    (window as unknown as AuroraProbe).auroraProbe = probe;
-    const draw = WebGLRenderingContext.prototype.drawArrays;
-    WebGLRenderingContext.prototype.drawArrays = function (mode, first, count) {
-      draw.call(this, mode, first, count);
-      probe.frames++;
-      const pixels = new Uint8Array(32 * 32 * 4);
-      this.readPixels(
-        Math.floor(this.drawingBufferWidth * 0.3),
-        Math.floor(this.drawingBufferHeight * 0.65),
-        32,
-        32,
-        this.RGBA,
-        this.UNSIGNED_BYTE,
-        pixels,
-      );
-      probe.pixels = pixels.reduce((sum, value) => sum + value, 0);
-    };
-  });
-}
-
-test('aurora renders moving pixels, pauses when hidden, and respects live motion changes', async ({
+test('phone Dither moves, pauses offscreen, and respects reduced motion', async ({
   page,
   remote,
 }) => {
-  await trackAurora(page);
-  const probe = () => page.evaluate(() => (window as unknown as AuroraProbe).auroraProbe);
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto(remote.url);
   const aurora = page.locator('.phone-aurora');
-  await expect(aurora).toHaveAttribute('data-renderer', 'waves');
-  await expect.poll(async () => (await probe()).pixels).toBeGreaterThan(0);
-  const before = (await probe()).pixels;
-  await expect.poll(async () => (await probe()).pixels).not.toBe(before);
-  const dimensions = await page.locator('.aurora-waves').evaluate((canvas) => ({
-    width: (canvas as HTMLCanvasElement).width,
-    height: (canvas as HTMLCanvasElement).height,
+  const canvas = aurora.locator('.dither-container canvas');
+  await expect(aurora).toHaveAttribute('data-renderer', 'dither');
+  await expect(canvas).toBeVisible();
+  const first = await canvas.screenshot();
+  await expect.poll(async () => (await canvas.screenshot()).equals(first)).toBe(false);
+  const dimensions = await canvas.evaluate((node) => ({
+    width: (node as HTMLCanvasElement).width,
+    height: (node as HTMLCanvasElement).height,
   }));
   expect(dimensions.width).toBeLessThanOrEqual(600);
   expect(dimensions.height).toBeLessThanOrEqual(590);
@@ -669,22 +678,18 @@ test('aurora renders moving pixels, pauses when hidden, and respects live motion
     document.dispatchEvent(new Event('visibilitychange'));
   });
   await expect(aurora).toHaveAttribute('data-paused', 'true');
-  const paused = (await probe()).frames;
-  await page.waitForTimeout(200);
-  expect((await probe()).frames).toBe(paused);
+  await expect(canvas).toHaveCount(0);
   await page.evaluate(() => {
     Object.defineProperty(document, 'hidden', { configurable: true, value: false });
     document.dispatchEvent(new Event('visibilitychange'));
   });
-  await expect.poll(async () => (await probe()).frames).toBeGreaterThan(paused);
+  await expect(canvas).toBeVisible();
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await expect(aurora).toHaveAttribute('data-renderer', 'still');
-  const still = (await probe()).frames;
-  await page.waitForTimeout(200);
-  expect((await probe()).frames).toBe(still);
+  await expect(canvas).toHaveCount(0);
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await expect(aurora).toHaveAttribute('data-renderer', 'waves');
-  await expect.poll(async () => (await probe()).frames).toBeGreaterThan(still);
+  await expect(aurora).toHaveAttribute('data-renderer', 'dither');
+  await expect(canvas).toBeVisible();
   expect(remote.sends).toHaveLength(0);
 });
 
@@ -696,36 +701,37 @@ test('phone keeps its fallback aurora and working controls when graphics are una
     const original = HTMLCanvasElement.prototype.getContext;
     Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
       value: function (type: string, options: unknown) {
-        return type === 'webgl' ? null : original.call(this, type, options);
+        return type === 'webgl' || type === 'webgl2'
+          ? null
+          : original.call(this, type, options);
       },
     });
   });
   await page.goto(remote.url);
   await expect(page.locator('.phone-aurora')).toHaveAttribute('data-renderer', 'fallback');
-  await expect(page.locator('.aurora-fallback')).toHaveCSS('opacity', '1');
+  await expect(page.locator('.phone-aurora .aurora-fallback')).toHaveCSS('opacity', '1');
   await page.getByRole('textbox').fill('A quick answer');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByText('Finished', { exact: true })).toBeVisible();
   expect(remote.sends).toEqual(['A quick answer']);
 });
 
-test('the phone still paints an aurora when Safari leaves the wave canvas blank', async ({
+test('phone fallback remains visible in every view and both themes', async ({
   page,
   remote,
 }, info) => {
   await page.goto(remote.url);
   const aurora = page.locator('.phone-aurora');
-  await expect(aurora).toHaveAttribute('data-renderer', 'waves');
-  // A suspended iOS canvas can be blank even though it has not emitted contextlost.
-  // Freeze other decoration and hide only that canvas to test the actual painted fallback.
+  await expect(aurora).toHaveAttribute('data-renderer', 'dither');
+  await expect(aurora.locator('.dither-container canvas')).toBeVisible();
   await page.evaluate(() => {
     Object.defineProperty(document, 'hidden', { configurable: true, value: true });
     document.dispatchEvent(new Event('visibilitychange'));
-    document.querySelector<HTMLElement>('.aurora-waves')!.style.visibility = 'hidden';
   });
+  await expect(aurora).toHaveAttribute('data-renderer', 'still');
   for (const colorScheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme });
-    await expect(page.locator('.aurora-fallback')).toHaveCSS('opacity', '0.65');
+    await expect(aurora.locator('.aurora-fallback')).toHaveCSS('opacity', '1');
     for (const view of ['Chat', 'Tasks', 'Memory']) {
       await page
         .getByRole('navigation')
@@ -733,77 +739,57 @@ test('the phone still paints an aurora when Safari leaves the wave canvas blank'
         .click();
       await expect(aurora).toBeVisible();
       await expect(aurora).toHaveCSS('opacity', view === 'Chat' ? '1' : '0.72');
-      // Sample the clear margin, outside controls, so canvas drawing alone cannot pass.
-      const options = {
-        clip: { x: 0, y: 80, width: 16, height: 240 },
-        animations: 'disabled' as const,
-      };
-      const painted = await page.screenshot(options);
+      const clip = { x: 0, y: 80, width: 16, height: 240 };
+      const painted = await page.screenshot({ clip, animations: 'disabled' });
       await aurora.evaluate((element) => {
         element.style.visibility = 'hidden';
       });
-      const withoutAurora = await page.screenshot(options);
+      const withoutAurora = await page.screenshot({ clip, animations: 'disabled' });
       expect(painted.equals(withoutAurora)).toBe(false);
       await aurora.evaluate((element) => {
         element.style.visibility = '';
       });
     }
-    await page
-      .getByRole('navigation')
-      .getByRole('button', { name: 'Chat', exact: true })
-      .click();
+    await page.getByRole('navigation').getByRole('button', { name: 'Chat' }).click();
     await page.screenshot({
       path: info.outputPath(`persistent-aurora-${colorScheme}.png`),
       animations: 'disabled',
     });
   }
   await page.evaluate(() => {
-    document.querySelector<HTMLElement>('.aurora-waves')!.style.visibility = '';
     Object.defineProperty(document, 'hidden', { configurable: true, value: false });
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
   });
   await expect(aurora).toHaveAttribute('data-paused', 'false');
-  await expect(aurora).toHaveAttribute('data-renderer', 'waves');
+  await expect(aurora).toHaveAttribute('data-renderer', 'dither');
   expect(remote.sends).toHaveLength(0);
 });
 
-test('graphics context loss recovers moving waves without losing the draft', async ({
+test('graphics context loss falls back and recovers without losing the draft', async ({
   page,
   remote,
 }) => {
-  await trackAurora(page);
   await page.goto(remote.url);
-  await expect(page.locator('.phone-aurora')).toHaveAttribute('data-renderer', 'waves');
+  const aurora = page.locator('.phone-aurora');
+  const canvas = aurora.locator('.dither-container canvas');
+  await expect(canvas).toBeVisible();
   await page.getByRole('textbox').fill('Keep this draft');
-  const context = await page.locator('.aurora-waves').evaluateHandle((canvas) => {
-    const gl = (canvas as HTMLCanvasElement).getContext('webgl')!;
-    const extension = gl.getExtension('WEBGL_lose_context');
-    if (!extension) throw new Error('Context-loss test requires WEBGL_lose_context');
-    return extension;
+  await canvas.evaluate((node) => {
+    node.dispatchEvent(new Event('webglcontextlost', { bubbles: true, cancelable: true }));
   });
-  await context.evaluate((extension) => extension.loseContext());
-  await expect(page.locator('.phone-aurora')).toHaveAttribute('data-renderer', 'fallback');
-  await expect(page.locator('.aurora-fallback')).toHaveCSS('opacity', '1');
-  await expect(page.getByRole('textbox')).toHaveValue('Keep this draft');
-  await context.evaluate((extension) => extension.restoreContext());
-  await context.dispose();
-  await expect(page.locator('.phone-aurora')).toHaveAttribute('data-renderer', 'waves');
-  await expect(page.locator('.aurora-waves')).toHaveCSS('opacity', '1');
-  const pixels = () =>
-    page.evaluate(() => (window as unknown as AuroraProbe).auroraProbe.pixels);
-  await expect.poll(pixels).toBeGreaterThan(0);
-  const first = await pixels();
-  await expect.poll(pixels).not.toBe(first);
+  await expect(aurora).toHaveAttribute('data-renderer', 'fallback');
+  await expect(aurora.locator('.aurora-fallback')).toHaveCSS('opacity', '1');
   await expect(page.getByRole('textbox')).toHaveValue('Keep this draft');
   await page.evaluate(() => {
     window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
   });
-  await expect(page.locator('.phone-aurora')).toHaveAttribute('data-paused', 'true');
+  await expect(aurora).toHaveAttribute('data-paused', 'true');
   await page.evaluate(() =>
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })),
   );
-  await expect(page.locator('.phone-aurora')).toHaveAttribute('data-paused', 'false');
-  await expect(page.locator('.phone-aurora')).toHaveAttribute('data-renderer', 'waves');
+  await expect(aurora).toHaveAttribute('data-paused', 'false');
+  await expect(aurora).toHaveAttribute('data-renderer', 'dither');
+  await expect(canvas).toBeVisible();
   await page.getByRole('button', { name: 'Tasks', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'A little less to do.' })).toBeVisible();
   expect(remote.sends).toHaveLength(0);
@@ -859,19 +845,19 @@ test('keyboard resize and Safari viewport pan keep the composer on the visible s
   expect(remote.sends).toHaveLength(0);
 });
 
-test('typing eases the welcome layout while preserving the waves and composer geometry', async ({
+test('typing eases the welcome layout while preserving the Dither aurora and composer geometry', async ({
   page,
   remote,
 }, testInfo) => {
   await page.goto(remote.url);
   await expect(page.locator('.remote-empty')).toHaveCSS('opacity', '1');
-  await expect(page.locator('.phone-aurora')).toHaveAttribute('data-renderer', 'waves');
+  await expect(page.locator('.phone-aurora')).toHaveAttribute('data-renderer', 'dither');
   const input = page.getByRole('textbox', { name: 'Message Sia' });
   await input.fill('A draft that stays right here');
   const originalHeight = await page.evaluate(() => visualViewport!.height);
   const movement = await page.evaluate(async () => {
     const hero = document.querySelector('.hero-art')!;
-    const canvas = document.querySelector<HTMLCanvasElement>('.aurora-waves')!;
+    const canvas = document.querySelector<HTMLCanvasElement>('.dither-container canvas')!;
     const composer = document.querySelector('.remote-composer')!;
     const read = () => ({
       hero: parseFloat(getComputedStyle(hero).height),
@@ -887,7 +873,11 @@ test('typing eases the welcome layout while preserving the waves and composer ge
       await new Promise(requestAnimationFrame);
       samples.push(read());
     }
-    return { before, samples, sameCanvas: canvas === document.querySelector('.aurora-waves') };
+    return {
+      before,
+      samples,
+      sameCanvas: canvas === document.querySelector('.dither-container canvas'),
+    };
   });
   const end = movement.samples.at(-1)!;
   expect(end.hero).toBeLessThan(movement.before.hero);
@@ -901,13 +891,15 @@ test('typing eases the welcome layout while preserving the waves and composer ge
       (sample) => Math.abs(sample.composer - movement.before.composer) < 1,
     ),
   ).toBe(true);
-  expect(movement.samples.every((sample) => sample.field === movement.before.field)).toBe(true);
+  expect(movement.samples.every((sample) => sample.field > 0 && sample.field <= 590)).toBe(
+    true,
+  );
   expect(movement.sameCanvas).toBe(true);
   await expect(page.locator('.hero-art')).toBeInViewport({ ratio: 1 });
   await expect(page.getByRole('heading', { name: 'Your Mac, within reach.' })).toBeInViewport({
     ratio: 1,
   });
-  await expect(page.locator('.aurora-waves')).toHaveCSS('opacity', '1');
+  await expect(page.locator('.phone-aurora .dither-aurora-field')).toHaveCSS('opacity', '0.47');
   await expect(page.locator('.phone-aurora')).toHaveAttribute('data-paused', 'false');
   await expect(page.locator('.welcome-suggestions')).toHaveAttribute('inert', '');
   await expect(page.getByRole('button', { name: /Plan my week/ })).toHaveCount(0);

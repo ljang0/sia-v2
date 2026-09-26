@@ -311,7 +311,11 @@ export function Settings({
           )}
           {section === 'scotty' && scottyApi && <ScottySettings api={scottyApi} />}
           {section === 'phone' && phoneRemoteApi && (
-            <PhoneRemoteSettings api={phoneRemoteApi} agents={snapshot.agents} />
+            <PhoneRemoteSettings
+              api={phoneRemoteApi}
+              agents={snapshot.agents}
+              providers={snapshot.providers}
+            />
           )}
           {section === 'assistant' && assistantApi && (
             <AssistantSettings

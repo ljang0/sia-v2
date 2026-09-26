@@ -111,7 +111,8 @@ test('core Sia opens first and optional setup connects every work app later', as
     ).toBeVisible();
 
     await harness.page.getByRole('button', { name: 'Settings' }).click();
-    await harness.page.getByRole('button', { name: 'Connections' }).click();
+    await harness.page.getByRole('button', { name: 'More settings' }).click();
+    await harness.page.getByRole('menuitem', { name: 'Connections' }).click();
     await expect(
       harness.page.getByText(/Google Workspace and Slack are optional/),
     ).toBeVisible();
@@ -184,7 +185,8 @@ test('a user can connect only a selected set of work apps later', async () => {
       harness.page.getByRole('dialog', { name: 'Connect your work apps' }),
     ).toHaveCount(0);
     await harness.page.getByRole('button', { name: 'Settings' }).click();
-    await harness.page.getByRole('button', { name: 'Connections' }).click();
+    await harness.page.getByRole('button', { name: 'More settings' }).click();
+    await harness.page.getByRole('menuitem', { name: 'Connections' }).click();
     await harness.page.getByRole('checkbox', { name: /Slack/ }).uncheck();
     await harness.page.getByRole('button', { name: 'Connect selected apps' }).click();
     for (const appName of ['Gmail', 'Google Drive', 'Google Sheets', 'Google Slides']) {

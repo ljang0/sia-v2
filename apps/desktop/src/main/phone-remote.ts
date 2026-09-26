@@ -14,7 +14,11 @@ import { basename, extname, join, resolve } from 'node:path';
 import { z } from 'zod';
 import type { DesktopController } from './controller.js';
 import type { RecordRepository } from './persistence.js';
-import type { PhoneRemoteCommand, PhoneRemoteSettings } from '../shared/phone-remote.js';
+import {
+  phoneAssistantBlocker,
+  type PhoneRemoteCommand,
+  type PhoneRemoteSettings,
+} from '../shared/phone-remote.js';
 import { remoteState, remoteVault } from './phone-remote-state.js';
 import { nativeRemoteSkills } from './phone-remote-files.js';
 
@@ -528,19 +532,88 @@ export class PhoneRemote {
     const last = state.turns.at(-1);
     if (last?.status === 'working')
       throw new RemoteError('Sia is working. Stop this task before sending another.');
-    const threadId =
-      session?.split(':')[0] ??
-      (
-        await this.#deps.controller.invoke('threads.create', {
-          agentId: this.#config.agentId!,
-          title: text.slice(0, 80),
-        })
-      ).threadId;
-    if (!this.#available() || generation !== this.#generation)
-      throw new RemoteError('The remote link changed. Scan the current QR code.');
-    const result = await this.#deps.controller.invoke('threads.send', { threadId, text });
-    this.#ignoredThread = undefined;
-    return { ok: true, turnId: result.turnId };
+    this.#requireReadyAssistant(session);
+    let createdThreadId: string | undefined;
+    const previousThreadId = this.#deps.controller.snapshot().activeThreadId;
+    try {
+      const threadId =
+        session?.split(':')[0] ??
+        (createdThreadId = (
+          await this.#deps.controller.invoke('threads.create', {
+            agentId: this.#config.agentId!,
+            title: text.slice(0, 80),
+          })
+        ).threadId);
+      if (!this.#available() || generation !== this.#generation)
+        throw new RemoteError('The remote link changed. Scan the current QR code.');
+      const result = await this.#deps.controller.invoke('threads.send', { threadId, text });
+      this.#ignoredThread = undefined;
+      return { ok: true, turnId: result.turnId };
+    } catch (error) {
+      if (createdThreadId) {
+        const snapshot = this.#deps.controller.snapshot();
+        const empty =
+          snapshot.threads.some(
+            (thread) =>
+              thread.id === createdThreadId && thread.status === 'idle' && !thread.draft,
+          ) && !snapshot.timeline.some((item) => item.threadId === createdThreadId);
+        if (empty) {
+          await this.#deps.controller
+            .invoke('threads.delete', { threadId: createdThreadId })
+            .catch(() => undefined);
+          if (
+            previousThreadId &&
+            snapshot.activeThreadId === createdThreadId &&
+            this.#deps.controller
+              .snapshot()
+              .threads.some((thread) => thread.id === previousThreadId)
+          )
+            await this.#deps.controller
+              .invoke('threads.select', { threadId: previousThreadId })
+              .catch(() => undefined);
+        }
+      }
+      throw remoteStartError(error);
+    }
+  }
+  #requireReadyAssistant(session: string | null): void {
+    const snapshot = this.#deps.controller.snapshot();
+    const agent = snapshot.agents.find((entry) => entry.id === this.#config.agentId);
+    // The desktop turn gate remains authoritative. This early check prevents a
+    // failed send from creating an empty conversation for an outdated model.
+    const blocker = phoneAssistantBlocker(agent, snapshot.providers);
+    if (blocker) throw new RemoteError(blocker);
+    if (session) {
+      const thread = snapshot.threads.find((entry) => entry.id === session.split(':')[0]);
+      if (
+        thread &&
+        phoneAssistantBlocker(
+          {
+            name: agent?.name ?? 'This conversation',
+            provider: thread.provider,
+            model: thread.model,
+          },
+          snapshot.providers,
+        )
+      )
+        throw new RemoteError(
+          'This conversation uses a model that is no longer available. Start a new chat on your phone to use the assistant’s current model.',
+        );
+    }
   }
 }
 class RemoteError extends Error {}
+
+function remoteStartError(error: unknown): RemoteError {
+  if (error instanceof RemoteError) return error;
+  const message = error instanceof Error ? error.message : '';
+  if (message.startsWith('Codex setup is in progress')) return new RemoteError(message);
+  if (message.startsWith('Sign in to Sia')) return new RemoteError(message);
+  if (message.startsWith('Review and accept the current raw research consent'))
+    return new RemoteError(message);
+  if (message.startsWith('Raw research capture could not be stored'))
+    return new RemoteError(message);
+  return new RemoteError(
+    'Sia could not start this request. Open Sia on your Mac and check the assistant’s model and sign-in, then try again.',
+  );
+}

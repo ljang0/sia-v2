@@ -95,6 +95,9 @@ reports success before cloud completion, stop testing and notify the pilot owner
 In **Settings → Phone remote**, choose an assistant and enable remote access. If macOS asks for
 **Local Network**, choose **Allow**. Connect your phone to the same Wi-Fi, scan the QR code with
 its camera, and open the private link. No phone app, connector, or additional account is required.
+The settings page shows which assistant the phone uses. Switching assistants creates a new private
+link, so scan the new QR code. If a model becomes unavailable, the phone explains what to fix in
+Sia instead of leaving an empty conversation.
 On iPhone, use Safari's **Share → Add to Home Screen** to save **Sia** with its green app icon.
 If you already saved an older shortcut, remove that shortcut and add it again after refreshing
 the phone page to pick up the new name and icon.

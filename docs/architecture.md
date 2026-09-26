@@ -382,6 +382,10 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   commands and cancellation call the existing controller, preserving the pinned execution route,
   action gateway where applicable, native Mac context, and selected approval mode. Task sessions
   reject stale cancel/follow-up requests, and request IDs deduplicate command retries.
+  Turn-start failures return a safe, actionable error to the phone. A model-readiness check runs
+  before creating a conversation, and an empty conversation is removed if dispatch still fails.
+  If an older conversation has a pinned model that is no longer available, the phone asks for a
+  new chat rather than silently changing that conversation's execution route.
   The 256-bit pairing token and enable preference use the encrypted repository. The listener
   binds a private LAN IPv4 address on port 8738, admits same-subnet clients only, validates Host
   and Origin, limits auth failures/body size/connections, sends no-store/no-referrer/CSP headers,

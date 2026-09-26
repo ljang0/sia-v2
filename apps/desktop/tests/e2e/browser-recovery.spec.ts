@@ -179,9 +179,9 @@ test('Use my Mac is a persistent access choice independent of action confirmatio
         .locator('..')
         .evaluate((element) => element.getBoundingClientRect().height),
     ).toBeLessThan(220);
-    await expect(
-      sia.page.getByRole('button', { name: 'Connections', exact: true }).last(),
-    ).toBeVisible();
+    await sia.page.getByRole('button', { name: 'More settings' }).click();
+    await expect(sia.page.getByRole('menuitem', { name: 'Connections' })).toBeVisible();
+    await sia.page.keyboard.press('Escape');
     const state = await sia.page.evaluate(() => window.sia.bootstrap());
     expect(state.computer.accessMode).toBe('mac');
     expect(state.computer.trust).toBe('ask');

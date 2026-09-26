@@ -4,6 +4,9 @@ import type {
   PhoneRemoteApi,
   PhoneRemoteSettings as Settings,
 } from '../../../shared/phone-remote';
+import { phoneAssistantBlocker } from '../../../shared/phone-remote';
+import type { AgentView } from '../../../shared/bridge';
+import type { ProviderSetup } from '../../types';
 import { SettingsSectionHeader, InlineSettingsError } from './SettingsShared';
 import styles from '../../ui.module.css';
 import phone from './PhoneRemoteSettings.module.css';
@@ -11,15 +14,19 @@ import phone from './PhoneRemoteSettings.module.css';
 export function PhoneRemoteSettings({
   api,
   agents,
+  providers,
 }: {
   api: PhoneRemoteApi;
-  agents: readonly { id: string; name: string }[];
+  agents: readonly Pick<AgentView, 'id' | 'name' | 'provider' | 'model'>[];
+  providers: readonly ProviderSetup[];
 }) {
   const [state, setState] = useState<Settings>();
   const [agentId, setAgentId] = useState(agents[0]?.id ?? '');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const pairedAgent = agents.find((agent) => agent.id === state?.agentId);
+  const blocker = state?.enabled ? phoneAssistantBlocker(pairedAgent, providers) : undefined;
   useEffect(() => {
     let active = true;
     let initialized = false;
@@ -109,6 +116,40 @@ export function PhoneRemoteSettings({
           </>
         ) : (
           <>
+            {pairedAgent && (
+              <p className={phone.note}>
+                This phone uses {pairedAgent.name} · {pairedAgent.model}.
+              </p>
+            )}
+            <InlineSettingsError message={blocker ?? ''} />
+            <label className={phone.agent}>
+              Assistant
+              <select
+                value={agentId}
+                onChange={(event) => setAgentId(event.target.value)}
+                disabled={pending}
+              >
+                {agents.map((agent) => (
+                  <option value={agent.id} key={agent.id}>
+                    {agent.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {agentId !== state.agentId && (
+              <>
+                <button
+                  className={styles.secondaryButton}
+                  disabled={pending || !agentId}
+                  onClick={() => void run('enable')}
+                >
+                  {pending ? 'Switching…' : 'Switch assistant'}
+                </button>
+                <p className={phone.note}>
+                  Switching creates a new private link. Scan its QR code on your phone again.
+                </p>
+              </>
+            )}
             <div className={phone.pairing}>
               {state.qr ? (
                 <div className={phone.qr}>

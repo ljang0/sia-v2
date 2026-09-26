@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { LauncherState } from '../../shared/launcher';
 import styles from './CommandLauncher.module.css';
 import { AppearanceContext } from './effects/appearance';
-import { Aurora } from './effects/aurora';
+import { DitherAurora as Aurora } from './effects/DitherAurora';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
 export function CommandLauncher() {
   const [state, setState] = useState<LauncherState>({ agents: [] });

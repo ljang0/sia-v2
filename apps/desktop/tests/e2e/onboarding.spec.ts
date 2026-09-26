@@ -82,7 +82,8 @@ test('one checklist action connects the selected accounts and keeps connected ac
     await sia.completeSetup();
     await expect(sia.page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     await sia.page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await sia.page.getByRole('button', { name: 'Connections', exact: true }).click();
+    await sia.page.getByRole('button', { name: 'More settings' }).click();
+    await sia.page.getByRole('menuitem', { name: 'Connections' }).click();
     const google = sia.page.getByRole('checkbox', { name: /Google Workspace/ });
     const slack = sia.page.getByRole('checkbox', { name: /Slack/ });
     await expect(google).toBeChecked();

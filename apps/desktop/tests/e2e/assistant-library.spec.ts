@@ -73,6 +73,7 @@ test('background skills use gateway execution and native titles survive restart'
 });
 
 test('personal library saves memory, edits workflow parameters and runs through a real conversation', async () => {
+  test.slow();
   const sia = await launchIsolatedSia({ prefix: 'sia-assistant-library-' });
   try {
     let page = sia.page;

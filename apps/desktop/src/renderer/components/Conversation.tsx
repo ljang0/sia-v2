@@ -38,7 +38,7 @@ import { ApprovalCard } from './ApprovalCard';
 import { Composer } from './Composer';
 import { ConversationOutline, hasConversationOutline } from './ConversationOutline';
 import { SafeMarkdown } from './SafeMarkdown';
-import { Aurora } from './effects/aurora';
+import { DitherAurora as Aurora } from './effects/DitherAurora';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
 
 interface ConversationProps {

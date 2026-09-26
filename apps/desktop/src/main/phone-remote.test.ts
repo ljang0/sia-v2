@@ -38,6 +38,7 @@ async function setup() {
     computer: { accessMode: 'mac', trust: 'auto' },
   } as unknown as DesktopSnapshot;
   const saved = new Map<string, unknown>();
+  let sendError: Error | undefined;
   const repository = {
     get: (_scope: string, id: string) => structuredClone(saved.get(id)),
     put: (_scope: string, id: string, value: unknown) => saved.set(id, structuredClone(value)),
@@ -55,6 +56,7 @@ async function setup() {
       return { threadId, snapshot: state };
     }
     if (method === 'threads.send') {
+      if (sendError) throw sendError;
       const turnId = randomUUID();
       state.timeline.push({
         id: randomUUID(),
@@ -70,6 +72,10 @@ async function setup() {
     }
     if (method === 'threads.cancel')
       state.threads.find((entry) => entry.id === input.threadId)!.status = 'idle';
+    if (method === 'threads.delete') {
+      state.threads = state.threads.filter((entry) => entry.id !== input.threadId);
+      if (state.activeThreadId === input.threadId) delete state.activeThreadId;
+    }
     if (method === 'assistant.library')
       return {
         memories: [
@@ -122,8 +128,110 @@ async function setup() {
     setAllowed: (value: boolean) => {
       allowed = value;
     },
+    setSendError: (error: Error) => {
+      sendError = error;
+    },
   };
 }
+
+it('explains an unavailable assistant model before creating an empty phone conversation', async () => {
+  const { post, state, invoke } = await setup();
+  state.agents[0]!.provider = 'codex';
+  state.agents[0]!.model = 'retired-model';
+  state.providers = [
+    {
+      id: 'codex',
+      label: 'Codex',
+      status: 'ready',
+      model: 'gpt-6-astra',
+      detail: 'Connected',
+      billing: '',
+      models: [
+        {
+          id: 'gpt-6-astra',
+          label: 'GPT-6 Astra',
+          description: '',
+          reasoningEfforts: [],
+        },
+      ],
+    },
+  ];
+  const response = await post('command', {
+    id: randomUUID(),
+    text: 'How are you?',
+    session: null,
+  });
+  expect(response.status).toBe(409);
+  expect((await response.json()).error).toContain('choose an available model');
+  expect(state.threads).toHaveLength(0);
+  expect(invoke).not.toHaveBeenCalledWith('threads.create', expect.anything());
+});
+
+it('explains that an older phone conversation still uses its pinned, unavailable model', async () => {
+  const { url, post, state, invoke } = await setup();
+  state.agents[0]!.provider = 'codex';
+  state.agents[0]!.model = 'gpt-5.6-sol';
+  state.providers = [
+    {
+      id: 'codex',
+      label: 'Codex',
+      status: 'ready',
+      model: 'gpt-5.6-sol',
+      detail: 'Connected',
+      billing: '',
+      models: [
+        {
+          id: 'gpt-5.6-sol',
+          label: 'GPT-5.6-Sol',
+          description: '',
+          reasoningEfforts: [],
+        },
+      ],
+    },
+  ];
+  const threadId = randomUUID();
+  state.threads.push({
+    id: threadId,
+    agentId,
+    provider: 'codex',
+    model: 'gpt-6-astra',
+    status: 'idle',
+  } as DesktopSnapshot['threads'][number]);
+  state.activeThreadId = threadId;
+  state.timeline.push({
+    id: randomUUID(),
+    threadId,
+    sequence: 1,
+    timestamp: '',
+    kind: 'user',
+    text: 'Earlier question',
+  } as DesktopSnapshot['timeline'][number]);
+  const session = ((await (await fetch(new URL('state', url))).json()) as RemoteState).session;
+  expect(session).toBeTruthy();
+  const response = await post('command', { id: randomUUID(), text: 'Continue', session });
+  expect(response.status).toBe(409);
+  expect((await response.json()).error).toContain('Start a new chat');
+  expect(invoke).not.toHaveBeenCalledWith('threads.send', expect.anything());
+});
+
+it('shows a safe turn-start error and removes the empty thread created by a failed phone send', async () => {
+  const { post, state, invoke, setSendError } = await setup();
+  setSendError(new Error('Codex setup is in progress. Follow the setup status in Sia.'));
+  const response = await post('command', {
+    id: randomUUID(),
+    text: 'How are you?',
+    session: null,
+  });
+  expect(response.status).toBe(409);
+  expect((await response.json()).error).toBe(
+    'Codex setup is in progress. Follow the setup status in Sia.',
+  );
+  expect(state.threads).toHaveLength(0);
+  expect(invoke).toHaveBeenCalledWith(
+    'threads.delete',
+    expect.objectContaining({ threadId: expect.any(String) }),
+  );
+});
 
 it('serves only the paired mobile surface and rejects missing tokens, rebinding and cross-origin actions', async () => {
   const { url, post, invoke } = await setup();

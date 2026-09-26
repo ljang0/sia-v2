@@ -1,4 +1,33 @@
 import { z } from 'zod';
+import type { AgentView } from './bridge.js';
+
+export function phoneAssistantBlocker(
+  agent: Pick<AgentView, 'name' | 'provider' | 'model'> | undefined,
+  providers:
+    | readonly {
+        id: string;
+        status: string;
+        model: string;
+        models?: readonly { id: string }[] | undefined;
+      }[]
+    | undefined,
+): string | undefined {
+  if (!agent)
+    return 'The phone assistant was removed. Choose one in Sia’s Phone remote settings.';
+  if (!agent.provider || !providers?.length) return undefined;
+  const provider = providers.find((entry) => entry.id === agent.provider);
+  if (!provider || provider.status !== 'ready')
+    return provider?.id === 'codex'
+      ? 'Codex is not ready on your Mac. Open Sia → Settings → AI, reconnect your ChatGPT plan, then try again.'
+      : 'This assistant’s model is not ready on your Mac. Open Sia and check its AI settings, then try again.';
+  if (
+    provider.models?.length
+      ? !provider.models.some((model) => model.id === agent.model)
+      : agent.model !== provider.model
+  )
+    return `${agent.name} uses a model that is no longer available. Open that assistant’s settings on your Mac and choose an available model, then try again.`;
+  return undefined;
+}
 
 export const phoneRemoteCommand = z.discriminatedUnion('operation', [
   z.object({ operation: z.literal('status') }).strict(),

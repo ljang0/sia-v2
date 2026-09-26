@@ -24,7 +24,7 @@ import type { RemoteState } from '../shared/phone-remote';
 import { SiaLogo } from '../renderer/components/SiaLogo';
 import { remoteRequest, RemoteRequestError, requestId } from './api';
 import { MemoryGraph } from './memory-graph';
-import { Aurora } from '../renderer/components/effects/aurora';
+import { DitherAurora as Aurora } from '../renderer/components/effects/DitherAurora';
 import { usePhoneViewport } from './use-phone-viewport';
 import { LiquidMetalButton } from '../renderer/components/effects/liquid-metal-button';
 import { Sheet, Welcome, Activity, statusLabels } from './remote-ui';
