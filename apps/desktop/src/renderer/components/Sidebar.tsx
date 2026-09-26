@@ -25,7 +25,7 @@ import styles from '../ui.module.css';
 import { AgentForm } from './AgentForm';
 import navigation from './navigation.module.css';
 import { TaskPreviewButton } from './TaskPreviewButton';
-import { SiaMark } from './SiaMark';
+import { SiaLogo } from './SiaLogo';
 import { NavigationGroup } from './NavigationGroup';
 
 interface SidebarProps {
@@ -251,9 +251,8 @@ export function Sidebar({
       data-companion-sidebar
     >
       <div className={styles.sidebarTitlebar}>
-        <div className={styles.wordmark}>
-          <SiaMark className={styles.wordmarkSymbol} />
-          <span>Sia</span>
+        <div className={`${styles.wordmark} ${navigation.brand}`} role="img" aria-label="Sia">
+          <SiaLogo />
         </div>
         <button
           className={styles.iconButton}

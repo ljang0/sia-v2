@@ -2,6 +2,9 @@ aside.navigation {
   flex-basis: 272px;
   border-right: 1px solid var(--shell-line);
 }
+.navigation .brand {
+  font-size: 38px;
+}
 .primaryActions {
   display: grid;
   gap: 6px;

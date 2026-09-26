@@ -39,15 +39,23 @@ loading state; Calm dismisses it immediately when the saved appearance becomes a
 errors replace the animation with the existing reconnect action. For local visual review, the demo
 supports `?startup-delay=2200#demo`; this delay is unavailable in production.
 
-Phone branding uses a large **S** in the bundled Sia typeface. The header, welcome screen, and iOS
-Home Screen icon share that letterform; the icon remains opaque with the Home Screen name **Sia**.
+Desktop navigation and phone branding share the supplied mint-gradient **S** logo. The sidebar,
+phone header, welcome screen, favicon, and iOS Home Screen icon all load the same bundled PNG.
+The original image is preserved, and the Home Screen name remains **Sia**.
 An existing iOS Home Screen shortcut may need to be removed and added again to refresh its cached icon.
 
-Settings → Appearance offers **Expressive** (the default aurora, drifting gradients, and reflective
+Settings → More → Appearance offers **Expressive** (the default aurora, drifting gradients, and reflective
 buttons) and **Calm** (still decorative surfaces). The choice persists in the existing encrypted
 profile and applies to the desktop and ⌘E launcher; it does not alter phone appearance. Both respect
 macOS Reduce Motion. Calm disposes decorative GPU effects, rather than only hiding their output.
 Task progress and essential status indicators remain visible in either mode.
+
+Scotty and Phone remote are directly visible in Settings. Appearance and About live under More,
+alongside Assistant and eligible administrator pages. Use my Mac also puts optional Connections
+under More; Connected apps keeps it in the main settings list. On the phone, the aurora sits above the shell
+background with a persistent gradient beneath the wave canvas. Safari clearing a suspended canvas
+does not erase the whole effect. Chat, Tasks, Memory, and keyboard transitions keep this shared layer
+mounted; Reduce Motion keeps a still gradient.
 
 The desktop sidebar keeps New conversation and filtering above the scrolling task list. Pinned
 agents come first, followed by names; changing selection never reorders groups. Conversation titles

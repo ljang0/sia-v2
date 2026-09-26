@@ -11,11 +11,7 @@ async function capture(page: Page, info: TestInfo, name: string) {
 
 async function openSettingsSection(page: Page, label: string) {
   const nav = page.getByRole('navigation', { name: 'Settings sections' });
-  if (
-    ['Assistant', 'Scotty', 'Phone remote', 'Release review', 'Research archive'].includes(
-      label,
-    )
-  ) {
+  if (!(await nav.getByRole('button', { name: label, exact: true }).isVisible())) {
     await nav.getByRole('button', { name: 'More settings' }).click();
     await page.getByRole('menuitem', { name: label, exact: true }).click();
   } else {
@@ -66,14 +62,12 @@ test('settings and personal-library surfaces remain readable at supported window
     await capture(page, info, 'workspace-empty');
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     const more = page.getByRole('button', { name: 'More settings' });
-    await expect(page.getByRole('button', { name: 'Phone remote', exact: true })).toHaveCount(
-      0,
-    );
+    await expect(page.getByRole('button', { name: 'Phone remote', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Scotty', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'About', exact: true })).toHaveCount(0);
     await more.focus();
     await more.press('Enter');
-    await expect(
-      page.getByRole('menuitem', { name: 'Phone remote', exact: true }),
-    ).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'About', exact: true })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(more).toBeFocused();
 
@@ -235,7 +229,7 @@ test('conversation tools, access panels and dialogs fit the minimum desktop wind
       0,
     );
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await page.getByRole('button', { name: 'About', exact: true }).click();
+    await openSettingsSection(page, 'About');
     await page.getByRole('button', { name: 'Send feedback', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Send feedback' })).toBeInViewport({
       ratio: 1,

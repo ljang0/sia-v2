@@ -99,17 +99,6 @@
   line-height: 1;
 }
 
-.wordmarkSymbol {
-  --sia-mark-size: 19px;
-  --sia-orbit-size: 15px;
-  --sia-core-size: 5px;
-  --agent-color: var(--text-link);
-}
-
-.wordmarkSymbol .siaMarkOrbit {
-  border-radius: 7px;
-}
-
 .iconButton,
 .iconButtonSmall,
 .agentEditButton,
@@ -4615,8 +4604,8 @@ button.agentAvatar {
 
 .siaMark {
   display: inline-flex;
-  width: var(--sia-mark-size, 24px);
-  height: var(--sia-mark-size, 24px);
+  width: 24px;
+  height: 24px;
   flex: none;
   align-items: center;
   justify-content: center;
@@ -4626,8 +4615,8 @@ button.agentAvatar {
 .siaMarkOrbit {
   position: relative;
   display: flex;
-  width: var(--sia-orbit-size, 18px);
-  height: var(--sia-orbit-size, 18px);
+  width: 18px;
+  height: 18px;
   align-items: center;
   justify-content: center;
   border: 0;
@@ -4649,8 +4638,8 @@ button.agentAvatar {
 }
 
 .siaMarkCore {
-  width: var(--sia-core-size, 5px);
-  height: var(--sia-core-size, 5px);
+  width: 5px;
+  height: 5px;
   border-radius: var(--radius-round);
   background: var(--agent-ink);
   transform: scale(var(--presence-scale, 1));

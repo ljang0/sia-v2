@@ -110,13 +110,15 @@ export function ComputerSettings({
         onBusyChange={setSettingUp}
         includeApps
       />
-      <p className={styles.settingsNote}>
-        Browser and work app connections are in{' '}
-        <button type="button" className={styles.textButton} onClick={onReviewConnections}>
-          Connections
-        </button>
-        .
-      </p>
+      {snapshot.computer.accessMode !== 'mac' && (
+        <p className={styles.settingsNote}>
+          Browser and work app connections are in{' '}
+          <button type="button" className={styles.textButton} onClick={onReviewConnections}>
+            Connections
+          </button>
+          .
+        </p>
+      )}
       <details className={styles.settingsDisclosure}>
         <summary>
           <span>Diagnostics</span> · Local log {snapshot.computer.trajectoryLog ? 'on' : 'off'}

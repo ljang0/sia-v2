@@ -152,6 +152,7 @@ export function Settings({
   onReadResearchBatch,
 }: SettingsProps) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
+  const usesMac = snapshot.computer.accessMode === 'mac';
   const canReviewRelease = Boolean(snapshot.cloudAuth.admin && snapshot.cloudAuth.adminMfa);
   const canViewResearchArchive = Boolean(
     canReviewRelease && snapshot.cloudAuth.features?.researchArchive !== false,
@@ -185,26 +186,20 @@ export function Settings({
 
       <div className={styles.settingsLayout}>
         <nav className={styles.settingsNav} aria-label="Settings sections">
-          {onSetAppearance && (
-            <SettingsNavButton
-              active={section === 'appearance'}
-              icon={<Palette size={17} aria-hidden="true" />}
-              label="Appearance"
-              onClick={() => setSection('appearance')}
-            />
-          )}
           <SettingsNavButton
             active={section === 'providers'}
             icon={<Sparkle size={17} aria-hidden="true" />}
             label="AI"
             onClick={() => setSection('providers')}
           />
-          <SettingsNavButton
-            active={section === 'apps'}
-            icon={<PlugsConnected size={17} aria-hidden="true" />}
-            label="Connections"
-            onClick={() => setSection('apps')}
-          />
+          {!usesMac && (
+            <SettingsNavButton
+              active={section === 'apps'}
+              icon={<PlugsConnected size={17} aria-hidden="true" />}
+              label="Connections"
+              onClick={() => setSection('apps')}
+            />
+          )}
           <SettingsNavButton
             active={section === 'computer'}
             icon={<Desktop size={17} aria-hidden="true" />}
@@ -217,78 +212,94 @@ export function Settings({
             label="Voice"
             onClick={() => setSection('voice')}
           />
+          {scottyApi && (
+            <SettingsNavButton
+              active={section === 'scotty'}
+              icon={<PawPrint size={17} aria-hidden="true" />}
+              label="Scotty"
+              onClick={() => setSection('scotty')}
+            />
+          )}
+          {phoneRemoteApi && (
+            <SettingsNavButton
+              active={section === 'phone'}
+              icon={<DeviceMobile size={17} aria-hidden="true" />}
+              label="Phone remote"
+              onClick={() => setSection('phone')}
+            />
+          )}
           <SettingsNavButton
             active={section === 'privacy'}
             icon={<ShieldCheck size={17} aria-hidden="true" />}
             label="Privacy"
             onClick={() => setSection('privacy')}
           />
-          <SettingsNavButton
-            active={section === 'about'}
-            icon={<Info size={17} aria-hidden="true" />}
-            label="About"
-            onClick={() => setSection('about')}
-          />
-          {(assistantApi || scottyApi || phoneRemoteApi || canReviewRelease) && (
-            <DropdownMenu.Root>
-              <DropdownMenu.Trigger asChild>
-                <button
-                  type="button"
-                  className={
-                    ['assistant', 'scotty', 'phone', 'release', 'research'].includes(section)
-                      ? styles.settingsNavActive
-                      : undefined
-                  }
-                  aria-label="More settings"
-                >
-                  More <CaretDown size={12} aria-hidden="true" />
-                </button>
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Portal>
-                <DropdownMenu.Content
-                  className={styles.threadMenuContent}
-                  align="end"
-                  sideOffset={6}
-                >
-                  {assistantApi && (
-                    <SettingsMenuItem
-                      icon={<Sparkle size={17} />}
-                      label="Assistant"
-                      onSelect={() => setSection('assistant')}
-                    />
-                  )}
-                  {scottyApi && (
-                    <SettingsMenuItem
-                      icon={<PawPrint size={17} />}
-                      label="Scotty"
-                      onSelect={() => setSection('scotty')}
-                    />
-                  )}
-                  {phoneRemoteApi && (
-                    <SettingsMenuItem
-                      icon={<DeviceMobile size={17} />}
-                      label="Phone remote"
-                      onSelect={() => setSection('phone')}
-                    />
-                  )}
-                  {canReviewRelease && (
-                    <SettingsMenuItem
-                      icon={<CheckSquareOffset size={17} />}
-                      label="Release review"
-                      onSelect={() => setSection('release')}
-                    />
-                  )}
-                  {canViewResearchArchive && (
-                    <SettingsMenuItem
-                      icon={<Database size={17} />}
-                      label="Research archive"
-                      onSelect={() => setSection('research')}
-                    />
-                  )}
-                </DropdownMenu.Content>
-              </DropdownMenu.Portal>
-            </DropdownMenu.Root>
-          )}
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <button
+                type="button"
+                className={
+                  ['appearance', 'about', 'assistant', 'release', 'research'].includes(
+                    section,
+                  ) ||
+                  (usesMac && section === 'apps')
+                    ? styles.settingsNavActive
+                    : undefined
+                }
+                aria-label="More settings"
+              >
+                More <CaretDown size={12} aria-hidden="true" />
+              </button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                className={styles.threadMenuContent}
+                align="end"
+                sideOffset={6}
+              >
+                {onSetAppearance && (
+                  <SettingsMenuItem
+                    icon={<Palette size={17} />}
+                    label="Appearance"
+                    onSelect={() => setSection('appearance')}
+                  />
+                )}
+                <SettingsMenuItem
+                  icon={<Info size={17} />}
+                  label="About"
+                  onSelect={() => setSection('about')}
+                />
+                {assistantApi && (
+                  <SettingsMenuItem
+                    icon={<Sparkle size={17} />}
+                    label="Assistant"
+                    onSelect={() => setSection('assistant')}
+                  />
+                )}
+                {usesMac && (
+                  <SettingsMenuItem
+                    icon={<PlugsConnected size={17} />}
+                    label="Connections"
+                    onSelect={() => setSection('apps')}
+                  />
+                )}
+                {canReviewRelease && (
+                  <SettingsMenuItem
+                    icon={<CheckSquareOffset size={17} />}
+                    label="Release review"
+                    onSelect={() => setSection('release')}
+                  />
+                )}
+                {canViewResearchArchive && (
+                  <SettingsMenuItem
+                    icon={<Database size={17} />}
+                    label="Research archive"
+                    onSelect={() => setSection('research')}
+                  />
+                )}
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </nav>
 
         <div key={section} className={styles.settingsContent}>

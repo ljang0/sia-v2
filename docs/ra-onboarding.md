@@ -92,7 +92,7 @@ reports success before cloud completion, stop testing and notify the pilot owner
 
 ## Optional phone remote
 
-In **Settings → More → Phone remote**, choose an assistant and enable remote access. If macOS asks for
+In **Settings → Phone remote**, choose an assistant and enable remote access. If macOS asks for
 **Local Network**, choose **Allow**. Connect your phone to the same Wi-Fi, scan the QR code with
 its camera, and open the private link. No phone app, connector, or additional account is required.
 On iPhone, use Safari's **Share → Add to Home Screen** to save **Sia** with its green app icon.
@@ -441,7 +441,7 @@ manual acceptance with disposable content.
 
 ### Scotty desktop companion
 
-Open **Settings → More → Scotty → Bring Scotty to my desktop**, or **Sia → Show Scotty** in the
+Open **Settings → Scotty → Bring Scotty to my desktop**, or **Sia → Show Scotty** in the
 Mac menu bar. Scotty is Sia's pixel Scottish terrier: he floats above other apps while Sia is
 open. Drag him to move, click him or his badge to open the task tray, and use Escape to close
 the tray. Right-click → **Hide Scotty** hides the pet; your position and preferences are saved.

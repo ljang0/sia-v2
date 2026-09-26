@@ -14,7 +14,7 @@ import {
   X,
 } from '@phosphor-icons/react';
 import type { RemoteTurn } from '../shared/phone-remote';
-import { SiaMonogram } from './SiaMonogram';
+import { SiaLogo } from '../renderer/components/SiaLogo';
 import { LiquidMetalButton } from '../renderer/components/effects/liquid-metal-button';
 import { timeGreeting } from '../renderer/welcome';
 
@@ -128,7 +128,7 @@ export function Welcome({
     <div className="remote-empty">
       <div className="hero-art" aria-hidden="true">
         <div className="hero-presence">
-          <SiaMonogram />
+          <SiaLogo />
         </div>
       </div>
       <div className="hero-copy">

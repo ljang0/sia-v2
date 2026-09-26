@@ -48,8 +48,11 @@ export function createAuroraField(canvas: HTMLCanvasElement) {
       resize(width: number, height: number) {
         // Preserve the field's proportions with bounded work even on large desktop displays.
         const scale = Math.min(1, 600 / Math.max(1, width), 590 / Math.max(1, height));
-        canvas.width = Math.max(1, Math.round(width * scale));
-        canvas.height = Math.max(1, Math.round(height * scale));
+        const nextWidth = Math.max(1, Math.round(width * scale));
+        const nextHeight = Math.max(1, Math.round(height * scale));
+        // Reassigning even the same dimensions clears Safari's drawing buffer.
+        if (canvas.width !== nextWidth) canvas.width = nextWidth;
+        if (canvas.height !== nextHeight) canvas.height = nextHeight;
         gl.viewport(0, 0, canvas.width, canvas.height);
         gl.uniform2f(resolution, canvas.width, canvas.height);
       },

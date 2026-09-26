@@ -94,7 +94,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   latest attempt, so an old blocker does not override a subsequently verified completion.
 - Scotty is an optional Sia-owned desktop pet. Its transparent Electron window, generated
   pixel-terrier atlas, animation, position and task tray are bundled in Sia; it never loads
-  Codex pet assets or calls Codex's pet UI. Settings → More → Scotty and the Sia menu control visibility.
+  Codex pet assets or calls Codex's pet UI. Settings → Scotty and the Sia menu control visibility.
   On macOS both surfaces use nonactivating native panels at status level, joining all Spaces
   including other apps' full-screen Spaces without changing Sia's Dock/activation policy.
   Position, size and motion preferences use the encrypted local repository. Task updates reuse

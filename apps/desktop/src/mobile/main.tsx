@@ -21,7 +21,7 @@ import {
   Trash,
 } from '@phosphor-icons/react';
 import type { RemoteState } from '../shared/phone-remote';
-import { SiaMonogram } from './SiaMonogram';
+import { SiaLogo } from '../renderer/components/SiaLogo';
 import { remoteRequest, RemoteRequestError, requestId } from './api';
 import { MemoryGraph } from './memory-graph';
 import { Aurora } from '../renderer/components/effects/aurora';
@@ -306,7 +306,7 @@ function App() {
       </span>
       <header className="phone-header">
         <div className="phone-brand" aria-label="Sia">
-          <SiaMonogram />
+          <SiaLogo />
         </div>
         <LiquidMetalButton
           className={`connection-pill ${online ? 'online' : ''}`}
@@ -365,7 +365,7 @@ function App() {
               <div className="conversation-heading">
                 <div>
                   <span className="assistant-avatar">
-                    <SiaMonogram />
+                    <SiaLogo />
                   </span>
                   <span>
                     <strong>{state.agent}</strong>

@@ -1,6 +1,6 @@
 import { test as base, expect, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { DesktopSnapshot } from '../../src/shared/bridge';
@@ -184,7 +184,7 @@ test('phone layout, send, immediate completion, persistence and result download'
   expect(errors).toEqual([]);
 });
 
-test('Home Screen branding loads a real opaque iPhone icon through the paired link', async ({
+test('Home Screen and phone branding load the supplied logo through the paired link', async ({
   page,
   remote,
 }, info) => {
@@ -192,42 +192,38 @@ test('Home Screen branding loads a real opaque iPhone icon through the paired li
     await page.goto(new URL(route, remote.url).href);
     await expect(page).toHaveTitle('Sia');
     if (!route) {
-      await expect(page.locator('.phone-brand .sia-monogram')).toHaveText('S');
-      await expect(page.locator('.hero-presence .sia-monogram')).toHaveText('S');
-      await expect(page.locator('.hero-presence .sia-monogram')).toHaveCSS(
-        'font-size',
-        '104px',
-      );
-      await page.screenshot({ path: info.outputPath('phone-monogram.png') });
+      for (const location of ['.phone-brand', '.hero-presence']) {
+        const logo = page.locator(`${location} .sia-logo`);
+        await expect(logo).toBeVisible();
+        await expect
+          .poll(() => logo.evaluate((el) => (el as HTMLImageElement).naturalWidth))
+          .toBe(1254);
+      }
+      await page.screenshot({ path: info.outputPath('phone-logo.png') });
     }
     await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute(
       'content',
       'Sia',
     );
     const icon = page.locator('link[rel="apple-touch-icon"]');
-    await expect(icon).toHaveAttribute('sizes', '180x180');
     const url = new URL((await icon.getAttribute('href'))!, page.url());
     expect(url.pathname.startsWith(new URL(remote.url).pathname)).toBe(true);
     const response = await page.request.get(url.href);
     expect(response.status()).toBe(200);
     expect(response.headers()['content-type']).toBe('image/png');
+    expect(await response.body()).toEqual(
+      await readFile(resolve('src/renderer/assets/sia-logo.png')),
+    );
     const image = await page.evaluate(async (src) => {
       const image = new Image();
       image.src = src;
       await image.decode();
-      const canvas = document.createElement('canvas');
-      canvas.width = image.naturalWidth;
-      canvas.height = image.naturalHeight;
-      const context = canvas.getContext('2d')!;
-      context.drawImage(image, 0, 0);
-      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
       return {
-        width: canvas.width,
-        height: canvas.height,
-        opaque: pixels.every((channel, index) => index % 4 !== 3 || channel === 255),
+        width: image.naturalWidth,
+        height: image.naturalHeight,
       };
     }, url.href);
-    expect(image).toEqual({ width: 180, height: 180, opaque: true });
+    expect(image).toEqual({ width: 1254, height: 1254 });
     expect(
       (
         await page.request.get(new URL(`/assets/${url.pathname.split('/').at(-1)}`, url).href)
@@ -711,6 +707,64 @@ test('phone keeps its fallback aurora and working controls when graphics are una
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByText('Finished', { exact: true })).toBeVisible();
   expect(remote.sends).toEqual(['A quick answer']);
+});
+
+test('the phone still paints an aurora when Safari leaves the wave canvas blank', async ({
+  page,
+  remote,
+}, info) => {
+  await page.goto(remote.url);
+  const aurora = page.locator('.phone-aurora');
+  await expect(aurora).toHaveAttribute('data-renderer', 'waves');
+  // A suspended iOS canvas can be blank even though it has not emitted contextlost.
+  // Freeze other decoration and hide only that canvas to test the actual painted fallback.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    document.querySelector<HTMLElement>('.aurora-waves')!.style.visibility = 'hidden';
+  });
+  for (const colorScheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme });
+    await expect(page.locator('.aurora-fallback')).toHaveCSS('opacity', '0.65');
+    for (const view of ['Chat', 'Tasks', 'Memory']) {
+      await page
+        .getByRole('navigation')
+        .getByRole('button', { name: view, exact: true })
+        .click();
+      await expect(aurora).toBeVisible();
+      await expect(aurora).toHaveCSS('opacity', view === 'Chat' ? '1' : '0.72');
+      // Sample the clear margin, outside controls, so canvas drawing alone cannot pass.
+      const options = {
+        clip: { x: 0, y: 80, width: 16, height: 240 },
+        animations: 'disabled' as const,
+      };
+      const painted = await page.screenshot(options);
+      await aurora.evaluate((element) => {
+        element.style.visibility = 'hidden';
+      });
+      const withoutAurora = await page.screenshot(options);
+      expect(painted.equals(withoutAurora)).toBe(false);
+      await aurora.evaluate((element) => {
+        element.style.visibility = '';
+      });
+    }
+    await page
+      .getByRole('navigation')
+      .getByRole('button', { name: 'Chat', exact: true })
+      .click();
+    await page.screenshot({
+      path: info.outputPath(`persistent-aurora-${colorScheme}.png`),
+      animations: 'disabled',
+    });
+  }
+  await page.evaluate(() => {
+    document.querySelector<HTMLElement>('.aurora-waves')!.style.visibility = '';
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+  });
+  await expect(aurora).toHaveAttribute('data-paused', 'false');
+  await expect(aurora).toHaveAttribute('data-renderer', 'waves');
+  expect(remote.sends).toHaveLength(0);
 });
 
 test('graphics context loss recovers moving waves without losing the draft', async ({

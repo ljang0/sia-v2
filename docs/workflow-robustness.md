@@ -43,7 +43,7 @@ restart a provider for each follow-up.
 | Oversized Settings header/navigation/content padding                     | Reduced shell and content spacing                                              | Expose more settings while retaining category labels and row control spacing.              |
 | Scotty’s oversized welcome artwork placed its main action below the fold | Compact preview and copy, followed immediately by the main action              | The primary button is visible at 960×640, with size and animation controls directly below. |
 | Four always-visible icons for Goal, Changes, Command and Schedules       | One labelled Tools menu with the same actions                                  | Keep occasional utilities out of the everyday chat path.                                   |
-| Send feedback occupies a permanent sidebar row                           | Feedback lives in Settings → About and the existing quick switcher             | Keep help reachable without a competing primary navigation item.                           |
+| Send feedback occupies a permanent sidebar row                           | Feedback lives in Settings → More → About and the existing quick switcher      | Keep help reachable without a competing primary navigation item.                           |
 
 The refreshed visual baselines cover light/dark conversation, Settings, connections, quick switcher,
 agent dialog and Activity. The minimum-window check asserts usable conversation height, visible
@@ -139,15 +139,15 @@ runtime regression proves these two lifetimes separately. No new UI controls wer
 
 A second pass removes visual clutter from the ordinary chat and settings path:
 
-| Before                                                                          | After                                                                                                                                                       |
-| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Agent-colored header text and red failed-step text read like a persistent error | Neutral chat headers, activity labels, notices and composer errors; failure icons, explanatory text and Continue controls remain explicit                   |
-| Nine regular Settings categories, plus administrator pages                      | Six primary categories: AI, Connections, Computer, Voice, Privacy and About; More contains Assistant, Scotty, Phone remote and eligible administrator pages |
-| Chrome attachment and website launch controls repeated in Computer              | Connections is the single settings route for browser attachment; Computer links to it                                                                       |
-| Repeated implementation and access-mode explanations                            | Short descriptions alongside the controls they explain; permission status and setup stay visible                                                            |
-| Full local-log controls compete with everyday settings                          | Diagnostics disclosure, with the current local-log state visible in its summary                                                                             |
-| Voice setup and unavailable Fn controls remain prominent                        | Connected voice omits the setup button; unavailable Fn controls are absent unless already enabled; refresh/disconnect live under Manage voices              |
-| Long research policy text occupies the Privacy page                             | Research status and consent controls stay direct; the full explanation is available in a disclosure                                                         |
+| Before                                                                          | After                                                                                                                                          |
+| ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent-colored header text and red failed-step text read like a persistent error | Neutral chat headers, activity labels, notices and composer errors; failure icons, explanatory text and Continue controls remain explicit      |
+| Nine regular Settings categories, plus administrator pages                      | Scotty and Phone remote are primary; Appearance and About live under More. Connections also lives under More in Use my Mac.                    |
+| Chrome attachment and website launch controls repeated in Computer              | Connections is the single browser attachment route; Computer links to it in Connected apps mode.                                               |
+| Repeated implementation and access-mode explanations                            | Short descriptions alongside the controls they explain; permission status and setup stay visible                                               |
+| Full local-log controls compete with everyday settings                          | Diagnostics disclosure, with the current local-log state visible in its summary                                                                |
+| Voice setup and unavailable Fn controls remain prominent                        | Connected voice omits the setup button; unavailable Fn controls are absent unless already enabled; refresh/disconnect live under Manage voices |
+| Long research policy text occupies the Privacy page                             | Research status and consent controls stay direct; the full explanation is available in a disclosure                                            |
 
 Phone remote is explicitly labelled a preview on its page. This pass changes presentation and
 navigation, not users' permissions, stored feature choices, research consent or automatic approvals.

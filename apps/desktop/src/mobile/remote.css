@@ -64,21 +64,13 @@ button:active:not(:disabled) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.sia-monogram {
-  display: inline-block;
-  font-family: var(--font-brand);
-  font-weight: 650;
-  font-style: normal;
-  line-height: 1;
-  letter-spacing: -0.055em;
-}
 .phone-brand {
   display: grid;
   place-items: center;
   width: 38px;
   flex: none;
   color: var(--text-primary);
-  font-size: 43px;
+  font-size: 38px;
 }
 .connection-pill {
   margin-left: auto;
@@ -1218,22 +1210,33 @@ button:active:not(:disabled) {
 .memory-search input:focus-visible {
   outline: none;
 }
-/* Shape Waves field above a static fallback, confined to the decorative header. */
+/* Keep decoration above the shell background in Safari's compositing layers. */
+.phone-header,
+.phone-view,
+.phone-nav,
+.connection-banner {
+  position: relative;
+  z-index: 1;
+}
 .phone-aurora {
   position: absolute;
   inset: 0 0 auto;
   height: min(590px, calc(var(--phone-full-height, 100svh) * 0.78));
   overflow: hidden;
   pointer-events: none;
-  z-index: -1;
+  z-index: 0;
   opacity: 1;
   transition: opacity 400ms ease;
   contain: paint;
   mask-image: linear-gradient(#000 40%, transparent 100%);
   -webkit-mask-image: linear-gradient(#000 40%, transparent 100%);
 }
+.phone-aurora[data-renderer='waves'] .aurora-fallback {
+  /* Safari may clear a suspended canvas without reporting a lost context. */
+  opacity: 0.65;
+}
 .phone-shell[data-scene='workspace'] .phone-aurora {
-  opacity: 0.48;
+  opacity: 0.72;
 }
 .remote-composer {
   border-color: transparent;

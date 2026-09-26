@@ -1,4 +1,9 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+async function openAppearance(page: Page) {
+  await page.getByRole('button', { name: 'More settings' }).click();
+  await page.getByRole('menuitem', { name: 'Appearance', exact: true }).click();
+}
 
 test('personal welcome opens existing work and finished replies retain their controls', async ({
   page,
@@ -40,7 +45,7 @@ for (const reducedMotion of ['no-preference', 'reduce'] as const) {
     const field = page.getByRole('textbox', { name: 'Message', exact: true });
     await field.fill('Keep my unfinished thought');
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+    await openAppearance(page);
     await page.getByRole('button', { name: 'Close settings', exact: true }).click();
     await expect(field).toHaveValue('Keep my unfinished thought');
     const motions = await page.evaluate(
@@ -210,6 +215,11 @@ test('navigation stays stable, previews do not select, and the compact rail keep
 }, info) => {
   await page.goto('/#demo');
   const nav = page.getByRole('complementary', { name: 'Agent navigation' });
+  const logo = nav.getByRole('img', { name: 'Sia', exact: true }).locator('img');
+  await expect(logo).toBeVisible();
+  await expect
+    .poll(() => logo.evaluate((el) => (el as HTMLImageElement).naturalWidth))
+    .toBe(1254);
   const task = nav.getByRole('button', { name: 'Weekly research update', exact: true });
   await task.hover();
   await expect(page.getByRole('tooltip')).toBeVisible();
@@ -296,6 +306,26 @@ test('navigation stays stable, previews do not select, and the compact rail keep
   );
 });
 
+test('Connections stays optional in Use my Mac and primary in Connected apps', async ({
+  page,
+}) => {
+  await page.goto('/#demo');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const nav = page.getByRole('navigation', { name: 'Settings sections' });
+  await expect(nav.getByRole('button', { name: 'Connections', exact: true })).toBeVisible();
+  await nav.getByRole('button', { name: 'Computer', exact: true }).click();
+  await page.getByRole('combobox', { name: 'App access mode' }).selectOption('mac');
+  await expect(nav.getByRole('button', { name: 'Connections', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Connections', exact: true })).toHaveCount(0);
+  await nav.getByRole('button', { name: 'More settings' }).click();
+  await page.getByRole('menuitem', { name: 'Connections', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Connections', exact: true })).toBeVisible();
+  await nav.getByRole('button', { name: 'Computer', exact: true }).click();
+  await page.getByRole('combobox', { name: 'App access mode' }).selectOption('connected');
+  await nav.getByRole('button', { name: 'Connections', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Connections', exact: true })).toBeVisible();
+});
+
 test('appearance stops and restores decorative graphics across settings and conversation', async ({
   page,
 }, info) => {
@@ -303,7 +333,7 @@ test('appearance stops and restores decorative graphics across settings and conv
   await page.goto('/#demo');
   await page.getByRole('button', { name: 'New conversation', exact: true }).click();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+  await openAppearance(page);
   const calm = page.getByRole('radio', { name: /Calm/ });
   const expressive = page.getByRole('radio', { name: /Expressive/ });
   await expect(expressive).toBeChecked();
@@ -320,7 +350,7 @@ test('appearance stops and restores decorative graphics across settings and conv
   const surface = page.getByRole('button', { name: 'Send message' }).locator('.metal-surface');
   await expect(surface.locator('canvas')).toHaveCount(0);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+  await openAppearance(page);
   await expect(calm).toBeChecked();
   await expressive.check();
   await page.getByRole('button', { name: 'Close settings', exact: true }).click();
