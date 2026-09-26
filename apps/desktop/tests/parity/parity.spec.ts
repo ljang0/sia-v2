@@ -410,6 +410,7 @@ test('workspace snapshots preserve and restore tracked changes without hiding th
 });
 
 test('two worktrees can run independent deterministic tasks concurrently', async ({}, testInfo) => {
+  test.slow();
   requireFeature('worktreeParallelism', testInfo);
   const harness = await launchParityFixture('worktreeParallelism');
   try {
@@ -442,7 +443,7 @@ test('two worktrees can run independent deterministic tasks concurrently', async
       rows
         .getByTestId(parityContract.worktreeParallelism.testIds[4])
         .filter({ hasText: /complete/i }),
-    ).toHaveCount(2);
+    ).toHaveCount(2, { timeout: 25_000 });
     const worktrees = (await git(workspace, ['worktree', 'list', '--porcelain'])).stdout;
     expect(worktrees).toContain('parity-alpha');
     expect(worktrees).toContain('parity-beta');
@@ -523,9 +524,8 @@ async function launchParityFixture(
 
 function fixtureEnvironment(feature: ParityFeature): Record<string, string> {
   if (feature === 'interruptedTurnRecovery') return { SIA_TEST_FAKE_TURN_DELAY_MS: '10000' };
-  if (feature === 'backgroundActivity' || feature === 'worktreeParallelism') {
-    return { SIA_TEST_FAKE_TURN_DELAY_MS: '1500' };
-  }
+  if (feature === 'backgroundActivity') return { SIA_TEST_FAKE_TURN_DELAY_MS: '1500' };
+  if (feature === 'worktreeParallelism') return { SIA_TEST_FAKE_TURN_DELAY_MS: '15000' };
   return {};
 }
 
