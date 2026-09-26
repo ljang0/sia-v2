@@ -111,7 +111,8 @@ test('core surfaces retain the visual-system and motion contract', async () => {
     await sia.page.waitForTimeout(300);
     await expect(sia.page).toHaveScreenshot('providers-light.png', stableScreenshot);
 
-    await sia.page.getByRole('button', { name: 'Connections' }).click();
+    await sia.page.getByRole('button', { name: 'More settings' }).click();
+    await sia.page.getByRole('menuitem', { name: 'Connections', exact: true }).click();
     await sia.page.waitForTimeout(300);
     await expect(sia.page).toHaveScreenshot('apps-light.png', stableScreenshot);
 

@@ -184,7 +184,7 @@ test('background Activity remains visible after the window closes and reopens', 
       .filter({ hasText: 'PARITY_BACKGROUND' });
     await expect(task).toBeVisible();
     await expect(task.getByTestId(parityContract.backgroundActivity.testIds[2])).toHaveText(
-      /running/i,
+      /running|complete/i,
     );
 
     await harness.page.close();

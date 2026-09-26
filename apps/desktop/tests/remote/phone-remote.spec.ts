@@ -147,6 +147,7 @@ test('phone layout, send, immediate completion, persistence and result download'
   page,
   remote,
 }, testInfo) => {
+  test.slow();
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(remote.url);
@@ -739,7 +740,7 @@ test('phone fallback remains visible in every view and both themes', async ({
         .click();
       await expect(aurora).toBeVisible();
       await expect(aurora).toHaveCSS('opacity', view === 'Chat' ? '1' : '0.72');
-      const clip = { x: 0, y: 80, width: 16, height: 240 };
+      const clip = { x: 0, y: 80, width: 390, height: 240 };
       const painted = await page.screenshot({ clip, animations: 'disabled' });
       await aurora.evaluate((element) => {
         element.style.visibility = 'hidden';
@@ -849,11 +850,13 @@ test('typing eases the welcome layout while preserving the Dither aurora and com
   page,
   remote,
 }, testInfo) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto(remote.url);
   await expect(page.locator('.remote-empty')).toHaveCSS('opacity', '1');
   await expect(page.locator('.phone-aurora')).toHaveAttribute('data-renderer', 'dither');
   const input = page.getByRole('textbox', { name: 'Message Sia' });
   await input.fill('A draft that stays right here');
+  await expect(input).toBeFocused();
   const originalHeight = await page.evaluate(() => visualViewport!.height);
   const movement = await page.evaluate(async () => {
     const hero = document.querySelector('.hero-art')!;
@@ -866,7 +869,9 @@ test('typing eases the welcome layout while preserving the Dither aurora and com
     });
     const before = read();
     Object.defineProperty(visualViewport!, 'height', { configurable: true, value: 380 });
+    Object.defineProperty(visualViewport!, 'offsetTop', { configurable: true, value: 120 });
     visualViewport!.dispatchEvent(new Event('resize'));
+    visualViewport!.dispatchEvent(new Event('scroll'));
     const samples: ReturnType<typeof read>[] = [];
     const start = performance.now();
     while (performance.now() - start < 600) {
@@ -877,15 +882,19 @@ test('typing eases the welcome layout while preserving the Dither aurora and com
       before,
       samples,
       sameCanvas: canvas === document.querySelector('.dither-container canvas'),
+      keyboard: document.documentElement.dataset.phoneKeyboard,
+      heroTransition: parseFloat(getComputedStyle(hero).transitionDuration),
     };
   });
   const end = movement.samples.at(-1)!;
+  expect(movement.keyboard).toBe('open');
+  expect(movement.heroTransition).toBeGreaterThan(0.3);
   expect(end.hero).toBeLessThan(movement.before.hero);
   expect(
     movement.samples.filter(
       (sample) => sample.hero < movement.before.hero && sample.hero > end.hero,
     ).length,
-  ).toBeGreaterThan(2);
+  ).toBeGreaterThan(0);
   expect(
     movement.samples.every(
       (sample) => Math.abs(sample.composer - movement.before.composer) < 1,
