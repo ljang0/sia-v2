@@ -32,8 +32,10 @@ import {
   TranscriptSearch,
   ThreadWorkspaceTools,
 } from './components/localParity';
-import type { AgentDraft, AgentSummary, RendererApi, RendererSnapshot } from './types';
+import type { AgentDraft, RendererApi, RendererSnapshot } from './types';
 import { useAppController } from './useAppController';
+import { recentThreads, welcomePrompts } from './welcome';
+import { useViewTransition } from './components/effects/use-view-transition';
 import './tokens.css';
 import companion from './companion.module.css';
 import styles from './ui.module.css';
@@ -53,6 +55,13 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
       import.meta.env?.DEV && typeof location !== 'undefined' && location.hash === '#audit',
     );
   const workspace = useRef<HTMLElement>(null);
+  const viewSurface = useRef<HTMLDivElement>(null);
+  const viewKey = app.settingsOpen
+    ? `settings:${app.settingsSection}`
+    : app.activityOpen
+      ? 'activity'
+      : `thread:${app.snapshot?.selectedThreadId ?? ''}`;
+  useViewTransition(viewSurface, viewKey, app.snapshot?.preferences.appearance === 'calm');
   const [reveal, setReveal] = useState(0);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -382,7 +391,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         ) : null}
 
         <WorkspaceNotice app={app} />
-        <div className={styles.workspaceBody}>
+        <div className={styles.workspaceBody} ref={viewSurface} data-workspace-view={viewKey}>
           {app.activityOpen ? (
             <main className={styles.activityPage}>
               <header className={styles.activityPageHeader}>
@@ -547,7 +556,13 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                         app.run(() => api.revealAttachment(activeThread.id, attachmentId))
                     : undefined
                 }
-                starterPrompts={starterPrompts(roomAgent, snapshot)}
+                starterPrompts={welcomePrompts(roomAgent)}
+                recentThreads={
+                  activeThread?.events.length
+                    ? []
+                    : recentThreads(roomAgent?.threads ?? [], activeThread?.id)
+                }
+                onOpenThread={(id) => void run(() => api.selectThread(id))}
                 findOpen={conversationFindOpen}
                 onFindOpenChange={setConversationFindOpen}
                 voiceEnabled={snapshot.voice.status === 'connected'}
@@ -779,26 +794,4 @@ function activityItems(snapshot: import('./types').RendererSnapshot) {
         updatedAt: thread.updatedAt,
       })),
   );
-}
-
-function starterPrompts(agent: AgentSummary | undefined, snapshot: RendererSnapshot): string[] {
-  if (!agent) return [];
-  const identity = `${agent.name} ${agent.instructions}`.toLocaleLowerCase();
-  const prompts: string[] = [];
-  if (/release|ship|qa|test/.test(identity)) {
-    prompts.push('Run the release checklist and surface anything that should stop the build.');
-  } else if (/research|analys|source/.test(identity)) {
-    prompts.push('Compare the strongest sources and show where they disagree.');
-  } else {
-    prompts.push('Summarize this workspace and suggest the first useful step.');
-  }
-  if (agent.provider === 'codex') {
-    prompts.push('Review the current changes and flag the risky parts.');
-  }
-  if (snapshot.apps.some(({ status, enabled }) => status === 'connected' && enabled)) {
-    prompts.push('Catch me up on the connected work that needs a response.');
-  } else {
-    prompts.push('Turn the latest project activity into a concise briefing.');
-  }
-  return prompts.slice(0, 3);
 }

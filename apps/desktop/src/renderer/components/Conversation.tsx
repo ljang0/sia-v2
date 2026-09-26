@@ -25,7 +25,12 @@ import type {
   MessageEvent,
   ThreadDetail,
   ThreadEvent,
+  ThreadSummary,
 } from '../types';
+import { timeGreeting } from '../welcome';
+import { completedReplyId } from '../task-result';
+import { WelcomeRecents } from './WelcomeRecents';
+import { ResultCard } from './ResultCard';
 import styles from '../ui.module.css';
 import { ActivityRow } from './ActivityRow';
 import { AgentForm } from './AgentForm';
@@ -37,6 +42,8 @@ import { Aurora } from './effects/aurora';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
 
 interface ConversationProps {
+  recentThreads?: readonly ThreadSummary[] | undefined;
+  onOpenThread?: ((id: string) => void) | undefined;
   thread?: ThreadDetail | undefined;
   agentName?: string | undefined;
   agentInitials?: string | undefined;
@@ -81,6 +88,8 @@ interface ConversationProps {
 }
 
 export function Conversation({
+  recentThreads = [],
+  onOpenThread,
   thread,
   agentName,
   agentHue,
@@ -346,14 +355,14 @@ export function Conversation({
         <div className={styles.emptyState} data-companion-empty>
           <AgentForm identity={agentHue ?? 0} size="large" />
           <span className={styles.emptyStateKicker}>
-            {agentName ? `${agentName} is ready` : 'Start here'}
+            {agentName ? `${timeGreeting()} · ${agentName} is ready` : 'Start here'}
           </span>
           <h1 className={styles.gradientHeading}>
             {agentName ? `Start a thread with ${agentName}.` : 'Create your first agent.'}
           </h1>
           <p>
             {agentName
-              ? 'A thread keeps its goal, files, and history together so you can return without starting over.'
+              ? 'Pick up a recent conversation, or start with something you want off your list.'
               : 'Give it a name and one short instruction. Sia chooses a model, color, and private folder.'}
           </p>
           {onCreateThread ? (
@@ -370,6 +379,7 @@ export function Conversation({
               Connect work apps later
             </button>
           ) : null}
+          <WelcomeRecents threads={recentThreads} onOpen={onOpenThread} />
         </div>
       </main>
     );
@@ -397,6 +407,7 @@ export function Conversation({
       ? thread.events[lastAssistantEventIndex]?.id
       : undefined;
   const outlineAvailable = hasConversationOutline(thread.events);
+  const resultId = completedReplyId(thread);
 
   return (
     <main
@@ -532,7 +543,10 @@ export function Conversation({
           {thread.events.length === 0 ? (
             <div className={styles.threadEmpty} data-companion-thread-empty>
               <AgentForm identity={agentHue} size="medium" />
-              <span className={styles.emptyStateKicker}>Ready when you are</span>
+              <span className={styles.emptyStateKicker}>
+                {timeGreeting()}
+                {agentName ? ` · ${agentName} is ready` : ''}
+              </span>
               <h2 className={styles.gradientHeading}>What would you like to do?</h2>
               <p>Describe the outcome, attach any useful files, or choose a suggested start.</p>
               {onOpenApps ? (
@@ -550,6 +564,7 @@ export function Conversation({
                   ))}
                 </div>
               ) : null}
+              <WelcomeRecents threads={recentThreads} onOpen={onOpenThread} />
             </div>
           ) : (
             <div className={styles.eventList}>
@@ -583,6 +598,7 @@ export function Conversation({
                     speechError={speech.eventId === event.id ? speech.error : undefined}
                     streaming={running && event.id === currentAssistantEventId}
                     justCompleted={justCompleted && event.id === currentAssistantEventId}
+                    completed={event.id === resultId}
                     onToggleSpeech={
                       voiceEnabled && onSpeak
                         ? (text) => toggleSpeech(event.id, text)
@@ -743,6 +759,7 @@ function scrollToLatest(scroller: HTMLDivElement, behavior: ScrollBehavior) {
 }
 
 interface EventViewProps {
+  completed?: boolean | undefined;
   noticeExplained?: boolean;
   event: ThreadEvent;
   agentHue?: number | undefined;
@@ -757,6 +774,7 @@ interface EventViewProps {
 }
 
 function EventView({
+  completed,
   event,
   noticeExplained,
   agentHue,
@@ -802,7 +820,7 @@ function EventView({
     );
   }
 
-  return (
+  const message = (
     <article
       className={`${styles.message} ${
         event.role === 'user' ? styles.userMessage : styles.assistantMessage
@@ -879,6 +897,7 @@ function EventView({
       </div>
     </article>
   );
+  return completed ? <ResultCard>{message}</ResultCard> : message;
 }
 
 function CopyMessageButton({ content }: { content: string }) {

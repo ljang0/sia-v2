@@ -15,6 +15,22 @@ in Activity and search, without a dedicated sidebar item.
 
 ## Appearance and navigation
 
+Welcome screens greet people for their local time of day. Desktop suggestions follow the selected
+agent's stated purpose, with everyday tasks as the default; choosing Codex or naming an agent
+“Testing1” does not imply a coding workflow. Up to two recent conversations from the selected agent
+appear below the suggestions, prioritizing work that needs attention. Opening one resumes its existing
+conversation; it does not resend the original request. Phone greetings identify the paired agent and
+retain the existing editable recent prompts.
+
+The latest finished desktop reply and completed phone replies appear in a soft result card. The
+original text, links, copy/read-aloud controls, and phone file downloads remain available. “Reply ready”
+describes availability, not independent verification that every requested action succeeded. Running,
+waiting, cancelled, and failed work do not receive the completed result treatment.
+
+Switching desktop views or phone tabs uses a short fade and vertical ease on the existing surface.
+Navigation is immediate, drafts retain their normal persistence, and incoming task updates do not
+restart the transition. Reduce Motion and desktop Calm disable this movement.
+
 Desktop startup begins with a dark evergreen wordmark, then eases the background into a soft shape
 on the left beside “Loading Sia.” It follows the actual initial load: there is no minimum wait,
 the ready workspace is immediately usable, and the decorative curtain clears in 240 ms or less.

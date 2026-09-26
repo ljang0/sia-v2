@@ -16,6 +16,7 @@ import {
 import type { RemoteTurn } from '../shared/phone-remote';
 import { SiaMonogram } from './SiaMonogram';
 import { LiquidMetalButton } from '../renderer/components/effects/liquid-metal-button';
+import { timeGreeting } from '../renderer/welcome';
 
 export function Sheet({
   open,
@@ -98,10 +99,12 @@ const ideas = [
   },
 ];
 export function Welcome({
+  agent,
   recents,
   onChoose,
   typing,
 }: {
+  agent?: string | undefined;
   recents: string[];
   onChoose: (text: string) => void;
   typing: boolean;
@@ -129,7 +132,10 @@ export function Welcome({
         </div>
       </div>
       <div className="hero-copy">
-        <span className="eyebrow">A LITTLE DISTANCE. SAME ASSISTANT.</span>
+        <span className="eyebrow welcome-greeting">
+          {timeGreeting()}
+          {agent ? ` · With ${agent}` : ''}
+        </span>
         <h1>
           Your Mac,
           <br />
@@ -260,7 +266,7 @@ export function Activity({
                         ? turn.error || 'Open the conversation for details.'
                         : turn.status === 'cancelled'
                           ? 'You stopped this task.'
-                          : 'Your reply is ready to read.'}
+                          : turn.response || 'Your reply is ready to read.'}
                 </p>
                 {!!turn.files.length && (
                   <span className="task-file-count">

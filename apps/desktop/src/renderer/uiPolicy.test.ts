@@ -32,7 +32,15 @@ const startup = readFileSync(
   fileURLToPath(new URL('./components/startup.module.css', import.meta.url)),
   'utf8',
 );
-const css = `${tokens}\n${styles}\n${companion}\n${aurora}\n${metal}\n${navigation}\n${appearance}\n${startup}`;
+const results = readFileSync(
+  fileURLToPath(new URL('./components/result-card.module.css', import.meta.url)),
+  'utf8',
+);
+const welcome = readFileSync(
+  fileURLToPath(new URL('./components/welcome-recents.module.css', import.meta.url)),
+  'utf8',
+);
+const css = `${tokens}\n${styles}\n${companion}\n${aurora}\n${metal}\n${navigation}\n${appearance}\n${startup}\n${results}\n${welcome}`;
 
 describe('renderer accessibility CSS policy', () => {
   it('keeps explicit reduced-motion, increased-contrast, and forced-color modes', () => {

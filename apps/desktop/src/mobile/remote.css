@@ -50,6 +50,20 @@ button:active:not(:disabled) {
   gap: 10px;
   flex: none;
 }
+.phone-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.welcome-greeting {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .sia-monogram {
   display: inline-block;
   font-family: var(--font-brand);
@@ -542,6 +556,11 @@ button:active:not(:disabled) {
   overflow-wrap: anywhere;
 }
 .task-card p {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
   color: var(--text-secondary);
   margin: 0;
   font-size: 12px;

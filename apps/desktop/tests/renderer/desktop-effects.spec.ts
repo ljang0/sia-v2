@@ -1,5 +1,56 @@
 import { expect, test } from '@playwright/test';
 
+test('personal welcome opens existing work and finished replies retain their controls', async ({
+  page,
+}, info) => {
+  await page.goto('/#demo');
+  await page.getByTitle('New thread', { exact: true }).first().click();
+  await expect(
+    page.getByText(/Good (morning|afternoon|evening) · Research partner is ready/),
+  ).toBeVisible();
+  const recents = page.getByRole('region', { name: 'Pick up where you left off' });
+  await expect(recents).toBeVisible();
+  await page.screenshot({ path: info.outputPath('personal-welcome.png') });
+  await recents.getByRole('button', { name: /Weekly research update/ }).click();
+  await expect(page.getByRole('button', { name: /Stop current turn/ })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Task result' })).toHaveCount(0);
+  const nav = page.getByRole('complementary', { name: 'Agent navigation' });
+  await nav.getByRole('button', { name: 'Triage today’s inbox', exact: true }).click();
+  const result = page.getByRole('region', { name: 'Task result' });
+  await expect(result).toContainText('I grouped the unread messages');
+  await expect(result.getByRole('button', { name: 'Copy message' })).toBeVisible();
+  await page.screenshot({ path: info.outputPath('desktop-result-card.png') });
+});
+
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  test(`view transitions preserve drafts with ${reducedMotion} motion`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion });
+    await page.addInitScript(() => {
+      const original = Element.prototype.animate;
+      Object.assign(window, { viewMotionCalls: [] as string[] });
+      Element.prototype.animate = function (...args) {
+        const view = this.getAttribute('data-workspace-view');
+        if (view)
+          (window as unknown as { viewMotionCalls: string[] }).viewMotionCalls.push(view);
+        return original.apply(this, args);
+      };
+    });
+    await page.goto('/#demo');
+    await page.getByTitle('New thread', { exact: true }).first().click();
+    const field = page.getByRole('textbox', { name: 'Message', exact: true });
+    await field.fill('Keep my unfinished thought');
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+    await page.getByRole('button', { name: 'Close settings', exact: true }).click();
+    await expect(field).toHaveValue('Keep my unfinished thought');
+    const motions = await page.evaluate(
+      () => (window as unknown as { viewMotionCalls: string[] }).viewMotionCalls,
+    );
+    if (reducedMotion === 'reduce') expect(motions).toEqual([]);
+    else expect(motions).toContain('settings:providers');
+  });
+}
+
 for (const reducedMotion of ['no-preference', 'reduce'] as const) {
   test(`startup reveals the real workspace with ${reducedMotion} motion`, async ({
     page,
@@ -51,6 +102,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       .not.toBe('0% 50%');
 
     // Focus must not move the content or remove the field behind it.
+    await expect(page.locator('[data-workspace-view]')).toHaveCSS('transform', 'none');
     const before = await field.boundingBox();
     await field.click();
     await expect(field).toBeFocused();

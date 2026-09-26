@@ -29,6 +29,7 @@ import { usePhoneViewport } from './use-phone-viewport';
 import { LiquidMetalButton } from '../renderer/components/effects/liquid-metal-button';
 import { Sheet, Welcome, Activity, statusLabels } from './remote-ui';
 import { Turn } from './turn';
+import { useViewTransition } from '../renderer/components/effects/use-view-transition';
 import '../renderer/tokens.css';
 import './remote.css';
 
@@ -66,6 +67,8 @@ function App() {
   const [view, setView] = useState<'chat' | 'activity' | 'memory'>(
     location.pathname.endsWith('/graph') ? 'memory' : 'chat',
   );
+  const viewSurface = useRef<HTMLDivElement>(null);
+  useViewTransition(viewSurface, view);
   const [showLatest, setShowLatest] = useState(false);
   const [listening, setListening] = useState(false);
   const [hint, setHint] = useState('');
@@ -333,208 +336,215 @@ function App() {
           {connection}
         </p>
       )}
-      {view === 'memory' ? (
-        <>
-          <div className="page-heading">
-            <span className="eyebrow">A LITTLE MORE YOU, EVERY DAY</span>
-            <h1>Made of memories.</h1>
-            <p>What {state?.agent ?? 'Sia'} has learned along the way.</p>
-          </div>
-          {state ? (
-            <MemoryGraph online={online} />
-          ) : (
-            <div className="memory-empty">
-              <p>Reconnect to your Mac to see your memories.</p>
+      <div className="phone-view" ref={viewSurface} data-phone-view={view}>
+        {view === 'memory' ? (
+          <>
+            <div className="page-heading">
+              <span className="eyebrow">A LITTLE MORE YOU, EVERY DAY</span>
+              <h1>Made of memories.</h1>
+              <p>What {state?.agent ?? 'Sia'} has learned along the way.</p>
             </div>
-          )}
-        </>
-      ) : view === 'activity' ? (
-        <Activity
-          turns={state?.turns ?? []}
-          online={online}
-          onOpen={openTurn}
-          onStart={() => setView('chat')}
-        />
-      ) : (
-        <>
-          {!!state?.turns.length && (
-            <div className="conversation-heading">
-              <div>
-                <span className="assistant-avatar">
-                  <SiaMonogram />
-                </span>
-                <span>
-                  <strong>{state.agent}</strong>
-                  <small>
-                    {state.mode === 'connected' ? 'Connected apps' : 'Working with your Mac'}
-                  </small>
-                </span>
-              </div>
-              <button
-                className="icon"
-                aria-label="New chat"
-                disabled={busy || pending || !online}
-                onClick={() => void action('clear')}
-              >
-                <Plus size={21} />
-              </button>
-            </div>
-          )}
-          <div
-            className="conversation"
-            ref={conversation}
-            onScroll={() => {
-              const node = conversation.current;
-              if (node) {
-                nearBottom.current =
-                  node.scrollHeight - node.scrollTop - node.clientHeight < 100;
-                setShowLatest(!nearBottom.current);
-              }
-            }}
-          >
-            {!state?.turns.length ? (
-              <Welcome recents={recents} onChoose={choosePrompt} typing={keyboardOpen} />
+            {state ? (
+              <MemoryGraph online={online} />
             ) : (
-              <div className="turns">
-                {state.turns.map((turn) => (
-                  <Turn key={turn.id} turn={turn} agent={state.agent} />
-                ))}
+              <div className="memory-empty">
+                <p>Reconnect to your Mac to see your memories.</p>
               </div>
             )}
-          </div>
-          <footer className="phone-footer">
-            {showLatest && !!state?.turns.length && (
-              <button
-                className="jump-latest"
-                onClick={() => {
-                  nearBottom.current = true;
-                  conversation.current?.scrollTo({
-                    top: conversation.current.scrollHeight,
-                    behavior: 'instant',
-                  });
-                  setShowLatest(false);
-                }}
-              >
-                <ArrowDown size={14} />
-                Latest reply
-              </button>
-            )}
-            {error && (
-              <div className="remote-error" role="alert">
-                {error}
+          </>
+        ) : view === 'activity' ? (
+          <Activity
+            turns={state?.turns ?? []}
+            online={online}
+            onOpen={openTurn}
+            onStart={() => setView('chat')}
+          />
+        ) : (
+          <>
+            {!!state?.turns.length && (
+              <div className="conversation-heading">
+                <div>
+                  <span className="assistant-avatar">
+                    <SiaMonogram />
+                  </span>
+                  <span>
+                    <strong>{state.agent}</strong>
+                    <small>
+                      {state.mode === 'connected' ? 'Connected apps' : 'Working with your Mac'}
+                    </small>
+                  </span>
+                </div>
                 <button
                   className="icon"
-                  aria-label="Dismiss error"
-                  onClick={() => setError('')}
+                  aria-label="New chat"
+                  disabled={busy || pending || !online}
+                  onClick={() => void action('clear')}
                 >
-                  <X size={16} />
+                  <Plus size={21} />
                 </button>
               </div>
             )}
-            {hint && (
-              <p className="composer-hint" role="status">
-                {hint}
-              </p>
-            )}
-            {busy && (
-              <div className="live-task-line" role="status">
-                <span className={`activity-light ${latest?.status}`} />
-                {latest?.status === 'waiting'
-                  ? 'Sia needs your attention'
-                  : online
-                    ? 'Sia is working on your Mac'
-                    : 'Reconnecting for task updates'}
-                <span>
-                  {latest?.status === 'working'
-                    ? 'You can leave this page'
-                    : 'Check the latest reply'}
-                </span>
-              </div>
-            )}
-            <form
-              className={`remote-composer ${listening ? 'listening' : ''}`}
-              onSubmit={(event) => {
-                event.preventDefault();
-                void send();
+            <div
+              className="conversation"
+              ref={conversation}
+              onScroll={() => {
+                const node = conversation.current;
+                if (node) {
+                  nearBottom.current =
+                    node.scrollHeight - node.scrollTop - node.clientHeight < 100;
+                  setShowLatest(!nearBottom.current);
+                }
               }}
             >
-              <textarea
-                ref={composer}
-                aria-label="Message Sia"
-                rows={1}
-                maxLength={8000}
-                value={text}
-                placeholder={busy ? 'Write a follow-up…' : 'What can I take off your hands?'}
-                onChange={(event) => setText(event.currentTarget.value)}
-                onKeyDown={(event) => {
-                  if (
-                    event.key === 'Enter' &&
-                    !event.shiftKey &&
-                    !event.nativeEvent.isComposing
-                  ) {
-                    event.preventDefault();
-                    void send();
-                  }
-                }}
-              />
-              <div className="composer-controls">
-                <span className="composer-context">
-                  <Desktop size={14} />
-                  {state?.mode === 'connected' ? 'Connected apps' : 'Use my Mac'}
-                </span>
-                <LiquidMetalButton
-                  type="button"
-                  viewMode="icon"
-                  tone={listening ? 'danger' : 'neutral'}
-                  className={`icon ${listening ? 'recording' : ''}`}
-                  aria-label={listening ? 'Stop dictation' : 'Dictate message'}
-                  disabled={pending}
-                  onClick={microphone}
+              {!state?.turns.length ? (
+                <Welcome
+                  agent={state?.agent}
+                  recents={recents}
+                  onChoose={choosePrompt}
+                  typing={keyboardOpen}
+                />
+              ) : (
+                <div className="turns">
+                  {state.turns.map((turn) => (
+                    <Turn key={turn.id} turn={turn} agent={state.agent} />
+                  ))}
+                </div>
+              )}
+            </div>
+            <footer className="phone-footer">
+              {showLatest && !!state?.turns.length && (
+                <button
+                  className="jump-latest"
+                  onClick={() => {
+                    nearBottom.current = true;
+                    conversation.current?.scrollTo({
+                      top: conversation.current.scrollHeight,
+                      behavior: 'instant',
+                    });
+                    setShowLatest(false);
+                  }}
                 >
-                  <Microphone size={20} />
-                </LiquidMetalButton>
-                {busy && (!text.trim() || latest?.status === 'working') ? (
+                  <ArrowDown size={14} />
+                  Latest reply
+                </button>
+              )}
+              {error && (
+                <div className="remote-error" role="alert">
+                  {error}
+                  <button
+                    className="icon"
+                    aria-label="Dismiss error"
+                    onClick={() => setError('')}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              )}
+              {hint && (
+                <p className="composer-hint" role="status">
+                  {hint}
+                </p>
+              )}
+              {busy && (
+                <div className="live-task-line" role="status">
+                  <span className={`activity-light ${latest?.status}`} />
+                  {latest?.status === 'waiting'
+                    ? 'Sia needs your attention'
+                    : online
+                      ? 'Sia is working on your Mac'
+                      : 'Reconnecting for task updates'}
+                  <span>
+                    {latest?.status === 'working'
+                      ? 'You can leave this page'
+                      : 'Check the latest reply'}
+                  </span>
+                </div>
+              )}
+              <form
+                className={`remote-composer ${listening ? 'listening' : ''}`}
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void send();
+                }}
+              >
+                <textarea
+                  ref={composer}
+                  aria-label="Message Sia"
+                  rows={1}
+                  maxLength={8000}
+                  value={text}
+                  placeholder={busy ? 'Write a follow-up…' : 'What can I take off your hands?'}
+                  onChange={(event) => setText(event.currentTarget.value)}
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === 'Enter' &&
+                      !event.shiftKey &&
+                      !event.nativeEvent.isComposing
+                    ) {
+                      event.preventDefault();
+                      void send();
+                    }
+                  }}
+                />
+                <div className="composer-controls">
+                  <span className="composer-context">
+                    <Desktop size={14} />
+                    {state?.mode === 'connected' ? 'Connected apps' : 'Use my Mac'}
+                  </span>
                   <LiquidMetalButton
                     type="button"
-                    className="send stop"
                     viewMode="icon"
-                    tone="danger"
-                    disabled={pending || !online}
-                    aria-label="Stop task"
-                    onClick={() => void action('cancel')}
+                    tone={listening ? 'danger' : 'neutral'}
+                    className={`icon ${listening ? 'recording' : ''}`}
+                    aria-label={listening ? 'Stop dictation' : 'Dictate message'}
+                    disabled={pending}
+                    onClick={microphone}
                   >
-                    <Stop size={16} weight="fill" />
+                    <Microphone size={20} />
                   </LiquidMetalButton>
-                ) : (
-                  <LiquidMetalButton
-                    type="submit"
-                    viewMode="icon"
-                    tone="sage"
-                    className="send"
-                    disabled={!text.trim() || pending || !online}
-                    aria-label="Send message"
-                  >
-                    {pending ? (
-                      <CircleNotch className="spin" size={20} />
-                    ) : (
-                      <ArrowUp size={21} weight="bold" />
-                    )}
-                  </LiquidMetalButton>
-                )}
+                  {busy && (!text.trim() || latest?.status === 'working') ? (
+                    <LiquidMetalButton
+                      type="button"
+                      className="send stop"
+                      viewMode="icon"
+                      tone="danger"
+                      disabled={pending || !online}
+                      aria-label="Stop task"
+                      onClick={() => void action('cancel')}
+                    >
+                      <Stop size={16} weight="fill" />
+                    </LiquidMetalButton>
+                  ) : (
+                    <LiquidMetalButton
+                      type="submit"
+                      viewMode="icon"
+                      tone="sage"
+                      className="send"
+                      disabled={!text.trim() || pending || !online}
+                      aria-label="Send message"
+                    >
+                      {pending ? (
+                        <CircleNotch className="spin" size={20} />
+                      ) : (
+                        <ArrowUp size={21} weight="bold" />
+                      )}
+                    </LiquidMetalButton>
+                  )}
+                </div>
+              </form>
+              <div className="footer-caption">
+                {pending
+                  ? 'Sending to your Mac…'
+                  : latest?.status === 'working' && text.trim()
+                    ? 'Your follow-up is ready to send when this task finishes.'
+                    : state && state.workers > 0 && !busy
+                      ? `${state.workers} ${state.workers === 1 ? 'task is' : 'tasks are'} running on your Mac.`
+                      : ''}
               </div>
-            </form>
-            <div className="footer-caption">
-              {pending
-                ? 'Sending to your Mac…'
-                : latest?.status === 'working' && text.trim()
-                  ? 'Your follow-up is ready to send when this task finishes.'
-                  : state && state.workers > 0 && !busy
-                    ? `${state.workers} ${state.workers === 1 ? 'task is' : 'tasks are'} running on your Mac.`
-                    : ''}
-            </div>
-          </footer>
-        </>
-      )}
+            </footer>
+          </>
+        )}
+      </div>
       <nav
         className="phone-nav"
         aria-label="Main navigation"

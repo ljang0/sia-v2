@@ -162,12 +162,21 @@ test('phone layout, send, immediate completion, persistence and result download'
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByText('The answer is', { exact: false })).toBeVisible();
   await expect(page.getByText('Finished', { exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Task result' })).toContainText(
+    'The answer is',
+  );
   expect(remote.sends).toEqual(['A quick answer please']);
   await page.reload();
   await expect(page.getByText('A quick answer please', { exact: true })).toBeVisible();
   await page.getByRole('textbox').fill('Make a report');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByRole('link', { name: /report.txt/ })).toBeVisible();
+  await expect(
+    page
+      .getByRole('region', { name: 'Task result' })
+      .last()
+      .getByRole('link', { name: /report.txt/ }),
+  ).toBeVisible();
   const download = page.waitForEvent('download');
   await page.getByRole('link', { name: /report.txt/ }).click();
   expect((await download).suggestedFilename()).toBe('report.txt');
@@ -263,6 +272,7 @@ test('stops the current task and starts a new conversation without deleting the 
   await page.getByRole('button', { name: 'Send message' }).click();
   await page.getByRole('button', { name: 'Stop task' }).click();
   await expect(page.getByText('Stopped', { exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Task result' })).toHaveCount(0);
   await page.getByRole('button', { name: 'More options' }).click();
   await page.getByRole('button', { name: /^New chat Start fresh/ }).click();
   await expect(page.getByRole('heading', { name: 'Your Mac, within reach.' })).toBeVisible();
@@ -887,6 +897,13 @@ test('headline and composer colors drift slowly, pause offscreen, and respect re
     document.dispatchEvent(new Event('visibilitychange'));
   });
   await expect(page.locator('.phone-aurora')).toHaveAttribute('data-paused', 'true');
+  // WebKit commits a CSS animation pause on its next animation tick.
+  // Measure only once the pause is applied, not while that final frame is pending.
+  await surfaces.evaluateAll(async (nodes) => {
+    await Promise.all(
+      nodes.flatMap((node) => node.getAnimations().map((animation) => animation.ready)),
+    );
+  });
   const paused = await colors();
   await page.waitForTimeout(200);
   expect(await colors()).toEqual(paused);
