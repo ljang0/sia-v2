@@ -1,5 +1,36 @@
 import { expect, test } from '@playwright/test';
 
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  test(`startup reveals the real workspace with ${reducedMotion} motion`, async ({
+    page,
+  }, info) => {
+    await page.emulateMedia({ colorScheme: 'dark', reducedMotion });
+    await page.goto('/?startup-delay=2200#demo');
+    const startup = page.locator('[data-sia-startup]');
+    const loading = page.getByRole('status', { name: 'Loading Sia' });
+    await expect(loading).toBeVisible();
+    const blob = startup.locator(':scope > div').first();
+    if (reducedMotion === 'reduce') {
+      await expect(blob).toHaveCSS('animation-name', 'none');
+    } else {
+      await expect
+        .poll(() =>
+          blob.evaluate((el) => {
+            const transform = getComputedStyle(el).transform;
+            return transform === 'none' ? 1 : new DOMMatrixReadOnly(transform).a;
+          }),
+        )
+        .toBeLessThan(0.5);
+      await page.screenshot({ path: info.outputPath('startup-left.png') });
+    }
+    await expect(page.getByRole('button', { name: 'Access' })).toBeVisible();
+    await expect(startup).toHaveCount(0);
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+    await expect(startup).toHaveCount(0);
+  });
+}
+
 for (const colorScheme of ['light', 'dark'] as const) {
   test(`${colorScheme}: welcome, composer, and existing controls stay usable`, async ({
     page,

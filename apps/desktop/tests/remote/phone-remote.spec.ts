@@ -178,10 +178,19 @@ test('phone layout, send, immediate completion, persistence and result download'
 test('Home Screen branding loads a real opaque iPhone icon through the paired link', async ({
   page,
   remote,
-}) => {
+}, info) => {
   for (const route of ['', 'graph']) {
     await page.goto(new URL(route, remote.url).href);
     await expect(page).toHaveTitle('Sia');
+    if (!route) {
+      await expect(page.locator('.phone-brand .sia-monogram')).toHaveText('S');
+      await expect(page.locator('.hero-presence .sia-monogram')).toHaveText('S');
+      await expect(page.locator('.hero-presence .sia-monogram')).toHaveCSS(
+        'font-size',
+        '104px',
+      );
+      await page.screenshot({ path: info.outputPath('phone-monogram.png') });
+    }
     await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute(
       'content',
       'Sia',

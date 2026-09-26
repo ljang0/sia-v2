@@ -15,6 +15,18 @@ in Activity and search, without a dedicated sidebar item.
 
 ## Appearance and navigation
 
+Desktop startup begins with a dark evergreen wordmark, then eases the background into a soft shape
+on the left beside “Loading Sia.” It follows the actual initial load: there is no minimum wait,
+the ready workspace is immediately usable, and the decorative curtain clears in 240 ms or less.
+It never replays for ordinary navigation, the Fn flow, or the launcher. Reduce Motion uses a still
+loading state; Calm dismisses it immediately when the saved appearance becomes available. Startup
+errors replace the animation with the existing reconnect action. For local visual review, the demo
+supports `?startup-delay=2200#demo`; this delay is unavailable in production.
+
+Phone branding uses a large **S** in the bundled Sia typeface. The header, welcome screen, and iOS
+Home Screen icon share that letterform; the icon remains opaque with the Home Screen name **Sia**.
+An existing iOS Home Screen shortcut may need to be removed and added again to refresh its cached icon.
+
 Settings → Appearance offers **Expressive** (the default aurora, drifting gradients, and reflective
 buttons) and **Calm** (still decorative surfaces). The choice persists in the existing encrypted
 profile and applies to the desktop and ⌘E launcher; it does not alter phone appearance. Both respect

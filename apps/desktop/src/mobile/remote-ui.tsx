@@ -14,7 +14,7 @@ import {
   X,
 } from '@phosphor-icons/react';
 import type { RemoteTurn } from '../shared/phone-remote';
-import { SiaMark } from '../renderer/components/SiaMark';
+import { SiaMonogram } from './SiaMonogram';
 import { LiquidMetalButton } from '../renderer/components/effects/liquid-metal-button';
 
 export function Sheet({
@@ -124,12 +124,9 @@ export function Welcome({
   return (
     <div className="remote-empty">
       <div className="hero-art" aria-hidden="true">
-        <div className="hero-halo" />
         <div className="hero-presence">
-          <SiaMark />
+          <SiaMonogram />
         </div>
-        <span className="hero-spark spark-one" />
-        <span className="hero-spark spark-two" />
       </div>
       <div className="hero-copy">
         <span className="eyebrow">A LITTLE DISTANCE. SAME ASSISTANT.</span>

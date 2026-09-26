@@ -17,6 +17,24 @@ import type { RendererApi, RendererSnapshot } from './types';
 afterEach(cleanup);
 
 describe('app privacy routing', () => {
+  it('replaces startup with a recoverable error when the initial load fails', async () => {
+    const api = createDemoRendererApi(structuredClone(demoSnapshot));
+    const getSnapshot = api.getSnapshot;
+    let reject!: (error: Error) => void;
+    api.getSnapshot = () =>
+      new Promise((_resolve, fail) => {
+        reject = fail;
+      });
+    render(<App api={api} />);
+    expect(screen.getByRole('status', { name: 'Loading Sia' })).toBeTruthy();
+    await act(async () => reject(new Error('Please reconnect.')));
+    expect(await screen.findByRole('heading', { name: 'Sia needs to reconnect' })).toBeTruthy();
+    expect(screen.queryByRole('status', { name: 'Loading Sia' })).toBeNull();
+    api.getSnapshot = getSnapshot;
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('button', { name: 'Access' })).toBeTruthy();
+  });
+
   it('opens the quick switcher from the keyboard and routes a command', async () => {
     render(<App api={createDemoRendererApi(structuredClone(demoSnapshot))} />);
     await screen.findByRole('button', { name: 'Access' });

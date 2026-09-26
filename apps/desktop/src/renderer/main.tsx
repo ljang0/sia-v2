@@ -23,9 +23,21 @@ if (location.hash === '#scotty' || location.hash === '#scotty-panel') {
   );
 } else if (import.meta.env.DEV && location.hash === '#demo') {
   void import('./demo').then(({ createDemoRendererApi, demoSnapshot }) => {
+    const api = createDemoRendererApi(structuredClone(demoSnapshot));
+    const loadDelay = Math.min(
+      5000,
+      Math.max(0, Number(new URLSearchParams(location.search).get('startup-delay')) || 0),
+    );
+    if (loadDelay) {
+      const snapshot = api.getSnapshot;
+      api.getSnapshot = async () => {
+        await new Promise((resolve) => window.setTimeout(resolve, loadDelay));
+        return snapshot();
+      };
+    }
     reactRoot.render(
       <StrictMode>
-        <App api={createDemoRendererApi(structuredClone(demoSnapshot))} />
+        <App api={api} />
       </StrictMode>,
     );
   });

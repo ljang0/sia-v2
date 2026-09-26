@@ -20,7 +20,6 @@ import {
   dialog,
   ipcMain,
   Menu,
-  nativeTheme,
   Notification,
   powerMonitor,
   session,
@@ -190,7 +189,7 @@ async function performApplicationCreation(): Promise<void> {
     minWidth: 960,
     minHeight: 640,
     show: false,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#191b1a' : '#fafaf8',
+    backgroundColor: '#0d1915',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {

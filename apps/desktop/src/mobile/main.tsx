@@ -21,7 +21,7 @@ import {
   Trash,
 } from '@phosphor-icons/react';
 import type { RemoteState } from '../shared/phone-remote';
-import { SiaMark } from '../renderer/components/SiaMark';
+import { SiaMonogram } from './SiaMonogram';
 import { remoteRequest, RemoteRequestError, requestId } from './api';
 import { MemoryGraph } from './memory-graph';
 import { Aurora } from '../renderer/components/effects/aurora';
@@ -302,11 +302,8 @@ function App() {
         {latest && online ? `Last task: ${statusLabels[latest.status]}.` : ''}
       </span>
       <header className="phone-header">
-        <div className="phone-brand">
-          <SiaMark />
-          <span>
-            sia<span className="brand-period">.</span>
-          </span>
+        <div className="phone-brand" aria-label="Sia">
+          <SiaMonogram />
         </div>
         <LiquidMetalButton
           className={`connection-pill ${online ? 'online' : ''}`}
@@ -364,7 +361,7 @@ function App() {
             <div className="conversation-heading">
               <div>
                 <span className="assistant-avatar">
-                  <SiaMark />
+                  <SiaMonogram />
                 </span>
                 <span>
                   <strong>{state.agent}</strong>

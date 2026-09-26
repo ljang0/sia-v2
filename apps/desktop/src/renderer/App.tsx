@@ -14,7 +14,8 @@ import {
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Onboarding } from './components/Onboarding';
 import { AgentDialog } from './components/AgentDialog';
-import { AppSkeleton, WorkspaceNotice } from './components/AppStates';
+import { WorkspaceNotice } from './components/AppStates';
+import { StartupTransition } from './components/StartupTransition';
 import { Conversation } from './components/Conversation';
 import { FeedbackDialog } from './components/FeedbackDialog';
 import { Inspector } from './components/Inspector';
@@ -142,18 +143,20 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
       </div>
     );
   }
-  if (!app.snapshot) return <AppSkeleton />;
+  if (!app.snapshot) return <StartupTransition ready={false} />;
   if (requiresSiaSignIn(app.snapshot.cloudAuth.state)) {
     return (
-      <SiaSignInDialog
-        cloudAuth={app.snapshot.cloudAuth}
-        onStart={(email) => app.api.startCloudSignIn(email)}
-        onComplete={(code) => app.api.completeCloudSignIn(code)}
-        onBeginAdminMfa={() => app.api.beginAdminMfa()}
-        onCompleteAdminMfa={(code) => app.api.completeAdminMfa(code)}
-        onSignOut={() => app.api.signOutCloud()}
-        onDelete={(confirmation) => app.api.deleteCloudAccount(confirmation)}
-      />
+      <StartupTransition ready appearance={app.snapshot.preferences.appearance}>
+        <SiaSignInDialog
+          cloudAuth={app.snapshot.cloudAuth}
+          onStart={(email) => app.api.startCloudSignIn(email)}
+          onComplete={(code) => app.api.completeCloudSignIn(code)}
+          onBeginAdminMfa={() => app.api.beginAdminMfa()}
+          onCompleteAdminMfa={(code) => app.api.completeAdminMfa(code)}
+          onSignOut={() => app.api.signOutCloud()}
+          onDelete={(confirmation) => app.api.deleteCloudAccount(confirmation)}
+        />
+      </StartupTransition>
     );
   }
 
@@ -695,9 +698,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     </div>
   );
   return (
-    <AppearanceContext value={snapshot.preferences.appearance ?? 'expressive'}>
-      {content}
-    </AppearanceContext>
+    <StartupTransition ready appearance={snapshot.preferences.appearance}>
+      <AppearanceContext value={snapshot.preferences.appearance ?? 'expressive'}>
+        {content}
+      </AppearanceContext>
+    </StartupTransition>
   );
 }
 
