@@ -23,7 +23,6 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { AgentSummary, ThreadSummary } from '../types';
 import styles from '../ui.module.css';
 import { AgentForm } from './AgentForm';
-import { StatusMark } from './StatusMark';
 import navigation from './navigation.module.css';
 import { TaskPreviewButton } from './TaskPreviewButton';
 import { SiaMark } from './SiaMark';
@@ -292,7 +291,7 @@ export function Sidebar({
           />
         </label>
       </div>
-      <div className={styles.sidebarSectionHeader}>
+      <div className={`${styles.sidebarSectionHeader} ${navigation.sectionHeader}`}>
         <span>{agents.length === 1 ? 'Conversations' : 'Your agents'}</span>
         <button
           className={styles.iconButtonSmall}
@@ -311,7 +310,7 @@ export function Sidebar({
           if (event.propertyName === 'grid-template-rows') revealSelection();
         }}
       >
-        <div className={navigation.menuCard}>
+        <div className={navigation.groups}>
           {orderedAgents.map((agent) => {
             const expanded = Boolean(query.trim()) || !closedAgents.has(agent.id);
             const selected = agent.id === selectedAgentId;
@@ -428,17 +427,7 @@ export function Sidebar({
                             className={styles.threadSelectButton}
                             onSelect={() => onSelectThread(thread.id)}
                           >
-                            <ChatCircle
-                              className={navigation.taskIcon}
-                              size={15}
-                              aria-hidden="true"
-                            />
                             <ThreadLabel thread={thread} />
-                            {thread.status !== 'idle' ? (
-                              <StatusMark status={thread.status} />
-                            ) : thread.unread ? (
-                              <span className={styles.threadUnreadDot} aria-label="Unread" />
-                            ) : null}
                           </TaskPreviewButton>
                           <ThreadMenu
                             thread={thread}
@@ -651,22 +640,21 @@ export function Sidebar({
 }
 
 function ThreadLabel({ thread }: { thread: ThreadSummary }) {
-  const draft = compactPreview(thread.draft);
+  const draft = Boolean(thread.draft?.trim());
   const state = threadStateLabel(thread);
   return (
-    <span className={styles.threadCopy} data-thread-draft={draft ? 'true' : undefined}>
+    <span
+      className={styles.threadCopy}
+      data-thread-draft={draft || undefined}
+      data-thread-unread={thread.unread || undefined}
+    >
       <span className={`${styles.threadTitle} ${navigation.taskTitle}`}>{thread.title}</span>
-      <span className={styles.threadMeta}>
-        {draft ? (
-          <>
-            <strong>Draft</strong>
-            <span className={styles.threadDraftPreview}>{draft}</span>
-          </>
-        ) : state ? (
-          <span>{state}</span>
-        ) : null}
-        <time dateTime={thread.updatedAt}>{relativeTime(thread.updatedAt)}</time>
-      </span>
+      {draft || state ? (
+        <span className={navigation.taskMeta}>
+          {draft ? <strong>Draft</strong> : null}
+          {state ? <span>{state}</span> : null}
+        </span>
+      ) : null}
     </span>
   );
 }
@@ -678,26 +666,6 @@ function threadStateLabel(thread: ThreadSummary) {
   if (thread.status === 'error') return 'Needs attention';
   if (thread.unread) return 'Unread';
   return undefined;
-}
-
-function compactPreview(value?: string) {
-  const compact = value?.trim().replace(/\s+/g, ' ');
-  if (!compact) return undefined;
-  return compact.length > 44 ? `${compact.slice(0, 41)}…` : compact;
-}
-
-function relativeTime(value: string) {
-  const elapsed = Math.max(0, Date.now() - new Date(value).getTime());
-  const minutes = Math.floor(elapsed / 60_000);
-  if (minutes < 1) return 'now';
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d`;
-  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(
-    new Date(value),
-  );
 }
 
 function agentPresence(agent: AgentSummary): 'idle' | 'working' | 'waiting' | 'error' {

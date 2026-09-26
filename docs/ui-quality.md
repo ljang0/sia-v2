@@ -50,13 +50,17 @@ macOS Reduce Motion. Calm disposes decorative GPU effects, rather than only hidi
 Task progress and essential status indicators remain visible in either mode.
 
 The desktop sidebar keeps New conversation and filtering above the scrolling task list. Pinned
-agents come first, followed by names; changing selection never reorders groups. Two-line task titles,
-status, recency, and drafts stay visible. Hovering or focusing a task previews its latest turn without
-selecting it or marking it read. Escape, scrolling, and leaving dismiss the preview. The collapsed
+agents come first, followed by names; changing selection never reorders groups. Conversation titles
+stay on one line with ellipsis, in evenly sized rows. Working, waiting, unread, and draft cues remain
+visible; the full title, draft or latest reply, and update time live in the hover or keyboard-focus
+preview. Previewing does not select the conversation or mark it read. Escape, scrolling, and leaving
+dismiss the preview. The collapsed
 rail retains new conversation, search, agents, new agent, Activity, and Settings.
 
-Agent navigation follows the supplied multi-level collapsible menu: a compact, bordered card,
-icon-led rows, nested conversations, and rotating disclosure chevrons in Sia’s evergreen palette.
+Agent navigation uses flat groups and rotating disclosure chevrons in Sia’s evergreen palette.
+The sidebar is 272px wide (252px in compact windows), with full-width conversation rows and no
+nested card borders or repeated conversation icons. Only the current conversation has a persistent
+selection fill. Agent actions appear on hover or keyboard focus; touch pointers keep them visible.
 Agent rows expand or collapse with a click, Enter, or Space; new-conversation and agent menus remain
 separate buttons. Expanding a group keeps the current conversation; its menu also offers Open agent.
 Collapsed conversations leave the focus order, search reveals matching groups,

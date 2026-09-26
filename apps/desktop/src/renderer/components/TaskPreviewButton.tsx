@@ -80,6 +80,7 @@ export function TaskPreviewButton({
         type="button"
         className={className}
         aria-label={thread.title}
+        aria-description={thread.draft?.trim() ? `${state}. Unsent draft` : state}
         aria-current={selected ? 'page' : undefined}
         aria-describedby={open ? id : undefined}
         onPointerEnter={(event) => {
@@ -131,7 +132,17 @@ export function TaskPreviewButton({
                 {thread.queueReason ?? 'Open this conversation to pick up where you left off.'}
               </p>
             )}
-            <span className={styles.previewFooter}>Select the conversation to continue</span>
+            <span className={styles.previewFooter}>
+              Updated
+              <time dateTime={thread.updatedAt}>
+                {new Date(thread.updatedAt).toLocaleString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })}
+              </time>
+            </span>
           </div>,
           document.body,
         )}

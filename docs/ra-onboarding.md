@@ -420,8 +420,9 @@ Settings → Voice (or the active conversation when the main window is focused).
 
 The main conversation shows **Ready when you are** while idle. Model and reasoning controls are
 inside **Agent settings**, with workspace details collapsed underneath. Activity rows use plain
-language; expand a row for technical details. A single-agent sidebar shows recent conversations
-without repeating the agent header. Settings → More → Assistant has separate General, Memory, Workflows,
+language; expand a row for technical details. The sidebar groups conversations under collapsible
+agent headers. Hover or focus a conversation for its full title, latest reply or draft, and update
+time. Settings → More → Assistant has separate General, Memory, Workflows,
 Skills and Suggestions sections with per-agent counts. Suggestions still require review before
 changing memory or saving a skill.
 

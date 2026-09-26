@@ -234,13 +234,46 @@ test('navigation stays stable, previews do not select, and the compact rail keep
   await expect(inbox).toHaveAttribute('aria-current', 'page');
   expect(await groups()).toEqual(before);
   await page.screenshot({ path: info.outputPath('collapsible-menu.png') });
+
+  // Long titles must not squeeze the actions or make uneven, wrapped rows.
+  // The same actions remain reachable by keyboard when hidden at rest.
+  await inbox.focus();
+  await inbox.press('Tab');
+  const actions = nav.getByRole('button', { name: 'Thread actions for Triage today’s inbox' });
+  await expect(actions).toBeFocused();
+  await expect(actions).toHaveCSS('opacity', '1');
+  await actions.press('Enter');
+  await page.getByRole('menuitem', { name: 'Rename', exact: true }).click();
+  const longTitle = 'Find all my CMU assignments for this week and check every course page';
+  const rename = page.getByRole('textbox', { name: 'Rename Triage today’s inbox' });
+  await rename.fill(longTitle);
+  await rename.press('Enter');
+  const renamed = nav.getByRole('button', { name: longTitle, exact: true });
+  await expect(renamed).toBeVisible();
+  for (const width of [1280, 900]) {
+    await nav.getByRole('searchbox', { name: 'Find a thread' }).hover();
+    await page.setViewportSize({ width, height: 760 });
+    await expect(nav).toHaveCSS('flex-basis', width === 900 ? '252px' : '272px');
+    const title = renamed.getByText(longTitle, { exact: true });
+    await expect(title).toHaveCSS('white-space', 'nowrap');
+    expect((await title.boundingBox())!.width).toBeGreaterThan(
+      (await nav.boundingBox())!.width * 0.65,
+    );
+    expect((await renamed.boundingBox())!.height).toBe((await task.boundingBox())!.height);
+    const beforeHover = await title.boundingBox();
+    await renamed.hover();
+    await expect(page.getByRole('tooltip')).toContainText(longTitle);
+    await expect(page.getByRole('tooltip').locator('time')).toBeVisible();
+    expect(await title.boundingBox()).toEqual(beforeHover);
+    expect(await nav.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    await page.keyboard.press('Escape');
+    await page.screenshot({ path: info.outputPath(`sidebar-${width}.png`) });
+  }
   await nav.getByRole('button', { name: 'Research partner', exact: true }).click();
   await expect(task).toBeHidden();
   await nav.getByRole('searchbox', { name: 'Find a thread' }).fill('Weekly');
   await expect(task).toBeVisible();
-  await expect(
-    nav.getByRole('button', { name: 'Triage today’s inbox', exact: true }),
-  ).toHaveCount(0);
+  await expect(nav.getByRole('button', { name: longTitle, exact: true })).toHaveCount(0);
   await nav.getByRole('button', { name: 'Collapse sidebar' }).click();
   for (const name of [
     'New conversation',

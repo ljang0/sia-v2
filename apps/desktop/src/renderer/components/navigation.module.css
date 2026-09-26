@@ -1,11 +1,11 @@
 aside.navigation {
-  flex-basis: 286px;
+  flex-basis: 272px;
   border-right: 1px solid var(--shell-line);
 }
 .primaryActions {
   display: grid;
-  gap: 12px;
-  padding: 18px 14px 12px;
+  gap: 6px;
+  padding: 16px 12px 10px;
 }
 .newTask {
   display: flex;
@@ -71,17 +71,19 @@ aside.navigation {
   outline: none;
 }
 .navigation .scroll {
-  padding: 2px 10px 12px;
+  /* The reserved 10px scrollbar completes the right inset. */
+  padding: 2px 2px 12px 12px;
   scrollbar-gutter: stable;
 }
-.menuCard {
+.navigation .sectionHeader {
+  padding: 0 12px 0 24px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+.groups {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 5px;
-  border: 1px solid var(--shell-line);
-  border-radius: 13px;
-  background: color-mix(in srgb, var(--shell-bg-deep) 36%, transparent);
+  gap: 8px;
 }
 .group {
   --navigation-duration: 220ms;
@@ -110,23 +112,21 @@ aside.navigation {
     background 150ms ease,
     color 150ms ease;
 }
-.groupHeader:hover,
-.groupHeader[data-open='true'] {
+.groupHeader:hover {
   background: var(--shell-hover);
   color: var(--shell-text);
 }
 .group[data-selected='true'] .groupHeader {
-  background: var(--shell-selected);
   color: var(--shell-text);
 }
 .groupTrigger {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
   min-height: 40px;
   flex: 1;
-  padding: 6px 6px 6px 8px;
+  padding: 6px 4px 6px 8px;
   border: 0;
   border-radius: inherit;
   background: transparent;
@@ -139,7 +139,7 @@ aside.navigation {
 .groupIcon {
   display: grid;
   place-items: center;
-  width: 22px;
+  width: 20px;
   height: 22px;
   flex: none;
 }
@@ -167,10 +167,15 @@ aside.navigation {
   padding-right: 4px;
 }
 .groupActions > button {
-  width: 23px;
+  width: 24px;
   height: 28px;
-  opacity: 1;
+  opacity: 0;
   color: var(--shell-muted);
+}
+.groupHeader:hover .groupActions > button,
+.groupHeader:focus-within .groupActions > button,
+.groupActions > button[data-state='open'] {
+  opacity: 1;
 }
 .groupContent {
   display: grid;
@@ -196,37 +201,32 @@ aside.navigation {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin: 3px 0 4px 12px;
-  padding: 0 0 0 8px;
-  border-left: 1px solid var(--shell-line);
+  margin: 2px 0 6px;
 }
 .navigation .task {
   margin: 0;
-  border-radius: 7px;
+  border-radius: 8px;
 }
 .navigation .task > button:first-child {
-  min-height: 52px;
-  padding: 8px 3px 8px 7px;
-  gap: 8px;
+  min-height: 44px;
+  padding: 6px 4px 6px 12px;
+  border-radius: inherit;
 }
 .navigation .task > button:first-child::before {
   content: none;
 }
-.taskIcon {
-  flex: none;
-  color: var(--shell-muted);
-}
-.task [aria-current='page'] .taskIcon {
-  color: var(--shell-text);
+.task:focus-within > button:last-child {
+  opacity: 1;
+  transform: none;
 }
 .navigation .footer {
   display: grid;
   gap: 2px;
-  margin: 0 10px 12px;
-  padding: 5px;
-  border: 1px solid var(--shell-line);
-  border-radius: 13px;
-  background: color-mix(in srgb, var(--shell-bg-deep) 36%, transparent);
+  margin: 0 12px 12px;
+  padding: 10px 0 0;
+  border: 0;
+  border-top: 1px solid var(--shell-line);
+  background: transparent;
 }
 .footer button {
   min-height: 36px;
@@ -237,14 +237,29 @@ aside.navigation {
   --navigation-duration: 0ms;
 }
 .navigation .taskTitle {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  display: block;
   overflow: hidden;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 18px;
   font-size: 12px;
+}
+[data-thread-unread='true'] .taskTitle {
+  color: var(--shell-text);
+  font-weight: 600;
+}
+.taskMeta {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+  color: var(--shell-muted);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 12px;
+}
+.taskMeta strong {
+  color: var(--shell-dim);
+  font-weight: 550;
 }
 .navigation button[aria-current='page'],
 .rail button[aria-current='page'] {
@@ -296,10 +311,7 @@ aside.rail {
   background: var(--aurora-emerald);
 }
 .previewTitle {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
+  display: block;
   margin: 12px 0 18px;
   font-size: 15px;
   font-weight: 550;
@@ -343,6 +355,13 @@ aside.rail {
 @media (max-width: 1000px) {
   aside.navigation {
     flex-basis: 252px;
+  }
+}
+@media (hover: none), (pointer: coarse) {
+  .groupActions > button,
+  .navigation .task > button:last-child {
+    opacity: 1;
+    transform: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {

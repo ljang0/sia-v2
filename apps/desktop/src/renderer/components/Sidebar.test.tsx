@@ -58,7 +58,7 @@ describe('thread navigation', () => {
     expect(screen.queryByRole('button', { name: 'Archived' })).toBeNull();
   });
 
-  it('shows draft, unread, work state, and recency without changing thread labels', () => {
+  it('keeps draft and work cues in rows, with draft content and recency in the preview', () => {
     const agents = structuredClone(demoSnapshot.agents);
     agents[0]!.threads[0]!.draft = 'Outline the release note before sending';
     agents[0]!.threads[1]!.unread = true;
@@ -82,10 +82,19 @@ describe('thread navigation', () => {
     );
 
     expect(screen.getByText('Draft')).toBeTruthy();
-    expect(screen.getByText('Outline the release note before sending')).toBeTruthy();
-    expect(screen.getByText('Waiting for you')).toBeTruthy();
-    expect(container.querySelector('time[datetime]')).toBeTruthy();
-    expect(screen.getByRole('button', { name: agents[0]!.threads[0]!.title })).toBeTruthy();
+    expect(screen.queryByText('Outline the release note before sending')).toBeNull();
+    expect(screen.getAllByText('Waiting for you')).toHaveLength(2);
+    expect(container.querySelector('[data-thread-unread="true"]')).toBeTruthy();
+    expect(container.querySelector('time[datetime]')).toBeNull();
+    const draft = screen.getByRole('button', { name: agents[0]!.threads[0]!.title });
+    expect(draft.getAttribute('aria-description')).toBe('Waiting for you. Unsent draft');
+    fireEvent.focus(draft);
+    expect(screen.getByRole('tooltip').textContent).toContain(
+      'Outline the release note before sending',
+    );
+    expect(screen.getByRole('tooltip').querySelector('time')?.dateTime).toBe(
+      agents[0]!.threads[0]!.updatedAt,
+    );
   });
 
   it('searches, renames, and confirms deletion of an idle thread', async () => {
