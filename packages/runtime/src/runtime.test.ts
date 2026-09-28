@@ -1779,4 +1779,89 @@ describe('Notch-style native Mac sessions', () => {
       }
     },
   );
+  it('names the files a native file-change approval will touch', async () => {
+    const peers = linkedPeers();
+    peers.server.onRequest(async (method, params) => {
+      if (method === 'initialize') return {};
+      if (method === 'thread/start')
+        return {
+          thread: { id: 'native-mac' },
+          sandbox: { type: 'dangerFullAccess' },
+          approvalPolicy: 'untrusted',
+        };
+      if (method === 'experimentalFeature/list')
+        return {
+          data: Object.entries({ ...isolatedCodexFeatures, multi_agent: false }).map(
+            ([name, enabled]) => ({ name, enabled }),
+          ),
+          nextCursor: null,
+        };
+      if (method === 'turn/start') {
+        setImmediate(() => {
+          void (async () => {
+            await peers.server.notify('item/started', {
+              threadId: 'native-mac',
+              item: {
+                type: 'fileChange',
+                id: 'patch',
+                status: 'inProgress',
+                changes: [
+                  { path: '/Users/me/notes.md', kind: 'update' },
+                  { path: '/Users/me/todo.md', kind: 'add' },
+                ],
+              },
+            });
+            await peers.server.request('item/fileChange/requestApproval', {
+              threadId: 'native-mac',
+              turnId: 'native-turn',
+              itemId: 'patch',
+            });
+            await peers.server.notify('turn/completed', {
+              threadId: 'native-mac',
+              turn: { id: 'native-turn', status: 'completed' },
+            });
+          })();
+        });
+        return { turn: { id: 'native-turn' } };
+      }
+      if (method === 'thread/backgroundTerminals/clean') return {};
+      const isolated = codexIsolationResponse(method, params);
+      if (isolated !== undefined) return isolated;
+      throw new Error(`Unexpected ${method}`);
+    });
+    const adapter = new CodexAppServerAdapter({
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    try {
+      const session = await adapter.createSession({
+        ...sessionOptions,
+        model: 'gpt-6-astra',
+        tools: [],
+        nativeTools: 'mac',
+        nativeApproval: 'ask',
+        baseInstructions: 'You are Sia.',
+      });
+      const approvals = [];
+      for await (const event of adapter.sendTurn(session, {
+        turnId: 'turn',
+        text: 'Tidy notes',
+      })) {
+        if (event.type !== 'approval') continue;
+        approvals.push(event.payload.description);
+        await adapter.respondToRequest(session, {
+          requestId: event.payload.requestId,
+          choiceId: 'deny',
+        });
+      }
+      expect(approvals).toEqual(['Change 2 files: /Users/me/notes.md, /Users/me/todo.md']);
+    } finally {
+      await adapter.dispose();
+    }
+  });
 });

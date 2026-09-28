@@ -1244,8 +1244,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
             requestId,
             phase: 'requested',
             title: 'Allow Mac action',
-            description:
-              stringAt(params, ['command'], ['reason']) ?? 'Allow this native file change?',
+            description: nativeApprovalDescription(active, params),
             choices: [
               { id: 'allow_once', label: 'Allow once', kind: 'allow_once' },
               { id: 'deny', label: 'Deny', kind: 'deny' },
@@ -1311,6 +1310,27 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     if (active.nativeTurnId && this.#activeByNativeTurn.get(active.nativeTurnId) === active)
       this.#activeByNativeTurn.delete(active.nativeTurnId);
   }
+}
+
+function nativeApprovalDescription(active: ActiveTurn, params: unknown): string {
+  const command = stringAt(params, ['command']);
+  if (command) return command;
+  const itemId = stringAt(params, ['itemId']);
+  const item = itemId ? active.nativeItems.get(itemId) : undefined;
+  const paths = (Array.isArray(item?.changes) ? item.changes : []).flatMap((candidate) => {
+    const path = stringAt(record(candidate), ['path']);
+    return path ? [path] : [];
+  });
+  const grantRoot = stringAt(params, ['grantRoot']);
+  const reason = stringAt(params, ['reason']);
+  if (paths.length === 1) return `Change ${paths[0]}`;
+  if (paths.length > 1) {
+    const shown = paths.slice(0, 3).join(', ');
+    const more = paths.length > 3 ? ` and ${paths.length - 3} more` : '';
+    return `Change ${paths.length} files: ${shown}${more}`;
+  }
+  if (grantRoot) return `Allow changes in ${grantRoot}`;
+  return reason ?? 'Allow this native file change?';
 }
 
 const MAX_RESTORED_HISTORY_CHARACTERS = 80_000;
