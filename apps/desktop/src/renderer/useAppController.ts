@@ -6,6 +6,8 @@ import type { AgentSummary, RendererApi, RendererSnapshot } from './types';
 const BRIDGE_ERROR =
   'Sia could not load its secure desktop bridge. Quit and reopen Sia; if this continues, reinstall the app.';
 type ActivityTarget = 'activity' | 'archived' | 'search';
+/** How long the "Conversation archived" notice keeps its Undo button. */
+export const ARCHIVE_UNDO_MS = 8000;
 
 interface ActionIssue {
   message: string;
@@ -31,6 +33,7 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
   const [editingAgent, setEditingAgent] = useState<AgentSummary>();
   const [startupNoticeDismissed, setStartupNoticeDismissed] = useState(false);
   const [attachments, setAttachments] = useState<import('./types').RendererAttachment[]>([]);
+  const [archivedThread, setArchivedThread] = useState<{ id: string; reselect: boolean }>();
 
   useEffect(() => {
     let mounted = true;
@@ -100,6 +103,28 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
     setAttachments([]);
   }, [snapshot?.selectedThreadId]);
 
+  useEffect(() => {
+    if (!archivedThread) return;
+    const timer = setTimeout(() => setArchivedThread(undefined), ARCHIVE_UNDO_MS);
+    return () => clearTimeout(timer);
+  }, [archivedThread]);
+
+  const archiveThread = async (threadId: string) => {
+    const reselect = snapshot?.selectedThreadId === threadId;
+    await execute(() => api.archiveThread(threadId), true);
+    setArchivedThread({ id: threadId, reselect });
+  };
+
+  const undoArchive = () => {
+    const target = archivedThread;
+    setArchivedThread(undefined);
+    if (!target) return;
+    void execute(async () => {
+      await api.unarchiveThread(target.id);
+      if (target.reselect) await api.selectThread(target.id);
+    }, false);
+  };
+
   return {
     api,
     snapshot,
@@ -117,6 +142,10 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
     editingAgent,
     startupNoticeDismissed,
     attachments,
+    archivedThreadId: archivedThread?.id,
+    archiveThread,
+    undoArchive,
+    dismissArchived: () => setArchivedThread(undefined),
     run: (action: () => Promise<unknown>) => execute(action, false),
     attempt: (action: () => Promise<unknown>) => execute(action, true),
     retry,

@@ -943,6 +943,10 @@ button.agentAvatar {
   color: var(--text-danger);
 }
 
+.actionError.undoNotice > svg {
+  color: var(--text-secondary);
+}
+
 .actionError button {
   display: inline-flex;
   align-items: center;

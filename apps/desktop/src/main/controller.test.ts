@@ -825,6 +825,38 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('reopens an untouched conversation instead of saving another empty one', async () => {
+    const controller = await createController();
+    const agent = await controller.invoke('agents.save', {
+      name: 'Drafts',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const first = await controller.invoke('threads.create', { agentId: agent.agentId });
+    const again = await controller.invoke('threads.create', { agentId: agent.agentId });
+    expect(again.threadId).toBe(first.threadId);
+    expect(again.snapshot.activeThreadId).toBe(first.threadId);
+    const countFor = (snapshot: typeof first.snapshot) =>
+      snapshot.threads.filter((thread) => thread.agentId === agent.agentId).length;
+    expect(countFor(again.snapshot)).toBe(countFor(first.snapshot));
+
+    await controller.invoke('threads.send', { threadId: first.threadId, text: 'Hello' });
+    const next = await controller.invoke('threads.create', { agentId: agent.agentId });
+    expect(next.threadId).not.toBe(first.threadId);
+
+    await controller.invoke('threads.archive', { threadId: next.threadId });
+    const afterArchive = await controller.invoke('threads.create', { agentId: agent.agentId });
+    expect(afterArchive.threadId).not.toBe(next.threadId);
+    const titled = await controller.invoke('threads.create', {
+      agentId: agent.agentId,
+      title: 'Named task',
+    });
+    expect(titled.threadId).not.toBe(afterArchive.threadId);
+    await controller.shutdown();
+  });
+
   it('persists a local thread draft and clears it only after a send is accepted', async () => {
     const { controller, repository } = await createHarness();
     const agent = await controller.invoke('agents.save', {
@@ -867,13 +899,14 @@ describe('DesktopController', () => {
       workspace: '/tmp/sia-workspace',
     });
     const first = await controller.invoke('threads.create', { agentId: agent.agentId });
-    const second = await controller.invoke('threads.create', { agentId: agent.agentId });
 
     const created = controller.createScheduleFromAction(first.threadId, {
       task: 'Search the web for meaningful changes and summarize them.',
       cadence: 'hourly',
       firstRunAt: '2030-08-21T12:00:00+09:00',
     });
+    const second = await controller.invoke('threads.create', { agentId: agent.agentId });
+    expect(second.threadId).not.toBe(first.threadId);
     expect(created).toMatchObject({
       threadId: first.threadId,
       prompt: 'Search the web for meaningful changes and summarize them.',
@@ -5842,8 +5875,8 @@ it('does not start queued work when an active turn releases its lease during shu
       workspace: '/tmp/sia-workspace',
     });
     const first = await controller.invoke('threads.create', { agentId });
-    const second = await controller.invoke('threads.create', { agentId });
     await controller.invoke('threads.send', { threadId: first.threadId, text: 'First task' });
+    const second = await controller.invoke('threads.create', { agentId });
     await controller.invoke('threads.send', { threadId: second.threadId, text: 'Queued task' });
     expect(
       controller.snapshot().threads.find((entry) => entry.id === second.threadId)?.status,

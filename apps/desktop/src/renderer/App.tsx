@@ -299,9 +299,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         onForkThread={(threadId, isolated, title) =>
           app.attempt(() => api.forkThread(threadId, isolated, title)) as Promise<void>
         }
-        onArchiveThread={(threadId) =>
-          app.attempt(() => api.archiveThread(threadId)) as Promise<void>
-        }
+        onArchiveThread={app.archiveThread}
         onCreateAgent={app.openNewAgent}
         onEditAgent={app.openEditAgent}
         onSetAgentPinned={(agentId, pinned) =>

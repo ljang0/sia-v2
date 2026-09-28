@@ -1740,7 +1740,7 @@ export class DesktopController {
           (input as BridgeRequestMap['agents.duplicate']).agentId,
         ) as BridgeResultMap[M];
       case 'threads.create':
-        return this.#createThread(
+        return this.#openNewThread(
           input as BridgeRequestMap['threads.create'],
         ) as BridgeResultMap[M];
       case 'threads.select':
@@ -2574,6 +2574,34 @@ export class DesktopController {
           : MEMORY_REVIEW_PROMPT,
     });
     return threadId;
+  }
+
+  /**
+   * The user-facing "New conversation" route. Like a single draft tab, it reopens the agent's
+   * untouched thread instead of saving another empty "New thread" row.
+   */
+  #openNewThread(input: BridgeRequestMap['threads.create']): BridgeResultMap['threads.create'] {
+    this.#requireSignedInReleaseAccount();
+    const agent = this.#requireAgent(input.agentId);
+    const unused = input.title?.trim()
+      ? undefined
+      : this.#state.threads.findLast(
+          (thread) =>
+            thread.agentId === agent.id &&
+            !thread.archivedAt &&
+            thread.status === 'idle' &&
+            thread.provider === agent.provider &&
+            thread.model === agent.model &&
+            thread.workspace === agent.workspace &&
+            thread.instructionsSnapshot === agent.instructions &&
+            thread.worktree?.kind !== 'linked' &&
+            !this.#runningTurns.has(thread.id) &&
+            !this.#queuedTurns.some((turn) => turn.threadId === thread.id) &&
+            !this.#state.schedules.some((schedule) => schedule.threadId === thread.id) &&
+            !this.#state.timeline.some((item) => item.threadId === thread.id),
+        );
+    if (!unused) return this.#createThread(input);
+    return { threadId: unused.id, snapshot: this.#selectThread(unused.id) };
   }
 
   #createThread(
