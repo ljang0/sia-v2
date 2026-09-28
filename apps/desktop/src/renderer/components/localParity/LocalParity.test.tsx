@@ -371,3 +371,22 @@ function TerminalFocusHarness() {
     </>
   );
 }
+
+describe('changed file summaries', () => {
+  it('counts hunk lines that look like diff headers and matches each file exactly', async () => {
+    const { countPatchLines, filePatch } = await import('./ThreadWorkspace');
+    const patch = [
+      'diff --git a/notes.md b/notes.md',
+      '--- a/notes.md',
+      '+++ b/notes.md',
+      '@@ -1,2 +1,2 @@',
+      '----',
+      '+++counter',
+      '',
+    ].join('\n');
+    expect(countPatchLines(patch, '+')).toBe(1);
+    expect(countPatchLines(patch, '-')).toBe(1);
+    expect(filePatch(patch, 'new.txt')).toBe('No textual diff is available for new.txt.');
+    expect(filePatch(patch, 'notes.md')).toBe(patch);
+  });
+});

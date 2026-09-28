@@ -11,6 +11,8 @@ import {
   X,
 } from '@phosphor-icons/react';
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { activityLabel } from '../../shared/activity-label';
+import { clipText, plainText } from '../../shared/plain-text';
 import type { ActivityEvent, ThreadEvent } from '../types';
 import styles from '../ui.module.css';
 
@@ -102,7 +104,7 @@ export function projectConversationOutline(
         id: event.id,
         eventId: event.id,
         kind: 'activity',
-        label: event.title,
+        label: activityLabel(event.toolName, event.presentation?.kind ?? event.kind),
         preview: outlinePreview(event.detail ?? '', activityKindLabel(event.kind)),
         status: event.status,
       },
@@ -275,9 +277,8 @@ function OutlineStatus({ status }: { status: OutlineStatus }) {
 }
 
 function outlinePreview(value: string, fallback: string): string {
-  const normalized = value.replace(/\s+/g, ' ').trim();
-  if (!normalized) return fallback;
-  return normalized.length > 104 ? `${normalized.slice(0, 103).trimEnd()}…` : normalized;
+  const normalized = plainText(value);
+  return normalized ? clipText(normalized, 104) : fallback;
 }
 
 function outlineSummary(messages: number, work: number): string {

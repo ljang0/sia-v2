@@ -355,18 +355,24 @@ function mapChangedFiles(diff?: WorkspaceDiff): ChangedFile[] {
   });
 }
 
-function filePatch(unifiedDiff: string, path: string): string {
-  const blocks = unifiedDiff.split(/(?=^diff --git )/m).filter(Boolean);
-  return (
-    blocks.find((block) => block.split('\n', 1)[0]?.includes(` a/${path} b/${path}`)) ??
-    (blocks.length === 1 ? blocks[0]! : `No textual diff is available for ${path}.`)
-  );
+export function filePatch(unifiedDiff: string, path: string): string {
+  const blocks = unifiedDiff
+    .split(/(?=^diff --git )/m)
+    .filter((block) => block.split('\n', 1)[0]?.endsWith(` b/${path}`));
+  // Staged and unstaged edits to one file are separate blocks; show both.
+  return blocks.length ? blocks.join('') : `No textual diff is available for ${path}.`;
 }
 
-function countPatchLines(patch: string, prefix: '+' | '-') {
-  return patch
-    .split('\n')
-    .filter((line) => line.startsWith(prefix) && !line.startsWith(prefix.repeat(3))).length;
+/** Counts changed lines inside hunks only, so content such as `---` or `++i` is not skipped. */
+export function countPatchLines(patch: string, prefix: '+' | '-') {
+  let inHunk = false;
+  let count = 0;
+  for (const line of patch.split('\n')) {
+    if (line.startsWith('diff --git ')) inHunk = false;
+    else if (line.startsWith('@@')) inHunk = true;
+    else if (inHunk && line.startsWith(prefix)) count += 1;
+  }
+  return count;
 }
 
 function mapTerminalResult(result: TerminalResult): TerminalRunState {

@@ -6,6 +6,7 @@ import {
   NATIVE_MEMORY_REVIEW_PROMPT,
 } from './memory-suggestions.js';
 import { NativeSkills } from './native-skills.js';
+import { conversationTitle } from '../shared/plain-text.js';
 import { skillExecutionMode, skillUnavailableReason } from '../shared/skill-execution.js';
 import { NotchVault } from './notch/vault.js';
 import { notchConsolidationInstructions } from './notch/foreground.js';
@@ -3106,9 +3107,10 @@ export class DesktopController {
       provider: thread.provider,
     });
     if (thread.title === 'New thread') {
-      thread.title = summarizeTitle(
-        input.text || attachmentGrants[0]?.view.name || 'Attached files',
-      );
+      thread.title =
+        conversationTitle(input.text) ||
+        attachmentGrants[0]?.view.name ||
+        (attachmentGrants.length ? 'Attached files' : 'New thread');
     }
     const queued: QueuedTurn = {
       ...(context ? { context } : {}),
@@ -6512,7 +6514,6 @@ export class DesktopController {
           turnId: event.turnId,
           kind: 'activity',
           title: runtimeToolTitle(event.payload.name, activity),
-          detail: event.payload.native ? 'Provider-native tool' : 'Sia action gateway',
           status:
             event.payload.phase === 'failed'
               ? 'failed'
@@ -7534,11 +7535,6 @@ async function settleBeforeShutdown(
     }),
   ]);
   if (timeout) clearTimeout(timeout);
-}
-
-function summarizeTitle(value: string): string {
-  const words = value.trim().replace(/\s+/g, ' ').split(' ').slice(0, 7).join(' ');
-  return words.length > 52 ? `${words.slice(0, 49)}...` : words || 'New thread';
 }
 
 function isStreamingDelta(event: ThreadEventEnvelope): boolean {
