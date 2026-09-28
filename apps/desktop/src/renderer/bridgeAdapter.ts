@@ -878,10 +878,11 @@ function mapApproval(
             ? 'Browser'
             : 'Tool',
       summary: approval.summary,
-      target: approval.target,
+      target: approval.kind === 'native_tool' ? 'This Mac' : approval.target,
       dataLeaving: approval.dataLeaving,
       dataLabel: approval.dataLabel,
       reversible: approval.reversible,
+      expiresAt: approval.expiresAt,
     },
   };
 }

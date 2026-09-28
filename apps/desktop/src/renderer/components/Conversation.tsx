@@ -165,8 +165,11 @@ export function Conversation({
   const lastAssistant = thread?.events.findLast(
     (event) => event.type === 'message' && event.role === 'assistant',
   );
+  const lastEvent = thread?.events.at(-1);
   const errorAlreadyExplained =
-    lastAssistant?.type === 'message' && lastAssistant.content.trim() === thread?.error?.trim();
+    (lastAssistant?.type === 'message' &&
+      lastAssistant.content.trim() === thread?.error?.trim()) ||
+    (lastEvent?.type === 'notice' && lastEvent.detail.trim() === thread?.error?.trim());
 
   const findNeedle = findQuery.trim().toLocaleLowerCase();
   const matchingEventIds = findNeedle
@@ -335,7 +338,7 @@ export function Conversation({
     if (!scroller) return;
     const pinned = isNearLatest(scroller);
     pinnedToLatestRef.current = pinned;
-    setShowJumpToLatest(!pinned);
+    setShowJumpToLatest(!pinned && Boolean(thread?.events.length));
   };
 
   const jumpToLatest = () => {
@@ -521,29 +524,6 @@ export function Conversation({
             </div>
           ) : null}
 
-          {thread.error ? (
-            <div
-              className={styles.errorBanner}
-              role="alert"
-              data-testid="interrupted-turn-banner"
-            >
-              <WarningCircle size={18} aria-hidden="true" />
-              <div>
-                <strong>Task needs attention</strong>
-                {!errorAlreadyExplained ? <span>{thread.error}</span> : null}
-              </div>
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                onClick={() => void onRetry()}
-                data-testid="interrupted-turn-retry"
-              >
-                <ArrowClockwise size={15} aria-hidden="true" />
-                Continue task
-              </button>
-            </div>
-          ) : null}
-
           {thread.events.length === 0 ? (
             <div className={styles.threadEmpty} data-companion-thread-empty>
               <AgentForm identity={agentHue} size="medium" />
@@ -638,6 +618,28 @@ export function Conversation({
               {browserRecovery}
             </div>
           )}
+          {thread.error ? (
+            <div
+              className={styles.errorBanner}
+              role="alert"
+              data-testid="interrupted-turn-banner"
+            >
+              <WarningCircle size={18} aria-hidden="true" />
+              <div>
+                <strong>Task needs attention</strong>
+                {!errorAlreadyExplained ? <span>{thread.error}</span> : null}
+              </div>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => void onRetry()}
+                data-testid="interrupted-turn-retry"
+              >
+                <ArrowClockwise size={15} aria-hidden="true" />
+                Continue task
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -737,9 +739,11 @@ export function Conversation({
               ? 'Reply to Sia’s question'
               : waitingForApproval
                 ? 'Review the pending approval or stop this turn'
-                : thread.events.length === 0
-                  ? `Ask ${agentName ?? 'Sia'} to work on something`
-                  : `Ask ${agentName ?? 'Sia'} to continue`
+                : running
+                  ? `${agentName ?? 'Sia'} is working. You can send your next message when it finishes.`
+                  : thread.events.length === 0
+                    ? `Ask ${agentName ?? 'Sia'} to work on something`
+                    : `Ask ${agentName ?? 'Sia'} to continue`
         }
         onSend={onSend}
         onStop={onStop}

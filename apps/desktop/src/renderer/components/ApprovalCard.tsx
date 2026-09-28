@@ -19,7 +19,7 @@ interface ApprovalCardProps {
 
 export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
   const { request, status } = event;
-  const expiresAt = request.kind === 'connector' ? request.expiresAt : undefined;
+  const expiresAt = request.kind === 'foreground' ? undefined : request.expiresAt;
   const [now, setNow] = useState(() => Date.now());
   const expiredByClock = Boolean(
     status === 'pending' && expiresAt && new Date(expiresAt).getTime() <= now,
@@ -130,6 +130,12 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
               undo.
             </span>
           </div>
+          {request.expiresAt && !resolved ? (
+            <div className={styles.expiryNote}>
+              <Clock size={14} aria-hidden="true" />
+              <span>{formatExpiry(request.expiresAt, now, 'Sia will skip this step')}</span>
+            </div>
+          ) : null}
         </div>
       )}
 
@@ -157,10 +163,11 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
   );
 }
 
-function formatExpiry(value: string, now: number) {
+function formatExpiry(value: string, now: number, action = 'Preview expires') {
   const remaining = new Date(value).getTime() - now;
-  if (remaining <= 0) return 'Preview expired';
-  if (remaining < 60_000) return 'Preview expires in less than a minute';
+  if (remaining <= 0)
+    return action === 'Preview expires' ? 'Preview expired' : 'Request expired';
+  if (remaining < 60_000) return `${action} in less than a minute`;
   const minutes = Math.ceil(remaining / 60_000);
-  return `Preview expires in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
+  return `${action} in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
 }

@@ -144,6 +144,7 @@ interface ActionApproval {
   dataLeaving?: string | undefined;
   dataLabel?: string | undefined;
   reversible: boolean;
+  expiresAt?: string | undefined;
 }
 
 type ApprovalRequest = ForegroundApproval | ConnectorApproval | ActionApproval;

@@ -220,7 +220,7 @@ export function Composer({
 
   const submit = async () => {
     const content = value.trim();
-    if ((!content && attachments.length === 0) || disabled || sending) return;
+    if ((!content && attachments.length === 0) || disabled || running || sending) return;
     setSending(true);
     if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
     draftSaveTimer.current = undefined;
