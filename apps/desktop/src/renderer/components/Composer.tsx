@@ -27,7 +27,7 @@ interface ComposerProps {
   running?: boolean;
   stoppable?: boolean;
   placeholder?: string;
-  executionLabel?: string;
+  executionLabel?: string | undefined;
   attachments?: readonly ComposerAttachment[] | undefined;
   acceptingAttachments?: boolean | undefined;
   onPickAttachments?: (() => Promise<void> | void) | undefined;

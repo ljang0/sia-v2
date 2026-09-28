@@ -520,6 +520,14 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
             >
               <Conversation
                 thread={activeThread}
+                executionLabel={
+                  activeThread
+                    ? (providerModels(snapshot, activeThread.provider).find(
+                        (model) => model.id === activeThread.model,
+                      )?.label ??
+                      snapshot.providers.find(({ id }) => id === activeThread.provider)?.name)
+                    : undefined
+                }
                 agentName={roomAgent?.name}
                 agentInitials={roomAgent?.initials}
                 agentHue={roomAgent?.hue}

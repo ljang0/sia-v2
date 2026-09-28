@@ -51,9 +51,11 @@ describe('status accessibility', () => {
       />,
     );
 
-    expect(screen.queryByText('pnpm test')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /Running a command/i }));
-    expect(screen.getAllByText('pnpm test').length).toBeGreaterThan(0);
+    // The finished row names the step and its command before it is expanded.
+    expect(screen.getByRole('button', { name: /Ran a command\s*pnpm test/i })).toBeTruthy();
+    expect(screen.queryByText('20 passed')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Ran a command/i }));
+    expect(screen.getAllByText('pnpm test').length).toBeGreaterThan(1);
     expect(screen.getByText('/tmp/workspace')).toBeTruthy();
     expect(screen.getByText('20 passed')).toBeTruthy();
     expect(screen.getByText('Exit 0 · 912 ms')).toBeTruthy();

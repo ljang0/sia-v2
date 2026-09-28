@@ -19,6 +19,7 @@ import {
 } from '@phosphor-icons/react';
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type {
+  ActivityEvent,
   ApprovalDecision,
   AttachmentPreview,
   RendererAttachment,
@@ -33,6 +34,7 @@ import { WelcomeRecents } from './WelcomeRecents';
 import { ResultCard } from './ResultCard';
 import styles from '../ui.module.css';
 import { ActivityRow } from './ActivityRow';
+import { WorkGroup, WorkingStatus } from './WorkGroup';
 import { AgentForm } from './AgentForm';
 import { ApprovalCard } from './ApprovalCard';
 import { Composer } from './Composer';
@@ -42,6 +44,8 @@ import { DitherAurora as Aurora } from './effects/DitherAurora';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
 
 interface ConversationProps {
+  /** What runs this thread, in the person's words: the model or provider display name. */
+  executionLabel?: string | undefined;
   recentThreads?: readonly ThreadSummary[] | undefined;
   onOpenThread?: ((id: string) => void) | undefined;
   thread?: ThreadDetail | undefined;
@@ -91,6 +95,7 @@ export function Conversation({
   recentThreads = [],
   onOpenThread,
   thread,
+  executionLabel,
   agentName,
   agentHue,
   loading,
@@ -155,6 +160,7 @@ export function Conversation({
   const [justCompleted, setJustCompleted] = useState(false);
   const [findQuery, setFindQuery] = useState('');
   const [findIndex, setFindIndex] = useState(0);
+  const [openWorkGroups, setOpenWorkGroups] = useState<ReadonlySet<string>>(() => new Set());
   const [draggingFiles, setDraggingFiles] = useState(false);
   const [preview, setPreview] = useState<{
     attachment: RendererAttachment;
@@ -181,11 +187,16 @@ export function Conversation({
 
   useEffect(() => {
     if (!findOpen || !findQuery || matchingEventIds.length === 0) return;
+    const groupId = workGroupIdFor(thread?.events ?? [], matchingEventIds[findIndex]!);
+    if (groupId && !openWorkGroups.has(groupId)) {
+      setOpenWorkGroups((current) => new Set(current).add(groupId));
+      return;
+    }
     eventRefs.current.get(matchingEventIds[findIndex]!)?.scrollIntoView({
       block: 'center',
       behavior: 'instant',
     });
-  }, [findIndex, findOpen, findQuery, matchingEventIds.join(':')]);
+  }, [findIndex, findOpen, findQuery, matchingEventIds.join(':'), openWorkGroups]);
 
   const stopSpeech = () => {
     speechGeneration.current += 1;
@@ -408,6 +419,72 @@ export function Conversation({
       : undefined;
   const outlineAvailable = hasConversationOutline(thread.events);
   const resultId = completedReplyId(thread);
+  const turnActive = running || waiting;
+  const currentStep = running
+    ? thread.events
+        .slice(lastUserEventIndex + 1)
+        .findLast(
+          (event): event is ActivityEvent =>
+            event.type === 'activity' && event.status === 'running',
+        )
+    : undefined;
+  const renderEvent = (event: ThreadEvent, index: number) => (
+    <div
+      key={event.id}
+      ref={(node) => {
+        if (node) eventRefs.current.set(event.id, node);
+        else eventRefs.current.delete(event.id);
+      }}
+      className={styles.eventSearchAnchor}
+      tabIndex={-1}
+      data-find-match={matchingEventIds.includes(event.id) ? 'true' : undefined}
+      data-find-current={matchingEventIds[findIndex] === event.id ? 'true' : undefined}
+    >
+      <EventView
+        event={event}
+        noticeExplained={
+          event.type === 'notice' &&
+          event.tone === 'error' &&
+          thread.events[index - 1]?.type === 'message' &&
+          (thread.events[index - 1] as MessageEvent).role === 'assistant' &&
+          (thread.events[index - 1] as MessageEvent).content.trim() === event.detail.trim()
+        }
+        agentHue={agentHue}
+        busyApprovalId={busyApprovalId}
+        speechPhase={speech.eventId === event.id ? speech.phase : 'idle'}
+        speechError={speech.eventId === event.id ? speech.error : undefined}
+        streaming={running && event.id === currentAssistantEventId}
+        justCompleted={justCompleted && event.id === currentAssistantEventId}
+        completed={event.id === resultId}
+        onToggleSpeech={
+          voiceEnabled && onSpeak ? (text) => toggleSpeech(event.id, text) : undefined
+        }
+        onPreviewAttachment={
+          onPreviewAttachment
+            ? (attachment) => {
+                setPreview({ attachment });
+                void onPreviewAttachment(attachment.id).then(
+                  (result) => setPreview({ attachment, result }),
+                  (cause: unknown) =>
+                    setPreview({
+                      attachment,
+                      result: attachmentPreviewFailure(cause),
+                    }),
+                );
+              }
+            : undefined
+        }
+        onResolveApproval={async (approvalId, decision) => {
+          setBusyApprovalId(approvalId);
+          try {
+            await onResolveApproval(approvalId, decision);
+          } finally {
+            setBusyApprovalId(undefined);
+          }
+        }}
+      />
+    </div>
+  );
 
   return (
     <main
@@ -549,69 +626,35 @@ export function Conversation({
             </div>
           ) : (
             <div className={styles.eventList}>
-              {thread.events.map((event, index) => (
-                <div
-                  key={event.id}
-                  ref={(node) => {
-                    if (node) eventRefs.current.set(event.id, node);
-                    else eventRefs.current.delete(event.id);
-                  }}
-                  className={styles.eventSearchAnchor}
-                  tabIndex={-1}
-                  data-find-match={matchingEventIds.includes(event.id) ? 'true' : undefined}
-                  data-find-current={
-                    matchingEventIds[findIndex] === event.id ? 'true' : undefined
-                  }
-                >
-                  <EventView
-                    event={event}
-                    noticeExplained={
-                      event.type === 'notice' &&
-                      event.tone === 'error' &&
-                      thread.events[index - 1]?.type === 'message' &&
-                      (thread.events[index - 1] as MessageEvent).role === 'assistant' &&
-                      (thread.events[index - 1] as MessageEvent).content.trim() ===
-                        event.detail.trim()
+              {conversationBlocks(thread.events).map((block) =>
+                block.kind === 'event' ? (
+                  renderEvent(block.event, block.index)
+                ) : (
+                  <WorkGroup
+                    key={block.id}
+                    events={block.events}
+                    live={turnActive && block.start > lastUserEventIndex}
+                    startedAt={eventTime(thread.events[block.start - 1])}
+                    endedAt={eventTime(thread.events[block.end + 1])}
+                    open={openWorkGroups.has(block.id)}
+                    onToggle={() =>
+                      setOpenWorkGroups((current) => {
+                        const next = new Set(current);
+                        if (!next.delete(block.id)) next.add(block.id);
+                        return next;
+                      })
                     }
-                    agentHue={agentHue}
-                    busyApprovalId={busyApprovalId}
-                    speechPhase={speech.eventId === event.id ? speech.phase : 'idle'}
-                    speechError={speech.eventId === event.id ? speech.error : undefined}
-                    streaming={running && event.id === currentAssistantEventId}
-                    justCompleted={justCompleted && event.id === currentAssistantEventId}
-                    completed={event.id === resultId}
-                    onToggleSpeech={
-                      voiceEnabled && onSpeak
-                        ? (text) => toggleSpeech(event.id, text)
-                        : undefined
-                    }
-                    onPreviewAttachment={
-                      onPreviewAttachment
-                        ? (attachment) => {
-                            setPreview({ attachment });
-                            void onPreviewAttachment(attachment.id).then(
-                              (result) => setPreview({ attachment, result }),
-                              (cause: unknown) =>
-                                setPreview({
-                                  attachment,
-                                  result: attachmentPreviewFailure(cause),
-                                }),
-                            );
-                          }
-                        : undefined
-                    }
-                    onResolveApproval={async (approvalId, decision) => {
-                      setBusyApprovalId(approvalId);
-                      try {
-                        await onResolveApproval(approvalId, decision);
-                      } finally {
-                        setBusyApprovalId(undefined);
-                      }
-                    }}
+                    renderStep={(event) => renderEvent(event, thread.events.indexOf(event))}
                   />
-                </div>
-              ))}
-              {running ? <ThinkingRow /> : null}
+                ),
+              )}
+              {running ? (
+                <WorkingStatus
+                  since={eventTime(thread.events[lastUserEventIndex])}
+                  step={currentStep}
+                  writing={Boolean(currentAssistantEventId)}
+                />
+              ) : null}
               {browserRecovery}
             </div>
           )}
@@ -655,6 +698,15 @@ export function Conversation({
               events={thread.events}
               agentName={agentName}
               onNavigate={(eventId) => {
+                const groupId = workGroupIdFor(thread.events, eventId);
+                if (groupId && !openWorkGroups.has(groupId)) {
+                  setOpenWorkGroups((current) => new Set(current).add(groupId));
+                  requestAnimationFrame(() =>
+                    eventRefs.current
+                      .get(eventId)
+                      ?.scrollIntoView({ block: 'center', behavior: 'smooth' }),
+                  );
+                }
                 const target = eventRefs.current.get(eventId);
                 if (!target) return;
                 pinnedToLatestRef.current = false;
@@ -673,7 +725,7 @@ export function Conversation({
         disabled={queued || waitingForApproval}
         running={running || queued || waitingForApproval}
         stoppable={running || queued || waiting}
-        executionLabel={providerName(thread.provider)}
+        executionLabel={executionLabel}
         attachments={attachments?.map((attachment) => ({
           id: attachment.id,
           name: attachment.name,
@@ -1039,12 +1091,33 @@ function hasFiles(dataTransfer: DataTransfer): boolean {
   return [...dataTransfer.types].includes('Files');
 }
 
-function ThinkingRow() {
-  return (
-    <div className={styles.visuallyHidden} role="status" data-testid="turn-running">
-      Sia is working
-    </div>
-  );
+type ConversationBlock =
+  | { kind: 'event'; event: ThreadEvent; index: number }
+  | { kind: 'work'; id: string; events: ActivityEvent[]; start: number; end: number };
+
+/** Consecutive tool steps render as one work group; everything else renders as is. */
+export function conversationBlocks(events: readonly ThreadEvent[]): ConversationBlock[] {
+  const blocks: ConversationBlock[] = [];
+  events.forEach((event, index) => {
+    const previous = blocks.at(-1);
+    if (event.type !== 'activity') blocks.push({ kind: 'event', event, index });
+    else if (previous?.kind === 'work' && previous.end === index - 1) {
+      previous.events.push(event);
+      previous.end = index;
+    } else
+      blocks.push({ kind: 'work', id: event.id, events: [event], start: index, end: index });
+  });
+  return blocks;
+}
+
+function eventTime(event: ThreadEvent | undefined): string | undefined {
+  return event && 'timestamp' in event ? event.timestamp : undefined;
+}
+
+function workGroupIdFor(events: readonly ThreadEvent[], eventId: string): string | undefined {
+  for (const block of conversationBlocks(events))
+    if (block.kind === 'work' && block.events.some(({ id }) => id === eventId)) return block.id;
+  return undefined;
 }
 
 function ConversationSkeleton() {
@@ -1061,10 +1134,6 @@ function ConversationSkeleton() {
       <div className={styles.skeletonComposer} />
     </main>
   );
-}
-
-function providerName(provider: string) {
-  return provider.charAt(0).toUpperCase() + provider.slice(1);
 }
 
 function base64Bytes(value: string): Uint8Array {

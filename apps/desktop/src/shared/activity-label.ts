@@ -65,3 +65,39 @@ export function activityLabel(tool: string | undefined, kind?: string): string {
   };
   return kinds[kind ?? ''] ?? 'Working on your request';
 }
+
+const PAST_TENSE: Record<string, string> = {
+  Acting: 'Acted',
+  Adding: 'Added',
+  Checking: 'Checked',
+  Creating: 'Created',
+  Finding: 'Found',
+  Getting: 'Got',
+  Listing: 'Listed',
+  Looking: 'Looked',
+  Opening: 'Opened',
+  Organizing: 'Organized',
+  Planning: 'Planned',
+  Posting: 'Posted',
+  Preparing: 'Prepared',
+  Reading: 'Read',
+  Removing: 'Removed',
+  Reviewing: 'Reviewed',
+  Running: 'Ran',
+  Saving: 'Saved',
+  Searching: 'Searched',
+  Sending: 'Sent',
+  Sharing: 'Shared',
+  Updating: 'Updated',
+  Uploading: 'Uploaded',
+  Viewing: 'Viewed',
+  Working: 'Worked',
+};
+
+/** The same label once the step is done: "Running a command" becomes "Ran a command". */
+export function completedActivityLabel(label: string): string {
+  if (label === 'Getting ready') return 'Got ready';
+  const [first, ...rest] = label.split(' ');
+  const past = first ? PAST_TENSE[first] : undefined;
+  return past ? [past, ...rest].join(' ') : label;
+}
