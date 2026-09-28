@@ -53,7 +53,8 @@ export function AssistantSettings({
         }
       })
       .catch((cause) => {
-        if (active) setError(String(cause));
+        if (active)
+          setError(cause instanceof Error ? cause.message : 'Could not load the library.');
       });
     return () => {
       active = false;

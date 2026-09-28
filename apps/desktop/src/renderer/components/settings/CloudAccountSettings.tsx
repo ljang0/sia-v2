@@ -192,7 +192,7 @@ export function CloudAccountSettings({
                   ? 'Admin password'
                   : cloudAuth.state === 'mfa-required'
                     ? '6-digit code'
-                    : '8-digit code'
+                    : 'Code from your email'
               }
               minLength={cloudAuth.state === 'password-required' ? 1 : 6}
               maxLength={

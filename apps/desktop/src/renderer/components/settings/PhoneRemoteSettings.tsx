@@ -222,8 +222,8 @@ export function PhoneRemoteSettings({
         </p>
         <p>
           <strong>Your private link controls Sia.</strong> Keep it private and use trusted
-          Wi-Fi. The local connection uses HTTP, like Notch; traffic is not encrypted. A new
-          link disconnects previously paired phones.
+          Wi-Fi. The local connection is not encrypted. A new link disconnects previously paired
+          phones.
         </p>
         <p>
           <strong>Keep your Mac available.</strong> Sia must stay open and your Mac awake and

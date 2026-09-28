@@ -1,3 +1,4 @@
+import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { ComputerAccessMode } from '../ComputerAccessMode';
 import { SetupMacAccess, type MacSetupApi } from '../SetupMacAccess';
 import { Notebook, ShieldCheck } from '@phosphor-icons/react';
@@ -31,6 +32,7 @@ export function ComputerSettings({
   const trusted = snapshot.computer.trust === 'auto';
   const [error, setError] = useState<string>();
   const [settingUp, setSettingUp] = useState(false);
+  const [confirmBypass, setConfirmBypass] = useState(false);
   const busy = Boolean(pending) || settingUp;
 
   const run = async (kind: 'computer' | 'trust' | 'log', action: () => Promise<void>) => {
@@ -90,7 +92,9 @@ export function ComputerSettings({
             className={styles.secondaryButton}
             disabled={busy}
             onClick={() =>
-              void run('trust', () => onSetComputerTrust(trusted ? 'ask' : 'auto'))
+              trusted
+                ? void run('trust', () => onSetComputerTrust('ask'))
+                : setConfirmBypass(true)
             }
             data-testid="computer-trust-toggle"
           >
@@ -98,6 +102,35 @@ export function ComputerSettings({
           </button>
         </div>
       </div>
+      <AlertDialog.Root open={confirmBypass} onOpenChange={setConfirmBypass}>
+        <AlertDialog.Portal>
+          <AlertDialog.Overlay className={styles.dialogOverlay} />
+          <AlertDialog.Content className={styles.alertDialogContent}>
+            <AlertDialog.Title>Let Sia act without asking?</AlertDialog.Title>
+            <AlertDialog.Description>
+              Sia will click, type, send messages, post, upload, and schedule without showing
+              you each action first. Mistakes can reach other people before you see them. You
+              can turn this off at any time.
+            </AlertDialog.Description>
+            <div className={styles.dialogActions}>
+              <AlertDialog.Cancel asChild>
+                <button type="button" className={styles.secondaryButton}>
+                  Keep asking me
+                </button>
+              </AlertDialog.Cancel>
+              <AlertDialog.Action asChild>
+                <button
+                  type="button"
+                  className={styles.dangerButton}
+                  onClick={() => void run('trust', () => onSetComputerTrust('auto'))}
+                >
+                  Act without asking
+                </button>
+              </AlertDialog.Action>
+            </div>
+          </AlertDialog.Content>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
       <SetupMacAccess
         snapshot={snapshot}
         api={macSetupApi}

@@ -47,7 +47,7 @@ export function MemorySuggestions({
             Uses your agent’s model plan for one review when idle, at most every six hours and
             only after new completed tasks.{' '}
             {automatic
-              ? 'Notch-style learning saves supported improvements automatically.'
+              ? 'Learn from Mac tasks saves supported improvements automatically.'
               : 'Changes wait for your review.'}{' '}
             Reviews cannot operate apps or run scripts. Turn this off to stop background
             reviews.
@@ -121,8 +121,7 @@ export function MemorySuggestions({
           )}
           <details>
             <summary>
-              Evidence from {new Set(entry.evidence.map((item) => item.turnId)).size} completed
-              tasks
+              {evidenceLabel(new Set(entry.evidence.map((item) => item.turnId)).size)}
             </summary>
             {entry.evidence.map((item) => (
               <p key={item.id}>
@@ -160,4 +159,8 @@ export function MemorySuggestions({
       ))}
     </>
   );
+}
+
+function evidenceLabel(count: number) {
+  return `Evidence from ${count} completed ${count === 1 ? 'task' : 'tasks'}`;
 }

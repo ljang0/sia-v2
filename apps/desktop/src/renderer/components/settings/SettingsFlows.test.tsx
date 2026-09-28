@@ -618,6 +618,37 @@ describe('computer access settings', () => {
     expect(onReviewConnections).toHaveBeenCalledOnce();
   });
 
+  it('asks for confirmation before bypassing action approvals', async () => {
+    const onSetComputerTrust = vi.fn(async () => undefined);
+    const snapshot = structuredClone(demoSnapshot);
+    snapshot.computer.trust = 'ask';
+    render(
+      <ComputerSettings
+        snapshot={snapshot}
+        onReviewConnections={vi.fn()}
+        macSetupApi={{
+          requestComputerPermissions: vi.fn(),
+          requestAutomationPermission: vi.fn(),
+          refreshComputerPermissions: vi.fn(),
+          configureVoice: vi.fn(),
+          configurePushToTalk: vi.fn(),
+        }}
+        onSetComputerTrust={onSetComputerTrust}
+        onSetTrajectoryLog={vi.fn()}
+        onRevealTrajectories={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('switch', { name: 'Bypass action approvals' }));
+    expect(
+      screen.getByRole('alertdialog', { name: 'Let Sia act without asking?' }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Keep asking me' }));
+    expect(onSetComputerTrust).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('switch', { name: 'Bypass action approvals' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Act without asking' }));
+    await waitFor(() => expect(onSetComputerTrust).toHaveBeenCalledWith('auto'));
+  });
+
   it('flips trust and the local log through the switches', async () => {
     const onSetComputerTrust = vi.fn(async () => undefined);
     const onSetTrajectoryLog = vi.fn(async () => undefined);
