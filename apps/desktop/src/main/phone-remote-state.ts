@@ -27,7 +27,8 @@ export function remoteState(
   const result: RemoteState = {
     agent: agent?.name ?? 'Sia',
     mode: snapshot.computer.accessMode ?? 'connected',
-    approval: snapshot.computer.trust,
+    // Phone turns always confirm actions on the Mac; see DesktopController#trustForTurn.
+    approval: 'ask',
     session: null,
     turns: [],
     workers: snapshot.threads.filter(

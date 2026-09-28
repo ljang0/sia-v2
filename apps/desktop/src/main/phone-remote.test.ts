@@ -306,6 +306,19 @@ it('dispatches once when a phone retries a lost command acknowledgement and expo
   expect(invoke.mock.calls.filter(([method]) => method === 'threads.create')).toHaveLength(1);
 });
 
+it('marks phone turns so full bypass never applies to the plain HTTP link', async () => {
+  const { url, post, invoke } = await setup();
+  const command = { id: randomUUID(), text: 'Tidy my desktop', session: null };
+  expect((await post('command', command)).status).toBe(200);
+  expect(invoke).toHaveBeenCalledWith('threads.send', {
+    threadId: expect.any(String),
+    text: command.text,
+    fromPhone: true,
+  });
+  const remote = (await (await fetch(new URL('state', url))).json()) as RemoteState;
+  expect(remote.approval).toBe('ask');
+});
+
 it('rejects stale cancel and clear requests when desktop or Fn starts a replacement turn', async () => {
   const { post, url, state } = await setup();
   await post('command', { id: randomUUID(), text: 'First', session: null });

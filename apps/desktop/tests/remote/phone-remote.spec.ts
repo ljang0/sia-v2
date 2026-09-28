@@ -455,7 +455,7 @@ test('connection sheet traps focus, closes with Escape and restores focus', asyn
   await page.getByRole('button', { name: 'Connection details' }).click();
   const panel = page.getByRole('dialog', { name: 'Your Mac, connected.' });
   await expect(panel).toBeVisible();
-  await expect(panel.getByText('Full bypass is on')).toBeVisible();
+  await expect(panel.getByText('Confirm actions on your Mac')).toBeVisible();
   await expect(panel.getByText('Keep Sia open and your Mac awake.')).toBeVisible();
   await panel.getByRole('button', { name: 'Close panel' }).press('Tab');
   await expect(panel.getByRole('button', { name: 'Close panel' })).toBeFocused();

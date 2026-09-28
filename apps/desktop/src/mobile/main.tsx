@@ -613,14 +613,11 @@ function App() {
               <p>
                 <ShieldCheck size={20} />
                 <span>
-                  <strong>
-                    {!state
-                      ? 'Uses your Mac’s settings'
-                      : state.approval === 'auto'
-                        ? 'Full bypass is on'
-                        : 'Confirm actions on your Mac'}
-                  </strong>
-                  <small>Change this in Sia’s Computer settings.</small>
+                  <strong>Confirm actions on your Mac</strong>
+                  <small>
+                    Requests from your phone always ask on your Mac before Sia acts, even with
+                    full bypass on.
+                  </small>
                 </span>
               </p>
             </div>

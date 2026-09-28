@@ -549,7 +549,11 @@ export class PhoneRemote {
         ).threadId);
       if (!this.#available() || generation !== this.#generation)
         throw new RemoteError('The remote link changed. Scan the current QR code.');
-      const result = await this.#deps.controller.invoke('threads.send', { threadId, text });
+      const result = await this.#deps.controller.invoke('threads.send', {
+        threadId,
+        text,
+        fromPhone: true,
+      });
       this.#ignoredThread = undefined;
       return { ok: true, turnId: result.turnId };
     } catch (error) {

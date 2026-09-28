@@ -232,6 +232,7 @@ interface QueuedTurn {
   text: string;
   attachments?: readonly ProviderAttachment[];
   source?: 'manual' | 'schedule' | 'goal' | 'review';
+  fromPhone?: true;
   reviewTarget?: BridgeRequestMap['reviews.start']['target'];
   fakeDelayMs?: number;
   scheduleRunId?: string;
@@ -448,6 +449,7 @@ export class DesktopController {
   readonly #startupNotice: ControllerOptions['startupNotice'];
   readonly #listeners = new Set<(event: DesktopPushEvent) => void>();
   readonly #runningTurns = new Map<string, AbortController>();
+  readonly #phoneTurns = new Set<string>();
   readonly #turnTasks = new Map<string, Promise<void>>();
   readonly #workspaceLeases = new Map<string, string>();
   readonly #pendingApprovals = new Map<string, PendingApproval>();
@@ -1021,6 +1023,14 @@ export class DesktopController {
 
   computerTrust(): 'auto' | 'ask' {
     return this.#state.preferences.computerTrust ?? 'ask';
+  }
+
+  /**
+   * Full bypass never extends to phone turns: the phone link is plain HTTP on the local network,
+   * so anyone who observes it could otherwise run unattended actions on this Mac.
+   */
+  #trustForTurn(turnId: string | undefined): 'auto' | 'ask' {
+    return turnId && this.#phoneTurns.has(turnId) ? 'ask' : this.computerTrust();
   }
 
   trajectoryLogEnabled(): boolean {
@@ -2215,7 +2225,7 @@ export class DesktopController {
     if (context.kind === 'direct_user') return 'allow';
     const active = this.#activeTurnId(context.threadId);
     if (active !== context.turnId) return 'cancel';
-    if (this.computerTrust() === 'auto') {
+    if (this.#trustForTurn(active) === 'auto') {
       // Trusted local mode: the driver's own risk prompt is answered for the person, but the
       // decision is written to the trajectory log so every action stays reviewable afterwards.
       this.#trajectory?.record({
@@ -3106,6 +3116,7 @@ export class DesktopController {
       threadId: thread.id,
       text: messageText,
       source,
+      ...(input.fromPhone ? { fromPhone: true as const } : {}),
       ...(reviewTarget ? { reviewTarget } : {}),
       ...(scheduleRunId ? { scheduleRunId } : {}),
       ...(attachmentGrants.length
@@ -5931,6 +5942,7 @@ export class DesktopController {
     const controller = new AbortController();
     this.#runningTurns.set(thread.id, controller);
     this.#workspaceLeases.set(thread.workspace, turn.id);
+    if (turn.fromPhone) this.#phoneTurns.add(turn.id);
     thread.status = 'running';
     delete thread.queueReason;
     this.#appendTimeline(thread.id, {
@@ -6087,7 +6099,7 @@ export class DesktopController {
           computerAccessMode: this.computerAccessMode(),
           macBackgroundControl: this.macBackgroundControl(),
           macBackgroundFallback: this.macBackgroundFallback(),
-          computerTrust: this.computerTrust(),
+          computerTrust: this.#trustForTurn(turn.id),
           ...(this.#assistantLibrary.isReview(thread.id)
             ? { nativeTools: 'disabled' as const }
             : {}),
@@ -6104,7 +6116,7 @@ export class DesktopController {
               : this.#assistantLibrary.reviewWorkspace(thread.id)
                 ? NATIVE_MEMORY_REVIEW_PROMPT
                 : MEMORY_REVIEW_PROMPT
-            : `${thread.instructionsSnapshot}\n\n${this.computerAccessMode() === 'mac' ? (this.macBackgroundControl() ? 'Use my Mac background control is active. Follow the window-control instructions and use this turn’s provided tools.' : 'Use my Mac is active. Follow the native Mac operating instructions.') : DESKTOP_EXECUTION_GUIDANCE}\nAccess mode: ${this.computerAccessMode() === 'mac' ? `Use my Mac. Action approvals: ${this.computerTrust() === 'auto' ? 'bypass enabled; perform permitted task actions without asking for each step' : 'confirm changes through the provided tools'}.` : 'Connected apps. Browser tools require a connected Chrome window; Use my Mac can be enabled in Settings → Computer for native browser access.'}`,
+            : `${thread.instructionsSnapshot}\n\n${this.computerAccessMode() === 'mac' ? (this.macBackgroundControl() ? 'Use my Mac background control is active. Follow the window-control instructions and use this turn’s provided tools.' : 'Use my Mac is active. Follow the native Mac operating instructions.') : DESKTOP_EXECUTION_GUIDANCE}\nAccess mode: ${this.computerAccessMode() === 'mac' ? `Use my Mac. Action approvals: ${this.#trustForTurn(turn.id) === 'auto' ? 'bypass enabled; perform permitted task actions without asking for each step' : 'confirm changes through the provided tools'}.` : 'Connected apps. Browser tools require a connected Chrome window; Use my Mac can be enabled in Settings → Computer for native browser access.'}`,
           priorMessages: this.#state.timeline
             .filter(
               (item) =>
@@ -6825,7 +6837,10 @@ export class DesktopController {
     const account = connector
       ? this.#connectorAccountLabel(request.arguments.account_id)
       : undefined;
-    if (this.computerTrust() === 'auto' && !request.tool.name.startsWith('skill_')) {
+    if (
+      this.#trustForTurn(request.turnId) === 'auto' &&
+      !request.tool.name.startsWith('skill_')
+    ) {
       if (
         connectorApp &&
         connectorSelector &&
@@ -7021,6 +7036,8 @@ export class DesktopController {
 
   #releaseTurn(threadId: string): void {
     const thread = this.#state.threads.find(({ id }) => id === threadId);
+    const turnId = this.#activeTurnId(threadId);
+    if (turnId) this.#phoneTurns.delete(turnId);
     this.#runningTurns.delete(threadId);
     if (thread) this.#workspaceLeases.delete(thread.workspace);
     this.#drainQueue();

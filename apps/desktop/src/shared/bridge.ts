@@ -548,6 +548,11 @@ export interface SendTurnInput {
   threadId: string;
   text: string;
   attachmentIds?: string[];
+  /**
+   * Set only by the Wi-Fi phone remote in the main process (never accepted over IPC). Its
+   * link is plain HTTP on the local network, so these turns always confirm actions on the Mac.
+   */
+  fromPhone?: true;
 }
 
 export interface UpdateThreadConfigInput {
