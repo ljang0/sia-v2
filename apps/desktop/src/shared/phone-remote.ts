@@ -53,6 +53,8 @@ export interface RemoteTurn {
   steps: string[];
   error: string;
   files: string[];
+  /** What the Mac is waiting to approve, when a phone task is paused on an approval. */
+  approval?: string;
 }
 export interface RemoteState {
   agent: string;

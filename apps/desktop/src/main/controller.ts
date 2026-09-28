@@ -1034,6 +1034,11 @@ export class DesktopController {
     return turnId && this.#phoneTurns.has(turnId) ? 'ask' : this.computerTrust();
   }
 
+  /** Action-gateway trust for one turn; phone turns always confirm on the Mac. */
+  trustForTurn(turnId: string | undefined): 'auto' | 'ask' {
+    return this.#trustForTurn(turnId);
+  }
+
   trajectoryLogEnabled(): boolean {
     return this.#state.preferences.trajectoryLog ?? true;
   }
@@ -2823,12 +2828,12 @@ export class DesktopController {
   #searchThreads(query: string): BridgeResultMap['threads.search'] {
     const needle = query.trim().toLocaleLowerCase();
     if (!needle) return { results: [] };
+    // One pass over the timeline instead of one full scan per thread.
+    const timelineByThread = Map.groupBy(this.#state.timeline, ({ threadId }) => threadId);
     const results = this.#state.threads
       .map((thread) => {
         const matches: BridgeResultMap['threads.search']['results'][number]['matches'] = [];
-        for (const item of this.#state.timeline.filter(
-          ({ threadId }) => threadId === thread.id,
-        )) {
+        for (const item of timelineByThread.get(thread.id) ?? []) {
           const copy = [item.title, item.text, item.detail].filter(Boolean).join(' ');
           if (copy.toLocaleLowerCase().includes(needle)) {
             matches.push({
@@ -3584,7 +3589,7 @@ export class DesktopController {
 
   #insertSchedule(input: BridgeRequestMap['schedules.create']): ScheduleView {
     if (!this.#schedulesAvailable()) {
-      throw new Error('Scheduled execution is temporarily disabled by the alpha operator.');
+      throw new Error('Schedules are turned off for this pilot right now.');
     }
     const thread = this.#requireThread(input.threadId);
     if (thread.archivedAt) throw new Error('Unarchive this thread before scheduling work.');
@@ -3609,7 +3614,7 @@ export class DesktopController {
 
   #setScheduleEnabled(input: BridgeRequestMap['schedules.setEnabled']): DesktopSnapshot {
     if (input.enabled && !this.#schedulesAvailable()) {
-      throw new Error('Scheduled execution is temporarily disabled by the alpha operator.');
+      throw new Error('Schedules are turned off for this pilot right now.');
     }
     const schedule = this.#requireSchedule(input.scheduleId);
     schedule.enabled = input.enabled;
@@ -3627,7 +3632,7 @@ export class DesktopController {
 
   #runScheduleNow(scheduleId: string): BridgeResultMap['schedules.runNow'] {
     if (!this.#schedulesAvailable()) {
-      throw new Error('Scheduled execution is temporarily disabled by the alpha operator.');
+      throw new Error('Schedules are turned off for this pilot right now.');
     }
     const schedule = this.#requireSchedule(scheduleId);
     return this.#dispatchSchedule(schedule, new Date());

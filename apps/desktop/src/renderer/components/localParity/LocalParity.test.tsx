@@ -389,4 +389,75 @@ describe('changed file summaries', () => {
     expect(filePatch(patch, 'new.txt')).toBe('No textual diff is available for new.txt.');
     expect(filePatch(patch, 'notes.md')).toBe(patch);
   });
+
+  it('keeps stopped work in the default Activity view, ahead of unread results', () => {
+    render(
+      <ActivityDashboard
+        activities={[
+          {
+            id: 'activity-unread',
+            threadId: 'thread-unread',
+            title: 'Trip plan',
+            detail: 'New activity is ready to review',
+            agentName: 'Personal admin',
+            status: 'unread',
+            updatedAt: new Date().toISOString(),
+          },
+          {
+            id: 'activity-failed',
+            threadId: 'thread-failed',
+            title: 'Book dentist',
+            detail: 'Stopped before it finished',
+            agentName: 'Personal admin',
+            status: 'failed',
+            updatedAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+          },
+        ]}
+        onOpenThread={() => undefined}
+      />,
+    );
+
+    const rows = screen.getAllByTestId('background-task-row');
+    expect(rows.map((row) => row.textContent)).toEqual([
+      expect.stringContaining('Book dentist'),
+      expect.stringContaining('Trip plan'),
+    ]);
+    expect(rows[0]?.textContent).toContain('3d');
+  });
+
+  it('keeps a schedule draft when creating it fails, and offers no Resume once finished', async () => {
+    const onCreate = vi.fn().mockRejectedValue(new Error('Schedules are off.'));
+    render(
+      <ScheduleControls
+        schedules={[
+          {
+            id: 'schedule-done',
+            label: 'Lease reminder',
+            prompt: 'Check the lease',
+            cadence: 'once',
+            nextRunAt: '2026-08-15T09:00:00.000Z',
+            enabled: false,
+            runCount: 1,
+            maxRuns: 1,
+          },
+        ]}
+        onCreate={onCreate}
+        onSetEnabled={() => undefined}
+        onDelete={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText('Finished')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Resume' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'New schedule' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Task' }), {
+      target: { value: 'Draft my Monday plan' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create schedule' }));
+    await waitFor(() => expect(onCreate).toHaveBeenCalled());
+    await Promise.resolve();
+    expect((screen.getByRole('textbox', { name: 'Task' }) as HTMLInputElement).value).toBe(
+      'Draft my Monday plan',
+    );
+  });
 });

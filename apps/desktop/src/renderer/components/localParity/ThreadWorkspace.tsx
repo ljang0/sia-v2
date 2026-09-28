@@ -23,6 +23,8 @@ interface ThreadWorkspaceToolsProps {
   snapshot: RendererSnapshot;
   api: RendererApi;
   run(action: () => Promise<unknown>): Promise<void>;
+  /** Like run, but rejects after reporting so a form can keep what the person typed. */
+  attempt?(action: () => Promise<unknown>): Promise<void>;
 }
 
 export function ThreadWorkspaceTools({
@@ -30,6 +32,7 @@ export function ThreadWorkspaceTools({
   snapshot,
   api,
   run,
+  attempt = run,
 }: ThreadWorkspaceToolsProps) {
   const [tool, setTool] = useState<Tool>();
   const [changes, setChanges] = useState<WorkspaceDiff>();
@@ -101,6 +104,7 @@ export function ThreadWorkspaceTools({
 
   const changedFiles = useMemo(() => mapChangedFiles(changes), [changes]);
   const schedules = snapshot.schedules.filter((schedule) => schedule.threadId === thread.id);
+  const schedulesAvailable = snapshot.cloudAuth.features?.schedules !== false;
 
   return (
     <>
@@ -143,12 +147,14 @@ export function ThreadWorkspaceTools({
               >
                 <Code size={14} aria-hidden="true" /> Command
               </DropdownMenu.Item>
-              <DropdownMenu.Item
-                className={styles.threadMenuItem}
-                onSelect={() => setTool('schedules')}
-              >
-                <CalendarDots size={14} aria-hidden="true" /> Schedules
-              </DropdownMenu.Item>
+              {schedulesAvailable ? (
+                <DropdownMenu.Item
+                  className={styles.threadMenuItem}
+                  onSelect={() => setTool('schedules')}
+                >
+                  <CalendarDots size={14} aria-hidden="true" /> Schedules
+                </DropdownMenu.Item>
+              ) : null}
               {thread.worktree?.kind === 'linked' ? (
                 <DropdownMenu.Item
                   className={styles.threadMenuItem}
@@ -199,7 +205,7 @@ export function ThreadWorkspaceTools({
                 enabled: schedule.enabled !== false,
               }))}
               onCreate={(draft) =>
-                run(() =>
+                attempt(() =>
                   api.createSchedule(
                     thread.id,
                     draft.prompt,

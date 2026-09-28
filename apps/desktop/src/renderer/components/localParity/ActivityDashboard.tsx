@@ -28,25 +28,41 @@ interface ActivityDashboardProps {
   onOpenThread(threadId: string): void;
 }
 
+// A stopped task needs the person as much as a waiting one, so it stays in the default view.
 const activeStatuses: readonly DashboardActivityStatus[] = [
   'running',
   'waiting',
+  'failed',
   'unread',
   'background',
 ];
 
+const statusOrder: Record<DashboardActivityStatus, number> = {
+  waiting: 0,
+  failed: 1,
+  running: 2,
+  unread: 3,
+  background: 4,
+  complete: 5,
+};
+
 export function ActivityDashboard({ activities, onOpenThread }: ActivityDashboardProps) {
   const [filter, setFilter] = useState<'active' | 'all'>('active');
   const titleId = useId();
-  const visible =
+  const visible = (
     filter === 'all'
-      ? activities
-      : activities.filter((activity) => activeStatuses.includes(activity.status));
+      ? [...activities]
+      : activities.filter((activity) => activeStatuses.includes(activity.status))
+  ).sort(
+    (left, right) =>
+      statusOrder[left.status] - statusOrder[right.status] ||
+      right.updatedAt.localeCompare(left.updatedAt),
+  );
   const metricLabels = {
     running: 'Running',
     waiting: 'Waiting',
+    failed: 'Stopped',
     unread: 'Unread',
-    background: 'Background',
   } as const;
 
   return (
@@ -74,7 +90,7 @@ export function ActivityDashboard({ activities, onOpenThread }: ActivityDashboar
       </div>
 
       <div className={styles.activityMetrics}>
-        {(['running', 'waiting', 'unread', 'background'] as const).map((status) => (
+        {(['running', 'waiting', 'failed', 'unread'] as const).map((status) => (
           <div key={status}>
             <strong>
               {activities.filter((activity) => activity.status === status).length}
@@ -133,5 +149,7 @@ function formatRelative(value: string) {
   const minutes = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 60_000));
   if (minutes < 1) return 'now';
   if (minutes < 60) return `${minutes}m`;
-  return `${Math.round(minutes / 60)}h`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.round(hours / 24)}d`;
 }

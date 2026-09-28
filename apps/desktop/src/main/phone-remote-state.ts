@@ -87,7 +87,14 @@ export function remoteState(
             : errors.length || (last && thread.status === 'failed')
               ? 'error'
               : 'done';
+    const approval =
+      status === 'waiting'
+        ? snapshot.approvals?.find(
+            (entry) => entry.threadId === thread.id && entry.status === 'pending',
+          )?.title
+        : undefined;
     return {
+      ...(approval ? { approval: approval.slice(0, 200) } : {}),
       id: user.id,
       text: (user.text ?? '').slice(0, 8000),
       response: response.trim(),

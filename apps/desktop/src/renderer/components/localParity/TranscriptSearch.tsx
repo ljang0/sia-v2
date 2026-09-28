@@ -26,7 +26,10 @@ export function TranscriptSearch({
     }
     let current = true;
     const timer = setTimeout(() => {
-      void search(normalized).then((next) => current && setResults(next));
+      void search(normalized).then(
+        (next) => current && setResults(next),
+        () => current && setResults([]),
+      );
     }, 120);
     return () => {
       current = false;

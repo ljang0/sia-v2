@@ -292,13 +292,17 @@ export function ScheduleControls({
         runAt: runAt || inferredFirstRun(cadence),
         ...(maxRuns ? { maxRuns: Number(maxRuns) } : {}),
       }),
-    ).then(() => {
-      setPrompt('');
-      setCadence('once');
-      setRunAt('');
-      setMaxRuns('1');
-      setExpanded(false);
-    });
+    ).then(
+      () => {
+        setPrompt('');
+        setCadence('once');
+        setRunAt('');
+        setMaxRuns('1');
+        setExpanded(false);
+      },
+      // The failure is already reported; keep the draft so the person can try again.
+      () => undefined,
+    );
   };
 
   return (
@@ -451,14 +455,17 @@ export function ScheduleControls({
                   </div>
                 </div>
                 <div className={styles.scheduleActions}>
-                  <button
-                    type="button"
-                    className={styles.secondaryButton}
-                    disabled={busy}
-                    onClick={() => void onSetEnabled(schedule.id, !schedule.enabled)}
-                  >
-                    {schedule.enabled ? 'Pause' : 'Resume'}
-                  </button>
+                  {/* Resuming a finished schedule would run it again at once, past its limit. */}
+                  {schedule.enabled || !scheduleFinished(schedule) ? (
+                    <button
+                      type="button"
+                      className={styles.secondaryButton}
+                      disabled={busy}
+                      onClick={() => void onSetEnabled(schedule.id, !schedule.enabled)}
+                    >
+                      {schedule.enabled ? 'Pause' : 'Resume'}
+                    </button>
+                  ) : null}
                   {onRunNow ? (
                     <button
                       type="button"
@@ -521,12 +528,18 @@ function scheduleRuns(schedule: ThreadSchedule): readonly ScheduleRun[] {
   return schedule.lastRun ? [schedule.lastRun] : [];
 }
 
+function scheduleFinished(schedule: ThreadSchedule): boolean {
+  const runs = schedule.runCount ?? 0;
+  return (
+    (schedule.cadence === 'once' && runs > 0) ||
+    (schedule.maxRuns !== undefined && runs >= schedule.maxRuns)
+  );
+}
+
 function scheduleNextLabel(schedule: ThreadSchedule): string {
   if (schedule.enabled) return `Next ${formatScheduleTime(schedule.nextRunAt)}`;
-  if (schedule.maxRuns !== undefined && (schedule.runCount ?? 0) >= schedule.maxRuns) {
-    return 'Run limit reached';
-  }
   if (schedule.cadence === 'once' && (schedule.runCount ?? 0) > 0) return 'Finished';
+  if (scheduleFinished(schedule)) return 'Run limit reached';
   return 'Paused';
 }
 

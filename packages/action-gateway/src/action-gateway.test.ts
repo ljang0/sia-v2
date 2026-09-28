@@ -615,6 +615,32 @@ describe('curated tool surface', () => {
     expect(requestApproval).toHaveBeenCalledTimes(2);
   });
 
+  it('withholds trusted local mode from individual turns', async () => {
+    const backend = verifiedBackend();
+    const requestApproval = vi.fn(async () => ({ approved: false }));
+    const gateway = new ActionGateway({
+      backend,
+      policy: new DefaultActionAuthorizationPolicy({
+        trustLocalActions: (request) => request.context.turnId !== 'phone-turn',
+      }),
+      approvals: { requestApproval },
+    });
+    const result = await gateway.invoke({
+      name: 'browser_action',
+      arguments: {
+        tab_id: 't',
+        snapshot_id: 's',
+        origin: 'https://example.com',
+        action: 'click',
+        element_ref: 'e',
+      },
+      context: { ...context, turnId: 'phone-turn' },
+    });
+    expect(result).toMatchObject({ outcome: 'refused' });
+    expect(requestApproval).toHaveBeenCalledOnce();
+    expect(backend.invoke).not.toHaveBeenCalled();
+  });
+
   it('binds one-shot grants to session, tool, arguments, and expiry', () => {
     let now = 1_000;
     const grants = new OneShotGrantStore({ now: () => now, maximumTtlMs: 100 });

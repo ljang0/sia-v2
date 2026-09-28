@@ -88,6 +88,7 @@ let creationInFlight: Promise<void> | undefined;
 let startupFailureReported = false;
 let unsubscribeDockBadge: (() => void) | undefined;
 const notificationTimes = new Map<string, number>();
+const liveNotifications = new Set<Notification>();
 
 if (!app.isPackaged && process.env.SIA_TEST_USER_DATA) {
   app.setPath('userData', process.env.SIA_TEST_USER_DATA);
@@ -370,9 +371,15 @@ async function performApplicationCreation(): Promise<void> {
         if (now - (notificationTimes.get(threadId) ?? 0) < 5_000) return;
         notificationTimes.set(threadId, now);
         const notification = new Notification({ title, body, silent: false });
+        // Keep a reference until macOS is done with it, or the click handler can be collected.
+        liveNotifications.add(notification);
+        const release = () => liveNotifications.delete(notification);
+        notification.on('close', release);
         notification.on('click', () => {
+          release();
           void activeController.invoke('threads.select', { threadId }).finally(() => {
-            showOrCreateApplicationWindow();
+            // Leave Settings or Activity so the finished conversation is what the person sees.
+            void revealApplicationWindow(true).catch(reportStartupFailure);
           });
         });
         notification.show();
@@ -446,7 +453,9 @@ async function performApplicationCreation(): Promise<void> {
     });
     activeController.attachBrowserCapabilitySink(actionBackend);
     const defaultPolicy = new DefaultActionAuthorizationPolicy({
-      trustLocalActions: () => activeController.computerTrust() === 'auto',
+      // Per turn: phone turns never inherit full bypass (see DesktopController#trustForTurn).
+      trustLocalActions: (request) =>
+        activeController.trustForTurn(request.context.turnId) === 'auto',
     });
     const gateway = new ActionGateway({
       backend: actionBackend,

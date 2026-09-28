@@ -189,8 +189,9 @@ export interface DefaultActionAuthorizationPolicyOptions {
    * When it returns true, computer_* and browser_* actions run without an interactive
    * approval (hard safety denials still apply). Other mutations still cross the host
    * authorization broker, which can authorize them automatically in autonomous mode.
+   * It receives the invocation so hosts can withhold trust from individual turns.
    */
-  readonly trustLocalActions?: () => boolean;
+  readonly trustLocalActions?: (request: ValidatedActionInvocation) => boolean;
 }
 
 export function isLocalActionToolName(name: string): boolean {
@@ -198,7 +199,7 @@ export function isLocalActionToolName(name: string): boolean {
 }
 
 export class DefaultActionAuthorizationPolicy implements ActionAuthorizationPolicy {
-  readonly #trustLocalActions: () => boolean;
+  readonly #trustLocalActions: (request: ValidatedActionInvocation) => boolean;
 
   constructor(options: DefaultActionAuthorizationPolicyOptions = {}) {
     this.#trustLocalActions = options.trustLocalActions ?? (() => false);
@@ -208,7 +209,7 @@ export class DefaultActionAuthorizationPolicy implements ActionAuthorizationPoli
     const safety = defaultSafetyDecision(request);
     if (safety) return safety;
     if (!request.descriptor.annotations.requiresApproval) return { decision: 'allow' };
-    if (isLocalActionToolName(request.name) && this.#trustLocalActions()) {
+    if (isLocalActionToolName(request.name) && this.#trustLocalActions(request)) {
       return { decision: 'allow' };
     }
     return { decision: 'approval', reason: 'This operation changes external or local state' };
