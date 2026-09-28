@@ -365,12 +365,8 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                         defaultReasoning(snapshot, activeThread.provider, model),
                       )
                     }
-                    onChangeReasoning={(reasoning) =>
-                      api.configureThread(
-                        activeThread.id,
-                        activeThread.model,
-                        reasoning || undefined,
-                      )
+                    onChangeReasoning={(reasoning, model) =>
+                      api.configureThread(activeThread.id, model, reasoning || undefined)
                     }
                   />
                 ) : null}

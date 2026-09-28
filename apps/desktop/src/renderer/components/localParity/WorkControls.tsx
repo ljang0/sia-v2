@@ -28,7 +28,7 @@ interface ThreadModelControlsProps {
   reasoningOptions: readonly SelectOption[];
   disabled?: boolean | undefined;
   onChangeModel(modelId: string): Promise<void> | void;
-  onChangeReasoning(reasoningId: string): Promise<void> | void;
+  onChangeReasoning(reasoningId: string, modelId: string): Promise<void> | void;
 }
 
 export function ThreadModelControls({
@@ -42,6 +42,12 @@ export function ThreadModelControls({
   onChangeReasoning,
 }: ThreadModelControlsProps) {
   const menu = useRef<HTMLDetailsElement>(null);
+  // The snapshot carrying a new model can arrive after the next reasoning change, so reasoning
+  // changes send the model the person last picked rather than the one from the last render.
+  const pickedModel = useRef(modelId);
+  useEffect(() => {
+    pickedModel.current = modelId;
+  }, [modelId]);
   useEffect(() => {
     const outside = (event: PointerEvent) => {
       if (menu.current && !menu.current.contains(event.target as Node))
@@ -73,7 +79,13 @@ export function ThreadModelControls({
             data-testid="thread-model-select"
             value={modelId}
             disabled={disabled}
-            onChange={(event) => void onChangeModel(event.target.value)}
+            onChange={(event) => {
+              const next = event.target.value;
+              pickedModel.current = next;
+              void Promise.resolve(onChangeModel(next)).catch(() => {
+                pickedModel.current = modelId;
+              });
+            }}
           >
             {models.map((model) => (
               <option key={model.id} value={model.id} title={model.detail}>
@@ -92,7 +104,9 @@ export function ThreadModelControls({
             data-testid="thread-reasoning-select"
             value={reasoningId}
             disabled={disabled}
-            onChange={(event) => void onChangeReasoning(event.target.value)}
+            onChange={(event) =>
+              void onChangeReasoning(event.target.value, pickedModel.current)
+            }
           >
             {reasoningOptions.map((option) => (
               <option key={option.id} value={option.id} title={option.detail}>

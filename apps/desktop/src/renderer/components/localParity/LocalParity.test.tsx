@@ -41,7 +41,8 @@ describe('local parity renderer contracts', () => {
       target: { value: 'medium' },
     });
     expect(onChangeModel).toHaveBeenCalledWith('gpt-5.4');
-    expect(onChangeReasoning).toHaveBeenCalledWith('medium');
+    // The props still carry the old model; reasoning must follow the model just picked.
+    expect(onChangeReasoning).toHaveBeenCalledWith('medium', 'gpt-5.4');
   });
 
   it('summarizes attention states and opens the selected activity', () => {
