@@ -1865,3 +1865,87 @@ describe('Notch-style native Mac sessions', () => {
     }
   });
 });
+
+describe('Codex turn resilience', () => {
+  function codexServer(onTurn: (peers: ReturnType<typeof linkedPeers>) => Promise<unknown>) {
+    const peers = linkedPeers();
+    peers.server.onRequest(async (method, params) => {
+      if (method === 'initialize') return {};
+      if (method === 'account/read') return { account: { type: 'chatgpt', email: 'a@b.c' } };
+      if (method === 'thread/start')
+        return { thread: { id: 'native-thread' }, sandbox: { type: 'workspaceWrite' } };
+      if (method === 'turn/start') return await onTurn(peers);
+      if (method === 'turn/interrupt') return {};
+      const isolationResponse = codexIsolationResponse(method, params);
+      if (isolationResponse !== undefined) return isolationResponse;
+      throw new Error(`unexpected ${method}`);
+    });
+    return peers;
+  }
+
+  it('does not surface an error that Codex is about to retry', async () => {
+    const peers = codexServer(async (p) => {
+      setTimeout(() => {
+        void (async () => {
+          await p.server.notify('error', {
+            threadId: 'native-thread',
+            turnId: 'native-turn',
+            willRetry: true,
+            error: { message: 'Reconnecting... 1/5' },
+          });
+          await p.server.notify('turn/completed', {
+            threadId: 'native-thread',
+            turn: { id: 'native-turn', status: 'completed' },
+          });
+        })();
+      }, 5);
+      return { turn: { id: 'native-turn' } };
+    });
+    const adapter = new CodexAppServerAdapter({
+      sessionEphemeral: true,
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    const session = await adapter.createSession(sessionOptions);
+    const types: string[] = [];
+    for await (const event of adapter.sendTurn(session, { turnId: 't1', text: 'hi' }))
+      types.push(event.type);
+    expect(types).toEqual(['completion']);
+    await adapter.dispose();
+  });
+
+  it('ends the active turn and forgets sessions when the app-server exits', async () => {
+    let exit!: () => void;
+    const exited = new Promise<void>((resolve) => {
+      exit = resolve;
+    });
+    const peers = codexServer(async () => {
+      setTimeout(exit, 5);
+      return { turn: { id: 'native-turn' } };
+    });
+    const adapter = new CodexAppServerAdapter({
+      sessionEphemeral: true,
+      peerFactory: async () => ({
+        peer: peers.client,
+        exited,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    const session = await adapter.createSession(sessionOptions);
+    const events: ThreadEventEnvelope[] = [];
+    for await (const event of adapter.sendTurn(session, { turnId: 't1', text: 'hi' }))
+      events.push(event);
+    expect(events.map(({ type }) => type)).toEqual(['error', 'completion']);
+    expect(events[1]).toMatchObject({ payload: { status: 'failed' } });
+    expect(adapter.hasSession(session)).toBe(false);
+    await adapter.dispose();
+  });
+});

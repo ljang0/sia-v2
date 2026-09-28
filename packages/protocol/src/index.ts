@@ -671,6 +671,8 @@ export interface ProviderAdapter {
     input: ProviderReviewInput,
     signal?: AbortSignal,
   ): AsyncIterable<ThreadEventEnvelope>;
+  /** False once the provider no longer knows this session, for example after a crash. */
+  hasSession?(session: ProviderSession): boolean;
   cancelTurn(session: ProviderSession, turnId: string): Promise<void>;
   respondToRequest(session: ProviderSession, response: ProviderRequestResponse): Promise<void>;
   dispose(): Promise<void>;

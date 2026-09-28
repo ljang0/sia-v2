@@ -525,7 +525,11 @@ export class RuntimeCoordinator {
       sessionTools.map(({ name }) => name),
     ]);
     const existing = this.#sessions.get(thread.id);
-    if (existing?.fingerprint === fingerprint) return existing;
+    if (
+      existing?.fingerprint === fingerprint &&
+      (existing.adapter.hasSession?.(existing.session) ?? true)
+    )
+      return existing;
     const adapter = this.#routeAdapters.get(routeAdapterKey(thread.provider, target.harnessId));
     if (!adapter) {
       throw new Error(
