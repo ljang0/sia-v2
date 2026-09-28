@@ -1791,7 +1791,8 @@ describe('DesktopController', () => {
 
   it('notifies once when a task pauses for an approval or a question', async () => {
     let runtimeThreadId = '';
-    const release = Promise.withResolvers<void>();
+    // Each turn waits on its own gate so cancelling the first can't finish the second.
+    let release = Promise.withResolvers<void>();
     const runtime = {
       async *runTurn(input: { turnId: string }) {
         const base = {
@@ -1818,11 +1819,12 @@ describe('DesktopController', () => {
           },
         };
         // A provider may repeat a pending request; the person hears about it once.
+        const gate = release;
         yield { ...base, id: randomUUID(), sequence: 1, ...approval } as never;
         yield { ...base, id: randomUUID(), sequence: 2, ...approval } as never;
         yield { ...base, id: randomUUID(), sequence: 3, ...question };
         yield { ...base, id: randomUUID(), sequence: 4, ...question };
-        await release.promise;
+        await gate.promise;
       },
       dispose: vi.fn(async () => release.resolve()),
       cancel: vi.fn(async () => release.resolve()),
@@ -1852,6 +1854,7 @@ describe('DesktopController', () => {
 
       await controller.invoke('threads.cancel', { threadId });
       notify.mockClear();
+      release = Promise.withResolvers<void>();
       await controller.invoke('agents.setNotifications', {
         agentId: agent.agentId,
         enabled: false,
