@@ -42,7 +42,7 @@ test('core surfaces retain the visual-system and motion contract', async () => {
     // corresponding event list. Wait for a released, event-derived control so
     // every visual baseline captures the same post-turn UI.
     await expect(sia.page.getByRole('button', { name: 'Thread outline' })).toBeVisible();
-    await sia.page.waitForTimeout(300);
+    await expect(sia.page.locator('[data-sia-presence]')).toHaveAttribute('data-state', 'idle');
 
     const visualSystem = await sia.page.evaluate(() => {
       const root = getComputedStyle(document.documentElement);
@@ -111,7 +111,8 @@ test('core surfaces retain the visual-system and motion contract', async () => {
     await sia.page.waitForTimeout(300);
     await expect(sia.page).toHaveScreenshot('providers-light.png', stableScreenshot);
 
-    await sia.page.getByRole('button', { name: 'Connections' }).click();
+    await sia.page.getByRole('button', { name: 'More settings' }).click();
+    await sia.page.getByRole('menuitem', { name: 'Connections', exact: true }).click();
     await sia.page.waitForTimeout(300);
     await expect(sia.page).toHaveScreenshot('apps-light.png', stableScreenshot);
 

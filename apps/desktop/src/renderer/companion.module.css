@@ -38,7 +38,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 12px 18px 11px 24px;
+  padding: 8px 18px 8px 20px;
   border-bottom: 1px solid color-mix(in srgb, var(--agent-color) 20%, var(--border-subtle));
   background: color-mix(in srgb, var(--agent-color) 5%, var(--bg-canvas));
   -webkit-app-region: drag;
@@ -59,7 +59,7 @@
 }
 
 .roomEyebrow {
-  color: color-mix(in srgb, var(--agent-color) 72%, var(--text-secondary));
+  color: var(--text-secondary);
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
   letter-spacing: 0.045em;

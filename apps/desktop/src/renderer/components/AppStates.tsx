@@ -2,7 +2,6 @@ import { Check, CloudSlash, Copy, WarningCircle } from '@phosphor-icons/react';
 import { useState } from 'react';
 import type { useAppController } from '../useAppController';
 import styles from '../ui.module.css';
-import { Conversation } from './Conversation';
 
 type AppController = ReturnType<typeof useAppController>;
 
@@ -80,28 +79,4 @@ export function WorkspaceNotice({ app }: { app: AppController }) {
   }
 
   return null;
-}
-
-export function AppSkeleton() {
-  return (
-    <div className={styles.appShell} aria-label="Loading Sia" aria-busy="true">
-      <aside className={styles.sidebar}>
-        <div className={styles.sidebarSkeleton}>
-          <span />
-          <span />
-          <span />
-          <span />
-        </div>
-      </aside>
-      <section className={styles.workspace}>
-        <Conversation
-          loading
-          onSend={async () => undefined}
-          onStop={async () => undefined}
-          onRetry={async () => undefined}
-          onResolveApproval={async () => undefined}
-        />
-      </section>
-    </div>
-  );
 }

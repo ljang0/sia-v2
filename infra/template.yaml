@@ -801,7 +801,9 @@ Resources:
         - ALLOW_REFRESH_TOKEN_AUTH
       AccessTokenValidity: 60
       IdTokenValidity: 60
-      RefreshTokenValidity: 30
+      # Remember this Mac for Cognito's maximum 10-year lifetime. ID/access tokens
+      # still expire hourly; encrypted storage and explicit revocation remain in place.
+      RefreshTokenValidity: 3650
       TokenValidityUnits:
         AccessToken: minutes
         IdToken: minutes

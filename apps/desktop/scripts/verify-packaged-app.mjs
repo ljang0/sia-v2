@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { verifyReleaseIdentity, releaseIdentity } from './release-identity.mjs';
 
 const requestedArch = process.argv
   .find((argument) => argument.startsWith('--arch='))
@@ -44,6 +45,7 @@ const dmgPath = join(
 const contentsPath = join(appPath, 'Contents');
 const resourcesPath = join(contentsPath, 'Resources');
 const executablePath = join(contentsPath, 'MacOS', 'Sia');
+const voiceHelperPath = join(resourcesPath, 'native', 'SiaVoiceHelper');
 const infoPlistPath = join(contentsPath, 'Info.plist');
 const asarPath = join(resourcesPath, 'app.asar');
 const packagedIconPath = join(resourcesPath, 'icon.icns');
@@ -59,6 +61,7 @@ const packagedArchitectures =
 
 await Promise.all([
   requirePath(executablePath),
+  requirePath(voiceHelperPath),
   requirePath(infoPlistPath),
   requirePath(asarPath),
   requirePath(packagedIconPath),
@@ -102,6 +105,7 @@ const executableArchitectures =
   requestedArch === 'universal' ? ['arm64', 'x86_64'] : [toLipoArch(requestedArch)];
 for (const binaryPath of [
   executablePath,
+  voiceHelperPath,
   join(
     contentsPath,
     'Frameworks',
@@ -205,6 +209,12 @@ if (
   'Sia uses the microphone only while you record a message for transcription.'
 ) {
   throw new Error('Packaged microphone access is not limited to explicit dictation.');
+}
+if (
+  readPlistRaw('NSSpeechRecognitionUsageDescription') !==
+  'Sia uses on-device speech recognition when you choose dictation.'
+) {
+  throw new Error('Packaged speech recognition is missing its dictation usage description.');
 }
 
 if (requestedArch === 'universal' || requestedArch === process.arch) {
@@ -502,6 +512,14 @@ function verifyReleaseSignature() {
   ) {
     throw new Error(`Packaged app is not a hardened Developer ID release:\n${output}`);
   }
+  verifyReleaseIdentity({
+    productName: readPlistRaw('CFBundleName'),
+    executable: readPlistRaw('CFBundleExecutable'),
+    bundleIdentifier: readPlistRaw('CFBundleIdentifier'),
+    signature: output,
+  });
+  if (readPlistRaw('CFBundleShortVersionString') !== desktopPackage.version)
+    throw new Error('Packaged version does not match the release source.');
   runSystem('/usr/sbin/spctl', ['--assess', '--type', 'execute', '--verbose=4', appPath]);
   runSystem('/usr/bin/xcrun', ['stapler', 'validate', appPath]);
 
@@ -511,7 +529,7 @@ function verifyReleaseSignature() {
   if (
     !dmgOutput.includes('Format=disk image') ||
     !dmgOutput.includes('Authority=Developer ID Application:') ||
-    !/TeamIdentifier=(?!not set)\S+/.test(dmgOutput)
+    !dmgOutput.split('\n').includes(`TeamIdentifier=${releaseIdentity.teamIdentifier}`)
   ) {
     throw new Error(`Release DMG is not signed with Developer ID:\n${dmgOutput}`);
   }

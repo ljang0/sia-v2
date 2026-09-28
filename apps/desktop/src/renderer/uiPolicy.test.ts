@@ -10,7 +10,37 @@ const companion = readFileSync(
   'utf8',
 );
 const tokens = readFileSync(fileURLToPath(new URL('./tokens.css', import.meta.url)), 'utf8');
-const css = `${tokens}\n${styles}\n${companion}`;
+const aurora = readFileSync(
+  fileURLToPath(new URL('./components/effects/aurora.css', import.meta.url)),
+  'utf8',
+);
+const metal = readFileSync(
+  fileURLToPath(new URL('./components/effects/liquid-metal-button.css', import.meta.url)),
+  'utf8',
+);
+const navigation = readFileSync(
+  fileURLToPath(new URL('./components/navigation.module.css', import.meta.url)),
+  'utf8',
+);
+const appearance = readFileSync(
+  fileURLToPath(
+    new URL('./components/settings/AppearanceSettings.module.css', import.meta.url),
+  ),
+  'utf8',
+);
+const startup = readFileSync(
+  fileURLToPath(new URL('./components/startup.module.css', import.meta.url)),
+  'utf8',
+);
+const results = readFileSync(
+  fileURLToPath(new URL('./components/result-card.module.css', import.meta.url)),
+  'utf8',
+);
+const welcome = readFileSync(
+  fileURLToPath(new URL('./components/welcome-recents.module.css', import.meta.url)),
+  'utf8',
+);
+const css = `${tokens}\n${styles}\n${companion}\n${aurora}\n${metal}\n${navigation}\n${appearance}\n${startup}\n${results}\n${welcome}`;
 
 describe('renderer accessibility CSS policy', () => {
   it('keeps explicit reduced-motion, increased-contrast, and forced-color modes', () => {
@@ -34,9 +64,8 @@ describe('renderer accessibility CSS policy', () => {
     expect(styles).toMatch(
       /@media \(max-width: 1120px\)[\s\S]*?\.activityPageContent[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/,
     );
-    expect(styles).toMatch(
-      /@media \(max-width: 1280px\)[\s\S]*?\.threadToolNav button > span[\s\S]*?display:\s*none/,
-    );
+    // The labelled Tools menu replaces icon-only buttons. Its viewport and
+    // keyboard behavior are exercised in the real renderer by ux-layout.spec.ts.
   });
 
   it('keeps utility controls in document flow and gives transient surfaces real exits', () => {
@@ -54,8 +83,26 @@ describe('renderer accessibility CSS policy', () => {
     expect([...new Set(uses.filter((name) => !definitions.has(name)))]).toEqual([]);
   });
 
-  it('rejects disallowed visual shortcuts', () => {
-    expect(css).not.toMatch(/!important|(?:linear|radial|conic)-gradient\(/);
+  it('limits gradients to deliberate decorative surfaces and rejects cascade overrides', () => {
+    expect(css).not.toContain('!important');
+    const gradient = /(?:linear|radial|conic)-gradient\(/;
+    expect(`${tokens}\n${companion}`).not.toMatch(gradient);
+    // Shared effects own their palettes; the core UI only opts in on its welcome
+    // heading, background mask, and composer. Transcript and settings stay plain.
+    const decorativeSurfaces = new Set([
+      '.conversationAurora',
+      '.gradientHeading',
+      '.composer',
+    ]);
+    const rules = styles.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+){([^}]*)}/g);
+    for (const rule of rules) {
+      if (!gradient.test(rule[2]!)) continue;
+      for (const selector of rule[1]!.split(',').map((part) => part.trim())) {
+        expect(decorativeSurfaces.has(selector), `Unexpected gradient on ${selector}`).toBe(
+          true,
+        );
+      }
+    }
   });
 
   it('uses the brand face for identity and keeps it off controls and body copy', () => {

@@ -22,6 +22,15 @@ import {
   waitForProcessSpawn,
 } from '../supervisor.js';
 
+// Admission covers the Astra-capable app server as well as existing Sia installs.
+export const CODEX_SUPPORTED_VERSIONS = {
+  minimum: '0.147.0',
+  maximumExclusive: '0.154.0',
+  // The installed desktop build is verified independently; do not admit the
+  // entire next minor or other prereleases merely to expose a newer catalog.
+  additionalVersions: ['0.155.0-alpha.9', '0.155.0-alpha.9.2'],
+} as const;
+
 export interface DynamicToolCall {
   readonly callId: string;
   readonly name: string;
@@ -149,10 +158,18 @@ interface ActiveTurn {
   readonly events: EventFactory;
   readonly nativeItems: Map<string, Record<string, unknown>>;
   readonly dynamicToolNames: ReadonlySet<string>;
+  readonly mac: boolean;
+  readonly nativeApproval: 'ask' | 'auto';
+  lastActivity?: number;
+  approvalPending?: boolean;
+  dynamicToolsPending?: number;
+  watchdogError?: string;
+  hasFinalResponse?: boolean;
   nativeTurnId?: string;
 }
 
 interface DeferredRequest {
+  readonly nativeThreadId?: string;
   readonly resolve: (response: ProviderRequestResponse) => void;
   readonly reject: (error: Error) => void;
 }
@@ -163,6 +180,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   readonly #options: CodexAppServerOptions;
   readonly #supervisor: ProcessSupervisor;
   readonly #sessions = new Map<string, ProviderSession>();
+  readonly #sessionOptions = new Map<string, ProviderSessionOptions>();
   readonly #dynamicToolNamesBySession = new Map<string, ReadonlySet<string>>();
   readonly #activeByThread = new Map<string, ActiveTurn>();
   readonly #activeByNativeTurn = new Map<string, ActiveTurn>();
@@ -171,6 +189,8 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   readonly #completedLogins = new Map<string, CodexLoginOutcome>();
   #peerHandle: CodexPeerHandle | undefined;
   #initializing: Promise<JsonRpcPeer> | undefined;
+  #peerGeneration = 0;
+  #disposing: Promise<void> | undefined;
 
   constructor(options: CodexAppServerOptions = {}) {
     this.#options = options;
@@ -181,10 +201,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   async probe(signal?: AbortSignal): Promise<ProviderProbeResult> {
     return await discoverCli({
       command: this.#options.command ?? 'codex',
-      range: this.#options.supportedVersions ?? {
-        minimum: '0.147.0',
-        maximumExclusive: '0.151.0',
-      },
+      range: this.#options.supportedVersions ?? CODEX_SUPPORTED_VERSIONS,
       ...(this.#options.commandRunner ? { runner: this.#options.commandRunner } : {}),
       ...(signal ? { signal } : {}),
     });
@@ -301,6 +318,13 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     options: ProviderSessionOptions,
     signal?: AbortSignal,
   ): Promise<ProviderSession> {
+    const nativeMac = options.nativeTools === 'mac';
+    const backgroundMac = options.nativeTools === 'mac-background';
+    const macAssistant = nativeMac || options.nativeTools === 'mac-background';
+    const nativeDisabled =
+      options.nativeTools === 'disabled' || options.nativeTools === 'mac-background';
+    if (macAssistant && !options.baseInstructions?.trim())
+      throw new Error('Native Mac sessions require the Mac assistant instructions.');
     const peer = await this.#peer();
     const inventory = await this.#readIsolationInventory(peer, options.workspace, signal);
     const customProvider = await this.#options.customModelProvider?.(options);
@@ -312,15 +336,31 @@ export class CodexAppServerAdapter implements ProviderAdapter {
           cwd: options.workspace,
           model: options.model,
           developerInstructions: options.instructions,
-          // Sia owns the user-facing authorization boundary for dynamic tools.
-          // Codex remains inside a workspace-write sandbox, so provider-native
-          // confirmation cards only duplicate Sia's policy and interrupt an
-          // otherwise autonomous run.
-          approvalPolicy: 'never',
-          sandbox: 'workspace-write',
+          ...(macAssistant ? { baseInstructions: options.baseInstructions } : {}),
+          // Native Mac mode is the explicitly selected Notch-style host execution path.
+          // Connected tools and background memory reviews keep their existing isolation.
+          approvalPolicy:
+            nativeMac && options.nativeApproval !== 'auto' ? 'untrusted' : 'never',
+          sandbox: nativeMac
+            ? 'danger-full-access'
+            : options.nativeTools === 'disabled'
+              ? 'read-only'
+              : 'workspace-write',
           serviceName: 'sia',
           ...(this.#options.sessionEphemeral ? { ephemeral: true } : {}),
-          config: this.#isolationConfig(inventory, customProvider),
+          config: {
+            ...this.#isolationConfig(inventory, customProvider, nativeDisabled, nativeMac),
+            ...(backgroundMac
+              ? {
+                  sandbox_workspace_write: {
+                    network_access: false,
+                    writable_roots: [],
+                    exclude_slash_tmp: true,
+                    exclude_tmpdir_env_var: true,
+                  },
+                }
+              : {}),
+          },
           dynamicTools: options.tools.map((tool) => ({
             name: tool.name,
             description: tool.description,
@@ -336,13 +376,39 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     if (!nativeId)
       throw isolationFailure('Codex did not create a verifiable isolated session.');
     try {
+      if (
+        options.nativeTools === 'disabled' &&
+        stringAt(result, ['sandbox', 'type']) !== 'readOnly'
+      )
+        throw new Error('Dynamic-tool-only session did not retain a read-only sandbox.');
+      if (backgroundMac) {
+        const sandbox = strictRecord(strictRecord(result).sandbox);
+        if (
+          sandbox.type !== 'workspaceWrite' ||
+          sandbox.networkAccess !== false ||
+          !Array.isArray(sandbox.writableRoots) ||
+          sandbox.writableRoots.length !== 0 ||
+          sandbox.excludeSlashTmp !== true ||
+          sandbox.excludeTmpdirEnvVar !== true
+        )
+          throw new Error('Background workspace file permissions could not be verified.');
+      }
+      if (nativeMac) {
+        if (stringAt(result, ['sandbox', 'type']) !== 'dangerFullAccess')
+          throw new Error('Native Mac execution was not enabled.');
+        const policy = options.nativeApproval === 'auto' ? 'never' : 'untrusted';
+        if (stringAt(result, ['approvalPolicy']) !== policy)
+          throw new Error('Native Mac approval policy did not match the selected mode.');
+      }
       await this.#verifyIsolation(
         peer,
         options.workspace,
         nativeId,
         inventory,
         Boolean(customProvider),
+        nativeDisabled,
         signal,
+        nativeMac,
       );
       if (options.history?.length) {
         await peer.request(
@@ -364,6 +430,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       threadId: options.threadId,
     };
     this.#sessions.set(session.id, session);
+    this.#sessionOptions.set(session.id, options);
     this.#dynamicToolNamesBySession.set(
       session.id,
       new Set(options.tools.map(({ name }) => name)),
@@ -390,6 +457,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       ],
       ...(input.model ? { model: input.model } : {}),
       ...(input.reasoningEffort ? { effort: input.reasoningEffort } : {}),
+      ...(input.outputSchema ? { outputSchema: input.outputSchema } : {}),
     };
     for await (const event of this.#runRequest(session, input, 'turn/start', params, signal)) {
       yield event;
@@ -441,17 +509,25 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       queue: new AsyncQueue(),
       events: new EventFactory(this.id, session.threadId, input.turnId),
       nativeItems: new Map(),
+      mac: ['mac', 'mac-background'].includes(
+        this.#sessionOptions.get(session.id)?.nativeTools ?? '',
+      ),
+      nativeApproval: this.#sessionOptions.get(session.id)?.nativeApproval ?? 'ask',
+      lastActivity: Date.now(),
       dynamicToolNames: this.#dynamicToolNamesBySession.get(session.id) ?? new Set(),
     };
     this.#activeByThread.set(session.nativeId, active);
 
     const onAbort = (): void => {
-      void this.cancelTurn(session, input.turnId);
+      void this.cancelTurn(session, input.turnId).catch((error) =>
+        this.#failTurn(active, error),
+      );
     };
     signal?.addEventListener('abort', onAbort, { once: true });
     void peer
       .request(method, params, { ...(signal ? { signal } : {}), timeoutMs: this.#timeout })
       .then((result) => {
+        if (this.#activeByThread.get(session.nativeId) !== active) return;
         const nativeTurnId = stringAt(result, ['turn', 'id'], ['turnId'], ['id']);
         if (nativeTurnId) {
           active.nativeTurnId = nativeTurnId;
@@ -460,11 +536,46 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       })
       .catch((error: unknown) => this.#failTurn(active, error));
 
+    const startedAt = Date.now();
+    const watchdog = active.mac
+      ? setInterval(() => {
+          if (
+            active.approvalPending ||
+            ((active.dynamicToolsPending ?? 0) > 0 && Date.now() - startedAt < 3_600_000)
+          ) {
+            active.lastActivity = Date.now();
+            return;
+          }
+          if (
+            Date.now() - (active.lastActivity ?? startedAt) < 180_000 &&
+            Date.now() - startedAt < 3_600_000
+          )
+            return;
+          if (watchdog) clearInterval(watchdog);
+          active.watchdogError = 'The Mac task stopped responding and was cancelled.';
+          void this.cancelTurn(session, input.turnId).then(
+            () => this.#failTurn(active, new Error(active.watchdogError)),
+            (error) => this.#failTurn(active, error),
+          );
+        }, 5000)
+      : undefined;
+    watchdog?.unref();
     try {
       for await (const event of active.queue) yield event;
     } finally {
-      signal?.removeEventListener('abort', onAbort);
-      this.#removeActive(active);
+      if (watchdog) clearInterval(watchdog);
+      try {
+        // Do not leave delayed GUI commands running after releasing the task's screen lease.
+        if (active.mac)
+          await peer.request(
+            'thread/backgroundTerminals/clean',
+            { threadId: session.nativeId },
+            { timeoutMs: this.#timeout },
+          );
+      } finally {
+        signal?.removeEventListener('abort', onAbort);
+        this.#removeActive(active);
+      }
     }
   }
 
@@ -493,6 +604,17 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   }
 
   async dispose(): Promise<void> {
+    if (this.#disposing) return await this.#disposing;
+    this.#peerGeneration += 1;
+    this.#disposing = this.#disposePeer();
+    try {
+      await this.#disposing;
+    } finally {
+      this.#disposing = undefined;
+    }
+  }
+
+  async #disposePeer(): Promise<void> {
     for (const request of this.#pendingRequests.values())
       request.reject(new Error('Codex adapter disposed'));
     this.#pendingRequests.clear();
@@ -505,11 +627,16 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     this.#activeByThread.clear();
     this.#activeByNativeTurn.clear();
     this.#sessions.clear();
+    this.#sessionOptions.clear();
     this.#dynamicToolNamesBySession.clear();
-    await this.#peerHandle?.dispose();
+    const handle = this.#peerHandle;
     this.#peerHandle = undefined;
     this.#initializing = undefined;
-    await this.#supervisor.dispose();
+    try {
+      await handle?.dispose();
+    } finally {
+      await this.#supervisor.dispose();
+    }
   }
 
   get #timeout(): number {
@@ -517,31 +644,48 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   }
 
   async #peer(): Promise<JsonRpcPeer> {
-    if (this.#peerHandle) return this.#peerHandle.peer;
+    if (this.#disposing) await this.#disposing;
+    // All callers share the handshake, including after the process handle exists.
     if (this.#initializing) return await this.#initializing;
-    this.#initializing = (async () => {
+    if (this.#peerHandle) return this.#peerHandle.peer;
+    const generation = this.#peerGeneration;
+    const initializing = (async () => {
       const handle = this.#options.peerFactory
         ? await this.#options.peerFactory()
         : await this.#spawnPeer();
+      if (generation !== this.#peerGeneration) {
+        await handle.dispose();
+        throw new Error('Codex connection reset during initialization');
+      }
       this.#peerHandle = handle;
-      handle.peer.onNotification((method, params) => this.#onNotification(method, params));
-      handle.peer.onRequest(async (method, params) => await this.#onRequest(method, params));
-      await handle.peer.request(
-        'initialize',
-        {
-          clientInfo: { name: 'sia', version: '0.1.0' },
-          capabilities: { experimentalApi: true },
-        },
-        { timeoutMs: this.#timeout },
-      );
-      await handle.peer.notify('initialized', {});
-      return handle.peer;
+      try {
+        handle.peer.onNotification((method, params) => this.#onNotification(method, params));
+        handle.peer.onRequest(async (method, params) => await this.#onRequest(method, params));
+        await handle.peer.request(
+          'initialize',
+          {
+            clientInfo: { name: 'sia', version: '0.1.0' },
+            capabilities: { experimentalApi: true },
+          },
+          { timeoutMs: this.#timeout },
+        );
+        await handle.peer.notify('initialized', {});
+        if (generation !== this.#peerGeneration)
+          throw new Error('Codex connection reset during initialization');
+        return handle.peer;
+      } catch (error) {
+        if (this.#peerHandle === handle) {
+          this.#peerHandle = undefined;
+          await handle.dispose().catch(() => undefined);
+        }
+        throw error;
+      }
     })();
+    this.#initializing = initializing;
     try {
-      return await this.#initializing;
-    } catch (error) {
-      this.#initializing = undefined;
-      throw error;
+      return await initializing;
+    } finally {
+      if (this.#initializing === initializing) this.#initializing = undefined;
     }
   }
 
@@ -622,6 +766,8 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   #isolationConfig(
     inventory: CodexIsolationInventory,
     customProvider?: CodexCustomModelProvider,
+    disableNative = false,
+    mac = false,
   ): Readonly<Record<string, unknown>> {
     const features = Object.fromEntries([
       ...SIA_CODEX_DISABLED_FEATURES.map((feature) => [feature, false] as const),
@@ -630,12 +776,15 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     // Codex serializes multi-agent as a namespaced Responses tool. Model-lab
     // providers use the portable function-tool subset, so keep that namespace
     // on the native Codex-plan path only.
-    if (customProvider) features.multi_agent = false;
+    if (customProvider || mac) features.multi_agent = false;
+    if (disableNative)
+      for (const feature of SIA_CODEX_ENABLED_FEATURES) features[feature] = false;
     return {
       features,
       // Custom labs receive computer/browser/search through Sia's audited
       // dynamic tools; only the user's native Codex plan uses provider search.
-      web_search: customProvider ? 'disabled' : 'live',
+      web_search: customProvider || disableNative || mac ? 'disabled' : 'live',
+      ...(mac ? { project_doc_max_bytes: 0 } : {}),
       notify: [],
       orchestrator: {
         skills: { enabled: false },
@@ -672,7 +821,9 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     threadId: string,
     expectedInventory: CodexIsolationInventory,
     customProvider: boolean,
+    disableNative: boolean,
     signal?: AbortSignal,
+    mac = false,
   ): Promise<void> {
     const [features, apps, pluginsResult, mcpServers, currentInventory] = await Promise.all([
       this.#pagedRequest(peer, 'experimentalFeature/list', { threadId }, signal),
@@ -697,12 +848,23 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       const name = stringAt(feature, ['name']);
       if (name) featureStates.set(name, feature.enabled);
     }
-    const disabledFeatures = customProvider
-      ? [...SIA_CODEX_DISABLED_FEATURES, 'multi_agent']
-      : SIA_CODEX_DISABLED_FEATURES;
-    const enabledFeatures = customProvider
-      ? SIA_CODEX_ENABLED_FEATURES.filter((feature) => feature !== 'multi_agent')
-      : SIA_CODEX_ENABLED_FEATURES;
+    const disabledFeatures = disableNative
+      ? [
+          ...SIA_CODEX_DISABLED_FEATURES,
+          // Codex 0.150 normalizes unified_exec to true even when requested false.
+          // Its add_shell_tools gate requires shell_tool as well; requiring that
+          // tool gate false keeps exec_command/write_stdin absent. Keep requesting
+          // both false, but verify the effective tool gate rather than the backend.
+          ...SIA_CODEX_ENABLED_FEATURES.filter((feature) => feature !== 'unified_exec'),
+        ]
+      : customProvider || mac
+        ? [...SIA_CODEX_DISABLED_FEATURES, 'multi_agent']
+        : SIA_CODEX_DISABLED_FEATURES;
+    const enabledFeatures = disableNative
+      ? []
+      : customProvider || mac
+        ? SIA_CODEX_ENABLED_FEATURES.filter((feature) => feature !== 'multi_agent')
+        : SIA_CODEX_ENABLED_FEATURES;
     if (disabledFeatures.some((feature) => featureStates.get(feature) !== false)) {
       throw new Error('a provider-native feature remains enabled');
     }
@@ -800,10 +962,13 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     }
     const active = this.#findActive(params);
     if (!active) return;
+    active.lastActivity = Date.now();
     const value = record(params);
     const item = record(value.item);
     const itemId = stringAt(value, ['itemId'], ['item', 'id']) ?? 'provider-item';
     if (method === 'item/agentMessage/delta') {
+      // Mac final answers are structured JSON. Present the completed response, never JSON fragments.
+      if (active.mac) return;
       active.queue.push(
         active.events.create('message', {
           messageId: itemId,
@@ -864,6 +1029,26 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     if (method === 'item/started' || method === 'item/completed') {
       const itemType = stringAt(item, ['type']);
       active.nativeItems.set(itemId, item);
+      if (active.mac && itemType === 'agentMessage') {
+        if (method === 'item/completed') {
+          const text = stringAt(item, ['text']) ?? '';
+          if (stringAt(item, ['phase']) !== 'commentary')
+            active.hasFinalResponse = Boolean(text.trim());
+          if (text)
+            active.queue.push(
+              active.events.create('message', {
+                messageId: itemId,
+                role: 'assistant',
+                parts: [{ kind: 'text', text }],
+                delta: false,
+                ...(stringAt(item, ['phase']) === 'commentary'
+                  ? { phase: 'commentary' as const }
+                  : { phase: 'final_answer' as const }),
+              }),
+            );
+        }
+        return;
+      }
       if (itemType === 'collabAgentToolCall' || itemType === 'subAgentActivity') {
         for (const event of codexSubagentEvents(active, itemId, item, method)) {
           active.queue.push(event);
@@ -914,19 +1099,23 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     if (method === 'turn/completed') {
       const rawStatus = stringAt(value, ['turn', 'status'], ['status']);
       const status =
-        rawStatus === 'failed'
+        active.watchdogError ||
+        rawStatus === 'failed' ||
+        (active.mac && rawStatus === 'completed' && !active.hasFinalResponse)
           ? 'failed'
           : rawStatus === 'cancelled' || rawStatus === 'interrupted'
             ? 'cancelled'
             : 'completed';
       if (status === 'failed') {
-        const failureMessage = stringAt(
-          value,
-          ['turn', 'error', 'message'],
-          ['error', 'message'],
-          ['turn', 'failureReason'],
-          ['message'],
-        );
+        const failureMessage =
+          active.watchdogError ??
+          stringAt(
+            value,
+            ['turn', 'error', 'message'],
+            ['error', 'message'],
+            ['turn', 'failureReason'],
+            ['message'],
+          );
         if (failureMessage) {
           active.queue.push(
             active.events.create('error', {
@@ -999,15 +1188,25 @@ export class CodexAppServerAdapter implements ProviderAdapter {
           contentItems: [{ type: 'inputText', text: 'Tool unavailable' }],
         };
       }
-      const result = await this.#options.dynamicToolHandler({
-        callId,
-        name,
-        arguments: record(record(params).arguments ?? record(params).input),
-        ...(stringAt(params, ['threadId'])
-          ? { threadId: stringAt(params, ['threadId'])! }
-          : {}),
-        ...(stringAt(params, ['turnId']) ? { turnId: stringAt(params, ['turnId'])! } : {}),
-      });
+      const active = this.#findActive(params);
+      if (active) active.dynamicToolsPending = (active.dynamicToolsPending ?? 0) + 1;
+      let result;
+      try {
+        result = await this.#options.dynamicToolHandler({
+          callId,
+          name,
+          arguments: record(record(params).arguments ?? record(params).input),
+          ...(stringAt(params, ['threadId'])
+            ? { threadId: stringAt(params, ['threadId'])! }
+            : {}),
+          ...(stringAt(params, ['turnId']) ? { turnId: stringAt(params, ['turnId'])! } : {}),
+        });
+      } finally {
+        if (active) {
+          active.dynamicToolsPending = Math.max(0, (active.dynamicToolsPending ?? 1) - 1);
+          active.lastActivity = Date.now();
+        }
+      }
       return {
         success: result.success,
         contentItems: [
@@ -1026,10 +1225,39 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       };
     }
     if (method.includes('requestApproval')) {
-      // Defensive fallback for app-server versions that still emit an approval
-      // request under `approvalPolicy: never`. Host-side tools are independently
-      // authorized by Sia's action gateway; provider-native work remains sandboxed.
-      return { decision: 'accept' };
+      const active = this.#findActive(params);
+      if (!active) return { decision: 'decline' };
+      if (!active.mac || active.nativeApproval === 'auto') return { decision: 'accept' };
+      const requestId =
+        stringAt(params, ['approvalId'], ['itemId']) ?? `${method}:${Date.now()}`;
+      active.approvalPending = true;
+      try {
+        const decision = new Promise<ProviderRequestResponse>((resolve, reject) => {
+          this.#pendingRequests.set(requestId, {
+            resolve,
+            reject,
+            nativeThreadId: active.session.nativeId,
+          });
+        });
+        active.queue.push(
+          active.events.create('approval', {
+            requestId,
+            phase: 'requested',
+            title: 'Allow Mac action',
+            description:
+              stringAt(params, ['command'], ['reason']) ?? 'Allow this native file change?',
+            choices: [
+              { id: 'allow_once', label: 'Allow once', kind: 'allow_once' },
+              { id: 'deny', label: 'Deny', kind: 'deny' },
+            ],
+          }),
+        );
+        const response = await decision;
+        return { decision: response.choiceId === 'allow_once' ? 'accept' : 'decline' };
+      } finally {
+        active.approvalPending = false;
+        active.lastActivity = Date.now();
+      }
     }
     if (method.includes('requestUserInput')) {
       const requestId =
@@ -1044,7 +1272,11 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         }),
       );
       const response = await new Promise<ProviderRequestResponse>((resolve, reject) => {
-        this.#pendingRequests.set(requestId, { resolve, reject });
+        this.#pendingRequests.set(requestId, {
+          resolve,
+          reject,
+          nativeThreadId: active.session.nativeId,
+        });
       });
       return { answers: response.text ? { answer: response.text } : {} };
     }
@@ -1052,6 +1284,9 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   }
 
   #failTurn(active: ActiveTurn, error: unknown): void {
+    // Interrupt/completion can win the race with a pending start/tool request.
+    // The terminal notification already closed its queue; do not fail it twice.
+    if (this.#activeByThread.get(active.session.nativeId) !== active) return;
     active.queue.push(
       active.events.create('error', {
         code: 'provider_request_failed',
@@ -1065,6 +1300,12 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   }
 
   #removeActive(active: ActiveTurn): void {
+    for (const [id, pending] of this.#pendingRequests) {
+      if (pending.nativeThreadId === active.session.nativeId) {
+        this.#pendingRequests.delete(id);
+        pending.resolve({ requestId: id, choiceId: 'deny' });
+      }
+    }
     if (this.#activeByThread.get(active.session.nativeId) === active)
       this.#activeByThread.delete(active.session.nativeId);
     if (active.nativeTurnId && this.#activeByNativeTurn.get(active.nativeTurnId) === active)
@@ -1130,6 +1371,13 @@ function nativePhase(
 ): ToolEvent['payload']['phase'] {
   const status = stringAt(item, ['status']);
   if (status === 'failed' || status === 'declined') return 'failed';
+  if (
+    method === 'item/completed' &&
+    item.type === 'commandExecution' &&
+    typeof item.exitCode === 'number' &&
+    item.exitCode !== 0
+  )
+    return 'failed';
   return method === 'item/started' ? 'started' : 'completed';
 }
 

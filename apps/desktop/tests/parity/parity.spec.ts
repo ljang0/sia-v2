@@ -108,6 +108,7 @@ test('model and reasoning controls belong to one thread and survive reload', asy
   const harness = await launchParityFixture('threadConfiguration');
   try {
     await createAgentAndThread(harness.page);
+    await harness.page.getByText('Agent settings', { exact: true }).click();
     await harness.page
       .getByTestId(parityContract.threadConfiguration.testIds[0])
       .selectOption('gpt-5.6-terra');
@@ -117,6 +118,7 @@ test('model and reasoning controls belong to one thread and survive reload', asy
 
     await harness.page.reload();
     await expect.poll(() => harness.page.evaluate(() => Boolean(window.sia))).toBe(true);
+    await harness.page.getByText('Agent settings', { exact: true }).click();
     await expect(
       harness.page.getByTestId(parityContract.threadConfiguration.testIds[0]),
     ).toHaveValue('gpt-5.6-terra');
@@ -169,6 +171,7 @@ test('archive, transcript search, and fork preserve source context', async ({}, 
 
 test('background Activity remains visible after the window closes and reopens', async ({}, testInfo) => {
   requireFeature('backgroundActivity', testInfo);
+  test.slow();
   const harness = await launchParityFixture('backgroundActivity');
   try {
     await createAgentAndThread(harness.page);
@@ -181,6 +184,7 @@ test('background Activity remains visible after the window closes and reopens', 
       .getByTestId(parityContract.backgroundActivity.testIds[1])
       .filter({ hasText: 'PARITY_BACKGROUND' });
     await expect(task).toBeVisible();
+    // The fake turn outlasts the window close, so this proves work continues without a renderer.
     await expect(task.getByTestId(parityContract.backgroundActivity.testIds[2])).toHaveText(
       /running/i,
     );
@@ -194,7 +198,7 @@ test('background Activity remains visible after the window closes and reopens', 
       .filter({ hasText: 'PARITY_BACKGROUND' });
     await expect(
       restoredTask.getByTestId(parityContract.backgroundActivity.testIds[2]),
-    ).toHaveText(/complete/i);
+    ).toHaveText(/complete/i, { timeout: 20_000 });
     expect(reopenedErrors).toEqual([]);
   } finally {
     await harness.close();
@@ -247,14 +251,16 @@ test('goals and schedules persist with a deterministic next-run time', async ({}
   });
   try {
     await createAgentAndThread(harness.page);
-    await harness.page.getByRole('button', { name: 'Goal', exact: true }).click();
+    await harness.page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await harness.page.getByRole('menuitem', { name: 'Goal', exact: true }).click();
     await harness.page
       .getByTestId(parityContract.goalsAndSchedules.testIds[0])
       .fill('Publish parity report');
     await harness.page.getByTestId(parityContract.goalsAndSchedules.testIds[1]).click();
 
     await harness.page.getByRole('button', { name: 'Close thread tool' }).click();
-    await harness.page.getByRole('button', { name: 'Schedules', exact: true }).click();
+    await harness.page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await harness.page.getByRole('menuitem', { name: 'Schedules', exact: true }).click();
     await harness.page.getByTestId(parityContract.goalsAndSchedules.testIds[2]).click();
     await harness.page
       .getByTestId(parityContract.goalsAndSchedules.testIds[3])
@@ -284,6 +290,7 @@ test('Changes review stages and restores a real temporary git change', async ({}
     const changedFile = join(workspace, 'notes.txt');
     await writeFile(changedFile, 'changed by parity fixture\n', 'utf8');
 
+    await harness.page.getByRole('button', { name: 'Tools', exact: true }).click();
     await harness.page.getByTestId(parityContract.gitChanges.testIds[0]).click();
     const row = harness.page
       .getByTestId(parityContract.gitChanges.testIds[1])
@@ -314,6 +321,7 @@ test('terminal commands remain scoped to the granted workspace', async ({}, test
   const harness = await launchParityFixture('scopedTerminal');
   try {
     const { workspace } = await createAgentAndThread(harness.page);
+    await harness.page.getByRole('button', { name: 'Tools', exact: true }).click();
     await harness.page.getByTestId(parityContract.scopedTerminal.testIds[0]).click();
     const command = harness.page.getByTestId(parityContract.scopedTerminal.testIds[1]);
     await command.fill('pwd');
@@ -341,6 +349,7 @@ test('background terminals accept input and stop without blocking the thread', a
   const harness = await launchParityFixture('backgroundTerminal');
   try {
     await createAgentAndThread(harness.page);
+    await harness.page.getByRole('button', { name: 'Tools', exact: true }).click();
     await harness.page.getByTestId(parityContract.backgroundTerminal.testIds[0]).click();
     await harness.page
       .getByTestId(parityContract.backgroundTerminal.testIds[1])
@@ -376,6 +385,7 @@ test('workspace snapshots preserve and restore tracked changes without hiding th
     const changedFile = join(workspace, 'notes.txt');
     await writeFile(changedFile, 'saved workspace state\n', 'utf8');
 
+    await harness.page.getByRole('button', { name: 'Tools', exact: true }).click();
     await harness.page.getByTestId(parityContract.workspaceSnapshots.testIds[0]).click();
     await harness.page.getByTestId(parityContract.workspaceSnapshots.testIds[1]).click();
     const snapshots = harness.page.getByTestId(parityContract.workspaceSnapshots.testIds[2]);
@@ -402,6 +412,7 @@ test('workspace snapshots preserve and restore tracked changes without hiding th
 });
 
 test('two worktrees can run independent deterministic tasks concurrently', async ({}, testInfo) => {
+  test.slow();
   requireFeature('worktreeParallelism', testInfo);
   const harness = await launchParityFixture('worktreeParallelism');
   try {
@@ -434,7 +445,7 @@ test('two worktrees can run independent deterministic tasks concurrently', async
       rows
         .getByTestId(parityContract.worktreeParallelism.testIds[4])
         .filter({ hasText: /complete/i }),
-    ).toHaveCount(2);
+    ).toHaveCount(2, { timeout: 25_000 });
     const worktrees = (await git(workspace, ['worktree', 'list', '--porcelain'])).stdout;
     expect(worktrees).toContain('parity-alpha');
     expect(worktrees).toContain('parity-beta');
@@ -515,9 +526,8 @@ async function launchParityFixture(
 
 function fixtureEnvironment(feature: ParityFeature): Record<string, string> {
   if (feature === 'interruptedTurnRecovery') return { SIA_TEST_FAKE_TURN_DELAY_MS: '10000' };
-  if (feature === 'backgroundActivity' || feature === 'worktreeParallelism') {
-    return { SIA_TEST_FAKE_TURN_DELAY_MS: '1500' };
-  }
+  if (feature === 'backgroundActivity') return { SIA_TEST_FAKE_TURN_DELAY_MS: '8000' };
+  if (feature === 'worktreeParallelism') return { SIA_TEST_FAKE_TURN_DELAY_MS: '15000' };
   return {};
 }
 

@@ -1,0 +1,107 @@
+:root {
+  --aurora-emerald: #41c68e;
+  --aurora-cyan: #59b8d1;
+  --aurora-violet: #aaa0dd;
+  --aurora-strength: 0.44;
+  --aurora-ink-start: #265a49;
+  --aurora-ink-middle: #2e627e;
+  --aurora-ink-end: #6d4f88;
+}
+.sia-aurora {
+  pointer-events: none;
+}
+.aurora-fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transition: opacity 500ms ease;
+}
+.aurora-veil {
+  position: absolute;
+  inset: -22% -40% 10%;
+  border-radius: 42% 58% 40% 60%;
+  filter: blur(24px);
+  opacity: var(--aurora-strength);
+  transform-origin: 50% 25%;
+}
+.aurora-emerald {
+  filter: blur(14px);
+  opacity: calc(var(--aurora-strength) * 1.2);
+  background: radial-gradient(
+    ellipse at 42% 38%,
+    transparent 29%,
+    var(--aurora-emerald) 36%,
+    color-mix(in srgb, var(--aurora-emerald) 48%, transparent) 43%,
+    transparent 54%
+  );
+  transform: rotate(-15deg);
+}
+.aurora-cyan {
+  background: radial-gradient(
+    ellipse at 60% 10%,
+    transparent 24%,
+    var(--aurora-cyan) 36%,
+    transparent 52%
+  );
+  transform: rotate(12deg);
+}
+.aurora-violet {
+  background: radial-gradient(
+    ellipse at 65% 35%,
+    transparent 32%,
+    var(--aurora-violet) 41%,
+    transparent 52%
+  );
+  transform: rotate(-8deg);
+}
+.aurora-horizon {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at 50% 0%,
+    color-mix(in srgb, var(--aurora-emerald) 14%, transparent),
+    transparent 66%
+  );
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --aurora-emerald: #40e7a0;
+    --aurora-cyan: #38b6cf;
+    --aurora-violet: #9680f0;
+    --aurora-strength: 0.34;
+    --aurora-ink-start: #b8ffd2;
+    --aurora-ink-middle: #a4e3f1;
+    --aurora-ink-end: #d4bffd;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora-fallback {
+    transition: none;
+  }
+}
+
+/* Keep a gentle aurora visible while a phone recovers its graphics context. */
+@media (prefers-reduced-motion: no-preference) {
+  .sia-aurora[data-renderer='fallback'][data-paused='false'] .aurora-veil {
+    animation: auroraFallbackDrift 14s ease-in-out infinite alternate;
+  }
+  .sia-aurora[data-renderer='fallback'] .aurora-cyan {
+    animation-delay: -7s;
+  }
+  .sia-aurora[data-renderer='fallback'] .aurora-violet {
+    animation-delay: -4s;
+    animation-direction: alternate-reverse;
+  }
+}
+@keyframes auroraFallbackDrift {
+  from {
+    translate: -2% 0;
+    rotate: -5deg;
+  }
+  to {
+    translate: 3% 4%;
+    rotate: 7deg;
+  }
+}

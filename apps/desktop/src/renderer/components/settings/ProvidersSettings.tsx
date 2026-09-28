@@ -1,5 +1,5 @@
 import { CheckCircle } from '@phosphor-icons/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { providerStatusLabel } from '../../providerSetup';
 import type { ProviderId, ProviderSetup } from '../../types';
 import styles from '../../ui.module.css';
@@ -20,6 +20,13 @@ export function ProvidersSettings({
 }) {
   const [pending, setPending] = useState<ProviderId>();
   const [error, setError] = useState<string>();
+  const setup = providers.find(({ id }) => id === 'codex')?.setup;
+  const setupBusy = Boolean(setup && setup.phase !== 'error');
+  const busy = Boolean(pending) || setupBusy;
+  const providerStates = providers.map(({ id, status }) => `${id}:${status}`).join(',');
+  useEffect(() => {
+    setError(undefined);
+  }, [providerStates]);
   const visibleProviders = RELEASE_PROVIDERS.flatMap((providerId) => {
     const provider = providers.find((candidate) => candidate.id === providerId);
     return provider ? [provider] : [];
@@ -44,9 +51,11 @@ export function ProvidersSettings({
   return (
     <SettingsSectionHeader
       title="AI access"
-      description="Codex is recommended for the pilot. The included model is available when its provider is healthy."
+      description="Connect your ChatGPT plan. Sia handles Codex installation, updates, and browser sign-in."
     >
-      <InlineSettingsError message={error} />
+      <InlineSettingsError
+        message={error ?? (setup?.phase === 'error' ? setup.message : undefined)}
+      />
       <div className={styles.settingsList}>
         {visibleProviders.map((provider) => (
           <div className={styles.settingsRow} key={provider.id}>
@@ -62,43 +71,47 @@ export function ProvidersSettings({
                 <strong>{providerName(provider)}</strong>
                 <ProviderStatusLabel provider={provider} />
               </div>
-              <p>{providerDescription(provider)}</p>
+              {provider.setup && provider.setup.phase !== 'error' ? (
+                <p role="status" aria-live="polite">
+                  {provider.setup.message}
+                </p>
+              ) : (
+                <p>{providerDescription(provider)}</p>
+              )}
             </div>
             {provider.id === 'meta' && provider.status === 'needs-login' ? (
               <button
                 type="button"
                 className={styles.primaryButton}
-                disabled={Boolean(pending)}
+                disabled={busy}
                 onClick={onOpenCloudSettings}
               >
                 Sign in
               </button>
             ) : provider.id === 'meta' &&
               (provider.status === 'needs-install' || provider.status === 'incompatible') ? (
-              <button
-                type="button"
-                className={styles.primaryButton}
-                disabled={Boolean(pending)}
-                onClick={() =>
-                  void run(
-                    provider,
-                    () => onOpenProviderSetup('codex'),
-                    'Codex harness setup could not be opened.',
-                  )
-                }
-              >
-                {pending === provider.id
-                  ? 'Opening…'
-                  : provider.status === 'incompatible'
-                    ? 'Update Codex harness'
-                    : 'Install Codex harness'}
-              </button>
+              visibleProviders.some(({ id }) => id === 'codex') ? null : (
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  disabled={busy}
+                  onClick={() =>
+                    void run(
+                      provider,
+                      () => onOpenProviderSetup('codex'),
+                      'Codex harness setup could not be opened.',
+                    )
+                  }
+                >
+                  {pending === provider.id ? pendingAction(provider) : 'Set up Codex'}
+                </button>
+              )
             ) : provider.status === 'ready' ||
               provider.status === 'disabled' ? null : provider.status === 'unavailable' ? (
               <button
                 type="button"
                 className={styles.secondaryButton}
-                disabled={Boolean(pending)}
+                disabled={busy}
                 onClick={() =>
                   void run(provider, onProbe, `${providerName(provider)} could not be checked.`)
                 }
@@ -109,7 +122,7 @@ export function ProvidersSettings({
               <button
                 type="button"
                 className={styles.primaryButton}
-                disabled={Boolean(pending)}
+                disabled={busy}
                 onClick={() =>
                   void run(
                     provider,
@@ -118,7 +131,9 @@ export function ProvidersSettings({
                   )
                 }
               >
-                {pending === provider.id ? pendingAction(provider) : setupAction(provider)}
+                {pending === provider.id || (provider.id === 'codex' && setupBusy)
+                  ? pendingAction(provider)
+                  : setupAction(provider)}
               </button>
             )}
           </div>
@@ -135,10 +150,16 @@ function providerName(provider: ProviderSetup): string {
 }
 
 function providerDescription(provider: ProviderSetup): string {
+  if (provider.status === 'needs-install' || provider.status === 'incompatible')
+    return provider.status === 'incompatible'
+      ? 'One button updates Codex, restarts Sia, and continues to ChatGPT sign-in. No terminal needed.'
+      : 'One button downloads Codex, restarts Sia, and continues to ChatGPT sign-in. No terminal needed.';
   if (provider.id === 'meta')
     return 'Provided with your Sia account. No API key needed; availability may vary during the pilot.';
   if (provider.id === 'codex')
-    return 'Recommended for the pilot. Uses the Codex access in your ChatGPT plan.';
+    return provider.status === 'needs-login'
+      ? 'Sign in with ChatGPT in your browser. Sia checks the connection automatically.'
+      : 'Uses the Codex access in your ChatGPT plan.';
   if (provider.id === 'claude')
     return 'Use the Claude plan already connected to this computer.';
   return provider.description;
@@ -149,14 +170,21 @@ function providerMonogram(provider: ProviderId): string {
 }
 
 function setupAction(provider: ProviderSetup): string {
-  if (provider.status === 'needs-install') return 'Install Codex';
-  if (provider.status === 'incompatible') return 'Update Codex';
-  if (provider.id === 'codex' && provider.status === 'needs-login')
-    return 'Sign in with ChatGPT';
+  if (
+    provider.id === 'codex' ||
+    provider.status === 'needs-install' ||
+    provider.status === 'incompatible'
+  )
+    return 'Set up Codex';
   return 'Connect';
 }
 
 function pendingAction(provider: ProviderSetup): string {
+  if (provider.setup?.phase === 'restarting') return 'Restarting…';
+  if (provider.setup?.phase === 'signing-in') return 'Waiting for sign-in…';
+  if (provider.setup?.phase === 'checking') return 'Checking connection…';
+  if (provider.status === 'needs-install') return 'Installing…';
+  if (provider.status === 'incompatible') return 'Updating…';
   return provider.id === 'codex' && provider.status === 'needs-login'
     ? 'Waiting for sign-in…'
     : 'Opening…';
@@ -164,11 +192,18 @@ function pendingAction(provider: ProviderSetup): string {
 
 function ProviderStatusLabel({ provider }: { provider: ProviderSetup }) {
   const label =
-    provider.status === 'ready'
-      ? provider.id === 'meta'
-        ? 'Ready'
-        : 'Connected'
-      : providerStatusLabel(provider);
+    provider.setup && provider.setup.phase !== 'error'
+      ? {
+          installing: 'Setting up',
+          restarting: 'Restarting',
+          'signing-in': 'Signing in',
+          checking: 'Checking',
+        }[provider.setup.phase]
+      : provider.status === 'ready'
+        ? provider.id === 'meta'
+          ? 'Ready'
+          : 'Connected'
+        : providerStatusLabel(provider);
   return (
     <span className={`${styles.stateLabel} ${styles[`state_${provider.status}`]}`}>
       {provider.status === 'ready' ? <CheckCircle size={14} aria-hidden="true" /> : null}

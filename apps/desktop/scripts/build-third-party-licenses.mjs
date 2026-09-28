@@ -179,6 +179,24 @@ for (const font of bundledFontAssets) {
   );
 }
 
+const ditherLicense = (
+  await readFile(
+    join(
+      desktopRoot,
+      'src',
+      'renderer',
+      'components',
+      'effects',
+      'dither-preview',
+      'LICENSE.md',
+    ),
+    'utf8',
+  )
+).trimEnd();
+const bundledComponentSections = [
+  `${'='.repeat(80)}\nBUNDLED COMPONENT: React Bits Dither\nDECLARED LICENSE: MIT + Commons Clause License Condition v1.0\n${'-'.repeat(80)}\n--- LICENSE.md ---\n${ditherLicense}`,
+];
+
 const sections = [...packages.values()]
   .sort((left, right) => left.key.localeCompare(right.key))
   .map((item) => {
@@ -205,6 +223,7 @@ const document = [
   '',
   ...sections,
   ...fontSections,
+  ...bundledComponentSections,
   '',
 ].join('\n');
 

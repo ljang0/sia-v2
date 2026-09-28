@@ -30,7 +30,7 @@ export function FeedbackDialog({
     <Dialog.Root open={open} onOpenChange={(next) => !sending && onOpenChange(next)}>
       <Dialog.Portal>
         <Dialog.Overlay className={styles.dialogOverlay} />
-        <Dialog.Content className={styles.alertDialogContent}>
+        <Dialog.Content className={`${styles.alertDialogContent} ${styles.feedbackDialog}`}>
           <Dialog.Title>Send feedback</Dialog.Title>
           <Dialog.Description>
             Sia opens a draft in your mail app. Nothing is uploaded or sent until you review it.

@@ -19,13 +19,19 @@ quality, type, unit, and deterministic desktop E2E gates. See
 
 ## Product contract
 
+- Design for everyday consumers without technical backgrounds. Use plain language, sensible
+  defaults, and short setup flows. Keep advanced configuration and developer concepts out of the
+  main path; introduce optional features when people need them.
+
 - A release with cloud configured has no private app access before email sign-in.
 - New agents offer an included model when live-verified or the user's existing Codex plan. Both use
   the Codex App Server harness. Users never paste model API keys into Sia.
 - Google Workspace, Slack, signed-in Chrome, Apple Messages, and computer use are optional. They do
   not block first-run setup.
-- Host-side actions ask for confirmation by default. Secure fields, authentication surfaces,
-  Keychain, and password managers stay blocked.
+- Onboarding offers confirmation and full-bypass modes; its initial selection is Use my Mac + full
+  bypass. Use confirmations for supervised pilot testing. Sia-hosted tools block secure fields,
+  authentication surfaces, Keychain, and password managers. Native shell execution follows the
+  provider's approval boundary; the same restrictions in its prompt are not shell enforcement.
 - Local turns and schedules require the Sia process to remain open and the Mac to stay awake.
 - Research capture is off unless the user separately consents. A pilot is not a research release.
 
@@ -35,7 +41,7 @@ quality, type, unit, and deterministic desktop E2E gates. See
 - `apps/cloud` — AWS control-plane handlers and connector/model relays.
 - `apps/site` — static public, privacy, support, and research pages.
 - `packages/runtime` — provider/harness resolution and supervised provider processes.
-- `packages/action-gateway` — the only model-visible host-action authorization boundary.
+- `packages/action-gateway` — authorization for Sia-hosted actions. Native tools use the provider boundary.
 - `packages/tool-bridge` — capability-scoped transport for approved tools.
 - `packages/protocol` — shared runtime event and request contracts.
 - `infra` — deployable AWS and connector configuration.
@@ -54,8 +60,10 @@ admission checks in [`docs/harness-policy.md`](./docs/harness-policy.md).
   release automation.
 - Extend the provider catalog, execution resolver, and signed harness registry when adding a model
   or harness. Do not scatter provider-name conditionals through the UI.
-- All model-proposed browser, computer, connector, Messages, and schedule actions must pass through
-  `packages/action-gateway` and capability validation in the desktop main process.
+- Sia-hosted browser, computer, connector, Messages, and schedule actions must pass through
+  `packages/action-gateway` and capability validation in the desktop main process. Use my Mac's
+  native shell and file tools instead run through Codex's approval boundary, as documented in
+  [`docs/architecture.md`](./docs/architecture.md).
 - The renderer must use the typed preload bridge. Do not add generic IPC, raw CDP/JavaScript,
   cookie access, arbitrary shell tools, or a model-visible terminal.
 - Preserve encrypted local state migrations and existing-thread routes. A new thread pins its

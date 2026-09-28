@@ -38,6 +38,8 @@ export class SpawnCommandRunner implements CommandRunner {
 export interface SupportedVersionRange {
   readonly minimum: string;
   readonly maximumExclusive?: string;
+  /** Exact separately verified builds outside the normal stable release range. */
+  readonly additionalVersions?: readonly string[];
 }
 
 export function parseCliVersion(text: string): string | undefined {
@@ -58,10 +60,30 @@ export function compareVersions(left: string, right: string): number {
     const difference = (a[index] ?? 0) - (b[index] ?? 0);
     if (difference !== 0) return Math.sign(difference);
   }
+  const aPre = left.split('+', 1)[0]!.split('-').slice(1).join('-');
+  const bPre = right.split('+', 1)[0]!.split('-').slice(1).join('-');
+  if (!aPre || !bPre) return aPre ? -1 : bPre ? 1 : 0;
+  const aIds = aPre.split('.');
+  const bIds = bPre.split('.');
+  for (let index = 0; index < Math.max(aIds.length, bIds.length); index += 1) {
+    const aId = aIds[index];
+    const bId = bIds[index];
+    if (aId === bId) continue;
+    if (aId === undefined) return -1;
+    if (bId === undefined) return 1;
+    const aNumeric = /^\d+$/.test(aId);
+    const bNumeric = /^\d+$/.test(bId);
+    if (aNumeric && bNumeric) return Math.sign(Number(aId) - Number(bId));
+    if (aNumeric !== bNumeric) return aNumeric ? -1 : 1;
+    return aId < bId ? -1 : 1;
+  }
   return 0;
 }
 
 export function isVersionSupported(version: string, range: SupportedVersionRange): boolean {
+  if (range.additionalVersions?.includes(version)) return true;
+  // Prereleases need exact admission even when their numeric core is in range.
+  if (version.includes('-')) return false;
   return (
     compareVersions(version, range.minimum) >= 0 &&
     (range.maximumExclusive === undefined ||

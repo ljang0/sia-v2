@@ -55,6 +55,10 @@ export interface ActionContext {
   readonly turnId: string;
   readonly provider: ProviderId;
   readonly workspace: string;
+  /** Host-pinned per turn; model arguments cannot authorize foreground fallback. */
+  readonly backgroundOnly?: boolean;
+  /** Host-pinned per turn and inherited by nested skill actions; never a model argument. */
+  readonly allowedTools?: ReadonlySet<string>;
   readonly lease?: TurnLease;
   readonly signal?: AbortSignal;
 }
@@ -158,9 +162,9 @@ function defaultSafetyDecision(
         reason: 'This application must not be controlled through generic computer tools',
       };
   }
-  if (request.name === 'browser_navigate') {
+  if (request.name === 'browser_navigate' || request.name === 'computer_open_url') {
     const url = new URL(String(args.url));
-    if (url.protocol !== 'https:' && url.protocol !== 'http:')
+    if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.username || url.password)
       return { decision: 'deny', reason: 'Only HTTP and HTTPS navigation is allowed' };
   }
   if (request.name === 'browser_upload') {
@@ -258,6 +262,13 @@ export class ActionGateway {
   }
 
   async invoke(invocation: ActionInvocation): Promise<ActionExecutionResult> {
+    if (
+      invocation.context.allowedTools &&
+      !invocation.context.allowedTools.has(invocation.name)
+    )
+      return refused(
+        'This tool is unavailable for the selected Mac route. Use this turn’s provided tools; changing settings cannot expand a running skill’s access.',
+      );
     if (!isActionToolName(invocation.name))
       return refused(`Tool ${invocation.name} is not exposed by Sia`);
     if (this.#isToolAvailable && !this.#isToolAvailable(invocation.name)) {
@@ -287,6 +298,14 @@ export class ActionGateway {
     };
     const hardSafety = defaultSafetyDecision(request);
     if (hardSafety?.decision === 'deny') return refused(hardSafety.reason);
+
+    if (request.context.backgroundOnly && request.arguments.delivery === 'foreground')
+      return {
+        outcome: 'needs_foreground',
+        summary:
+          'This request is set to pause when foreground control is needed. No foreground input or opening was dispatched. Explain the blocker; the user can enable brief foreground control in Settings → Computer for a new request.',
+        reason: 'Background fallback is set to pause for this turn.',
+      };
 
     const authorization = await this.#policy.evaluate(request);
     let approvedRequestId: string | undefined;

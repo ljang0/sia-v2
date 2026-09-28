@@ -365,6 +365,7 @@ export const messageEventSchema = z.object({
     role: messageRoleSchema,
     parts: z.array(contentPartSchema),
     delta: z.boolean().default(false),
+    phase: z.enum(['commentary', 'final_answer']).optional(),
   }),
 });
 export type MessageEvent = z.infer<typeof messageEventSchema>;
@@ -579,6 +580,12 @@ export interface ProviderAccount {
 }
 
 export interface ProviderSessionOptions {
+  /** Dynamic-tool-only sessions: supported by the Codex harness, with native execution disabled. */
+  readonly nativeTools?: 'disabled' | 'mac' | 'mac-background';
+  /** Explicit desktop Mac mode: native commands run outside the workspace sandbox. */
+  readonly nativeApproval?: 'ask' | 'auto';
+  /** Replaces the coding persona for the native or window-based Mac assistant. */
+  readonly baseInstructions?: string;
   readonly threadId: string;
   readonly model: string;
   /** Optional during migration; harness-aware callers should provide the pinned target. */
@@ -612,6 +619,7 @@ export interface ProviderTurnInput {
   readonly attachments?: readonly ProviderAttachment[];
   readonly model?: string;
   readonly reasoningEffort?: string;
+  readonly outputSchema?: Readonly<Record<string, unknown>>;
 }
 
 export interface ProviderReviewInput {

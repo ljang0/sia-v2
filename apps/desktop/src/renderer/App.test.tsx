@@ -1,6 +1,14 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import App from './App';
 import { createDemoRendererApi, demoSnapshot } from './demo';
@@ -9,6 +17,24 @@ import type { RendererApi, RendererSnapshot } from './types';
 afterEach(cleanup);
 
 describe('app privacy routing', () => {
+  it('replaces startup with a recoverable error when the initial load fails', async () => {
+    const api = createDemoRendererApi(structuredClone(demoSnapshot));
+    const getSnapshot = api.getSnapshot;
+    let reject!: (error: Error) => void;
+    api.getSnapshot = () =>
+      new Promise((_resolve, fail) => {
+        reject = fail;
+      });
+    render(<App api={api} />);
+    expect(screen.getByRole('status', { name: 'Loading Sia' })).toBeTruthy();
+    await act(async () => reject(new Error('Please reconnect.')));
+    expect(await screen.findByRole('heading', { name: 'Sia needs to reconnect' })).toBeTruthy();
+    expect(screen.queryByRole('status', { name: 'Loading Sia' })).toBeNull();
+    api.getSnapshot = getSnapshot;
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('button', { name: 'Access' })).toBeTruthy();
+  });
+
   it('opens the quick switcher from the keyboard and routes a command', async () => {
     render(<App api={createDemoRendererApi(structuredClone(demoSnapshot))} />);
     await screen.findByRole('button', { name: 'Access' });
@@ -24,6 +50,29 @@ describe('app privacy routing', () => {
     expect(screen.queryByRole('dialog', { name: 'Move through Sia' })).toBeNull();
   });
 
+  it('opens the selected launcher conversation even when Settings is already open', async () => {
+    const api = createDemoRendererApi(structuredClone(demoSnapshot));
+    let reveal: (() => void) | undefined;
+    api.onOpenConversation = (listener) => {
+      reveal = listener;
+      return () => {
+        reveal = undefined;
+      };
+    };
+    render(<App api={api} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeTruthy();
+    await act(async () => {
+      await api.selectThread('thread-inbox');
+    });
+    act(() => reveal?.());
+    expect(screen.queryByRole('heading', { name: 'Settings' })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Triage today’s inbox' }).getAttribute('aria-current'),
+    ).toBe('page');
+    expect(screen.getByRole('button', { name: 'Access' })).toBeTruthy();
+  });
+
   it('requires email sign-in before any app access when cloud is configured', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),
@@ -34,14 +83,14 @@ describe('app privacy routing', () => {
 
     expect(await screen.findByRole('dialog', { name: 'Sign in to Sia' })).toBeTruthy();
     expect(screen.getByRole('textbox', { name: 'Email' })).toBeTruthy();
-    expect(screen.getByText(/email invited to the pilot/)).toBeTruthy();
+    expect(screen.getByText(/Enter your email/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Start in local mode' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Create your first agent' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Access' })).toBeNull();
     expect(screen.queryByText(demoSnapshot.agents[0]!.name)).toBeNull();
   });
 
-  it('moves directly from email verification into the minimal first-agent form', async () => {
+  it('moves from email verification into guided setup without opening a second dialog', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),
       agents: [],
@@ -61,12 +110,13 @@ describe('app privacy routing', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Verify code' }));
 
-    const dialog = await screen.findByRole('dialog', { name: 'New agent' });
-    expect(within(dialog).getByRole('textbox', { name: 'Name' })).toBeTruthy();
-    expect(within(dialog).getByRole('textbox', { name: 'Instructions' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Set up Sia' })).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'New agent' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Set up Sia' }));
+    expect(await screen.findByRole('button', { name: 'Start using Sia' })).toBeTruthy();
   });
 
-  it('takes Archived navigation directly to the archive section', async () => {
+  it('keeps archived conversations accessible through Activity', async () => {
     const snapshot: RendererSnapshot = structuredClone(demoSnapshot);
     snapshot.archivedThreads = [
       {
@@ -80,10 +130,10 @@ describe('app privacy routing', () => {
     ];
 
     render(<App api={createDemoRendererApi(snapshot)} />);
-    fireEvent.click(await screen.findByTestId('archived-threads-toggle'));
+    fireEvent.click(await screen.findByTestId('activity-center-toggle'));
 
     const archive = await screen.findByRole('region', { name: 'Archived' });
-    await waitFor(() => expect(document.activeElement).toBe(archive));
+    expect(archive).toBeTruthy();
     expect(screen.getByText('Previous release notes')).toBeTruthy();
   });
 
@@ -185,7 +235,8 @@ describe('app privacy routing', () => {
 
     render(<App api={createDemoRendererApi(snapshot)} />);
 
-    expect(await screen.findByRole('dialog', { name: 'New agent' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Set up Sia' })).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'New agent' })).toBeNull();
     expect(
       screen.queryByRole('alertdialog', { name: 'Join the Sia research release?' }),
     ).toBeNull();
@@ -223,12 +274,12 @@ describe('app privacy routing', () => {
 
     render(<App api={api} />);
 
-    const firstAgentDialog = await screen.findByRole('dialog', { name: 'New agent' });
+    await screen.findByRole('button', { name: 'Set up Sia' });
     expect(
       screen.queryByRole('alertdialog', { name: 'Join the Sia research release?' }),
     ).toBeNull();
     expect(screen.queryByRole('dialog', { name: 'Connect your work apps' })).toBeNull();
-    fireEvent.click(within(firstAgentDialog).getByRole('button', { name: 'Close' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Exit setup' }));
     expect(await screen.findByRole('button', { name: 'Connect work apps later' })).toBeTruthy();
     expect(
       (await api.getSnapshot()).apps.every(({ status }) => status === 'disconnected'),
@@ -269,7 +320,8 @@ describe('app privacy routing', () => {
     expect(screen.queryByRole('dialog', { name: 'Connect your work apps' })).toBeNull();
     fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
     fireEvent.click(screen.getByRole('button', { name: 'Connections' }));
-    fireEvent.click(screen.getAllByRole('button', { name: 'Connect Slack' })[0]!);
+    fireEvent.click(screen.getByRole('checkbox', { name: /Google Workspace/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect selected apps' }));
 
     await waitFor(async () =>
       expect((await api.getSnapshot()).apps.map(({ id, status }) => ({ id, status }))).toEqual([
@@ -303,7 +355,7 @@ describe('app privacy routing', () => {
     ).toBeNull();
   });
 
-  it('opens the minimal first-agent form automatically after sign-in', async () => {
+  it('keeps custom agent creation available as an explicit choice', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),
       agents: [],
@@ -314,6 +366,7 @@ describe('app privacy routing', () => {
 
     render(<App api={createDemoRendererApi(snapshot)} />);
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Customize an agent instead' }));
     const dialog = await screen.findByRole('dialog', { name: 'New agent' });
     expect(within(dialog).getByRole('textbox', { name: 'Name' })).toBeTruthy();
     expect(within(dialog).getByRole('textbox', { name: 'Instructions' })).toBeTruthy();

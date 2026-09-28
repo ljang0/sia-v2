@@ -54,6 +54,8 @@ interface StoredVoicePreference {
 
 export interface VoiceOperations {
   view(): VoiceView;
+  prepareDictation?(): Promise<void>;
+  refreshPermissions?(): Promise<void>;
   configure(): Promise<VoiceView>;
   refresh(): Promise<VoiceView>;
   select(voiceId: string): Promise<VoiceView>;
@@ -65,12 +67,13 @@ export interface VoiceOperations {
   speak(
     text: string,
     voiceId?: string,
-  ): Promise<{ audioBase64: string; mimeType: 'audio/mpeg' }>;
+  ): Promise<{ audioBase64: string; mimeType: 'audio/mpeg' | 'audio/wav' }>;
   dispose?(): void;
 }
 
 export interface ManagedVoiceGateway {
   readonly configured: boolean;
+  readonly personal?: boolean;
   voiceCatalog(signal?: AbortSignal): Promise<{
     provider: {
       available: boolean;
@@ -89,14 +92,18 @@ export interface ManagedVoiceGateway {
   }>;
 }
 
-/** Uses Sia-minted single-use credentials; the long-lived ElevenLabs key never reaches the Mac. */
+/** Uses single-use credentials minted by Sia cloud or the device's personal voice gateway. */
 export class ElevenLabsVoiceService implements VoiceOperations {
   readonly #repository: RecordRepository;
   readonly #gateway: ManagedVoiceGateway;
   readonly #fetch: typeof fetch;
   readonly #websocketFactory: RealtimeSocketFactory;
   readonly #realtimeSessions = new Map<string, RealtimeSession>();
+  readonly #preferenceId: string;
   #preference: StoredVoicePreference | undefined;
+  #lifetime = new AbortController();
+  #disposed = false;
+  readonly #speechSockets = new Set<RealtimeSocket>();
   #voices: VoiceView['voices'] = [];
 
   constructor(options: {
@@ -107,17 +114,18 @@ export class ElevenLabsVoiceService implements VoiceOperations {
   }) {
     this.#repository = options.repository;
     this.#gateway = options.gateway;
+    this.#preferenceId = options.gateway.personal ? 'personal-elevenlabs' : PREFERENCE_ID;
     this.#fetch = options.fetch ?? fetch;
     this.#websocketFactory =
       options.websocketFactory ??
       ((url, socketOptions) => new WebSocket(url, socketOptions) as unknown as RealtimeSocket);
     const stored = parsePreference(
-      this.#repository.get<unknown>(PREFERENCE_SCOPE, PREFERENCE_ID),
+      this.#repository.get<unknown>(PREFERENCE_SCOPE, this.#preferenceId),
     );
     const legacy = parseLegacyCredential(
       this.#repository.get<unknown>(LEGACY_CREDENTIAL_SCOPE, LEGACY_CREDENTIAL_ID),
     );
-    this.#preference = stored ?? legacy;
+    this.#preference = stored ?? (options.gateway.personal ? undefined : legacy);
     this.#voices = this.#preference?.voices ?? [];
     // Upgrade away from user-entered credentials immediately. Voice is refreshed from Sia.
     this.#repository.remove(LEGACY_CREDENTIAL_SCOPE, LEGACY_CREDENTIAL_ID);
@@ -127,19 +135,25 @@ export class ElevenLabsVoiceService implements VoiceOperations {
   view(): VoiceView {
     if (!this.#preference) {
       return {
+        engine: 'elevenlabs',
         status: 'disconnected',
         voices: [],
-        detail: this.#gateway.configured
-          ? 'Sign in to Sia to use included voice.'
-          : 'Voice is unavailable in this build.',
+        detail: this.#gateway.personal
+          ? 'Your personal ElevenLabs voice is configured on this Mac. Enable voice to use it.'
+          : this.#gateway.configured
+            ? 'Sign in to Sia to use included voice.'
+            : 'Voice is unavailable in this build.',
       };
     }
     return {
+      engine: 'elevenlabs',
       status: 'connected',
       selectedVoiceId: this.#preference.voiceId,
       selectedVoiceName: this.#preference.voiceName,
       voices: structuredClone(this.#voices),
-      detail: 'Voice is included with Sia. Speech is sent to ElevenLabs only when you use it.',
+      detail: this.#gateway.personal
+        ? 'Uses your personal ElevenLabs account. Speech is sent to ElevenLabs only when you use voice.'
+        : 'Voice is included with Sia. Speech is sent to ElevenLabs only when you use it.',
     };
   }
 
@@ -148,15 +162,12 @@ export class ElevenLabsVoiceService implements VoiceOperations {
   }
 
   async refresh(): Promise<VoiceView> {
+    const signal = this.#operationSignal(20_000);
     if (!this.#gateway.configured) throw new Error('Sia voice is unavailable in this build.');
-    const catalog = await this.#gateway.voiceCatalog(AbortSignal.timeout(20_000));
+    const catalog = await this.#gateway.voiceCatalog(signal);
+    signal.throwIfAborted();
     if (!catalog.provider.available) throw new Error('Sia voice is temporarily unavailable.');
-    const voices = parseVoices(
-      catalog.provider.voices,
-      this.#preference
-        ? { id: this.#preference.voiceId, name: this.#preference.voiceName }
-        : undefined,
-    );
+    const voices = parseVoices(catalog.provider.voices);
     const selected =
       voices.find((voice) => voice.id === this.#preference?.voiceId) ?? voices[0];
     if (!selected) throw new Error('No Sia voices are currently available.');
@@ -189,10 +200,10 @@ export class ElevenLabsVoiceService implements VoiceOperations {
   }
 
   disconnect(): VoiceView {
-    this.#closeRealtimeSessions();
+    this.#stopOperations();
     this.#preference = undefined;
     this.#voices = [];
-    this.#repository.remove(PREFERENCE_SCOPE, PREFERENCE_ID);
+    this.#repository.remove(PREFERENCE_SCOPE, this.#preferenceId);
     return this.view();
   }
 
@@ -214,19 +225,22 @@ export class ElevenLabsVoiceService implements VoiceOperations {
     );
     form.append('model_id', 'scribe_v2');
     form.append('no_verbatim', 'true');
+    const signal = this.#operationSignal(65_000);
     const { token } = await this.#gateway.mintVoiceToken(
       'batch_scribe',
-      AbortSignal.timeout(20_000),
+      AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
     );
+    signal.throwIfAborted();
     const response = await this.#request(
       `/v1/speech-to-text?token=${encodeURIComponent(token)}`,
       {
         method: 'POST',
         body: form,
-        signal: AbortSignal.timeout(45_000),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(45_000)]),
       },
     );
     const value = (await response.json()) as { text?: unknown };
+    signal.throwIfAborted();
     const text = typeof value.text === 'string' ? value.text.trim() : '';
     if (!text) throw new Error('No speech was detected.');
     return text.slice(0, 200_000);
@@ -234,10 +248,12 @@ export class ElevenLabsVoiceService implements VoiceOperations {
 
   async startRealtime(): Promise<{ sessionId: string }> {
     this.#requirePreference();
+    const signal = this.#operationSignal(30_000);
     const { token } = await this.#gateway.mintVoiceToken(
       'realtime_scribe',
-      AbortSignal.timeout(20_000),
+      AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
     );
+    signal.throwIfAborted();
     const url = new URL('/v1/speech-to-text/realtime', API_ORIGIN);
     url.protocol = 'wss:';
     url.searchParams.set('model_id', 'scribe_v2_realtime');
@@ -261,6 +277,7 @@ export class ElevenLabsVoiceService implements VoiceOperations {
 
     try {
       await waitForSocketOpen(socket);
+      signal.throwIfAborted();
     } catch {
       this.#realtimeSessions.delete(sessionId);
       socket.close();
@@ -348,7 +365,8 @@ export class ElevenLabsVoiceService implements VoiceOperations {
   }
 
   dispose(): void {
-    this.#closeRealtimeSessions();
+    this.#disposed = true;
+    this.#stopOperations();
   }
 
   async speak(
@@ -364,10 +382,12 @@ export class ElevenLabsVoiceService implements VoiceOperations {
     }
     const text = spokenSummary(textValue);
     if (!text) throw new Error('There is no text to read aloud.');
+    const signal = this.#operationSignal(65_000);
     const { token } = await this.#gateway.mintVoiceToken(
       'tts_websocket',
-      AbortSignal.timeout(20_000),
+      AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
     );
+    signal.throwIfAborted();
     const url = new URL(
       `/v1/text-to-speech/${encodeURIComponent(voiceId)}/stream-input`,
       API_ORIGIN,
@@ -377,8 +397,14 @@ export class ElevenLabsVoiceService implements VoiceOperations {
     url.searchParams.set('output_format', 'mp3_44100_128');
     url.searchParams.set('single_use_token', token);
     const socket = this.#websocketFactory(url.toString(), { headers: {} });
-    const audio = await streamSpeech(socket, text);
-    return { audioBase64: audio.toString('base64'), mimeType: 'audio/mpeg' };
+    this.#speechSockets.add(socket);
+    try {
+      const audio = await streamSpeech(socket, text);
+      signal.throwIfAborted();
+      return { audioBase64: audio.toString('base64'), mimeType: 'audio/mpeg' };
+    } finally {
+      this.#speechSockets.delete(socket);
+    }
   }
 
   async #request(path: string, init: RequestInit): Promise<Response> {
@@ -401,8 +427,27 @@ export class ElevenLabsVoiceService implements VoiceOperations {
     throw new Error(`ElevenLabs request failed (${response.status}).`);
   }
 
+  #operationSignal(timeout: number): AbortSignal {
+    if (this.#disposed) throw new Error('Voice was stopped.');
+    return AbortSignal.any([this.#lifetime.signal, AbortSignal.timeout(timeout)]);
+  }
+
+  #stopOperations(): void {
+    this.#lifetime.abort(new Error('Voice was stopped.'));
+    this.#lifetime = new AbortController();
+    this.#closeRealtimeSessions();
+    for (const socket of this.#speechSockets) socket.close(1_000, 'stopped');
+    this.#speechSockets.clear();
+  }
+
   #requirePreference(): StoredVoicePreference {
-    if (!this.#preference) throw new Error('Sign in to Sia to use included voice.');
+    if (this.#disposed) throw new Error('Voice was stopped.');
+    if (!this.#preference)
+      throw new Error(
+        this.#gateway.personal
+          ? 'Enable ElevenLabs voice in Settings → Voice.'
+          : 'Sign in to Sia to use included voice.',
+      );
     return this.#preference;
   }
 
@@ -463,7 +508,7 @@ export class ElevenLabsVoiceService implements VoiceOperations {
 
   #persist(): void {
     if (this.#preference) {
-      this.#repository.put(PREFERENCE_SCOPE, PREFERENCE_ID, this.#preference);
+      this.#repository.put(PREFERENCE_SCOPE, this.#preferenceId, this.#preference);
     }
   }
 }
@@ -595,6 +640,7 @@ function streamSpeech(socket: RealtimeSocket, text: string): Promise<Buffer> {
     };
 
     const start = () => {
+      if (settled) return;
       socket.send(
         JSON.stringify({
           text: ' ',
@@ -691,7 +737,7 @@ function speechText(value: string): string {
 }
 
 /** Makes playback concise and always ends at a sentence boundary. */
-function spokenSummary(value: string): string {
+export function spokenSummary(value: string): string {
   const text = speechText(value);
   if (!text) return '';
   const sentences = text.match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g)?.map((part) => part.trim()) ?? [

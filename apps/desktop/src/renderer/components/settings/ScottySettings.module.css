@@ -1,0 +1,116 @@
+.card {
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-raised);
+  border-radius: 20px;
+  overflow: hidden;
+  max-width: 660px;
+}
+.hero {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 6px 18px;
+  align-items: center;
+  padding: 20px 24px;
+}
+.preview {
+  grid-column: 1;
+  grid-row: 1 / 4;
+  display: grid;
+  place-items: center;
+}
+.name {
+  grid-column: 2;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 10px;
+  color: var(--text-secondary);
+  letter-spacing: 0.08em;
+}
+.hero h3 {
+  grid-column: 2;
+  font: 560 22px/1.2 var(--font-brand);
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+.hero p {
+  grid-column: 2;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  margin: 0;
+}
+.hero > button {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin-top: 8px;
+}
+.controls {
+  padding: 0 24px;
+  border-top: 1px solid var(--border-subtle);
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 0;
+}
+.row + .row {
+  border-top: 1px solid var(--border-subtle);
+}
+.row strong {
+  font-size: 13px;
+  font-weight: 560;
+}
+.row p {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin: 4px 0 0;
+}
+.row select {
+  max-width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 7px 12px;
+  color: var(--text-primary);
+  background: var(--bg-field);
+  font: inherit;
+  font-size: 12px;
+}
+.row input {
+  accent-color: var(--bg-accent);
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.row button {
+  white-space: nowrap;
+  font-size: 11px;
+}
+.note {
+  max-width: 660px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.65;
+  margin-top: 15px;
+}
+
+@container (max-width: 420px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 20px;
+  }
+  .preview {
+    display: none;
+  }
+  .name,
+  .hero h3,
+  .hero p {
+    grid-column: 1;
+  }
+  .row > div {
+    flex: 1 1 150px;
+  }
+}

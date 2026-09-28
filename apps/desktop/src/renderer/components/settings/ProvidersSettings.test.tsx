@@ -52,8 +52,71 @@ describe('AI access settings', () => {
       onOpenProviderSetup,
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in with ChatGPT' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Set up Codex' }));
     await waitFor(() => expect(onOpenProviderSetup).toHaveBeenCalledWith('codex'));
+  });
+
+  it.each(['needs-install', 'incompatible'] as const)(
+    'installs or updates Codex with pending and retry feedback (%s)',
+    async (status) => {
+      let fail!: (error: Error) => void;
+      const onOpenProviderSetup = vi.fn(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            fail = reject;
+          }),
+      );
+      renderSettings({
+        providers: demoSnapshot.providers.map((provider) =>
+          provider.id === 'codex' ? { ...provider, status } : provider,
+        ),
+        onOpenProviderSetup,
+      });
+      const name = 'Set up Codex';
+      fireEvent.click(screen.getByRole('button', { name }));
+      const busy = screen.getByRole('button', {
+        name: status === 'needs-install' ? 'Installing…' : 'Updating…',
+      });
+      expect((busy as HTMLButtonElement).disabled).toBe(true);
+      expect(onOpenProviderSetup).toHaveBeenCalledWith('codex');
+      fail(new Error('Download could not be verified. Try again.'));
+      await waitFor(() =>
+        expect(screen.getByText('Download could not be verified. Try again.')).toBeTruthy(),
+      );
+      expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(false);
+    },
+  );
+
+  it('shows restarted setup progress and prevents duplicate sign-in clicks', () => {
+    renderSettings({
+      providers: demoSnapshot.providers.map((provider) =>
+        provider.id === 'codex'
+          ? {
+              ...provider,
+              status: 'needs-login' as const,
+              setup: {
+                phase: 'signing-in' as const,
+                message: 'Finish signing in with ChatGPT in your browser.',
+              },
+            }
+          : provider,
+      ),
+    });
+    expect(screen.getByRole('status').textContent).toContain('Finish signing in');
+    expect(
+      (screen.getByRole('button', { name: 'Waiting for sign-in…' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+  });
+
+  it('offers one Codex setup button when both access choices need its installation', () => {
+    renderSettings({
+      providers: demoSnapshot.providers.map((provider) => ({
+        ...provider,
+        status: 'needs-install' as const,
+      })),
+    });
+    expect(screen.getAllByRole('button', { name: 'Set up Codex' })).toHaveLength(1);
   });
 
   it('routes included-model access to Sia sign-in', () => {

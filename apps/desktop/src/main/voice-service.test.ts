@@ -94,6 +94,116 @@ function gateway() {
 }
 
 describe('ElevenLabsVoiceService', () => {
+  it('replaces a removed selected voice with a current catalog choice', async () => {
+    const records = repository();
+    const managedGateway = gateway();
+    const service = new ElevenLabsVoiceService({
+      repository: records,
+      gateway: managedGateway,
+    });
+    await service.configure();
+    await service.select('voice-2');
+    managedGateway.voiceCatalog.mockResolvedValueOnce({
+      provider: { available: true, voices: [VOICES[0]!], tokenTypes: ['realtime_scribe'] },
+    });
+    await service.refresh();
+    expect(service.view()).toMatchObject({ selectedVoiceId: 'voice-1', voices: [VOICES[0]] });
+    await expect(service.speak('Synthetic test.', 'voice-2')).rejects.toThrow(
+      /no longer available/,
+    );
+    records.close();
+  });
+
+  it('cannot re-enable voice when a catalog arrives after disconnect', async () => {
+    const records = repository();
+    const managedGateway = gateway();
+    let finish!: (value: Awaited<ReturnType<ManagedVoiceGateway['voiceCatalog']>>) => void;
+    managedGateway.voiceCatalog.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const service = new ElevenLabsVoiceService({
+      repository: records,
+      gateway: managedGateway,
+    });
+    const refresh = service.configure();
+    service.disconnect();
+    finish({ provider: { available: true, voices: VOICES, tokenTypes: ['realtime_scribe'] } });
+    await expect(refresh).rejects.toThrow(/stopped/);
+    expect(service.view().status).toBe('disconnected');
+    expect(records.get('voice', 'managed')).toBeUndefined();
+    records.close();
+  });
+
+  it.each(['startRealtime', 'speak', 'transcribe'] as const)(
+    'does not send audio or text from a late %s token after disconnect',
+    async (operation) => {
+      const records = repository();
+      const managedGateway = gateway();
+      const sockets: FakeSpeechSocket[] = [];
+      const fetchMock = vi.fn<typeof fetch>(async () =>
+        Response.json({ text: 'late transcript' }),
+      );
+      let finish!: (value: Awaited<ReturnType<ManagedVoiceGateway['mintVoiceToken']>>) => void;
+      managedGateway.mintVoiceToken.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const service = new ElevenLabsVoiceService({
+        repository: records,
+        gateway: managedGateway,
+        fetch: fetchMock,
+        websocketFactory: () => {
+          const socket = new FakeSpeechSocket();
+          sockets.push(socket);
+          queueMicrotask(() => socket.open());
+          return socket;
+        },
+      });
+      await service.configure();
+      const pending =
+        operation === 'speak'
+          ? service.speak('Synthetic test.')
+          : operation === 'transcribe'
+            ? service.transcribe('AQID', 'audio/wav')
+            : service.startRealtime();
+      service.disconnect();
+      finish({
+        token: 'late-single-use-fixture',
+        type: 'realtime_scribe',
+        singleUse: true,
+        expiresAt: new Date().toISOString(),
+      });
+      await expect(pending).rejects.toThrow(/stopped/);
+      expect(sockets).toHaveLength(0);
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(managedGateway.mintVoiceToken.mock.calls[0]?.[1]?.aborted).toBe(true);
+      records.close();
+    },
+  );
+
+  it('closes speech generation on dispose and rejects further use', async () => {
+    const records = repository();
+    const socket = new FakeRealtimeSocket();
+    const service = new ElevenLabsVoiceService({
+      repository: records,
+      gateway: gateway(),
+      websocketFactory: () => socket,
+    });
+    await service.configure();
+    const pending = service.speak('Synthetic test.');
+    await Promise.resolve();
+    service.dispose();
+    await expect(pending).rejects.toThrow();
+    expect(socket.readyState).toBe(3);
+    await expect(service.configure()).rejects.toThrow(/stopped/);
+    records.close();
+  });
+
   it('persists only a managed voice preference and removes a legacy API key', async () => {
     const records = repository();
     records.put('credentials', 'elevenlabs', {

@@ -22,9 +22,15 @@ import type {
   ApprovalDecision,
   AttachmentPreview,
   RendererAttachment,
+  MessageEvent,
   ThreadDetail,
   ThreadEvent,
+  ThreadSummary,
 } from '../types';
+import { timeGreeting } from '../welcome';
+import { completedReplyId } from '../task-result';
+import { WelcomeRecents } from './WelcomeRecents';
+import { ResultCard } from './ResultCard';
 import styles from '../ui.module.css';
 import { ActivityRow } from './ActivityRow';
 import { AgentForm } from './AgentForm';
@@ -32,8 +38,12 @@ import { ApprovalCard } from './ApprovalCard';
 import { Composer } from './Composer';
 import { ConversationOutline, hasConversationOutline } from './ConversationOutline';
 import { SafeMarkdown } from './SafeMarkdown';
+import { DitherAurora as Aurora } from './effects/DitherAurora';
+import { LiquidMetalButton } from './effects/liquid-metal-button';
 
 interface ConversationProps {
+  recentThreads?: readonly ThreadSummary[] | undefined;
+  onOpenThread?: ((id: string) => void) | undefined;
   thread?: ThreadDetail | undefined;
   agentName?: string | undefined;
   agentInitials?: string | undefined;
@@ -51,13 +61,19 @@ interface ConversationProps {
   findOpen?: boolean | undefined;
   onFindOpenChange?: ((open: boolean) => void) | undefined;
   voiceEnabled?: boolean | undefined;
+  realtimeDictation?: boolean | undefined;
+  dictationEnabled?: boolean | undefined;
+  globalVoiceActive?: boolean | undefined;
+  onAcquireVoiceCapture?: (() => Promise<string>) | undefined;
+  onReleaseVoiceCapture?: ((leaseId: string) => Promise<void>) | undefined;
   onTranscribeVoice?: ((audioBase64: string, mimeType: string) => Promise<string>) | undefined;
   onStartRealtimeVoice?: (() => Promise<string>) | undefined;
   onAppendRealtimeVoice?:
     ((sessionId: string, audioBase64: string) => Promise<void>) | undefined;
   onStopRealtimeVoice?: ((sessionId: string, commit: boolean) => Promise<string>) | undefined;
   onSpeak?:
-    ((text: string) => Promise<{ audioBase64: string; mimeType: 'audio/mpeg' }>) | undefined;
+    | ((text: string) => Promise<{ audioBase64: string; mimeType: 'audio/mpeg' | 'audio/wav' }>)
+    | undefined;
   completionSound?: boolean | undefined;
   onSend(content: string, attachmentIds?: readonly string[]): Promise<void>;
   onStop(): Promise<void>;
@@ -68,9 +84,12 @@ interface ConversationProps {
   onOpenApps?: (() => void) | undefined;
   onDraftChange?: ((content: string) => Promise<void> | void) | undefined;
   workspaceTools?: ReactNode | undefined;
+  browserRecovery?: ReactNode | undefined;
 }
 
 export function Conversation({
+  recentThreads = [],
+  onOpenThread,
   thread,
   agentName,
   agentHue,
@@ -87,7 +106,12 @@ export function Conversation({
   findOpen = false,
   onFindOpenChange,
   voiceEnabled,
+  realtimeDictation = false,
+  dictationEnabled = true,
   onTranscribeVoice,
+  globalVoiceActive = false,
+  onAcquireVoiceCapture,
+  onReleaseVoiceCapture,
   onStartRealtimeVoice,
   onAppendRealtimeVoice,
   onStopRealtimeVoice,
@@ -102,6 +126,7 @@ export function Conversation({
   onOpenApps,
   onDraftChange,
   workspaceTools,
+  browserRecovery,
 }: ConversationProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedToLatestRef = useRef(true);
@@ -121,6 +146,12 @@ export function Conversation({
     error?: string;
   }>({ phase: 'idle' });
   const [voiceConversation, setVoiceConversation] = useState(false);
+  useEffect(() => {
+    if (globalVoiceActive) {
+      setVoiceConversation(false);
+      stopSpeech();
+    }
+  }, [globalVoiceActive]);
   const [justCompleted, setJustCompleted] = useState(false);
   const [findQuery, setFindQuery] = useState('');
   const [findIndex, setFindIndex] = useState(0);
@@ -130,6 +161,12 @@ export function Conversation({
     result?: AttachmentPreview;
   }>();
   const eventRefs = useRef(new Map<string, HTMLDivElement>());
+
+  const lastAssistant = thread?.events.findLast(
+    (event) => event.type === 'message' && event.role === 'assistant',
+  );
+  const errorAlreadyExplained =
+    lastAssistant?.type === 'message' && lastAssistant.content.trim() === thread?.error?.trim();
 
   const findNeedle = findQuery.trim().toLocaleLowerCase();
   const matchingEventIds = findNeedle
@@ -146,7 +183,7 @@ export function Conversation({
     if (!findOpen || !findQuery || matchingEventIds.length === 0) return;
     eventRefs.current.get(matchingEventIds[findIndex]!)?.scrollIntoView({
       block: 'center',
-      behavior: 'smooth',
+      behavior: 'instant',
     });
   }, [findIndex, findOpen, findQuery, matchingEventIds.join(':')]);
 
@@ -274,6 +311,14 @@ export function Conversation({
 
     const switchedThreads = previousThreadIdRef.current !== thread.id;
     previousThreadIdRef.current = thread.id;
+    if (thread.events.length === 0) {
+      if (switchedThreads) {
+        pinnedToLatestRef.current = true;
+        setShowJumpToLatest(false);
+        scroller.scrollTo?.({ top: 0, behavior: 'instant' });
+      }
+      return;
+    }
     if (switchedThreads) {
       pinnedToLatestRef.current = true;
       setShowJumpToLatest(false);
@@ -305,34 +350,36 @@ export function Conversation({
 
   if (!thread) {
     return (
-      <main className={styles.mainPane} data-companion-conversation>
+      <main className={styles.mainPane} data-companion-conversation data-scene="welcome">
+        <Aurora className={styles.conversationAurora} pauseWhenUnfocused />
         <div className={styles.emptyState} data-companion-empty>
           <AgentForm identity={agentHue ?? 0} size="large" />
           <span className={styles.emptyStateKicker}>
-            {agentName ? `${agentName} is ready` : 'Start here'}
+            {agentName ? `${timeGreeting()} · ${agentName} is ready` : 'Start here'}
           </span>
-          <h1>
+          <h1 className={styles.gradientHeading}>
             {agentName ? `Start a thread with ${agentName}.` : 'Create your first agent.'}
           </h1>
           <p>
             {agentName
-              ? 'A thread keeps its goal, files, and history together so you can return without starting over.'
+              ? 'Pick up a recent conversation, or start with something you want off your list.'
               : 'Give it a name and one short instruction. Sia chooses a model, color, and private folder.'}
           </p>
           {onCreateThread ? (
-            <button className={styles.primaryButton} type="button" onClick={onCreateThread}>
+            <LiquidMetalButton tone="sage" onClick={onCreateThread}>
               New thread
-            </button>
+            </LiquidMetalButton>
           ) : onCreateAgent ? (
-            <button className={styles.primaryButton} type="button" onClick={onCreateAgent}>
+            <LiquidMetalButton tone="sage" onClick={onCreateAgent}>
               Create your first agent
-            </button>
+            </LiquidMetalButton>
           ) : null}
           {onOpenApps ? (
             <button className={styles.textButton} type="button" onClick={onOpenApps}>
               Connect work apps later
             </button>
           ) : null}
+          <WelcomeRecents threads={recentThreads} onOpen={onOpenThread} />
         </div>
       </main>
     );
@@ -360,11 +407,13 @@ export function Conversation({
       ? thread.events[lastAssistantEventIndex]?.id
       : undefined;
   const outlineAvailable = hasConversationOutline(thread.events);
+  const resultId = completedReplyId(thread);
 
   return (
     <main
       className={styles.mainPane}
       data-companion-conversation
+      data-scene={thread.events.length ? 'conversation' : 'welcome'}
       data-file-dragging={draggingFiles ? 'true' : undefined}
       onDragEnter={(event) => {
         if (!onDropAttachments || !hasFiles(event.dataTransfer)) return;
@@ -388,6 +437,11 @@ export function Conversation({
         if (files.length) void onDropAttachments(files);
       }}
     >
+      <Aurora
+        className={styles.conversationAurora}
+        still={thread.events.length > 0}
+        pauseWhenUnfocused
+      />
       {findOpen ? (
         <div className={styles.conversationFind} role="search">
           <MagnifyingGlass size={15} aria-hidden="true" />
@@ -475,8 +529,8 @@ export function Conversation({
             >
               <WarningCircle size={18} aria-hidden="true" />
               <div>
-                <strong>The turn stopped</strong>
-                <span>{thread.error}</span>
+                <strong>Task needs attention</strong>
+                {!errorAlreadyExplained ? <span>{thread.error}</span> : null}
               </div>
               <button
                 type="button"
@@ -485,16 +539,19 @@ export function Conversation({
                 data-testid="interrupted-turn-retry"
               >
                 <ArrowClockwise size={15} aria-hidden="true" />
-                Retry
+                Continue task
               </button>
             </div>
           ) : null}
 
           {thread.events.length === 0 ? (
             <div className={styles.threadEmpty} data-companion-thread-empty>
-              <AgentForm identity={agentHue} size="large" />
-              <span className={styles.emptyStateKicker}>{agentName ?? 'Sia'} is listening</span>
-              <h2>What would you like to do?</h2>
+              <AgentForm identity={agentHue} size="medium" />
+              <span className={styles.emptyStateKicker}>
+                {timeGreeting()}
+                {agentName ? ` · ${agentName} is ready` : ''}
+              </span>
+              <h2 className={styles.gradientHeading}>What would you like to do?</h2>
               <p>Describe the outcome, attach any useful files, or choose a suggested start.</p>
               {onOpenApps ? (
                 <button className={styles.textButton} type="button" onClick={onOpenApps}>
@@ -511,10 +568,11 @@ export function Conversation({
                   ))}
                 </div>
               ) : null}
+              <WelcomeRecents threads={recentThreads} onOpen={onOpenThread} />
             </div>
           ) : (
             <div className={styles.eventList}>
-              {thread.events.map((event) => (
+              {thread.events.map((event, index) => (
                 <div
                   key={event.id}
                   ref={(node) => {
@@ -530,12 +588,21 @@ export function Conversation({
                 >
                   <EventView
                     event={event}
+                    noticeExplained={
+                      event.type === 'notice' &&
+                      event.tone === 'error' &&
+                      thread.events[index - 1]?.type === 'message' &&
+                      (thread.events[index - 1] as MessageEvent).role === 'assistant' &&
+                      (thread.events[index - 1] as MessageEvent).content.trim() ===
+                        event.detail.trim()
+                    }
                     agentHue={agentHue}
                     busyApprovalId={busyApprovalId}
                     speechPhase={speech.eventId === event.id ? speech.phase : 'idle'}
                     speechError={speech.eventId === event.id ? speech.error : undefined}
                     streaming={running && event.id === currentAssistantEventId}
                     justCompleted={justCompleted && event.id === currentAssistantEventId}
+                    completed={event.id === resultId}
                     onToggleSpeech={
                       voiceEnabled && onSpeak
                         ? (text) => toggleSpeech(event.id, text)
@@ -568,6 +635,7 @@ export function Conversation({
                 </div>
               ))}
               {running ? <ThinkingRow /> : null}
+              {browserRecovery}
             </div>
           )}
         </div>
@@ -630,13 +698,18 @@ export function Conversation({
               }
             : undefined
         }
-        voiceEnabled={voiceEnabled}
+        voiceEnabled={voiceEnabled && dictationEnabled}
+        realtimeDictation={realtimeDictation}
+        onAcquireVoiceCapture={onAcquireVoiceCapture}
+        onReleaseVoiceCapture={onReleaseVoiceCapture}
         onTranscribe={onTranscribeVoice}
         onStartRealtime={onStartRealtimeVoice}
         onAppendRealtime={onAppendRealtimeVoice}
         onStopRealtime={onStopRealtimeVoice}
         voiceConversation={voiceConversation}
-        voiceCanListen={speech.phase === 'idle'}
+        voiceCanListen={Boolean(
+          voiceEnabled && dictationEnabled && speech.phase === 'idle' && !globalVoiceActive,
+        )}
         presence={
           speech.phase === 'playing'
             ? 'speaking'
@@ -653,10 +726,7 @@ export function Conversation({
                       : 'idle'
         }
         onVoiceConversationChange={(active) => {
-          if (!active && voiceConversation && speech.phase !== 'idle') {
-            stopSpeech();
-            return;
-          }
+          if (!active && voiceConversation && speech.phase !== 'idle') stopSpeech();
           setVoiceConversation(active);
         }}
         onDraftChange={onDraftChange}
@@ -693,6 +763,8 @@ function scrollToLatest(scroller: HTMLDivElement, behavior: ScrollBehavior) {
 }
 
 interface EventViewProps {
+  completed?: boolean | undefined;
+  noticeExplained?: boolean;
   event: ThreadEvent;
   agentHue?: number | undefined;
   busyApprovalId?: string | undefined;
@@ -706,7 +778,9 @@ interface EventViewProps {
 }
 
 function EventView({
+  completed,
   event,
+  noticeExplained,
   agentHue,
   busyApprovalId,
   speechPhase,
@@ -733,7 +807,7 @@ function EventView({
         <WarningCircle size={17} aria-hidden="true" />
         <div>
           <strong>{event.title}</strong>
-          <p>{event.detail}</p>
+          {!noticeExplained ? <p>{event.detail}</p> : null}
         </div>
       </div>
     );
@@ -750,7 +824,7 @@ function EventView({
     );
   }
 
-  return (
+  const message = (
     <article
       className={`${styles.message} ${
         event.role === 'user' ? styles.userMessage : styles.assistantMessage
@@ -827,6 +901,7 @@ function EventView({
       </div>
     </article>
   );
+  return completed ? <ResultCard>{message}</ResultCard> : message;
 }
 
 function CopyMessageButton({ content }: { content: string }) {

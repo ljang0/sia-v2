@@ -132,9 +132,9 @@
   --ease-standard: cubic-bezier(0.2, 0.72, 0.2, 1);
   --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
 
-  --sidebar-width: 284px;
+  --sidebar-width: 260px;
   --inspector-width: 360px;
-  --titlebar-height: 76px;
+  --titlebar-height: 58px;
   --composer-max: 900px;
   --layer-base: 0;
   --layer-sticky: 10;

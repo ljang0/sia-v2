@@ -66,6 +66,32 @@ describe('agent dialog', () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  it('ignores repeated submits during a save and while the completed dialog is closing', async () => {
+    let finish!: () => void;
+    const onSave = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const onOpenChange = vi.fn();
+    renderDialog({ onSave, onOpenChange });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), {
+      target: { value: 'One agent' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Instructions' }), {
+      target: { value: 'Work on local files.' },
+    });
+    const form = screen.getByRole('textbox', { name: 'Name' }).closest('form')!;
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+    expect(onSave).toHaveBeenCalledOnce();
+    finish();
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    fireEvent.submit(form);
+    expect(onSave).toHaveBeenCalledOnce();
+  });
+
   it('maps a friendly model choice to the provider and protocol model ID', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     renderDialog({

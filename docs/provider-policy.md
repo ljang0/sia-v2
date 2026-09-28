@@ -4,8 +4,12 @@ Provider availability is a legal and product boundary as well as an engineering 
 
 - **Codex:** official app-server ChatGPT OAuth only. This uses the person's existing Codex
   entitlement rather than importing a plan or credential into Sia. The external alpha accepts CLI
-  versions `>=0.147.0 <0.151.0` and treats the personal-plan path as unavailable until `codex login status`
+  versions `>=0.147.0 <0.154.0` and treats the personal-plan path as unavailable until `codex login status`
   confirms ChatGPT authentication; API-billed sessions fail closed. Never inspect or copy Codex auth files.
+  Sia selects the newest supported installed Codex from PATH or the official macOS app bundle,
+  then uses that exact executable for sign-in checks, the live model catalog and every turn.
+  GPT-6 Astra appears when that installation and account advertise it; reasoning options come
+  from the same catalog. No model entitlement is invented and existing threads keep their pinned model.
 - **Included model labs:** Catalog-driven OpenAI Responses or Chat Completions relays with every lab credential exclusively in AWS Secrets Manager. Muse Spark is an example entry. The cloud normalizes
   each admitted model to a Responses stream for Codex App Server. A loopback, model-scoped capability
   keeps both Sia identity and the lab key outside Codex configuration. The client

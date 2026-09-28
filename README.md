@@ -8,7 +8,9 @@ Sia accounts, or the user's existing Codex plan through Codex's official ChatGPT
 through the Codex App Server harness. Users do not paste model API keys into Sia.
 
 Google Workspace, Slack, signed-in Chrome, Apple Messages, computer use, and app-open schedules are
-optional capabilities. Host-side changes ask for confirmation by default. Research capture is a
+optional capabilities. New profiles default to Use my Mac with automatic action approval. Onboarding
+also offers confirmations for supervised testing. Existing approval preferences are preserved, and
+macOS still requires its own permission grants. Research capture is a
 separate opt-in program and is not enabled by joining the pilot.
 
 ## Start developing
@@ -43,6 +45,22 @@ pnpm package:mac
 
 That command requires protected cloud and Apple signing configuration. Local contributors should not
 need release credentials.
+
+**Set up Codex** in onboarding or AI settings downloads or updates Sia's supported Codex version,
+restarts Sia, and continues to ChatGPT sign-in in the browser. Sia verifies the connection and shows
+Connected. No terminal commands or manual downloads are required.
+
+Permission setup uses one checklist in onboarding and **Settings → Computer**. **Set up permissions**
+requests missing Mac control, voice, and everyday app access in sequence; macOS still requires its own
+approval clicks. **Check access** only refreshes status. Core permission statuses stay visible during onboarding;
+returning from System Settings refreshes them automatically. The development preview remembers its app and
+profile so a permission-related Quit & Reopen does not return to Electron’s welcome screen.
+
+For tasks that should leave your screen alone, choose **Work in background** and **Pause and tell me**
+in Computer settings. Background window control remains experimental: unsupported actions pause,
+and an app can still raise its own window. Choose **Allow brief foreground control** to let Sia
+bring an app forward and continue when its window cannot accept background input, including some
+windows on another desktop. On my screen allows native scripts and foreground control.
 
 ## Current release boundary
 

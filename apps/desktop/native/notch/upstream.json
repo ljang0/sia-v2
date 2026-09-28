@@ -1,0 +1,12 @@
+{
+  "repository": "https://github.com/romirthedev/notch",
+  "revision": "6c74c30c31a2ce31a852209eba86f28c8371409e",
+  "files": {
+    "Core/JournalStore.swift": "4f8b810710d411a801655bf1d2523370bd74fed683bfb0c6d105a2529f9688f6",
+    "Agent/SkillLibrary.swift": "3465f6ef026147d62cc0487876cf5834670978c7f2e5902e189906da268256d1",
+    "Agent/AgentResponse.swift": "f329e9cfc60d0bbfe98d0527c2c056540bfed1cc563ada4d93212084148f8947",
+    "Agent/AgentSession.swift": "2f032d35dfc60638e22ffe4507285d176a6b184587461cd2a22682ace85c27f5",
+    "Agent/ClaudeCodeInvoker.swift": "9911681eb5b6163df95aad577884a04a38c65e7bfcf2ba4a2ae87309740d0dc7",
+    "Ambient/ConsolidationScheduler.swift": "b9c2ea3c952de35d62d4b8b16c8aceb86689f332e0e1629f30112481e42e791d"
+  }
+}

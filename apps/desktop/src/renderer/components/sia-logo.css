@@ -1,0 +1,9 @@
+.sia-logo {
+  display: block;
+  width: 1em;
+  height: 1em;
+  object-fit: contain;
+  padding: 0.1em;
+  border-radius: 24%;
+  background: #0b211b;
+}

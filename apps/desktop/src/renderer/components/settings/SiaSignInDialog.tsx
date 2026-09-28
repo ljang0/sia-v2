@@ -42,8 +42,7 @@ export function SiaSignInDialog({
             <header>
               <Dialog.Title>Sign in to Sia</Dialog.Title>
               <Dialog.Description>
-                Enter the email invited to the pilot. We&apos;ll send a one-time code—no
-                password required.
+                Enter your email. We&apos;ll send a one-time code—no password required.
               </Dialog.Description>
             </header>
             <div className={companion.onboardingSignIn}>

@@ -1,41 +1,39 @@
-import { Browser, Desktop, Notebook, ShieldCheck } from '@phosphor-icons/react';
-import { useState, type FormEvent } from 'react';
+import { ComputerAccessMode } from '../ComputerAccessMode';
+import { SetupMacAccess, type MacSetupApi } from '../SetupMacAccess';
+import { Notebook, ShieldCheck } from '@phosphor-icons/react';
+import { useState } from 'react';
 import type { RendererSnapshot } from '../../types';
 import styles from '../../ui.module.css';
-import { BrowserWindowPicker } from '../BrowserWindowPicker';
 import { errorMessage, InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
 
 export function ComputerSettings({
   snapshot,
-  onAttachBrowser,
-  onOpenBrowserSite,
-  onDetachBrowser,
-  onRequestPermissions,
+  onReviewConnections,
+  macSetupApi,
+  onSetComputerAccessMode,
   onSetComputerTrust,
   onSetTrajectoryLog,
   onRevealTrajectories,
 }: {
   snapshot: RendererSnapshot;
-  onAttachBrowser(windowId?: number): Promise<void>;
-  onOpenBrowserSite(url: string): Promise<void>;
-  onDetachBrowser(): Promise<void>;
-  onRequestPermissions(): Promise<void>;
+  onReviewConnections(): void;
+  macSetupApi: MacSetupApi;
+  onSetComputerAccessMode?(
+    mode: 'mac' | 'connected',
+    background?: boolean,
+    backgroundFallback?: 'pause' | 'foreground',
+  ): Promise<void>;
   onSetComputerTrust(trust: 'auto' | 'ask'): Promise<void>;
   onSetTrajectoryLog(enabled: boolean): Promise<void>;
   onRevealTrajectories(): Promise<void>;
 }) {
-  const [pending, setPending] = useState<'computer' | 'browser' | 'site' | 'trust' | 'log'>();
+  const [pending, setPending] = useState<'computer' | 'trust' | 'log'>();
   const trusted = snapshot.computer.trust === 'auto';
   const [error, setError] = useState<string>();
-  const [site, setSite] = useState('');
-  const computerReady =
-    snapshot.computer.accessibility === 'allowed' &&
-    snapshot.computer.screenRecording === 'allowed';
+  const [settingUp, setSettingUp] = useState(false);
+  const busy = Boolean(pending) || settingUp;
 
-  const run = async (
-    kind: 'computer' | 'browser' | 'site' | 'trust' | 'log',
-    action: () => Promise<void>,
-  ) => {
+  const run = async (kind: 'computer' | 'trust' | 'log', action: () => Promise<void>) => {
     setPending(kind);
     setError(undefined);
     try {
@@ -47,199 +45,128 @@ export function ComputerSettings({
     }
   };
 
-  const openSite = (event: FormEvent) => {
-    event.preventDefault();
-    const url = site.trim();
-    if (!url) return;
-    void run('site', async () => {
-      await onOpenBrowserSite(url);
-      setSite('');
-    });
-  };
-
   return (
     <SettingsSectionHeader
       title="Computer access"
-      description="Grant only what a task needs. Changes ask for confirmation by default, and every computer action stays reviewable."
+      description="Choose where Sia works and whether actions need your confirmation."
     >
       <InlineSettingsError message={error} />
-      {!snapshot.browser.attached &&
-      snapshot.browser.status === 'error' &&
-      snapshot.browser.snapshotLabel ? (
-        <InlineSettingsError message={snapshot.browser.snapshotLabel} />
+      {onSetComputerAccessMode ? (
+        <ComputerAccessMode
+          computer={snapshot.computer}
+          disabled={busy}
+          showBackgroundOption
+          change={(mode, background, backgroundFallback) =>
+            void run('computer', () =>
+              onSetComputerAccessMode(mode, background, backgroundFallback),
+            )
+          }
+        />
       ) : null}
-      <div className={styles.accessGroup}>
-        <div className={styles.accessRow}>
-          <Desktop size={20} aria-hidden="true" />
-          <div>
-            <strong>Mac computer use</strong>
-            <p>
-              Accessibility: {snapshot.computer.accessibility}. Screen Recording:{' '}
-              {snapshot.computer.screenRecording}.
-            </p>
-          </div>
-          <button
-            type="button"
-            className={styles.secondaryButton}
-            disabled={Boolean(pending)}
-            onClick={() => void run('computer', onRequestPermissions)}
-          >
-            {pending === 'computer' ? 'Opening...' : computerReady ? 'Review access' : 'Set up'}
-          </button>
-        </div>
-        <div className={styles.accessRow}>
-          <Browser size={20} aria-hidden="true" />
-          <div>
-            <strong>Authenticated Chrome</strong>
-            <p>
-              {snapshot.browser.attached
-                ? `Attached to ${snapshot.browser.profileName}.${trusted ? ' Any site in this window is available.' : ' Only granted origins are available.'}`
-                : trusted
-                  ? snapshot.computer.chromeConnection === 'enabled'
-                    ? 'Choose a window to finish setup. Chrome may ask you once to Allow remote debugging; that browser security step cannot be skipped.'
-                    : 'Choose a window to finish setup. If Sia just enabled Chrome access, restart Chrome once before connecting.'
-                  : 'Choose a signed-in Chrome window; approve Chrome once if it asks. That browser security step cannot be skipped.'}
-            </p>
-          </div>
-          <button
-            type="button"
-            className={
-              snapshot.browser.attached ? styles.textButtonDanger : styles.secondaryButton
-            }
-            disabled={Boolean(pending)}
-            onClick={() =>
-              void run(
-                'browser',
-                snapshot.browser.attached ? onDetachBrowser : () => onAttachBrowser(),
-              )
-            }
-          >
-            {pending === 'browser'
-              ? snapshot.browser.attached
-                ? 'Detaching...'
-                : 'Attaching...'
-              : snapshot.browser.attached
-                ? 'Detach'
-                : snapshot.browser.availableWindows.length
-                  ? 'Refresh'
-                  : 'Choose window'}
-          </button>
-        </div>
-        {!snapshot.browser.attached && snapshot.browser.availableWindows.length ? (
-          <div className={styles.browserSettingsPicker}>
-            <div>
-              <strong>Choose a Chrome window</strong>
-              <p>Only the selected window will be available to Sia.</p>
-            </div>
-            <BrowserWindowPicker
-              windows={snapshot.browser.availableWindows}
-              pending={pending === 'browser'}
-              onSelect={(windowId) => void run('browser', () => onAttachBrowser(windowId))}
-            />
-          </div>
-        ) : null}
-        {snapshot.browser.attached ? (
-          <form className={styles.browserOpenSite} onSubmit={openSite}>
-            <div>
-              <strong>Open a site in this profile</strong>
-              <p>The site opens in the attached signed-in Chrome and grants only its origin.</p>
-            </div>
-            <input
-              value={site}
-              onChange={(event) => setSite(event.target.value)}
-              placeholder="mail.google.com"
-              aria-label="Website address"
-              autoComplete="off"
-              spellCheck={false}
-              disabled={Boolean(pending)}
-              data-testid="browser-open-site-input"
-            />
-            <button
-              type="submit"
-              className={styles.secondaryButton}
-              disabled={Boolean(pending) || !site.trim()}
-              data-testid="browser-open-site"
-            >
-              {pending === 'site' ? 'Opening…' : 'Open'}
-            </button>
-          </form>
-        ) : null}
-      </div>
       <div className={styles.accessGroup}>
         <div className={styles.accessRow}>
           <ShieldCheck size={20} aria-hidden="true" />
           <div>
             <div className={styles.rowTitleLine}>
-              <strong>Confirm before changes</strong>
-              {!trusted ? <span className={styles.stateLabel}>Recommended</span> : null}
+              <strong>Bypass action approvals</strong>
+              {trusted ? <span className={styles.stateLabel}>Enabled</span> : null}
             </div>
             <p>
               {trusted
-                ? 'Off — Sia can click, type, send, post, upload, and schedule without interrupting the run.'
-                : 'On — changes pause for confirmation. Searches, reads, and verification continue automatically.'}
+                ? 'On — Sia can click, type, send, post, upload, and schedule without asking for each action.'
+                : 'Off — changes pause for confirmation. Searches, reads, and verification continue automatically.'}{' '}
+              {snapshot.computer.accessMode === 'mac'
+                ? snapshot.computer.backgroundControl
+                  ? 'Your foreground recovery choice still applies.'
+                  : 'Native commands have full local access. macOS permissions still apply.'
+                : 'macOS permissions and protected fields still apply.'}
             </p>
           </div>
           <button
             type="button"
             role="switch"
-            aria-checked={!trusted}
-            aria-label="Confirm before changes"
+            aria-checked={trusted}
+            aria-label="Bypass action approvals"
             className={styles.secondaryButton}
-            disabled={Boolean(pending)}
+            disabled={busy}
             onClick={() =>
               void run('trust', () => onSetComputerTrust(trusted ? 'ask' : 'auto'))
             }
             data-testid="computer-trust-toggle"
           >
-            {pending === 'trust' ? 'Saving…' : trusted ? 'Turn on' : 'Turn off'}
+            {pending === 'trust' ? 'Saving…' : trusted ? 'Turn off' : 'Turn on'}
           </button>
         </div>
-        <div className={styles.accessRow}>
-          <Notebook size={20} aria-hidden="true" />
-          <div>
-            <strong>Keep a full local log</strong>
-            <p>
-              {snapshot.computer.trajectoryLog
-                ? 'Eligible requests, replies, actions, approvals, and screenshots are saved on this Mac, per thread, for up to 90 days or 128 MB. Google Workspace connector turns are excluded.'
-                : 'Off — nothing beyond the thread transcript is kept.'}
-              {snapshot.computer.trajectoryDirectory ? (
-                <>
-                  {' '}
-                  <button
-                    type="button"
-                    className={styles.textButton}
-                    onClick={() => void onRevealTrajectories()}
-                  >
-                    Show in Finder
-                  </button>
-                </>
-              ) : null}
-            </p>
+      </div>
+      <SetupMacAccess
+        snapshot={snapshot}
+        api={macSetupApi}
+        agentId={
+          snapshot.selectedAgentId ??
+          snapshot.voice.pushToTalk?.agentId ??
+          snapshot.agents[0]?.id
+        }
+        disabled={Boolean(pending)}
+        onBusyChange={setSettingUp}
+        includeApps
+      />
+      {snapshot.computer.accessMode !== 'mac' && (
+        <p className={styles.settingsNote}>
+          Browser and work app connections are in{' '}
+          <button type="button" className={styles.textButton} onClick={onReviewConnections}>
+            Connections
+          </button>
+          .
+        </p>
+      )}
+      <details className={styles.settingsDisclosure}>
+        <summary>
+          <span>Diagnostics</span> · Local log {snapshot.computer.trajectoryLog ? 'on' : 'off'}
+        </summary>
+        <div className={styles.accessGroup}>
+          <div className={styles.accessRow}>
+            <Notebook size={20} aria-hidden="true" />
+            <div>
+              <strong>Keep a full local log</strong>
+              <p>
+                {snapshot.computer.trajectoryLog
+                  ? 'Eligible requests, replies, actions, approvals, and screenshots are saved on this Mac, per thread, for up to 90 days or 128 MB. Google Workspace connector turns are excluded.'
+                  : 'Off — nothing beyond the thread transcript is kept.'}
+                {snapshot.computer.trajectoryDirectory ? (
+                  <>
+                    {' '}
+                    <button
+                      type="button"
+                      className={styles.textButton}
+                      onClick={() => void onRevealTrajectories()}
+                    >
+                      Show in Finder
+                    </button>
+                  </>
+                ) : null}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={snapshot.computer.trajectoryLog}
+              aria-label="Keep a full local log"
+              className={styles.secondaryButton}
+              disabled={busy}
+              onClick={() =>
+                void run('log', () => onSetTrajectoryLog(!snapshot.computer.trajectoryLog))
+              }
+              data-testid="trajectory-log-toggle"
+            >
+              {pending === 'log'
+                ? 'Saving…'
+                : snapshot.computer.trajectoryLog
+                  ? 'Turn off'
+                  : 'Turn on'}
+            </button>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={snapshot.computer.trajectoryLog}
-            aria-label="Keep a full local log"
-            className={styles.secondaryButton}
-            disabled={Boolean(pending)}
-            onClick={() =>
-              void run('log', () => onSetTrajectoryLog(!snapshot.computer.trajectoryLog))
-            }
-            data-testid="trajectory-log-toggle"
-          >
-            {pending === 'log'
-              ? 'Saving…'
-              : snapshot.computer.trajectoryLog
-                ? 'Turn off'
-                : 'Turn on'}
-          </button>
         </div>
-      </div>
-      <div className={styles.settingsNote}>
-        Sia restores your previous app after each action. Sensitive surfaces (password fields,
-        private windows, security prompts) are always off-limits, whichever mode is on.
-      </div>
+      </details>
     </SettingsSectionHeader>
   );
 }

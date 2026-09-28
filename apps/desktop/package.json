@@ -1,6 +1,6 @@
 {
   "name": "@sia/desktop",
-  "version": "0.1.0-alpha.24",
+  "version": "0.1.0-alpha.25",
   "private": true,
   "description": "A local-first personal computer assistant for macOS.",
   "author": "Lawrence Jang",
@@ -11,22 +11,30 @@
     "cloud-config:prepare": "node scripts/prepare-cloud-config.mjs --allow-disabled",
     "cloud-config:prepare:release": "node scripts/prepare-cloud-config.mjs --require-enabled",
     "clean": "rimraf out release coverage test-results playwright-report",
-    "dev": "electron-vite dev",
+    "dev": "node scripts/dev.mjs",
     "icon:build": "node scripts/build-icon.mjs",
     "licenses:build": "node scripts/build-third-party-licenses.mjs",
     "package:mac": "node scripts/verify-release-environment.mjs && rimraf release && pnpm cloud-config:prepare:release && pnpm icon:build && pnpm -w build && electron-builder --mac --universal && node scripts/finalize-release-artifacts.mjs --arch=universal && node scripts/verify-packaged-app.mjs --arch=universal --signing=release",
     "package:mac:arm64:dir": "rimraf release && pnpm cloud-config:prepare && pnpm icon:build && pnpm -w build && electron-builder --mac --arm64 --dir --config.mac.identity=null --config.mac.notarize=false && node scripts/verify-packaged-app.mjs --arch=arm64 --signing=unsigned",
     "package:mac:dir": "rimraf release && pnpm cloud-config:prepare && pnpm icon:build && pnpm -w build && electron-builder --mac --universal --dir --config.mac.identity=null --config.mac.notarize=false && node scripts/verify-packaged-app.mjs --arch=universal --signing=unsigned",
-    "preview": "electron-vite preview",
-    "prebuild": "pnpm licenses:build",
-    "test": "vitest run",
+    "signing:setup": "bash scripts/setup-signing.sh",
+    "voice:configure": "node scripts/configure-personal-voice.mjs",
+    "preview": "node scripts/preview.mjs",
+    "prebuild": "pnpm licenses:build && pnpm native:build && pnpm remote:build",
+    "test": "pnpm native:test && vitest run",
     "test:e2e": "pnpm -w build && playwright test",
     "test:e2e:parity": "pnpm -w build && playwright test parity/parity.spec.ts",
     "test:e2e:parity:strict": "SIA_PARITY_REQUIRE_COMPLETE=1 pnpm test:e2e:parity",
     "test:e2e:parity:incomplete": "SIA_PARITY_ALLOW_INCOMPLETE=1 pnpm test:e2e:parity",
     "test:e2e:real:no-turn": "pnpm -w build && playwright test e2e/real-no-turn.spec.ts",
     "test:e2e:real:capabilities": "pnpm -w build && playwright test e2e/real-capabilities.spec.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "native:build": "node scripts/build-voice-helper.mjs",
+    "predev": "pnpm native:build && pnpm remote:build && node scripts/prepare-dev-electron.mjs",
+    "native:test": "node scripts/build-voice-helper.mjs && node scripts/port-notch-prompts.mjs --check && node --test scripts/prepare-dev-electron.test.mjs scripts/release-identity.test.mjs && node scripts/test-voice-helper.mjs",
+    "remote:build": "vite build --config vite.remote.config.ts",
+    "test:remote": "pnpm remote:build && playwright test --config playwright.remote.config.ts",
+    "test:renderer": "playwright test --config playwright.renderer.config.ts"
   },
   "dependencies": {
     "@trycua/cua-driver": "0.21.0",
@@ -40,11 +48,15 @@
     "@ubjs/node-darwin-x64": "0.31.0-3"
   },
   "devDependencies": {
+    "@electron/asar": "3.4.1",
+    "@paper-design/shaders": "0.0.81",
     "@phosphor-icons/react": "^2.1.10",
     "@playwright/test": "^1.62.1",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@react-three/fiber": "^9.8.1",
+    "@react-three/postprocessing": "^3.1.2",
     "@sia/action-gateway": "workspace:*",
     "@sia/protocol": "workspace:*",
     "@sia/runtime": "workspace:*",
@@ -58,9 +70,11 @@
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "jsdom": "^28.1.0",
+    "postprocessing": "^6.39.5",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "rimraf": "^6.1.2",
+    "three": "^0.180.0",
     "typescript": "^7.0.2",
     "vite": "^7.3.6",
     "vitest": "^4.1.10"
@@ -106,6 +120,10 @@
       {
         "from": "build/sia-cloud.json",
         "to": "sia-cloud.json"
+      },
+      {
+        "from": "build/native/SiaVoiceHelper",
+        "to": "native/SiaVoiceHelper"
       }
     ],
     "extraMetadata": {
@@ -123,17 +141,26 @@
       "entitlementsInherit": "build/entitlements.mac.plist",
       "x64ArchFiles": "Contents/Resources/app.asar.unpacked/node_modules/{@trycua,@ubjs}/**/*",
       "extendInfo": {
-        "NSAccessibilityUsageDescription": "Sia uses Accessibility only for computer actions you explicitly grant.",
-        "NSScreenCaptureDescription": "Sia uses Screen Recording to observe only the windows you explicitly grant.",
+        "NSAccessibilityUsageDescription": "Sia uses Accessibility for computer actions you grant and the optional Fn push-to-talk shortcut.",
+        "NSScreenCaptureDescription": "Sia uses Screen Recording to observe your screen during Use my Mac tasks and windows you grant in Connected apps.",
         "NSMicrophoneUsageDescription": "Sia uses the microphone only while you record a message for transcription.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false,
           "NSAllowsLocalNetworking": false
-        }
+        },
+        "NSSpeechRecognitionUsageDescription": "Sia uses on-device speech recognition when you choose dictation.",
+        "NSAppleEventsUsageDescription": "Sia uses Automation to control Mac apps for your tasks, following your selected action approval mode.",
+        "NSLocalNetworkUsageDescription": "Sia connects to your phone on the same Wi-Fi when you enable Phone remote.",
+        "NSBonjourServices": [
+          "_http._tcp"
+        ]
       },
       "target": [
         "dmg",
         "zip"
+      ],
+      "binaries": [
+        "Contents/Resources/native/SiaVoiceHelper"
       ]
     },
     "dmg": {

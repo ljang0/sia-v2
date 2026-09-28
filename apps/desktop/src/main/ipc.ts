@@ -1,5 +1,9 @@
+import { scottyCommand } from './scotty-state.js';
+import { phoneRemoteCommand } from '../shared/phone-remote.js';
+import { automationAppSchema } from '../shared/mac-permissions.js';
 import type { BrowserWindow, IpcMain } from 'electron';
 import { z } from 'zod';
+import { assistantLibraryCommand } from '../shared/assistant-library.js';
 
 import type { DesktopController } from './controller.js';
 import type {
@@ -21,9 +25,13 @@ const harnessId = z
   .regex(/^[a-z][a-z0-9_]*$/);
 
 const inputSchemas = {
+  'scotty.configure': scottyCommand,
+  'phone.remote': phoneRemoteCommand,
+  'assistant.library': assistantLibraryCommand,
   bootstrap: z.undefined(),
   'agents.save': z
     .object({
+      startOnboarding: z.boolean().optional(),
       id: identifier.optional(),
       name: z.string().trim().min(1).max(80),
       instructions: z.string().trim().max(20_000),
@@ -189,6 +197,26 @@ const inputSchemas = {
   'providers.probe': z.object({ providerId: providerId.optional() }).strict(),
   'providers.login': z.object({ providerId }).strict(),
   'settings.openDirectory': z.undefined(),
+  'settings.setOnboarding': z
+    .object({
+      permissionSetup: z
+        .object({ includeApps: z.boolean(), active: z.boolean() })
+        .strict()
+        .optional(),
+      step: z.enum([
+        'welcome',
+        'agent',
+        'voice',
+        'access',
+        'apps',
+        'restart',
+        'verify',
+        'practice',
+        'complete',
+      ]),
+    })
+    .strict(),
+  'settings.setAppearance': z.object({ appearance: z.enum(['calm', 'expressive']) }).strict(),
   'settings.setCompletionSound': z.object({ enabled: z.boolean() }).strict(),
   'feedback.compose': z
     .object({
@@ -201,15 +229,43 @@ const inputSchemas = {
   'updates.openDownload': z.undefined(),
   'computer.permissions': z.undefined(),
   'computer.requestPermissions': z.undefined(),
+  'computer.requestAutomation': z.object({ app: automationAppSchema }).strict(),
   'computer.openMessages': z.undefined(),
+  'computer.setupMessages': z.undefined(),
+  'settings.restartForOnboarding': z.undefined(),
+  'computer.setAccessMode': z
+    .object({
+      mode: z.enum(['mac', 'connected']),
+      background: z.boolean().optional(),
+      backgroundFallback: z.enum(['pause', 'foreground']).optional(),
+    })
+    .strict(),
   'computer.setTrust': z.object({ trust: z.enum(['auto', 'ask']) }).strict(),
   'computer.setTrajectoryLog': z.object({ enabled: z.boolean() }).strict(),
   'computer.revealTrajectories': z.undefined(),
+  'browser.connectAndContinue': z
+    .object({
+      threadId: identifier,
+      userMessageId: identifier,
+      windowId: z.number().int().positive().optional(),
+    })
+    .strict(),
   'browser.attach': z
     .object({ windowId: z.number().int().positive().safe().optional() })
     .strict(),
   'browser.open': z.object({ url: z.string().trim().min(1).max(2_048) }).strict(),
   'browser.detach': z.undefined(),
+  'voice.pushToTalk.configure': z
+    .object({
+      enabled: z.boolean(),
+      agentId: identifier.optional(),
+      requestAccessibility: z.boolean().optional(),
+      speakReplies: z.boolean().optional(),
+    })
+    .strict(),
+  'voice.pushToTalk.cancel': z.undefined(),
+  'voice.capture.acquire': z.undefined(),
+  'voice.capture.release': z.object({ leaseId: identifier }).strict(),
   'voice.configure': z.undefined(),
   'voice.refresh': z.undefined(),
   'voice.select': z.object({ voiceId: z.string().trim().min(1).max(200) }).strict(),
@@ -235,6 +291,15 @@ const inputSchemas = {
     })
     .strict(),
   'connections.startGoogle': z.undefined(),
+  'connections.startSelected': z
+    .object({
+      apps: z
+        .array(z.enum(['google', 'slack']))
+        .min(1)
+        .max(2)
+        .refine((apps) => new Set(apps).size === apps.length),
+    })
+    .strict(),
   'connections.upgradeGoogle': z.undefined(),
   'connections.start': z.object({ connectionId }).strict(),
   'connections.setEnabled': z.object({ connectionId, enabled: z.boolean() }).strict(),

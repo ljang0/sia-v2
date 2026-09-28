@@ -145,7 +145,23 @@ const agents: AgentSummary[] = [
     model: 'gpt-5.6-sol',
     workspace: '/Users/lawrencejang/Projects/sia-research',
     threads: [threads['thread-research']!, threads['thread-browser']!].map(
-      ({ events: _events, ...thread }) => thread,
+      ({ events, ...thread }) => {
+        const message = events.findLast((event) => event.type === 'message');
+        return {
+          ...thread,
+          ...(message?.type === 'message'
+            ? {
+                preview: {
+                  label:
+                    message.role === 'assistant'
+                      ? ('Latest reply' as const)
+                      : ('Request' as const),
+                  text: message.content.slice(0, 420),
+                },
+              }
+            : {}),
+        };
+      },
     ),
   },
   {
@@ -160,7 +176,23 @@ const agents: AgentSummary[] = [
     provider: 'meta',
     model: 'Sia Meta',
     workspace: '/Users/lawrencejang/Documents',
-    threads: [threads['thread-inbox']!].map(({ events: _events, ...thread }) => thread),
+    threads: [threads['thread-inbox']!].map(({ events, ...thread }) => {
+      const message = events.findLast((event) => event.type === 'message');
+      return {
+        ...thread,
+        ...(message?.type === 'message'
+          ? {
+              preview: {
+                label:
+                  message.role === 'assistant'
+                    ? ('Latest reply' as const)
+                    : ('Request' as const),
+                text: message.content.slice(0, 420),
+              },
+            }
+          : {}),
+      };
+    }),
   },
 ];
 
@@ -615,6 +647,10 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         current.selectedAgentId = id;
         current.selectedThreadId = undefined;
         current.activeThread = undefined;
+        if (draft.startOnboarding)
+          current.preferences.onboarding = { step: 'voice', agentId: id };
+        else if (current.preferences.onboarding && !current.preferences.onboarding.agentId)
+          current.preferences.onboarding = { step: 'complete' };
       });
       return id;
     },
@@ -837,6 +873,17 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
     async refreshProvider() {
       return Promise.resolve();
     },
+    async connectSelectedApps(selected) {
+      mutate((current) => {
+        for (const app of current.apps) {
+          if (!selected.includes(app.id === 'slack' ? 'slack' : 'google')) continue;
+          app.status = 'connected';
+          app.enabled = true;
+          app.account ??= 'lawrence@example.com';
+          if (app.id !== 'slack') app.googleAccess = 'read_only';
+        }
+      });
+    },
     async connectGoogleApps() {
       mutate((current) => {
         for (const app of current.apps) {
@@ -939,6 +986,7 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         current.connection = 'offline';
       });
     },
+    async connectBrowserAndContinue() {},
     async attachBrowser(windowId) {
       mutate((current) => {
         void windowId;
@@ -962,6 +1010,14 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         current.browser.tabs = current.browser.tabs.map((tab) => ({ ...tab, granted: false }));
       });
     },
+    async setComputerAccessMode(mode, background, backgroundFallback) {
+      mutate((current) => {
+        current.computer.accessMode = mode;
+        if (background !== undefined) current.computer.backgroundControl = background;
+        if (backgroundFallback !== undefined)
+          current.computer.backgroundFallback = backgroundFallback;
+      });
+    },
     async setComputerTrust(trust) {
       mutate((current) => {
         current.computer.trust = trust;
@@ -973,6 +1029,7 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
       });
     },
     async revealTrajectories() {},
+    async refreshComputerPermissions() {},
     async requestComputerPermissions() {
       mutate((current) => {
         current.computer.accessibility = 'allowed';
@@ -982,6 +1039,13 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
     async openMessages() {
       return Promise.resolve();
     },
+    async configurePushToTalk() {
+      throw new Error('Fn push-to-talk requires the macOS app.');
+    },
+    async acquireVoiceCapture() {
+      return 'demo-voice';
+    },
+    async releaseVoiceCapture() {},
     async configureVoice() {
       mutate((current) => {
         current.voice = structuredClone(demoSnapshot.voice);
@@ -1001,6 +1065,36 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
     async disconnectVoice() {
       mutate((current) => {
         current.voice = { status: 'disconnected', voices: [] };
+      });
+    },
+    async assistantLibrary() {
+      return { memories: [], workflows: [], context: false };
+    },
+    async restartForOnboarding() {
+      mutate((current) => {
+        current.preferences.onboarding = {
+          ...current.preferences.onboarding,
+          step: 'verify',
+          restarted: true,
+        };
+        current.browser.attached = false;
+        current.browser.status = 'detached';
+      });
+    },
+    async setupMessages() {},
+    async requestAutomationPermission() {},
+    async setOnboarding(step, permissionSetup) {
+      mutate((current) => {
+        current.preferences.onboarding = {
+          step,
+          ...(permissionSetup ? { permissionSetup } : {}),
+          ...(current.selectedAgentId ? { agentId: current.selectedAgentId } : {}),
+        };
+      });
+    },
+    async setAppearance(appearance) {
+      mutate((current) => {
+        current.preferences.appearance = appearance;
       });
     },
     async setCompletionSound(enabled) {

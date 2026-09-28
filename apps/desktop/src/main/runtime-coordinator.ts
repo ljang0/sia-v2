@@ -25,8 +25,25 @@ import {
   type MetaTransport,
 } from '@sia/runtime';
 import type { ActionGateway, TurnLease } from '@sia/action-gateway';
+import { notchConsolidationInstructions, notchVaultRoot } from './notch/foreground.js';
+
+import {
+  macExecutionTools,
+  macExecutionGuidance,
+  MAC_RESPONSE_SCHEMA,
+  presentMacResponse,
+  parseMacResponse,
+  type MacTaskResult,
+} from './mac-execution.js';
 
 export interface RuntimeThreadConfig {
+  notchVault?: string;
+  notchReview?: boolean;
+  nativeTools?: 'disabled';
+  computerAccessMode?: 'mac' | 'connected';
+  macBackgroundControl?: boolean;
+  macBackgroundFallback?: 'pause' | 'foreground';
+  computerTrust?: 'ask' | 'auto';
   id: string;
   provider: ProviderId;
   model: string;
@@ -37,6 +54,8 @@ export interface RuntimeThreadConfig {
 }
 
 export interface RuntimeTurnInput {
+  onMacRawResult?: (text: string) => void;
+  onMacResult?: (result: MacTaskResult) => void;
   thread: RuntimeThreadConfig;
   turnId: string;
   text: string;
@@ -53,6 +72,8 @@ export interface RuntimeReviewInput {
 }
 
 interface ActiveTurnContext {
+  backgroundOnly?: boolean;
+  allowedTools?: ReadonlySet<string>;
   sessionId: string;
   threadId: string;
   turnId: string;
@@ -81,6 +102,7 @@ export interface RuntimeHarnessRegistration {
  */
 export class RuntimeCoordinator {
   readonly #gateway: ActionGateway;
+  readonly #macContext: (() => Promise<string>) | undefined;
   readonly #adapters = new Map<ProviderId, ProviderAdapter>();
   readonly #routeAdapters = new Map<string, ProviderAdapter>();
   readonly #ownedAdapters = new Set<ProviderAdapter>();
@@ -93,6 +115,8 @@ export class RuntimeCoordinator {
   constructor(
     gateway: ActionGateway,
     options: {
+      codexCommand?: string;
+      macContext?: () => Promise<string>;
       metaTransport?: MetaTransport;
       hostedCodexProvider?: CodexCustomModelProviderResolver;
       acpMcpServerFactory?: (
@@ -105,8 +129,10 @@ export class RuntimeCoordinator {
     } = {},
   ) {
     this.#gateway = gateway;
+    this.#macContext = options.macContext;
     this.#onDispose = options.onDispose;
     this.#codexAdapter = createCodexAdapter({
+      ...(options.codexCommand ? { command: options.codexCommand } : {}),
       // Sia owns the encrypted local transcript and reconstructs context when
       // a provider session is recreated. Do not leave a second native Codex
       // transcript in provider-owned persistence.
@@ -128,6 +154,7 @@ export class RuntimeCoordinator {
         'meta',
         'codex_app_server',
         createCodexAdapter({
+          ...(options.codexCommand ? { command: options.codexCommand } : {}),
           providerId: 'meta',
           accountOverride: {
             state: 'authenticated',
@@ -249,7 +276,17 @@ export class RuntimeCoordinator {
     input: RuntimeTurnInput,
     signal?: AbortSignal,
   ): AsyncIterable<ThreadEventEnvelope> {
+    const mac =
+      input.thread.computerAccessMode === 'mac' && input.thread.nativeTools !== 'disabled';
+    // Provider setup does not touch the GUI. Finish it before reserving the
+    // screen, then capture foreground context immediately before the turn.
     const state = await this.#sessionFor(input.thread, signal);
+    // Like Notch's GUI token, one task owns the screen for its whole action loop.
+    // The controller releases the turn lease on success, cancellation and failure.
+    if (mac && input.lease)
+      await input.lease.acquire({ kind: 'global_focus', id: 'foreground' }, signal);
+    const nativeContext =
+      mac && !input.thread.macBackgroundControl ? await this.#macContext?.() : undefined;
     for await (const event of this.#runSession(
       input.thread,
       input.turnId,
@@ -261,15 +298,43 @@ export class RuntimeCoordinator {
           state.session,
           {
             turnId: input.turnId,
-            text: input.text,
-            model: input.thread.model,
+            text: [mac ? macRequestClock() : undefined, nativeContext, input.text]
+              .filter(Boolean)
+              .join('\n\n'),
+            model: state.target.harnessModelId,
+            ...(mac ? { outputSchema: MAC_RESPONSE_SCHEMA } : {}),
             ...(input.reasoningEffort ? { reasoningEffort: input.reasoningEffort } : {}),
             ...(input.attachments?.length ? { attachments: input.attachments } : {}),
           },
           signal,
         ),
     )) {
-      yield event;
+      if (
+        mac &&
+        event.type === 'message' &&
+        event.payload.role === 'assistant' &&
+        event.payload.phase !== 'commentary' &&
+        !event.payload.delta
+      ) {
+        const raw = event.payload.parts
+          .flatMap((part) => (part.kind === 'text' ? [part.text] : []))
+          .join('');
+        input.onMacRawResult?.(raw);
+        const result = parseMacResponse(
+          event.payload.parts
+            .flatMap((part) => (part.kind === 'text' ? [part.text] : []))
+            .join(''),
+        );
+        input.onMacResult?.(
+          result ?? {
+            success: false,
+            response:
+              'Sia received no valid completion result. Review the last response before continuing.',
+            steps: [],
+          },
+        );
+      }
+      yield mac ? presentMacResponse(event) : event;
     }
   }
 
@@ -278,6 +343,12 @@ export class RuntimeCoordinator {
     signal?: AbortSignal,
   ): AsyncIterable<ThreadEventEnvelope> {
     const state = await this.#sessionFor(input.thread, signal);
+    if (
+      input.thread.computerAccessMode === 'mac' &&
+      input.thread.nativeTools !== 'disabled' &&
+      input.lease
+    )
+      await input.lease.acquire({ kind: 'global_focus', id: 'foreground' }, signal);
     if (!state.adapter.startReview) {
       throw new Error(`${input.thread.provider} does not support dedicated code review.`);
     }
@@ -289,7 +360,9 @@ export class RuntimeCoordinator {
       signal,
       () => state.adapter.startReview!(state.session, input, signal),
     )) {
-      yield event;
+      yield input.thread.computerAccessMode === 'mac' && input.thread.nativeTools !== 'disabled'
+        ? presentMacResponse(event)
+        : event;
     }
   }
 
@@ -307,6 +380,14 @@ export class RuntimeCoordinator {
       turnId,
       provider: thread.provider,
       workspace: thread.workspace,
+      ...(thread.computerAccessMode === 'mac' && thread.macBackgroundControl
+        ? { backgroundOnly: thread.macBackgroundFallback !== 'foreground' }
+        : {}),
+      ...(thread.computerAccessMode === 'mac' && thread.nativeTools !== 'disabled'
+        ? { allowedTools: new Set(macExecutionTools(thread.macBackgroundControl)) }
+        : thread.notchReview
+          ? { allowedTools: new Set(['memory_vault']) }
+          : {}),
       ...(lease ? { lease } : {}),
       ...(signal ? { signal } : {}),
     };
@@ -314,12 +395,13 @@ export class RuntimeCoordinator {
     this.#activeByProviderSession.set(state.session.id, context);
     this.#activeByProviderSession.set(state.session.nativeId, context);
     try {
-      for await (const event of run()) {
-        yield {
-          ...event,
+      for await (const rawEvent of run()) {
+        const event = {
+          ...rawEvent,
           harnessId: state.target.harnessId,
           model: state.target.model,
         };
+        yield event;
       }
     } finally {
       if (this.#activeByThread.get(thread.id) === context) {
@@ -357,12 +439,7 @@ export class RuntimeCoordinator {
         summary: 'This Sia tool capability is not attached to an active provider turn.',
       };
     }
-    const result = await this.#gateway.invoke({
-      name: toolName,
-      arguments: argumentsValue,
-      context,
-    });
-    return result;
+    return (await this.#invokeTool(context, toolName, argumentsValue)).content;
   }
 
   async dispose(): Promise<void> {
@@ -413,14 +490,39 @@ export class RuntimeCoordinator {
       resolutionSource: 'legacy_default' as const,
     };
     assertTargetContext(thread, target);
-    const tools = this.#gateway.listTools();
+    const mac = thread.computerAccessMode === 'mac' && thread.nativeTools !== 'disabled';
+    if (mac && target.harnessId !== 'codex_app_server')
+      throw new Error('Use my Mac requires a Codex App Server agent.');
+    if (thread.nativeTools === 'disabled' && target.harnessId !== 'codex_app_server')
+      throw new Error('Memory reviews require the Codex App Server harness.');
+    const tools = this.#gateway
+      .listTools()
+      .filter((tool) =>
+        thread.notchReview
+          ? tool.name === 'memory_vault'
+          : (tool.name !== 'memory_vault' || (mac && thread.macBackgroundControl)) &&
+            (thread.nativeTools !== 'disabled' ||
+              ['assistant_library', 'memory_suggest'].includes(tool.name)),
+      );
+    const sessionTools = mac
+      ? tools.filter((tool) =>
+          macExecutionTools(thread.macBackgroundControl).includes(tool.name),
+        )
+      : tools;
     const fingerprint = JSON.stringify([
       thread.provider,
       thread.model,
       target,
       thread.workspace,
       thread.instructions,
-      tools.map(({ name }) => name),
+      thread.nativeTools,
+      thread.computerAccessMode,
+      thread.computerTrust,
+      thread.macBackgroundControl,
+      thread.macBackgroundFallback,
+      thread.notchVault,
+      thread.notchReview,
+      sessionTools.map(({ name }) => name),
     ]);
     const existing = this.#sessions.get(thread.id);
     if (existing?.fingerprint === fingerprint) return existing;
@@ -461,6 +563,28 @@ export class RuntimeCoordinator {
     const usesCodexHarness = target.harnessId === 'codex_app_server';
     const session = await adapter.createSession(
       {
+        ...(thread.notchReview
+          ? {
+              nativeTools: 'disabled' as const,
+              baseInstructions: notchConsolidationInstructions(
+                thread.notchVault ?? notchVaultRoot(thread.workspace),
+              ),
+            }
+          : mac
+            ? {
+                nativeTools: thread.macBackgroundControl
+                  ? ('mac-background' as const)
+                  : ('mac' as const),
+                nativeApproval: thread.computerTrust ?? 'ask',
+                baseInstructions: macExecutionGuidance(
+                  thread.macBackgroundControl,
+                  thread.macBackgroundFallback,
+                  thread.notchVault ?? notchVaultRoot(thread.workspace),
+                ),
+              }
+            : thread.nativeTools
+              ? { nativeTools: thread.nativeTools }
+              : {}),
         threadId: thread.id,
         model: target.harnessModelId,
         resolvedExecutionTarget: target,
@@ -471,7 +595,7 @@ export class RuntimeCoordinator {
         ...(usesCodexHarness && thread.priorMessages?.length
           ? { history: thread.priorMessages }
           : {}),
-        tools,
+        tools: sessionTools,
       },
       signal,
     );
@@ -479,6 +603,20 @@ export class RuntimeCoordinator {
     this.#sessions.set(thread.id, state);
     return state;
   }
+}
+
+export function macRequestClock(
+  now = new Date(),
+  timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
+): string {
+  return `Current request time: ${now.toISOString()}. Mac timezone: ${timeZone}. Local date and time: ${new Intl.DateTimeFormat(
+    'en-US',
+    {
+      timeZone,
+      dateStyle: 'full',
+      timeStyle: 'long',
+    },
+  ).format(now)}. Resolve relative dates from this request time, not from earlier messages.`;
 }
 
 function assertTargetContext(

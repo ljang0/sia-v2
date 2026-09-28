@@ -1,6 +1,6 @@
 import { PassThrough } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
-import type { ProviderSessionOptions } from '@sia/protocol';
+import type { ProviderSessionOptions, ThreadEventEnvelope } from '@sia/protocol';
 import type { JsonRpcMessage, JsonRpcTransport } from './json-rpc.js';
 import { JsonLinesTransport, JsonRpcPeer, parseJsonRpcMessage } from './json-rpc.js';
 import {
@@ -214,6 +214,26 @@ describe('CLI discovery', () => {
   it('parses and compares semantic CLI versions', () => {
     expect(parseCliVersion('codex-cli 0.147.0')).toBe('0.147.0');
     expect(compareVersions('1.10.0', '1.9.9')).toBe(1);
+    expect(compareVersions('0.155.0-alpha.9.2', '0.155.0-alpha.9')).toBe(1);
+    expect(compareVersions('0.155.0-alpha.10', '0.155.0-alpha.9.2')).toBe(1);
+    expect(compareVersions('0.155.0', '0.155.0-alpha.9.2')).toBe(1);
+    const pinned = {
+      minimum: '0.147.0',
+      maximumExclusive: '0.154.0',
+      additionalVersions: ['0.155.0-alpha.9', '0.155.0-alpha.9.2'],
+    };
+    expect(isVersionSupported('0.155.0-alpha.9', pinned)).toBe(true);
+    expect(isVersionSupported('0.155.0-alpha.9.2', pinned)).toBe(true);
+    for (const version of [
+      '0.154.0',
+      '0.154.0-alpha.1',
+      '0.150.0-alpha.1',
+      '0.155.0-alpha.8',
+      '0.155.0-alpha.10',
+      '0.155.0',
+      '0.156.0',
+    ])
+      expect(isVersionSupported(version, pinned)).toBe(false);
     expect(
       isVersionSupported('0.147.2', { minimum: '0.147.0', maximumExclusive: '0.148.0' }),
     ).toBe(true);
@@ -305,6 +325,127 @@ describe('Codex app-server adapter', () => {
     expect(args).toContain('notify=[]');
     expect(args).toContain('web_search="live"');
     expect(args.at(-1)).toBe('--strict-config');
+  });
+
+  it('holds concurrent account requests until the Codex handshake completes', async () => {
+    const peers = linkedPeers();
+    const methods: string[] = [];
+    let finishInitialize!: () => void;
+    const initialized = new Promise<void>((resolve) => {
+      finishInitialize = resolve;
+    });
+    peers.server.onNotification((method) => {
+      methods.push(method);
+    });
+    peers.server.onRequest(async (method) => {
+      methods.push(method);
+      if (method === 'initialize') {
+        await initialized;
+        return {};
+      }
+      if (method === 'account/read') return { account: null };
+      throw new Error(`unexpected ${method}`);
+    });
+    const dispose = vi.fn(async () => {
+      await peers.client.close();
+      await peers.server.close();
+    });
+    const factory = vi.fn(async () => ({ peer: peers.client, dispose }));
+    const adapter = new CodexAppServerAdapter({ peerFactory: factory });
+    const first = adapter.account();
+    await vi.waitFor(() => expect(methods).toEqual(['initialize']));
+    const second = adapter.account();
+    await new Promise((resolve) => setImmediate(resolve));
+    const beforeHandshake = [...methods];
+    finishInitialize();
+    try {
+      await Promise.all([first, second]);
+      expect(beforeHandshake).toEqual(['initialize']);
+      expect(methods).toEqual(['initialize', 'initialized', 'account/read', 'account/read']);
+      expect(factory).toHaveBeenCalledTimes(1);
+    } finally {
+      await adapter.dispose();
+    }
+    expect(dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('disposes a failed Codex handshake and retries with a fresh peer', async () => {
+    const failed = linkedPeers();
+    const fresh = linkedPeers();
+    failed.server.onRequest(async () => {
+      throw new Error('handshake failed');
+    });
+    const methods: string[] = [];
+    fresh.server.onRequest(async (method) => {
+      methods.push(method);
+      return method === 'account/read' ? { account: null } : {};
+    });
+    const disposeFailed = vi.fn(async () => {
+      await failed.client.close();
+      await failed.server.close();
+    });
+    const factory = vi
+      .fn()
+      .mockResolvedValueOnce({ peer: failed.client, dispose: disposeFailed })
+      .mockResolvedValueOnce({
+        peer: fresh.client,
+        dispose: async () => {
+          await fresh.client.close();
+          await fresh.server.close();
+        },
+      });
+    const adapter = new CodexAppServerAdapter({ peerFactory: factory });
+    try {
+      await expect(adapter.account()).rejects.toThrow('handshake failed');
+      expect(disposeFailed).toHaveBeenCalledTimes(1);
+      await expect(adapter.account()).resolves.toMatchObject({ state: 'unauthenticated' });
+      expect(methods).toEqual(['initialize', 'account/read']);
+      expect(factory).toHaveBeenCalledTimes(2);
+    } finally {
+      await adapter.dispose();
+    }
+  });
+
+  it('keeps reset reusable and retires a late pre-reset peer without replacing the new connection', async () => {
+    const old = linkedPeers();
+    const fresh = linkedPeers();
+    let releaseOld!: (value: { peer: JsonRpcPeer; dispose(): Promise<void> }) => void;
+    const pending = new Promise<{ peer: JsonRpcPeer; dispose(): Promise<void> }>((resolve) => {
+      releaseOld = resolve;
+    });
+    const oldDispose = vi.fn(async () => {
+      await old.client.close();
+      await old.server.close();
+    });
+    const freshDispose = vi.fn(async () => {
+      await fresh.client.close();
+      await fresh.server.close();
+    });
+    const methods: string[] = [];
+    fresh.server.onRequest(async (method) => {
+      methods.push(method);
+      return method === 'account/read' ? { account: null } : {};
+    });
+    const factory = vi
+      .fn()
+      .mockReturnValueOnce(pending)
+      .mockResolvedValueOnce({ peer: fresh.client, dispose: freshDispose });
+    const adapter = new CodexAppServerAdapter({ peerFactory: factory });
+    const first = adapter.account();
+    const firstRejected = expect(first).rejects.toThrow('reset during initialization');
+    await adapter.dispose();
+    try {
+      await expect(adapter.account()).resolves.toMatchObject({ state: 'unauthenticated' });
+      releaseOld({ peer: old.client, dispose: oldDispose });
+      await firstRejected;
+      await adapter.account();
+      expect(oldDispose).toHaveBeenCalledTimes(1);
+      expect(factory).toHaveBeenCalledTimes(2);
+      expect(methods).toEqual(['initialize', 'account/read', 'account/read']);
+    } finally {
+      await adapter.dispose();
+    }
+    expect(freshDispose).toHaveBeenCalledTimes(1);
   });
 
   it('runs an included model through a scoped Responses provider without Codex-plan login', async () => {
@@ -1213,4 +1354,429 @@ describe('Meta streaming adapter', () => {
     });
     await adapter.dispose();
   });
+});
+
+describe('Codex library review isolation', () => {
+  it.each([
+    { unsafe: false, normalizedExec: false, background: false },
+    { unsafe: false, normalizedExec: true, background: false },
+    { unsafe: true, normalizedExec: true, background: false },
+    { unsafe: false, normalizedExec: true, background: true },
+    { unsafe: true, normalizedExec: true, background: true },
+    { unsafe: false, normalizedExec: true, background: true, invalidPermissions: true },
+  ])(
+    'disables native tools and checks the shell gate with normalized execution flags (%j)',
+    async (testCase) => {
+      const { unsafe, normalizedExec, background } = testCase;
+      const invalidPermissions =
+        'invalidPermissions' in testCase && testCase.invalidPermissions;
+      const peers = linkedPeers();
+      let request: Record<string, unknown> | undefined;
+      peers.server.onRequest(async (method, params) => {
+        if (method === 'initialize') return { userAgent: 'fake' };
+        if (method === 'thread/start') {
+          request = params as Record<string, unknown>;
+          return {
+            thread: { id: 'review-native' },
+            sandbox: background
+              ? {
+                  type: 'workspaceWrite',
+                  networkAccess: false,
+                  writableRoots: invalidPermissions ? ['/'] : [],
+                  excludeSlashTmp: true,
+                  excludeTmpdirEnvVar: true,
+                }
+              : { type: 'readOnly' },
+          };
+        }
+        if (method === 'experimentalFeature/list')
+          return {
+            data: Object.keys(isolatedCodexFeatures).map((name) => ({
+              name,
+              enabled:
+                (unsafe && name === 'shell_tool') ||
+                (normalizedExec && name === 'unified_exec'),
+            })),
+            nextCursor: null,
+          };
+        const response = codexIsolationResponse(method, params);
+        if (response !== undefined) return response;
+        throw new Error(`unexpected ${method}`);
+      });
+      const adapter = new CodexAppServerAdapter({
+        peerFactory: async () => ({
+          peer: peers.client,
+          dispose: async () => {
+            await peers.client.close();
+            await peers.server.close();
+          },
+        }),
+      });
+      try {
+        const start = adapter.createSession({
+          ...sessionOptions,
+          tools: [],
+          nativeTools: background ? 'mac-background' : 'disabled',
+          ...(background ? { baseInstructions: 'Use only background window tools.' } : {}),
+        });
+        if (unsafe || invalidPermissions)
+          await expect(start).rejects.toThrow('verification failed');
+        else await expect(start).resolves.toMatchObject({ nativeId: 'review-native' });
+        if (background)
+          expect(request?.baseInstructions).toBe('Use only background window tools.');
+        else expect(request).not.toHaveProperty('baseInstructions');
+        if (background)
+          expect(request).toMatchObject({
+            config: {
+              sandbox_workspace_write: {
+                network_access: false,
+                writable_roots: [],
+                exclude_slash_tmp: true,
+                exclude_tmpdir_env_var: true,
+              },
+            },
+          });
+        expect(request).toMatchObject({
+          sandbox: background ? 'workspace-write' : 'read-only',
+          approvalPolicy: 'never',
+          config: {
+            web_search: 'disabled',
+            features: {
+              shell_tool: false,
+              unified_exec: false,
+              view_image: false,
+              multi_agent: false,
+            },
+          },
+        });
+      } finally {
+        await adapter.dispose();
+      }
+    },
+  );
+});
+
+describe('Notch-style native Mac sessions', () => {
+  it.each([false, true])(
+    'waits for a host tool and reports exactly one terminal result (watchdog: %s)',
+    async (watchdog) => {
+      const peers = linkedPeers();
+      const started = Promise.withResolvers<void>();
+      const entered = Promise.withResolvers<void>();
+      const startReply = Promise.withResolvers<unknown>();
+      const toolReply = Promise.withResolvers<{ success: boolean; content: unknown }>();
+      let interrupts = 0;
+      peers.server.onRequest(async (method, params) => {
+        if (method === 'initialize') return {};
+        if (method === 'thread/start')
+          return {
+            thread: { id: 'mac-wait' },
+            sandbox: { type: 'dangerFullAccess' },
+            approvalPolicy: 'never',
+          };
+        if (method === 'experimentalFeature/list')
+          return {
+            data: Object.entries({ ...isolatedCodexFeatures, multi_agent: false }).map(
+              ([name, enabled]) => ({ name, enabled }),
+            ),
+            nextCursor: null,
+          };
+        if (method === 'turn/start') {
+          started.resolve();
+          return startReply.promise;
+        }
+        if (method === 'turn/interrupt') {
+          interrupts++;
+          await peers.server.notify('turn/completed', {
+            threadId: 'mac-wait',
+            turn: { id: 'turn-wait', status: 'interrupted' },
+          });
+          return {};
+        }
+        if (method === 'thread/backgroundTerminals/clean') return {};
+        const response = codexIsolationResponse(method, params);
+        if (response !== undefined) return response;
+        throw new Error(`Unexpected ${method}`);
+      });
+      const adapter = new CodexAppServerAdapter({
+        peerFactory: async () => ({
+          peer: peers.client,
+          dispose: async () => {
+            await peers.client.close();
+            await peers.server.close();
+          },
+        }),
+        dynamicToolHandler: async () => {
+          entered.resolve();
+          return toolReply.promise;
+        },
+      });
+      try {
+        const session = await adapter.createSession({
+          ...sessionOptions,
+          nativeTools: 'mac',
+          nativeApproval: 'auto',
+          baseInstructions: 'Use the provided tools.',
+        });
+        vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+        const events: ThreadEventEnvelope[] = [];
+        const finished = (async () => {
+          for await (const event of adapter.sendTurn(session, {
+            turnId: 'turn-wait',
+            text: 'Run a workflow',
+          }))
+            events.push(event);
+        })();
+        await started.promise;
+        const tool = peers.server.request('item/tool/call', {
+          threadId: session.nativeId,
+          callId: 'call',
+          name: 'browser_tabs',
+          arguments: {},
+        });
+        await entered.promise;
+        await vi.advanceTimersByTimeAsync(185000);
+        expect(interrupts).toBe(0);
+        toolReply.resolve({ success: true, content: { outcome: 'verified' } });
+        await tool;
+        if (watchdog) await vi.advanceTimersByTimeAsync(185000);
+        else {
+          await peers.server.notify('item/completed', {
+            threadId: session.nativeId,
+            item: {
+              id: 'answer',
+              type: 'agentMessage',
+              phase: 'final_answer',
+              text: '{"type":"action","response":"Verified.","success":true}',
+            },
+          });
+          await peers.server.notify('turn/completed', {
+            threadId: session.nativeId,
+            turn: { id: 'turn-wait', status: 'completed' },
+          });
+        }
+        await finished;
+        startReply.reject(new Error('Late start failure'));
+        await new Promise((resolve) => setImmediate(resolve));
+        expect(events.filter((event) => event.type === 'completion')).toHaveLength(1);
+        expect(events.some((event) => event.type === 'error')).toBe(watchdog);
+        if (watchdog) {
+          expect(JSON.stringify(events)).toContain('stopped responding');
+          expect(events.at(-1)).toMatchObject({
+            type: 'completion',
+            payload: { status: 'failed' },
+          });
+        }
+      } finally {
+        vi.useRealTimers();
+        await adapter.dispose();
+      }
+    },
+  );
+  it('discovers Astra from the live model catalog contract, preserving the account reasoning options', async () => {
+    const peers = linkedPeers();
+    peers.server.onRequest(async (method, params) => {
+      if (method === 'initialize') return {};
+      if (method === 'model/list') {
+        expect(params).toMatchObject({ limit: 100 });
+        return {
+          data: [
+            {
+              id: 'astra',
+              model: 'gpt-6-astra',
+              displayName: 'GPT-6 Astra',
+              supportedReasoningEfforts: [
+                { reasoningEffort: 'low' },
+                { reasoningEffort: 'medium' },
+                { reasoningEffort: 'ultra' },
+              ],
+              defaultReasoningEffort: 'medium',
+            },
+            { model: 'private-model', hidden: true },
+          ],
+          nextCursor: null,
+        };
+      }
+      throw new Error(`Unexpected ${method}`);
+    });
+    const adapter = new CodexAppServerAdapter({
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    try {
+      expect(await adapter.listModels()).toEqual([
+        {
+          id: 'gpt-6-astra',
+          label: 'GPT-6 Astra',
+          description: '',
+          reasoningEfforts: ['low', 'medium', 'ultra'],
+          defaultReasoningEffort: 'medium',
+        },
+      ]);
+    } finally {
+      await adapter.dispose();
+    }
+  });
+  it.each(['ask', 'auto'] as const)(
+    'retains native tools, replaces the coding persona, and honors %s approval',
+    async (nativeApproval) => {
+      const peers = linkedPeers();
+      let start: any;
+      let approvalDecision: unknown;
+      let turnParams: any;
+      const finalText = JSON.stringify({
+        type: 'action',
+        steps: ['Open app'],
+        response: 'Opened.',
+        success: true,
+        learned_skill: null,
+        output_file: null,
+      });
+      peers.server.onRequest(async (method, params) => {
+        if (method === 'initialize') return {};
+        if (method === 'thread/start') {
+          start = params;
+          return {
+            thread: { id: 'native-mac' },
+            sandbox: { type: 'dangerFullAccess' },
+            approvalPolicy: nativeApproval === 'auto' ? 'never' : 'untrusted',
+          };
+        }
+        if (method === 'experimentalFeature/list')
+          return {
+            data: Object.entries({ ...isolatedCodexFeatures, multi_agent: false }).map(
+              ([name, enabled]) => ({ name, enabled }),
+            ),
+            nextCursor: null,
+          };
+        if (method === 'turn/start') {
+          turnParams = params;
+          setImmediate(() => {
+            void (async () => {
+              approvalDecision = await peers.server.request(
+                'item/commandExecution/requestApproval',
+                {
+                  threadId: 'native-mac',
+                  turnId: 'native-turn',
+                  itemId: 'command',
+                  command: 'open -a TextEdit',
+                },
+              );
+              await peers.server.notify('item/completed', {
+                threadId: 'native-mac',
+                item: {
+                  type: 'commandExecution',
+                  id: 'failed-command',
+                  command: 'false',
+                  status: 'completed',
+                  exitCode: 1,
+                },
+              });
+              await peers.server.notify('item/agentMessage/delta', {
+                threadId: 'native-mac',
+                itemId: 'answer',
+                delta: '{"type":',
+              });
+              await peers.server.notify('item/completed', {
+                threadId: 'native-mac',
+                item: {
+                  type: 'agentMessage',
+                  id: 'answer',
+                  phase: 'final_answer',
+                  text: finalText,
+                },
+              });
+              await peers.server.notify('turn/completed', {
+                threadId: 'native-mac',
+                turn: { id: 'native-turn', status: 'completed' },
+              });
+            })();
+          });
+          return { turn: { id: 'native-turn' } };
+        }
+        if (method === 'thread/backgroundTerminals/clean') return {};
+        const isolated = codexIsolationResponse(method, params);
+        if (isolated !== undefined) return isolated;
+        throw new Error(`Unexpected ${method}`);
+      });
+      const adapter = new CodexAppServerAdapter({
+        peerFactory: async () => ({
+          peer: peers.client,
+          dispose: async () => {
+            await peers.client.close();
+            await peers.server.close();
+          },
+        }),
+      });
+      try {
+        const session = await adapter.createSession({
+          ...sessionOptions,
+          model: 'gpt-6-astra',
+          tools: [],
+          nativeTools: 'mac',
+          nativeApproval,
+          baseInstructions: 'You are Sia. PERCEIVE → ACT → VERIFY.',
+        });
+        expect(start).toMatchObject({
+          model: 'gpt-6-astra',
+          sandbox: 'danger-full-access',
+          approvalPolicy: nativeApproval === 'auto' ? 'never' : 'untrusted',
+          baseInstructions: 'You are Sia. PERCEIVE → ACT → VERIFY.',
+          dynamicTools: [],
+          config: {
+            web_search: 'disabled',
+            project_doc_max_bytes: 0,
+            features: {
+              shell_tool: true,
+              unified_exec: true,
+              view_image: true,
+              multi_agent: false,
+              computer_use: false,
+              apps: false,
+            },
+          },
+        });
+        const events = [];
+        for await (const event of adapter.sendTurn(session, {
+          turnId: 'turn',
+          text: 'Open TextEdit',
+          outputSchema: { type: 'object' },
+        })) {
+          events.push(event);
+          if (event.type === 'approval')
+            await adapter.respondToRequest(session, {
+              requestId: event.payload.requestId,
+              choiceId: 'deny',
+            });
+        }
+        expect(approvalDecision).toEqual({
+          decision: nativeApproval === 'auto' ? 'accept' : 'decline',
+        });
+        expect(events.filter((e) => e.type === 'approval')).toHaveLength(
+          nativeApproval === 'auto' ? 0 : 1,
+        );
+        expect(events.filter((e) => e.type === 'message')).toMatchObject([
+          { payload: { delta: false, parts: [{ text: finalText }] } },
+        ]);
+        expect(events.filter((e) => e.type === 'tool')).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              payload: expect.objectContaining({
+                phase: 'failed',
+                presentation: expect.objectContaining({ exitCode: 1 }),
+              }),
+            }),
+          ]),
+        );
+        expect(turnParams.outputSchema).toEqual({ type: 'object' });
+      } finally {
+        await adapter.dispose();
+      }
+    },
+  );
 });

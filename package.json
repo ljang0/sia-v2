@@ -1,6 +1,6 @@
 {
   "name": "sia-v2",
-  "version": "0.1.0-alpha.24",
+  "version": "0.1.0-alpha.25",
   "private": true,
   "description": "A local-first personal computer assistant for macOS.",
   "author": "Lawrence Jang",
@@ -22,7 +22,7 @@
     "onboard:check": "node scripts/onboarding-check.mjs",
     "release:publish-link": "node apps/desktop/scripts/publish-release.mjs",
     "test": "pnpm -r --if-present test",
-    "test:pilot": "pnpm check && pnpm --filter @sia/desktop exec playwright test",
+    "test:pilot": "pnpm check && pnpm --filter @sia/desktop exec playwright test && pnpm --filter @sia/desktop test:renderer",
     "test:claude-isolation:real": "pnpm --filter @sia/runtime test:claude-isolation:real",
     "test:codex-isolation:real": "pnpm --filter @sia/runtime test:codex-isolation:real",
     "test:e2e": "pnpm --filter @sia/desktop test:e2e",
@@ -30,7 +30,8 @@
     "test:e2e:parity:strict": "pnpm --filter @sia/desktop test:e2e:parity:strict",
     "test:e2e:real:no-turn": "pnpm --filter @sia/desktop test:e2e:real:no-turn",
     "test:e2e:real:capabilities": "pnpm --filter @sia/desktop test:e2e:real:capabilities",
-    "typecheck": "pnpm -r --if-present typecheck"
+    "typecheck": "pnpm -r --if-present typecheck",
+    "release:stage-public-download": "node apps/desktop/scripts/stage-public-download.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",

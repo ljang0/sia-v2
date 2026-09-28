@@ -36,6 +36,54 @@ const renderConversation = (thread: ThreadDetail) => {
 };
 
 describe('Conversation waiting controls', () => {
+  it('shows an explained task failure once and keeps the continue control', () => {
+    const explanation = 'The browser needs a fresh window snapshot.';
+    renderConversation(
+      baseThread({
+        status: 'error',
+        error: explanation,
+        events: [
+          {
+            id: 'failure',
+            type: 'message',
+            role: 'assistant',
+            content: explanation,
+            timestamp: '2026-08-13T00:00:00.000Z',
+          },
+          {
+            id: 'notice',
+            type: 'notice',
+            tone: 'error',
+            title: 'Task needs attention',
+            detail: explanation,
+          },
+        ],
+      }),
+    );
+    expect(screen.getAllByText(explanation)).toHaveLength(1);
+    expect(screen.getByRole('alert').textContent).toContain('Task needs attention');
+    expect(screen.getByRole('button', { name: 'Continue task' })).toBeTruthy();
+  });
+
+  it('preserves a distinct failure reason after an earlier response', () => {
+    renderConversation(
+      baseThread({
+        status: 'error',
+        error: 'Connection lost.',
+        events: [
+          {
+            id: 'earlier',
+            type: 'message',
+            role: 'assistant',
+            content: 'Checking the window.',
+            timestamp: '2026-08-13T00:00:00.000Z',
+          },
+        ],
+      }),
+    );
+    expect(screen.getByRole('alert').textContent).toContain('Connection lost.');
+  });
+
   it('copies a message without changing the transcript', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {
@@ -349,6 +397,50 @@ describe('Conversation waiting controls', () => {
       expect(view.container.querySelector('[data-state="complete"]')).toBeTruthy();
       expect(view.container.querySelector('[data-completed="true"]')).toBeTruthy();
     });
+  });
+
+  it('ends voice conversation while a spoken reply is still loading', async () => {
+    const onSpeak = vi.fn(
+      async () =>
+        await new Promise<{ audioBase64: string; mimeType: 'audio/mpeg' }>(() => undefined),
+    );
+    const onAcquireVoiceCapture = vi.fn(async () => 'lease');
+    const props = {
+      voiceEnabled: true,
+      onSpeak,
+      onAcquireVoiceCapture,
+      onTranscribeVoice: vi.fn(async () => 'voice request'),
+      onSend: vi.fn(async () => undefined),
+      onStop: vi.fn(async () => undefined),
+      onRetry: vi.fn(async () => undefined),
+      onResolveApproval: vi.fn(async () => undefined),
+    };
+    const thread = baseThread({ status: 'running' });
+    const view = render(<Conversation thread={thread} {...props} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Start voice conversation' }));
+    view.rerender(
+      <Conversation
+        thread={{
+          ...thread,
+          status: 'idle',
+          events: [
+            {
+              id: 'spoken-reply',
+              type: 'message',
+              role: 'assistant',
+              content: 'Finished your request.',
+              timestamp: '2026-09-23T00:00:00.000Z',
+            },
+          ],
+        }}
+        {...props}
+      />,
+    );
+    await waitFor(() => expect(onSpeak).toHaveBeenCalledWith('Finished your request.'));
+    fireEvent.click(screen.getByRole('button', { name: 'End voice conversation' }));
+    expect(screen.getByRole('button', { name: 'Start voice conversation' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Cancel read aloud' })).toBeNull();
+    expect(onAcquireVoiceCapture).not.toHaveBeenCalled();
   });
 
   it('keeps only one read-aloud request active across replies', async () => {

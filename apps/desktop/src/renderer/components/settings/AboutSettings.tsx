@@ -6,10 +6,12 @@ import { SettingsSectionHeader } from './SettingsShared';
 
 export function AboutSettings({
   updates,
+  onOpenFeedback,
   onCheckForUpdates,
   onOpenUpdateDownload,
 }: {
   updates: RendererSnapshot['updates'];
+  onOpenFeedback?: (() => void) | undefined;
   onCheckForUpdates(): Promise<void>;
   onOpenUpdateDownload(): Promise<void>;
 }) {
@@ -59,6 +61,11 @@ export function AboutSettings({
           )}
         </div>
       </div>
+      {onOpenFeedback ? (
+        <button type="button" className={styles.textButton} onClick={onOpenFeedback}>
+          Send feedback
+        </button>
+      ) : null}
     </SettingsSectionHeader>
   );
 }

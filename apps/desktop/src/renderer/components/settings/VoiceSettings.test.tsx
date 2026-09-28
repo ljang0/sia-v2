@@ -74,3 +74,83 @@ describe('voice settings', () => {
     await waitFor(() => expect(setCompletionSound).toHaveBeenCalledWith(true));
   });
 });
+
+it('enables Fn for the chosen background agent with clear recording instructions', async () => {
+  const configure = vi.fn(async () => undefined);
+  render(
+    <VoiceSettings
+      voice={{
+        status: 'connected',
+        voices: [],
+        pushToTalk: {
+          available: true,
+          enabled: false,
+          accessibility: false,
+          phase: 'idle',
+        },
+      }}
+      agents={[
+        { id: 'research', name: 'Research' },
+        { id: 'writing', name: 'Writing' },
+      ]}
+      onConfigurePushToTalk={configure}
+      completionSound={false}
+      onConfigure={vi.fn()}
+      onRefresh={vi.fn()}
+      onSelect={vi.fn()}
+      onDisconnect={vi.fn()}
+      onSetCompletionSound={vi.fn()}
+    />,
+  );
+  fireEvent.change(screen.getByLabelText('Voice agent when Sia is in the background'), {
+    target: { value: 'writing' },
+  });
+  fireEvent.click(screen.getByRole('checkbox', { name: /Hold Fn to talk to Sia/ }));
+  await waitFor(() => expect(configure).toHaveBeenCalledWith(true, 'writing'));
+  expect(screen.getByText(/Escape cancels/)).toBeTruthy();
+});
+
+it('offers native read aloud without cloud setup and explains unavailable local dictation', async () => {
+  const configure = vi.fn().mockResolvedValue(undefined);
+  const { rerender } = render(
+    <VoiceSettings
+      voice={{ engine: 'macos', status: 'disconnected', voices: [] }}
+      completionSound={false}
+      onConfigure={configure}
+      onRefresh={vi.fn()}
+      onSelect={vi.fn()}
+      onDisconnect={vi.fn()}
+      onSetCompletionSound={vi.fn()}
+    />,
+  );
+  expect(screen.getByText('Use your Mac’s built-in voice')).toBeTruthy();
+  expect(screen.queryByText(/Voice audio goes to ElevenLabs/)).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Enable voice' }));
+  await waitFor(() => expect(configure).toHaveBeenCalledOnce());
+  rerender(
+    <VoiceSettings
+      voice={{
+        engine: 'macos',
+        status: 'connected',
+        voices: [],
+        dictationAvailable: false,
+        dictationDetail: 'Read aloud works; on-device dictation is unavailable.',
+        pushToTalk: { available: true, enabled: false, accessibility: false, phase: 'idle' },
+      }}
+      agents={[{ id: 'agent', name: 'Sia' }]}
+      onConfigurePushToTalk={vi.fn()}
+      completionSound={false}
+      onConfigure={configure}
+      onRefresh={vi.fn()}
+      onSelect={vi.fn()}
+      onDisconnect={vi.fn()}
+      onSetCompletionSound={vi.fn()}
+    />,
+  );
+  expect(screen.getByText('Read aloud ready')).toBeTruthy();
+  expect(
+    (screen.getByRole('checkbox', { name: /Hold Fn to talk to Sia/ }) as HTMLInputElement)
+      .disabled,
+  ).toBe(true);
+  expect(screen.getByText(/Read aloud works;/)).toBeTruthy();
+});

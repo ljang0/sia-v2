@@ -62,13 +62,13 @@ const supportedCodex =
   codexVersion !== null &&
   Number(codexVersion[1]) === 0 &&
   Number(codexVersion[2]) >= 147 &&
-  Number(codexVersion[2]) < 151;
+  Number(codexVersion[2]) < 154;
 optional(
   'Codex CLI',
   supportedCodex,
   !codex.ok
     ? 'optional for fake-services development; required for Codex-plan testing'
-    : `${codex.output}; release range is >=0.147.0 <0.151.0`,
+    : `${codex.output}; release range is >=0.147.0 <0.154.0`,
 );
 
 for (const result of results) {

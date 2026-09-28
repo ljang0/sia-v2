@@ -10,7 +10,7 @@ import {
   Trash,
   X,
 } from '@phosphor-icons/react';
-import { useId, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { ScheduleRun, ThreadGoal } from '../../types';
 import styles from '../../ui.module.css';
 
@@ -21,6 +21,7 @@ interface SelectOption {
 }
 
 interface ThreadModelControlsProps {
+  workspace?: string;
   modelId: string;
   reasoningId: string;
   models: readonly SelectOption[];
@@ -31,6 +32,7 @@ interface ThreadModelControlsProps {
 }
 
 export function ThreadModelControls({
+  workspace,
   modelId,
   reasoningId,
   models,
@@ -39,44 +41,74 @@ export function ThreadModelControls({
   onChangeModel,
   onChangeReasoning,
 }: ThreadModelControlsProps) {
+  const menu = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const outside = (event: PointerEvent) => {
+      if (menu.current && !menu.current.contains(event.target as Node))
+        menu.current.open = false;
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && menu.current?.open) {
+        menu.current.open = false;
+        menu.current.querySelector('summary')?.focus();
+      }
+    };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
+    };
+  }, []);
   return (
-    <section className={styles.threadControls} aria-label="Thread model settings">
-      <label>
-        <span className={styles.visuallyHidden}>Model</span>
-        <select
-          aria-label="Model"
-          data-testid="thread-model-select"
-          value={modelId}
-          disabled={disabled}
-          onChange={(event) => void onChangeModel(event.target.value)}
-        >
-          {models.map((model) => (
-            <option key={model.id} value={model.id} title={model.detail}>
-              {model.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <span className={styles.threadControlDivider} aria-hidden="true">
-        ·
-      </span>
-      <label>
-        <span className={styles.visuallyHidden}>Reasoning</span>
-        <select
-          aria-label="Reasoning"
-          data-testid="thread-reasoning-select"
-          value={reasoningId}
-          disabled={disabled}
-          onChange={(event) => void onChangeReasoning(event.target.value)}
-        >
-          {reasoningOptions.map((option) => (
-            <option key={option.id} value={option.id} title={option.detail}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
-    </section>
+    <details ref={menu} className={styles.agentSettingsMenu}>
+      <summary>
+        Agent settings <CaretDown size={13} aria-hidden="true" />
+      </summary>
+      <section className={styles.threadControls} aria-label="Thread model settings">
+        <label>
+          <span>Model</span>
+          <select
+            aria-label="Model"
+            data-testid="thread-model-select"
+            value={modelId}
+            disabled={disabled}
+            onChange={(event) => void onChangeModel(event.target.value)}
+          >
+            {models.map((model) => (
+              <option key={model.id} value={model.id} title={model.detail}>
+                {model.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className={styles.threadControlDivider} aria-hidden="true">
+          ·
+        </span>
+        <label>
+          <span>Reasoning</span>
+          <select
+            aria-label="Reasoning"
+            data-testid="thread-reasoning-select"
+            value={reasoningId}
+            disabled={disabled}
+            onChange={(event) => void onChangeReasoning(event.target.value)}
+          >
+            {reasoningOptions.map((option) => (
+              <option key={option.id} value={option.id} title={option.detail}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {workspace && (
+          <details className={styles.workspaceDetails}>
+            <summary>Workspace</summary>
+            <p>{workspace}</p>
+          </details>
+        )}
+      </section>
+    </details>
   );
 }
 

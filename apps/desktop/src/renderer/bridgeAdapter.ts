@@ -1,3 +1,4 @@
+import { threadPreviews } from './threadPreviews';
 import { agentIdentity } from './agentIdentity';
 import type {
   ApprovalView,
@@ -50,6 +51,13 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
   };
 
   return {
+    onOpenConversation(listener) {
+      return bridge.subscribe((event) => {
+        if (event.type === 'open-conversation') listener();
+      });
+    },
+    scotty: (input) => bridge.scotty(input),
+    phoneRemote: (input) => bridge.phoneRemote(input),
     async getSnapshot() {
       return structuredClone(publish(await bridge.bootstrap()));
     },
@@ -57,7 +65,7 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       listeners.add(listener);
       const unsubscribe = bridge.subscribe((event) => {
         if (event.type === 'snapshot') publish(event.snapshot);
-        else onError?.(event.error.message);
+        else if (event.type === 'fatal') onError?.(event.error.message);
       });
       return () => {
         listeners.delete(listener);
@@ -302,6 +310,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       const result = await bridge.connections.startGoogle();
       publish(result.snapshot);
     },
+    async connectSelectedApps(apps) {
+      publish((await bridge.connections.startSelected(apps)).snapshot);
+    },
     async upgradeGoogleApps() {
       const result = await bridge.connections.upgradeGoogle();
       publish(result.snapshot);
@@ -328,11 +339,23 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async completeAdminMfa(code) {
       publish(await bridge.auth.mfaComplete(code));
     },
+    async assistantLibrary(input) {
+      return bridge.assistantLibrary(input);
+    },
     async signOutCloud() {
       publish(await bridge.auth.signOut());
     },
     async deleteCloudAccount(confirmation) {
       publish(await bridge.auth.deleteAccount(confirmation));
+    },
+    async connectBrowserAndContinue(threadId, userMessageId, windowId) {
+      publish(
+        await bridge.browser.connectAndContinue({
+          threadId,
+          userMessageId,
+          ...(windowId === undefined ? {} : { windowId }),
+        }),
+      );
     },
     async attachBrowser(windowId) {
       publish(await bridge.browser.attach(windowId));
@@ -343,6 +366,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async detachBrowser() {
       publish(await bridge.browser.detach());
     },
+    async setComputerAccessMode(mode, background, backgroundFallback) {
+      publish(await bridge.computer.setAccessMode(mode, background, backgroundFallback));
+    },
     async setComputerTrust(trust) {
       publish(await bridge.computer.setTrust(trust));
     },
@@ -352,11 +378,33 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async revealTrajectories() {
       publish(await bridge.computer.revealTrajectories());
     },
+    async refreshComputerPermissions() {
+      publish(await bridge.computer.permissions());
+    },
+    async requestAutomationPermission(app) {
+      publish(await bridge.computer.requestAutomation(app));
+    },
     async requestComputerPermissions() {
       publish(await bridge.computer.requestPermissions());
     },
     async openMessages() {
       publish(await bridge.computer.openMessages());
+    },
+    async configurePushToTalk(enabled, agentId, requestAccessibility, speakReplies) {
+      publish(
+        await bridge.voice.configurePushToTalk(
+          enabled,
+          agentId,
+          requestAccessibility,
+          speakReplies,
+        ),
+      );
+    },
+    async acquireVoiceCapture() {
+      return (await bridge.voice.acquireCapture()).leaseId;
+    },
+    async releaseVoiceCapture(leaseId) {
+      await bridge.voice.releaseCapture(leaseId);
     },
     async configureVoice() {
       publish(await bridge.voice.configure());
@@ -369,6 +417,18 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     },
     async disconnectVoice() {
       publish(await bridge.voice.disconnect());
+    },
+    async restartForOnboarding() {
+      publish(await bridge.settings.restartForOnboarding());
+    },
+    async setupMessages() {
+      publish(await bridge.computer.setupMessages());
+    },
+    async setOnboarding(step, permissionSetup) {
+      publish(await bridge.settings.setOnboarding(step, permissionSetup));
+    },
+    async setAppearance(appearance) {
+      publish(await bridge.settings.setAppearance(appearance));
     },
     async setCompletionSound(enabled) {
       publish(await bridge.settings.setCompletionSound(enabled));
@@ -423,6 +483,7 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
 }
 
 export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
+  const previews = threadPreviews(source.timeline);
   const threadMap = new Map(source.threads.map((thread) => [thread.id, thread]));
   const agents: AgentSummary[] = source.agents.map((agent) => ({
     id: agent.id,
@@ -444,10 +505,12 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
       .filter((thread): thread is NonNullable<typeof thread> =>
         Boolean(thread && !thread.archivedAt),
       )
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .map((thread) => ({
         id: thread.id,
         agentId: thread.agentId,
         title: thread.title,
+        preview: previews.get(thread.id),
         updatedAt: thread.updatedAt,
         status: mapThreadStatus(thread.status),
         queueReason: thread.queueReason,
@@ -545,6 +608,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         model: provider.model,
         description: provider.detail,
         status: mapProviderStatus(provider.status),
+        ...(provider.setup ? { setup: { ...provider.setup } } : {}),
         account: provider.account,
         version: provider.version,
         billedBy: provider.billing,
@@ -593,13 +657,24 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
       accessibility: source.computer.accessibility ? 'allowed' : 'not-requested',
       screenRecording: source.computer.screenRecording ? 'allowed' : 'not-requested',
       windows: [],
+      accessMode: source.computer.accessMode,
+      backgroundControl: source.computer.backgroundControl,
+      backgroundFallback: source.computer.backgroundFallback,
       trust: source.computer.trust,
       messagesAccess: source.computer.messagesAccess,
+      automation: source.computer.automation,
       chromeConnection: source.computer.chromeConnection,
       trajectoryLog: source.computer.trajectoryLog,
       trajectoryDirectory: source.computer.trajectoryDirectory,
     },
     voice: {
+      ...(source.voice.engine ? { engine: source.voice.engine } : {}),
+      ...(source.voice.dictationAvailable !== undefined
+        ? { dictationAvailable: source.voice.dictationAvailable }
+        : {}),
+      dictationDetail: source.voice.dictationDetail,
+      speechRecognition: source.voice.speechRecognition,
+      pushToTalk: source.voice.pushToTalk,
       status: source.voice.status,
       selectedVoiceId: source.voice.selectedVoiceId,
       selectedVoiceName: source.voice.selectedVoiceName,
@@ -646,6 +721,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         id: thread.id,
         agentId: thread.agentId,
         title: thread.title,
+        preview: previews.get(thread.id),
         updatedAt: thread.updatedAt,
         status: mapThreadStatus(thread.status),
         queueReason: thread.queueReason,
@@ -728,6 +804,7 @@ function mapTimelineItem(item: TimelineItemView): ThreadEvent {
     id: item.id,
     type: 'activity',
     kind: inferActivityKind(item.toolName),
+    ...(item.toolName ? { toolName: item.toolName } : {}),
     title: item.title ?? item.text ?? 'Working',
     detail: item.detail,
     status,

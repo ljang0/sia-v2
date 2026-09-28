@@ -132,7 +132,7 @@ export function CloudAccountSettings({
               autoComplete="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@andrew.cmu.edu"
+              placeholder="you@example.com"
               disabled={Boolean(pending)}
               aria-describedby={error ? `${formId}-error` : undefined}
               required

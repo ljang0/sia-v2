@@ -1,0 +1,27 @@
+.dither-aurora-field {
+  position: absolute;
+  inset: 0;
+  isolation: isolate;
+  opacity: 0.58;
+  mix-blend-mode: multiply;
+}
+.dither-aurora-tint {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    var(--aurora-emerald),
+    var(--aurora-cyan) 52%,
+    var(--aurora-violet)
+  );
+  mix-blend-mode: color;
+}
+.dither-aurora[data-renderer='dither'] .aurora-fallback {
+  opacity: 0.25;
+}
+@media (prefers-color-scheme: dark) {
+  .dither-aurora-field {
+    opacity: 0.6;
+    mix-blend-mode: screen;
+  }
+}

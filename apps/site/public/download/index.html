@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Download Sia for Mac</title>
+    <meta
+      name="description"
+      content="Get Sia for macOS. Set up Codex, sign in through your browser, and choose the Mac permissions your tasks need."
+    />
+    <meta name="theme-color" content="#090b0a" />
+    <link rel="canonical" href="https://superintelligentagents.ai/download/" />
+    <link rel="icon" href="/assets/sia-oauth-logo.png" type="image/png" />
+    <link rel="stylesheet" href="/assets/base.css" />
+    <link rel="stylesheet" href="/assets/legal.css" />
+    <script defer src="/assets/download.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="container nav-shell">
+        <a class="wordmark" href="/" aria-label="Sia home"
+          ><span class="mark" aria-hidden="true"></span>Sia</a
+        >
+        <nav class="nav-links" aria-label="Primary navigation">
+          <a href="/support/">Support</a><a href="/privacy/">Privacy</a>
+        </nav>
+      </div>
+    </header>
+    <main id="main">
+      <header class="legal-hero">
+        <div class="container">
+          <p class="eyebrow">Public preview / macOS 14 or later</p>
+          <h1>Sia for your Mac.</h1>
+          <p class="legal-summary">
+            An assistant that works through your apps. One installer for Apple silicon and Intel
+            Macs.
+          </p>
+          <p id="download-status" role="status">Checking download availability...</p>
+          <p><a id="download-installer" class="button" hidden>Download for Mac</a></p>
+          <noscript
+            ><p>
+              Enable JavaScript to load the verified download details, or contact
+              <a href="/support/">support</a>.
+            </p></noscript
+          >
+        </div>
+      </header>
+      <article class="legal-body">
+        <div class="container">
+          <section class="legal-section">
+            <h2>Start in a few steps</h2>
+            <ol>
+              <li>Open the disk image, drag Sia to Applications, then open Sia.</li>
+              <li>
+                Sign in with the code emailed to you. Use <strong>Set up Codex</strong> to
+                download the supported version and sign in to your ChatGPT plan through your
+                browser. No Terminal or model API key is needed.
+              </li>
+              <li>
+                Use <strong>Set up permissions</strong> and approve the macOS prompts for the
+                capabilities you want. Sia shows what is ready.
+              </li>
+            </ol>
+            <p>
+              You need internet access and an eligible Codex plan. Separately connected Google
+              Workspace and Slack accounts are still limited to designated testers; computer use
+              can work through your existing Mac apps.
+            </p>
+          </section>
+          <section class="legal-section">
+            <h2>Choose how Sia works</h2>
+            <p>
+              Automatic action approval is selected during setup. You can choose confirmations
+              instead. Mac permissions and sign-in screens still require you.
+            </p>
+            <p>
+              Background computer use is experimental. You can allow brief foreground control
+              when an app cannot accept background input. Scheduled tasks require Sia to stay
+              open and your Mac to stay awake.
+            </p>
+            <p>
+              Research sharing is off unless an eligible participant separately opts in. Read
+              the <a href="/privacy/">privacy policy</a> and <a href="/terms/">terms</a> before
+              using Sia.
+            </p>
+          </section>
+          <section class="legal-section">
+            <h2>Keychain and updates</h2>
+            <p>
+              Sia uses macOS Keychain to protect saved settings and conversations. Normal
+              launches and updates should retain access. A locked Keychain or a change from a
+              development build can require authorization. Your Mac password is entered only in
+              the macOS dialog.
+            </p>
+            <p>
+              Get help at
+              <a href="mailto:support@superintelligentagents.ai"
+                >support@superintelligentagents.ai</a
+              >. Never send your password, sign-in code, or API keys.
+            </p>
+          </section>
+          <section class="legal-section" id="download-details" hidden>
+            <h2>Installer details</h2>
+            <p id="download-version"></p>
+            <p>SHA-256: <code id="download-checksum" style="overflow-wrap: anywhere"></code></p>
+          </section>
+        </div>
+      </article>
+    </main>
+    <footer class="site-footer">
+      <div class="container">
+        <p>Sia public preview. macOS 14 or later.</p>
+        <a href="/support/">Get support</a>
+      </div>
+    </footer>
+  </body>
+</html>

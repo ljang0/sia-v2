@@ -38,48 +38,55 @@ describe('probeProviders', () => {
     expect(meta?.status).toBe('unavailable');
   });
 
-  it('pins Codex compatibility, checks auth, and passes only the minimal safe environment', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'sia-provider-probe-'));
-    const executable = join(directory, 'codex');
-    await writeFile(executable, '');
-    await chmod(executable, 0o700);
-    const run = vi.fn(
-      async (_executable: string, args: readonly string[], environment: NodeJS.ProcessEnv) => ({
-        code: 0,
-        stdout: args[0] === '--version' ? 'codex-cli 0.149.0' : 'Logged in using ChatGPT',
-        stderr: '',
-        environment,
-      }),
-    );
-    try {
-      const [codex] = await probeProviders(
-        'codex',
-        {
-          PATH: directory,
-          HOME: '/Users/person',
-          CODEX_HOME: '/Users/person/.codex',
-          DATABASE_URL: 'postgres://private',
-          API_TOKEN: 'private-token',
-        },
-        { run },
+  it.each(['0.149.0', '0.153.0', '0.155.0-alpha.9.2'])(
+    'pins Codex compatibility, checks auth, and passes only the minimal safe environment (%s)',
+    async (version) => {
+      const directory = await mkdtemp(join(tmpdir(), 'sia-provider-probe-'));
+      const executable = join(directory, 'codex');
+      await writeFile(executable, '');
+      await chmod(executable, 0o700);
+      const run = vi.fn(
+        async (
+          _executable: string,
+          args: readonly string[],
+          environment: NodeJS.ProcessEnv,
+        ) => ({
+          code: 0,
+          stdout: args[0] === '--version' ? `codex-cli ${version}` : 'Logged in using ChatGPT',
+          stderr: '',
+          environment,
+        }),
       );
-      expect(codex).toMatchObject({
-        status: 'ready',
-        version: '0.149.0',
-        account: 'Connected to ChatGPT',
-      });
-      expect(run).toHaveBeenCalledTimes(2);
-      for (const call of run.mock.calls) {
-        expect(call[2]).toEqual({
-          PATH: directory,
-          HOME: '/Users/person',
-          CODEX_HOME: '/Users/person/.codex',
+      try {
+        const [codex] = await probeProviders(
+          'codex',
+          {
+            PATH: directory,
+            HOME: '/Users/person',
+            CODEX_HOME: '/Users/person/.codex',
+            DATABASE_URL: 'postgres://private',
+            API_TOKEN: 'private-token',
+          },
+          { run },
+        );
+        expect(codex).toMatchObject({
+          status: 'ready',
+          version,
+          account: 'Connected to ChatGPT',
         });
+        expect(run).toHaveBeenCalledTimes(2);
+        for (const call of run.mock.calls) {
+          expect(call[2]).toEqual({
+            PATH: directory,
+            HOME: '/Users/person',
+            CODEX_HOME: '/Users/person/.codex',
+          });
+        }
+      } finally {
+        await rm(directory, { recursive: true, force: true });
       }
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
-  });
+    },
+  );
 
   it('fails closed for unsupported Codex and legacy Gemini releases', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'sia-provider-compat-'));
@@ -93,14 +100,14 @@ describe('probeProviders', () => {
     const runner = {
       run: vi.fn(async (executable: string) => ({
         code: 0,
-        stdout: executable.endsWith('codex') ? 'codex-cli 0.151.0' : 'gemini 1.2.3',
+        stdout: executable.endsWith('codex') ? 'codex-cli 0.154.0' : 'gemini 1.2.3',
         stderr: '',
       })),
     };
     try {
       const [codex] = await probeProviders('codex', { PATH: directory }, runner);
       const [gemini] = await probeProviders('gemini', { PATH: directory }, runner);
-      expect(codex).toMatchObject({ status: 'incompatible', version: '0.151.0' });
+      expect(codex).toMatchObject({ status: 'incompatible', version: '0.154.0' });
       expect(gemini).toMatchObject({
         status: 'disabled',
         detail: expect.stringContaining('Legacy adapter'),

@@ -1,4 +1,8 @@
-import { generateKeyPairSync, sign } from 'node:crypto';
+import { ScottyTasks } from './scotty-state.js';
+import { AssistantLibrary } from './assistant-library.js';
+import { NotchVault } from './notch/vault.js';
+import type { VoiceHelperFactory } from './push-to-talk.js';
+import { generateKeyPairSync, sign, randomUUID } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,9 +12,13 @@ import { ActionGateway, getActionToolDescriptor } from '@sia/action-gateway';
 
 import { CloudClient } from './cloud-client.js';
 import { DesktopController } from './controller.js';
+import { ElevenLabsVoiceService } from './voice-service.js';
+import { MacVoiceService } from './mac-voice-service.js';
 import { probeProviders } from './provider-probe.js';
+import type { RuntimeTurnInput } from './runtime-coordinator.js';
 import { canonicalJson } from './update-manifest.js';
 import {
+  EphemeralPayloadCipher,
   PlaintextTestCipher,
   type RecordRepository,
   SqliteRecordRepository,
@@ -49,6 +57,7 @@ interface ResearchBatchView {
 async function createHarness(
   options: {
     fakeServices?: boolean;
+    voice?: ConstructorParameters<typeof DesktopController>[0]['voice'];
     runtime?: unknown;
     cloud?: CloudClient;
     identity?: ConstructorParameters<typeof DesktopController>[0]['identity'];
@@ -57,6 +66,13 @@ async function createHarness(
     providerProbe?: ConstructorParameters<typeof DesktopController>[0]['providerProbe'];
     openExternal?: (url: string) => Promise<void>;
     openMessages?: () => Promise<void>;
+    openMessagesPermissions?: () => Promise<void>;
+    requestMicrophonePermission?: () => Promise<void>;
+    restartApp?: () => void;
+    installCodex?: () => Promise<void>;
+    workspaceOperations?: ConstructorParameters<
+      typeof DesktopController
+    >[0]['workspaceOperations'];
     repository?: RecordRepository;
     capabilitySetup?: ConstructorParameters<typeof DesktopController>[0]['capabilitySetup'];
     trajectory?: ConstructorParameters<typeof DesktopController>[0]['trajectory'];
@@ -89,8 +105,20 @@ async function createHarness(
       signOut: async () => ({ state: 'unconfigured' as const }),
     },
     fakeServices: options.fakeServices ?? true,
+    ...(options.voice ? { voice: options.voice } : {}),
     openExternal: options.openExternal ?? (async () => undefined),
     openMessages: options.openMessages ?? (async () => undefined),
+    ...(options.restartApp ? { restartApp: options.restartApp } : {}),
+    ...(options.installCodex ? { installCodex: options.installCodex } : {}),
+    ...(options.workspaceOperations
+      ? { workspaceOperations: options.workspaceOperations }
+      : {}),
+    ...(options.openMessagesPermissions
+      ? { openMessagesPermissions: options.openMessagesPermissions }
+      : {}),
+    ...(options.requestMicrophonePermission
+      ? { requestMicrophonePermission: options.requestMicrophonePermission }
+      : {}),
     chooseDirectory: async () => '/tmp/sia-workspace',
     ...(options.defaultWorkspaceRoot
       ? { defaultWorkspaceRoot: options.defaultWorkspaceRoot }
@@ -145,6 +173,290 @@ async function createController(): Promise<DesktopController> {
 }
 
 describe('DesktopController', () => {
+  it('uses the offered reasoning default after reset while preserving an explicit choice', async () => {
+    const turns: RuntimeTurnInput[] = [];
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        turns.push(input);
+        yield {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({
+      fakeServices: false,
+      runtime,
+      providerProbe: async (only) =>
+        (await deterministicProviderProbe(only)).map((provider) =>
+          provider.id === 'codex'
+            ? {
+                ...provider,
+                models: [
+                  {
+                    id: 'gpt-5.6-sol',
+                    label: 'GPT-5.6-Sol',
+                    description: '',
+                    reasoningEfforts: ['low', 'medium'],
+                    defaultReasoningEffort: 'medium',
+                  },
+                ],
+              }
+            : provider,
+        ),
+    });
+    try {
+      const { agentId } = await controller.invoke('agents.save', {
+        name: 'Reasoning validation',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', { agentId });
+      for (const choice of ['low', '']) {
+        await controller.invoke('threads.config', {
+          threadId,
+          model: 'gpt-5.6-sol',
+          reasoningEffort: choice,
+        });
+        await controller.invoke('threads.send', { threadId, text: 'Read the test document.' });
+        await vi.waitFor(() =>
+          expect(
+            controller.snapshot().threads.find((thread) => thread.id === threadId)?.status,
+          ).toBe('idle'),
+        );
+      }
+      expect(turns.map((turn) => turn.reasoningEffort)).toEqual(['low', 'medium']);
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('saves setup before restarting and rechecks access without reviving a browser grant', async () => {
+    const restartApp = vi.fn();
+    const h = await createHarness({
+      restartApp,
+      defaultWorkspaceRoot: '/tmp/Sia/Agents',
+      createDirectory: async () => undefined,
+    });
+    await expect(
+      h.controller.invoke('settings.restartForOnboarding', undefined),
+    ).rejects.toThrow('Finish connecting');
+    await h.controller.invoke('agents.save', {
+      name: 'Sia',
+      instructions: '',
+      model: 'gpt-5.6-sol',
+      startOnboarding: true,
+    });
+    await h.controller.invoke('computer.setTrust', { trust: 'ask' });
+    await h.controller.invoke('settings.setOnboarding', {
+      step: 'restart',
+      permissionSetup: { includeApps: true, active: true },
+    });
+    restartApp.mockImplementation(() => {
+      expect(
+        h.repository.get<{ preferences: { onboarding: unknown } }>('desktop', 'state')
+          ?.preferences.onboarding,
+      ).toMatchObject({ step: 'verify', restartPending: true });
+    });
+    await h.controller.invoke('settings.restartForOnboarding', undefined);
+    await h.controller.invoke('settings.restartForOnboarding', undefined);
+    expect(restartApp).toHaveBeenCalledTimes(1);
+    const restored = await createHarness({ repository: h.repository });
+    expect(restored.controller.snapshot().preferences.onboarding).toMatchObject({
+      step: 'verify',
+      restartPending: false,
+      restarted: true,
+      permissionSetup: { includeApps: true, active: true },
+    });
+    expect(restored.controller.snapshot().browser.status).toBe('detached');
+    expect(restored.controller.computerTrust()).toBe('ask');
+    expect(restored.controller.snapshot().agents).toHaveLength(1);
+  });
+
+  it('does not request macOS permissions on initial startup or a read-only recheck', async () => {
+    const requestPermissions = vi.fn(computer.requestPermissions);
+    const missing = {
+      ...computer,
+      requestPermissions,
+      permissions: async () => ({
+        status: 'needs_permission' as const,
+        accessibility: false,
+        screenRecording: false,
+      }),
+    };
+    const identity = {
+      initialize: async () => ({ state: 'signed_in' as const, email: 'person@example.test' }),
+      status: () => ({ state: 'signed_in' as const, email: 'person@example.test' }),
+      startEmailSignIn: async () => ({ state: 'signed_in' as const }),
+      completeEmailSignIn: async () => ({ state: 'signed_in' as const }),
+      signOut: async () => ({ state: 'signed_out' as const }),
+    };
+    const { controller } = await createHarness({
+      fakeServices: false,
+      computer: missing,
+      identity,
+    });
+    try {
+      await controller.invoke('computer.setTrust', { trust: 'auto' });
+      await controller.initialize();
+      expect(controller.computerTrust()).toBe('auto');
+      expect(requestPermissions).not.toHaveBeenCalled();
+      await controller.invoke('computer.permissions', undefined);
+      expect(requestPermissions).not.toHaveBeenCalled();
+      await controller.invoke('computer.requestPermissions', undefined);
+      expect(requestPermissions).toHaveBeenCalledTimes(1);
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('includes live voice permission status in a read-only access check without authorizing dictation', async () => {
+    const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+    const voice = new MacVoiceService(repository, vi.fn());
+    const refreshPermissions = vi.fn(async () => {});
+    const prepareDictation = vi.fn(async () => {});
+    const requestMicrophonePermission = vi.fn(async () => {});
+    Object.assign(voice, { refreshPermissions, prepareDictation });
+    const { controller } = await createHarness({
+      voice,
+      repository,
+      requestMicrophonePermission,
+    });
+    try {
+      await controller.invoke('computer.permissions', undefined);
+      expect(refreshPermissions).toHaveBeenCalledOnce();
+      expect(prepareDictation).not.toHaveBeenCalled();
+      expect(requestMicrophonePermission).not.toHaveBeenCalled();
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('requests native app permission only through explicit setup and refreshes revocations', async () => {
+    let ready = false;
+    const automationPermissions = vi.fn(async (app?: string) => {
+      if (app === 'calendar') ready = true;
+      return {
+        calendar: ready ? ('ready' as const) : ('denied' as const),
+        reminders: 'needs_permission' as const,
+        finder: 'not_running' as const,
+        messages: 'unavailable' as const,
+      };
+    });
+    const { controller } = await createHarness({
+      capabilitySetup: {
+        automationPermissions,
+        messagesStatus: () => 'unavailable',
+        chromeDebugStatus: async () => 'off',
+      },
+    });
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
+    expect(automationPermissions).toHaveBeenCalledWith();
+    expect(controller.snapshot().computer.automation?.calendar).toBe('denied');
+    await controller.invoke('computer.requestAutomation', { app: 'calendar' });
+    expect(automationPermissions).toHaveBeenLastCalledWith('calendar');
+    expect(controller.snapshot().computer.automation?.calendar).toBe('ready');
+    expect(controller.computerTrust()).toBe('ask');
+    ready = false;
+    await controller.invoke('computer.permissions', undefined);
+    expect(controller.snapshot().computer.automation?.calendar).toBe('denied');
+  });
+
+  it('opens Messages permission setup only on request and refreshes its real status', async () => {
+    let granted = false;
+    const openMessagesPermissions = vi.fn(async () => {
+      granted = true;
+    });
+    const h = await createHarness({
+      openMessagesPermissions,
+      capabilitySetup: {
+        messagesStatus: () => (granted ? 'ready' : 'needs_full_disk_access'),
+        chromeDebugStatus: async () => 'off',
+      },
+    });
+    expect(openMessagesPermissions).not.toHaveBeenCalled();
+    await h.controller.invoke('computer.setupMessages', undefined);
+    expect(openMessagesPermissions).toHaveBeenCalledTimes(1);
+    expect(h.controller.snapshot().computer.messagesAccess).toBe('ready');
+    granted = false;
+    await h.controller.invoke('computer.permissions', undefined);
+    expect(h.controller.snapshot().computer.messagesAccess).toBe('needs_full_disk_access');
+  });
+
+  it('persists setup with a single canonical starter and preserves approval defaults', async () => {
+    const { controller, repository } = await createHarness({
+      defaultWorkspaceRoot: '/tmp/Sia/Agents',
+      createDirectory: async () => undefined,
+    });
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
+    await controller.invoke('settings.setOnboarding', { step: 'agent' });
+    await expect(
+      controller.invoke('settings.setOnboarding', { step: 'voice' }),
+    ).rejects.toThrow('Create your agent');
+    const input = {
+      name: 'Sia',
+      instructions: 'Help with everyday tasks.',
+      provider: 'codex' as const,
+      model: 'gpt-5.6-sol',
+      startOnboarding: true,
+    };
+    const [first, repeated] = await Promise.all([
+      controller.invoke('agents.save', input),
+      controller.invoke('agents.save', input),
+    ]);
+    expect(repeated.agentId).toBe(first.agentId);
+    expect(controller.snapshot().agents).toHaveLength(1);
+    expect(controller.snapshot().threads).toHaveLength(1);
+    expect(controller.snapshot().preferences.onboarding).toEqual({
+      step: 'voice',
+      agentId: first.agentId,
+    });
+    expect(controller.snapshot().threads[0]?.harnessId).toBe('codex_app_server');
+    expect(controller.computerTrust()).toBe('ask');
+    await controller.invoke('settings.setOnboarding', { step: 'access' });
+    expect(
+      repository.get<{ preferences: unknown }>('desktop', 'state')?.preferences,
+    ).toMatchObject({ onboarding: { step: 'access', agentId: first.agentId } });
+    await controller.invoke('settings.setOnboarding', { step: 'complete' });
+    await controller.invoke('settings.setOnboarding', { step: 'welcome' });
+    expect(controller.snapshot().preferences.onboarding).toEqual({
+      step: 'welcome',
+      agentId: first.agentId,
+    });
+    expect(controller.snapshot().agents).toHaveLength(1);
+  });
+
+  it('leaves setup cleanly when a first agent is created manually', async () => {
+    const { controller } = await createHarness({
+      defaultWorkspaceRoot: '/tmp/Sia/Agents',
+      createDirectory: async () => undefined,
+    });
+    await controller.invoke('settings.setOnboarding', { step: 'agent' });
+    await controller.invoke('agents.save', {
+      name: 'Custom helper',
+      instructions: 'Custom instructions',
+      model: 'gpt-5.6-sol',
+    });
+    expect(controller.snapshot().preferences.onboarding?.step).toBe('complete');
+    await expect(
+      controller.invoke('agents.save', {
+        name: 'Sia',
+        instructions: '',
+        model: 'gpt-5.6-sol',
+        startOnboarding: true,
+      }),
+    ).rejects.toThrow('existing agent');
+  });
+
   it('creates a private default workspace, color, and first thread for a new agent', async () => {
     const createDirectory = vi.fn(async () => undefined);
     const { controller } = await createHarness({
@@ -453,6 +765,23 @@ describe('DesktopController', () => {
     expect(created.snapshot.agents.find(({ id }) => id === created.agentId)).toMatchObject({
       voiceId: 'voice-milo',
     });
+    await controller.shutdown();
+  });
+
+  it('persists appearance without changing existing preferences or conversations', async () => {
+    const { controller, repository } = await createHarness();
+    const before = controller.snapshot();
+    const updated = await controller.invoke('settings.setAppearance', { appearance: 'calm' });
+    expect(updated.preferences).toEqual({ ...before.preferences, appearance: 'calm' });
+    expect(updated.threads).toEqual(before.threads);
+    expect(
+      repository.get<{ preferences: { appearance: string } }>('desktop', 'state')?.preferences
+        .appearance,
+    ).toBe('calm');
+    expect(
+      (await controller.invoke('settings.setAppearance', { appearance: 'expressive' }))
+        .preferences.appearance,
+    ).toBe('expressive');
     await controller.shutdown();
   });
 
@@ -826,7 +1155,97 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
-  it('coalesces rapid streaming deltas before encrypting and publishing full snapshots', async () => {
+  it('finishes getting ready when provider work starts without finishing that work', async () => {
+    let begin!: () => void;
+    let finish!: () => void;
+    const prepared = new Promise<void>((resolve) => {
+      begin = resolve;
+    });
+    const completed = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        await prepared;
+        const base = {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+          sequence: 1,
+        };
+        yield {
+          ...base,
+          type: 'tool' as const,
+          payload: {
+            callId: 'browser-check',
+            name: 'computer_snapshot',
+            phase: 'started' as const,
+            native: false,
+          },
+        };
+        await completed;
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    try {
+      const agent = await controller.invoke('agents.save', {
+        name: 'Progress helper',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: agent.agentId,
+      });
+      await controller.invoke('threads.send', { threadId, text: 'Check the example page' });
+      const startup = () =>
+        controller
+          .snapshot()
+          .timeline.findLast(
+            (item) => item.threadId === threadId && item.toolName === 'runtime.start',
+          );
+      expect(startup()?.status).toBe('running');
+      begin();
+      await vi.waitFor(() =>
+        expect(
+          controller
+            .snapshot()
+            .timeline.find(
+              (item) => item.threadId === threadId && item.toolCallId === 'browser-check',
+            )?.status,
+        ).toBe('running'),
+      );
+      expect(startup()?.status).toBe('complete');
+      expect(
+        controller.snapshot().threads.find((thread) => thread.id === threadId)?.status,
+      ).toBe('running');
+      finish();
+      await vi.waitFor(() =>
+        expect(
+          controller.snapshot().threads.find((thread) => thread.id === threadId)?.status,
+        ).toBe('idle'),
+      );
+    } finally {
+      begin();
+      finish();
+      await controller.shutdown();
+    }
+  });
+
+  it('streams promptly with bounded encrypted checkpoints and a durable final answer', async () => {
     const repository = new CountingRepository();
     let runtimeThreadId = '';
     const runtime = {
@@ -847,7 +1266,7 @@ describe('DesktopController', () => {
               delta: true,
             },
           };
-          await new Promise((resolve) => setTimeout(resolve, 4));
+          await new Promise((resolve) => setTimeout(resolve, 20));
         }
         yield {
           id: crypto.randomUUID(),
@@ -885,14 +1304,24 @@ describe('DesktopController', () => {
     });
 
     await controller.invoke('threads.send', { threadId, text: 'Stream the answer' });
-    await vi.waitFor(() =>
-      expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
-        'idle',
-      ),
+    // The stream deliberately waits 600ms before completion. Allow scheduler delays
+    // on a busy Mac; the bounds below still enforce responsive, batched persistence.
+    await vi.waitFor(
+      () =>
+        expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+          'idle',
+        ),
+      { timeout: 3000 },
     );
 
     expect(repository.desktopStateWrites - writesBeforeTurn).toBeLessThan(10);
-    expect(pushes).toBeLessThan(10);
+    expect(pushes).toBeLessThan(25);
+    expect(pushes).toBeGreaterThan(repository.desktopStateWrites - writesBeforeTurn + 4);
+    expect(
+      repository
+        .get<{ timeline: Array<{ detail?: string; text?: string }> }>('desktop', 'state')
+        ?.timeline.find(({ detail }) => detail === 'streamed-answer')?.text,
+    ).toHaveLength(30);
     expect(
       controller.snapshot().timeline.find(({ detail }) => detail === 'streamed-answer')?.text,
     ).toHaveLength(30);
@@ -950,9 +1379,14 @@ describe('DesktopController', () => {
     runtimeThreadId = threadId;
     await controller.invoke('threads.send', { threadId, text: 'Wait for shutdown' });
 
+    await vi.waitFor(() =>
+      expect(controller.snapshot().timeline.some((item) => item.text === 'partial')).toBe(true),
+    );
     await controller.shutdown();
 
     expect(cleanupFinished).toBe(true);
+    expect(repository.closedTimelineText).toContain('partial');
+    await new Promise((resolve) => setTimeout(resolve, 550));
     expect(repository.writesAfterClose).toBe(0);
   });
 
@@ -1226,8 +1660,10 @@ describe('DesktopController', () => {
   it('retries a failed turn without appending the user message again', async () => {
     let runtimeThreadId = '';
     let attempts = 0;
+    const requests: string[] = [];
     const runtime = {
       async *runTurn(input: { turnId: string; text: string }) {
+        requests.push(input.text);
         attempts += 1;
         if (attempts === 1) throw new Error('provider startup failed');
         yield {
@@ -1275,7 +1711,105 @@ describe('DesktopController', () => {
         .timeline.filter(({ threadId: id, kind }) => id === threadId && kind === 'user'),
     ).toHaveLength(1);
     expect(attempts).toBe(2);
+    expect(requests[1]).toContain('Continue task');
+    expect(requests[1]).toContain('provider startup failed');
+    expect(requests[1]).toContain('verify any uncertain write');
+    expect(requests[1]).toContain('Retry this once');
     await controller.shutdown();
+  });
+
+  it('restores partial progress for Continue task after an app restart', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'sia-recovery-'));
+    const path = join(root, 'state.sqlite');
+    const requests: string[] = [];
+    let attempts = 0;
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        requests.push(input.text);
+        const base = {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+        };
+        if (++attempts === 1) {
+          yield {
+            ...base,
+            type: 'message' as const,
+            payload: {
+              messageId: randomUUID(),
+              role: 'assistant' as const,
+              parts: [
+                {
+                  kind: 'text' as const,
+                  text: 'Created report.txt; the calendar step remains unverified.',
+                },
+              ],
+              delta: false,
+            },
+          };
+          throw new Error('Connection interrupted after the file step');
+        }
+        yield {
+          ...base,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+    };
+    let controller: DesktopController | undefined;
+    try {
+      ({ controller } = await createHarness({
+        fakeServices: false,
+        runtime,
+        repository: new SqliteRecordRepository(path, new PlaintextTestCipher()),
+      }));
+      const { agentId } = await controller.invoke('agents.save', {
+        name: 'Recovery test',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', { agentId });
+      await controller.invoke('threads.send', {
+        threadId,
+        text: 'Write a report and inspect the calendar.',
+      });
+      await vi.waitFor(() =>
+        expect(controller!.snapshot().threads.find((t) => t.id === threadId)?.status).toBe(
+          'failed',
+        ),
+      );
+      await controller.shutdown();
+      ({ controller } = await createHarness({
+        fakeServices: false,
+        runtime,
+        repository: new SqliteRecordRepository(path, new PlaintextTestCipher()),
+      }));
+      expect(attempts).toBe(1); // Opening Sia must never execute interrupted work automatically.
+      await controller.invoke('threads.retry', { threadId });
+      await vi.waitFor(() =>
+        expect(controller!.snapshot().threads.find((t) => t.id === threadId)?.status).toBe(
+          'idle',
+        ),
+      );
+      expect(requests[1]).toContain('Created report.txt');
+      expect(requests[1]).toContain('calendar step remains unverified');
+      expect(requests[1]).toContain('Connection interrupted after the file step');
+      expect(requests[1]).toContain('verify any uncertain write before repeating it');
+      expect(
+        controller
+          .snapshot()
+          .timeline.filter((t) => t.threadId === threadId && t.kind === 'user'),
+      ).toHaveLength(1);
+    } finally {
+      await controller?.shutdown();
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it('clears local Sia state only after the exact cloud account job completes', async () => {
@@ -1800,10 +2334,10 @@ describe('DesktopController', () => {
     });
     runtimeThreadId = threadId;
     await controller.invoke('threads.send', { threadId, text: 'Use a tool' });
-    await new Promise((resolve) => setTimeout(resolve, 30));
-
-    expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
-      'idle',
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+        'idle',
+      ),
     );
     expect(repository.list('research')).toHaveLength(0);
     await controller.shutdown();
@@ -1864,6 +2398,7 @@ describe('DesktopController', () => {
       respondToRequest: vi.fn(async () => undefined),
     };
     const { controller, repository } = await createHarness({ fakeServices: false, runtime });
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
     await controller.invoke('research.setCapture', {
       enabled: true,
       consentVersion: 'alpha-research-v2',
@@ -2130,6 +2665,7 @@ describe('DesktopController', () => {
       onInvocation: controller.actionInvocationObserver(),
       onResult: controller.actionResultObserver(),
     });
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
     await controller.invoke('research.setCapture', {
       enabled: true,
       consentVersion: 'alpha-research-v2',
@@ -2322,6 +2858,7 @@ describe('DesktopController', () => {
       runCommand: async () => 'p222\nf5\n',
     });
     await controller.invoke('computer.setTrust', { trust: 'auto' });
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
     // Explicit trusted mode tries the port owner first and needs no window pick.
     await controller.ensureBrowserAttachedForActions();
     expect(controller.snapshot().browser.status).toBe('attached');
@@ -2361,8 +2898,45 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
-  it('defaults to content-bounded, correctly classified computer approvals', async () => {
+  it('asks on the Mac for phone turns even in trusted mode', async () => {
     const controller = await createController();
+    await controller.invoke('computer.setTrust', { trust: 'auto' });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
+    const started = await controller.invoke('threads.send', {
+      threadId,
+      text: 'Use Notes',
+      fromPhone: true,
+    });
+    const decision = controller.authorizeComputer(
+      {
+        adapterId: 'desktop_input',
+        riskClass: 'r2',
+        permissionMode: 'standard',
+        publicSession: started.turnId,
+        requestDigest: 'digest-phone',
+        humanSummary: 'Control the selected Notes window',
+        resourceJson: JSON.stringify({ app_name: 'Notes', window_title: 'Draft' }),
+        expiresUnixMs: BigInt(Date.now() + 30_000),
+      },
+      { kind: 'turn', threadId, turnId: started.turnId },
+    );
+    const approval = controller.snapshot().approvals.at(-1)!;
+    expect(approval).toMatchObject({ kind: 'native_tool', title: 'Allow computer access' });
+    await controller.invoke('approvals.resolve', { approvalId: approval.id, decision: 'deny' });
+    await expect(decision).resolves.toBe('deny');
+    await controller.shutdown();
+  });
+
+  it('uses content-bounded, correctly classified computer approvals in confirmation mode', async () => {
+    const controller = await createController();
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
     expect(controller.snapshot().computer.trust).toBe('ask');
     const agent = await controller.invoke('agents.save', {
       name: 'Personal',
@@ -2548,6 +3122,27 @@ describe('DesktopController', () => {
     });
     await controller.shutdown();
   });
+
+  it.each([['google'], ['slack'], ['google', 'slack']] as ('google' | 'slack')[][])(
+    'connects only the selected account checklist: %j',
+    async (...apps) => {
+      const controller = await createController();
+      try {
+        const result = await controller.invoke('connections.startSelected', { apps });
+        for (const connection of result.snapshot.connections) {
+          const selected = apps.includes(connection.id === 'slack' ? 'slack' : 'google');
+          expect(connection.status).toBe(selected ? 'connected' : 'disconnected');
+        }
+        const ids = result.snapshot.connections.map((connection) => connection.connectionId);
+        await controller.invoke('connections.startSelected', { apps });
+        expect(
+          controller.snapshot().connections.map((connection) => connection.connectionId),
+        ).toEqual(ids);
+      } finally {
+        await controller.shutdown();
+      }
+    },
+  );
 
   it('keeps a read-only Google grant active until the editor upgrade succeeds', async () => {
     let editorStarted = false;
@@ -2921,7 +3516,7 @@ describe('DesktopController', () => {
     }
   });
 
-  it('opens each provider only through its focused setup action', async () => {
+  it('queues selected providers after consent and cancels the queue when disconnected', async () => {
     type TestConnectionId = 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack';
     const connectionOrder: TestConnectionId[] = ['gmail', 'slack'];
     const startConnection = vi.fn(async (connectionId: TestConnectionId) => ({
@@ -2975,22 +3570,38 @@ describe('DesktopController', () => {
       identity,
       fakeServices: false,
       openExternal,
+      restartApp: vi.fn(),
+      defaultWorkspaceRoot: '/tmp/Sia/Agents',
+      createDirectory: async () => undefined,
     });
     await controller.invoke('research.setCapture', {
       enabled: true,
       consentVersion: 'alpha-research-v3-raw',
     });
+    await controller.invoke('agents.save', {
+      name: 'Sia',
+      instructions: '',
+      model: 'gpt-5.6-sol',
+      startOnboarding: true,
+    });
+    await controller.invoke('settings.setOnboarding', { step: 'restart' });
     vi.useFakeTimers();
 
     try {
-      const result = await controller.invoke('connections.startGoogle', undefined);
+      const result = await controller.invoke('connections.startSelected', {
+        apps: ['google', 'slack'],
+      });
       expect(result.opened).toBe(true);
+      await expect(
+        controller.invoke('settings.restartForOnboarding', undefined),
+      ).rejects.toThrow('Finish or cancel account approval');
       expect(openExternal).toHaveBeenCalledTimes(1);
       expect(openExternal).toHaveBeenLastCalledWith('https://connect.example.test/gmail');
 
+      await expect(
+        controller.invoke('connections.startSelected', { apps: ['slack'] }),
+      ).rejects.toThrow(/already waiting/);
       await vi.advanceTimersByTimeAsync(2_000);
-      const slack = await controller.invoke('connections.start', { connectionId: 'slack' });
-      expect(slack.opened).toBe(true);
       expect(openExternal).toHaveBeenCalledTimes(2);
       expect(openExternal).toHaveBeenLastCalledWith('https://connect.example.test/slack');
       await vi.advanceTimersByTimeAsync(2_000);
@@ -3012,7 +3623,7 @@ describe('DesktopController', () => {
         }>;
       }>();
       connectionStatus.mockImplementationOnce(async () => await delayedStatus.promise);
-      await controller.invoke('connections.startGoogle', undefined);
+      await controller.invoke('connections.startSelected', { apps: ['google', 'slack'] });
       expect(openExternal).toHaveBeenCalledTimes(3);
       await vi.advanceTimersByTimeAsync(2_000);
       expect(connectionStatus).toHaveBeenCalledTimes(3);
@@ -3264,6 +3875,101 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('answers a provider question through Scotty and resumes the same runtime turn', async () => {
+    let runtimeThreadId = '';
+    const answered = Promise.withResolvers<void>();
+    const runtime = {
+      async *runTurn(input: { turnId: string }, signal?: AbortSignal) {
+        const base = {
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 1,
+          type: 'question' as const,
+          payload: {
+            requestId: 'calendar-question',
+            phase: 'requested' as const,
+            prompt: 'Which calendar should I use?',
+          },
+        };
+        if (signal?.aborted) return;
+        signal?.addEventListener('abort', () => answered.resolve(), { once: true });
+        await answered.promise;
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      respondToRequest: vi.fn(async () => {
+        answered.resolve();
+      }),
+      cancel: vi.fn(async () => {
+        answered.resolve();
+      }),
+      dispose: vi.fn(async () => {
+        answered.resolve();
+      }),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    try {
+      const agent = await controller.invoke('agents.save', {
+        name: 'Personal',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const created = await controller.invoke('threads.create', { agentId: agent.agentId });
+      runtimeThreadId = created.threadId;
+      const started = await controller.invoke('threads.send', {
+        threadId: created.threadId,
+        text: 'Help with my calendar',
+      });
+      await vi.waitFor(() =>
+        expect(
+          controller.snapshot().threads.find((thread) => thread.id === created.threadId)
+            ?.status,
+        ).toBe('waiting'),
+      );
+      const tasks = new ScottyTasks();
+      const settings = { enabled: true, size: 'medium' as const, motion: true };
+      const question = tasks
+        .view(controller.snapshot(), settings, true)
+        .tasks.find((task) => task.id === created.threadId)!;
+      expect(question.question).toBe('Which calendar should I use?');
+      await tasks.act(
+        { kind: 'reply', token: question.token, text: 'My work calendar' },
+        controller,
+        settings,
+        vi.fn(),
+      );
+      expect(runtime.respondToRequest).toHaveBeenCalledExactlyOnceWith(created.threadId, {
+        requestId: 'calendar-question',
+        text: 'My work calendar',
+      });
+      expect(
+        controller.snapshot().timeline.findLast((item) => item.kind === 'user')?.turnId,
+      ).toBe(started.turnId);
+      await vi.waitFor(() =>
+        expect(
+          controller.snapshot().threads.find((thread) => thread.id === created.threadId)
+            ?.status,
+        ).toBe('idle'),
+      );
+    } finally {
+      answered.resolve();
+      await controller.shutdown();
+    }
+  });
+
   it('revokes provider and computer approvals before a cancelled turn can release', async () => {
     let runtimeThreadId = '';
     let receivedLease:
@@ -3347,8 +4053,10 @@ describe('DesktopController', () => {
 
     await expect(computerDecision).resolves.toBe('cancel');
     expect(runtime.cancel).toHaveBeenCalledWith(threadId, started.turnId);
-    expect(receivedLease?.holds({ kind: 'workspace_writer', id: '/tmp/sia-workspace' })).toBe(
-      false,
+    await vi.waitFor(() =>
+      expect(receivedLease?.holds({ kind: 'workspace_writer', id: '/tmp/sia-workspace' })).toBe(
+        false,
+      ),
     );
     expect(runtime.respondToRequest).toHaveBeenCalledWith(threadId, {
       requestId: 'provider-request-1',
@@ -3369,7 +4077,7 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
-  it('uses deterministic fake Codex readiness and status-aware provider help', async () => {
+  it('uses deterministic fake Codex readiness without reopening sign-in', async () => {
     const openExternal = vi.fn(async () => undefined);
     const { controller } = await createHarness({ openExternal });
     expect(controller.snapshot().providers.find(({ id }) => id === 'codex')).toMatchObject({
@@ -3378,7 +4086,7 @@ describe('DesktopController', () => {
       account: 'Deterministic test runtime',
     });
     await controller.invoke('providers.login', { providerId: 'codex' });
-    expect(openExternal).toHaveBeenCalledWith('https://developers.openai.com/codex/auth/');
+    expect(openExternal).not.toHaveBeenCalled();
     await expect(controller.invoke('providers.login', { providerId: 'meta' })).rejects.toThrow(
       'configured Sia cloud',
     );
@@ -3386,6 +4094,120 @@ describe('DesktopController', () => {
       'external alpha',
     );
     await controller.shutdown();
+  });
+
+  it('installs Codex once, blocks new turns, and restarts without claiming authentication', async () => {
+    let finish!: () => void;
+    const installCodex = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const restartApp = vi.fn();
+    const openExternal = vi.fn();
+    const { controller } = await createHarness({
+      fakeServices: false,
+      installCodex,
+      restartApp,
+      openExternal,
+      providerProbe: async (id) =>
+        (await deterministicProviderProbe(id)).map((provider) =>
+          provider.id === 'codex'
+            ? { ...provider, status: 'needs_install' as const }
+            : provider,
+        ),
+    });
+    try {
+      const pending = controller.invoke('providers.login', { providerId: 'codex' });
+      await vi.waitFor(() => expect(installCodex).toHaveBeenCalledOnce());
+      await expect(
+        controller.invoke('providers.login', { providerId: 'codex' }),
+      ).rejects.toThrow('in progress');
+      await expect(
+        controller.invoke('threads.send', { threadId: 'none', text: 'Do work' }),
+      ).rejects.toThrow('in progress');
+      await expect(controller.invoke('voice.capture.acquire', undefined)).rejects.toThrow(
+        'in progress',
+      );
+      await expect(
+        controller.invoke('terminal.start', { threadId: 'none', command: 'sleep 30' }),
+      ).rejects.toThrow('in progress');
+      await expect(
+        controller.invoke('terminal.run', { threadId: 'none', command: 'sleep 30' }),
+      ).rejects.toThrow('in progress');
+      expect(restartApp).not.toHaveBeenCalled();
+      finish();
+      const result = await pending;
+      expect(restartApp).toHaveBeenCalledOnce();
+      expect(openExternal).not.toHaveBeenCalled();
+      expect(result.snapshot.providers.find(({ id }) => id === 'codex')?.status).toBe(
+        'needs_install',
+      );
+      await expect(controller.invoke('threads.retry', { threadId: 'none' })).rejects.toThrow(
+        'in progress',
+      );
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('does not install or restart while a user background terminal is running', async () => {
+    let busy = true;
+    const installCodex = vi.fn(async () => undefined);
+    const restartApp = vi.fn();
+    const { controller } = await createHarness({
+      fakeServices: false,
+      installCodex,
+      restartApp,
+      workspaceOperations: { hasRunningTerminals: () => busy } as never,
+      providerProbe: async (id) =>
+        (await deterministicProviderProbe(id)).map((provider) =>
+          provider.id === 'codex'
+            ? { ...provider, status: 'needs_install' as const }
+            : provider,
+        ),
+    });
+    try {
+      await expect(
+        controller.invoke('providers.login', { providerId: 'codex' }),
+      ).rejects.toThrow('terminal process');
+      expect(installCodex).not.toHaveBeenCalled();
+      expect(restartApp).not.toHaveBeenCalled();
+      busy = false;
+      await controller.invoke('providers.login', { providerId: 'codex' });
+      expect(restartApp).toHaveBeenCalledOnce();
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('allows a failed Codex download to be retried without restarting early', async () => {
+    const installCodex = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Download failed'))
+      .mockResolvedValue(undefined);
+    const restartApp = vi.fn();
+    const { controller } = await createHarness({
+      fakeServices: false,
+      installCodex,
+      restartApp,
+      providerProbe: async (id) =>
+        (await deterministicProviderProbe(id)).map((provider) =>
+          provider.id === 'codex' ? { ...provider, status: 'incompatible' as const } : provider,
+        ),
+    });
+    try {
+      await expect(
+        controller.invoke('providers.login', { providerId: 'codex' }),
+      ).rejects.toThrow('Download failed');
+      expect(restartApp).not.toHaveBeenCalled();
+      await controller.invoke('providers.login', { providerId: 'codex' });
+      expect(installCodex).toHaveBeenCalledTimes(2);
+      expect(restartApp).toHaveBeenCalledOnce();
+    } finally {
+      await controller.shutdown();
+    }
   });
 
   it('opens and completes the managed Codex ChatGPT login before marking it connected', async () => {
@@ -3434,6 +4256,153 @@ describe('DesktopController', () => {
     expect(runtime.cancelCodexChatGptLogin).not.toHaveBeenCalled();
     await controller.shutdown();
   });
+
+  it.each(['needs_install', 'incompatible'] as const)(
+    'continues %s setup through restart and browser sign-in with no second setup click',
+    async (initialStatus) => {
+      let installed = false;
+      let signedIn = false;
+      let finishLogin!: () => void;
+      const providerProbe = async (id?: Parameters<typeof probeProviders>[0]) =>
+        (await deterministicProviderProbe(id)).map((provider) =>
+          provider.id === 'codex'
+            ? {
+                ...provider,
+                status: signedIn
+                  ? ('ready' as const)
+                  : installed
+                    ? ('needs_login' as const)
+                    : initialStatus,
+              }
+            : provider,
+        );
+      const openExternal = vi.fn(async () => undefined);
+      const runtime = {
+        startCodexChatGptLogin: vi.fn(async () => ({
+          loginId: 'setup-login',
+          authUrl: 'https://auth.openai.com/authorize?client_id=fixture',
+        })),
+        waitForCodexChatGptLogin: vi.fn(
+          () =>
+            new Promise<void>((resolve) => {
+              finishLogin = () => {
+                signedIn = true;
+                resolve();
+              };
+            }),
+        ),
+        cancelCodexChatGptLogin: vi.fn(async () => undefined),
+        listModels: vi.fn(async () => []),
+        dispose: vi.fn(async () => undefined),
+      };
+      const first = await createHarness({
+        fakeServices: false,
+        providerProbe,
+        installCodex: async () => {
+          installed = true;
+        },
+        restartApp: vi.fn(),
+        openExternal,
+      });
+      const result = await first.controller.invoke('providers.login', { providerId: 'codex' });
+      expect(result.snapshot.providers.find(({ id }) => id === 'codex')?.setup?.phase).toBe(
+        'restarting',
+      );
+      expect(openExternal).not.toHaveBeenCalled();
+      // Reopen persisted records in a fresh repository, as a real process restart does.
+      const savedState = first.repository.get('desktop', 'state');
+      const continuation = first.repository.get('setup', 'codex-login');
+      await first.controller.shutdown();
+      const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+      repository.put('desktop', 'state', savedState);
+      repository.put('setup', 'codex-login', continuation);
+      const restored = await createHarness({
+        fakeServices: false,
+        repository,
+        providerProbe,
+        runtime,
+        openExternal,
+      });
+      const pending = restored.controller.resumeCodexSetup();
+      await vi.waitFor(() => expect(runtime.waitForCodexChatGptLogin).toHaveBeenCalledOnce());
+      const waiting = restored.controller.snapshot();
+      expect(waiting.providers.find(({ id }) => id === 'codex')?.setup?.phase).toBe(
+        'signing-in',
+      );
+      expect(JSON.stringify(waiting)).not.toContain('auth.openai.com/authorize');
+      expect(restored.repository.get('setup', 'codex-login')).toBeUndefined();
+      await restored.controller.resumeCodexSetup();
+      await expect(
+        restored.controller.invoke('providers.login', { providerId: 'codex' }),
+      ).rejects.toThrow('in progress');
+      expect(runtime.startCodexChatGptLogin).toHaveBeenCalledOnce();
+      finishLogin();
+      await pending;
+      expect(
+        restored.controller.snapshot().providers.find(({ id }) => id === 'codex'),
+      ).toMatchObject({ status: 'ready' });
+      expect(
+        restored.controller.snapshot().providers.find(({ id }) => id === 'codex')?.setup,
+      ).toBeUndefined();
+      expect(openExternal).toHaveBeenCalledExactlyOnceWith(
+        'https://auth.openai.com/authorize?client_id=fixture',
+      );
+      await restored.controller.resumeCodexSetup();
+      expect(runtime.startCodexChatGptLogin).toHaveBeenCalledOnce();
+      await restored.controller.shutdown();
+    },
+  );
+
+  it.each(['ordinary', 'expired', 'connected', 'failed'] as const)(
+    'does not reopen browser sign-in after %s setup',
+    async (scenario) => {
+      const openExternal = vi.fn(async () => undefined);
+      const runtime = {
+        startCodexChatGptLogin: vi.fn(async () => ({
+          loginId: 'setup-login',
+          authUrl: 'https://auth.openai.com/authorize?client_id=fixture',
+        })),
+        waitForCodexChatGptLogin: vi.fn(async () => {
+          throw new Error('Sign-in cancelled');
+        }),
+        cancelCodexChatGptLogin: vi.fn(async () => undefined),
+        listModels: vi.fn(async () => []),
+        dispose: vi.fn(async () => undefined),
+      };
+      const { controller, repository } = await createHarness({
+        fakeServices: false,
+        openExternal,
+        runtime,
+        providerProbe: async (id) =>
+          (await deterministicProviderProbe(id)).map((provider) =>
+            provider.id === 'codex' && scenario !== 'connected'
+              ? { ...provider, status: 'needs_login' as const }
+              : provider,
+          ),
+      });
+      if (scenario !== 'ordinary')
+        repository.put('setup', 'codex-login', {
+          expiresAt: Date.now() + (scenario === 'expired' ? -1 : 60_000),
+        });
+      await controller.resumeCodexSetup();
+      await controller.resumeCodexSetup();
+      expect(runtime.startCodexChatGptLogin).toHaveBeenCalledTimes(
+        scenario === 'failed' ? 1 : 0,
+      );
+      expect(repository.get('setup', 'codex-login')).toBeUndefined();
+      if (scenario === 'failed') {
+        expect(runtime.cancelCodexChatGptLogin).toHaveBeenCalledWith('setup-login');
+        expect(
+          controller.snapshot().providers.find(({ id }) => id === 'codex')?.setup?.phase,
+        ).toBe('error');
+        await expect(
+          controller.invoke('providers.login', { providerId: 'codex' }),
+        ).rejects.toThrow('cancelled');
+        expect(runtime.startCodexChatGptLogin).toHaveBeenCalledTimes(2);
+      }
+      await controller.shutdown();
+    },
+  );
 
   it('grants only top-level attached tab origins, never nested link URLs', async () => {
     const browserComputer = {
@@ -3864,6 +4833,31 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('disconnects included voice at sign-out before awaiting other work', async () => {
+    const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+    const voice = new ElevenLabsVoiceService({
+      repository,
+      gateway: {
+        configured: true,
+        voiceCatalog: async () => ({
+          provider: {
+            available: true,
+            voices: [{ id: 'test-voice', name: 'Test voice' }],
+            tokenTypes: ['realtime_scribe'],
+          },
+        }),
+        mintVoiceToken: vi.fn(),
+      },
+    });
+    const { controller } = await createHarness({ repository, voice });
+    await controller.invoke('voice.configure', undefined);
+    expect(voice.view().status).toBe('connected');
+    await controller.invoke('auth.signOut', undefined);
+    expect(voice.view().status).toBe('disconnected');
+    expect(repository.get('voice', 'managed')).toBeUndefined();
+    await controller.shutdown();
+  });
+
   it('keeps Meta fail-closed without an authenticated relay capability probe', async () => {
     let state: 'signed_out' | 'signed_in' = 'signed_out';
     const identity = {
@@ -3979,6 +4973,19 @@ describe('DesktopController', () => {
     await expect(controller.invoke('computer.permissions', undefined)).rejects.toThrow(
       'Sign in to Sia to continue.',
     );
+    await expect(controller.invoke('assistant.library', { operation: 'list' })).rejects.toThrow(
+      'Sign in',
+    );
+    await expect(
+      controller.invoke('settings.setOnboarding', { step: 'welcome' }),
+    ).rejects.toThrow('Sign in to Sia to continue.');
+    await expect(controller.invoke('settings.restartForOnboarding', undefined)).rejects.toThrow(
+      'Sign in to Sia',
+    );
+    await expect(controller.invoke('computer.setupMessages', undefined)).rejects.toThrow(
+      'Sign in to Sia',
+    );
+    expect(controller.snapshot().preferences.onboarding).toBeUndefined();
     expect(controller.actionToolAvailable('computer_snapshot')).toBe(false);
 
     await controller.invoke('auth.start', { email: 'person@example.com' });
@@ -4122,9 +5129,10 @@ describe('DesktopController', () => {
 });
 
 class CountingRepository implements RecordRepository {
-  readonly #inner = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+  readonly #inner = new SqliteRecordRepository(':memory:', new EphemeralPayloadCipher());
   desktopStateWrites = 0;
   writesAfterClose = 0;
+  closedTimelineText: string[] = [];
   #closed = false;
 
   get<T>(scope: string, id: string): T | undefined {
@@ -4153,7 +5161,939 @@ class CountingRepository implements RecordRepository {
   }
 
   close(): void {
+    this.closedTimelineText =
+      this.#inner
+        .get<{ timeline: Array<{ text?: string }> }>('desktop', 'state')
+        ?.timeline.flatMap((item) => (item.text ? [item.text] : [])) ?? [];
     this.#closed = true;
     this.#inner.close();
   }
 }
+
+describe('connect Chrome and continue', () => {
+  async function recoveryHarness(options: { fail?: boolean; pause?: Promise<void> } = {}) {
+    const nativeCall = vi.fn(async (tool: string, args: Record<string, unknown>) => {
+      if (tool === 'list_apps')
+        return { apps: [{ pid: 42, name: 'Google Chrome', bundle_id: 'com.google.Chrome' }] };
+      if (tool === 'list_windows')
+        return {
+          windows: [
+            { pid: 42, window_id: 7, title: 'Canvas' },
+            { pid: 42, window_id: 8, title: 'Other window' },
+          ],
+        };
+      if (tool === 'browser_prepare') {
+        if (options.pause) await options.pause;
+        if (options.fail) throw new Error('CUA refused: browser_reconnect_exhausted');
+        return { prepared: true };
+      }
+      if (tool === 'get_browser_state')
+        return {
+          target_id: 'target-1',
+          tabs: [{ tab_id: 'tab-1', url: 'https://canvas.example.test/' }],
+        };
+      return {};
+    });
+    const { controller } = await createHarness({
+      computer: { ...computer, call: nativeCall },
+      runCommand: async () => '',
+    });
+    const created = await controller.invoke('agents.save', {
+      name: 'Study',
+      instructions: '',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const threadId = created.snapshot.activeThreadId!;
+    await controller.invoke('threads.send', { threadId, text: 'Find my Canvas finals' });
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find((t) => t.id === threadId)?.status).toBe('idle'),
+    );
+    const userMessageId = controller
+      .snapshot()
+      .timeline.findLast((item) => item.threadId === threadId && item.kind === 'user')!.id;
+    return { controller, nativeCall, threadId, userMessageId };
+  }
+  it('offers window choice first, then continues exactly once in the pinned conversation and preserves drafts', async () => {
+    const h = await recoveryHarness();
+    const { controller, threadId, userMessageId } = h;
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
+    try {
+      const choice = await controller.invoke('browser.connectAndContinue', {
+        threadId,
+        userMessageId,
+      });
+      expect(choice.browser.availableWindows).toHaveLength(2);
+      expect(choice.timeline.filter((item) => item.kind === 'user')).toHaveLength(1);
+      expect(h.nativeCall.mock.calls.some(([tool]) => tool === 'browser_prepare')).toBe(false);
+      await controller.invoke('threads.draft', { threadId, text: 'Keep my unsent draft' });
+      const next = await controller.invoke('browser.connectAndContinue', {
+        threadId,
+        userMessageId,
+        windowId: 7,
+      });
+      expect(next.browser.status).toBe('attached');
+      expect(next.computer.trust).toBe('ask');
+      expect(next.threads.find((t) => t.id === threadId)?.draft).toBe('Keep my unsent draft');
+      const users = next.timeline.filter((item) => item.kind === 'user');
+      expect(users).toHaveLength(2);
+      expect(users[1]?.text).toContain('Continue my previous request');
+      expect(users[1]?.threadId).toBe(threadId);
+      await expect(
+        controller.invoke('browser.connectAndContinue', {
+          threadId,
+          userMessageId,
+          windowId: 7,
+        }),
+      ).rejects.toThrow('request changed');
+    } finally {
+      await controller.shutdown();
+    }
+  });
+  it('keeps the original task on connection failure without starting a model turn', async () => {
+    const { controller, threadId, userMessageId } = await recoveryHarness({ fail: true });
+    try {
+      const result = await controller.invoke('browser.connectAndContinue', {
+        threadId,
+        userMessageId,
+        windowId: 7,
+      });
+      expect(result.browser.status).toBe('error');
+      expect(result.browser.detail).toContain('permission');
+      expect(result.timeline.filter((item) => item.kind === 'user')).toHaveLength(1);
+    } finally {
+      await controller.shutdown();
+    }
+  });
+  it('rejects duplicate connections and a stale request after async attachment', async () => {
+    let finish!: () => void;
+    const pause = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const h = await recoveryHarness({ pause });
+    const { controller, threadId, userMessageId } = h;
+    try {
+      const pending = controller.invoke('browser.connectAndContinue', {
+        threadId,
+        userMessageId,
+        windowId: 7,
+      });
+      await vi.waitFor(() =>
+        expect(h.nativeCall.mock.calls.some(([tool]) => tool === 'browser_prepare')).toBe(true),
+      );
+      await expect(
+        controller.invoke('browser.connectAndContinue', {
+          threadId,
+          userMessageId,
+          windowId: 7,
+        }),
+      ).rejects.toThrow('already in progress');
+      await controller.invoke('threads.send', { threadId, text: 'A different request' });
+      finish();
+      await expect(pending).rejects.toThrow('request changed');
+      expect(
+        controller.snapshot().timeline.filter((item) => item.kind === 'user'),
+      ).toHaveLength(2);
+    } finally {
+      finish();
+      await controller.shutdown();
+    }
+  });
+});
+
+describe('global voice routing', () => {
+  it('pins the focused thread and creates a correctly resolved thread for background requests', async () => {
+    const requestMicrophonePermission = vi.fn(async () => {});
+    const voice = {
+      view: () => ({ status: 'connected' as const, voices: [] }),
+      configure: vi.fn(),
+      refresh: vi.fn(),
+      select: vi.fn(),
+      disconnect: vi.fn(),
+      transcribe: vi.fn(),
+      speak: vi.fn(),
+      startRealtime: vi.fn(async () => ({ sessionId: 'voice-session' })),
+      appendRealtime: vi.fn(),
+      stopRealtime: vi.fn(async (_id: string, commit: boolean) => (commit ? 'Voice task' : '')),
+    };
+    const { controller } = await createHarness({
+      voice,
+      requestMicrophonePermission,
+      defaultWorkspaceRoot: '/tmp/sia-voice-agents',
+      createDirectory: vi.fn(async () => undefined),
+    });
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
+    const first = await controller.invoke('agents.save', {
+      name: 'Voice agent',
+      instructions: 'Help with tasks.',
+      model: 'gpt-5.6-sol',
+    });
+    const firstThread = first.snapshot.activeThreadId!;
+    const second = await controller.invoke('agents.save', {
+      name: 'Other agent',
+      instructions: 'Help with writing.',
+      model: 'gpt-5.6-sol',
+    });
+    let focused = true;
+    const nativeSend = vi.fn();
+    let emit!: Parameters<VoiceHelperFactory>[0];
+    controller.attachPushToTalk({
+      available: true,
+      isFocused: () => focused,
+      createHelper: (callback) => {
+        emit = callback;
+        return { send: nativeSend, stop: vi.fn() };
+      },
+    });
+    expect(requestMicrophonePermission).not.toHaveBeenCalled();
+    await controller.invoke('voice.pushToTalk.configure', {
+      enabled: true,
+      agentId: first.agentId,
+    });
+    expect(requestMicrophonePermission).toHaveBeenCalledOnce();
+    await controller.invoke('threads.select', { threadId: firstThread });
+    emit({ type: 'hold', id: '00000000-0000-4000-8000-000000000001' });
+    await Promise.resolve();
+    emit({ type: 'recording', id: '00000000-0000-4000-8000-000000000001' });
+    await controller.invoke('threads.select', { threadId: second.snapshot.activeThreadId! });
+    emit({ type: 'released', id: '00000000-0000-4000-8000-000000000001' });
+    emit({ type: 'stopped', id: '00000000-0000-4000-8000-000000000001', hasSpeech: true });
+    await vi.waitFor(() =>
+      expect(
+        controller
+          .snapshot()
+          .timeline.some(
+            (item) =>
+              item.threadId === firstThread &&
+              item.kind === 'user' &&
+              item.text === 'Voice task',
+          ),
+      ).toBe(true),
+    );
+    await vi.waitFor(() => expect(controller.snapshot().voice.pushToTalk?.phase).toBe('idle'));
+    focused = false;
+    const before = controller.snapshot().threads.length;
+    emit({ type: 'hold', id: '00000000-0000-4000-8000-000000000002' });
+    await Promise.resolve();
+    emit({ type: 'recording', id: '00000000-0000-4000-8000-000000000002' });
+    emit({ type: 'released', id: '00000000-0000-4000-8000-000000000002' });
+    emit({ type: 'stopped', id: '00000000-0000-4000-8000-000000000002', hasSpeech: true });
+    await vi.waitFor(() => expect(controller.snapshot().threads).toHaveLength(before + 1));
+    const snapshot = controller.snapshot();
+    const created = snapshot.threads.find((thread) => thread.id === snapshot.activeThreadId)!;
+    expect(created).toMatchObject({
+      agentId: first.agentId,
+      harnessId: 'codex_app_server',
+      resolvedExecutionTarget: { credentialSource: 'provider_subscription' },
+    });
+    expect(
+      snapshot.timeline.some(
+        (item) =>
+          item.threadId === created.id && item.kind === 'user' && item.text === 'Voice task',
+      ),
+    ).toBe(true);
+    expect(controller.computerTrust()).toBe('ask');
+    await vi.waitFor(() =>
+      expect(nativeSend).toHaveBeenCalledWith({ type: 'task', phase: 'working' }),
+    );
+    await vi.waitFor(() =>
+      expect(nativeSend).toHaveBeenCalledWith({ type: 'task', phase: 'idle' }),
+    );
+    await controller.shutdown();
+  });
+});
+
+it('runs a saved workflow through the canonical turn queue and persists editable memory separately', async () => {
+  const { controller, repository } = await createHarness({
+    defaultWorkspaceRoot: '/tmp/Sia/Agents',
+    createDirectory: async () => undefined,
+  });
+  await controller.invoke('computer.setTrust', { trust: 'ask' });
+  try {
+    const created = await controller.invoke('agents.save', {
+      name: 'Workflow agent',
+      instructions: '',
+      model: 'gpt-5.6-sol',
+    });
+    const agentId = created.agentId;
+    const memory = await controller.invoke('assistant.library', {
+      operation: 'saveMemory',
+      entry: { agentId, title: 'Style', text: 'Keep it concise.', enabled: true },
+    });
+    expect(repository.get('assistant', 'library')).toMatchObject({
+      memories: [{ text: 'Keep it concise.' }],
+    });
+    const workflows = await controller.invoke('assistant.library', {
+      operation: 'saveWorkflow',
+      entry: {
+        agentId,
+        title: 'Plan',
+        parameters: ['topic'],
+        steps: [
+          { instruction: 'Make a plan for {{topic}}', expected: 'A concise plan is shown.' },
+        ],
+      },
+    });
+    const result = await controller.invoke('assistant.library', {
+      operation: 'run',
+      id: workflows.workflows[0]!.id,
+      values: { topic: 'my day' },
+    });
+    expect(result.threadId).toBeTruthy();
+    const snapshot = controller.snapshot();
+    expect(snapshot.threads.find((thread) => thread.id === result.threadId)).toMatchObject({
+      agentId,
+      title: 'Plan',
+    });
+    expect(
+      snapshot.timeline.find(
+        (item) => item.threadId === result.threadId && item.kind === 'user',
+      )?.text,
+    ).toContain('"topic":"my day"');
+    expect(snapshot.computer.trust).toBe('ask');
+    await controller.invoke('assistant.library', {
+      operation: 'deleteMemory',
+      id: memory.memories[0]!.id,
+    });
+    expect(
+      (await controller.invoke('assistant.library', { operation: 'list' })).memories,
+    ).toEqual([]);
+  } finally {
+    await controller.shutdown();
+  }
+});
+
+it('learns only for the active opted-in agent and consolidates after the task completes', async () => {
+  const { controller } = await createHarness({
+    defaultWorkspaceRoot: '/tmp/Sia/Agents',
+    createDirectory: async () => undefined,
+  });
+  try {
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'Learning agent',
+      instructions: '',
+      model: 'gpt-5.6-sol',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId });
+    const { turnId } = await controller.invoke('threads.send', {
+      threadId,
+      text: 'Use short paragraphs.',
+    });
+    const request = {
+      name: 'memory_learn' as const,
+      arguments: { title: 'Writing style', lesson: 'Use short paragraphs.' },
+      descriptor: getActionToolDescriptor('memory_learn')!,
+      context: {
+        sessionId: 'test-session',
+        threadId,
+        turnId,
+        provider: 'codex' as const,
+        workspace: '/tmp/Sia/Agents',
+      },
+    };
+    await expect(controller.assistantAction(request, vi.fn())).rejects.toThrow(
+      'Enable automatic memory',
+    );
+    await controller.invoke('assistant.library', {
+      operation: 'learning',
+      agentId,
+      enabled: true,
+    });
+    expect((await controller.assistantAction(request, vi.fn())).outcome).toBe('verified');
+    await expect(
+      controller.assistantAction(
+        { ...request, context: { ...request.context, turnId: 'old-turn' } },
+        vi.fn(),
+      ),
+    ).rejects.toThrow('active turn');
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find((entry) => entry.id === threadId)?.status).toBe(
+        'idle',
+      ),
+    );
+    const view = await controller.invoke('assistant.library', {
+      operation: 'consolidate',
+      agentId,
+    });
+    expect(view.memories).toEqual([
+      expect.objectContaining({ agentId, text: 'Use short paragraphs.', learned: true }),
+    ]);
+    expect(view.journal?.some((entry) => entry.kind === 'task')).toBe(true);
+    await expect(controller.assistantAction(request, vi.fn())).rejects.toThrow('active turn');
+  } finally {
+    await controller.shutdown();
+  }
+});
+
+it('shows the exact skill source for approval even in trusted mode', async () => {
+  const controller = await createController();
+  try {
+    await controller.invoke('computer.setTrust', { trust: 'auto' });
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'Skills',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId });
+    const { turnId } = await controller.invoke('threads.send', {
+      threadId,
+      text: 'Save this routine.',
+    });
+    const source = "sia_action computer_list '{}'";
+    const decision = controller.approvalBroker().requestApproval({
+      id: 'skill-approval',
+      sessionId: 'test-session',
+      threadId,
+      turnId,
+      tool: getActionToolDescriptor('skill_save')!,
+      arguments: { title: 'Apps', description: 'List apps', source },
+      targetDigest: 'exact-skill',
+      reason: 'Review this Bash source.',
+    });
+    const approval = controller.snapshot().approvals.at(-1)!;
+    expect(approval.status).toBe('pending');
+    expect(approval.dataLeaving).toContain(source);
+    await controller.invoke('approvals.resolve', { approvalId: approval.id, decision: 'deny' });
+    await expect(decision).resolves.toEqual({ approved: false });
+  } finally {
+    await controller.shutdown();
+  }
+});
+
+it('resolves a saved skill by hash for exact-source approval without model-supplied code', async () => {
+  const controller = await createController();
+  try {
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'Saved skill',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const source = "printf 'a saved script\\n'";
+    const library = await controller.invoke('assistant.library', {
+      operation: 'saveSkill',
+      entry: { agentId, title: 'Saved', description: 'Example', source },
+    });
+    const skill = library.skills![0]!;
+    const { threadId } = await controller.invoke('threads.create', { agentId });
+    const { turnId } = await controller.invoke('threads.send', {
+      threadId,
+      text: 'Run the saved routine.',
+    });
+    const decision = controller.approvalBroker().requestApproval({
+      id: 'run-approval',
+      sessionId: 'test-session',
+      threadId,
+      turnId,
+      tool: getActionToolDescriptor('skill_run')!,
+      arguments: { id: skill.id, revision: skill.revision, input: { label: 'Example' } },
+      targetDigest: 'id-revision-input',
+      reason: 'Review the saved source.',
+    });
+    const approval = controller.snapshot().approvals.at(-1)!;
+    expect(approval.dataLeaving).toContain(source);
+    expect(approval.dataLeaving).toContain('Example');
+    await controller.invoke('approvals.resolve', { approvalId: approval.id, decision: 'deny' });
+    await expect(decision).resolves.toEqual({ approved: false });
+  } finally {
+    await controller.shutdown();
+  }
+});
+
+it('does not start queued work when an active turn releases its lease during shutdown', async () => {
+  const records = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+  const close = vi.spyOn(records, 'close').mockImplementation(() => undefined);
+  const { controller } = await createHarness({ repository: records });
+  try {
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'Queued skills',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const first = await controller.invoke('threads.create', { agentId });
+    const second = await controller.invoke('threads.create', { agentId });
+    await controller.invoke('threads.send', { threadId: first.threadId, text: 'First task' });
+    await controller.invoke('threads.send', { threadId: second.threadId, text: 'Queued task' });
+    expect(
+      controller.snapshot().threads.find((entry) => entry.id === second.threadId)?.status,
+    ).toBe('queued');
+    await controller.shutdown();
+    expect(
+      controller
+        .snapshot()
+        .timeline.some(
+          (entry) => entry.threadId === second.threadId && entry.toolName === 'runtime.start',
+        ),
+    ).toBe(false);
+    expect(close).toHaveBeenCalledOnce();
+  } finally {
+    close.mockRestore();
+    records.close();
+  }
+});
+
+it('memory reviews pin the owning agent and restrict host actions, including trusted mode', async () => {
+  const { controller } = await createHarness({
+    defaultWorkspaceRoot: '/tmp/Sia/Agents',
+    createDirectory: async () => undefined,
+  });
+  try {
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'Reviewer',
+      instructions: '',
+      model: 'gpt-5.6-sol',
+    });
+    await controller.invoke('computer.setTrust', { trust: 'auto' });
+    await controller.invoke('assistant.library', {
+      operation: 'learning',
+      agentId,
+      enabled: false,
+    });
+    await expect(
+      controller.invoke('assistant.library', { operation: 'review', agentId }),
+    ).rejects.toThrow('Enable learning');
+    await controller.invoke('assistant.library', {
+      operation: 'learning',
+      agentId,
+      enabled: true,
+    });
+    const review = await controller.invoke('assistant.library', {
+      operation: 'review',
+      agentId,
+    });
+    const threadId = review.threadId!;
+    expect(
+      controller.snapshot().threads.find((thread) => thread.id === threadId),
+    ).toMatchObject({ agentId, model: 'gpt-5.6-sol' });
+    expect(controller.allowsReviewAction(threadId, 'assistant_library')).toBe(true);
+    expect(controller.allowsReviewAction(threadId, 'memory_suggest')).toBe(true);
+    for (const tool of [
+      'memory_learn',
+      'skill_save',
+      'skill_run',
+      'mac_automation',
+      'computer_list',
+      'browser_tabs',
+      'mail_search',
+    ])
+      expect(controller.allowsReviewAction(threadId, tool)).toBe(false);
+    await expect(
+      controller.invoke('assistant.library', { operation: 'review', agentId }),
+    ).rejects.toThrow('current tasks');
+    await vi.waitFor(() =>
+      expect(
+        controller.snapshot().threads.find((thread) => thread.id === threadId)?.status,
+      ).toBe('idle'),
+    );
+    expect(
+      (await controller.invoke('assistant.library', { operation: 'list' })).journal,
+    ).toEqual([]);
+    await controller.invoke('assistant.library', {
+      operation: 'learning',
+      agentId,
+      enabled: false,
+    });
+    expect(controller.allowsReviewAction(threadId, 'memory_suggest')).toBe(false);
+  } finally {
+    await controller.shutdown();
+  }
+});
+
+it('background reviews wait for unlocked idle time and preserve the active conversation', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  const { controller, repository } = await createHarness({
+    defaultWorkspaceRoot: '/tmp/Sia/Agents',
+    createDirectory: async () => undefined,
+  });
+  try {
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'Background reviewer',
+      instructions: '',
+      model: 'gpt-5.6-sol',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId });
+    await controller.invoke('assistant.library', {
+      operation: 'learning',
+      agentId,
+      enabled: true,
+    });
+    await controller.invoke('assistant.library', {
+      operation: 'backgroundReview',
+      agentId,
+      enabled: true,
+    });
+    new AssistantLibrary(repository).record({
+      agentId,
+      threadId,
+      turnId: 'completed-test-task',
+      kind: 'task',
+      title: 'Task finished',
+      text: 'complete',
+    });
+    const before = controller.snapshot().threads.length;
+    controller.suspendVoice(true);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(controller.snapshot().threads).toHaveLength(before);
+    controller.suspendVoice(false);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(controller.snapshot().threads).toHaveLength(before + 1);
+    expect(controller.snapshot().activeThreadId).toBe(threadId);
+    await controller.invoke('assistant.library', {
+      operation: 'backgroundReview',
+      agentId,
+      enabled: false,
+    });
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.some((thread) => thread.status === 'running')).toBe(
+        false,
+      ),
+    );
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(controller.snapshot().threads).toHaveLength(before + 1);
+  } finally {
+    await controller.shutdown();
+    vi.useRealTimers();
+  }
+});
+
+it.each([false, true])(
+  'consolidates the shared vault without executing scripts (background: %s)',
+  async (background) => {
+    const directory = await mkdtemp(join(tmpdir(), 'sia-native-learning-'));
+    const { controller, repository } = await createHarness({ defaultWorkspaceRoot: directory });
+    try {
+      await controller.invoke('computer.setAccessMode', { mode: 'mac', background });
+      const { agentId } = await controller.invoke('agents.save', {
+        name: 'Native learning',
+        instructions: '',
+        model: 'gpt-5.6-sol',
+      });
+      await controller.invoke('assistant.library', {
+        operation: 'nativeLearning',
+        agentId,
+        enabled: true,
+      });
+      const library = new AssistantLibrary(repository);
+      for (let i = 0; i < 2; i++)
+        library.recordMacTask({
+          agentId,
+          threadId: randomUUID(),
+          turnId: randomUUID(),
+          request: 'Inspect Finder',
+          outcome: 'complete',
+          result: {
+            success: true,
+            response: 'Read the Finder folder.',
+            steps: ['Read Finder with its AppleScript dictionary'],
+          },
+        });
+      const review = await controller.invoke('assistant.library', {
+        operation: 'review',
+        agentId,
+      });
+      const threadId = review.threadId!;
+      const turnId = controller
+        .snapshot()
+        .timeline.find(
+          (entry) => entry.threadId === threadId && entry.kind === 'user',
+        )!.turnId!;
+      const invoke = vi.fn();
+      const result = await controller.assistantAction(
+        {
+          name: 'memory_vault',
+          descriptor: getActionToolDescriptor('memory_vault')!,
+          context: {
+            sessionId: 'review',
+            threadId,
+            turnId,
+            provider: 'codex',
+            workspace: directory,
+          },
+          arguments: {
+            operation: 'write',
+            name: 'skills/finder-folder.sh',
+            revision: '',
+            text: '#!/bin/bash\n# skill: Finder folder\n# description: Read the current Finder folder\nprintf never-executed\n',
+          },
+        },
+        invoke,
+      );
+      expect(result.summary).toContain('Saved and read back');
+      expect(invoke).not.toHaveBeenCalled();
+      const view = await controller.invoke('assistant.library', { operation: 'list' });
+      expect(view.suggestions).toEqual([]);
+      expect(view.skills).toEqual([
+        expect.objectContaining({
+          agentId,
+          execution: 'native',
+          title: 'Finder folder',
+          source: expect.stringContaining('# description:'),
+        }),
+      ]);
+      expect(library.view().skills).toEqual([]);
+      const skill = view.skills![0]!;
+      await vi.waitFor(() =>
+        expect(
+          controller.snapshot().threads.find((entry) => entry.id === threadId)?.status,
+        ).toBe('idle'),
+      );
+      await controller.invoke('computer.setAccessMode', { mode: 'mac', background: true });
+      await expect(
+        controller.invoke('assistant.library', {
+          operation: 'runSkill',
+          id: skill.id,
+          input: {},
+        }),
+      ).rejects.toThrow('On my screen');
+      await controller.invoke('assistant.library', { operation: 'deleteSkill', id: skill.id });
+      expect(
+        (await controller.invoke('assistant.library', { operation: 'list' })).skills,
+      ).toEqual([]);
+      await controller.invoke('assistant.library', {
+        operation: 'nativeLearning',
+        agentId,
+        enabled: false,
+      });
+      expect(library.view().reviewAgents).toEqual([]);
+    } finally {
+      await controller.shutdown();
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
+
+it('shares native notes with background tasks, isolates agents, and keeps paused learning read-only', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'sia-shared-memory-'));
+  const { controller } = await createHarness({ defaultWorkspaceRoot: directory });
+  try {
+    await controller.invoke('computer.setAccessMode', { mode: 'mac', background: true });
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'Shared memory',
+      instructions: '',
+      model: 'gpt-5.6-sol',
+    });
+    const workspace = controller
+      .snapshot()
+      .agents.find((agent) => agent.id === agentId)!.workspace;
+    const vault = new NotchVault(workspace, agentId);
+    vault.write('campus.md', 'Institution: CMU. Verify current courses in Canvas.', '');
+    const other = new NotchVault(workspace, randomUUID());
+    other.write('campus.md', 'Different agent.', '');
+    const { threadId } = await controller.invoke('threads.create', { agentId });
+    const { turnId } = await controller.invoke('threads.send', {
+      threadId,
+      text: 'Read my campus note.',
+    });
+    const action = (operation: string, name: string, text = '', revision = '') =>
+      controller.assistantAction(
+        {
+          name: 'memory_vault',
+          descriptor: getActionToolDescriptor('memory_vault')!,
+          context: { sessionId: 'background', threadId, turnId, provider: 'codex', workspace },
+          arguments: { operation, name, text, revision },
+        },
+        vi.fn(),
+      );
+    expect((await action('read', 'campus.md')).data).toMatchObject({
+      text: expect.stringContaining('CMU'),
+    });
+    const saved = await action('write', 'calendar.md', 'Use the observed campus calendar.');
+    expect(saved.outcome).toBe('verified');
+    expect(vault.read('calendar.md').text).toContain('campus calendar');
+    expect(other.read('calendar.md').revision).toBe('');
+    await expect(action('write', 'calendar.md', 'Stale replacement')).rejects.toThrow();
+    await expect(action('read', '../campus.md')).rejects.toThrow();
+    await expect(action('write', 'skills/direct.sh', '#!/bin/bash\necho no')).rejects.toThrow(
+      'skill_save',
+    );
+    await controller.invoke('assistant.library', {
+      operation: 'learning',
+      agentId,
+      enabled: false,
+    });
+    expect((await action('read', 'campus.md')).outcome).toBe('verified');
+    await expect(action('write', 'paused.md', 'Must not persist.')).rejects.toThrow('paused');
+    expect(vault.read('paused.md').revision).toBe('');
+  } finally {
+    await controller.shutdown();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+it('retains background task results and failures across conversations and native mode without injecting scripts into background turns', async () => {
+  const turns: RuntimeTurnInput[] = [];
+  const runtime = {
+    async *runTurn(input: RuntimeTurnInput) {
+      turns.push(input);
+      input.onMacResult?.({
+        success: turns.length > 1,
+        response:
+          turns.length === 1 ? 'The document needs foreground access.' : 'Read the document.',
+        steps: ['Observed the target document window'],
+      });
+      yield {
+        id: randomUUID(),
+        threadId: input.thread.id,
+        turnId: input.turnId,
+        provider: 'codex' as const,
+        sequence: 1,
+        timestamp: new Date().toISOString(),
+        type: 'completion' as const,
+        payload: { status: 'completed' as const },
+      };
+    },
+    dispose: vi.fn(async () => undefined),
+    cancel: vi.fn(async () => undefined),
+  };
+  const { controller, repository } = await createHarness({ fakeServices: false, runtime });
+  try {
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'Background journal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    await controller.invoke('assistant.library', {
+      operation: 'learning',
+      agentId,
+      enabled: true,
+    });
+    await controller.invoke('computer.setAccessMode', { mode: 'mac', background: true });
+    const library = new AssistantLibrary(repository);
+    for (let i = 0; i < 3; i++) {
+      if (i === 2)
+        await controller.invoke('computer.setAccessMode', { mode: 'mac', background: false });
+      const { threadId } = await controller.invoke('threads.create', { agentId });
+      await controller.invoke('threads.send', {
+        threadId,
+        text: 'Read the document in its window.',
+      });
+      await vi.waitFor(() =>
+        expect(library.view().journal?.filter((entry) => entry.kind === 'task')).toHaveLength(
+          i + 1,
+        ),
+      );
+      expect(controller.snapshot().threads.find((entry) => entry.id === threadId)?.status).toBe(
+        i === 0 ? 'failed' : 'idle',
+      );
+      if (i === 0)
+        expect(controller.snapshot().timeline).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              threadId,
+              kind: 'error',
+              title: 'Task needs attention',
+              text: 'The document needs foreground access.',
+            }),
+          ]),
+        );
+    }
+    expect(library.view().journal?.filter((entry) => entry.kind === 'task')).toEqual([
+      expect.objectContaining({
+        outcome: 'failed',
+        text: expect.stringContaining('foreground access'),
+      }),
+      expect.objectContaining({
+        outcome: 'complete',
+        text: expect.stringContaining('Read the document'),
+      }),
+      expect.objectContaining({ outcome: 'complete' }),
+    ]);
+    expect(turns[0]!.thread.macBackgroundControl).toBe(true);
+    expect(turns[1]!.text).toContain('<failures');
+    expect(turns[1]!.text).toContain('foreground access');
+    expect(turns[1]!.text).toContain('Observed the target document window');
+    expect(turns[1]!.text).not.toContain('Native executable skills live in');
+    expect(turns[1]!.text).toContain('skill_run');
+    expect(turns[2]!.thread.macBackgroundControl).toBe(false);
+    expect(turns[2]!.text).toContain('<memory_graph');
+    expect(turns[2]!.text).toContain('<skills>');
+    expect(new NotchVault('/tmp/sia-workspace', agentId).read('failures.log').text).toContain(
+      'foreground access',
+    );
+  } finally {
+    await controller.shutdown();
+  }
+});
+
+it('defaults new profiles to automatic action approval and preserves it after agent creation and restart', async () => {
+  const { controller, repository } = await createHarness();
+  expect(controller.computerAccessMode()).toBe('mac');
+  expect(controller.computerTrust()).toBe('auto');
+  expect(controller.snapshot().computer.trust).toBe('auto');
+  await controller.invoke('agents.save', {
+    name: 'Fresh profile agent',
+    instructions: 'Help with tasks.',
+    model: 'gpt-5.6-sol',
+    workspace: '/tmp/sia-workspace',
+  });
+  expect(controller.computerTrust()).toBe('auto');
+  const restored = await createHarness({ repository });
+  expect(restored.controller.computerTrust()).toBe('auto');
+  await restored.controller.shutdown();
+});
+
+it('preserves confirmations for legacy profiles without an approval preference', async () => {
+  const { repository } = await createHarness();
+  const stored = repository.get<{ preferences: { computerTrust?: string } }>(
+    'desktop',
+    'state',
+  )!;
+  delete stored.preferences.computerTrust;
+  repository.put('desktop', 'state', stored);
+  const restored = await createHarness({ repository });
+  expect(restored.controller.computerTrust()).toBe('ask');
+  expect(restored.controller.snapshot().computer.trust).toBe('ask');
+  await restored.controller.shutdown();
+});
+
+it('persists Use my Mac separately from action confirmations and avoids Chrome preparation', async () => {
+  const { controller, repository } = await createHarness();
+  await controller.invoke('computer.setTrust', { trust: 'ask' });
+  expect(controller.computerAccessMode()).toBe('mac');
+  expect(controller.macBackgroundControl()).toBe(false);
+  expect(controller.macBackgroundFallback()).toBe('pause');
+  expect(controller.computerTrust()).toBe('ask');
+  await controller.invoke('computer.setAccessMode', {
+    mode: 'mac',
+    background: true,
+    backgroundFallback: 'foreground',
+  });
+  await controller.invoke('computer.setAccessMode', { mode: 'mac' });
+  expect(controller.snapshot().computer.backgroundControl).toBe(true);
+  expect(controller.snapshot().computer.accessMode).toBe('mac');
+  expect(controller.computerTrust()).toBe('ask');
+  expect(await controller.ensureBrowserAttachedForActions()).toContain('Use my Mac');
+  expect(controller.snapshot().browser.status).toBe('detached');
+  const restored = await createHarness({ repository });
+  expect(restored.controller.computerAccessMode()).toBe('mac');
+  expect(restored.controller.macBackgroundControl()).toBe(true);
+  expect(restored.controller.macBackgroundFallback()).toBe('foreground');
+  expect(restored.controller.computerTrust()).toBe('ask');
+  await restored.controller.shutdown();
+});
+
+it('preserves connected mode for existing profiles, including profiles predating the mode setting', async () => {
+  const { controller, repository } = await createHarness();
+  await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+  const explicit = await createHarness({ repository });
+  expect(explicit.controller.computerAccessMode()).toBe('connected');
+  const stored = repository.get<{ preferences: { computerAccessMode?: string } }>(
+    'desktop',
+    'state',
+  )!;
+  delete stored.preferences.computerAccessMode;
+  repository.put('desktop', 'state', stored);
+  const legacy = await createHarness({ repository });
+  expect(legacy.controller.computerAccessMode()).toBe('connected');
+  await legacy.controller.shutdown();
+});

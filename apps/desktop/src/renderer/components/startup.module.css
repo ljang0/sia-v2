@@ -1,0 +1,154 @@
+.startup {
+  position: fixed;
+  z-index: var(--layer-dialog);
+  inset: 0;
+  overflow: hidden;
+  isolation: isolate;
+  background: #0d1915;
+  color: #e8f2e9;
+  pointer-events: none;
+  contain: layout paint;
+}
+.blob {
+  position: absolute;
+  inset: -30%;
+  background: #173a34;
+  border-radius: 0;
+  transform-origin: left center;
+  animation: settleLeft 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.brand {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font: 650 clamp(72px, 10vw, 128px)/1 var(--font-brand);
+  letter-spacing: -0.07em;
+  animation: brandDrift 1000ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.loading {
+  position: absolute;
+  inset: 0 0 0 18%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 17px;
+  color: #a8c1b8;
+  animation: loadingEnter 650ms 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.wordmark {
+  color: #e8f2e9;
+  font: 650 42px/1 var(--font-brand);
+  letter-spacing: -0.07em;
+}
+.pulse {
+  width: 5px;
+  height: 5px;
+  margin: 7px 0 0 3px;
+  border-radius: 50%;
+  background: #9fd3b5;
+  animation: breathe 1600ms ease-in-out infinite;
+}
+.startup[data-ready='true'] {
+  animation: revealApp 220ms ease-out both;
+}
+@keyframes settleLeft {
+  0%,
+  12% {
+    transform: translateX(0) scaleX(1);
+    border-radius: 0;
+  }
+  58% {
+    border-radius: 0 48% 62% 0 / 0 46% 62% 0;
+  }
+  100% {
+    transform: scaleX(0.37);
+    border-radius: 0 58% 44% 0 / 0 48% 58% 0;
+  }
+}
+@keyframes brandDrift {
+  0%,
+  12% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  60% {
+    opacity: 0.75;
+  }
+  100% {
+    opacity: 0.24;
+    transform: translateX(-42%) scale(0.76);
+  }
+}
+@keyframes loadingEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes revealApp {
+  to {
+    opacity: 0;
+  }
+}
+.startup[data-appearance='calm'] .blob,
+.startup[data-appearance='calm'] .brand,
+.startup[data-appearance='calm'] .loading,
+.startup[data-appearance='calm'] .pulse {
+  animation: none;
+}
+.startup[data-appearance='calm'] .brand {
+  display: none;
+}
+.startup[data-appearance='calm'] .loading {
+  inset: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .startup,
+  .blob,
+  .brand,
+  .loading,
+  .pulse {
+    animation: none;
+  }
+  .brand {
+    display: none;
+  }
+  .loading {
+    inset: 0;
+  }
+}
+@media (forced-colors: active) {
+  .startup {
+    background: Canvas;
+    color: CanvasText;
+  }
+  .blob,
+  .brand {
+    display: none;
+  }
+  .loading {
+    inset: 0;
+    color: CanvasText;
+  }
+  .wordmark {
+    color: CanvasText;
+  }
+  .pulse {
+    background: CanvasText;
+  }
+}

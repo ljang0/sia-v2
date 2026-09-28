@@ -99,17 +99,6 @@
   line-height: 1;
 }
 
-.wordmarkSymbol {
-  --sia-mark-size: 19px;
-  --sia-orbit-size: 15px;
-  --sia-core-size: 5px;
-  --agent-color: var(--text-link);
-}
-
-.wordmarkSymbol .siaMarkOrbit {
-  border-radius: 7px;
-}
-
 .iconButton,
 .iconButtonSmall,
 .agentEditButton,
@@ -663,45 +652,6 @@ button.agentAvatar {
   gap: 2px;
 }
 
-.threadMeta {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 5px;
-  color: var(--shell-muted);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-regular);
-  line-height: 1.2;
-}
-
-.threadMeta strong {
-  flex: none;
-  color: color-mix(in srgb, var(--agent-color) 62%, var(--shell-text));
-  font-weight: var(--weight-semibold);
-}
-
-.threadMeta time {
-  flex: none;
-  margin-left: auto;
-  font-variant-numeric: tabular-nums;
-}
-
-.threadDraftPreview {
-  overflow: hidden;
-  min-width: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.threadUnreadDot {
-  width: 6px;
-  height: 6px;
-  flex: none;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--agent-color) 68%, var(--shell-text));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--agent-color) 16%, transparent);
-}
-
 .threadSelectButton:active {
   opacity: 0.72;
   transform: none;
@@ -985,7 +935,11 @@ button.agentAvatar {
 }
 
 .actionError {
-  background: var(--surface-danger);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+
+.actionError > svg {
   color: var(--text-danger);
 }
 
@@ -1039,6 +993,7 @@ button.agentAvatar {
 
 .mainPane {
   position: relative;
+  isolation: isolate;
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -1046,6 +1001,51 @@ button.agentAvatar {
   flex-direction: column;
   background: var(--bg-canvas);
   animation: pageEnter var(--motion-surface) var(--ease-out-soft) both;
+}
+
+.conversationAurora {
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 auto;
+  height: min(580px, 78%);
+  overflow: hidden;
+  contain: paint;
+  opacity: 0.85;
+  mask-image: linear-gradient(#000 20%, transparent 100%);
+  transition: opacity 700ms var(--ease-out-soft);
+}
+
+.mainPane[data-scene='conversation'] .conversationAurora {
+  opacity: 0.2;
+}
+
+.gradientHeading {
+  color: var(--aurora-ink-start);
+  background: linear-gradient(
+    110deg,
+    var(--aurora-ink-start),
+    var(--aurora-ink-middle) 32%,
+    var(--aurora-ink-end) 64%,
+    var(--aurora-ink-start)
+  );
+  background-size: 260% 100%;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: auroraDrift 18s ease-in-out infinite alternate;
+}
+
+@keyframes auroraDrift {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
+}
+
+.mainPane:has(.conversationAurora[data-paused='true']) .gradientHeading,
+.mainPane:has(.conversationAurora[data-paused='true']) .composer {
+  animation-play-state: paused;
 }
 
 .threadScroll {
@@ -1207,7 +1207,7 @@ button.agentAvatar {
 
 .messageVoiceError {
   margin: 6px 0 0;
-  color: var(--text-danger);
+  color: var(--text-secondary);
   font-size: var(--text-sm);
 }
 
@@ -1428,8 +1428,8 @@ button.agentAvatar {
 }
 
 .activity_error {
-  border-left-color: var(--border-danger);
-  color: var(--text-danger);
+  border-left-color: var(--border-strong);
+  color: var(--text-secondary);
 }
 
 .activity_queued {
@@ -1469,6 +1469,10 @@ button.agentAvatar {
 }
 
 .status_error {
+  color: var(--text-secondary);
+}
+
+.status_error > svg {
   color: var(--text-danger);
 }
 
@@ -1533,8 +1537,13 @@ button.agentAvatar {
 
 .notice_error,
 .errorBanner {
-  border-left-color: var(--text-danger);
-  background: var(--surface-danger);
+  border-left-color: var(--border-strong);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+
+.notice_error > svg,
+.errorBanner > svg {
   color: var(--text-danger);
 }
 
@@ -1561,8 +1570,9 @@ button.agentAvatar {
   align-items: flex-start;
   gap: 12px;
   padding: 12px 16px 12px;
-  background: var(--agent-color);
-  color: var(--agent-ink);
+  border-top: 3px solid var(--agent-color);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
 }
 
 .approvalHeader h3,
@@ -1581,7 +1591,7 @@ button.agentAvatar {
 
 .approvalHeader p {
   margin-top: 1px;
-  color: color-mix(in srgb, var(--agent-ink) 74%, transparent);
+  color: var(--text-secondary);
   font-size: var(--text-sm);
 }
 
@@ -1593,12 +1603,12 @@ button.agentAvatar {
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-control);
-  background: color-mix(in srgb, var(--agent-ink) 12%, transparent);
-  color: var(--agent-ink);
+  background: color-mix(in srgb, var(--agent-color) 12%, transparent);
+  color: var(--text-primary);
 }
 
 .approvalHeader .approvalStatus {
-  color: color-mix(in srgb, var(--agent-ink) 74%, transparent);
+  color: var(--text-secondary);
 }
 
 .approvalStatus {
@@ -1700,8 +1710,6 @@ button.agentAvatar {
 .primaryButton,
 .secondaryButton,
 .dangerButton,
-.stopButton,
-.sendButton,
 .textButtonDanger {
   display: inline-flex;
   min-height: 36px;
@@ -1773,9 +1781,7 @@ button.agentAvatar {
 
 .primaryButton:disabled,
 .secondaryButton:disabled,
-.dangerButton:disabled,
-.stopButton:disabled,
-.sendButton:disabled {
+.dangerButton:disabled {
   cursor: default;
   opacity: 0.45;
   transform: none;
@@ -1985,7 +1991,7 @@ button.agentAvatar {
   width: min(100%, calc(var(--composer-max) + 64px));
   margin: 0 auto;
   padding: 14px 32px 24px;
-  background: var(--bg-canvas);
+  background: transparent;
 }
 
 .composer {
@@ -2051,31 +2057,13 @@ button.agentAvatar {
   white-space: nowrap;
 }
 
-.sendButton {
-  width: 32px;
-  min-height: 32px;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: var(--bg-accent);
-  color: var(--text-on-accent);
-}
-
-.sendButton:hover:not(:disabled) {
-  background: var(--bg-accent-hover);
-}
-
-.stopButton {
-  min-height: 34px;
-  padding: 0 12px;
-  border: 1px solid color-mix(in srgb, var(--border-strong) 62%, var(--border-subtle));
-  border-radius: var(--radius-round);
-  background: var(--bg-raised);
-  color: var(--text-primary);
+.composerAction {
+  gap: 6px;
 }
 
 .composerError {
   margin: 5px 0 0;
-  color: var(--text-danger);
+  color: var(--text-secondary);
   font-size: var(--text-sm);
   text-align: center;
 }
@@ -2467,6 +2455,15 @@ button.agentAvatar {
   line-height: 1.5;
 }
 
+.feedbackDialog > .localField,
+.feedbackDialog > .dialogActions {
+  margin-top: 20px;
+}
+
+.feedbackDialog > .forkIsolationOption {
+  margin-top: 16px;
+}
+
 .consentSummary {
   display: grid;
   gap: 12px;
@@ -2842,27 +2839,22 @@ button.agentAvatar {
 .settingsNav {
   display: flex;
   flex: none;
-  gap: 22px;
-  overflow-x: auto;
-  padding: 0 clamp(22px, 4vw, 46px);
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px clamp(16px, 2.5vw, 32px);
   border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 76%, transparent);
   background: var(--bg-canvas);
-  scrollbar-width: none;
-}
-
-.settingsNav::-webkit-scrollbar {
-  display: none;
 }
 
 .settingsNav button {
   display: flex;
-  min-height: 48px;
+  min-height: 32px;
   flex: none;
   align-items: center;
   gap: 7px;
-  padding: 1px 2px 0;
+  padding: 7px 8px;
   border: 0;
-  border-radius: 0;
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
@@ -2875,7 +2867,7 @@ button.agentAvatar {
 }
 
 .settingsNav button:hover {
-  background: transparent;
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -2885,17 +2877,17 @@ button.agentAvatar {
 }
 
 .settingsNav .settingsNavActive {
-  background: transparent;
-  box-shadow: inset 0 -2px var(--text-primary);
+  background: var(--bg-selected);
   color: var(--text-primary);
   font-weight: var(--weight-semibold);
 }
 
 .settingsContent {
   min-height: 0;
+  container-type: inline-size;
   overflow-y: auto;
-  padding: 48px clamp(32px, 6vw, 76px) 76px;
-  animation: sectionEnter var(--motion-surface) var(--ease-out-soft) both;
+  scrollbar-gutter: stable;
+  padding: 24px clamp(24px, 4vw, 48px) 40px;
 }
 
 @keyframes sectionEnter {
@@ -2912,6 +2904,24 @@ button.agentAvatar {
 .voiceSetup,
 .voiceConnected {
   border-top: 1px solid var(--border-subtle);
+}
+
+.voiceShortcut {
+  min-width: 0;
+  padding: 4px 0 24px;
+}
+
+.voiceShortcut .voiceSelect {
+  margin-left: 0;
+  max-width: 100%;
+}
+
+.voiceShortcut .voicePreference > span {
+  min-width: 0;
+}
+
+.voiceShortcut .voicePreference input {
+  flex-shrink: 0;
 }
 
 .voicePreference {
@@ -4022,8 +4032,10 @@ button.agentAvatar {
 
 .rowTitleLine {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
+  overflow-wrap: anywhere;
 }
 
 .rowTitleLine strong,
@@ -4202,6 +4214,7 @@ button.agentAvatar {
   grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
+  padding: 18px 0;
   border-bottom: 1px solid var(--border-subtle);
   transition: background-color var(--motion-fast) var(--ease-standard);
 }
@@ -4591,8 +4604,8 @@ button.agentAvatar {
 
 .siaMark {
   display: inline-flex;
-  width: var(--sia-mark-size, 24px);
-  height: var(--sia-mark-size, 24px);
+  width: 24px;
+  height: 24px;
   flex: none;
   align-items: center;
   justify-content: center;
@@ -4602,8 +4615,8 @@ button.agentAvatar {
 .siaMarkOrbit {
   position: relative;
   display: flex;
-  width: var(--sia-orbit-size, 18px);
-  height: var(--sia-orbit-size, 18px);
+  width: 18px;
+  height: 18px;
   align-items: center;
   justify-content: center;
   border: 0;
@@ -4625,8 +4638,8 @@ button.agentAvatar {
 }
 
 .siaMarkCore {
-  width: var(--sia-core-size, 5px);
-  height: var(--sia-core-size, 5px);
+  width: 5px;
+  height: 5px;
   border-radius: var(--radius-round);
   background: var(--agent-ink);
   transform: scale(var(--presence-scale, 1));
@@ -5058,10 +5071,11 @@ button.agentAvatar {
   gap: 18px;
   padding: 9px 13px;
   border: 0;
-  background: var(--bg-raised);
+  background: color-mix(in srgb, var(--bg-raised) 94%, transparent);
   color: var(--text-primary);
   font: inherit;
   cursor: pointer;
+  transition: background 200ms var(--ease-standard);
 }
 
 .starterPrompts button:hover {
@@ -5070,6 +5084,14 @@ button.agentAvatar {
 
 .starterPrompts button span:last-child {
   color: var(--text-tertiary);
+  transition:
+    transform 220ms var(--ease-out-soft),
+    color 220ms ease;
+}
+
+.starterPrompts button:hover span:last-child {
+  color: var(--text-primary);
+  transform: translate(2px, -2px);
 }
 
 .eventSearchAnchor {
@@ -6062,11 +6084,11 @@ button.agentAvatar {
 
 .threadToolNav button {
   display: inline-flex;
-  width: 28px;
   height: 28px;
   align-items: center;
   justify-content: center;
-  padding: 0;
+  gap: 5px;
+  padding: 0 8px;
   border: 0;
   border-radius: var(--radius-tight);
   background: transparent;
@@ -6078,12 +6100,8 @@ button.agentAvatar {
     color var(--motion-fast) var(--ease-standard);
 }
 
-.threadToolNav button > span {
-  display: none;
-}
-
 .threadToolNav button:hover,
-.threadToolNav button[aria-pressed='true'] {
+.threadToolNav button[data-state='open'] {
   background: var(--bg-hover);
   color: var(--text-primary);
 }
@@ -6173,7 +6191,7 @@ button.agentAvatar {
 }
 
 .conversationOutlinePanel > header span {
-  color: color-mix(in srgb, var(--agent-color) 70%, var(--text-secondary));
+  color: var(--text-secondary);
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
   letter-spacing: 0.04em;
@@ -6300,7 +6318,7 @@ button.agentAvatar {
 }
 
 .conversationOutlineStatus[data-status='running'] {
-  color: color-mix(in srgb, var(--agent-color) 74%, var(--text-primary));
+  color: var(--text-primary);
 }
 
 .conversationOutlineStatus[data-status='running'] svg,
@@ -6314,7 +6332,7 @@ button.agentAvatar {
 }
 
 .conversationOutlineStatus[data-status='error'] {
-  color: var(--text-danger);
+  color: var(--text-secondary);
 }
 
 .conversationOutlineSteps {
@@ -6533,11 +6551,11 @@ button.agentAvatar {
 }
 
 .conversationColumn {
-  padding-top: 54px;
+  padding-top: 28px;
 }
 
 .eventList {
-  gap: 30px;
+  gap: 22px;
 }
 
 .assistantMessage {
@@ -6553,7 +6571,7 @@ button.agentAvatar {
 .userMessage {
   width: min(88%, 640px);
   align-self: flex-end;
-  padding: 14px 16px 15px;
+  padding: 12px 14px;
   border: 1px solid color-mix(in srgb, var(--border-strong) 24%, var(--border-subtle));
   border-radius: var(--radius-surface) var(--radius-surface) var(--radius-tight)
     var(--radius-surface);
@@ -6598,7 +6616,7 @@ button.agentAvatar {
 
 .emptyStateKicker {
   margin-top: 20px;
-  color: color-mix(in srgb, var(--agent-color) 74%, var(--text-secondary));
+  color: var(--text-secondary);
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
   letter-spacing: 0.055em;
@@ -6608,19 +6626,19 @@ button.agentAvatar {
 .threadEmpty {
   align-items: flex-start;
   max-width: 660px;
-  min-height: 52vh;
+  min-height: 36vh;
   margin: 0 auto;
-  padding: 7vh 32px 0;
+  padding: 4vh 28px 0;
   text-align: left;
 }
 
 .threadEmpty h2 {
-  max-width: 12ch;
+  max-width: 16ch;
   margin-top: 13px;
   font-family: var(--font-display);
-  font-size: var(--display-xl);
+  font-size: clamp(30px, 3vw, 42px);
   letter-spacing: -0.045em;
-  line-height: 1;
+  line-height: 1.08;
 }
 
 .threadEmpty p {
@@ -6630,33 +6648,60 @@ button.agentAvatar {
 }
 
 .composerArea {
-  padding-bottom: 28px;
+  padding-bottom: 16px;
 }
 
 .composer {
-  padding: 14px 14px 11px 16px;
-  border-color: color-mix(in srgb, var(--agent-color) 24%, var(--border-subtle));
+  padding: 10px 12px 9px;
+  border-color: transparent;
   border-radius: var(--radius-dialog);
-  background: color-mix(in srgb, var(--agent-color) 3%, var(--bg-raised));
+  background:
+    linear-gradient(
+        115deg,
+        color-mix(in srgb, var(--aurora-emerald) 5%, var(--bg-raised)),
+        var(--bg-raised) 35%,
+        color-mix(in srgb, var(--aurora-cyan) 5%, var(--bg-raised)) 65%,
+        color-mix(in srgb, var(--aurora-violet) 6%, var(--bg-raised))
+      )
+      padding-box,
+    linear-gradient(
+        110deg,
+        color-mix(in srgb, var(--aurora-emerald) 45%, var(--border-subtle)),
+        color-mix(in srgb, var(--aurora-cyan) 40%, var(--border-subtle)) 32%,
+        color-mix(in srgb, var(--aurora-violet) 45%, var(--border-subtle)) 64%,
+        color-mix(in srgb, var(--aurora-emerald) 45%, var(--border-subtle))
+      )
+      border-box;
+  background-size: 260% 100%;
+  animation: auroraDrift 22s ease-in-out infinite alternate;
   box-shadow:
-    0 18px 48px color-mix(in srgb, var(--agent-color) 8%, transparent),
+    0 8px 28px color-mix(in srgb, var(--aurora-emerald) 6%, transparent),
+    var(--shadow-composer);
+  transition:
+    box-shadow 360ms var(--ease-out-soft),
+    border-color 360ms ease;
+}
+
+.composer:focus-within {
+  border-color: transparent;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--aurora-emerald) 16%, transparent),
+    0 10px 36px color-mix(in srgb, var(--aurora-cyan) 10%, transparent),
     var(--shadow-composer);
 }
 
-.composer textarea {
-  min-height: 42px;
-  padding-top: 10px;
-  font-size: var(--text-xl);
+.composer.composerDisabled {
+  animation-play-state: paused;
 }
 
-.sendButton {
-  width: 36px;
-  min-height: 36px;
-  border-radius: var(--radius-control);
+.composer textarea {
+  min-height: 38px;
+  padding-top: 6px;
+  font-size: var(--text-lg);
 }
 
 .settingsTopbar {
-  min-height: 84px;
+  min-height: var(--titlebar-height);
   padding-right: 28px;
   padding-left: clamp(28px, 5vw, 58px);
   background: color-mix(in srgb, var(--hue-0) 5%, var(--bg-canvas));
@@ -6668,7 +6713,6 @@ button.agentAvatar {
 }
 
 .settingsNav {
-  gap: 28px;
   background: color-mix(in srgb, var(--hue-0) 3%, var(--bg-canvas));
 }
 
@@ -6676,6 +6720,29 @@ button.agentAvatar {
   max-width: 1040px;
   width: 100%;
   margin: 0 auto;
+}
+
+/* React to the available pane width, including a collapsed sidebar or zoom. */
+@container (max-width: 520px) {
+  .settingsRow,
+  .accessRow {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .settingsRow > button,
+  .accessRow > button {
+    width: fit-content;
+    max-width: 100%;
+    grid-column: 2;
+    justify-self: start;
+    white-space: normal;
+  }
+
+  .captureSettings,
+  .privacyFacts {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .googleServiceAccess {
@@ -6744,12 +6811,6 @@ button.agentAvatar {
   gap: 12px;
   color: var(--text-secondary);
   font-size: var(--text-sm);
-}
-
-@media (max-width: 1280px) {
-  .threadToolNav button > span {
-    display: none;
-  }
 }
 
 @media (max-width: 1120px) {
@@ -6916,6 +6977,9 @@ button.agentAvatar {
   }
 
   .settingsNav {
+    max-height: 90px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 7px;
   }
 
@@ -6939,6 +7003,15 @@ button.agentAvatar {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .gradientHeading,
+  .composer {
+    animation: none;
+  }
+  .conversationAurora,
+  .composer,
+  .starterPrompts button span:last-child {
+    transition: none;
+  }
   :where(button, a, input, textarea, select, summary) {
     transition-duration: 0.01ms;
   }
@@ -7037,6 +7110,17 @@ button.agentAvatar {
 }
 
 @media (forced-colors: active) {
+  .conversationAurora {
+    display: none;
+  }
+  .gradientHeading {
+    background: none;
+    -webkit-text-fill-color: currentColor;
+    color: CanvasText;
+  }
+  .composer {
+    border-color: ButtonText;
+  }
   :focus {
     outline: 2px solid Highlight;
     outline-offset: 2px;
@@ -7058,4 +7142,128 @@ button.agentAvatar {
     outline: 2px solid Highlight;
     outline-offset: -2px;
   }
+}
+
+.agentSettingsMenu {
+  position: relative;
+  font-size: 12px;
+}
+.agentSettingsMenu > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-secondary);
+}
+.agentSettingsMenu > summary::-webkit-details-marker {
+  display: none;
+}
+.agentSettingsMenu .threadControls {
+  height: auto;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 30;
+  width: 280px;
+  max-width: calc(100vw - 40px);
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px #0002;
+}
+.agentSettingsMenu .threadControls label {
+  display: grid;
+  gap: 6px;
+}
+.agentSettingsMenu .threadControls select {
+  max-width: 100%;
+  width: 100%;
+}
+.agentSettingsMenu .threadControlDivider {
+  display: none;
+}
+.workspaceDetails {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+.workspaceDetails summary {
+  cursor: pointer;
+}
+.newConversationButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  padding: 10px;
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+.flatThreadList {
+  margin-left: 0;
+  padding-left: 0;
+  border-left: 0;
+}
+.agentSettingsMenu .threadControls select:focus-visible {
+  outline: 2px solid var(--border-strong);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.singleAgentRow {
+  display: flex;
+  gap: 4px;
+  background: transparent;
+}
+.singleAgentRow .newConversationButton {
+  min-width: 0;
+  white-space: normal;
+  background: var(--shell-hover);
+  color: var(--shell-text);
+  border-color: var(--shell-line);
+}
+.singleAgentRow .newConversationButton svg {
+  flex: none;
+}
+
+.agentGroupSelected .singleAgentRow,
+.agentGroupSelected .singleAgentRow:hover {
+  background: transparent;
+  box-shadow: none;
+}
+.singleAgentRow .agentEditButton {
+  opacity: 1;
+}
+
+.settingsDisclosure {
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 20px;
+  padding-top: 14px;
+}
+.settingsDisclosure > summary {
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+/* Calm keeps the color palette without continuous decorative motion. */
+.appShell[data-appearance='calm'] .gradientHeading,
+.appShell[data-appearance='calm'] .composer,
+.appShell[data-appearance='calm'] .composer::before,
+.appShell[data-appearance='calm'] .composer::after {
+  animation: none;
 }

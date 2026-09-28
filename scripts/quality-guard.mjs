@@ -9,10 +9,21 @@ const appControllerPath = join(rendererRoot, 'useAppController.ts');
 const infraTemplatePath = join(root, 'infra/template.yaml');
 
 const expectedActionTools = [
+  'assistant_library',
+  'memory_learn',
+  'memory_vault',
+  'memory_suggest',
+  'skill_save',
+  'skill_run',
+  'mac_automation',
   'computer_list',
   'computer_snapshot',
   'computer_action',
   'computer_open_app',
+  'computer_open_url',
+  'computer_list_files',
+  'computer_read_file',
+  'computer_write_file',
   'browser_tabs',
   'browser_snapshot',
   'browser_navigate',
@@ -52,15 +63,17 @@ const expectedActionTools = [
 
 const failures = [];
 const renderedTag = new RegExp('<' + 'canvas(?:\\s|>)', 'i');
+// The shared aurora is decoration only. Every control remains accessible native DOM.
+const decorativeCanvasPath = join(rendererRoot, 'components/effects/dither-preview/Dither.jsx');
 
 for (const path of await walk(rendererRoot)) {
   const extension = extname(path);
-  if (!['.css', '.ts', '.tsx'].includes(extension)) continue;
+  if (!['.css', '.ts', '.tsx', '.js', '.jsx'].includes(extension)) continue;
   const source = await readFile(path, 'utf8');
   if (extension === '.css' && source.includes('!important')) {
     failures.push(`${relative(root, path)} contains !important`);
   }
-  if (renderedTag.test(source)) {
+  if (renderedTag.test(source) && path !== decorativeCanvasPath) {
     failures.push(`${relative(root, path)} renders a canvas element`);
   }
 }

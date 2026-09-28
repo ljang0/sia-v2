@@ -12,6 +12,7 @@ import {
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import styles from '../ui.module.css';
 import { SiaPresence, type SiaPresenceState } from './SiaPresence';
+import { LiquidMetalButton } from './effects/liquid-metal-button';
 
 interface ComposerAttachment {
   id: string;
@@ -33,6 +34,9 @@ interface ComposerProps {
   onRemoveAttachment?: ((attachmentId: string) => Promise<void> | void) | undefined;
   onPreviewAttachment?: ((attachmentId: string) => void) | undefined;
   voiceEnabled?: boolean | undefined;
+  realtimeDictation?: boolean | undefined;
+  onAcquireVoiceCapture?: (() => Promise<string>) | undefined;
+  onReleaseVoiceCapture?: ((leaseId: string) => Promise<void>) | undefined;
   onTranscribe?: ((audioBase64: string, mimeType: string) => Promise<string>) | undefined;
   onStartRealtime?: (() => Promise<string>) | undefined;
   onAppendRealtime?: ((sessionId: string, audioBase64: string) => Promise<void>) | undefined;
@@ -59,7 +63,10 @@ export function Composer({
   onRemoveAttachment,
   onPreviewAttachment,
   voiceEnabled = false,
+  realtimeDictation = false,
   onTranscribe,
+  onAcquireVoiceCapture,
+  onReleaseVoiceCapture,
   onStartRealtime,
   onAppendRealtime,
   onStopRealtime,
@@ -73,10 +80,22 @@ export function Composer({
 }: ComposerProps) {
   const [value, setValue] = useState(initialValue);
   const [sending, setSending] = useState(false);
-  const [voicePhase, setVoicePhase] = useState<'idle' | 'recording' | 'transcribing'>('idle');
+  const [voicePhase, setVoicePhase] = useState<
+    'idle' | 'starting' | 'recording' | 'transcribing'
+  >('idle');
   const [voiceError, setVoiceError] = useState<string>();
   const [voiceLevel, setVoiceLevel] = useState(0);
   const textArea = useRef<HTMLTextAreaElement>(null);
+  const captureGeneration = useRef(0);
+  const captureStarting = useRef(false);
+  const captureLease = useRef<string | undefined>(undefined);
+  const releaseCaptureHandler = useRef(onReleaseVoiceCapture);
+  releaseCaptureHandler.current = onReleaseVoiceCapture;
+  const releaseCapture = () => {
+    const leaseId = captureLease.current;
+    captureLease.current = undefined;
+    if (leaseId) void releaseCaptureHandler.current?.(leaseId).catch(() => undefined);
+  };
   const mediaRecorder = useRef<MediaRecorder | undefined>(undefined);
   const mediaStream = useRef<MediaStream | undefined>(undefined);
   const recordingTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -116,6 +135,8 @@ export function Composer({
 
   useEffect(
     () => () => {
+      captureGeneration.current += 1;
+      discardRecording.current = true;
       if (recordingTimeout.current) clearTimeout(recordingTimeout.current);
       if (voiceRestartTimer.current) clearTimeout(voiceRestartTimer.current);
       if (analyserFrame.current !== undefined) cancelAnimationFrame(analyserFrame.current);
@@ -126,6 +147,7 @@ export function Composer({
         void realtimeStopHandler.current?.(sessionId, false).catch(() => undefined);
       if (mediaRecorder.current?.state === 'recording') mediaRecorder.current.stop();
       mediaStream.current?.getTracks().forEach((track) => track.stop());
+      if (!captureStarting.current) releaseCapture();
     },
     [],
   );
@@ -171,6 +193,8 @@ export function Composer({
     if (
       !voiceConversation ||
       !voiceCanListen ||
+      !voiceEnabled ||
+      voiceError ||
       disabled ||
       running ||
       sending ||
@@ -183,7 +207,16 @@ export function Composer({
       if (voiceRestartTimer.current) clearTimeout(voiceRestartTimer.current);
       voiceRestartTimer.current = undefined;
     };
-  }, [disabled, running, sending, voiceCanListen, voiceConversation, voicePhase]);
+  }, [
+    disabled,
+    running,
+    sending,
+    voiceCanListen,
+    voiceConversation,
+    voiceEnabled,
+    voiceError,
+    voicePhase,
+  ]);
 
   const submit = async () => {
     const content = value.trim();
@@ -216,25 +249,62 @@ export function Composer({
   };
 
   const beginRecording = async (purpose: 'dictation' | 'conversation' = 'dictation') => {
-    if (!onTranscribe || disabled || running || sending || voicePhase !== 'idle') return;
+    if (
+      !onTranscribe ||
+      disabled ||
+      running ||
+      sending ||
+      voicePhase !== 'idle' ||
+      captureStarting.current
+    )
+      return;
     setVoiceError(undefined);
     const useRealtime =
-      purpose === 'conversation' &&
+      (purpose === 'conversation' || realtimeDictation) &&
       Boolean(onStartRealtime && onAppendRealtime && onStopRealtime);
+    if (realtimeDictation && !useRealtime) {
+      setVoiceError('Live dictation is unavailable. Restart Sia and try again.');
+      return;
+    }
     if (
       !navigator.mediaDevices?.getUserMedia ||
+      (useRealtime && typeof AudioContext === 'undefined') ||
       (!useRealtime && typeof MediaRecorder === 'undefined')
     ) {
       setVoiceError('Microphone recording is unavailable on this Mac.');
       return;
     }
+    const generation = ++captureGeneration.current;
+    captureStarting.current = true;
+    recordingPurpose.current = purpose;
+    setVoicePhase('starting');
     try {
+      if (onAcquireVoiceCapture) {
+        const leaseId = await onAcquireVoiceCapture();
+        if (captureGeneration.current !== generation) {
+          void releaseCaptureHandler.current?.(leaseId).catch(() => undefined);
+          return;
+        }
+        captureLease.current = leaseId;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
         video: false,
       });
+      if (captureGeneration.current !== generation) {
+        stream.getTracks().forEach((track) => track.stop());
+        releaseCapture();
+        return;
+      }
+      mediaStream.current = stream;
       if (useRealtime && onStartRealtime && onAppendRealtime && onStopRealtime) {
-        await beginRealtimeRecording(stream, onStartRealtime, onAppendRealtime, onStopRealtime);
+        await beginRealtimeRecording(
+          stream,
+          onStartRealtime,
+          onAppendRealtime,
+          onStopRealtime,
+          generation,
+        );
         return;
       }
       const mimeType = preferredRecordingMimeType();
@@ -243,7 +313,6 @@ export function Composer({
         : new MediaRecorder(stream);
       mediaStream.current = stream;
       mediaRecorder.current = recorder;
-      recordingPurpose.current = purpose;
       discardRecording.current = false;
       audioChunks.current = [];
       recorder.addEventListener('dataavailable', (event) => {
@@ -259,21 +328,36 @@ export function Composer({
       recordingTimeout.current = setTimeout(stopRecording, 60_000);
       if (typeof AudioContext !== 'undefined') monitorAudio(stream, purpose === 'conversation');
     } catch (cause) {
+      releaseCapture();
+      if (captureGeneration.current === generation) {
+        onVoiceConversationChange?.(false);
+        setVoicePhase('idle');
+      }
       const sessionId = realtimeSession.current;
       realtimeSession.current = undefined;
       releaseRealtimeAudio(realtimeProcessor, realtimeSource, realtimeGain, realtimeContext);
       if (sessionId) void onStopRealtime?.(sessionId, false).catch(() => undefined);
       mediaStream.current?.getTracks().forEach((track) => track.stop());
       mediaStream.current = undefined;
-      setVoiceError(
-        cause instanceof DOMException && cause.name === 'NotAllowedError'
-          ? 'Allow microphone access in System Settings to dictate.'
-          : 'Sia could not start the microphone.',
-      );
+      if (captureGeneration.current === generation) {
+        setVoiceError(
+          cause instanceof DOMException && cause.name === 'NotAllowedError'
+            ? 'Allow microphone access in System Settings to dictate.'
+            : cause instanceof Error
+              ? cause.message
+              : 'Sia could not start the microphone.',
+        );
+      }
+    } finally {
+      captureStarting.current = false;
     }
   };
 
   const stopRecording = (discard = false) => {
+    if (realtimeSession.current) {
+      void stopRealtimeRecording(!discard);
+      return;
+    }
     discardRecording.current ||= discard;
     if (recordingTimeout.current) clearTimeout(recordingTimeout.current);
     recordingTimeout.current = undefined;
@@ -286,14 +370,20 @@ export function Composer({
     start: () => Promise<string>,
     append: (sessionId: string, audioBase64: string) => Promise<void>,
     stop: (sessionId: string, commit: boolean) => Promise<string>,
+    generation: number,
   ) => {
     mediaStream.current = stream;
     const sessionId = await start();
+    if (captureGeneration.current !== generation) {
+      stream.getTracks().forEach((track) => track.stop());
+      await stop(sessionId, false).catch(() => undefined);
+      releaseCapture();
+      return;
+    }
     realtimeSession.current = sessionId;
     realtimeAppend.current = Promise.resolve();
     realtimeFailure.current = undefined;
     realtimeFinishing.current = false;
-    recordingPurpose.current = 'conversation';
 
     const context = new AudioContext();
     const source = context.createMediaStreamSource(stream);
@@ -314,12 +404,21 @@ export function Composer({
     let heardSpeech = false;
     let silenceAt: number | undefined;
     processor.onaudioprocess = (event) => {
-      if (realtimeFinishing.current) return;
+      if (
+        realtimeFinishing.current ||
+        captureGeneration.current !== generation ||
+        realtimeSession.current !== sessionId
+      )
+        return;
       const samples = event.inputBuffer.getChannelData(0);
       const payload = pcm16Base64(samples, context.sampleRate);
       realtimeAppend.current = realtimeAppend.current
-        .then(() => append(sessionId, payload))
+        .then(() => {
+          if (captureGeneration.current !== generation || realtimeFailure.current) return;
+          return append(sessionId, payload);
+        })
         .catch((cause) => {
+          if (captureGeneration.current !== generation) return;
           realtimeFailure.current = cause;
           processor.onaudioprocess = null;
           if (!realtimeFinishing.current) {
@@ -330,6 +429,7 @@ export function Composer({
       const rms = rootMeanSquare(samples);
       updateVoiceLevel(rms);
       const now = performance.now();
+      if (recordingPurpose.current !== 'conversation') return;
       if (rms >= 0.025) {
         heardSpeech = true;
         silenceAt = undefined;
@@ -341,6 +441,8 @@ export function Composer({
       }
     };
     await context.resume();
+    if (captureGeneration.current !== generation || realtimeSession.current !== sessionId)
+      return;
     setVoicePhase('recording');
     recordingTimeout.current = setTimeout(() => void stopRealtimeRecording(true, stop), 60_000);
   };
@@ -351,6 +453,7 @@ export function Composer({
   ): Promise<void> => {
     const sessionId = realtimeSession.current;
     if (!sessionId || realtimeFinishing.current || !stop) return;
+    const generation = captureGeneration.current;
     realtimeFinishing.current = true;
     realtimeSession.current = undefined;
     if (recordingTimeout.current) clearTimeout(recordingTimeout.current);
@@ -365,15 +468,17 @@ export function Composer({
       await realtimeAppend.current;
       if (realtimeFailure.current) throw realtimeFailure.current;
       const transcript = await stop(sessionId, commit);
-      if (commit && transcript.trim()) await onSend(transcript.trim(), []);
+      if (commit) await acceptTranscript(transcript, generation);
     } catch (cause) {
-      await stop(sessionId, false).catch(() => undefined);
-      if (commit) {
+      if (captureGeneration.current === generation && (commit || realtimeFailure.current)) {
         setVoiceError(
           cause instanceof Error ? cause.message : 'Speech could not be transcribed.',
         );
+        if (recordingPurpose.current === 'conversation') onVoiceConversationChange?.(false);
       }
+      await stop(sessionId, false).catch(() => undefined);
     } finally {
+      releaseCapture();
       realtimeAppend.current = Promise.resolve();
       realtimeFailure.current = undefined;
       realtimeFinishing.current = false;
@@ -382,6 +487,11 @@ export function Composer({
   };
 
   const cancelActiveRecording = () => {
+    captureGeneration.current += 1;
+    if (captureStarting.current) {
+      mediaStream.current?.getTracks().forEach((track) => track.stop());
+      setVoicePhase('idle');
+    }
     if (realtimeSession.current) void stopRealtimeRecording(false);
     else stopRecording(true);
   };
@@ -425,7 +535,27 @@ export function Composer({
     analyserFrame.current = requestAnimationFrame(measure);
   };
 
+  const acceptTranscript = async (transcript: string, generation: number) => {
+    if (captureGeneration.current !== generation) return;
+    if (!transcript.trim())
+      throw new Error('No speech was detected. Check your microphone and try again.');
+    if (recordingPurpose.current === 'conversation') {
+      await onSend(transcript.trim(), []);
+    } else {
+      const draft = textArea.current?.value ?? value;
+      updateValue(`${draft.trimEnd()}${draft.trim() ? ' ' : ''}${transcript}`);
+    }
+    requestAnimationFrame(() => {
+      const input = textArea.current;
+      if (!input) return;
+      input.style.height = 'auto';
+      input.style.height = `${Math.min(input.scrollHeight, 168)}px`;
+      if (recordingPurpose.current === 'dictation') input.focus();
+    });
+  };
+
   const finishRecording = async (mimeType: string) => {
+    const generation = captureGeneration.current;
     mediaStream.current?.getTracks().forEach((track) => track.stop());
     mediaStream.current = undefined;
     mediaRecorder.current = undefined;
@@ -434,33 +564,28 @@ export function Composer({
     const discarded = discardRecording.current;
     discardRecording.current = false;
     if (discarded) {
+      releaseCapture();
       setVoicePhase('idle');
       return;
     }
     if (!blob.size || !onTranscribe) {
+      releaseCapture();
       setVoicePhase('idle');
       return;
     }
     setVoicePhase('transcribing');
     try {
       const transcript = await onTranscribe(await blobBase64(blob), mimeType);
-      if (recordingPurpose.current === 'conversation') {
-        if (transcript.trim()) await onSend(transcript.trim(), []);
-      } else {
-        updateValue(`${value.trimEnd()}${value.trim() ? ' ' : ''}${transcript}`);
-      }
-      requestAnimationFrame(() => {
-        const input = textArea.current;
-        if (!input) return;
-        input.style.height = 'auto';
-        input.style.height = `${Math.min(input.scrollHeight, 168)}px`;
-        if (recordingPurpose.current === 'dictation') input.focus();
-      });
+      await acceptTranscript(transcript, generation);
     } catch (cause) {
-      setVoiceError(
-        cause instanceof Error ? cause.message : 'Speech could not be transcribed.',
-      );
+      if (captureGeneration.current === generation) {
+        setVoiceError(
+          cause instanceof Error ? cause.message : 'Speech could not be transcribed.',
+        );
+        if (recordingPurpose.current === 'conversation') onVoiceConversationChange?.(false);
+      }
     } finally {
+      releaseCapture();
       setVoicePhase('idle');
     }
   };
@@ -556,22 +681,35 @@ export function Composer({
                     disabled ||
                     running ||
                     sending ||
-                    voiceConversation ||
-                    voicePhase === 'transcribing'
+                    (voiceConversation && voicePhase !== 'recording') ||
+                    voicePhase === 'transcribing' ||
+                    voicePhase === 'starting'
                   }
                   aria-label={
                     voicePhase === 'recording'
-                      ? 'Stop recording and transcribe'
-                      : voicePhase === 'transcribing'
-                        ? 'Transcribing voice message'
-                        : 'Dictate message'
+                      ? voiceConversation
+                        ? 'Finish speaking'
+                        : 'Stop recording and transcribe'
+                      : voicePhase === 'starting'
+                        ? 'Starting microphone'
+                        : voicePhase === 'transcribing'
+                          ? 'Transcribing voice message'
+                          : 'Dictate message'
                   }
                   aria-pressed={voicePhase === 'recording' && !voiceConversation}
-                  title={voicePhase === 'recording' ? 'Stop and transcribe' : 'Dictate message'}
+                  title={
+                    voicePhase === 'recording'
+                      ? voiceConversation
+                        ? 'Finish speaking'
+                        : 'Stop and transcribe'
+                      : 'Dictate message'
+                  }
                   data-testid="composer-voice-input"
                 >
                   {voicePhase === 'transcribing' && !voiceConversation ? (
                     <SpinnerGap className={styles.spin} size={15} aria-hidden="true" />
+                  ) : voicePhase === 'recording' ? (
+                    <Stop size={15} weight="fill" aria-hidden="true" />
                   ) : (
                     <Microphone size={15} weight="fill" aria-hidden="true" />
                   )}
@@ -583,9 +721,8 @@ export function Composer({
                       voiceConversation ? styles.composerVoiceRecording : ''
                     }`}
                     onClick={() => {
-                      if (voiceConversation && voicePhase === 'recording') {
-                        cancelActiveRecording();
-                      }
+                      if (voiceConversation) cancelActiveRecording();
+                      else setVoiceError(undefined);
                       onVoiceConversationChange(!voiceConversation);
                     }}
                     disabled={disabled && !voiceConversation}
@@ -613,50 +750,61 @@ export function Composer({
             />
             <span className={styles.composerContext} role="status">
               {voiceConversation
-                ? voicePhase === 'transcribing'
-                  ? 'Voice · transcribing…'
-                  : running || !voiceCanListen
-                    ? 'Voice · waiting…'
-                    : 'Voice · listening…'
-                : voicePhase === 'recording'
-                  ? 'Listening…'
-                  : voicePhase === 'transcribing'
-                    ? 'Transcribing…'
-                    : presence === 'working'
-                      ? `Working · ${executionLabel ?? 'Local'}`
-                      : presence === 'waiting'
-                        ? 'Waiting for you'
-                        : presence === 'complete'
-                          ? 'Done'
-                          : presence === 'error'
-                            ? 'Needs attention'
-                            : presence === 'speaking'
-                              ? 'Speaking…'
-                              : (executionLabel ?? 'Local')}
+                ? voiceError
+                  ? 'Voice stopped'
+                  : voicePhase === 'starting'
+                    ? 'Voice · starting microphone…'
+                    : voicePhase === 'transcribing'
+                      ? 'Voice · transcribing…'
+                      : running || !voiceCanListen
+                        ? 'Voice · waiting…'
+                        : voicePhase === 'recording'
+                          ? 'Voice · listening…'
+                          : 'Voice · ready'
+                : voicePhase === 'starting'
+                  ? 'Starting microphone…'
+                  : voicePhase === 'recording'
+                    ? 'Listening · click stop to finish'
+                    : voicePhase === 'transcribing'
+                      ? 'Transcribing…'
+                      : presence === 'working'
+                        ? `Working · ${executionLabel ?? 'Local'}`
+                        : presence === 'waiting'
+                          ? 'Waiting for you'
+                          : presence === 'complete'
+                            ? 'Done'
+                            : presence === 'error'
+                              ? 'Needs attention'
+                              : presence === 'speaking'
+                                ? 'Speaking…'
+                                : (executionLabel ?? 'Local')}
             </span>
           </div>
           {stoppable ? (
-            <button
+            <LiquidMetalButton
               type="button"
-              className={styles.stopButton}
+              size="compact"
+              className={styles.composerAction}
               onClick={() => void onStop()}
               aria-label="Stop current turn"
             >
               <Stop weight="fill" size={13} aria-hidden="true" />
               Stop
-            </button>
+            </LiquidMetalButton>
           ) : null}
           {!running ? (
-            <button
+            <LiquidMetalButton
               type="button"
-              className={styles.sendButton}
+              size="compact"
+              viewMode="icon"
+              tone="sage"
               onClick={() => void submit()}
               disabled={disabled || (!value.trim() && attachments.length === 0) || sending}
               aria-label="Send message"
               data-testid="composer-send"
             >
               <ArrowUp weight="bold" size={16} aria-hidden="true" />
-            </button>
+            </LiquidMetalButton>
           ) : null}
         </div>
       </div>

@@ -16,12 +16,17 @@ function run(command, args, options = {}) {
   });
 }
 
-run('node', [join(siteRoot, 'scripts/build.mjs')]);
-const parameterOverrides = [
-  `DomainName=${domain}`,
-  `UseCustomDomain=${certificateArn ? 'true' : 'false'}`,
-];
-if (certificateArn) parameterOverrides.push(`CertificateArn=${certificateArn}`);
+const publicRelease = process.argv.includes('--public-release');
+run('node', [
+  publicRelease
+    ? join(repositoryRoot, 'apps/desktop/scripts/stage-public-download.mjs')
+    : join(siteRoot, 'scripts/build.mjs'),
+]);
+// Omitted update parameters retain the deployed values. Do not disable the
+// existing HTTPS custom domain just because this shell has no certificate variable.
+const parameterOverrides = [`DomainName=${domain}`];
+if (certificateArn)
+  parameterOverrides.push('UseCustomDomain=true', `CertificateArn=${certificateArn}`);
 
 run('aws', [
   'cloudformation',
@@ -62,12 +67,27 @@ const distribution = output('DistributionId');
 if (!bucket || !distribution)
   throw new Error('The site stack did not return deployment outputs.');
 
+if (publicRelease) {
+  run('aws', [
+    's3',
+    'sync',
+    join(siteRoot, 'dist/downloads'),
+    `s3://${bucket}/downloads`,
+    '--cache-control',
+    'public,max-age=31536000,immutable',
+  ]);
+}
+
 run('aws', [
   's3',
   'sync',
   join(siteRoot, 'dist'),
   `s3://${bucket}`,
   '--delete',
+  // Keep immutable installers and the current download metadata across ordinary site edits.
+  '--exclude',
+  'downloads/*',
+  ...(!publicRelease ? ['--exclude', 'download/release.json'] : []),
   '--cache-control',
   'public,max-age=300,must-revalidate',
 ]);

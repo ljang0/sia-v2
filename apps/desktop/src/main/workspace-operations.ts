@@ -703,6 +703,10 @@ export class DirectUserBackgroundTerminalService {
     );
   }
 
+  get busy(): boolean {
+    return [...this.#sessions.values()].some((session) => session.view.status === 'running');
+  }
+
   async start(workspace: string, command: string): Promise<BackgroundTerminalView> {
     const cwd = await resolveDirectory(workspace, 'invalid_workspace');
     validateTerminalCommand(command);
@@ -888,6 +892,10 @@ export class WorkspaceOperationsService implements WorkspaceOperations {
         ? { maxOutputBytes: options.terminalMaxOutputBytes }
         : {}),
     });
+  }
+
+  hasRunningTerminals(): boolean {
+    return this.#backgroundTerminal.busy;
   }
 
   async readDiff(workspace: string): Promise<WorkspaceDiffView> {

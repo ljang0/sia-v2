@@ -1,3 +1,12 @@
+import {
+  MAC_BROWSER_BUNDLES,
+  type BrowserWindowState,
+  type WindowContextState,
+} from './browser-window.js';
+import { MacWindowHistory } from './mac-window-history.js';
+import { macExecutionTools } from './mac-execution.js';
+import { workspaceFileAction } from './background-files.js';
+import { setTimeout as delay } from 'node:timers/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import {
@@ -63,10 +72,31 @@ export interface ScheduleActionHost {
 }
 
 export interface DesktopActionBackendOptions {
+  readonly assistantAction?: (
+    request: ValidatedActionInvocation,
+  ) => Promise<ActionExecutionResult>;
+  readonly macAutomation?: (
+    args: unknown,
+    signal?: AbortSignal,
+  ) => Promise<ActionExecutionResult>;
+  readonly macBrowserAccess?: () => boolean;
+  readonly macBackgroundControl?: () => boolean;
+  readonly inspectBrowserWindow?: (
+    pid: number,
+    windowId: number,
+  ) => Promise<BrowserWindowState>;
+  readonly readImageText?: (dataBase64: string) => Promise<string | undefined>;
+  readonly readWindowContext?: (pid: number, windowId: number) => Promise<WindowContextState>;
   readonly cua: CuaToolCaller;
   readonly cloud?: CloudActionClient;
   /** Opens one explicitly supported non-sensitive macOS application. */
-  readonly openApplication?: (application: 'notes') => Promise<void>;
+  readonly openApplication?: (
+    application: string,
+    options: { background: boolean },
+  ) => Promise<void>;
+  /** Opens one validated public web location in the person's default browser. */
+  readonly openUrl?: (url: string, options: { background: boolean }) => Promise<void>;
+  readonly installedApplications?: () => Promise<readonly { id: string; name: string }[]>;
   /** Must match the trusted browser-attachment session owned by the controller. */
   readonly browserSessionId?: string;
   /** Optional host policy layered on top of the CUA attachment grant. */
@@ -122,7 +152,22 @@ interface ComputerWindowBinding {
   readonly expiresAt: number;
 }
 
+type BackgroundInputRoute = 'accessibility' | 'window_pointer' | 'pid_keyboard';
+interface BackgroundInputStatus {
+  readonly exact_window: { readonly status: string };
+  readonly routes: readonly {
+    readonly route: BackgroundInputRoute;
+    readonly status: 'available' | 'refused';
+    readonly reason?: string;
+  }[];
+}
+
 interface WindowSnapshotCapability {
+  readonly backgroundInput?: BackgroundInputStatus;
+  readonly browserUrl?: string;
+  readonly capturedAt: number;
+  readonly protectedControls: boolean;
+  readonly pixels?: { width: number; height: number };
   readonly id: string;
   readonly appId: string;
   readonly publicWindowId: string;
@@ -191,7 +236,7 @@ const BROWSER_UPLOAD_RETENTION_MS = 10 * 60_000;
 // and every mutation remains bound to the latest host-minted snapshot ref.
 const COMPUTER_GRANT_TTL_MS = 10 * 60_000;
 const SENSITIVE_COMPUTER_APP =
-  /(?:^|[\s._-])(?:sia|1password|bitwarden|lastpass|dashlane|keeper|enpass|strongbox|keepass|secrets?|authenticator|keychain|password|terminal|iterm|warp|alacritty|system settings|system preferences|chrome|safari|firefox|arc)(?:$|[\s._-])|(?:ai\.sia\.desktop|com\.apple\.security|com\.google\.chrome)/i;
+  /(?:^|[\s._-])(?:sia|1password|bitwarden|lastpass|dashlane|keeper|enpass|strongbox|keepass|secrets?|authenticator|keychain|password|terminal|iterm|warp|alacritty|system settings|system preferences|script editor|scripteditor2?|automator|shortcuts|chrome|chromium|safari|firefox|arc|brave|edge|opera|vivaldi|orion|dia)(?:$|[\s._-])|(?:ai\.sia\.desktop|com\.apple\.security|com\.google\.chrome)/i;
 const SENSITIVE_BROWSER_HOST =
   /(?:^|\.)(?:accounts\.google\.com|login\.microsoftonline\.com|appleid\.apple\.com|id\.apple\.com|auth0\.com|okta\.com|1password\.com|bitwarden\.com|lastpass\.com|dashlane\.com|keepersecurity\.com)$/i;
 const SENSITIVE_BROWSER_PATH =
@@ -271,9 +316,20 @@ export async function sweepStaleBrowserVaults(
  * element references, so a ref cannot be replayed against another window/tab.
  */
 export class DesktopActionBackend implements ActionBackend {
+  readonly #assistantAction: DesktopActionBackendOptions['assistantAction'];
+  readonly #macAutomation: DesktopActionBackendOptions['macAutomation'];
+  readonly #macBrowserAccess: () => boolean;
+  readonly #macBackgroundControl: () => boolean;
+  readonly #inspectBrowserWindow: DesktopActionBackendOptions['inspectBrowserWindow'];
+  readonly #readImageText: DesktopActionBackendOptions['readImageText'];
+  readonly #readWindowContext: DesktopActionBackendOptions['readWindowContext'];
+  #computerTurnKey: string | undefined;
+  #computerSessionId: string | undefined;
   readonly #cua: CuaToolCaller;
   readonly #cloud: CloudActionClient | undefined;
+  readonly #installedApplications: DesktopActionBackendOptions['installedApplications'];
   readonly #openApplication: DesktopActionBackendOptions['openApplication'];
+  readonly #openUrl: DesktopActionBackendOptions['openUrl'];
   #browserSessionId: string;
   readonly #isBrowserOriginAllowed: ((origin: string) => boolean) | undefined;
   readonly #ensureBrowserAttached: (() => Promise<string | undefined>) | undefined;
@@ -303,9 +359,18 @@ export class DesktopActionBackend implements ActionBackend {
   readonly #browserUploadDirectories = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(options: DesktopActionBackendOptions) {
+    this.#assistantAction = options.assistantAction;
+    this.#macAutomation = options.macAutomation;
+    this.#macBrowserAccess = options.macBrowserAccess ?? (() => false);
+    this.#macBackgroundControl = options.macBackgroundControl ?? (() => false);
+    this.#inspectBrowserWindow = options.inspectBrowserWindow;
+    this.#readImageText = options.readImageText;
+    this.#readWindowContext = options.readWindowContext;
     this.#cua = options.cua;
     this.#cloud = options.cloud;
     this.#openApplication = options.openApplication;
+    this.#openUrl = options.openUrl;
+    this.#installedApplications = options.installedApplications;
     this.#browserSessionId = options.browserSessionId ?? 'sia-browser';
     this.#isBrowserOriginAllowed = options.isBrowserOriginAllowed;
     this.#ensureBrowserAttached = options.ensureBrowserAttached;
@@ -350,6 +415,23 @@ export class DesktopActionBackend implements ActionBackend {
     toolName: string,
     argumentsValue: Readonly<Record<string, unknown>>,
   ): string | undefined {
+    if (toolName === 'computer_open_url') {
+      const value = stringValue(argumentsValue.url);
+      if (!value) return undefined;
+      try {
+        const url = new URL(value);
+        if (
+          !['http:', 'https:'].includes(url.protocol) ||
+          url.username ||
+          url.password ||
+          browserUrlLooksSensitive(url.toString())
+        )
+          return undefined;
+        return `Open ${url.origin} in the default browser`;
+      } catch {
+        return undefined;
+      }
+    }
     if (toolName === 'computer_action') {
       const snapshotId = stringValue(argumentsValue.snapshot_id);
       const windowId = stringValue(argumentsValue.window_id);
@@ -368,7 +450,12 @@ export class DesktopActionBackend implements ActionBackend {
         !windowId ||
         !snapshotId ||
         !action ||
-        (ref ? !element : !['type', 'key', 'scroll'].includes(action)) ||
+        (ref
+          ? !element
+          : !(
+              ['type', 'key', 'scroll'].includes(action) ||
+              (snapshot.pixels && ['click', 'drag'].includes(action))
+            )) ||
         snapshot.appId !== appId ||
         snapshot.publicWindowId !== windowId ||
         window.appId !== appId ||
@@ -381,7 +468,7 @@ export class DesktopActionBackend implements ActionBackend {
       const windowLabel = window.title ? `, window “${window.title}”` : '';
       return element && ref
         ? `${app.name}${windowLabel}: ${action} ${approvalElementLabel(element, ref)}`
-        : `${app.name}${windowLabel}: ${action} the currently focused control`;
+        : `${app.name}${windowLabel}: ${action} ${typeof argumentsValue.x === 'number' ? `at screenshot pixel (${argumentsValue.x}, ${argumentsValue.y})${action === 'drag' ? ` to (${argumentsValue.to_x}, ${argumentsValue.to_y})` : ''}` : 'the currently focused control'}`;
     }
     if (toolName === 'browser_action' || toolName === 'browser_upload') {
       const snapshotId = stringValue(argumentsValue.snapshot_id);
@@ -414,14 +501,91 @@ export class DesktopActionBackend implements ActionBackend {
     return undefined;
   }
 
+  readonly #recoveryFailures = new Map<string, number>();
+  readonly #macWindows = new MacWindowHistory();
+
   async invoke(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
+    // A late cancelled caller must not revoke a newer turn's active window refs.
     if (request.context.signal?.aborted) return refused('Action cancelled before execution.');
+    if (
+      [
+        'computer_list',
+        'computer_open_app',
+        'computer_open_url',
+        'computer_snapshot',
+        'computer_action',
+      ].includes(request.name)
+    )
+      this.#computerSession(request);
+    const computerWrite =
+      request.name === 'computer_action' || request.name === 'browser_action';
+    const key = `${request.context.threadId}:${request.context.turnId}`;
+    if (computerWrite && (this.#recoveryFailures.get(key) ?? 0) >= 2) {
+      return refused(
+        'Two control attempts failed in this turn. Stop retrying, explain the blocker, and ask the user to repair access or the target before a new request.',
+      );
+    }
+    const rawResult = await this.#invoke(request);
+    const result = this.#macBrowserAccess()
+      ? this.#macWindows.observe(request, rawResult)
+      : rawResult;
+    if (computerWrite) {
+      if (['stale', 'needs_foreground', 'refused'].includes(result.outcome)) {
+        this.#recoveryFailures.set(key, (this.#recoveryFailures.get(key) ?? 0) + 1);
+        if (this.#recoveryFailures.size > 256)
+          this.#recoveryFailures.delete(this.#recoveryFailures.keys().next().value!);
+        return {
+          ...result,
+          data: {
+            ...(asRecord(result.data) ?? {}),
+            recovery:
+              'Observe the target again before a retry. Stop after two failed attempts; never replay a write with uncertain delivery.',
+          },
+        };
+      }
+      this.#recoveryFailures.delete(key);
+    }
+    return result;
+  }
+
+  async #invoke(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
+    if (request.context.signal?.aborted) return refused('Action cancelled before execution.');
+    if (
+      this.#macBrowserAccess() &&
+      request.name !== 'memory_vault' &&
+      !macExecutionTools(this.#macBackgroundControl()).includes(request.name) &&
+      !(this.#macBackgroundControl() && request.name === 'browser_tabs')
+    )
+      return refused(
+        'This tool is unavailable for the selected Mac control route. Continue through its provided tools and the ordinary app interface; no Chrome connection is needed.',
+      );
     try {
       switch (request.name) {
+        case 'computer_list_files':
+        case 'computer_read_file':
+        case 'computer_write_file':
+          return await workspaceFileAction(request);
+        case 'assistant_library':
+        case 'memory_learn':
+        case 'memory_suggest':
+        case 'memory_vault':
+        case 'skill_save':
+        case 'skill_run':
+          return this.#assistantAction
+            ? await this.#assistantAction(request)
+            : refused('Assistant library actions are unavailable.');
+        case 'mac_automation':
+          if (!request.approvalId)
+            return refused('Mac automation requires exact action approval.');
+          return this.#macAutomation
+            ? await this.#macAutomation(request.arguments, request.context.signal)
+            : refused('Native app automation is unavailable.');
         case 'computer_list':
           return await this.#computerList(request);
         case 'computer_open_app':
           return await this.#computerOpenApp(request);
+        case 'computer_open_url':
+          return await this.#computerOpenUrl(request);
         case 'computer_snapshot':
           return await this.#computerSnapshot(request);
         case 'computer_action':
@@ -605,12 +769,75 @@ export class DesktopActionBackend implements ActionBackend {
   }
 
   async #attachOnDemand(): Promise<void> {
-    if (this.#browserAttached || !this.#ensureBrowserAttached) return;
+    if (this.#macBrowserAccess() || this.#browserAttached || !this.#ensureBrowserAttached)
+      return;
     this.#lastAttachDetail = await this.#ensureBrowserAttached();
   }
 
+  #computerAppBlocked(name: string | undefined, bundleId?: string): boolean {
+    if (bundleId && MAC_BROWSER_BUNDLES.has(bundleId.toLowerCase()))
+      return !this.#macBrowserAccess() || !this.#inspectBrowserWindow;
+    return computerAppLooksSensitive(name, bundleId);
+  }
+
+  #isNativeBrowser(binding: ComputerWindowBinding): boolean {
+    return MAC_BROWSER_BUNDLES.has(
+      this.#computerApps.get(binding.appId)?.identity.replace(/^bundle:/, '') ?? '',
+    );
+  }
+
+  async #nativeBrowserState(binding: ComputerWindowBinding): Promise<BrowserWindowState> {
+    if (!this.#macBrowserAccess() || !this.#inspectBrowserWindow)
+      return { status: 'unavailable' };
+    const state = await this.#inspectBrowserWindow(binding.pid, binding.windowId);
+    if (state.status !== 'ready') return state;
+    if (
+      `bundle:${state.bundleID.toLowerCase()}` !==
+      this.#computerApps.get(binding.appId)?.identity
+    )
+      return { status: 'unavailable', reason: 'window' };
+    if (state.url === 'about:blank') return state;
+    try {
+      if (
+        !['http:', 'https:'].includes(new URL(state.url).protocol) ||
+        browserUrlLooksSensitive(state.url)
+      )
+        return { status: 'protected', reason: 'page' };
+      return state;
+    } catch {
+      return { status: 'unavailable', reason: 'page' };
+    }
+  }
+
+  #browserObservationRefused(
+    binding: ComputerWindowBinding,
+    state: BrowserWindowState,
+  ): ActionExecutionResult {
+    const protectedPage = state.status === 'protected';
+    return {
+      outcome: 'refused',
+      summary: protectedPage
+        ? 'This specific browser window contains a protected page or security control. It was not read. This does not establish that another window or the requested account needs login.'
+        : 'This specific browser window could not be identified or observed. This is not evidence of a login screen. Continue in the task window already observed, or bring the browser forward and inspect this window again.',
+      data: {
+        app_id: binding.appId,
+        window_id: binding.id,
+        blocker_code: protectedPage ? 'protected_window' : 'window_unavailable',
+        ...(state.status !== 'ready' && state.reason ? { blocker_detail: state.reason } : {}),
+      },
+    };
+  }
+
   async #computerList(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
-    this.#resetComputerCapabilities();
+    // Preserve exact window identities across inventory refreshes within this turn.
+    // Later turns discover fresh targets under a new, host-owned CUA session.
+    const mac = this.#macBrowserAccess();
+    this.#computerSession(request);
+    if (!mac) this.#resetComputerCapabilities();
+    const previousApps = [...this.#computerApps.values()];
+    const previousWindows = [...this.#computerWindows.values()];
+    const liveApps = new Set<string>();
+    const liveWindows = new Set<string>();
     const [appsValue, windowsValue] = await Promise.all([
       this.#callCua(request, 'list_apps', {}),
       this.#callCua(request, 'list_windows', { on_screen_only: false }),
@@ -626,11 +853,14 @@ export class DesktopActionBackend implements ActionBackend {
         !pid ||
         pid === this.#hostPid ||
         !identity ||
-        computerAppLooksSensitive(name, bundleId)
+        this.#computerAppBlocked(name, bundleId)
       )
         return [];
+      const previous = previousApps.find(
+        (app) => app.pid === pid && app.identity === identity && app.expiresAt > Date.now(),
+      );
       const binding: ComputerAppBinding = {
-        id: `app:${randomUUID()}`,
+        id: previous?.id ?? `app:${randomUUID()}`,
         pid,
         identity,
         name: name ?? bundleId!,
@@ -638,6 +868,7 @@ export class DesktopActionBackend implements ActionBackend {
       };
       appByPid.set(pid, binding);
       this.#computerApps.set(binding.id, binding);
+      liveApps.add(binding.id);
       return [
         compact({
           app_id: binding.id,
@@ -653,13 +884,27 @@ export class DesktopActionBackend implements ActionBackend {
         const windowId = positiveInteger(record.window_id ?? record.id, MAX_WINDOW_ID);
         const app = pid ? appByPid.get(pid) : undefined;
         const nativeAppName = firstString(record, ['app_name', 'name']);
-        if (!app || !windowId || computerAppLooksSensitive(nativeAppName)) return undefined;
-        const title = trustedDisplayText(firstString(record, ['title']));
+        if (
+          !app ||
+          !windowId ||
+          this.#computerAppBlocked(
+            nativeAppName,
+            appByPid.get(pid!)?.identity.replace(/^bundle:/, ''),
+          )
+        )
+          return undefined;
+        const previous = previousWindows.find(
+          (window) =>
+            window.appId === app.id &&
+            window.windowId === windowId &&
+            window.expiresAt > Date.now(),
+        );
+        const title = trustedDisplayText(firstString(record, ['title'])) ?? previous?.title;
         const isOnScreen = firstBoolean(record, ['is_on_screen', 'on_screen']);
         const onCurrentSpace = firstBoolean(record, ['on_current_space']);
         if (!title && isOnScreen === false && onCurrentSpace !== true) return undefined;
         const binding: ComputerWindowBinding = {
-          id: `window:${randomUUID()}`,
+          id: previous?.id ?? `window:${randomUUID()}`,
           appId: app.id,
           pid: app.pid,
           windowId,
@@ -667,21 +912,54 @@ export class DesktopActionBackend implements ActionBackend {
           expiresAt,
         };
         this.#computerWindows.set(binding.id, binding);
+        liveWindows.add(binding.id);
         return compact({
           app_id: binding.appId,
           window_id: binding.id,
           app_name: app.name,
-          title: firstString(record, ['title']),
+          title: mac ? title : firstString(record, ['title']),
+          ...(mac ? { z_order: nonNegativeInteger(record.z_index) } : {}),
           bounds: sanitizeFrame(record.bounds),
           is_on_screen: isOnScreen,
           on_current_space: onCurrentSpace,
         });
       })
       .filter(isDefined);
+    for (const id of this.#computerApps.keys())
+      if (!liveApps.has(id)) this.#computerApps.delete(id);
+    for (const id of this.#computerWindows.keys())
+      if (!liveWindows.has(id)) {
+        this.#computerWindows.delete(id);
+        const snapshot = this.#latestWindowSnapshot.get(id);
+        if (snapshot) this.#windowSnapshots.delete(snapshot);
+        this.#latestWindowSnapshot.delete(id);
+      }
+    // WindowServer enumerates back-to-front on some builds. Give the model the
+    // frontmost candidates first, retaining every permitted window for discovery.
+    if (mac)
+      windows.sort(
+        (a, b) =>
+          Number(b.on_current_space === true) - Number(a.on_current_space === true) ||
+          Number(b.is_on_screen === true) - Number(a.is_on_screen === true) ||
+          Number(a.z_order ?? Infinity) - Number(b.z_order ?? Infinity),
+      );
+
     return {
       outcome: 'verified',
       summary: `Found ${apps.length} running application${apps.length === 1 ? '' : 's'} and ${windows.length} window${windows.length === 1 ? '' : 's'}.`,
-      data: { apps, windows },
+      data: {
+        apps,
+        windows,
+        ...(this.#macBrowserAccess()
+          ? {
+              browser_route:
+                'Use computer_snapshot and computer_action on an existing browser window. No Chrome attachment is needed. Prefer the active browser or the window matching this task. Sensitive or ambiguous windows require user input.',
+            }
+          : {}),
+        installed_apps: ((await this.#installedApplications?.()) ?? [])
+          .filter((app) => !this.#computerAppBlocked(app.name, app.id))
+          .map(({ id, name }) => ({ application: id, name })),
+      },
       verification: {
         evidence: 'Read directly from the current WindowServer and app inventory.',
       },
@@ -689,17 +967,77 @@ export class DesktopActionBackend implements ActionBackend {
   }
 
   async #computerOpenApp(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
-    const application = requiredString(request.arguments.application, 'application');
-    if (application !== 'notes' || !this.#openApplication) {
-      return refused('Apple Notes cannot be opened in this build.');
+    const requested = requiredString(request.arguments.application, 'application');
+    const application = requested === 'notes' ? 'com.apple.Notes' : requested;
+    const installed = await this.#installedApplications?.();
+    const entry = installed?.find((app) => app.id === application);
+    if (
+      !this.#openApplication ||
+      (installed && !entry) ||
+      this.#computerAppBlocked(entry?.name, application)
+    ) {
+      return refused('Choose a permitted installed application from computer_list.');
     }
-    await this.#openApplication(application);
-    this.#resetComputerCapabilities();
+    if (!installed && requested !== 'notes')
+      return refused('Application discovery is unavailable in this build.');
+    const mac = this.#macBrowserAccess();
+    const background =
+      request.arguments.delivery === 'background' ||
+      (mac && request.arguments.delivery !== 'foreground');
+    await this.#openApplication(installed ? application : requested, { background });
+    if (!mac) this.#resetComputerCapabilities();
+    if (mac) await delay(350, undefined, { signal: request.context.signal });
+    const inventory = mac ? await this.#computerList(request) : undefined;
     return {
       outcome: 'verified',
+      summary: `Requested opening ${entry?.name ?? 'Apple Notes'}. ${inventory ? 'Use the returned window ids to inspect the app; no extra computer_list is needed.' : 'Call computer_list for fresh window grants before continuing.'}`,
+      data: {
+        ...asRecord(inventory?.data),
+        delivery_requested: background ? 'background' : 'foreground',
+      },
+      verification: {
+        evidence:
+          'The trusted desktop host submitted the installed application to LaunchServices; inspect its current windows next.',
+      },
+    };
+  }
+
+  async #computerOpenUrl(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
+    if (!this.#macBrowserAccess() || !this.#openUrl)
+      return refused('Choose Use my Mac before opening a website through the default browser.');
+    const value = requiredString(request.arguments.url, 'url');
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      return refused('Use a valid HTTP or HTTPS website address.');
+    }
+    if (
+      !['http:', 'https:'].includes(url.protocol) ||
+      url.username ||
+      url.password ||
+      browserUrlLooksSensitive(url.toString())
+    )
+      return refused(
+        'Authentication, credential, internal, and non-web addresses cannot be opened by Sia. Open that page yourself, finish the login, then continue this task.',
+      );
+    const background = request.arguments.delivery !== 'foreground';
+    await this.#openUrl(url.toString(), { background });
+    await delay(350, undefined, { signal: request.context.signal });
+    const inventory = await this.#computerList(request);
+    return {
+      outcome: 'accepted_unverified',
       summary:
-        'Opened Apple Notes. Call computer_list for a fresh window grant before continuing.',
-      verification: { evidence: 'The trusted desktop host launched com.apple.Notes.' },
+        'Requested opening the website in the default browser. Use the returned window ids with computer_snapshot and expected_url to inspect the resulting page; no extra computer_list is needed. Do not ask the person to repeat the task.',
+      data: {
+        ...(asRecord(inventory.data) ?? {}),
+        delivery_requested: background ? 'background' : 'foreground',
+        next_step:
+          'Call computer_snapshot on the matching browser window. If it is still loading, wait and observe again. If an actual authentication screen is observed, ask the person to finish signing in and continue this same request.',
+      },
+      verification: {
+        evidence: 'The trusted desktop host submitted the validated web URL to macOS.',
+      },
     };
   }
 
@@ -710,31 +1048,193 @@ export class DesktopActionBackend implements ActionBackend {
     if (!binding || !(await this.#computerWindowStillValid(binding, request))) {
       return stale('The computer grant is missing, expired, or no longer matches this window.');
     }
+    if (this.#macBrowserAccess()) {
+      const wait = request.arguments.wait_ms;
+      if (typeof wait === 'number' && wait > 0)
+        await delay(Math.min(3000, wait), undefined, { signal: request.context.signal });
+      return this.#captureSettledWindow(binding, request);
+    }
     return this.#captureWindow(binding, request);
+  }
+
+  async #captureSettledWindow(
+    binding: ComputerWindowBinding,
+    request: ValidatedActionInvocation,
+  ): Promise<ActionExecutionResult> {
+    for (let attempt = 0; ; attempt++) {
+      const result = await this.#captureWindow(binding, request);
+      const data = asRecord(result.data);
+      if (attempt === 2 || (!data?.observation_pending && !data?.loading)) return result;
+      await delay(500 * (attempt + 1), undefined, { signal: request.context.signal });
+    }
   }
 
   async #captureWindow(
     binding: ComputerWindowBinding,
     request: ValidatedActionInvocation,
   ): Promise<ActionExecutionResult> {
-    const raw = await this.#callCua(request, 'get_window_state', {
-      pid: binding.pid,
-      window_id: binding.windowId,
-      session: request.context.sessionId,
-      include_screenshot: true,
-    });
-    const refusalResult = resultRefusal(raw);
+    const browser = this.#isNativeBrowser(binding);
+    let browserState = browser ? await this.#nativeBrowserState(binding) : undefined;
+    // A missing helper AX window is not a driver refusal. Let CUA resolve and
+    // initialize the exact window once, then revalidate browser metadata before
+    // releasing any captured content or minting an input capability.
+    if (browserState?.status === 'protected')
+      return this.#browserObservationRefused(binding, browserState);
+    if (
+      browserState?.status === 'ready' &&
+      request.arguments.expected_url &&
+      !samePageUrl(browserState.url, String(request.arguments.expected_url))
+    )
+      return stale(
+        'The observed browser page does not match expected_url. No page content was read. Wait for navigation or inspect the intended window; do not assign this page to the requested course or account item.',
+      );
+    const capture = (includeScreenshot: boolean) =>
+      this.#callCua(request, 'get_window_state', {
+        pid: binding.pid,
+        window_id: binding.windowId,
+        session: this.#computerSession(request),
+        include_screenshot: includeScreenshot,
+      });
+    let includeImage =
+      request.arguments.read_text === true ||
+      request.arguments.include_image === true ||
+      (request.arguments.include_image !== false &&
+        (!this.#macBackgroundControl() || browser)) ||
+      ['type', 'set'].includes(String(request.arguments.action)) ||
+      typeof request.arguments.x === 'number';
+    let raw: unknown;
+    try {
+      raw = await capture(includeImage);
+      if (/\bpx_capture_unavailable\b/.test(resultRefusal(raw)?.summary ?? ''))
+        raw = await capture(false);
+    } catch (error) {
+      if (!(error instanceof Error) || !/\bpx_capture_unavailable\b/.test(error.message))
+        throw error;
+      // A missing image does not make an otherwise usable AX window inaccessible.
+      // This retry only observes; no input is replayed and pixel actions stay unavailable.
+      raw = await capture(false);
+    }
+    let refusalResult = resultRefusal(raw);
     if (refusalResult) return refusalResult;
+    if (browserState?.status === 'unavailable') {
+      if (windowHasProtectedControls(raw))
+        return this.#browserObservationRefused(binding, { status: 'protected' });
+      browserState = await this.#nativeBrowserState(binding);
+      if (browserState.status !== 'ready') {
+        const refusal = this.#browserObservationRefused(binding, browserState);
+        return {
+          ...refusal,
+          summary:
+            browserState.status === 'protected'
+              ? refusal.summary
+              : 'Tried CUA observation of this exact window, but its browser page identity could not be verified afterward. No captured content or input targets were returned. This is not evidence of a login screen.',
+          data: {
+            ...asRecord(refusal.data),
+            driver_observation_attempted: true,
+            driver_screenshot_available: Boolean(screenshotDimensions(raw)),
+            driver_element_count: findElementRecords(raw, 'window').length,
+          },
+        };
+      }
+    }
+    const browserUrl = browserState?.status === 'ready' ? browserState.url : undefined;
+    if (
+      request.arguments.expected_url &&
+      (!browserUrl || !samePageUrl(browserUrl, String(request.arguments.expected_url)))
+    )
+      return stale(
+        'The observed browser page does not match expected_url. No page content was returned. Wait for navigation or inspect the intended window; do not assign this page to the requested course or account item.',
+      );
 
+    // AX can temporarily return no controls even while a window is usable.
+    // Capture pixels once instead of turning an empty AX response into an app failure.
+    // Honor an explicit text-only request and never escalate a protected/refused read.
+    if (
+      !includeImage &&
+      request.arguments.include_image === undefined &&
+      this.#macBackgroundControl() &&
+      !windowHasProtectedControls(raw) &&
+      findElementRecords(raw, 'window').length === 0
+    ) {
+      try {
+        const visual = await capture(true);
+        if (!/\bpx_capture_unavailable\b/.test(resultRefusal(visual)?.summary ?? '')) {
+          raw = visual;
+          includeImage = true;
+        }
+      } catch (error) {
+        if (!(error instanceof Error) || !/\bpx_capture_unavailable\b/.test(error.message))
+          throw error;
+      }
+      refusalResult = resultRefusal(raw);
+      if (refusalResult) return refusalResult;
+    }
+
+    const context =
+      this.#macBrowserAccess() && !windowHasProtectedControls(raw)
+        ? await this.#readWindowContext?.(binding.pid, binding.windowId)
+        : undefined;
+    const readableContext =
+      context?.status === 'ready' &&
+      `bundle:${context.bundleID.toLowerCase()}` ===
+        this.#computerApps.get(binding.appId)?.identity
+        ? context
+        : undefined;
+    if (context?.status === 'protected')
+      return {
+        outcome: 'refused',
+        summary: 'Protected controls appeared in this window. No content was returned.',
+        data: {
+          app_id: binding.appId,
+          window_id: binding.id,
+          blocker_code: 'protected_window',
+        },
+      };
+    const image = actionImages(raw)?.images?.[0];
+    const imageText =
+      this.#macBrowserAccess() &&
+      request.arguments.read_text === true &&
+      image &&
+      !windowHasProtectedControls(raw)
+        ? await this.#readImageText?.(image.dataBase64)
+        : undefined;
+    if (browser) {
+      const after = await this.#nativeBrowserState(binding);
+      if (windowHasProtectedControls(raw) || after.status !== 'ready')
+        return this.#browserObservationRefused(
+          binding,
+          windowHasProtectedControls(raw) ? { status: 'protected' } : after,
+        );
+      if (after.url !== browserUrl)
+        return {
+          outcome: 'accepted_unverified',
+          summary:
+            'The browser navigated during observation. Wait and capture its new state before continuing; no page content was returned.',
+          data: { observation_pending: true },
+        };
+    }
+    const title =
+      readableContext?.title ||
+      (browserState?.status === 'ready' ? browserState.title : undefined) ||
+      binding.title;
+    if (title) this.#computerWindows.set(binding.id, { ...binding, title });
     const snapshotId = randomUUID();
     const nativeSnapshotId = findString(raw, ['snapshot_id', 'snapshotId']);
     const elementMap = new Map<string, NativeElementAddress>();
     const elements = findElementRecords(raw, 'window')
       .map((record, position) => {
         if (isProtectedElement(record) || isHiddenWindowStructure(record)) return undefined;
+        // The application menu bar is outside this window's input grant. Exposing
+        // those refs invites element_outside_target_window failures; use shortcuts.
+        if (
+          this.#macBrowserAccess() &&
+          /^AXMenuBar(?:Item)?$/.test(firstString(record, ['role', 'type']) ?? '')
+        )
+          return undefined;
         const token = firstString(record, ['element_token', 'elementToken']);
         const index = nonNegativeInteger(record.element_index ?? record.elementIndex);
-        if (!token && (index === undefined || !nativeSnapshotId)) return undefined;
+        if (!token && (index === undefined || !nativeSnapshotId))
+          return this.#macBrowserAccess() ? sanitizeElement(record) : undefined;
         const ref = `w:${snapshotId}:${position}`;
         const label = trustedElementLabel(record);
         const role = trustedDisplayText(firstString(record, ['role', 'type']));
@@ -744,10 +1244,27 @@ export class DesktopActionBackend implements ActionBackend {
           ...(label ? { label } : {}),
           ...(role ? { role } : {}),
         });
-        return sanitizeElement(record, ref);
+        const element = sanitizeElement(record, ref);
+        if (this.#macBrowserAccess()) delete element.frame;
+        return element;
       })
       .filter(isDefined);
+    const pixels =
+      !includeImage || windowHasProtectedControls(raw) ? undefined : screenshotDimensions(raw);
+    const backgroundInput = windowBackgroundInput(raw, binding);
+    const observationOnly =
+      backgroundInput?.routes.every((route) => route.status === 'refused') ?? false;
+    const backgroundPixels =
+      !backgroundInput ||
+      backgroundInput.routes.some(
+        (route) => route.route === 'window_pointer' && route.status === 'available',
+      );
     const capability: WindowSnapshotCapability = {
+      ...(backgroundInput ? { backgroundInput } : {}),
+      ...(browserUrl ? { browserUrl } : {}),
+      capturedAt: Date.now(),
+      protectedControls: windowHasProtectedControls(raw),
+      ...(pixels ? { pixels } : {}),
       id: snapshotId,
       appId: binding.appId,
       publicWindowId: binding.id,
@@ -760,12 +1277,57 @@ export class DesktopActionBackend implements ActionBackend {
     return {
       outcome: 'verified',
       summary: 'Captured a fresh state for the permitted window.',
-      ...actionImages(raw),
+      ...(!includeImage || windowHasProtectedControls(raw) ? {} : actionImages(raw)),
       data: compact({
         snapshot_id: snapshotId,
         app_id: binding.appId,
         window_id: binding.id,
+        app_name: this.#computerApps.get(binding.appId)?.name,
+        title,
+        browser_origin:
+          browserUrl && browserUrl !== 'about:blank' ? new URL(browserUrl).origin : undefined,
+        source_url:
+          browserUrl && browserUrl !== 'about:blank'
+            ? new URL(browserUrl).origin + new URL(browserUrl).pathname
+            : undefined,
+        visible_text: readableContext?.text || undefined,
+        image_text: imageText,
+        ...(request.arguments.read_text === true
+          ? {
+              image_text_status: imageText ? 'read' : 'unavailable',
+              image_text_note:
+                'OCR of this exact screenshot; cross-check with the image. It only covers visible pixels, not other pages or offscreen content.',
+            }
+          : {}),
         elements,
+        background_input: backgroundInput,
+        observation_only: backgroundInput ? observationOnly : undefined,
+        ...(observationOnly ? { next_step: windowInputRecovery(request) } : {}),
+        ...(elements.length === 0
+          ? {
+              accessibility_empty: true,
+              next_step: observationOnly
+                ? windowInputRecovery(request)
+                : pixels && backgroundPixels
+                  ? 'Accessibility returned no controls. Inspect this screenshot and use its fresh pixel targets if the needed controls are visible; do not infer the app is unavailable.'
+                  : pixels
+                    ? 'The image can be inspected, but background pixel input is unavailable. Check background_input for a supported route. ' +
+                      windowInputRecovery(request)
+                    : 'Accessibility returned no controls. Request include_image:true for visual inspection before concluding the app is unavailable.',
+            }
+          : {}),
+        ...(this.#macBrowserAccess() &&
+        findElementRecords(raw, 'window').some(
+          (record) =>
+            !isHiddenWindowStructure(record) &&
+            (firstString(record, ['role', 'type']) === 'AXProgressIndicator' ||
+              /^loading(?:[.\s…]|$)/i.test(trustedElementLabel(record) ?? '')),
+        )
+          ? { loading: true, observation_pending: true }
+          : {}),
+        pixel_actions_available:
+          Boolean(pixels) && (!this.#macBrowserAccess() || backgroundPixels),
+        screenshot_size: pixels,
       }),
       verification: {
         snapshotId,
@@ -794,18 +1356,160 @@ export class DesktopActionBackend implements ActionBackend {
     ) {
       return stale('The window snapshot is missing, superseded, or belongs to another window.');
     }
-    const address = this.#windowElementAddress(capability, args.element_ref);
+    if (this.#isNativeBrowser(binding)) {
+      const current = await this.#nativeBrowserState(binding);
+      if (current.status !== 'ready' || current.url !== capability.browserUrl)
+        return stale(
+          'The browser page changed or needs login. Capture a fresh browser window state before continuing; do not replay the previous action.',
+        );
+      if (
+        typeof args.text === 'string' &&
+        /(?:javascript|data|file|chrome|safari|about|devtools|view-source|vbscript)\s*:/i.test(
+          args.text,
+        )
+      )
+        return refused(
+          'Browser typing cannot open local files, internal pages, or execute scripts. Use an ordinary HTTP(S) website.',
+        );
+      if (args.action === 'key') {
+        const key = String(args.value).toLowerCase();
+        const modifiers = Array.isArray(args.modifiers) ? args.modifiers : [];
+        const navigation =
+          modifiers.length === 1 &&
+          modifiers[0] === 'cmd' &&
+          ['l', 'r', 'a', 'f', 't', 'w', '1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(
+            key,
+          );
+        const tabSwitch =
+          key === 'tab' &&
+          modifiers.includes('ctrl') &&
+          modifiers.every((modifier) => modifier === 'ctrl' || modifier === 'shift');
+        const plain =
+          modifiers.length === 0 &&
+          [
+            'enter',
+            'return',
+            'tab',
+            'escape',
+            'esc',
+            'up',
+            'down',
+            'left',
+            'right',
+            'space',
+            'backspace',
+            'delete',
+            'pageup',
+            'pagedown',
+            'home',
+            'end',
+          ].includes(key);
+        if (!navigation && !tabSwitch && !plain)
+          return refused(
+            'This browser shortcut is unavailable. Use visible page controls or an ordinary navigation shortcut.',
+          );
+      }
+    }
+    let address = this.#windowElementAddress(capability, args.element_ref);
     if (args.element_ref && !address)
       return stale('The element reference is not in this snapshot.');
-    if (!address && !['type', 'key', 'scroll'].includes(String(args.action))) {
+    const macKeyboard =
+      this.#macBrowserAccess() && ['type', 'key'].includes(String(args.action));
+    // AXWindow is not an editable control. Focusing it before each keystroke loses
+    // the actual field focus in apps such as Calculator. Use the exact-window route.
+    if (macKeyboard && address?.role === 'AXWindow') address = undefined;
+    if (!address && capability.protectedControls)
+      return refused(
+        'Focused and pixel actions are blocked on a window containing protected controls.',
+      );
+    const pixel =
+      typeof args.x === 'number' &&
+      typeof args.y === 'number' &&
+      ['click', 'drag'].includes(String(args.action));
+    const backgroundDelivery = this.#macBrowserAccess() && args.delivery !== 'foreground';
+    const inputRoute: BackgroundInputRoute = ['type', 'key'].includes(String(args.action))
+      ? 'pid_keyboard'
+      : pixel || args.action === 'scroll'
+        ? 'window_pointer'
+        : 'accessibility';
+    if (backgroundDelivery) {
+      const unavailable = backgroundRouteRefusal(
+        capability.backgroundInput,
+        inputRoute,
+        request,
+      );
+      if (unavailable) return unavailable;
+    }
+    if (pixel) {
+      const size = capability.pixels;
+      const points =
+        args.action === 'drag'
+          ? [
+              [args.x, args.y],
+              [args.to_x, args.to_y],
+            ]
+          : [[args.x, args.y]];
+      if (
+        !size ||
+        Date.now() - capability.capturedAt > 30_000 ||
+        points.some(
+          ([x, y]) =>
+            typeof x !== 'number' ||
+            typeof y !== 'number' ||
+            !Number.isFinite(x) ||
+            !Number.isFinite(y) ||
+            x < 0 ||
+            y < 0 ||
+            x >= size.width ||
+            y >= size.height,
+        )
+      )
+        return stale(
+          'Pixel coordinates require a fresh, unprotected window screenshot and points inside that image.',
+        );
+      const current = await this.#callCua(request, 'get_window_state', {
+        pid: binding.pid,
+        window_id: binding.windowId,
+        session: this.#computerSession(request),
+        include_screenshot: true,
+      });
+      const denied = resultRefusal(current);
+      if (denied) return denied;
+      if (windowHasProtectedControls(current))
+        return refused('Pixel actions are blocked on windows containing protected controls.');
+      if (backgroundDelivery) {
+        const unavailable = backgroundRouteRefusal(
+          windowBackgroundInput(current, binding),
+          'window_pointer',
+          request,
+        );
+        if (unavailable) return unavailable;
+      }
+      const currentSize = screenshotDimensions(current);
+      if (
+        !currentSize ||
+        currentSize.width !== size.width ||
+        currentSize.height !== size.height
+      )
+        return stale('The window geometry changed. Capture a fresh screenshot before acting.');
+    }
+    if (!address && !pixel && !['type', 'key', 'scroll'].includes(String(args.action))) {
       return refused('This computer action requires an exact element reference.');
     }
     const base = compact({
       pid: binding.pid,
       window_id: binding.windowId,
-      session: request.context.sessionId,
-      delivery_mode: address ? 'background' : 'foreground',
-      snapshot_id: capability.nativeSnapshotId,
+      session: this.#computerSession(request),
+      delivery_mode: this.#macBrowserAccess()
+        ? args.delivery === 'foreground'
+          ? 'foreground'
+          : 'background'
+        : !address
+          ? 'foreground'
+          : 'background',
+      // An unaddressed action must not carry an element snapshot: the driver
+      // otherwise refuses it with element_index_required. Sia's grant is checked above.
+      snapshot_id: address ? capability.nativeSnapshotId : undefined,
       element_token: address?.token,
       element_index: address?.index,
     });
@@ -815,7 +1519,32 @@ export class DesktopActionBackend implements ActionBackend {
     switch (args.action) {
       case 'click':
         tool = 'click';
-        input = base;
+        input = pixel
+          ? {
+              pid: binding.pid,
+              window_id: binding.windowId,
+              session: this.#computerSession(request),
+              delivery_mode: base.delivery_mode,
+              x: args.x,
+              y: args.y,
+            }
+          : base;
+        if (args.button !== undefined) input.button = args.button;
+        if (args.count !== undefined) input.count = args.count;
+        break;
+      case 'drag':
+        if (!pixel) return refused('Drag requires screenshot coordinates.');
+        tool = 'drag';
+        input = {
+          pid: binding.pid,
+          window_id: binding.windowId,
+          session: this.#computerSession(request),
+          delivery_mode: base.delivery_mode,
+          from_x: args.x,
+          from_y: args.y,
+          to_x: args.to_x,
+          to_y: args.to_y,
+        };
         break;
       case 'type': {
         const text = typeof args.text === 'string' ? args.text : undefined;
@@ -857,8 +1586,13 @@ export class DesktopActionBackend implements ActionBackend {
         return refused('Unsupported computer action.');
     }
 
+    const knownWindows = new Set(
+      [...this.#computerWindows.values()]
+        .filter((window) => window.appId === binding.appId)
+        .map((window) => window.windowId),
+    );
     const raw = await this.#callCua(request, tool, input);
-    const focusedFallback = !address;
+    const focusedFallback = base.delivery_mode === 'foreground';
     const native = actionResult(
       raw,
       focusedFallback
@@ -873,36 +1607,120 @@ export class DesktopActionBackend implements ActionBackend {
     ) {
       return native;
     }
-    const after = await this.#captureWindow(binding, request);
-    if (after.outcome !== 'verified') return after;
+    let after: ActionExecutionResult;
+    try {
+      // Notch waits before observing the result. A successful post is not proof
+      // that the application has processed the input yet. Never replay input here.
+      if (this.#macBrowserAccess()) {
+        await delay(350, undefined, { signal: request.context.signal });
+        const current = await this.#callCua(request, 'list_windows', { pid: binding.pid });
+        const created = new Set(
+          findRecordArray(current, 'windows')
+            .filter((window) => positiveInteger(window.pid, MAX_PID) === binding.pid)
+            .map((window) => positiveInteger(window.window_id ?? window.id, MAX_WINDOW_ID))
+            .filter((id): id is number => id !== undefined && !knownWindows.has(id)),
+        );
+        if (created.size) {
+          const inventory = await this.#computerList(request);
+          const newWindows = (
+            (asRecord(inventory.data)?.windows ?? []) as Record<string, unknown>[]
+          ).filter((window) => {
+            const grant = this.#computerWindows.get(String(window.window_id));
+            return grant?.appId === binding.appId && created.has(grant.windowId);
+          });
+          if (newWindows.length)
+            return {
+              outcome: 'accepted_unverified',
+              summary: `${native.summary} New windows appeared. Inspect a new_window before continuing; the previous snapshot belongs to the original window. Do not repeat the action that opened it.`,
+              data: {
+                observation_pending: true,
+                new_windows: newWindows,
+                previous_window_id: binding.id,
+              },
+            };
+        }
+      }
+      after = this.#macBrowserAccess()
+        ? await this.#captureSettledWindow(binding, request)
+        : await this.#captureWindow(binding, request);
+    } catch (error) {
+      if (!this.#macBrowserAccess()) throw error;
+      // Input already returned successfully. An observation error must not invite a replay.
+      after = {
+        outcome: 'accepted_unverified',
+        summary: 'The post-action observation was interrupted or unavailable.',
+      };
+    }
+    if (after.outcome !== 'verified') {
+      if (!this.#macBrowserAccess()) return after;
+      return {
+        outcome: 'accepted_unverified',
+        summary: `${native.summary} The resulting page could not yet be observed. Do not repeat the action. Capture fresh state to check its result.`,
+        data: {
+          observation_pending: true,
+          observation_outcome: after.outcome,
+          observation_detail: after.summary,
+        },
+      };
+    }
     const afterSnapshotId = after.verification?.snapshotId;
     return {
-      outcome: native.outcome,
+      outcome: 'accepted_unverified',
       summary:
         native.outcome === 'verified'
           ? `${native.summary} A fresh window snapshot was captured.`
           : `${native.summary} Inspect the fresh snapshot to confirm the postcondition.`,
       ...(after.images ? { images: after.images } : {}),
-      data: { ...(asRecord(after.data) ?? {}), delivery: native.data },
+      data: {
+        ...(asRecord(after.data) ?? {}),
+        delivery: native.data,
+        next_step:
+          'Inspect this fresh state to verify the requested result. Do not repeat a write to test delivery.',
+        recovery_observation_limit: 2,
+      },
       verification: compact({
         snapshotId: afterSnapshotId,
         evidence:
           native.outcome === 'verified'
-            ? 'Cua Driver confirmed delivery and Sia captured fresh window state.'
+            ? 'Delivery was confirmed; the requested semantic result still needs inspection in the fresh state.'
             : 'Fresh window state is available, but the requested semantic effect was not proven.',
       }),
     };
   }
 
   async #browserTabs(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
+    if (this.#macBrowserAccess()) {
+      const inventory = await this.#computerList(request);
+      return {
+        ...inventory,
+        summary:
+          'Use my Mac is active: continue this task with the native browser windows below, using computer_snapshot and computer_action. Do not switch to an attached Chrome route or ask for Chrome attachment.',
+        data: {
+          ...asRecord(inventory.data),
+          tabs: [],
+          route: 'computer',
+          next_step:
+            'Use the existing browser window for this task. If the needed website is not open, use computer_open_url to open it in the default browser, then list and inspect its window.',
+        },
+      };
+    }
     if (!this.#browserAttached) {
       const detail =
         this.#lastAttachDetail ??
         'No browser attachment is active in the trusted desktop host.';
       return {
-        outcome: 'verified',
-        summary: `Found 0 granted browser tabs. ${detail} Chrome may still be running; report the attachment problem rather than concluding Chrome is closed.`,
-        data: { tabs: [], attachment_problem: detail },
+        outcome: 'refused',
+        summary: `Browser access needs setup. ${detail} Chrome may still be running; report the attachment problem rather than concluding Chrome is closed.`,
+        data: {
+          tabs: [],
+          attachment_problem: detail,
+          recovery: {
+            action: 'attach_browser',
+            settings: 'Computer → Authenticated Chrome',
+            instruction:
+              'Use Connect Chrome & continue below this response. Choose the window with the required website open. Sia will continue this conversation after attachment; do not ask the user to repeat their task.',
+          },
+        },
         verification: {
           evidence: 'No browser attachment is active in the trusted desktop host.',
         },
@@ -1286,6 +2104,13 @@ export class DesktopActionBackend implements ActionBackend {
         ? await this.#stageDriveUpload(request, connectionId)
         : withoutKey(request.arguments, 'account_id');
     if (request.context.signal?.aborted) return refused('Action cancelled before execution.');
+    if (request.context.backgroundOnly && request.arguments.delivery === 'foreground')
+      return {
+        outcome: 'needs_foreground',
+        summary:
+          'This request is set to pause when foreground control is needed. No foreground input or opening was dispatched. Explain the blocker; the user can enable brief foreground control in Settings → Computer for a new request.',
+        reason: 'Background fallback is set to pause for this turn.',
+      };
     try {
       const prepared = await this.#cloud.prepareAction(
         {
@@ -1561,7 +2386,7 @@ export class DesktopActionBackend implements ActionBackend {
     const bundleId = currentApp && firstString(currentApp, ['bundle_id', 'bundleId']);
     if (
       !currentApp ||
-      computerAppLooksSensitive(appName, bundleId) ||
+      this.#computerAppBlocked(appName, bundleId) ||
       computerAppIdentity(appName, bundleId) !== app.identity
     ) {
       return false;
@@ -1573,8 +2398,24 @@ export class DesktopActionBackend implements ActionBackend {
     );
     return Boolean(
       currentWindow &&
-      !computerAppLooksSensitive(firstString(currentWindow, ['app_name', 'name'])),
+      !this.#computerAppBlocked(firstString(currentWindow, ['app_name', 'name']), bundleId),
     );
+  }
+
+  #computerSession(request: ValidatedActionInvocation): string {
+    const key = JSON.stringify([
+      request.context.sessionId,
+      request.context.threadId,
+      request.context.turnId,
+    ]);
+    if (this.#computerTurnKey !== key) {
+      // A provider conversation can outlive CUA's session. New turns get new
+      // authority and refs; never revive an ended session or replay its input.
+      this.#resetComputerCapabilities();
+      this.#computerTurnKey = key;
+      this.#computerSessionId = `sia-computer-${randomUUID()}`;
+    }
+    return this.#computerSessionId!;
   }
 
   #resetComputerCapabilities(): void {
@@ -1700,15 +2541,27 @@ function actionResult(
   const effect = findString(value, ['effect']);
   const deliveryMode = findNestedString(value, 'delivery', ['mode']);
   const escalationTarget = findString(value, ['target'], (record) => 'reason' in record);
-  if (
-    (deliveryMode === 'foreground' && !options.allowForeground) ||
-    escalationTarget === 'foreground'
-  ) {
+  if (deliveryMode === 'foreground' && !options.allowForeground) {
     return {
       outcome: 'needs_foreground',
       summary:
-        'The background route could not prove delivery; foreground takeover was not attempted.',
-      reason: 'Explicit foreground approval is required before retrying.',
+        'The driver reported unexpected foreground delivery for a background request. Its effect is uncertain; observe the window before doing anything else. Do not replay the action.',
+      data: { effect, delivery_mode: deliveryMode },
+      reason: 'Foreground delivery was not requested by Sia.',
+    };
+  }
+  if (escalationTarget === 'foreground') {
+    return {
+      outcome: 'accepted_unverified',
+      summary:
+        'Background input was attempted, but the driver could not verify its effect. Foreground takeover was not attempted. Inspect the fresh result before retrying or declaring failure.',
+      data: compact({
+        effect,
+        delivery_mode: deliveryMode,
+        background_verification_needed: true,
+      }),
+      reason:
+        'An escalation suggestion is not proof that input failed. Never replay an uncertain write.',
     };
   }
   const data = compact({
@@ -1766,6 +2619,9 @@ function classifyFailure(error: unknown): ActionExecutionResult {
     return stale(message);
   }
   if (
+    /\b(off_space_or_ax_unresolved|minimized_or_hidden_window|same_pid_keyboard_ambiguity)\b/.test(
+      normalized,
+    ) ||
     normalized.includes('foreground') ||
     normalized.includes('frontmost') ||
     (normalized.includes('background') && normalized.includes('unavailable'))
@@ -2020,6 +2876,85 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
+// Read only the SDK's structured payload, never page text or descendant elements.
+// This is advisory availability: CUA still revalidates the exact target on every input.
+function windowBackgroundInput(
+  value: unknown,
+  target: Pick<ComputerWindowBinding, 'pid' | 'windowId'>,
+): BackgroundInputStatus | undefined {
+  const raw = asRecord(value)?.background_input;
+  if (raw === undefined) return undefined;
+  const report = asRecord(raw);
+  const exact = asRecord(report?.exact_window);
+  const routeNames = ['accessibility', 'window_pointer', 'pid_keyboard'] as const;
+  const invalid: BackgroundInputStatus = {
+    exact_window: { status: 'unverified' },
+    routes: routeNames.map((route) => ({
+      route,
+      status: 'refused',
+      reason: 'unverified_window_input',
+    })),
+  };
+  if (
+    exact?.pid !== target.pid ||
+    exact?.window_id !== target.windowId ||
+    !['matched', 'not_found', 'owner_mismatch', 'ax_unresolved'].includes(
+      String(exact?.status),
+    ) ||
+    !Array.isArray(report?.routes) ||
+    report.routes.length !== routeNames.length
+  )
+    return invalid;
+  const routes: BackgroundInputStatus['routes'][number][] = [];
+  for (const name of routeNames) {
+    const matches = report.routes.map(asRecord).filter((route) => route?.route === name);
+    const entry = matches[0];
+    if (
+      matches.length !== 1 ||
+      !entry ||
+      !['available', 'refused'].includes(String(entry.status))
+    )
+      return invalid;
+    // An unresolved/foreign window can never advertise usable background input.
+    if (exact.status !== 'matched' && entry.status !== 'refused') return invalid;
+    routes.push({
+      route: name,
+      status: entry.status as 'available' | 'refused',
+      ...(entry.status === 'refused' &&
+      typeof entry.reason === 'string' &&
+      /^[a-z_]{1,80}$/.test(entry.reason)
+        ? { reason: entry.reason }
+        : {}),
+    });
+  }
+  return { exact_window: { status: String(exact.status) }, routes };
+}
+
+function windowInputRecovery(request: ValidatedActionInvocation): string {
+  return request.context.backgroundOnly
+    ? 'This window is observation-only for the unavailable background routes. Foreground recovery is disabled for this turn. Do not retry pixels or keys when their route is refused. The person can bring the app onto this desktop or allow brief foreground control in Settings → Computer for a new request.'
+    : 'For an unavailable background route, brief foreground recovery is permitted. Use computer_open_app with the installed application id and delivery:"foreground", then inspect the exact intended window again before continuing. Prefer a supported background route afterward. Never replay an uncertain send or other write.';
+}
+
+function backgroundRouteRefusal(
+  report: BackgroundInputStatus | undefined,
+  route: BackgroundInputRoute,
+  request: ValidatedActionInvocation,
+): ActionExecutionResult | undefined {
+  const status = report?.routes.find((entry) => entry.route === route);
+  if (!status || status.status === 'available') return undefined;
+  if (['not_found', 'owner_mismatch', 'unverified'].includes(report!.exact_window.status))
+    return stale(
+      'The driver could not verify this exact window for input. Discover and inspect the intended window again.',
+    );
+  return {
+    outcome: 'needs_foreground',
+    summary: `The ${route} background route is unavailable; no input was attempted.`,
+    reason: status.reason ?? 'background_input_unavailable',
+    data: { background_input: report, next_step: windowInputRecovery(request) },
+  };
+}
+
 function firstString(
   record: Record<string, unknown>,
   keys: readonly string[],
@@ -2119,7 +3054,8 @@ function findElementRecords(
   ];
   return candidates.filter((record) =>
     kind === 'window'
-      ? firstString(record, ['element_token', 'elementToken']) !== undefined ||
+      ? firstString(record, ['role', 'type']) !== undefined ||
+        firstString(record, ['element_token', 'elementToken']) !== undefined ||
         nonNegativeInteger(record.element_index ?? record.elementIndex) !== undefined
       : firstString(record, ['ref', 'element_ref', 'elementRef']) !== undefined,
   );
@@ -2163,14 +3099,20 @@ function collectTabRecords(value: unknown): Record<string, unknown>[] {
 
 function sanitizeElement(
   record: Record<string, unknown>,
-  ref: string,
+  ref?: string,
 ): Record<string, unknown> {
   const states = asRecord(record.states);
   return compact({
     element_ref: ref,
     role: firstString(record, ['role', 'type']),
     label: trustedElementLabel(record),
-    value: firstString(record, ['value', 'text']),
+    value:
+      firstString(record, ['role', 'type']) === 'AXHeading'
+        ? undefined
+        : (firstString(record, ['value', 'text']) ??
+          (typeof record.value === 'number' && Number.isFinite(record.value)
+            ? String(record.value)
+            : undefined)),
     description: firstString(record, ['description']),
     frame: sanitizeFrame(record.frame ?? record.bounds),
     disabled: firstBoolean(record, ['disabled']) ?? firstBoolean(states ?? {}, ['disabled']),
@@ -2286,5 +3228,53 @@ function trimMap<K, V>(map: Map<K, V>, maximum: number): void {
     const key = map.keys().next().value as K | undefined;
     if (key === undefined) return;
     map.delete(key);
+  }
+}
+
+function screenshotDimensions(value: unknown): { width: number; height: number } | undefined {
+  const image = actionImages(value).images?.find((image) => image.mimeType === 'image/png');
+  if (!image) return undefined;
+  const png = Buffer.from(image.dataBase64, 'base64');
+  if (
+    png.length < 24 ||
+    png.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a' ||
+    png.subarray(12, 16).toString() !== 'IHDR'
+  )
+    return undefined;
+  const width = png.readUInt32BE(16),
+    height = png.readUInt32BE(20);
+  return width > 0 && height > 0 && width <= 32768 && height <= 32768
+    ? { width, height }
+    : undefined;
+}
+
+function windowHasProtectedControls(value: unknown): boolean {
+  return ['elements', 'nodes']
+    .flatMap((key) => findRecordArray(value, key))
+    .filter((record) => !isHiddenWindowStructure(record))
+    .some(
+      (record) =>
+        isProtectedElement(record) ||
+        // Match authentication words, not "signing"/"blogging" in public page labels.
+        /(?:secure|password|\b(?:sign(?:ing)?|log(?:ging)?).?in\b|authenticat|verification code|passkey|api.?key|access.?token)/i.test(
+          [record.role, record.subrole, record.title, record.label]
+            .filter((item) => typeof item === 'string')
+            .join(' '),
+        ),
+    );
+}
+
+/** Compare observed page identity without treating query order or an anchor as navigation. */
+function samePageUrl(observed: string, expected: string): boolean {
+  try {
+    const canonical = (value: string) => {
+      const url = new URL(value);
+      url.hash = '';
+      url.searchParams.sort();
+      return url.href;
+    };
+    return canonical(observed) === canonical(expected);
+  } catch {
+    return false;
   }
 }

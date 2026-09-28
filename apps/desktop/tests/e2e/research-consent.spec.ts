@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { dismissFirstAgentPrompt, launchIsolatedSia } from '../support/electron-harness';
+import { exitFirstRunSetup, launchIsolatedSia } from '../support/electron-harness';
 
 const cloudEnvironment = {
   SIA_API_BASE_URL: 'https://cloud.example.test/alpha',
@@ -17,7 +17,7 @@ test('signed-in users can opt into research from Privacy without an onboarding g
   const testRoot = harness.testRoot;
 
   try {
-    await dismissFirstAgentPrompt(harness.page);
+    await exitFirstRunSetup(harness.page);
     await expect(
       harness.page.getByRole('alertdialog', { name: 'Join the Sia research release?' }),
     ).toHaveCount(0);
@@ -56,7 +56,11 @@ test('signed-in users can opt into research from Privacy without an onboarding g
 
     await harness.close({ removeTestRoot: false });
     harness = await launchIsolatedSia({ testRoot, environment: cloudEnvironment });
-    await dismissFirstAgentPrompt(harness.page);
+    await expect(harness.page.getByRole('button', { name: 'Settings' })).toBeVisible();
+    await expect(harness.page.getByRole('main', { name: 'Welcome to Sia' })).toBeHidden();
+    expect(
+      (await harness.page.evaluate(() => window.sia.bootstrap())).preferences.onboarding?.step,
+    ).toBe('complete');
 
     await expect(
       harness.page.getByRole('alertdialog', { name: 'Join the Sia research release?' }),

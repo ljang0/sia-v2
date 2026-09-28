@@ -2,7 +2,12 @@ import { constants } from 'node:fs';
 import { access } from 'node:fs/promises';
 import { delimiter, join } from 'node:path';
 import { spawn } from 'node:child_process';
-import { isVersionSupported, parseCliVersion, sanitizedEnvironment } from '@sia/runtime';
+import {
+  CODEX_SUPPORTED_VERSIONS,
+  isVersionSupported,
+  parseCliVersion,
+  sanitizedEnvironment,
+} from '@sia/runtime';
 
 import type { ProviderId, ProviderView } from '../shared/bridge.js';
 
@@ -17,6 +22,7 @@ interface ProviderCommand {
   disabled?: boolean;
   minimumVersion?: string;
   maximumExclusiveVersion?: string;
+  additionalVersions?: readonly string[];
   compatibleReleasePinned?: boolean;
 }
 
@@ -28,8 +34,9 @@ const PROVIDERS: Record<ProviderId, ProviderCommand> = {
     label: 'Codex',
     billing: 'Uses your existing ChatGPT Codex subscription.',
     detail: 'Official app server; Sia verifies ChatGPT sign-in without importing credentials.',
-    minimumVersion: '0.147.0',
-    maximumExclusiveVersion: '0.151.0',
+    minimumVersion: CODEX_SUPPORTED_VERSIONS.minimum,
+    maximumExclusiveVersion: CODEX_SUPPORTED_VERSIONS.maximumExclusive,
+    additionalVersions: CODEX_SUPPORTED_VERSIONS.additionalVersions,
   },
   meta: {
     executable: '',
@@ -94,16 +101,18 @@ export async function probeProviders(
   only?: ProviderId,
   environment: NodeJS.ProcessEnv = process.env,
   runner: ProviderProbeRunner = { run: runCommand },
+  commands: Partial<Record<ProviderId, string>> = {},
 ): Promise<ProviderView[]> {
   const ids = only ? [only] : (Object.keys(PROVIDERS) as ProviderId[]);
   const safeEnvironment = sanitizedEnvironment(environment);
-  return Promise.all(ids.map((id) => probeProvider(id, safeEnvironment, runner)));
+  return Promise.all(ids.map((id) => probeProvider(id, safeEnvironment, runner, commands[id])));
 }
 
 async function probeProvider(
   id: ProviderId,
   environment: NodeJS.ProcessEnv,
   runner: ProviderProbeRunner,
+  command?: string,
 ): Promise<ProviderView> {
   const definition = PROVIDERS[id];
   if (definition.disabled) return view(id, definition, 'disabled');
@@ -121,7 +130,8 @@ async function probeProvider(
     );
   }
 
-  const executable = await findExecutable(definition.executable, environment.PATH ?? '');
+  const executable =
+    command ?? (await findExecutable(definition.executable, environment.PATH ?? ''));
   if (!executable) return view(id, definition, 'needs_install');
 
   try {
@@ -149,6 +159,9 @@ async function probeProvider(
       definition.minimumVersion &&
       !isVersionSupported(version, {
         minimum: definition.minimumVersion,
+        ...(definition.additionalVersions
+          ? { additionalVersions: definition.additionalVersions }
+          : {}),
         ...(definition.maximumExclusiveVersion
           ? { maximumExclusive: definition.maximumExclusiveVersion }
           : {}),
@@ -162,7 +175,9 @@ async function probeProvider(
         definition,
         'incompatible',
         version,
-        `Update to a supported CLI (${definition.minimumVersion} or newer${upper}).`,
+        id === 'codex'
+          ? `Codex ${version} is installed but has not been verified for Sia. Install Sia’s supported version to continue.`
+          : `Update to a supported CLI (${definition.minimumVersion} or newer${upper}).`,
       );
     }
     if (id === 'codex') {
@@ -183,7 +198,7 @@ async function probeProvider(
           definition,
           'needs_login',
           version,
-          'Sign in with the Codex CLI, then check again.',
+          'Choose Set up Codex to sign in with ChatGPT in your browser. No terminal is needed.',
         );
       }
       if (!chatGptSubscription) {

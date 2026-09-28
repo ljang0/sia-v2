@@ -19,6 +19,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={withCloud('signed-out')}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
@@ -34,7 +35,7 @@ describe('cloud account settings', () => {
     });
     const submit = screen.getByRole('button', { name: 'Email me a sign-in code' });
     expect((submit as HTMLButtonElement).disabled).toBe(false);
-    expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: /research/i })).toBeNull();
     fireEvent.click(submit);
 
     await waitFor(() => expect(onStart).toHaveBeenCalledWith('lawrence@example.com'));
@@ -50,6 +51,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={withCloud('code-sent', 'lawrence@example.com')}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
@@ -79,6 +81,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={withCloud('password-required', 'admin@example.com')}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
@@ -106,6 +109,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={withCloud('unconfigured')}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
@@ -129,6 +133,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={withCloud('signed-in', 'lawrence@example.com')}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
@@ -143,17 +148,17 @@ describe('cloud account settings', () => {
     expect(screen.getByText('Available for this account')).toBeTruthy();
     expect(screen.getByText(/workspace administrator may need to approve/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
-    for (const name of ['Connect Google', 'Connect Slack']) {
-      for (const button of screen.getAllByRole('button', { name })) {
-        expect((button as HTMLButtonElement).disabled).toBe(false);
-      }
-    }
+    expect(
+      (screen.getByRole('button', { name: 'Connect selected apps' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false);
   });
 
   it('keeps connector availability explicit before sign-in and for gated accounts', () => {
     const { unmount } = render(
       <AppsSettings
         snapshot={withCloud('signed-out')}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
@@ -163,7 +168,7 @@ describe('cloud account settings', () => {
         onDeleteCloudAccount={vi.fn()}
       />,
     );
-    expect(screen.getByText('Sign in to connect')).toBeTruthy();
+    expect(screen.getAllByText('Sign in to connect')[0]).toBeTruthy();
     unmount();
 
     const snapshot = withCloud('signed-in', 'tester@example.com');
@@ -176,6 +181,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={snapshot}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
@@ -185,13 +191,11 @@ describe('cloud account settings', () => {
         onDeleteCloudAccount={vi.fn()}
       />,
     );
-    expect(screen.getByText('Not enabled for this account')).toBeTruthy();
+    expect(screen.getAllByText('Not enabled for this account')[0]).toBeTruthy();
     expect(screen.getByText(/Existing connections can still be disconnected/)).toBeTruthy();
     expect(
-      (screen.getByRole('button', { name: 'Connect Google' }) as HTMLButtonElement).disabled,
-    ).toBe(true);
-    expect(
-      (screen.getByRole('button', { name: 'Connect Slack' }) as HTMLButtonElement).disabled,
+      (screen.getByRole('button', { name: 'Connect selected apps' }) as HTMLButtonElement)
+        .disabled,
     ).toBe(true);
   });
 
@@ -212,6 +216,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={snapshot}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
@@ -233,11 +238,12 @@ describe('cloud account settings', () => {
   });
 
   it('starts one read-only Google approval and explains the provider consent boundary', async () => {
-    const onConnectGoogle = vi.fn().mockResolvedValue(undefined);
+    const onConnectSelected = vi.fn().mockResolvedValue(undefined);
     render(
       <AppsSettings
         snapshot={withCloud('signed-in', 'lawrence@example.com')}
-        onConnectGoogle={onConnectGoogle}
+        onConnectSelected={onConnectSelected}
+        onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
         onStartCloudSignIn={vi.fn()}
@@ -248,9 +254,12 @@ describe('cloud account settings', () => {
     );
 
     expect(screen.getByText(/Google starts read-only/i)).toBeTruthy();
-    expect(screen.getByText(/one secure Google approval, read-only by default/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Connect Google' }));
-    await waitFor(() => expect(onConnectGoogle).toHaveBeenCalledOnce());
+    expect(
+      screen.getByRole('checkbox', { name: /Google Workspace/ }).closest('label')?.textContent,
+    ).toContain('Read access.');
+    fireEvent.click(screen.getByRole('checkbox', { name: /Slack/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect selected apps' }));
+    await waitFor(() => expect(onConnectSelected).toHaveBeenCalledWith(['google']));
   });
 
   it('keeps read access active while a person explicitly enables Google editing', async () => {
@@ -271,6 +280,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={snapshot}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onUpgradeGoogle={onUpgradeGoogle}
         onConnect={vi.fn()}
@@ -304,6 +314,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={snapshot}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={onConnectGoogle}
         onConnect={vi.fn()}
         onDisconnect={onDisconnect}
@@ -337,6 +348,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={snapshot}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onSetEnabled={onSetEnabled}
@@ -356,12 +368,13 @@ describe('cloud account settings', () => {
   });
 
   it('lets people connect Slack without connecting Google', async () => {
-    const onConnect = vi.fn().mockResolvedValue(undefined);
+    const onConnectSelected = vi.fn().mockResolvedValue(undefined);
     render(
       <AppsSettings
         snapshot={withCloud('signed-in', 'lawrence@example.com')}
+        onConnectSelected={onConnectSelected}
         onConnectGoogle={vi.fn()}
-        onConnect={onConnect}
+        onConnect={vi.fn()}
         onDisconnect={vi.fn()}
         onStartCloudSignIn={vi.fn()}
         onCompleteCloudSignIn={vi.fn()}
@@ -370,8 +383,9 @@ describe('cloud account settings', () => {
       />,
     );
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Connect Slack' })[0]!);
-    await waitFor(() => expect(onConnect).toHaveBeenCalledWith('slack'));
+    fireEvent.click(screen.getByRole('checkbox', { name: /Google Workspace/ }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Connect selected apps' })[0]!);
+    await waitFor(() => expect(onConnectSelected).toHaveBeenCalledWith(['slack']));
   });
 
   it('surfaces an interrupted saved grant and provides one-click reconnect', async () => {
@@ -386,6 +400,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={snapshot}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={onConnect}
         onDisconnect={onDisconnect}
@@ -411,6 +426,7 @@ describe('cloud account settings', () => {
     render(
       <AppsSettings
         snapshot={withCloud('signed-in', 'lawrence@example.com')}
+        onConnectSelected={vi.fn()}
         onConnectGoogle={vi.fn()}
         onConnect={vi.fn()}
         onDisconnect={vi.fn()}
@@ -538,22 +554,27 @@ describe('computer access settings', () => {
     render(
       <ComputerSettings
         snapshot={structuredClone(demoSnapshot)}
-        onAttachBrowser={vi.fn()}
-        onOpenBrowserSite={vi.fn()}
-        onDetachBrowser={vi.fn()}
-        onRequestPermissions={vi.fn()}
+        onReviewConnections={vi.fn()}
+        macSetupApi={{
+          requestComputerPermissions: vi.fn(),
+          requestAutomationPermission: vi.fn(),
+          refreshComputerPermissions: vi.fn(),
+          configureVoice: vi.fn(),
+          configurePushToTalk: vi.fn(),
+        }}
         onSetComputerTrust={vi.fn()}
         onSetTrajectoryLog={vi.fn()}
         onRevealTrajectories={vi.fn()}
       />,
     );
 
-    expect(screen.getByText(/every computer action stays reviewable/i)).toBeTruthy();
+    expect(screen.getByText(/whether actions need your confirmation/i)).toBeTruthy();
     expect(
       screen
-        .getByRole('switch', { name: 'Confirm before changes' })
+        .getByRole('switch', { name: 'Bypass action approvals' })
         .getAttribute('aria-checked'),
-    ).toBe('true');
+    ).toBe('false');
+    fireEvent.click(screen.getByText('Diagnostics'));
     expect(
       screen
         .getByRole('switch', { name: 'Keep a full local log' })
@@ -562,7 +583,8 @@ describe('computer access settings', () => {
     expect(screen.queryByText(/Every grant is narrow, visible, and revocable/)).toBeNull();
   });
 
-  it('does not call Chrome ready until a window is attached', () => {
+  it('uses Connections as the single browser setup route', () => {
+    const onReviewConnections = vi.fn();
     const snapshot = structuredClone(demoSnapshot);
     snapshot.browser = {
       status: 'detached',
@@ -576,10 +598,14 @@ describe('computer access settings', () => {
     render(
       <ComputerSettings
         snapshot={snapshot}
-        onAttachBrowser={vi.fn()}
-        onOpenBrowserSite={vi.fn()}
-        onDetachBrowser={vi.fn()}
-        onRequestPermissions={vi.fn()}
+        onReviewConnections={onReviewConnections}
+        macSetupApi={{
+          requestComputerPermissions: vi.fn(),
+          requestAutomationPermission: vi.fn(),
+          refreshComputerPermissions: vi.fn(),
+          configureVoice: vi.fn(),
+          configurePushToTalk: vi.fn(),
+        }}
         onSetComputerTrust={vi.fn()}
         onSetTrajectoryLog={vi.fn()}
         onRevealTrajectories={vi.fn()}
@@ -587,8 +613,9 @@ describe('computer access settings', () => {
     );
 
     expect(screen.queryByText('Everything is unlocked')).toBeNull();
-    expect(screen.getByText(/approve Chrome once/i)).toBeTruthy();
-    expect(screen.getByText(/security step cannot be skipped/i)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Choose window' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Connections' }));
+    expect(onReviewConnections).toHaveBeenCalledOnce();
   });
 
   it('flips trust and the local log through the switches', async () => {
@@ -599,17 +626,27 @@ describe('computer access settings', () => {
     render(
       <ComputerSettings
         snapshot={snapshot}
-        onAttachBrowser={vi.fn()}
-        onOpenBrowserSite={vi.fn()}
-        onDetachBrowser={vi.fn()}
-        onRequestPermissions={vi.fn()}
+        onReviewConnections={vi.fn()}
+        macSetupApi={{
+          requestComputerPermissions: vi.fn(),
+          requestAutomationPermission: vi.fn(),
+          refreshComputerPermissions: vi.fn(),
+          configureVoice: vi.fn(),
+          configurePushToTalk: vi.fn(),
+        }}
         onSetComputerTrust={onSetComputerTrust}
         onSetTrajectoryLog={onSetTrajectoryLog}
         onRevealTrajectories={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole('switch', { name: 'Confirm before changes' }));
+    expect(
+      screen
+        .getByRole('switch', { name: 'Bypass action approvals' })
+        .getAttribute('aria-checked'),
+    ).toBe('true');
+    fireEvent.click(screen.getByRole('switch', { name: 'Bypass action approvals' }));
     await waitFor(() => expect(onSetComputerTrust).toHaveBeenCalledWith('ask'));
+    fireEvent.click(screen.getByText('Diagnostics'));
     await waitFor(() =>
       expect(
         (screen.getByRole('switch', { name: 'Keep a full local log' }) as HTMLButtonElement)
@@ -646,3 +683,97 @@ function withoutResearchConsent(): RendererSnapshot {
     },
   };
 }
+
+it('sets up computer, voice and missing app access through one settings action', async () => {
+  const snapshot = structuredClone(demoSnapshot);
+  snapshot.computer.accessibility = 'not-requested';
+  snapshot.computer.screenRecording = 'not-requested';
+  snapshot.computer.automation = {
+    system_events: 'ready',
+    safari: 'ready',
+    finder: 'ready',
+    messages: 'ready',
+    reminders: 'ready',
+    chrome: 'unavailable',
+    calendar: 'needs_permission',
+  };
+  snapshot.voice = {
+    status: 'disconnected',
+    voices: [],
+    pushToTalk: {
+      available: true,
+      enabled: false,
+      accessibility: false,
+      microphone: false,
+      phase: 'idle',
+    },
+  };
+  const macSetupApi = {
+    requestComputerPermissions: vi.fn(async () => {}),
+    requestAutomationPermission: vi.fn(async () => {}),
+    refreshComputerPermissions: vi.fn(async () => {}),
+    configureVoice: vi.fn(async () => {}),
+    configurePushToTalk: vi.fn(async () => {}),
+  };
+  const content = () => (
+    <ComputerSettings
+      snapshot={snapshot}
+      macSetupApi={macSetupApi}
+      onReviewConnections={vi.fn()}
+      onSetComputerTrust={vi.fn()}
+      onSetTrajectoryLog={vi.fn()}
+      onRevealTrajectories={vi.fn()}
+    />
+  );
+  const view = render(content());
+  const redraw = () => view.rerender(content());
+  macSetupApi.requestComputerPermissions.mockImplementation(async () => {
+    await Promise.resolve();
+    if (snapshot.computer.accessibility !== 'allowed')
+      snapshot.computer.accessibility = 'allowed';
+    else snapshot.computer.screenRecording = 'allowed';
+    redraw();
+  });
+  macSetupApi.configureVoice.mockImplementation(async () => {
+    await Promise.resolve();
+    snapshot.voice.status = 'connected';
+    redraw();
+  });
+  macSetupApi.configurePushToTalk.mockImplementation(async () => {
+    await Promise.resolve();
+    snapshot.voice.pushToTalk = {
+      ...snapshot.voice.pushToTalk!,
+      enabled: true,
+      microphone: true,
+      accessibility: true,
+    };
+    redraw();
+  });
+  macSetupApi.requestAutomationPermission.mockImplementation(async () => {
+    await Promise.resolve();
+    snapshot.computer.automation!.calendar = 'ready';
+    redraw();
+  });
+  expect(macSetupApi.requestComputerPermissions).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Set up permissions' }));
+  await waitFor(() => expect(macSetupApi.configureVoice).toHaveBeenCalledOnce());
+  await waitFor(() => expect(macSetupApi.configurePushToTalk).toHaveBeenCalledOnce());
+  await waitFor(() => expect(screen.getByText('Mac access is ready.')).toBeTruthy());
+  expect(macSetupApi.requestComputerPermissions).toHaveBeenCalledTimes(2);
+  expect(macSetupApi.configureVoice).toHaveBeenCalledOnce();
+  expect(macSetupApi.configurePushToTalk).toHaveBeenCalledOnce();
+  expect(macSetupApi.requestAutomationPermission).toHaveBeenCalledWith('calendar');
+  expect(screen.queryByRole('button', { name: 'Allow all Mac apps' })).toBeNull();
+  expect(screen.queryByText('Mac computer use')).toBeNull();
+  await waitFor(() =>
+    expect(
+      (screen.getByRole('button', { name: 'Check access' }) as HTMLButtonElement).disabled,
+    ).toBe(false),
+  );
+  const refreshes = macSetupApi.refreshComputerPermissions.mock.calls.length;
+  fireEvent.click(screen.getByRole('button', { name: 'Check access' }));
+  await waitFor(() =>
+    expect(macSetupApi.refreshComputerPermissions).toHaveBeenCalledTimes(refreshes + 1),
+  );
+  expect(macSetupApi.requestComputerPermissions).toHaveBeenCalledTimes(2);
+});

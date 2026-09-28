@@ -17,6 +17,10 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(import.meta.dirname, 'src/main/index.ts'),
+          'configure-personal-voice': resolve(
+            import.meta.dirname,
+            'src/main/configure-personal-voice.ts',
+          ),
           'tool-bridge': resolve(import.meta.dirname, 'src/main/tool-bridge-entry.ts'),
         },
       },
@@ -26,8 +30,12 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin({ exclude: ['@sia/protocol'] })],
     build: {
       rollupOptions: {
-        input: resolve(import.meta.dirname, 'src/preload/index.ts'),
-        output: { format: 'cjs', entryFileNames: 'index.js' },
+        input: {
+          index: resolve(import.meta.dirname, 'src/preload/index.ts'),
+          launcher: resolve(import.meta.dirname, 'src/preload/launcher.ts'),
+          scotty: resolve(import.meta.dirname, 'src/preload/scotty.ts'),
+        },
+        output: { format: 'cjs', entryFileNames: '[name].js' },
       },
     },
   },

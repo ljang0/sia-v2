@@ -1,4 +1,5 @@
-import { ArrowLeft, CalendarDots, Code, Flag, GitDiff } from '@phosphor-icons/react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { ArrowLeft, CalendarDots, CaretDown, Code, Flag, GitDiff } from '@phosphor-icons/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   BackgroundTerminal,
@@ -41,8 +42,7 @@ export function ThreadWorkspaceTools({
   const [backgroundTerminals, setBackgroundTerminals] = useState<BackgroundTerminal[]>([]);
   const [backgroundStarting, setBackgroundStarting] = useState(false);
   const panel = useRef<HTMLElement>(null);
-  const returnFocus = useRef<HTMLButtonElement>(null);
-  const terminalTrigger = useRef<HTMLButtonElement>(null);
+  const toolsTrigger = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     setTool(undefined);
@@ -78,19 +78,14 @@ export function ThreadWorkspaceTools({
     };
   }, [api, thread.id, tool]);
 
-  const openPanel = (next: Exclude<Tool, 'terminal'>, trigger: HTMLButtonElement) => {
-    returnFocus.current = trigger;
-    setTool(next);
-  };
-
   const closePanel = () => {
-    const target = returnFocus.current;
+    const target = toolsTrigger.current;
     setTool(undefined);
     requestAnimationFrame(() => target?.focus());
   };
 
-  const openChanges = async (trigger: HTMLButtonElement) => {
-    openPanel('changes', trigger);
+  const openChanges = async () => {
+    setTool('changes');
     setChangesLoading(true);
     try {
       const [nextChanges, nextSnapshots] = await Promise.all([
@@ -110,60 +105,62 @@ export function ThreadWorkspaceTools({
   return (
     <>
       <nav className={styles.threadToolNav} aria-label="Thread tools">
-        <button
-          type="button"
-          aria-label="Goal"
-          title="Goal"
-          aria-pressed={tool === 'goal'}
-          onClick={(event) => openPanel('goal', event.currentTarget)}
-        >
-          <Flag size={14} aria-hidden="true" />
-          <span>Goal</span>
-        </button>
-        <button
-          type="button"
-          aria-label="Changes"
-          title="Changes"
-          aria-pressed={tool === 'changes'}
-          onClick={(event) => void openChanges(event.currentTarget)}
-          data-testid="changes-panel-toggle"
-        >
-          <GitDiff size={14} aria-hidden="true" />
-          <span>Changes</span>
-        </button>
-        <button
-          ref={terminalTrigger}
-          type="button"
-          aria-label="Command"
-          title="Command"
-          onClick={() => setTool('terminal')}
-          data-testid="terminal-open"
-        >
-          <Code size={14} aria-hidden="true" />
-          <span>Command</span>
-        </button>
-        <button
-          type="button"
-          aria-label="Schedules"
-          title="Schedules"
-          aria-pressed={tool === 'schedules'}
-          onClick={(event) => openPanel('schedules', event.currentTarget)}
-        >
-          <CalendarDots size={14} aria-hidden="true" />
-          <span>Schedules</span>
-        </button>
-        {thread.worktree?.kind === 'linked' ? (
-          <button
-            type="button"
-            aria-label="Continue in primary workspace"
-            title="Continue in primary workspace"
-            onClick={() => void run(() => api.handoffThread(thread.id, 'primary'))}
-            data-testid="worktree-handoff-primary"
-          >
-            <ArrowLeft size={14} aria-hidden="true" />
-            <span>Main</span>
-          </button>
-        ) : null}
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger asChild>
+            <button ref={toolsTrigger} type="button">
+              Tools <CaretDown size={12} aria-hidden="true" />
+            </button>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content
+              className={styles.threadMenuContent}
+              side="top"
+              align="end"
+              sideOffset={6}
+              onCloseAutoFocus={(event) => {
+                if (!tool) return;
+                event.preventDefault();
+                if (tool !== 'terminal') panel.current?.focus();
+              }}
+            >
+              <DropdownMenu.Item
+                className={styles.threadMenuItem}
+                onSelect={() => setTool('goal')}
+              >
+                <Flag size={14} aria-hidden="true" /> Goal
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                className={styles.threadMenuItem}
+                onSelect={() => void openChanges()}
+                data-testid="changes-panel-toggle"
+              >
+                <GitDiff size={14} aria-hidden="true" /> Changes
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                className={styles.threadMenuItem}
+                onSelect={() => setTool('terminal')}
+                data-testid="terminal-open"
+              >
+                <Code size={14} aria-hidden="true" /> Command
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                className={styles.threadMenuItem}
+                onSelect={() => setTool('schedules')}
+              >
+                <CalendarDots size={14} aria-hidden="true" /> Schedules
+              </DropdownMenu.Item>
+              {thread.worktree?.kind === 'linked' ? (
+                <DropdownMenu.Item
+                  className={styles.threadMenuItem}
+                  onSelect={() => void run(() => api.handoffThread(thread.id, 'primary'))}
+                  data-testid="worktree-handoff-primary"
+                >
+                  <ArrowLeft size={14} aria-hidden="true" /> Continue in primary workspace
+                </DropdownMenu.Item>
+              ) : null}
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
       </nav>
 
       {tool && tool !== 'terminal' ? (
@@ -302,7 +299,7 @@ export function ThreadWorkspaceTools({
         run={terminalRun}
         background={backgroundTerminals}
         backgroundStarting={backgroundStarting}
-        returnFocusRef={terminalTrigger}
+        returnFocusRef={toolsTrigger}
         onOpenChange={(open) => !open && setTool(undefined)}
         onRun={async ({ command }) => {
           setTerminalRun({ status: 'running', command });

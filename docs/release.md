@@ -1,5 +1,8 @@
 # Release gate
 
+Public-download preparation for the next candidate is tracked in
+[`public-release.md`](./public-release.md). Its status is separate from the prior pilot approval.
+
 The current signed-artifact evidence and remaining release gates are recorded in
 [`release-evidence-2026-08-28-alpha.24.md`](./release-evidence-2026-08-28-alpha.24.md). Signing and
 private publication authorize operator/internal QA only; they do not establish recipient or
@@ -83,6 +86,14 @@ the `sia-alpha` control-plane template in this repository. After deployment, rep
 Meta and Composio secret values, verify the deletion alarm has a confirmed subscription, and map
 `ApiBaseUrl`, `CognitoRegion`, and `DesktopClientId` to the three `SIA_RELEASE_*` variables.
 
+The packaged verifier pins the existing `Sia` product/executable name, `ai.sia.desktop` bundle
+identifier, and Developer ID team in `apps/desktop/build/release-identity.json`. Electron derives
+its macOS encryption service from the application name; renaming it or changing signing identity
+can cause additional Keychain prompts or make existing encrypted data inaccessible. The development
+app currently uses the same runtime name with a different signing identity, so its prompts do not
+establish clean-install behavior for the distributed app. Do not rename the release storage service,
+clear Keychain entries, or disable encryption to suppress an authorization prompt.
+
 Before distribution, install the signed artifact on both a clean macOS account and an account that
 has run the previous Sia build. Complete `docs/manual-acceptance.md`, prepare release notes, confirm
 the support path, and keep the prior signed artifact available for rollback.
@@ -139,3 +150,23 @@ The source checks are necessary but do not certify a deployed stack. Before invi
 
 Do not mark the research release ready until this rehearsal and `docs/manual-acceptance.md` pass on
 the exact deployed stack and exact signed artifact.
+
+### Native Fn voice helper
+
+The desktop prebuild compiles `native/voice` for macOS 14+ on arm64 and x86_64, combines both slices,
+and caches the result under ignored `build/native/`. Electron Builder includes `SiaVoiceHelper` in
+`Contents/Resources/native/` and explicitly signs it with the application. The packaged-app verifier
+checks its presence and architecture. The helper embeds microphone/Accessibility usage strings;
+the hardened-runtime entitlement includes audio input. Keep the helper path and signing identity
+stable so macOS can retain permission grants across updates.
+
+For a signed release, the operator must verify microphone and Accessibility permission attribution
+on a clean Mac, then test Fn capture with the Sia window closed and in fullscreen. Development
+ad-hoc signing and automated tests do not establish signed-build TCC behavior. The native source
+provenance and the differences from Notch are recorded in `apps/desktop/native/voice/README.md`.
+
+The native voice helper also contains the default Mac speech engine. Verify its embedded
+`NSSpeechRecognitionUsageDescription` and the signed Speech Recognition entitlement along with
+microphone access. Check read aloud with no cloud configuration and no microphone grant; then test
+Fn with allowed, denied, and revoked Speech Recognition grants. Unsupported on-device recognition
+must retain read aloud and typing without a cloud fallback. Only installed voices are offered.
