@@ -2,8 +2,8 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
-  // These browser-only checks start their own demo server via test:renderer.
-  testIgnore: '**/renderer/**',
+  // Browser-only checks run through test:renderer and test:remote with their own configs.
+  testIgnore: ['**/renderer/**', '**/remote/**'],
   timeout: 30_000,
   expect: { timeout: 5_000 },
   retries: process.env.CI ? 2 : 0,

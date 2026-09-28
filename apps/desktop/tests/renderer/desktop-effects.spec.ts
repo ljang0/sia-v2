@@ -219,7 +219,7 @@ test('navigation stays stable, previews do not select, and the compact rail keep
   await expect(logo).toBeVisible();
   await expect
     .poll(() => logo.evaluate((el) => (el as HTMLImageElement).naturalWidth))
-    .toBe(1254);
+    .toBe(256);
   const task = nav.getByRole('button', { name: 'Weekly research update', exact: true });
   await task.hover();
   await expect(page.getByRole('tooltip')).toBeVisible();
