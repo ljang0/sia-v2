@@ -1291,6 +1291,67 @@ button.agentAvatar {
   color: var(--text-secondary);
 }
 
+.markdownRule {
+  height: 1px;
+  margin: 16px 0;
+  border: 0;
+  background: var(--border-subtle);
+}
+
+.markdownTableWrap {
+  max-width: 100%;
+  margin: 10px 0 12px;
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+}
+
+.markdownTable {
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-md);
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+
+.markdownTable th,
+.markdownTable td {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: normal;
+}
+
+.markdownTable th {
+  background: var(--bg-subtle);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.markdownTable tr:last-child td {
+  border-bottom: 0;
+}
+
+.markdownTable [data-align='right'] {
+  text-align: right;
+}
+
+.markdownTable [data-align='center'] {
+  text-align: center;
+}
+
+.markdownList:has(> li > .markdownTaskBox) {
+  padding-left: 4px;
+  list-style: none;
+}
+
+.markdownTaskBox {
+  margin: 0 8px 0 0;
+  vertical-align: -1px;
+  accent-color: var(--text-success);
+}
+
 .assistantMessage {
   align-self: flex-start;
   padding: 0 24px 4px 0;
@@ -1583,7 +1644,7 @@ button.agentAvatar {
   color: var(--text-secondary);
 }
 
-.notice strong,
+.notice > div > strong,
 .queueBanner strong,
 .errorBanner strong {
   display: block;
@@ -5173,6 +5234,8 @@ button.agentAvatar {
 }
 
 .eventSearchAnchor {
+  display: flex;
+  flex-direction: column;
   border-radius: var(--radius-surface);
   scroll-margin-block: 80px;
 }
@@ -6243,7 +6306,7 @@ button.agentAvatar {
   bottom: calc(100% + 8px);
   display: flex;
   width: min(360px, calc(100vw - 48px));
-  max-height: min(66vh, 560px);
+  max-height: min(66vh, 560px, calc(100vh - 250px));
   flex-direction: column;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--agent-color) 20%, var(--border-subtle));
@@ -6485,7 +6548,7 @@ button.agentAvatar {
   right: 32px;
   bottom: calc(100% + 6px);
   width: min(720px, calc(100% - 64px));
-  max-height: min(64vh, 560px);
+  max-height: min(64vh, 560px, calc(100vh - 250px));
   overflow-y: auto;
   padding: 40px 14px 14px;
   border: 1px solid color-mix(in srgb, var(--border-strong) 54%, var(--border-subtle));
@@ -6664,6 +6727,10 @@ button.agentAvatar {
 .userMessage .messageContent {
   font-size: var(--text-base);
   line-height: 1.55;
+}
+
+.userMessage .messageContent > p {
+  white-space: pre-wrap;
 }
 
 .message header span:first-child,

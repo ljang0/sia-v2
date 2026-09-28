@@ -447,6 +447,7 @@ export function Conversation({
     >
       <EventView
         event={event}
+        agentName={agentName}
         noticeExplained={
           event.type === 'notice' &&
           event.tone === 'error' &&
@@ -793,7 +794,7 @@ export function Conversation({
         onDraftChange={onDraftChange}
         placeholder={
           pendingQuestion
-            ? 'Reply to Sia’s question'
+            ? `Reply to ${agentName ?? 'Sia'}’s question`
             : waitingForApproval
               ? 'Review the pending approval or stop this turn'
               : running || queued
@@ -824,6 +825,7 @@ function scrollToLatest(scroller: HTMLDivElement, behavior: ScrollBehavior) {
 }
 
 interface EventViewProps {
+  agentName?: string | undefined;
   completed?: boolean | undefined;
   noticeExplained?: boolean;
   event: ThreadEvent;
@@ -839,6 +841,7 @@ interface EventViewProps {
 }
 
 function EventView({
+  agentName = 'Sia',
   completed,
   event,
   noticeExplained,
@@ -878,8 +881,8 @@ function EventView({
       <div className={styles.notice} role="status">
         <ChatCircle size={17} aria-hidden="true" />
         <div>
-          <strong>Provider needs input</strong>
-          <p>{event.prompt}</p>
+          <strong>{agentName} has a question</strong>
+          <SafeMarkdown content={event.prompt} />
         </div>
       </div>
     );
@@ -901,7 +904,7 @@ function EventView({
         )}
       </span>
       <header>
-        <span>{event.role === 'user' ? 'You' : 'Sia'}</span>
+        <span>{event.role === 'user' ? 'You' : agentName}</span>
         <time dateTime={event.timestamp}>{formatTime(event.timestamp)}</time>
         <CopyMessageButton content={event.content} />
         {event.role === 'assistant' && onToggleSpeech ? (

@@ -7,6 +7,8 @@ import { ActivityDashboard } from './ActivityDashboard';
 import { ChangesReview } from './ChangesReview';
 import { TerminalDrawer } from './TerminalDrawer';
 import { ArchivedThreadsSection } from './ThreadLifecycle';
+import { ThreadWorkspaceTools } from './ThreadWorkspace';
+import { createDemoRendererApi, demoSnapshot } from '../../demo';
 import { TranscriptSearch } from './TranscriptSearch';
 import { GoalControls, ScheduleControls, ThreadModelControls } from './WorkControls';
 
@@ -459,5 +461,29 @@ describe('changed file summaries', () => {
     expect((screen.getByRole('textbox', { name: 'Task' }) as HTMLInputElement).value).toBe(
       'Draft my Monday plan',
     );
+  });
+
+  it('explains an unreadable folder instead of claiming there are no changes', async () => {
+    const api = createDemoRendererApi(structuredClone(demoSnapshot));
+    api.readChanges = vi.fn(async () => {
+      throw new Error('The selected workspace is not a Git repository.');
+    });
+    render(
+      <ThreadWorkspaceTools
+        thread={structuredClone(demoSnapshot.activeThread!)}
+        snapshot={structuredClone(demoSnapshot)}
+        api={api}
+        run={async (action) => void (await action())}
+      />,
+    );
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Tools' }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Changes' }));
+    expect((await screen.findByTestId('changes-error')).textContent).toContain(
+      'not a Git repository',
+    );
+    expect(screen.queryByText('The workspace has no uncommitted changes.')).toBeNull();
   });
 });

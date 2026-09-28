@@ -160,7 +160,7 @@ export function GoalControls({
             ) : (
               <Pause size={15} aria-hidden="true" />
             )}
-            {goal.status}
+            {goal.status === 'running' ? 'Active' : 'Paused'}
           </span>
         </div>
         <div className={styles.localActionRow}>

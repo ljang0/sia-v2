@@ -94,7 +94,7 @@
 .roomMeta span {
   display: block;
   min-width: 0;
-  max-width: min(60ch, 100%);
+  max-width: min(56ch, 100%);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

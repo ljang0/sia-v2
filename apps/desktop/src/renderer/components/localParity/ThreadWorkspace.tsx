@@ -37,6 +37,7 @@ export function ThreadWorkspaceTools({
   const [tool, setTool] = useState<Tool>();
   const [changes, setChanges] = useState<WorkspaceDiff>();
   const [changesLoading, setChangesLoading] = useState(false);
+  const [changesError, setChangesError] = useState<string>();
   const [busyPath, setBusyPath] = useState<string>();
   const [reviewing, setReviewing] = useState(false);
   const [snapshots, setSnapshots] = useState<WorkspaceSnapshot[]>([]);
@@ -50,6 +51,7 @@ export function ThreadWorkspaceTools({
   useEffect(() => {
     setTool(undefined);
     setChanges(undefined);
+    setChangesError(undefined);
     setTerminalRun({ status: 'idle' });
     setBackgroundTerminals([]);
     setBackgroundStarting(false);
@@ -90,6 +92,7 @@ export function ThreadWorkspaceTools({
   const openChanges = async () => {
     setTool('changes');
     setChangesLoading(true);
+    setChangesError(undefined);
     try {
       const [nextChanges, nextSnapshots] = await Promise.all([
         api.readChanges(thread.id),
@@ -97,6 +100,14 @@ export function ThreadWorkspaceTools({
       ]);
       setChanges(nextChanges);
       setSnapshots(nextSnapshots);
+    } catch (cause) {
+      // Without this, an unreadable folder looked like "no uncommitted changes".
+      setChanges(undefined);
+      setChangesError(
+        cause instanceof Error && cause.message
+          ? cause.message
+          : 'Sia could not read the changes in this folder.',
+      );
     } finally {
       setChangesLoading(false);
     }
@@ -224,6 +235,10 @@ export function ThreadWorkspaceTools({
           ) : changesLoading ? (
             <p className={styles.localEmpty} role="status">
               Reading workspace changes…
+            </p>
+          ) : changesError ? (
+            <p className={styles.localEmpty} role="alert" data-testid="changes-error">
+              {changesError}
             </p>
           ) : (
             <ChangesReview

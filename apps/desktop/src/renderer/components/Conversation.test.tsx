@@ -165,6 +165,52 @@ describe('Conversation waiting controls', () => {
     expect(onStop).toHaveBeenCalledOnce();
   });
 
+  it('names the agent on replies and questions and keeps typed line breaks', () => {
+    render(
+      <Conversation
+        agentName="Research partner"
+        thread={baseThread({
+          events: [
+            {
+              id: 'user-1',
+              type: 'message',
+              role: 'user',
+              content: 'Plan my trip:\n- Friday\n- Sunday',
+              timestamp: '2026-08-13T00:00:00.000Z',
+            },
+            {
+              id: 'reply-1',
+              type: 'message',
+              role: 'assistant',
+              content: 'Which seat?',
+              timestamp: '2026-08-13T00:00:00.000Z',
+            },
+            {
+              id: 'question-1',
+              type: 'question',
+              prompt: 'Do you prefer an **aisle** seat?',
+              status: 'pending',
+              timestamp: '2026-08-13T00:00:00.000Z',
+            },
+          ],
+        })}
+        onSend={async () => undefined}
+        onStop={async () => undefined}
+        onRetry={async () => undefined}
+        onResolveApproval={async () => undefined}
+      />,
+    );
+    expect(screen.getByText('Research partner has a question')).toBeTruthy();
+    expect(screen.queryByText('Provider needs input')).toBeNull();
+    expect(screen.getByText('aisle').tagName).toBe('STRONG');
+    expect(
+      document.querySelector('[data-message-role="assistant"] header span')?.textContent,
+    ).toBe('Research partner');
+    expect(document.querySelector('[data-message-role="user"] p')?.textContent).toBe(
+      'Plan my trip:\n- Friday\n- Sunday',
+    );
+  });
+
   it('ignores an answered-turn question once the thread is no longer waiting', () => {
     renderConversation(
       baseThread({
