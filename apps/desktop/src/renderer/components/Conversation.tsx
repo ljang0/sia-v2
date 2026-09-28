@@ -165,11 +165,8 @@ export function Conversation({
   const lastAssistant = thread?.events.findLast(
     (event) => event.type === 'message' && event.role === 'assistant',
   );
-  const lastEvent = thread?.events.at(-1);
   const errorAlreadyExplained =
-    (lastAssistant?.type === 'message' &&
-      lastAssistant.content.trim() === thread?.error?.trim()) ||
-    (lastEvent?.type === 'notice' && lastEvent.detail.trim() === thread?.error?.trim());
+    lastAssistant?.type === 'message' && lastAssistant.content.trim() === thread?.error?.trim();
 
   const findNeedle = findQuery.trim().toLocaleLowerCase();
   const matchingEventIds = findNeedle
