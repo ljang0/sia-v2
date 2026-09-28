@@ -249,3 +249,60 @@ describe('bridge renderer truthfulness', () => {
     });
   });
 });
+
+describe('bridge renderer queued follow-ups', () => {
+  it('shows pending user messages as queued follow-ups outside the transcript', async () => {
+    const source = snapshot([
+      {
+        id: 'user-1',
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        sequence: 1,
+        kind: 'user',
+        text: 'Draft the plan',
+        status: 'complete',
+        timestamp: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'user-2',
+        threadId: 'thread-1',
+        turnId: 'turn-2',
+        sequence: 2,
+        kind: 'user',
+        text: 'Also add dates',
+        status: 'pending',
+        timestamp: '2026-01-01T00:00:05.000Z',
+      },
+      {
+        id: 'reply-1',
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        sequence: 3,
+        kind: 'assistant',
+        text: 'Working on it',
+        status: 'running',
+        timestamp: '2026-01-01T00:00:06.000Z',
+      },
+    ]);
+    source.threads[0]!.status = 'running';
+    const mapped = mapDesktopSnapshot(source);
+    expect(mapped.activeThread?.events.map(({ id }) => id)).toEqual(['user-1', 'reply-1']);
+    expect(mapped.activeThread?.queuedMessages).toEqual([
+      expect.objectContaining({ id: 'user-2', role: 'user', content: 'Also add dates' }),
+    ]);
+    expect(mapped.agents[0]?.threads[0]?.preview).toEqual({
+      label: 'Latest reply',
+      text: 'Working on it',
+    });
+
+    const unqueue = vi.fn(async () => structuredClone(source));
+    const api = createBridgeRendererApi({
+      bootstrap: async () => source,
+      threads: { unqueue },
+      subscribe: () => () => undefined,
+    } as unknown as DesktopBridgeApi);
+    await api.getSnapshot();
+    await api.removeQueuedMessage('thread-1', 'user-2');
+    expect(unqueue).toHaveBeenCalledWith('thread-1', 'user-2');
+  });
+});

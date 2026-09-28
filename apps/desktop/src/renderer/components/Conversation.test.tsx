@@ -549,3 +549,69 @@ describe('Conversation continuity tools', () => {
     expect(screen.getByText('1 found')).toBeTruthy();
   });
 });
+
+describe('Conversation follow-ups while running', () => {
+  const queuedMessage: MessageEvent = {
+    id: 'queued-1',
+    type: 'message',
+    role: 'user',
+    content: 'Also add the dates',
+    timestamp: '2026-09-28T00:00:00.000Z',
+  };
+
+  it('accepts a follow-up while the turn runs and keeps Stop visible', async () => {
+    const { onSend } = renderConversation(baseThread({ status: 'running' }));
+    const input = screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement;
+    expect(input.disabled).toBe(false);
+    expect(input.placeholder).toBe('Add a follow-up — Sia will pick it up next');
+    expect(screen.getByRole('button', { name: 'Stop current turn' })).toBeTruthy();
+
+    fireEvent.change(input, { target: { value: 'Also add the dates' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('Also add the dates', []));
+    await waitFor(() => expect(input.value).toBe(''));
+  });
+
+  it('accepts a follow-up while a stopped turn winds down', () => {
+    renderConversation(
+      baseThread({ status: 'queued', queueReason: 'Finishing the stopped task.' }),
+    );
+    const input = screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement;
+    expect(input.disabled).toBe(false);
+    expect(screen.getByRole('button', { name: 'Queue follow-up message' })).toBeTruthy();
+    expect(screen.getByText('Finishing the stopped task.')).toBeTruthy();
+  });
+
+  it('shows queued follow-ups apart from the transcript and removes one', async () => {
+    const onRemoveQueued = vi.fn(async () => undefined);
+    render(
+      <Conversation
+        thread={baseThread({
+          status: 'running',
+          events: [
+            {
+              id: 'first',
+              type: 'message',
+              role: 'user',
+              content: 'Draft the plan',
+              timestamp: '2026-09-28T00:00:00.000Z',
+            },
+          ],
+          queuedMessages: [queuedMessage],
+        })}
+        onSend={vi.fn(async () => undefined)}
+        onStop={vi.fn(async () => undefined)}
+        onRemoveQueued={onRemoveQueued}
+        onRetry={async () => undefined}
+        onResolveApproval={async () => undefined}
+      />,
+    );
+    const queue = screen.getByRole('region', { name: 'Queued messages' });
+    expect(queue.textContent).toContain('Queued · Sia will pick this up next');
+    expect(queue.textContent).toContain('Also add the dates');
+    expect(screen.getAllByText('Also add the dates')).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove queued message' }));
+    await waitFor(() => expect(onRemoveQueued).toHaveBeenCalledWith('queued-1'));
+  });
+});

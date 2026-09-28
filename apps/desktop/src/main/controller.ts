@@ -1808,6 +1808,11 @@ export class DesktopController {
         return this.#retryTurn(
           (input as BridgeRequestMap['threads.retry']).threadId,
         ) as BridgeResultMap[M];
+      case 'threads.unqueue':
+        return this.#unqueueMessage(
+          (input as BridgeRequestMap['threads.unqueue']).threadId,
+          (input as BridgeRequestMap['threads.unqueue']).messageId,
+        ) as BridgeResultMap[M];
       case 'threads.cancel':
         return (await this.#cancelTurn(
           (input as BridgeRequestMap['threads.cancel']).threadId,
@@ -3076,10 +3081,12 @@ export class DesktopController {
     // Provider state can change after an agent or immutable thread was created.
     // Revalidate every new turn instead of trusting persisted configuration.
     this.#requireReadyProvider(thread.provider, thread.model);
-    if (
-      this.#runningTurns.has(thread.id) ||
-      this.#queuedTurns.some(({ threadId }) => threadId === thread.id)
-    ) {
+    const running = this.#runningTurns.get(thread.id);
+    // A person can add follow-ups while the thread works, or while a stopped turn is still
+    // winding down. They wait behind the thread's own turn and start in order when it ends.
+    const followUp =
+      Boolean(running) || this.#queuedTurns.some(({ threadId }) => threadId === thread.id);
+    if (followUp && (source !== 'manual' || reviewTarget)) {
       throw new Error('This thread already has an active turn.');
     }
     delete thread.draft;
@@ -3094,7 +3101,8 @@ export class DesktopController {
       ...(attachmentGrants.length
         ? { attachments: attachmentGrants.map(({ view }) => structuredClone(view)) }
         : {}),
-      status: 'complete',
+      // A pending user message is a queued follow-up. #startTurn marks it complete.
+      status: followUp ? 'pending' : 'complete',
       timestamp,
       ...(scheduleRunId ? { scheduleRunId } : {}),
     });
@@ -3127,7 +3135,13 @@ export class DesktopController {
     };
     // Keep short-lived grants available for local preview/open after send. They still expire
     // after one hour and are never persisted, so a relaunch cannot revive file access.
-    if (this.#runningTurns.size >= 4) {
+    if (followUp) {
+      this.#queuedTurns.push(queued);
+      if (running?.signal.aborted) {
+        thread.status = 'queued';
+        thread.queueReason = 'Finishing the stopped task.';
+      }
+    } else if (this.#runningTurns.size >= 4) {
       thread.status = 'queued';
       thread.queueReason = 'Four local tasks are already running.';
       this.#queuedTurns.push(queued);
@@ -3231,6 +3245,8 @@ export class DesktopController {
     this.#queuedTurns = this.#queuedTurns.filter((turn) => turn.threadId !== threadId);
     if (activeTurnId) this.#discardResearchTurn(activeTurnId);
     for (const turnId of queuedTurnIds) this.#discardResearchTurn(turnId);
+    // Stop cancels queued follow-ups too; their unsent messages leave the thread.
+    const removedFollowUps = this.#removeQueuedMessages(threadId, new Set(queuedTurnIds));
     const question = this.#pendingQuestions.get(threadId);
     this.#pendingQuestions.delete(threadId);
     if (question) {
@@ -3244,12 +3260,71 @@ export class DesktopController {
       id: randomUUID(),
       kind: 'notice',
       title: 'Task cancelled',
-      text: 'Completed work remains in this thread.',
+      text: removedFollowUps
+        ? `Completed work remains in this thread. ${removedFollowUps === 1 ? 'Your queued message was' : 'Your queued messages were'} not sent.`
+        : 'Completed work remains in this thread.',
       status: 'complete',
       timestamp: new Date().toISOString(),
     });
     this.#commit();
     return this.snapshot();
+  }
+
+  /** A finished turn leaves its thread idle, or queued when a follow-up is about to start. */
+  #settleFinishedTurn(thread: ThreadView): void {
+    if (this.#queuedTurns.some((turn) => turn.threadId === thread.id)) {
+      thread.status = 'queued';
+      thread.queueReason = 'Starting your next message.';
+    } else {
+      thread.status = 'idle';
+      delete thread.queueReason;
+    }
+  }
+
+  /** Removes a follow-up that has not started yet. */
+  #unqueueMessage(threadId: string, messageId: string): DesktopSnapshot {
+    const thread = this.#requireThread(threadId);
+    const item = this.#state.timeline.find(
+      (candidate) =>
+        candidate.id === messageId &&
+        candidate.threadId === threadId &&
+        candidate.kind === 'user' &&
+        candidate.status === 'pending',
+    );
+    const turnId = item?.turnId;
+    if (!turnId || !this.#queuedTurns.some((turn) => turn.id === turnId)) {
+      throw new Error('This message has already started or was removed.');
+    }
+    this.#queuedTurns = this.#queuedTurns.filter((turn) => turn.id !== turnId);
+    this.#discardResearchTurn(turnId);
+    this.#removeQueuedMessages(threadId, new Set([turnId]));
+    if (
+      thread.status === 'queued' &&
+      !this.#runningTurns.has(threadId) &&
+      !this.#queuedTurns.some((turn) => turn.threadId === threadId)
+    ) {
+      thread.status = 'idle';
+      delete thread.queueReason;
+    }
+    thread.updatedAt = new Date().toISOString();
+    this.#commit();
+    return this.snapshot();
+  }
+
+  /** Drops the pending user messages of queued follow-ups that will no longer run. */
+  #removeQueuedMessages(threadId: string, turnIds: ReadonlySet<string>): number {
+    const before = this.#state.timeline.length;
+    this.#state.timeline = this.#state.timeline.filter(
+      (item) =>
+        !(
+          item.threadId === threadId &&
+          item.kind === 'user' &&
+          item.status === 'pending' &&
+          item.turnId &&
+          turnIds.has(item.turnId)
+        ),
+    );
+    return before - this.#state.timeline.length;
   }
 
   async #pickAttachments(threadId: string): Promise<BridgeResultMap['attachments.pick']> {
@@ -3915,7 +3990,8 @@ export class DesktopController {
       this.#requireSignedInReleaseAccount();
       const thread = this.#requireThread(input.threadId);
       const lastUser = this.#state.timeline.findLast(
-        (item) => item.threadId === thread.id && item.kind === 'user',
+        (item) =>
+          item.threadId === thread.id && item.kind === 'user' && item.status !== 'pending',
       );
       if (thread.archivedAt || !lastUser || lastUser.id !== input.userMessageId)
         throw new Error(
@@ -5926,6 +6002,23 @@ export class DesktopController {
   #startTurn(turn: QueuedTurn): void {
     if (this.#shuttingDown) return;
     const thread = this.#requireThread(turn.threadId);
+    const followUp = this.#state.timeline.find(
+      (item) =>
+        item.threadId === thread.id &&
+        item.turnId === turn.id &&
+        item.kind === 'user' &&
+        item.status === 'pending',
+    );
+    if (followUp) {
+      // A queued follow-up joins the conversation when it starts, after the previous turn.
+      followUp.status = 'complete';
+      followUp.sequence =
+        this.#state.timeline.reduce(
+          (highest, item) =>
+            item.threadId === thread.id ? Math.max(highest, item.sequence) : highest,
+          0,
+        ) + 1;
+    }
     const unavailable = this.#providerReadinessError(thread.provider, thread.model);
     if (unavailable) {
       thread.status = 'failed';
@@ -6038,7 +6131,7 @@ export class DesktopController {
           provider: thread.provider,
         });
         this.#completeResearchTurn(turn.id);
-        thread.status = 'idle';
+        this.#settleFinishedTurn(thread);
         delete thread.interruptedTurnId;
         this.#markTurnFinished(thread, turn, 'complete');
         thread.updatedAt = new Date().toISOString();
@@ -6192,6 +6285,11 @@ export class DesktopController {
             item.toolName === 'runtime.start',
         );
         for await (const event of events) {
+          // After Stop, the thread's status belongs to #cancelTurn and to any follow-up sent
+          // since; late events from the stopped turn must not overwrite it.
+          const stoppedStatus = signal.aborted
+            ? { status: thread.status, queueReason: thread.queueReason }
+            : undefined;
           // Startup is over once the provider begins visible work. Complete only this
           // activity so an in-flight tool remains running until its own result arrives.
           if (startup?.status === 'running' && event.type !== 'usage' && event.type !== 'error')
@@ -6224,12 +6322,17 @@ export class DesktopController {
               payload: { ...event.payload, status: 'failed' },
             });
           } else this.#applyRuntimeEvent(event);
+          if (stoppedStatus) {
+            thread.status = stoppedStatus.status;
+            if (stoppedStatus.queueReason) thread.queueReason = stoppedStatus.queueReason;
+            else delete thread.queueReason;
+          }
           this.#commit(isStreamingDelta(event));
         }
         await recordNative(macTask?.result?.success ? 'complete' : 'failed');
         this.#completeRunningActivities(turn.threadId, turn.id);
         if (thread.status === 'running' || thread.status === 'waiting') {
-          thread.status = 'idle';
+          this.#settleFinishedTurn(thread);
           this.#completeResearchTurn(turn.id);
         }
         delete thread.interruptedTurnId;
@@ -6708,7 +6811,8 @@ export class DesktopController {
     if (event.type === 'completion') {
       this.#pendingQuestions.delete(event.threadId);
       this.#completeRunningActivities(event.threadId, event.turnId);
-      thread.status = event.payload.status === 'failed' ? 'failed' : 'idle';
+      if (event.payload.status === 'failed') thread.status = 'failed';
+      else this.#settleFinishedTurn(thread);
       if (
         event.payload.status === 'failed' &&
         !this.#state.timeline.some(
@@ -7059,6 +7163,15 @@ export class DesktopController {
     this.#runningTurns.delete(threadId);
     if (thread) this.#workspaceLeases.delete(thread.workspace);
     this.#drainQueue();
+    // A follow-up can still wait when another thread took the workspace first.
+    if (
+      thread &&
+      !this.#runningTurns.has(threadId) &&
+      this.#queuedTurns.some((turn) => turn.threadId === threadId)
+    ) {
+      thread.status = 'queued';
+      thread.queueReason = 'Waiting for another task to release this workspace.';
+    }
   }
 
   #drainQueue(): void {
@@ -7427,6 +7540,24 @@ export class DesktopController {
             detail: 'Connection setup was interrupted. Verify or disconnect this saved grant.',
           }
         : connection;
+    });
+    // Queued follow-ups live in memory. After a relaunch, return unsent text to the composer
+    // instead of starting it unattended or showing it as a message that was sent.
+    const unsentFollowUps = new Map<string, string[]>();
+    recovered.timeline = recovered.timeline.filter((item) => {
+      if (item.kind !== 'user' || item.status !== 'pending') return true;
+      const texts = unsentFollowUps.get(item.threadId) ?? [];
+      if (item.text?.trim()) texts.push(item.text.trim());
+      unsentFollowUps.set(item.threadId, texts);
+      return false;
+    });
+    recovered.threads = recovered.threads.map((thread) => {
+      const unsent = unsentFollowUps.get(thread.id);
+      if (!unsent?.length) return thread;
+      return {
+        ...thread,
+        draft: [thread.draft?.trim(), ...unsent].filter(Boolean).join('\n\n'),
+      };
     });
     recovered.threads = recovered.threads.map((thread) => {
       const agent = recovered.agents.find(({ id }) => id === thread.agentId);

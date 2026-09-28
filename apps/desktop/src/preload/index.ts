@@ -69,6 +69,7 @@ const api: DesktopBridgeApi = {
     send: (input) => invoke('threads.send', input),
     retry: (threadId) => invoke('threads.retry', { threadId }),
     cancel: (threadId) => invoke('threads.cancel', { threadId }),
+    unqueue: (threadId, messageId) => invoke('threads.unqueue', { threadId, messageId }),
   },
   worktrees: {
     cleanup: (threadId) =>

@@ -6183,3 +6183,213 @@ it('preserves connected mode for existing profiles, including profiles predating
   expect(legacy.controller.computerAccessMode()).toBe('connected');
   await legacy.controller.shutdown();
 });
+
+describe('follow-up messages while a turn runs', () => {
+  function followUpRuntime() {
+    const turns: RuntimeTurnInput[] = [];
+    const release = new Map<string, () => void>();
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput, signal?: AbortSignal) {
+        turns.push(input);
+        const event = {
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        yield {
+          ...event,
+          id: randomUUID(),
+          sequence: 1,
+          type: 'message' as const,
+          payload: {
+            messageId: `reply-${input.turnId}`,
+            role: 'assistant' as const,
+            parts: [{ kind: 'text' as const, text: `Reply ${turns.length}` }],
+            delta: false,
+          },
+        };
+        await new Promise<void>((resolve) => {
+          release.set(input.turnId, resolve);
+          // A stopped native turn takes a moment to wind down, like Codex cleanup does.
+          signal?.addEventListener('abort', () => setTimeout(resolve, 60), { once: true });
+        });
+        yield {
+          ...event,
+          id: randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: {
+            status: signal?.aborted ? ('cancelled' as const) : ('completed' as const),
+          },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    return { runtime, turns, release };
+  }
+
+  async function startThread(runtime: unknown) {
+    const { controller, repository } = await createHarness({ fakeServices: false, runtime });
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'Follow-ups',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId });
+    const thread = () => controller.snapshot().threads.find(({ id }) => id === threadId)!;
+    const users = () =>
+      controller
+        .snapshot()
+        .timeline.filter((item) => item.threadId === threadId && item.kind === 'user')
+        .sort((left, right) => left.sequence - right.sequence);
+    return { controller, repository, threadId, thread, users };
+  }
+
+  it('queues a message sent while the turn runs and starts it when the turn ends', async () => {
+    const { runtime, turns, release } = followUpRuntime();
+    const { controller, threadId, thread, users } = await startThread(runtime);
+    try {
+      const first = await controller.invoke('threads.send', {
+        threadId,
+        text: 'Draft the plan',
+      });
+      await vi.waitFor(() => expect(release.has(first.turnId)).toBe(true));
+
+      const second = await controller.invoke('threads.send', {
+        threadId,
+        text: 'Also add dates',
+      });
+      expect(thread().status).toBe('running');
+      expect(users().map(({ text, status }) => ({ text, status }))).toEqual([
+        { text: 'Draft the plan', status: 'complete' },
+        { text: 'Also add dates', status: 'pending' },
+      ]);
+      expect(turns).toHaveLength(1);
+
+      release.get(first.turnId)!();
+      await vi.waitFor(() => expect(release.has(second.turnId)).toBe(true));
+      expect(thread().status).toBe('running');
+      expect(turns.map(({ turnId }) => turnId)).toEqual([first.turnId, second.turnId]);
+      expect(turns[1]!.text).toContain('Also add dates');
+      // The first turn's reply is context for the follow-up; the follow-up is not repeated.
+      expect(turns[1]!.thread.priorMessages?.map(({ text }) => text)).toEqual([
+        'Draft the plan',
+        'Reply 1',
+      ]);
+      // It joins the transcript after the reply it followed, exactly once.
+      const ordered = controller
+        .snapshot()
+        .timeline.filter(
+          (item) =>
+            item.threadId === threadId && (item.kind === 'user' || item.kind === 'assistant'),
+        )
+        .sort((left, right) => left.sequence - right.sequence)
+        .map(({ text }) => text);
+      expect(ordered).toEqual(['Draft the plan', 'Reply 1', 'Also add dates', 'Reply 2']);
+      expect(users().every(({ status }) => status === 'complete')).toBe(true);
+
+      release.get(second.turnId)!();
+      await vi.waitFor(() => expect(thread().status).toBe('idle'));
+      expect(turns).toHaveLength(2);
+      expect(users()).toHaveLength(2);
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('queues a message sent right after Stop and starts it once the stopped turn winds down', async () => {
+    const { runtime, turns, release } = followUpRuntime();
+    const { controller, threadId, thread, users } = await startThread(runtime);
+    try {
+      const first = await controller.invoke('threads.send', { threadId, text: 'Book a table' });
+      await vi.waitFor(() => expect(release.has(first.turnId)).toBe(true));
+      await controller.invoke('threads.cancel', { threadId });
+      expect(thread().status).toBe('idle');
+
+      const next = await controller.invoke('threads.send', {
+        threadId,
+        text: 'Try 7pm instead',
+      });
+      expect(thread()).toMatchObject({
+        status: 'queued',
+        queueReason: 'Finishing the stopped task.',
+      });
+      expect(users().at(-1)).toMatchObject({ text: 'Try 7pm instead', status: 'pending' });
+
+      await vi.waitFor(() => expect(release.has(next.turnId)).toBe(true));
+      expect(thread().status).toBe('running');
+      expect(turns.map(({ turnId }) => turnId)).toEqual([first.turnId, next.turnId]);
+      release.get(next.turnId)!();
+      await vi.waitFor(() => expect(thread().status).toBe('idle'));
+      expect(users().map(({ text, status }) => ({ text, status }))).toEqual([
+        { text: 'Book a table', status: 'complete' },
+        { text: 'Try 7pm instead', status: 'complete' },
+      ]);
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('removes a queued follow-up before it starts, and Stop drops the rest', async () => {
+    const { runtime, turns, release } = followUpRuntime();
+    const { controller, threadId, thread, users } = await startThread(runtime);
+    try {
+      const first = await controller.invoke('threads.send', { threadId, text: 'Summarize' });
+      await vi.waitFor(() => expect(release.has(first.turnId)).toBe(true));
+      await controller.invoke('threads.send', { threadId, text: 'Shorter please' });
+      await controller.invoke('threads.send', { threadId, text: 'And in French' });
+      const shorter = users().find(({ text }) => text === 'Shorter please')!;
+
+      await controller.invoke('threads.unqueue', { threadId, messageId: shorter.id });
+      expect(users().map(({ text }) => text)).toEqual(['Summarize', 'And in French']);
+      await expect(
+        controller.invoke('threads.unqueue', { threadId, messageId: shorter.id }),
+      ).rejects.toThrow('already started or was removed');
+
+      await controller.invoke('threads.cancel', { threadId });
+      expect(users().map(({ text }) => text)).toEqual(['Summarize']);
+      expect(controller.snapshot().timeline.at(-1)).toMatchObject({
+        title: 'Task cancelled',
+        text: expect.stringContaining('Your queued message was not sent.'),
+      });
+      await vi.waitFor(() => expect(controller.snapshot().timeline.length).toBeGreaterThan(0));
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      expect(turns).toHaveLength(1);
+      expect(thread().status).toBe('idle');
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('returns unsent follow-ups to the composer after a relaunch', async () => {
+    const { runtime, release } = followUpRuntime();
+    const { controller, repository: initial, threadId } = await startThread(runtime);
+    const first = await controller.invoke('threads.send', { threadId, text: 'Clean my inbox' });
+    await vi.waitFor(() => expect(release.has(first.turnId)).toBe(true));
+    await controller.invoke('threads.send', { threadId, text: 'Skip newsletters' });
+    // Sia closed while the follow-up was still waiting.
+    const persisted = structuredClone(initial.get('desktop', 'state'));
+    await controller.shutdown();
+
+    const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+    repository.put('desktop', 'state', persisted);
+    const restored = await createHarness({ repository });
+    try {
+      const snapshot = restored.controller.snapshot();
+      const thread = snapshot.threads.find(({ id }) => id === threadId)!;
+      expect(thread.status).toBe('failed');
+      expect(thread.draft).toBe('Skip newsletters');
+      expect(
+        snapshot.timeline.filter((item) => item.threadId === threadId && item.kind === 'user'),
+      ).toEqual([expect.objectContaining({ text: 'Clean my inbox', status: 'complete' })]);
+    } finally {
+      await restored.controller.shutdown();
+    }
+  });
+});

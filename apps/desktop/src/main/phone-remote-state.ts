@@ -36,7 +36,11 @@ export function remoteState(
     ).length,
   };
   if (!thread) return result;
-  const items = snapshot.timeline.filter((entry) => entry.threadId === thread.id);
+  // Queued follow-ups have not been sent yet; they join the transcript when they start.
+  const items = snapshot.timeline.filter(
+    (entry) =>
+      entry.threadId === thread.id && !(entry.kind === 'user' && entry.status === 'pending'),
+  );
   const users = items.filter((entry) => entry.kind === 'user').slice(-12);
   result.turns = users.map((user, index) => {
     const next = users[index + 1];

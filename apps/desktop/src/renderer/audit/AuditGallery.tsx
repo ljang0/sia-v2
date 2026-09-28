@@ -154,8 +154,8 @@ export default function AuditGallery() {
           <div>
             <h3>Queued</h3>
             <Composer
-              disabled
-              placeholder="This thread is queued"
+              running
+              placeholder="Add a follow-up — Sia will pick it up next"
               executionLabel="Meta / Sia Meta, hosted model; tools on this Mac"
               onSend={() => Promise.resolve()}
               onStop={() => Promise.resolve()}

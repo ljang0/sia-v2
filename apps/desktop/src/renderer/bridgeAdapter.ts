@@ -13,6 +13,7 @@ import type {
   AgentSummary,
   ApprovalEvent,
   AppConnection,
+  MessageEvent,
   ProviderStatus,
   RendererApi,
   RendererSnapshot,
@@ -276,6 +277,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async cancelTurn(threadId) {
       publish(await bridge.threads.cancel(threadId));
     },
+    async removeQueuedMessage(threadId, messageId) {
+      publish(await bridge.threads.unqueue(threadId, messageId));
+    },
     async respondToApproval(approvalId, decision) {
       publish(
         await bridge.approvals.resolve({
@@ -523,9 +527,17 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
   }));
 
   const currentThread = source.threads.find((thread) => thread.id === source.activeThreadId);
+  const isQueuedMessage = (item: TimelineItemView) =>
+    item.kind === 'user' && item.status === 'pending';
+  const queuedMessages = currentThread
+    ? source.timeline
+        .filter((item) => item.threadId === currentThread.id && isQueuedMessage(item))
+        .sort((a, b) => a.sequence - b.sequence)
+        .map((item) => mapTimelineItem(item) as MessageEvent)
+    : [];
   const timeline = currentThread
     ? source.timeline
-        .filter((item) => item.threadId === currentThread.id)
+        .filter((item) => item.threadId === currentThread.id && !isQueuedMessage(item))
         .sort((a, b) => a.sequence - b.sequence)
         .map((item) => {
           const approval =
@@ -566,6 +578,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         draft: currentThread.draft,
         worktree: currentThread.worktree ? structuredClone(currentThread.worktree) : undefined,
         events: [...timeline, ...pendingApprovals],
+        ...(queuedMessages.length ? { queuedMessages } : {}),
         error:
           currentThread.status === 'failed'
             ? source.timeline.findLast(

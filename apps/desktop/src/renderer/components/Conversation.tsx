@@ -38,6 +38,7 @@ import { WorkGroup, WorkingStatus } from './WorkGroup';
 import { AgentForm } from './AgentForm';
 import { ApprovalCard } from './ApprovalCard';
 import { Composer } from './Composer';
+import { QueuedMessages } from './QueuedMessages';
 import { ConversationOutline, hasConversationOutline } from './ConversationOutline';
 import { SafeMarkdown } from './SafeMarkdown';
 import { DitherAurora as Aurora } from './effects/DitherAurora';
@@ -81,6 +82,7 @@ interface ConversationProps {
   completionSound?: boolean | undefined;
   onSend(content: string, attachmentIds?: readonly string[]): Promise<void>;
   onStop(): Promise<void>;
+  onRemoveQueued?: ((messageId: string) => Promise<void>) | undefined;
   onRetry(): Promise<void>;
   onResolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
   onCreateThread?: (() => void) | undefined;
@@ -124,6 +126,7 @@ export function Conversation({
   completionSound = false,
   onSend,
   onStop,
+  onRemoveQueued,
   onRetry,
   onResolveApproval,
   onCreateThread,
@@ -719,10 +722,15 @@ export function Conversation({
         </div>
       ) : null}
 
+      <QueuedMessages
+        messages={thread.queuedMessages ?? []}
+        agentName={agentName}
+        onRemove={onRemoveQueued}
+      />
       <Composer
         key={thread.id}
         initialValue={thread.draft ?? ''}
-        disabled={queued || waitingForApproval}
+        disabled={waitingForApproval}
         running={running || queued || waitingForApproval}
         stoppable={running || queued || waiting}
         executionLabel={executionLabel}
@@ -782,17 +790,15 @@ export function Conversation({
         }}
         onDraftChange={onDraftChange}
         placeholder={
-          queued
-            ? 'This thread is queued'
-            : pendingQuestion
-              ? 'Reply to Sia’s question'
-              : waitingForApproval
-                ? 'Review the pending approval or stop this turn'
-                : running
-                  ? `${agentName ?? 'Sia'} is working. You can send your next message when it finishes.`
-                  : thread.events.length === 0
-                    ? `Ask ${agentName ?? 'Sia'} to work on something`
-                    : `Ask ${agentName ?? 'Sia'} to continue`
+          pendingQuestion
+            ? 'Reply to Sia’s question'
+            : waitingForApproval
+              ? 'Review the pending approval or stop this turn'
+              : running || queued
+                ? `Add a follow-up — ${agentName ?? 'Sia'} will pick it up next`
+                : thread.events.length === 0
+                  ? `Ask ${agentName ?? 'Sia'} to work on something`
+                  : `Ask ${agentName ?? 'Sia'} to continue`
         }
         onSend={onSend}
         onStop={onStop}

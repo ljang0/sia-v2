@@ -220,7 +220,8 @@ export function Composer({
 
   const submit = async () => {
     const content = value.trim();
-    if ((!content && attachments.length === 0) || disabled || running || sending) return;
+    // While a turn runs, a sent message is queued as a follow-up by the main process.
+    if ((!content && attachments.length === 0) || disabled || sending) return;
     setSending(true);
     if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
     draftSaveTimer.current = undefined;
@@ -792,20 +793,19 @@ export function Composer({
               Stop
             </LiquidMetalButton>
           ) : null}
-          {!running ? (
-            <LiquidMetalButton
-              type="button"
-              size="compact"
-              viewMode="icon"
-              tone="sage"
-              onClick={() => void submit()}
-              disabled={disabled || (!value.trim() && attachments.length === 0) || sending}
-              aria-label="Send message"
-              data-testid="composer-send"
-            >
-              <ArrowUp weight="bold" size={16} aria-hidden="true" />
-            </LiquidMetalButton>
-          ) : null}
+          <LiquidMetalButton
+            type="button"
+            size="compact"
+            viewMode="icon"
+            tone="sage"
+            onClick={() => void submit()}
+            disabled={disabled || (!value.trim() && attachments.length === 0) || sending}
+            aria-label={running ? 'Queue follow-up message' : 'Send message'}
+            title={running ? 'Queue follow-up' : undefined}
+            data-testid="composer-send"
+          >
+            <ArrowUp weight="bold" size={16} aria-hidden="true" />
+          </LiquidMetalButton>
         </div>
       </div>
       {voiceError ? (

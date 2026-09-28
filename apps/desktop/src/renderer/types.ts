@@ -184,6 +184,8 @@ export interface ThreadDetail extends ThreadSummary {
   workspace: string;
   goal?: ThreadGoal | undefined;
   events: ThreadEvent[];
+  /** Follow-ups sent while the thread works; they start in order after the current task. */
+  queuedMessages?: MessageEvent[] | undefined;
   error?: string | undefined;
 }
 
@@ -586,6 +588,7 @@ export interface RendererApi {
   deleteSchedule(scheduleId: string): Promise<void>;
   runScheduleNow(scheduleId: string): Promise<void>;
   cancelTurn(threadId: string): Promise<void>;
+  removeQueuedMessage(threadId: string, messageId: string): Promise<void>;
   respondToApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
   retryThread(threadId: string): Promise<void>;
   setCapturePaused(paused: boolean): Promise<void>;

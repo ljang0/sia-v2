@@ -602,6 +602,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 onStop={() =>
                   activeThread ? run(() => api.cancelTurn(activeThread.id)) : Promise.resolve()
                 }
+                onRemoveQueued={(messageId) =>
+                  activeThread
+                    ? run(() => api.removeQueuedMessage(activeThread.id, messageId))
+                    : Promise.resolve()
+                }
                 browserRecovery={
                   snapshot.activeThread ? (
                     <BrowserTaskRecovery
