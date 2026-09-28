@@ -1110,23 +1110,34 @@ describe('DesktopController', () => {
         return { state: identityState } as const;
       },
     } satisfies ConstructorParameters<typeof DesktopController>[0]['identity'];
-    const { controller: cloudController } = await createHarness({
-      fakeServices: false,
-      runtime,
-      cloud: new CloudClient('https://api.example.test', { read: async () => 'token' }),
-      identity,
-    });
-    await expect(
-      cloudController.invoke('agents.save', {
-        name: 'Cloud assistant',
-        instructions: '',
-        provider: 'meta',
-        model: 'super_nova_ext',
-        workspace: '/tmp/sia-workspace',
+    // The cloud host is unreachable here; fail fast instead of waiting on DNS for a .test host.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('fetch failed');
       }),
-    ).rejects.toThrow(/Included models is not ready \(unavailable\)/);
-    expect(runtime.runTurn).not.toHaveBeenCalled();
-    await cloudController.shutdown();
+    );
+    try {
+      const { controller: cloudController } = await createHarness({
+        fakeServices: false,
+        runtime,
+        cloud: new CloudClient('https://api.example.test', { read: async () => 'token' }),
+        identity,
+      });
+      await expect(
+        cloudController.invoke('agents.save', {
+          name: 'Cloud assistant',
+          instructions: '',
+          provider: 'meta',
+          model: 'super_nova_ext',
+          workspace: '/tmp/sia-workspace',
+        }),
+      ).rejects.toThrow(/Included models is not ready \(unavailable\)/);
+      expect(runtime.runTurn).not.toHaveBeenCalled();
+      await cloudController.shutdown();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('streams deterministic local state and keeps completed work after a turn', async () => {
