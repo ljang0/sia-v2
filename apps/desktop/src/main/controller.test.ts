@@ -1657,6 +1657,92 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('returns to running after a provider approval and settles rows when a turn is cancelled', async () => {
+    let runtimeThreadId = '';
+    let waitForCancel = false;
+    const runtime = {
+      async *runTurn(input: { turnId: string }, signal: AbortSignal) {
+        if (waitForCancel)
+          await new Promise((_, reject) =>
+            signal.addEventListener('abort', () => reject(new Error('aborted')), {
+              once: true,
+            }),
+          );
+        const base = {
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 1,
+          type: 'approval' as const,
+          payload: {
+            phase: 'requested',
+            requestId: 'r1',
+            title: 'Run command',
+            description: 'ls',
+          },
+        } as never;
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const status = (id: string) =>
+      controller.snapshot().threads.find((t) => t.id === id)?.status;
+
+    const approved = await controller.invoke('threads.create', { agentId: agent.agentId });
+    runtimeThreadId = approved.threadId;
+    await controller.invoke('threads.send', {
+      threadId: approved.threadId,
+      text: 'List files',
+    });
+    await vi.waitFor(() => expect(status(approved.threadId)).toBe('waiting'));
+    const approval = controller
+      .snapshot()
+      .approvals.find((a) => a.threadId === approved.threadId)!;
+    await controller.invoke('approvals.resolve', {
+      approvalId: approval.id,
+      decision: 'approve',
+    });
+    expect(status(approved.threadId)).toBe('running');
+    await vi.waitFor(() => expect(status(approved.threadId)).toBe('idle'));
+
+    waitForCancel = true;
+    const cancelled = await controller.invoke('threads.create', { agentId: agent.agentId });
+    runtimeThreadId = cancelled.threadId;
+    await controller.invoke('threads.send', { threadId: cancelled.threadId, text: 'Wait' });
+    await controller.invoke('threads.cancel', { threadId: cancelled.threadId });
+    await vi.waitFor(() =>
+      expect(
+        controller
+          .snapshot()
+          .timeline.filter((item) => item.threadId === cancelled.threadId)
+          .filter((item) => item.status === 'running'),
+      ).toEqual([]),
+    );
+    await controller.shutdown();
+  });
+
   it('retries a failed turn without appending the user message again', async () => {
     let runtimeThreadId = '';
     let attempts = 0;

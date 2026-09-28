@@ -3670,6 +3670,7 @@ export class DesktopController {
     }
     clearTimeout(pending.timeout);
     this.#pendingApprovals.delete(input.approvalId);
+    if (pending.kind === 'provider') this.#resumeAfterProviderRequest(pending.threadId);
     this.#setApprovalStatus(
       input.approvalId,
       input.decision === 'approve' ? 'approved' : 'denied',
@@ -6272,6 +6273,7 @@ export class DesktopController {
         this.#requireThread(turn.threadId).status === 'failed' ? 'failed' : 'complete',
       );
       if (signal.aborted) {
+        this.#completeRunningActivities(turn.threadId, turn.id);
         this.#discardResearchTurn(turn.id);
         this.#markScheduleRunFinished(turn, 'cancelled');
         if (macTask) {
@@ -6768,6 +6770,7 @@ export class DesktopController {
     });
     const timeout = setTimeout(() => {
       this.#pendingApprovals.delete(approvalId);
+      this.#resumeAfterProviderRequest(event.threadId);
       this.#setApprovalStatus(approvalId, 'expired');
       void this.#runtime
         ?.respondToRequest(event.threadId, {
@@ -6967,6 +6970,20 @@ export class DesktopController {
       if (signal?.aborted) abort();
       else signal?.addEventListener('abort', abort, { once: true });
     });
+  }
+
+  /** A provider keeps working after its approval is answered; leave "waiting" once nothing is pending. */
+  #resumeAfterProviderRequest(threadId: string): void {
+    const thread = this.#state.threads.find(({ id }) => id === threadId);
+    if (
+      thread?.status === 'waiting' &&
+      this.#runningTurns.has(threadId) &&
+      !this.#pendingQuestions.has(threadId) &&
+      ![...this.#pendingApprovals.values()].some(
+        (pending) => pending.kind === 'provider' && pending.threadId === threadId,
+      )
+    )
+      thread.status = 'running';
   }
 
   #activeTurnId(threadId: string): string | undefined {
@@ -7395,6 +7412,9 @@ export class DesktopController {
     recovered.approvals = recovered.approvals.map((approval) =>
       approval.status === 'pending' ? { ...approval, status: 'expired' } : approval,
     );
+    // No turn survives a relaunch, so no activity row may keep spinning.
+    for (const item of recovered.timeline)
+      if (item.status === 'running') item.status = 'complete';
     const recoveredConnections = new Map(
       recovered.connections.map((connection) => [connection.id, connection]),
     );
@@ -7539,7 +7559,10 @@ async function settleBeforeShutdown(
 
 function isStreamingDelta(event: ThreadEventEnvelope): boolean {
   return (
-    (event.type === 'message' || event.type === 'reasoning') && event.payload.delta === true
+    ((event.type === 'message' || event.type === 'reasoning') &&
+      event.payload.delta === true) ||
+    // Command output and patch progress repeat the running tool; its terminal phase commits.
+    (event.type === 'tool' && event.payload.phase === 'started')
   );
 }
 
