@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { recentThreads, timeGreeting, welcomePrompts } from './welcome';
+import { STARTER_INSTRUCTIONS, recentThreads, timeGreeting, welcomePrompts } from './welcome';
 import type { AgentSummary, ThreadSummary } from './types';
 
 describe('personal welcome', () => {
@@ -39,5 +39,9 @@ describe('personal welcome', () => {
     expect(
       welcomePrompts({ ...agent, instructions: 'Help with my software repository.' })[0],
     ).toContain('current changes');
+    // The onboarding starter mentions research as one example; it is not a stated purpose.
+    expect(welcomePrompts({ ...agent, instructions: STARTER_INSTRUCTIONS })[0]).toContain(
+      'plan today',
+    );
   });
 });

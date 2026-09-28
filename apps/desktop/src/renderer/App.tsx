@@ -516,7 +516,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               api={api}
               onCustomize={app.openNewAgent}
               onModels={() => app.openSettings('providers')}
-              onAccount={() => app.openSettings('privacy')}
+              onAccount={() => app.openSettings('apps')}
             >
               <Conversation
                 thread={activeThread}

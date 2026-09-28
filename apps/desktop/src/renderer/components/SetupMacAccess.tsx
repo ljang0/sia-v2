@@ -19,6 +19,8 @@ type AccessStep = {
   name: string;
   ready: boolean;
   detail: string;
+  status?: string;
+  denied?: boolean;
   request(isCurrent: () => boolean): Promise<void>;
 };
 
@@ -108,6 +110,8 @@ export function SetupMacAccess({
               id,
               name,
               ready: status === 'ready',
+              status: automationStatusLabel[status],
+              denied: status === 'denied',
               detail:
                 status === 'denied'
                   ? `In Automation, expand Sia and turn on ${name}.`
@@ -241,7 +245,7 @@ export function SetupMacAccess({
                 setRetry((value) => value + 1);
               }}
             >
-              I don’t see the prompt
+              {current.denied ? 'Open System Settings' : 'I don’t see the prompt'}
             </button>
             {current.id === 'screen' && onRestart && (
               <button
@@ -324,7 +328,7 @@ export function SetupMacAccess({
                 <li className={styles.permission} key={step.id}>
                   <strong>{step.name}</strong>
                   <span className={step.ready ? styles.ready : styles.status}>
-                    {step.ready ? 'Allowed' : 'Needs access'}
+                    {step.ready ? 'Allowed' : (step.status ?? 'Needs access')}
                   </span>
                 </li>
               ))}

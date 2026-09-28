@@ -2,14 +2,13 @@ import { Check, Sparkle } from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { OnboardingStep } from '../../shared/bridge';
 import { modelChoices } from '../agentModels';
+import { STARTER_INSTRUCTIONS } from '../welcome';
 import type { RendererApi, RendererSnapshot } from '../types';
 import { SetupConnections } from './OnboardingConnections';
 import { SetupMacAccess } from './SetupMacAccess';
 import { ProvidersSettings } from './settings/ProvidersSettings';
 import ui from '../ui.module.css';
 import styles from './Onboarding.module.css';
-
-const starterInstructions = `You are Sia, a helpful personal assistant on the user's Mac. Help with everyday questions, writing, planning, research, and tasks in apps. Be concise, warm, and clear. Use the tools available to you to complete requested work. Explain the next step when access is missing. Use the provided action tools and follow the user's selected approval mode; when bypass is enabled, execute permitted actions without asking for each step. Never access passwords, secure fields, or authentication surfaces. Do not claim to have completed an action unless its result confirms it.`;
 
 export function onboardingStep(snapshot: RendererSnapshot): OnboardingStep | undefined {
   const progress = snapshot.preferences.onboarding;
@@ -81,6 +80,11 @@ export function Onboarding({
   );
   const connecting = snapshot.apps.some((app) => app.status === 'connecting');
   const busy = pending || permissionBusy || restarting || codexSetupBusy;
+  // An approval opens the section; keep it open afterwards so its result and errors stay visible.
+  const showConnections = step === 'apps' || connecting;
+  useEffect(() => {
+    if (showConnections) setConnectionsOpen(true);
+  }, [showConnections]);
 
   useEffect(() => {
     title.current?.focus();
@@ -114,7 +118,7 @@ export function Onboarding({
       if (!agent && choice?.ready)
         await api.createAgent({
           name: name.trim(),
-          instructions: starterInstructions,
+          instructions: STARTER_INSTRUCTIONS,
           provider: choice.provider,
           model: choice.model,
           workspace: '',
@@ -367,7 +371,7 @@ export function Onboarding({
             </div>
             <details
               className={styles.details}
-              open={step === 'apps' || connecting || undefined}
+              open={connectionsOpen || showConnections}
               onToggle={(event) => setConnectionsOpen(event.currentTarget.open)}
             >
               <summary>
