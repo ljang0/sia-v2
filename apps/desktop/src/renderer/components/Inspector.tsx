@@ -9,6 +9,7 @@ import {
   Eye,
   LinkBreak,
   LockKey,
+  ShieldCheck,
   X,
 } from '@phosphor-icons/react';
 import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
@@ -396,6 +397,19 @@ function ComputerPanel({
         ) : null}
       </section>
 
+      <section>
+        <h2 className={styles.inspectorSectionTitle}>Action approvals</h2>
+        <div className={styles.permissionRow} data-testid="computer-approval-mode">
+          <ShieldCheck size={16} aria-hidden="true" />
+          <span>Sia actions</span>
+          <strong>
+            {computer.trust === 'auto'
+              ? 'Runs without asking (full bypass)'
+              : 'Asks before each action'}
+          </strong>
+        </div>
+      </section>
+
       <section className={styles.inventorySection}>
         <h2 className={styles.inspectorSectionTitle}>Window access</h2>
         <p className={styles.inventoryNotice}>
@@ -407,7 +421,11 @@ function ComputerPanel({
       <div className={styles.inspectorFootnote}>
         <LockKey size={15} aria-hidden="true" />
         <span>
-          Password fields, authentication screens, and security settings stay blocked.
+          Sia’s own browser and computer actions can’t use password fields, sign-in screens, or
+          security settings.
+          {computer.accessMode === 'mac'
+            ? ' Commands your agent runs directly on this Mac aren’t covered by this limit.'
+            : ''}
         </span>
       </div>
     </div>

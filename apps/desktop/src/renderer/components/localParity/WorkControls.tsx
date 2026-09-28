@@ -13,6 +13,7 @@ import {
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { ScheduleRun, ThreadGoal } from '../../types';
 import styles from '../../ui.module.css';
+import { useConfirmDialog } from '../ConfirmDialog';
 
 interface SelectOption {
   id: string;
@@ -280,6 +281,7 @@ export function ScheduleControls({
   const [runAt, setRunAt] = useState('');
   const [maxRuns, setMaxRuns] = useState('1');
   const [expandedHistoryId, setExpandedHistoryId] = useState<string>();
+  const [confirm, confirmDialog] = useConfirmDialog();
   const titleId = useId();
 
   const submit = (event: FormEvent) => {
@@ -307,6 +309,7 @@ export function ScheduleControls({
 
   return (
     <section className={styles.scheduleControl} aria-labelledby={titleId}>
+      {confirmDialog}
       <div className={styles.localSurfaceHeader}>
         <div>
           <span className={styles.sectionLabel}>Runs while Sia is open</span>
@@ -481,7 +484,14 @@ export function ScheduleControls({
                   type="button"
                   className={styles.iconButtonSmall}
                   disabled={busy}
-                  onClick={() => void onDelete(schedule.id)}
+                  onClick={() =>
+                    confirm({
+                      title: 'Delete this schedule?',
+                      description: `“${schedule.label}” won’t run again. This can’t be undone.`,
+                      confirmLabel: 'Delete',
+                      onConfirm: () => onDelete(schedule.id),
+                    })
+                  }
                   aria-label={`Delete ${schedule.label}`}
                 >
                   <Trash size={14} aria-hidden="true" />

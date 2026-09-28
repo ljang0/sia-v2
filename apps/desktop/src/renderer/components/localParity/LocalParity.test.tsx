@@ -194,8 +194,13 @@ describe('local parity renderer contracts', () => {
       }),
     );
     fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete Morning summary' }));
     expect(onSetEnabled).toHaveBeenCalledWith('schedule-1', false);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Morning summary' }));
+    expect(screen.getByRole('alertdialog', { name: 'Delete this schedule?' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(onDelete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Morning summary' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     expect(onDelete).toHaveBeenCalledWith('schedule-1');
   });
 

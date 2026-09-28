@@ -367,6 +367,41 @@ describe('cloud account settings', () => {
     await waitFor(() => expect(onSetEnabled).toHaveBeenCalledWith('docs', false));
   });
 
+  it('asks before disconnecting Google or Slack', async () => {
+    const snapshot = withCloud('signed-in', 'lawrence@example.com');
+    snapshot.apps = snapshot.apps.map((app) => ({
+      ...app,
+      status: 'connected',
+      connectionId: app.id === 'slack' ? 'slack_1' : 'gw_shared',
+    }));
+    const onDisconnect = vi.fn().mockResolvedValue(undefined);
+    render(
+      <AppsSettings
+        snapshot={snapshot}
+        onConnectSelected={vi.fn()}
+        onConnectGoogle={vi.fn()}
+        onConnect={vi.fn()}
+        onDisconnect={onDisconnect}
+        onStartCloudSignIn={vi.fn()}
+        onCompleteCloudSignIn={vi.fn()}
+        onSignOutCloud={vi.fn()}
+        onDeleteCloudAccount={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Disconnect Google Workspace' }));
+    const google = screen.getByRole('alertdialog', { name: 'Disconnect Google?' });
+    expect(google.textContent).toMatch(/until you connect again/);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(onDisconnect).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Disconnect Slack' }));
+    expect(screen.getByRole('alertdialog', { name: 'Disconnect Slack?' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }));
+    await waitFor(() => expect(onDisconnect).toHaveBeenCalledWith('slack', 'slack_1'));
+    expect(onDisconnect).toHaveBeenCalledOnce();
+  });
+
   it('lets people connect Slack without connecting Google', async () => {
     const onConnectSelected = vi.fn().mockResolvedValue(undefined);
     render(

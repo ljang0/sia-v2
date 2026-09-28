@@ -125,3 +125,103 @@ it('updates the learning switch immediately and rolls back a failed save', async
   await screen.findByRole('alert');
   expect(toggle.checked).toBe(false);
 });
+
+it('asks before deleting memory, workflows, skills, notes, or the journal', async () => {
+  const library: AssistantLibraryView = {
+    memories: [
+      { id: 'memory', agentId: 'agent', title: 'Brief', text: 'Keep it brief', enabled: true },
+    ],
+    workflows: [
+      {
+        id: 'workflow',
+        agentId: 'agent',
+        title: 'Morning briefing',
+        parameters: [],
+        steps: [{ instruction: 'Read mail', expected: 'Summary' }],
+      },
+    ],
+    skills: [
+      {
+        id: 'skill',
+        agentId: 'agent',
+        title: 'Native skill',
+        description: 'Native routine',
+        source: 'printf native',
+        execution: 'native',
+        revision: '1',
+      },
+    ],
+    vaults: [
+      {
+        agentId: 'agent',
+        notes: [{ name: 'people.md', text: 'Ana', revision: 'r1', readOnly: false }],
+      },
+    ],
+    journal: [
+      {
+        id: 'journal',
+        agentId: 'agent',
+        threadId: 'thread',
+        turnId: 'turn',
+        timestamp: '2026-09-01T00:00:00.000Z',
+        kind: 'task',
+        title: 'Sent the summary',
+        text: 'Done',
+      },
+    ],
+    context: false,
+  };
+  const api = { assistantLibrary: vi.fn(async () => library) };
+  render(
+    <AssistantSettings
+      agents={[{ id: 'agent', name: 'Personal' }]}
+      api={api}
+      onRun={() => undefined}
+      accessMode="mac"
+    />,
+  );
+  const deletes = () =>
+    api.assistantLibrary.mock.calls.filter(
+      ([input]: unknown[]) => (input as { operation: string }).operation !== 'list',
+    );
+
+  fireEvent.click(screen.getByRole('button', { name: /^Memory/ }));
+  const memory = (await screen.findByText('Brief', { exact: true })).closest('article')!;
+  fireEvent.click(within(memory).getByRole('button', { name: 'Delete' }));
+  expect(screen.getByRole('alertdialog', { name: 'Delete this memory?' }).textContent).toMatch(
+    /Sia will forget it\. This can’t be undone\./,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(deletes()).toEqual([]);
+  fireEvent.click(within(memory).getByRole('button', { name: 'Delete' }));
+  fireEvent.click(
+    within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete' }),
+  );
+  await waitFor(() =>
+    expect(api.assistantLibrary).toHaveBeenCalledWith({
+      operation: 'deleteMemory',
+      id: 'memory',
+    }),
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Clear journal' }));
+  expect(screen.getByRole('alertdialog', { name: 'Clear the task journal?' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+  fireEvent.click(screen.getByRole('button', { name: 'Delete people.md' }));
+  expect(screen.getByRole('alertdialog', { name: 'Delete this note?' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+  fireEvent.click(screen.getByRole('button', { name: /^Workflows/ }));
+  const workflow = screen.getByText('Morning briefing', { exact: true }).closest('article')!;
+  fireEvent.click(within(workflow).getByRole('button', { name: 'Delete' }));
+  expect(screen.getByRole('alertdialog', { name: 'Delete this workflow?' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+  fireEvent.click(screen.getByRole('button', { name: /^Skills/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Delete skill' }));
+  expect(screen.getByRole('alertdialog', { name: 'Delete this skill?' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+  expect(deletes()).toEqual([[{ operation: 'deleteMemory', id: 'memory' }]]);
+});

@@ -6,6 +6,7 @@ import {
   PlugsConnected,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
+import { useConfirmDialog } from '../ConfirmDialog';
 import type { AppConnection, RendererSnapshot } from '../../types';
 import styles from '../../ui.module.css';
 import { ConnectionChecklist } from '../ConnectionChecklist';
@@ -56,6 +57,7 @@ export function AppsSettings({
 }) {
   const [pending, setPending] = useState<string>();
   const [error, setError] = useState<string>();
+  const [confirm, confirmDialog] = useConfirmDialog();
   const googleApps = snapshot.apps.filter(({ id }) => id !== 'slack');
   const slack = snapshot.apps.find(({ id }) => id === 'slack');
   const activeGoogleGrants = new Set(
@@ -131,6 +133,7 @@ export function AppsSettings({
       title="Connections"
       description="Google Workspace and Slack are optional. Google starts read-only."
     >
+      {confirmDialog}
       {snapshot.cloudAuth.state !== 'signed-in' ? (
         <CloudAccountSettings
           cloudAuth={snapshot.cloudAuth}
@@ -264,11 +267,18 @@ export function AppsSettings({
                       disabled={Boolean(pending) || !accountReady || googleUpgrading}
                       aria-label="Disconnect Google Workspace"
                       onClick={() =>
-                        run(
-                          'disconnect-google',
-                          () => onDisconnect(googleGrant!.id, googleGrant!.connectionId),
-                          'Google Workspace could not be disconnected.',
-                        )
+                        confirm({
+                          title: 'Disconnect Google?',
+                          description:
+                            'Sia won’t be able to read or send from Google until you connect again.',
+                          confirmLabel: 'Disconnect',
+                          onConfirm: () =>
+                            run(
+                              'disconnect-google',
+                              () => onDisconnect(googleGrant!.id, googleGrant!.connectionId),
+                              'Google Workspace could not be disconnected.',
+                            ),
+                        })
                       }
                     >
                       {pending === 'disconnect-google'
@@ -322,11 +332,18 @@ export function AppsSettings({
                     disabled={Boolean(pending) || !accountReady}
                     aria-label="Disconnect Slack"
                     onClick={() =>
-                      run(
-                        'disconnect-slack',
-                        () => onDisconnect('slack', slack.connectionId),
-                        'Slack could not be disconnected.',
-                      )
+                      confirm({
+                        title: 'Disconnect Slack?',
+                        description:
+                          'Sia won’t be able to read or post in Slack until you connect again.',
+                        confirmLabel: 'Disconnect',
+                        onConfirm: () =>
+                          run(
+                            'disconnect-slack',
+                            () => onDisconnect('slack', slack.connectionId),
+                            'Slack could not be disconnected.',
+                          ),
+                      })
                     }
                   >
                     {pending === 'disconnect-slack' ? 'Disconnecting...' : 'Disconnect Slack'}
@@ -386,11 +403,17 @@ export function AppsSettings({
                 pending={pending === `disconnect-${app.id}`}
                 disabled={Boolean(pending) || !accountReady}
                 onDisconnect={() =>
-                  run(
-                    `disconnect-${app.id}`,
-                    () => onDisconnect(app.id, app.connectionId),
-                    `${appName(app.id)} could not be disconnected.`,
-                  )
+                  confirm({
+                    title: `Disconnect ${appName(app.id)}?`,
+                    description: `Sia won’t be able to use ${appName(app.id)} until you connect again.`,
+                    confirmLabel: 'Disconnect',
+                    onConfirm: () =>
+                      run(
+                        `disconnect-${app.id}`,
+                        () => onDisconnect(app.id, app.connectionId),
+                        `${appName(app.id)} could not be disconnected.`,
+                      ),
+                  })
                 }
               />
             ))}
