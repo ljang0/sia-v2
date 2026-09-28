@@ -376,7 +376,9 @@ export function Conversation({
           </h1>
           <p>
             {agentName
-              ? 'Pick up a recent conversation, or start with something you want off your list.'
+              ? recentThreads.length
+                ? 'Pick up a recent conversation, or start with something you want off your list.'
+                : 'Start with something you want off your list.'
               : 'Give it a name and one short instruction. Sia chooses a model, color, and private folder.'}
           </p>
           {onCreateThread ? (

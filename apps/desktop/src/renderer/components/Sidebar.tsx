@@ -127,6 +127,22 @@ export function Sidebar({
   const [forkTitle, setForkTitle] = useState('');
   const [forkIsolated, setForkIsolated] = useState(false);
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) ?? agents[0];
+  const commitRename = (thread: ThreadSummary) => {
+    const title = editingTitle.trim();
+    if (pendingThreadAction) return;
+    if (!title || title === thread.title) {
+      setEditingThread(undefined);
+      return;
+    }
+    setPendingThreadAction(true);
+    void onRenameThread(thread.id, title).then(
+      () => {
+        setEditingThread(undefined);
+        setPendingThreadAction(false);
+      },
+      () => setPendingThreadAction(false),
+    );
+  };
 
   const orderedAgents = useMemo(() => {
     const normalizedQuery = collapsed ? '' : query.trim().toLocaleLowerCase();
@@ -313,6 +329,9 @@ export function Sidebar({
           {orderedAgents.map((agent) => {
             const expanded = Boolean(query.trim()) || !closedAgents.has(agent.id);
             const selected = agent.id === selectedAgentId;
+            const needsYou = agent.threads.filter(
+              ({ status }) => status === 'waiting' || status === 'error',
+            ).length;
             return (
               <NavigationGroup
                 key={agent.id}
@@ -320,6 +339,7 @@ export function Sidebar({
                 label={agent.name}
                 selected={selected}
                 open={expanded}
+                attention={needsYou}
                 icon={
                   <span data-presence={agentPresence(agent)}>
                     <AgentForm identity={agent.hue} state={agentPresence(agent)} size="small" />
@@ -379,16 +399,7 @@ export function Sidebar({
                           key={thread.id}
                           onSubmit={(event) => {
                             event.preventDefault();
-                            const title = editingTitle.trim();
-                            if (!title || pendingThreadAction) return;
-                            setPendingThreadAction(true);
-                            void onRenameThread(thread.id, title).then(
-                              () => {
-                                setEditingThread(undefined);
-                                setPendingThreadAction(false);
-                              },
-                              () => setPendingThreadAction(false),
-                            );
+                            commitRename(thread);
                           }}
                         >
                           <input
@@ -396,9 +407,21 @@ export function Sidebar({
                             value={editingTitle}
                             maxLength={120}
                             aria-label={`Rename ${thread.title}`}
+                            onFocus={(event) => event.currentTarget.select()}
+                            onBlur={(event) => {
+                              // Clicking away saves, as in Finder; the Save button submits itself.
+                              if (
+                                event.currentTarget.dataset.cancelled ||
+                                event.currentTarget.form?.contains(event.relatedTarget)
+                              )
+                                return;
+                              commitRename(thread);
+                            }}
                             onChange={(event) => setEditingTitle(event.target.value)}
                             onKeyDown={(event) => {
-                              if (event.key === 'Escape') setEditingThread(undefined);
+                              if (event.key !== 'Escape') return;
+                              event.currentTarget.dataset.cancelled = 'true';
+                              setEditingThread(undefined);
                             }}
                           />
                           <button
@@ -472,7 +495,9 @@ export function Sidebar({
             );
           })}
           {query && orderedAgents.length === 0 ? (
-            <p className={styles.threadSearchEmpty}>No matching threads</p>
+            <p className={styles.threadSearchEmpty}>
+              No conversation titles match. Press ⌘K to search inside conversations.
+            </p>
           ) : null}
         </div>
       </div>

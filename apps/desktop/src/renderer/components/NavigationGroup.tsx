@@ -9,6 +9,7 @@ export function NavigationGroup({
   open,
   selected,
   identity,
+  attention = 0,
   onToggle,
   actions,
   children,
@@ -18,6 +19,8 @@ export function NavigationGroup({
   open: boolean;
   selected: boolean;
   identity: number;
+  /** Conversations waiting on the person; shown while the group is closed. */
+  attention?: number;
   onToggle(): void;
   actions: ReactNode;
   children: ReactNode;
@@ -29,7 +32,8 @@ export function NavigationGroup({
         <button
           className={styles.groupTrigger}
           type="button"
-          aria-label={label}
+          aria-label={!open && attention ? `${label}, ${attention} need you` : label}
+          title={label}
           aria-expanded={open}
           aria-controls={id}
           onClick={onToggle}
@@ -38,6 +42,11 @@ export function NavigationGroup({
             {icon}
           </span>
           <span className={styles.groupLabel}>{label}</span>
+          {!open && attention ? (
+            <span className={styles.groupBadge} aria-hidden="true">
+              {attention}
+            </span>
+          ) : null}
           <CaretRight className={styles.chevron} size={15} aria-hidden="true" />
         </button>
         <div className={styles.groupActions}>{actions}</div>

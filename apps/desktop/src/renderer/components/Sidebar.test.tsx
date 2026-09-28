@@ -164,4 +164,51 @@ describe('thread navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete thread' }));
     await waitFor(() => expect(onDeleteThread).toHaveBeenCalledWith('thread-inbox'));
   });
+  it('saves a rename on click-away, cancels on Escape, and badges closed groups that need you', async () => {
+    const onRenameThread = vi.fn().mockResolvedValue(undefined);
+    const agents = structuredClone(demoSnapshot.agents);
+    render(
+      <Sidebar
+        agents={agents}
+        selectedAgentId="agent-work"
+        collapsed={false}
+        onToggle={vi.fn()}
+        onSelectAgent={vi.fn()}
+        onSelectThread={vi.fn()}
+        onCreateThread={vi.fn()}
+        onRenameThread={onRenameThread}
+        onDeleteThread={vi.fn()}
+        onCreateAgent={vi.fn()}
+        onEditAgent={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    );
+    const openRename = async () => {
+      fireEvent.pointerDown(
+        screen.getByRole('button', { name: 'Thread actions for Triage today’s inbox' }),
+        { button: 0, ctrlKey: false },
+      );
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));
+      return screen.getByRole('textbox', { name: 'Rename Triage today’s inbox' });
+    };
+
+    let rename = await openRename();
+    fireEvent.change(rename, { target: { value: 'Ignored title' } });
+    fireEvent.keyDown(rename, { key: 'Escape' });
+    fireEvent.blur(rename);
+    expect(onRenameThread).not.toHaveBeenCalled();
+
+    rename = await openRename();
+    fireEvent.change(rename, { target: { value: 'Morning inbox' } });
+    fireEvent.blur(rename);
+    await waitFor(() =>
+      expect(onRenameThread).toHaveBeenCalledWith('thread-inbox', 'Morning inbox'),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Research partner' }));
+    expect(screen.getByRole('button', { name: 'Research partner, 1 need you' })).toHaveProperty(
+      'title',
+      'Research partner',
+    );
+  });
 });

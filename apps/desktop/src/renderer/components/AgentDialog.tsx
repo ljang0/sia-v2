@@ -186,7 +186,7 @@ export function AgentDialog({
                 id={`${formId}-name`}
                 value={draft.name}
                 onChange={(event) => update('name', event.target.value)}
-                placeholder="Research partner"
+                placeholder="Example: Trip planner"
                 autoFocus
                 required
                 aria-invalid={error === 'Give this agent a name.'}
@@ -208,14 +208,18 @@ export function AgentDialog({
 
             {readyChoices.length === 0 || !selectedChoice?.ready ? (
               <div className={styles.modelSetupNotice} role="status">
-                <span>No usable model is connected.</span>
+                <span>
+                  {readyChoices.length === 0
+                    ? 'No usable model is connected.'
+                    : 'This agent’s model is unavailable. Choose another under Details.'}
+                </span>
                 {onOpenModelSettings ? (
                   <button
                     type="button"
                     className={styles.textButton}
                     onClick={onOpenModelSettings}
                   >
-                    Open AI settings
+                    Open model settings
                   </button>
                 ) : null}
               </div>
@@ -278,7 +282,7 @@ export function AgentDialog({
                       id={`${formId}-workspace`}
                       value={draft.workspace}
                       readOnly
-                      placeholder="Choose when you create"
+                      placeholder={agent ? '' : 'Sia makes a private folder'}
                     />
                     <button
                       type="button"
@@ -326,6 +330,12 @@ export function AgentDialog({
               </div>
             </details>
 
+            {confirmingDelete ? (
+              <p className={styles.formError} role="alert">
+                This permanently deletes {agent?.name} and all of its conversations, including
+                archived ones and schedules. It does not delete files in its folder.
+              </p>
+            ) : null}
             {error ? <p className={styles.formError}>{error}</p> : null}
 
             <div className={styles.dialogActions}>
