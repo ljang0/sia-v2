@@ -101,7 +101,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     const send = page.getByRole('button', { name: 'Send message', exact: true });
     await expect(heading).toBeVisible();
     await expect(send).toBeDisabled();
-    await expect(page.locator('.sia-aurora')).toHaveAttribute('data-renderer', 'waves');
+    await expect(page.locator('.sia-aurora')).toHaveAttribute('data-renderer', 'dither');
     await expect
       .poll(() => heading.evaluate((el) => getComputedStyle(el).backgroundPosition))
       .not.toBe('0% 50%');
@@ -112,7 +112,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await field.click();
     await expect(field).toBeFocused();
     expect(await field.boundingBox()).toEqual(before);
-    await expect(page.locator('.aurora-waves')).toHaveCSS('opacity', '1');
+    await expect(page.locator('.dither-aurora-field canvas')).toBeVisible();
     await field.fill('Find my assignments for this week');
     await expect(send).toBeEnabled();
     await expect(send.locator('.metal-surface')).toHaveAttribute('data-metal', 'ready');
@@ -354,7 +354,7 @@ test('appearance stops and restores decorative graphics across settings and conv
   await expect(calm).toBeChecked();
   await expressive.check();
   await page.getByRole('button', { name: 'Close settings', exact: true }).click();
-  await expect(page.locator('.sia-aurora')).toHaveAttribute('data-renderer', 'waves');
+  await expect(page.locator('.sia-aurora')).toHaveAttribute('data-renderer', 'dither');
   await expect(surface).toHaveAttribute('data-metal', 'ready');
   await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue(
     'Keep this draft',

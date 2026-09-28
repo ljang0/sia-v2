@@ -401,11 +401,12 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   Sia retains its model/permission boundaries; Notch's Claude MCP permission endpoint and
   Tailscale address advertisement are not part of this same-Wi-Fi port. The phone stores only
   recent prompts locally, and offers a control to clear them. It never stores provider credentials.
-  Its decorative aurora adapts React Bits Shape Waves' noise field to a single WebGL 1 pass,
-  so it works on the HTTP LAN link without WebGPU or another framework. Rendering is capped at
-  30 fps and a 600 × 590 buffer, stops on hidden pages, and uses static CSS gradients for reduced
-  motion. Initialization failure or graphics context loss retains a gently moving CSS fallback;
-  restored graphics contexts and returning pages rebuild or resume the waves automatically. It never handles pointer input.
+  Its decorative aurora is the React Bits Dither background (three.js, @react-three/fiber and
+  postprocessing), shared with the desktop and launcher and loaded lazily. It renders at up to
+  30 fps, stops on hidden pages, in Calm appearance and under reduced motion, and never handles
+  pointer input. Without WebGL, or after initialization failure or graphics context loss, a gently
+  moving CSS fallback remains; returning pages retry the renderer. On the desktop it animates only
+  on the welcome scene while the window is focused; conversations keep the static CSS veils.
   Main action buttons adapt Joly UI's Liquid Metal Button with a lazily loaded Paper Shaders
   effect, capped at 30 fps and 16,000 pixels per button. Hidden, offscreen, disabled and reduced-motion
   states stop continuous rendering; disposal releases the graphics context. Button actions remain

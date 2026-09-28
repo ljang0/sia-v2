@@ -351,7 +351,7 @@ export function Conversation({
   if (!thread) {
     return (
       <main className={styles.mainPane} data-companion-conversation data-scene="welcome">
-        <Aurora className={styles.conversationAurora} />
+        <Aurora className={styles.conversationAurora} pauseWhenUnfocused />
         <div className={styles.emptyState} data-companion-empty>
           <AgentForm identity={agentHue ?? 0} size="large" />
           <span className={styles.emptyStateKicker}>
@@ -437,7 +437,11 @@ export function Conversation({
         if (files.length) void onDropAttachments(files);
       }}
     >
-      <Aurora className={styles.conversationAurora} />
+      <Aurora
+        className={styles.conversationAurora}
+        still={thread.events.length > 0}
+        pauseWhenUnfocused
+      />
       {findOpen ? (
         <div className={styles.conversationFind} role="search">
           <MagnifyingGlass size={15} aria-hidden="true" />

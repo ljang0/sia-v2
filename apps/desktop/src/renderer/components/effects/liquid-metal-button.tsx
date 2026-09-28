@@ -29,9 +29,18 @@ export function LiquidMetalButton({
   const speed = useRef(0.35);
   const rippleId = useRef(0);
   const [ripple, setRipple] = useState<{ x: number; y: number; id: number }>();
+  // Disabling pauses the field instead of disposing it, so toggling a send button does not
+  // recreate a WebGL context and recompile the shader.
+  const disabledRef = useRef(disabled);
+  const syncRef = useRef<() => void>(undefined);
+  useEffect(() => {
+    disabledRef.current = disabled;
+    if (disabled) setRipple(undefined);
+    syncRef.current?.();
+  }, [disabled]);
   useEffect(() => {
     const host = surface.current!;
-    if (disabled || calm) {
+    if (calm) {
       setRipple(undefined);
       return;
     }
@@ -51,7 +60,7 @@ export function LiquidMetalButton({
       last = 0;
     };
     const canAnimate = () =>
-      !disposed && !disabled && !motion.matches && !document.hidden && visible;
+      !disposed && !disabledRef.current && !motion.matches && !document.hidden && visible;
     const tick = (now: number) => {
       if (!field || !canAnimate()) return;
       if (!last || now - last >= 1000 / 30) {
@@ -107,11 +116,13 @@ export function LiquidMetalButton({
       sync();
     });
     observer.observe(host);
+    syncRef.current = sync;
     motion.addEventListener('change', sync);
     document.addEventListener('visibilitychange', sync);
     sync();
     return () => {
       disposed = true;
+      syncRef.current = undefined;
       stop();
       observer.disconnect();
       motion.removeEventListener('change', sync);
@@ -120,7 +131,7 @@ export function LiquidMetalButton({
       field?.dispose();
       delete host.dataset.metal;
     };
-  }, [disabled, calm]);
+  }, [calm]);
 
   return (
     <button

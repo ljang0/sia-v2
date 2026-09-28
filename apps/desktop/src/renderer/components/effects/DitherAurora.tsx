@@ -21,8 +21,37 @@ class DitherBoundary extends Component<
   }
 }
 
-/** Temporary React Bits Dither preview shared by desktop and phone. */
-export function DitherAurora({ className = '' }: { className?: string | undefined }) {
+let webglSupport: boolean | undefined;
+
+/** Probes once so machines without WebGL keep the CSS aurora instead of a failing renderer. */
+function supportsWebGL() {
+  if (webglSupport !== undefined) return webglSupport;
+  try {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+    context?.getExtension('WEBGL_lose_context')?.loseContext();
+    webglSupport = Boolean(context);
+  } catch {
+    webglSupport = false;
+  }
+  return webglSupport;
+}
+
+/**
+ * React Bits Dither aurora shared by desktop and phone.
+ *
+ * `still` keeps the CSS veils without a WebGL renderer, for scenes where the aurora is too faint
+ * to justify GPU work. `pauseWhenUnfocused` stops rendering while the window is in the background.
+ */
+export function DitherAurora({
+  className = '',
+  still = false,
+  pauseWhenUnfocused = false,
+}: {
+  className?: string | undefined;
+  still?: boolean;
+  pauseWhenUnfocused?: boolean;
+}) {
   const calm = useAppearance() === 'calm';
   const root = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
@@ -36,7 +65,11 @@ export function DitherAurora({ className = '' }: { className?: string | undefine
     const sync = () =>
       setEnvironment({
         dark: theme.matches,
-        animate: !motion.matches && !document.hidden && !pageHidden,
+        animate:
+          !motion.matches &&
+          !document.hidden &&
+          !pageHidden &&
+          (!pauseWhenUnfocused || document.hasFocus()),
       });
     const onVisibility = () => {
       if (wasHidden && !document.hidden) setFailed(false);
@@ -63,8 +96,14 @@ export function DitherAurora({ className = '' }: { className?: string | undefine
     window.addEventListener('pagehide', onPageHide);
     window.addEventListener('pageshow', onPageShow);
     root.current?.addEventListener('webglcontextlost', onContextLost, true);
+    if (pauseWhenUnfocused) {
+      window.addEventListener('focus', sync);
+      window.addEventListener('blur', sync);
+    }
     const element = root.current;
     return () => {
+      window.removeEventListener('focus', sync);
+      window.removeEventListener('blur', sync);
       theme.removeEventListener('change', sync);
       motion.removeEventListener('change', sync);
       document.removeEventListener('visibilitychange', onVisibility);
@@ -72,14 +111,14 @@ export function DitherAurora({ className = '' }: { className?: string | undefine
       window.removeEventListener('pageshow', onPageShow);
       element?.removeEventListener('webglcontextlost', onContextLost, true);
     };
-  }, []);
-  const active = environment.animate && !calm;
-  const animate = active && !failed;
+  }, [pauseWhenUnfocused]);
+  const active = environment.animate && !calm && !still;
+  const animate = active && !failed && supportsWebGL();
   return (
     <div
       className={`sia-aurora dither-aurora ${className}`}
       aria-hidden="true"
-      data-renderer={animate ? 'dither' : failed && active ? 'fallback' : 'still'}
+      data-renderer={animate ? 'dither' : active ? 'fallback' : 'still'}
       data-paused={!active}
       ref={root}
     >

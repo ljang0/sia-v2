@@ -469,6 +469,9 @@ export class PhoneRemote {
           '.svg': 'image/svg+xml',
           '.png': 'image/png',
         };
+        // Built assets are content-hashed, so phones can keep them; the page itself stays fresh.
+        if (path !== 'index.html')
+          response.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
         response.writeHead(200, { 'Content-Type': types[extname(path)]! });
         response.end(data);
         return;

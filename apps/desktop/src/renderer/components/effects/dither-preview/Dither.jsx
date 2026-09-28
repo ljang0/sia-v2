@@ -304,7 +304,7 @@ export default function Dither({
       camera={{ position: [0, 0, 6] }}
       dpr={1}
       frameloop="demand"
-      gl={{ antialias: false, powerPreference: 'low-power', preserveDrawingBuffer: true }}
+      gl={{ antialias: false, powerPreference: 'low-power' }}
     >
       <PreviewFrameClock />
       <DitheredWaves

@@ -22,7 +22,7 @@
     "onboard:check": "node scripts/onboarding-check.mjs",
     "release:publish-link": "node apps/desktop/scripts/publish-release.mjs",
     "test": "pnpm -r --if-present test",
-    "test:pilot": "pnpm check && pnpm --filter @sia/desktop exec playwright test",
+    "test:pilot": "pnpm check && pnpm --filter @sia/desktop exec playwright test && pnpm --filter @sia/desktop test:renderer",
     "test:claude-isolation:real": "pnpm --filter @sia/runtime test:claude-isolation:real",
     "test:codex-isolation:real": "pnpm --filter @sia/runtime test:codex-isolation:real",
     "test:e2e": "pnpm --filter @sia/desktop test:e2e",

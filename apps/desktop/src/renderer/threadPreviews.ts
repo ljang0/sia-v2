@@ -1,5 +1,6 @@
 import type { TimelineItemView } from '../shared/bridge';
 import { activityLabel } from '../shared/activity-label';
+import { plainText } from '../shared/plain-text';
 import type { ThreadSummary } from './types';
 
 /** Summaries come from the existing snapshot; hovering never selects or reads a task. */
@@ -20,7 +21,7 @@ export function threadPreviews(items: readonly TimelineItemView[]) {
       continue;
     let preview: ThreadSummary['preview'];
     if (item.kind === 'user' || item.kind === 'assistant') {
-      const text = item.text?.trim().replace(/\s+/g, ' ');
+      const text = item.text && plainText(item.text);
       if (text)
         preview = {
           label: item.kind === 'user' ? 'Request' : 'Latest reply',

@@ -43,15 +43,15 @@ ConsolidationScheduler PROMOTE/DISTILL instructions through Sia's existing runti
 that revision does not include a license file. Attribution and adaptation details are preserved in
 `apps/desktop/native/voice/README.md`; no replacement license is asserted for the original sources.
 
-## React Bits Shape Waves
+## React Bits Dither
 
-The phone aurora adapts the noise field and three-band shape treatment from
-[Shape Waves](https://reactbits.dev/backgrounds/shape-waves),
-`src/ts-default/Backgrounds/ShapeWaves/ShapeWaves.tsx` in
-[DavidHDev/react-bits](https://github.com/DavidHDev/react-bits/tree/28335f42448beecab58f6c7ab35c6c670264a617).
-Sia translates the WGSL field to WebGL 1 for the HTTP phone connection, adds colored
-aurora ribbons, and replaces the GPU framework/interaction/glow passes with a bounded
-single pass and static fallback. This is an application adaptation, not the standalone component.
+The desktop, launcher, and phone aurora use the
+[Dither](https://reactbits.dev/backgrounds/dither) background from
+[DavidHDev/react-bits](https://github.com/DavidHDev/react-bits) (the JS + CSS variant), kept in
+`apps/desktop/src/renderer/components/effects/dither-preview/` with its license. Sia ships it as
+part of the application, renders it with three.js, @react-three/fiber, and postprocessing, and
+adds its own colors, 30 fps pacing, pausing, and a CSS fallback. It is not offered as a
+standalone component.
 
 The original license follows verbatim:
 

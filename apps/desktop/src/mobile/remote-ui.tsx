@@ -17,6 +17,7 @@ import type { RemoteTurn } from '../shared/phone-remote';
 import { SiaLogo } from '../renderer/components/SiaLogo';
 import { LiquidMetalButton } from '../renderer/components/effects/liquid-metal-button';
 import { timeGreeting } from '../renderer/welcome';
+import { plainText } from '../shared/plain-text';
 
 export function Sheet({
   open,
@@ -266,7 +267,7 @@ export function Activity({
                         ? turn.error || 'Open the conversation for details.'
                         : turn.status === 'cancelled'
                           ? 'You stopped this task.'
-                          : turn.response || 'Your reply is ready to read.'}
+                          : plainText(turn.response) || 'Your reply is ready to read.'}
                 </p>
                 {!!turn.files.length && (
                   <span className="task-file-count">

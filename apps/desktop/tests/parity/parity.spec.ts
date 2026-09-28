@@ -171,6 +171,7 @@ test('archive, transcript search, and fork preserve source context', async ({}, 
 
 test('background Activity remains visible after the window closes and reopens', async ({}, testInfo) => {
   requireFeature('backgroundActivity', testInfo);
+  test.slow();
   const harness = await launchParityFixture('backgroundActivity');
   try {
     await createAgentAndThread(harness.page);
@@ -183,8 +184,9 @@ test('background Activity remains visible after the window closes and reopens', 
       .getByTestId(parityContract.backgroundActivity.testIds[1])
       .filter({ hasText: 'PARITY_BACKGROUND' });
     await expect(task).toBeVisible();
+    // The fake turn outlasts the window close, so this proves work continues without a renderer.
     await expect(task.getByTestId(parityContract.backgroundActivity.testIds[2])).toHaveText(
-      /running|complete/i,
+      /running/i,
     );
 
     await harness.page.close();
@@ -196,7 +198,7 @@ test('background Activity remains visible after the window closes and reopens', 
       .filter({ hasText: 'PARITY_BACKGROUND' });
     await expect(
       restoredTask.getByTestId(parityContract.backgroundActivity.testIds[2]),
-    ).toHaveText(/complete/i);
+    ).toHaveText(/complete/i, { timeout: 20_000 });
     expect(reopenedErrors).toEqual([]);
   } finally {
     await harness.close();
@@ -524,7 +526,7 @@ async function launchParityFixture(
 
 function fixtureEnvironment(feature: ParityFeature): Record<string, string> {
   if (feature === 'interruptedTurnRecovery') return { SIA_TEST_FAKE_TURN_DELAY_MS: '10000' };
-  if (feature === 'backgroundActivity') return { SIA_TEST_FAKE_TURN_DELAY_MS: '1500' };
+  if (feature === 'backgroundActivity') return { SIA_TEST_FAKE_TURN_DELAY_MS: '8000' };
   if (feature === 'worktreeParallelism') return { SIA_TEST_FAKE_TURN_DELAY_MS: '15000' };
   return {};
 }

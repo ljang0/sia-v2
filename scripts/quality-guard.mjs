@@ -64,11 +64,11 @@ const expectedActionTools = [
 const failures = [];
 const renderedTag = new RegExp('<' + 'canvas(?:\\s|>)', 'i');
 // The shared aurora is decoration only. Every control remains accessible native DOM.
-const decorativeCanvasPath = join(rendererRoot, 'components/effects/aurora.tsx');
+const decorativeCanvasPath = join(rendererRoot, 'components/effects/dither-preview/Dither.jsx');
 
 for (const path of await walk(rendererRoot)) {
   const extension = extname(path);
-  if (!['.css', '.ts', '.tsx'].includes(extension)) continue;
+  if (!['.css', '.ts', '.tsx', '.js', '.jsx'].includes(extension)) continue;
   const source = await readFile(path, 'utf8');
   if (extension === '.css' && source.includes('!important')) {
     failures.push(`${relative(root, path)} contains !important`);
