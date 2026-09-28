@@ -85,6 +85,7 @@ async function createHarness(
     updateManifestPublicKey?: string;
     defaultWorkspaceRoot?: string;
     createDirectory?: (path: string) => Promise<void>;
+    notify?: ConstructorParameters<typeof DesktopController>[0]['notify'];
   } = {},
 ): Promise<{
   controller: DesktopController;
@@ -142,6 +143,7 @@ async function createHarness(
         ? { providerProbe: deterministicProviderProbe }
         : {}),
     ...(options.trajectory ? { trajectory: options.trajectory } : {}),
+    ...(options.notify ? { notify: options.notify } : {}),
   });
   await controller.initialize();
   if (
@@ -1751,6 +1753,132 @@ describe('DesktopController', () => {
           .filter((item) => item.status === 'running'),
       ).toEqual([]),
     );
+    await controller.shutdown();
+  });
+
+  it('notifies once when a task pauses for an approval or a question', async () => {
+    let runtimeThreadId = '';
+    const release = Promise.withResolvers<void>();
+    const runtime = {
+      async *runTurn(input: { turnId: string }) {
+        const base = {
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        const approval = {
+          type: 'approval' as const,
+          payload: {
+            phase: 'requested',
+            requestId: 'command-1',
+            title: 'Allow Mac action',
+            description: 'Run a command: pnpm test',
+          },
+        };
+        const question = {
+          type: 'question' as const,
+          payload: {
+            phase: 'requested' as const,
+            requestId: 'question-1',
+            prompt: 'Which calendar should I use?',
+          },
+        };
+        // A provider may repeat a pending request; the person hears about it once.
+        yield { ...base, id: randomUUID(), sequence: 1, ...approval } as never;
+        yield { ...base, id: randomUUID(), sequence: 2, ...approval } as never;
+        yield { ...base, id: randomUUID(), sequence: 3, ...question };
+        yield { ...base, id: randomUUID(), sequence: 4, ...question };
+        await release.promise;
+      },
+      dispose: vi.fn(async () => release.resolve()),
+      cancel: vi.fn(async () => release.resolve()),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const notify = vi.fn();
+    const { controller } = await createHarness({ fakeServices: false, runtime, notify });
+    try {
+      const agent = await controller.invoke('agents.save', {
+        name: 'Juniper',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: agent.agentId,
+      });
+      runtimeThreadId = threadId;
+      await controller.invoke('threads.send', { threadId, text: 'Run the tests' });
+      await vi.waitFor(() => expect(notify).toHaveBeenCalledTimes(2));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(notify.mock.calls).toEqual([
+        [{ threadId, title: 'Juniper needs your OK', body: 'Run a command: pnpm test' }],
+        [{ threadId, title: 'Juniper has a question', body: 'Which calendar should I use?' }],
+      ]);
+
+      await controller.invoke('threads.cancel', { threadId });
+      notify.mockClear();
+      await controller.invoke('agents.setNotifications', {
+        agentId: agent.agentId,
+        enabled: false,
+      });
+      const quiet = await controller.invoke('threads.create', { agentId: agent.agentId });
+      runtimeThreadId = quiet.threadId;
+      await controller.invoke('threads.send', { threadId: quiet.threadId, text: 'Again' });
+      await vi.waitFor(() =>
+        expect(
+          controller.snapshot().threads.find(({ id }) => id === quiet.threadId)?.status,
+        ).toBe('waiting'),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(notify).not.toHaveBeenCalled();
+    } finally {
+      release.resolve();
+      await controller.shutdown();
+    }
+  });
+
+  it('notifies when a Sia action waits for approval', async () => {
+    const notify = vi.fn();
+    const { controller } = await createHarness({ notify });
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
+    await controller.invoke('connections.start', { connectionId: 'gmail' });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Juniper',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
+    const started = await controller.invoke('threads.send', { threadId, text: 'Email Sam' });
+    notify.mockClear();
+    const pending = controller.approvalBroker().requestApproval({
+      id: 'approval-notify-1',
+      sessionId: 'session-1',
+      threadId,
+      turnId: started.turnId,
+      tool: getActionToolDescriptor('mail_send')!,
+      arguments: {
+        account_id: 'gmail',
+        to: ['person@example.com'],
+        subject: 'Status',
+        body: 'Hello',
+      },
+      targetDigest: 'target-digest',
+      reason: 'This sends an email.',
+    });
+    expect(notify).toHaveBeenCalledExactlyOnceWith({
+      threadId,
+      title: 'Juniper needs your OK',
+      body: 'Mail Send',
+    });
+    await controller.invoke('approvals.resolve', {
+      approvalId: controller.snapshot().approvals.at(-1)!.id,
+      decision: 'deny',
+    });
+    await expect(pending).resolves.toEqual({ approved: false });
     await controller.shutdown();
   });
 

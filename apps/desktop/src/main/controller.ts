@@ -2299,6 +2299,7 @@ export class DesktopController {
       },
     });
     this.#commit();
+    this.#notifyNeedsAttention(context.threadId, 'approval', presentation.title);
 
     return new Promise((resolve) => {
       const remaining = Math.max(0, Number(request.expiresUnixMs) - Date.now());
@@ -6469,6 +6470,26 @@ export class DesktopController {
     }
   }
 
+  /** Tell someone who is away from the window that a task is paused on them. */
+  #notifyNeedsAttention(threadId: string, need: 'approval' | 'question', step: string): void {
+    if (this.#assistantLibrary.isReview(threadId)) return;
+    const thread = this.#state.threads.find(({ id }) => id === threadId);
+    if (!thread) return;
+    const agent = this.#state.agents.find(({ id }) => id === thread.agentId);
+    if (agent?.notificationsEnabled === false) return;
+    const name = agent?.name ?? thread.title;
+    const body = step.replace(/\s+/g, ' ').trim();
+    this.#notify?.({
+      threadId,
+      title: need === 'approval' ? `${name} needs your OK` : `${name} has a question`,
+      body:
+        (body.length > 140 ? `${body.slice(0, 139)}…` : body) ||
+        (need === 'approval'
+          ? 'Open Sia to allow or deny the next step.'
+          : 'Open Sia to answer.'),
+    });
+  }
+
   #markScheduleRunFinished(
     turn: QueuedTurn,
     outcome: 'completed' | 'failed' | 'cancelled',
@@ -6645,6 +6666,8 @@ export class DesktopController {
       return;
     }
     if (event.type === 'question' && event.payload.phase === 'requested') {
+      const alreadyAsked =
+        this.#pendingQuestions.get(event.threadId)?.requestId === event.payload.requestId;
       this.#pendingQuestions.set(event.threadId, {
         requestId: event.payload.requestId,
         turnId: event.turnId,
@@ -6659,6 +6682,8 @@ export class DesktopController {
         timestamp: event.timestamp,
       });
       thread.status = 'waiting';
+      if (!alreadyAsked)
+        this.#notifyNeedsAttention(event.threadId, 'question', event.payload.prompt);
       return;
     }
     if (event.type === 'plan') {
@@ -6851,6 +6876,12 @@ export class DesktopController {
       return;
     }
     this.#taintResearchTurn(event.turnId);
+    const alreadyRequested = [...this.#pendingApprovals.values()].some(
+      (pending) =>
+        pending.kind === 'provider' &&
+        pending.threadId === event.threadId &&
+        pending.requestId === event.payload.requestId,
+    );
     const approvalId = randomUUID();
     const expiresAt = new Date(Date.now() + 2 * 60_000).toISOString();
     this.#state.approvals.push({
@@ -6897,6 +6928,12 @@ export class DesktopController {
       requestId: event.payload.requestId,
     });
     this.#commit();
+    if (!alreadyRequested)
+      this.#notifyNeedsAttention(
+        event.threadId,
+        'approval',
+        event.payload.description || event.payload.title,
+      );
   }
 
   async #authorizeGatewayAction(
@@ -7028,6 +7065,11 @@ export class DesktopController {
       timestamp: new Date().toISOString(),
     });
     this.#commit();
+    this.#notifyNeedsAttention(
+      request.threadId,
+      'approval',
+      runtimeToolTitle(request.tool.name),
+    );
     return await new Promise((resolve) => {
       const finish = (decision: 'allow' | 'deny' | 'cancel'): void => {
         signal?.removeEventListener('abort', abort);

@@ -1353,7 +1353,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
 
 function nativeApprovalDescription(active: ActiveTurn, params: unknown): string {
   const command = stringAt(params, ['command']);
-  if (command) return command;
+  if (command) return `Run a command: ${command}`;
   const itemId = stringAt(params, ['itemId']);
   const item = itemId ? active.nativeItems.get(itemId) : undefined;
   const paths = (Array.isArray(item?.changes) ? item.changes : []).flatMap((candidate) => {

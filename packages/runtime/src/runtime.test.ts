@@ -1757,9 +1757,9 @@ describe('Notch-style native Mac sessions', () => {
         expect(approvalDecision).toEqual({
           decision: nativeApproval === 'auto' ? 'accept' : 'decline',
         });
-        expect(events.filter((e) => e.type === 'approval')).toHaveLength(
-          nativeApproval === 'auto' ? 0 : 1,
-        );
+        expect(
+          events.flatMap((e) => (e.type === 'approval' ? [e.payload.description] : [])),
+        ).toEqual(nativeApproval === 'auto' ? [] : ['Run a command: open -a TextEdit']);
         expect(events.filter((e) => e.type === 'message')).toMatchObject([
           { payload: { delta: false, parts: [{ text: finalText }] } },
         ]);
