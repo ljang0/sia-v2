@@ -11,6 +11,7 @@ import {
   FolderSimple,
   ImageSquare,
   MagnifyingGlass,
+  Paperclip,
   SpeakerHigh,
   SpinnerGap,
   StopCircle,
@@ -682,7 +683,11 @@ export function Conversation({
       ) : null}
       {draggingFiles ? (
         <div className={styles.attachmentDropOverlay} role="status">
-          Drop up to 20 files to attach
+          <span className={styles.attachmentDropCard}>
+            <Paperclip size={22} aria-hidden="true" />
+            <strong>Drop to attach</strong>
+            <small>Up to 20 files or images</small>
+          </span>
         </div>
       ) : null}
       <div

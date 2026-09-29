@@ -5100,7 +5100,9 @@ input[type='checkbox'].switch:disabled {
 
 .attachmentChip {
   display: inline-flex;
-  max-width: 260px;
+  min-width: 0;
+  max-width: 280px;
+  animation: attachmentChipIn 220ms var(--ease-out-soft) both;
   height: 28px;
   align-items: center;
   gap: 6px;
@@ -5110,6 +5112,13 @@ input[type='checkbox'].switch:disabled {
   background: var(--bg-subtle);
   color: var(--text-secondary);
   font-size: var(--text-sm);
+}
+
+@keyframes attachmentChipIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
 }
 
 .attachmentChip > span {
@@ -5629,6 +5638,51 @@ input[type='checkbox'].switch:disabled {
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
   pointer-events: none;
+  animation: dropOverlayIn 160ms var(--ease-standard) both;
+}
+
+.attachmentDropCard {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  animation: dropCardIn 260ms var(--ease-out-soft) both;
+}
+
+.attachmentDropCard > svg {
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--focus-ring) 14%, transparent);
+  color: var(--focus-ring);
+}
+
+.attachmentDropCard small {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+}
+
+@keyframes dropOverlayIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes dropCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attachmentDropOverlay,
+  .attachmentDropCard,
+  .attachmentChip {
+    animation: none;
+  }
 }
 
 .starterPrompts {
@@ -5794,15 +5848,31 @@ input[type='checkbox'].switch:disabled {
   letter-spacing: 0.01em;
 }
 
-.attachmentPreviewButton {
+.attachmentChip .attachmentPreviewButton {
+  display: block;
   width: auto;
   min-width: 0;
-  max-width: 160px;
-  justify-content: flex-start;
+  max-width: 180px;
+  flex: 0 1 auto;
+  padding: 0 2px;
   overflow: hidden;
   color: var(--text-primary);
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.attachmentChip .attachmentPreviewButton:hover {
+  background: transparent;
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 2px;
+}
+
+.attachmentChip .attachmentPreviewButton:disabled {
+  cursor: default;
+  opacity: 1;
+  text-decoration: none;
 }
 
 .scheduleForm {
