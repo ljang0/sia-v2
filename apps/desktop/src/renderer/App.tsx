@@ -334,6 +334,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         onForkThread={(threadId, isolated, title) =>
           app.attempt(() => api.forkThread(threadId, isolated, title)) as Promise<void>
         }
+        worktreeForks={snapshot.preferences.developerTools === true}
         onArchiveThread={(threadId) => app.archiveThread(threadId).then(() => focusComposer())}
         onCreateAgent={app.openNewAgent}
         onEditAgent={app.openEditAgent}
@@ -758,7 +759,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                     <>
                       {activeThread.sourceThreadId ? (
                         <div className={styles.forkSourceLabel} data-testid="fork-source-label">
-                          Forked from {activeThread.sourceThreadId}
+                          Copied from{' '}
+                          {snapshot.agents
+                            .flatMap(({ threads }) => threads)
+                            .find(({ id }) => id === activeThread.sourceThreadId)?.title ??
+                            'another conversation'}
                         </div>
                       ) : null}
                       <ThreadWorkspaceTools

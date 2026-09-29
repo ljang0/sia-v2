@@ -15,7 +15,6 @@ import {
   Bell,
   BellSlash,
   Copy,
-  GitFork,
   PushPin,
   Pulse,
 } from '@phosphor-icons/react';
@@ -43,6 +42,8 @@ interface SidebarProps {
   onDeleteThread(threadId: string): Promise<void>;
   onCleanupWorktree?(threadId: string): Promise<void>;
   onForkThread?(threadId: string, isolated: boolean, title?: string): Promise<void>;
+  /** Offers a separate Git worktree when duplicating (Settings → Developer tools). */
+  worktreeForks?: boolean | undefined;
   onArchiveThread?(threadId: string): Promise<void>;
   onCreateAgent(): void;
   onEditAgent(agent: AgentSummary): void;
@@ -69,6 +70,7 @@ export function Sidebar({
   onDeleteThread,
   onCleanupWorktree,
   onForkThread,
+  worktreeForks = false,
   onArchiveThread,
   onCreateAgent,
   onEditAgent,
@@ -483,7 +485,7 @@ export function Sidebar({
                                 ? (opener) => {
                                     dialogOpener.current = opener;
                                     setForkingThread(thread);
-                                    setForkTitle(`${thread.title} fork`);
+                                    setForkTitle(`${thread.title} (copy)`);
                                     setForkIsolated(false);
                                   }
                                 : undefined
@@ -641,31 +643,32 @@ export function Sidebar({
             className={styles.alertDialogContent}
             onCloseAutoFocus={restoreDialogFocus}
           >
-            <Dialog.Title>Fork this thread</Dialog.Title>
+            <Dialog.Title>Duplicate conversation</Dialog.Title>
             <Dialog.Description>
-              Copy the local transcript. Use an isolated Git worktree to run in parallel without
-              sharing workspace writes.
+              Make a copy you can take in a new direction. The original stays as it is.
             </Dialog.Description>
             <label className={styles.localField}>
-              <span>Fork title</span>
+              <span>Name</span>
               <input
                 value={forkTitle}
                 onChange={(event) => setForkTitle(event.target.value)}
                 maxLength={120}
               />
             </label>
-            <label className={styles.forkIsolationOption}>
-              <input
-                type="checkbox"
-                checked={forkIsolated}
-                onChange={(event) => setForkIsolated(event.target.checked)}
-                data-testid="fork-isolation-checkbox"
-              />
-              <span>
-                <strong>Isolated Git worktree</strong>
-                <small>Recommended for parallel coding tasks.</small>
-              </span>
-            </label>
+            {worktreeForks ? (
+              <label className={styles.forkIsolationOption}>
+                <input
+                  type="checkbox"
+                  checked={forkIsolated}
+                  onChange={(event) => setForkIsolated(event.target.checked)}
+                  data-testid="fork-isolation-checkbox"
+                />
+                <span>
+                  <strong>Isolated Git worktree</strong>
+                  <small>Recommended for parallel coding tasks.</small>
+                </span>
+              </label>
+            ) : null}
             <div className={styles.dialogActions}>
               <Dialog.Close asChild>
                 <button type="button" className={styles.secondaryButton}>
@@ -679,7 +682,11 @@ export function Sidebar({
                 onClick={() => {
                   if (!forkingThread || !onForkThread) return;
                   setPendingThreadAction(true);
-                  void onForkThread(forkingThread.id, forkIsolated, forkTitle.trim()).then(
+                  void onForkThread(
+                    forkingThread.id,
+                    worktreeForks && forkIsolated,
+                    forkTitle.trim(),
+                  ).then(
                     () => {
                       setForkingThread(undefined);
                       setPendingThreadAction(false);
@@ -688,7 +695,7 @@ export function Sidebar({
                   );
                 }}
               >
-                Create fork
+                Duplicate
               </button>
             </div>
           </Dialog.Content>
@@ -807,10 +814,10 @@ function ThreadMenu({
               onSelect={() => onFork(trigger.current)}
               data-testid="thread-fork"
               disabled={busy}
-              title={busy ? 'Stop or finish the current task before forking.' : undefined}
+              title={busy ? 'Stop or finish the current task before duplicating.' : undefined}
             >
-              <GitFork size={14} aria-hidden="true" />
-              Fork
+              <Copy size={14} aria-hidden="true" />
+              Duplicate
             </DropdownMenu.Item>
           ) : null}
           {onArchive ? (
