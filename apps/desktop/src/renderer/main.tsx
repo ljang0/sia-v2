@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import { AppErrorBoundary } from './components/ErrorBoundary';
 import { ScottyPet, ScottyPanel } from './components/Scotty';
 import { CommandLauncher } from './components/CommandLauncher';
 
@@ -37,14 +38,18 @@ if (location.hash === '#scotty' || location.hash === '#scotty-panel') {
     }
     reactRoot.render(
       <StrictMode>
-        <App api={api} />
+        <AppErrorBoundary>
+          <App api={api} />
+        </AppErrorBoundary>
       </StrictMode>,
     );
   });
 } else {
   reactRoot.render(
     <StrictMode>
-      <App />
+      <AppErrorBoundary>
+        <App />
+      </AppErrorBoundary>
     </StrictMode>,
   );
 }

@@ -16,6 +16,8 @@ interface ProviderCommand {
   versionArgs: string[];
   model: string;
   label: string;
+  /** What pays for turns, in the person's words; shown where the thread says what runs it. */
+  plan?: string;
   billing: string;
   detail: string;
   restriction?: string;
@@ -32,6 +34,7 @@ const PROVIDERS: Record<ProviderId, ProviderCommand> = {
     versionArgs: ['--version'],
     model: 'gpt-5.6-sol',
     label: 'Codex',
+    plan: 'ChatGPT plan',
     billing: 'Uses your existing ChatGPT Codex subscription.',
     detail: 'Official app server; Sia verifies ChatGPT sign-in without importing credentials.',
     minimumVersion: CODEX_SUPPORTED_VERSIONS.minimum,
@@ -43,6 +46,7 @@ const PROVIDERS: Record<ProviderId, ProviderCommand> = {
     versionArgs: [],
     model: 'super_nova_ext',
     label: 'Included models',
+    plan: 'Included with Sia',
     billing: 'Model-lab access is included with your Sia account; lab limits may apply.',
     detail:
       'Included Meta access runs through the Codex harness. Lab API keys never enter the desktop app.',
@@ -73,6 +77,7 @@ const PROVIDERS: Record<ProviderId, ProviderCommand> = {
     versionArgs: ['--version'],
     model: 'sonnet',
     label: 'Claude',
+    plan: 'Claude plan',
     billing: 'Uses your existing Claude Code subscription.',
     detail:
       'Official Claude Code CLI with isolated Sia tools and non-persistent provider sessions.',
@@ -298,6 +303,7 @@ function view(
   return {
     id,
     label: definition.label,
+    ...(definition.plan ? { plan: definition.plan } : {}),
     status,
     model: definition.model,
     detail: detailOverride ?? definition.detail,
@@ -370,4 +376,9 @@ function runCommand(
       else reject(new Error(`CLI probe exited with ${String(code)}.`));
     });
   });
+}
+
+/** The catalog's plan wording for a provider, for views built outside a probe. */
+export function providerPlan(id: ProviderId): string | undefined {
+  return PROVIDERS[id].plan;
 }

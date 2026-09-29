@@ -23,6 +23,8 @@ export interface ProviderSetupProgress {
 export interface ProviderView {
   id: ProviderId;
   label: string;
+  /** Plan wording from the provider catalog, e.g. "ChatGPT plan". */
+  plan?: string;
   status: ProviderStatus;
   model: string;
   version?: string;
@@ -480,6 +482,7 @@ export interface DesktopSnapshot {
   voice: VoiceView;
   preferences: {
     completionSound: boolean;
+    openAtLogin?: boolean;
     appearance?: 'calm' | 'expressive';
     onboarding?: OnboardingProgress;
   };
@@ -668,6 +671,7 @@ export interface BridgeRequestMap {
   'computer.setupMessages': undefined;
   'settings.setAppearance': { appearance: 'calm' | 'expressive' };
   'settings.setCompletionSound': { enabled: boolean };
+  'settings.setOpenAtLogin': { enabled: boolean };
   'feedback.compose': { message: string; threadId?: string; includeDiagnostics: boolean };
   'updates.check': undefined;
   'updates.openDownload': undefined;
@@ -792,6 +796,7 @@ export interface BridgeResultMap {
   'computer.setupMessages': DesktopSnapshot;
   'settings.setAppearance': DesktopSnapshot;
   'settings.setCompletionSound': DesktopSnapshot;
+  'settings.setOpenAtLogin': DesktopSnapshot;
   'feedback.compose': { opened: boolean };
   'updates.check': UpdateView;
   'updates.openDownload': { opened: boolean };
@@ -967,6 +972,7 @@ export interface DesktopBridgeApi {
     restartForOnboarding(): Promise<DesktopSnapshot>;
     setAppearance(appearance: 'calm' | 'expressive'): Promise<DesktopSnapshot>;
     setCompletionSound(enabled: boolean): Promise<DesktopSnapshot>;
+    setOpenAtLogin(enabled: boolean): Promise<DesktopSnapshot>;
   };
   feedback: {
     compose(

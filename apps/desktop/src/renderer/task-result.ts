@@ -19,5 +19,5 @@ export function completedReplyId(thread: ThreadDetail): string | undefined {
   const reply = turn.findLast(
     (event) => event.type === 'message' && event.role === 'assistant',
   );
-  return reply?.type === 'message' && reply.content.trim() ? reply.id : undefined;
+  return reply?.type === 'message' && reply.content?.trim() ? reply.id : undefined;
 }

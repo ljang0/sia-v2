@@ -68,7 +68,7 @@ import type {
   TerminalResultView,
 } from '../shared/bridge.js';
 import type { RecordRepository } from './persistence.js';
-import { probeProviders } from './provider-probe.js';
+import { probeProviders, providerPlan } from './provider-probe.js';
 import type { RuntimeCoordinator } from './runtime-coordinator.js';
 import type { CloudIdentityStatus } from './identity.js';
 import type { CuaAuthorizationContext } from './cua-service.js';
@@ -149,6 +149,8 @@ interface ControllerOptions {
   chooseFiles?(): Promise<string[]>;
   openPath?(path: string): Promise<void>;
   composeFeedback?(subject: string, body: string): Promise<void>;
+  /** Registers or removes Sia as a macOS login item. */
+  setOpenAtLogin?(enabled: boolean): void;
   appVersion?: string;
   updateManifestUrl?: string;
   updateManifestPublicKey?: string;
@@ -207,6 +209,7 @@ interface PersistedState {
   cloudFeatures: CloudFeatureFlags;
   preferences: {
     completionSound: boolean;
+    openAtLogin?: boolean;
     appearance?: 'calm' | 'expressive';
     onboarding?: NonNullable<DesktopSnapshot['preferences']['onboarding']>;
     /** All eligible actions run without in-app approval only when explicitly set to 'auto'. */
@@ -444,6 +447,7 @@ export class DesktopController {
   readonly #chooseFiles: (() => Promise<string[]>) | undefined;
   readonly #openPath: ((path: string) => Promise<void>) | undefined;
   readonly #composeFeedback: ((subject: string, body: string) => Promise<void>) | undefined;
+  readonly #setOpenAtLogin: ((enabled: boolean) => void) | undefined;
   readonly #appVersion: string;
   readonly #updateManifestUrl: string | undefined;
   readonly #updateManifestPublicKey: string | undefined;
@@ -561,6 +565,7 @@ export class DesktopController {
     this.#chooseFiles = options.chooseFiles;
     this.#openPath = options.openPath;
     this.#composeFeedback = options.composeFeedback;
+    this.#setOpenAtLogin = options.setOpenAtLogin;
     this.#appVersion = options.appVersion ?? 'development';
     this.#updateManifestUrl = options.updateManifestUrl;
     this.#updateManifestPublicKey = options.updateManifestPublicKey;
@@ -1363,6 +1368,7 @@ export class DesktopController {
       const fakeCodex: ProviderView = {
         id: 'codex',
         label: 'Codex',
+        ...(providerPlan('codex') ? { plan: providerPlan('codex')! } : {}),
         status: 'ready',
         model: 'gpt-5.6-sol',
         version: '0.147.0',
@@ -2145,6 +2151,14 @@ export class DesktopController {
         ).enabled;
         this.#commit();
         return this.#resultSnapshot() as BridgeResultMap[M];
+      case 'settings.setOpenAtLogin': {
+        const { enabled } = input as BridgeRequestMap['settings.setOpenAtLogin'];
+        if (!this.#setOpenAtLogin) throw new Error('Opening at login is unavailable here.');
+        this.#setOpenAtLogin(enabled);
+        this.#state.preferences.openAtLogin = enabled;
+        this.#commit();
+        return this.#resultSnapshot() as BridgeResultMap[M];
+      }
       case 'feedback.compose':
         return (await this.#composeFeedbackMessage(
           input as BridgeRequestMap['feedback.compose'],
@@ -7036,7 +7050,7 @@ export class DesktopController {
         id: event.id,
         turnId: event.turnId,
         kind: 'error',
-        title: 'Provider error',
+        title: 'Task stopped',
         text: event.payload.message,
         status: 'failed',
         timestamp: event.timestamp,
@@ -7060,7 +7074,7 @@ export class DesktopController {
           turnId: event.turnId,
           kind: 'error',
           title: 'Turn did not complete',
-          text: 'The provider ended this turn without completing it. Check the provider account (sign-in, usage limits) and try again.',
+          text: 'The model stopped before finishing this task. Try again. If it keeps happening, check your plan’s sign-in and usage in Settings → AI.',
           status: 'failed',
           timestamp: event.timestamp,
         });

@@ -5,6 +5,8 @@ import styles from '../ui.module.css';
 interface FeedbackDialogProps {
   open: boolean;
   threadId?: string | undefined;
+  /** Starting text, such as a draft about a rated reply. */
+  initialMessage?: string | undefined;
   onOpenChange(open: boolean): void;
   onSubmit(message: string, includeDiagnostics: boolean): Promise<void>;
 }
@@ -12,6 +14,7 @@ interface FeedbackDialogProps {
 export function FeedbackDialog({
   open,
   threadId,
+  initialMessage,
   onOpenChange,
   onSubmit,
 }: FeedbackDialogProps) {
@@ -21,10 +24,10 @@ export function FeedbackDialog({
 
   useEffect(() => {
     if (!open) return;
-    setMessage('');
+    setMessage(initialMessage ?? '');
     setIncludeDiagnostics(false);
     setSending(false);
-  }, [open]);
+  }, [open, initialMessage]);
 
   return (
     <Dialog.Root open={open} onOpenChange={(next) => !sending && onOpenChange(next)}>

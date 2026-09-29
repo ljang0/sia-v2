@@ -49,6 +49,9 @@ import { Composer } from './Composer';
 import { QueuedMessages } from './QueuedMessages';
 import { ConversationOutline, hasConversationOutline } from './ConversationOutline';
 import { SafeMarkdown } from './SafeMarkdown';
+import { RowErrorBoundary } from './ErrorBoundary';
+import { NoticeText, ThreadErrorText } from './PlainErrorText';
+import { ReplyFeedbackButtons, type ReplyRating } from './ReplyFeedback';
 import { DitherAurora as Aurora } from './effects/DitherAurora';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
 
@@ -93,6 +96,8 @@ interface ConversationProps {
   onRemoveQueued?: ((messageId: string) => Promise<void>) | undefined;
   onRetry(): Promise<void>;
   onResolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
+  /** Thumbs up or down on a reply opens a feedback draft about it. */
+  onRateReply?: ((rating: ReplyRating, reply: string) => void) | undefined;
   onCreateThread?: (() => void) | undefined;
   onCreateAgent?: (() => void) | undefined;
   onOpenApps?: (() => void) | undefined;
@@ -137,6 +142,7 @@ export function Conversation({
   onRemoveQueued,
   onRetry,
   onResolveApproval,
+  onRateReply,
   onCreateThread,
   onCreateAgent,
   onOpenApps,
@@ -184,7 +190,17 @@ export function Conversation({
     (event) => event.type === 'message' && event.role === 'assistant',
   );
   const errorAlreadyExplained =
-    lastAssistant?.type === 'message' && lastAssistant.content.trim() === thread?.error?.trim();
+    (lastAssistant?.type === 'message' &&
+      (lastAssistant.content ?? '').trim() === thread?.error?.trim()) ||
+    Boolean(
+      thread?.error &&
+      thread.events.some(
+        (event) =>
+          event.type === 'notice' &&
+          event.tone === 'error' &&
+          (event.detail ?? '').trim() === thread.error?.trim(),
+      ),
+    );
 
   const findNeedle = findQuery.trim().toLocaleLowerCase();
   const matchingEventIds = findNeedle
@@ -395,6 +411,7 @@ export function Conversation({
             }),
         );
       },
+      rateReply: (rating, reply) => onRateReply?.(rating, reply),
       resolveApproval: async (approvalId, decision) => {
         setBusyApprovalId(approvalId);
         try {
@@ -415,6 +432,7 @@ export function Conversation({
         latestRowActions.current?.toggleSpeech(eventId, text) ?? Promise.resolve(),
       previewAttachment: (attachment) =>
         latestRowActions.current?.previewAttachment(attachment),
+      rateReply: (rating, reply) => latestRowActions.current?.rateReply(rating, reply),
       resolveApproval: (approvalId, decision) =>
         latestRowActions.current?.resolveApproval(approvalId, decision) ?? Promise.resolve(),
     }),
@@ -514,7 +532,7 @@ export function Conversation({
           event.tone === 'error' &&
           previous?.type === 'message' &&
           previous.role === 'assistant' &&
-          previous.content.trim() === event.detail.trim()
+          (previous.content ?? '').trim() === (event.detail ?? '').trim()
         }
         agentHue={agentHue}
         busyApprovalId={event.type === 'approval' ? busyApprovalId : undefined}
@@ -525,6 +543,7 @@ export function Conversation({
         completed={event.id === resultId}
         speakable={Boolean(voiceEnabled && onSpeak)}
         previewable={Boolean(onPreviewAttachment)}
+        rateable={Boolean(onRateReply)}
       />
     );
   };
@@ -710,7 +729,7 @@ export function Conversation({
               <WarningCircle size={18} aria-hidden="true" />
               <div>
                 <strong>Task needs attention</strong>
-                {!errorAlreadyExplained ? <span>{thread.error}</span> : null}
+                <ThreadErrorText error={thread.error} explained={errorAlreadyExplained} />
               </div>
               <button
                 type="button"
@@ -770,7 +789,6 @@ export function Conversation({
       <Composer
         key={thread.id}
         initialValue={thread.draft ?? ''}
-        disabled={waitingForApproval}
         running={running || queued || waitingForApproval}
         stoppable={running || queued || waiting}
         executionLabel={executionLabel}
@@ -833,7 +851,7 @@ export function Conversation({
           pendingQuestion
             ? `Reply to ${agentName ?? 'Sia'}’s question`
             : waitingForApproval
-              ? 'Review the pending approval or stop this turn'
+              ? `Add a follow-up — ${agentName ?? 'Sia'} will pick it up after the approval`
               : running || queued
                 ? `Add a follow-up — ${agentName ?? 'Sia'} will pick it up next`
                 : thread.events.length === 0
@@ -873,6 +891,7 @@ interface EventViewProps {
   streaming?: boolean | undefined;
   justCompleted?: boolean | undefined;
   onToggleSpeech?: ((text: string) => Promise<void>) | undefined;
+  onRateReply?: ((rating: ReplyRating, reply: string) => void) | undefined;
   onPreviewAttachment?: ((attachment: RendererAttachment) => void) | undefined;
   onResolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
 }
@@ -881,18 +900,20 @@ interface RowActions {
   registerRow(eventId: string, node: HTMLDivElement | null): void;
   toggleSpeech(eventId: string, text: string): Promise<void>;
   previewAttachment(attachment: RendererAttachment): void;
+  rateReply(rating: ReplyRating, reply: string): void;
   resolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
 }
 
 interface ConversationRowProps extends Omit<
   EventViewProps,
-  'onToggleSpeech' | 'onPreviewAttachment' | 'onResolveApproval'
+  'onToggleSpeech' | 'onPreviewAttachment' | 'onResolveApproval' | 'onRateReply'
 > {
   actions: RowActions;
   findMatch: boolean;
   findCurrent: boolean;
   speakable: boolean;
   previewable: boolean;
+  rateable: boolean;
 }
 
 /** One transcript row. Memoized so streaming into the last reply leaves earlier rows alone. */
@@ -902,6 +923,7 @@ const ConversationRow = memo(function ConversationRow({
   findCurrent,
   speakable,
   previewable,
+  rateable,
   ...view
 }: ConversationRowProps) {
   const { event } = view;
@@ -917,13 +939,23 @@ const ConversationRow = memo(function ConversationRow({
         {...view}
         onToggleSpeech={speakable ? (text) => actions.toggleSpeech(event.id, text) : undefined}
         onPreviewAttachment={previewable ? actions.previewAttachment : undefined}
+        onRateReply={rateable ? actions.rateReply : undefined}
         onResolveApproval={actions.resolveApproval}
       />
     </div>
   );
 });
 
-function EventView({
+/** One conversation row; a rendering failure stays inside the row. */
+function EventView(props: EventViewProps) {
+  return (
+    <RowErrorBoundary resetKey={props.event}>
+      <EventViewContent {...props} />
+    </RowErrorBoundary>
+  );
+}
+
+function EventViewContent({
   agentName = 'Sia',
   completed,
   event,
@@ -935,6 +967,7 @@ function EventView({
   streaming,
   justCompleted,
   onToggleSpeech,
+  onRateReply,
   onPreviewAttachment,
   onResolveApproval,
 }: EventViewProps) {
@@ -953,8 +986,12 @@ function EventView({
       <div className={`${styles.notice} ${styles[`notice_${event.tone}`]}`} role="status">
         <WarningCircle size={17} aria-hidden="true" />
         <div>
-          <strong>{event.title}</strong>
-          {!noticeExplained ? <p>{event.detail}</p> : null}
+          <NoticeText
+            title={event.title}
+            detail={event.detail}
+            tone={event.tone}
+            explained={noticeExplained}
+          />
         </div>
       </div>
     );
@@ -1013,6 +1050,9 @@ function EventView({
               <SpeakerHigh size={14} aria-hidden="true" />
             )}
           </button>
+        ) : null}
+        {event.role === 'assistant' && onRateReply && !streaming ? (
+          <ReplyFeedbackButtons onRate={(rating) => onRateReply(rating, event.content)} />
         ) : null}
       </header>
       <div

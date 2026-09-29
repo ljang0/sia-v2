@@ -1,11 +1,19 @@
 import { Archive, Check, CloudSlash, Copy, WarningCircle } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import { ARCHIVE_UNDO_MS, type useAppController } from '../useAppController';
+import { plainError } from '../plainErrors';
 import styles from '../ui.module.css';
 
 type AppController = ReturnType<typeof useAppController>;
 
-export function WorkspaceNotice({ app }: { app: AppController }) {
+export function WorkspaceNotice({
+  app,
+  deviceOffline = false,
+}: {
+  app: AppController;
+  /** The Mac itself is offline; the offline banner already says so. */
+  deviceOffline?: boolean;
+}) {
   // An action error must not hide a pending Undo, so the two can show together.
   return (
     <>
@@ -17,7 +25,9 @@ export function WorkspaceNotice({ app }: { app: AppController }) {
           onDismiss={app.dismissArchived}
         />
       ) : null}
-      {!app.actionIssue && !app.archivedThreadId ? <AmbientNotice app={app} /> : null}
+      {!app.actionIssue && !app.archivedThreadId ? (
+        <AmbientNotice app={app} deviceOffline={deviceOffline} />
+      ) : null}
     </>
   );
 }
@@ -36,7 +46,7 @@ function ActionIssueNotice({ app }: { app: AppController }) {
       <div className={styles.actionError} role="alert" data-testid="diagnostic-tray">
         <WarningCircle size={16} aria-hidden="true" />
         <span className={styles.actionErrorCopy}>
-          <span>{app.actionIssue.message}</span>
+          <span>{actionIssueText(app.actionIssue.message)}</span>
           <small>
             Support ID {app.actionIssue.supportId}
             {app.actionIssue.count > 1 ? ` · repeated ${app.actionIssue.count} times` : ''}
@@ -120,7 +130,7 @@ function ArchiveUndoNotice({ onUndo, onDismiss }: { onUndo(): void; onDismiss():
   );
 }
 
-function AmbientNotice({ app }: { app: AppController }) {
+function AmbientNotice({ app, deviceOffline }: { app: AppController; deviceOffline: boolean }) {
   if (app.snapshot?.startupNotice && !app.startupNoticeDismissed) {
     return (
       <div className={styles.actionError} role="status">
@@ -136,7 +146,11 @@ function AmbientNotice({ app }: { app: AppController }) {
     );
   }
 
-  if (app.snapshot?.connection === 'offline' && app.snapshot.cloudAuth.state === 'signed-in') {
+  if (
+    !deviceOffline &&
+    app.snapshot?.connection === 'offline' &&
+    app.snapshot.cloudAuth.state === 'signed-in'
+  ) {
     return (
       <div className={styles.offlineBanner} role="status">
         <CloudSlash size={16} aria-hidden="true" />
@@ -149,4 +163,13 @@ function AmbientNotice({ app }: { app: AppController }) {
   }
 
   return null;
+}
+
+/**
+ * Our own action errors are already written for people; only a raw transport failure
+ * (the Mac lost its connection mid-request) is rewritten. Copy details keeps the original.
+ */
+function actionIssueText(message: string): string {
+  const plain = plainError(message);
+  return plain?.kind === 'network' ? plain.message : message;
 }

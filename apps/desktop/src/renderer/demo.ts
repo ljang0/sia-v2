@@ -208,6 +208,7 @@ export const demoSnapshot: RendererSnapshot = {
     {
       id: 'codex',
       name: 'Codex',
+      plan: 'ChatGPT plan',
       model: 'gpt-5.6-sol',
       description: 'Local coding and computer work through the official app server.',
       status: 'ready',
@@ -225,6 +226,7 @@ export const demoSnapshot: RendererSnapshot = {
     {
       id: 'meta',
       name: 'Included models',
+      plan: 'Included with Sia',
       model: 'super_nova_ext',
       description: 'Hosted model access through the Sia cloud relay.',
       status: 'ready',
@@ -253,6 +255,7 @@ export const demoSnapshot: RendererSnapshot = {
     {
       id: 'claude',
       name: 'Claude',
+      plan: 'Claude plan',
       model: 'sonnet',
       description: 'Claude Code CLI with isolated Sia tools and non-persistent sessions.',
       status: 'ready',
@@ -1120,6 +1123,11 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
     async setCompletionSound(enabled) {
       mutate((current) => {
         current.preferences.completionSound = enabled;
+      });
+    },
+    async setOpenAtLogin(enabled) {
+      mutate((current) => {
+        current.preferences.openAtLogin = enabled;
       });
     },
     async composeFeedback() {},

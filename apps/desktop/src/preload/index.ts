@@ -142,6 +142,7 @@ const api: DesktopBridgeApi = {
     restartForOnboarding: () => invoke('settings.restartForOnboarding', undefined),
     setAppearance: (appearance) => invoke('settings.setAppearance', { appearance }),
     setCompletionSound: (enabled) => invoke('settings.setCompletionSound', { enabled }),
+    setOpenAtLogin: (enabled) => invoke('settings.setOpenAtLogin', { enabled }),
   },
   feedback: {
     compose: (message, threadId, includeDiagnostics) =>

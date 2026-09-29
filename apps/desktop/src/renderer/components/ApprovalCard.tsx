@@ -8,7 +8,7 @@ import {
   XCircle,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
-import { focusIsAdrift } from '../composerFocus';
+import { COMPOSER_INPUT_ATTRIBUTE, focusIsAdrift } from '../composerFocus';
 import type { ApprovalEvent, ApprovalDecision } from '../types';
 import styles from '../ui.module.css';
 
@@ -30,12 +30,17 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
   const card = useRef<HTMLElement>(null);
   const command = request.kind === 'action' ? nativeCommand(request.summary) : undefined;
 
-  // A new request disables the composer mid-sentence. Move focus to the card itself, not
-  // to Approve, so a stray Enter cannot approve and the next Tab reaches the choices.
+  // Move focus to the card itself, not to Approve, so a stray Enter cannot approve and the
+  // next Tab reaches the choices. Someone mid-sentence in the composer keeps typing: their
+  // message queues as a follow-up and the card waits for them.
   useEffect(() => {
     if (status !== 'pending') return;
     const active = document.activeElement;
-    if (focusIsAdrift(active) || active?.closest('[data-companion-composer]')) {
+    const typing =
+      active instanceof HTMLTextAreaElement &&
+      active.hasAttribute(COMPOSER_INPUT_ATTRIBUTE) &&
+      active.value.trim() !== '';
+    if (focusIsAdrift(active) || (active?.closest('[data-companion-composer]') && !typing)) {
       card.current?.focus({ preventScroll: true });
     }
   }, [status]);

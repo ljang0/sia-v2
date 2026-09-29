@@ -449,6 +449,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async setCompletionSound(enabled) {
       publish(await bridge.settings.setCompletionSound(enabled));
     },
+    async setOpenAtLogin(enabled) {
+      publish(await bridge.settings.setOpenAtLogin(enabled));
+    },
     async composeFeedback(message, threadId, includeDiagnostics) {
       await bridge.feedback.compose(message, threadId, includeDiagnostics);
     },
@@ -665,6 +668,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
       return {
         id: provider.id,
         name: provider.label,
+        plan: provider.plan,
         model: provider.model,
         description: provider.detail,
         status: mapProviderStatus(provider.status),

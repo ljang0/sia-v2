@@ -40,6 +40,28 @@ describe('workspace diagnostics', () => {
   });
 });
 
+describe('plain action failures', () => {
+  it('explains a dropped connection plainly and keeps the original text in Copy details', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const api = createDemoRendererApi(structuredClone(demoSnapshot));
+    api.refreshProvider = vi
+      .fn<(provider: ProviderId) => Promise<void>>()
+      .mockRejectedValue(new Error('fetch failed: getaddrinfo ENOTFOUND example.com'));
+    render(<DiagnosticHarness api={api} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Trigger failure' }));
+    const tray = await screen.findByTestId('diagnostic-tray');
+    expect(tray.textContent).toContain('Sia couldn’t reach the internet.');
+    expect(tray.textContent).not.toContain('ENOTFOUND');
+    fireEvent.click(screen.getByRole('button', { name: 'Copy details' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    expect(writeText.mock.calls[0]?.[0]).toContain('getaddrinfo ENOTFOUND');
+  });
+});
+
 describe('archive feedback', () => {
   it('confirms an archive and restores the open conversation on Undo', async () => {
     const api = createDemoRendererApi(structuredClone(demoSnapshot));

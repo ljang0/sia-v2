@@ -64,3 +64,18 @@ function friendlyModelName(provider: ProviderId, model: string): string {
     .map((part) => part[0]!.toUpperCase() + part.slice(1))
     .join(' ');
 }
+
+/**
+ * What the composer says runs a thread, in consumer words: the plan from the provider
+ * catalog ("ChatGPT plan"), else the model's display name, else the provider name.
+ */
+export function executionLabel(
+  providers: readonly ProviderSetup[],
+  providerId: ProviderId,
+  model: string,
+): string | undefined {
+  const provider = providers.find(({ id }) => id === providerId);
+  return (
+    provider?.plan ?? provider?.models?.find(({ id }) => id === model)?.label ?? provider?.name
+  );
+}

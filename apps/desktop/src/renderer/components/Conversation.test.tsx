@@ -110,7 +110,7 @@ describe('Conversation waiting controls', () => {
     expect(screen.getByRole('button', { name: 'Message copied' })).toBeTruthy();
   });
 
-  it('keeps a pending approval cancellable and prevents an invalid text reply', () => {
+  it('keeps a pending approval cancellable and treats text as a follow-up', () => {
     const { onStop } = renderConversation(
       baseThread({
         events: [
@@ -135,8 +135,9 @@ describe('Conversation waiting controls', () => {
 
     expect(
       (screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement).disabled,
-    ).toBe(true);
+    ).toBe(false);
     expect(screen.queryByRole('button', { name: 'Send message' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Queue follow-up message' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Stop current turn' }));
     expect(onStop).toHaveBeenCalledOnce();
   });
@@ -263,8 +264,37 @@ describe('Conversation waiting controls', () => {
     );
 
     const input = screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement;
-    expect(input.disabled).toBe(true);
-    expect(input.placeholder).toBe('Review the pending approval or stop this turn');
+    expect(input.disabled).toBe(false);
+    expect(input.placeholder).toBe('Add a follow-up — Sia will pick it up after the approval');
+  });
+
+  it('keeps the composer open while an approval waits, and queues what is sent', async () => {
+    const { onSend } = renderConversation(
+      baseThread({
+        status: 'waiting',
+        events: [
+          {
+            id: 'approval-1',
+            type: 'approval',
+            status: 'pending',
+            timestamp: '2026-08-13T00:01:00.000Z',
+            request: {
+              id: 'approval-1',
+              kind: 'action',
+              title: 'Click Send',
+              category: 'Browser',
+              summary: 'Click the reviewed control',
+              target: 'Send button',
+              reversible: false,
+            },
+          },
+        ],
+      }),
+    );
+    const input = screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: 'Also check the calendar' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Queue follow-up message' }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('Also check the calendar', []));
   });
 
   it('keeps a typed message when sending fails', async () => {
