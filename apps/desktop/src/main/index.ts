@@ -596,6 +596,7 @@ async function performApplicationCreation(): Promise<void> {
             acpMcpServerFactory: (_provider, session) => [
               capabilityHost!.mint(session.threadId),
             ],
+            onSessionsReset: () => capabilityHost!.revokeAll(),
           }
         : {}),
       ...(hostedResponsesProxy || capabilityHost

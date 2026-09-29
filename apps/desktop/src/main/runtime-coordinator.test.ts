@@ -395,6 +395,19 @@ describe('RuntimeCoordinator', () => {
     await runtime.dispose();
   });
 
+  it('lets the host revoke session-bound capabilities when sessions are reset', async () => {
+    const onSessionsReset = vi.fn();
+    const runtime = new RuntimeCoordinator(
+      new ActionGateway({
+        backend: { invoke: async () => ({ outcome: 'refused', summary: 'not used' }) },
+      }),
+      { onSessionsReset },
+    );
+    await runtime.resetSessions();
+    expect(onSessionsReset).toHaveBeenCalledOnce();
+    await runtime.dispose();
+  });
+
   it('fails closed before starting an unverified beta harness', async () => {
     const runtime = new RuntimeCoordinator(
       new ActionGateway({
