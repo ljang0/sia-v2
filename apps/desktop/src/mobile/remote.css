@@ -829,6 +829,10 @@ button:active:not(:disabled) {
 .activity-light.working {
   animation: breathe 2s ease-in-out infinite;
 }
+/* Paused on the person: the same warm tone as the reply's "Needs you". */
+.activity-light.waiting {
+  background: var(--text-warning);
+}
 .jump-latest {
   position: absolute;
   top: -40px;

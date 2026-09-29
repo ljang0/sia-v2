@@ -118,7 +118,7 @@ export function PhoneRemoteSettings({
           <>
             {pairedAgent && (
               <p className={phone.note}>
-                This phone uses {pairedAgent.name} · {pairedAgent.model}.
+                This phone uses {pairedAgent.name} · {modelLabel(pairedAgent, providers)}.
               </p>
             )}
             <InlineSettingsError message={blocker ?? ''} />
@@ -216,9 +216,9 @@ export function PhoneRemoteSettings({
       </div>
       <div className={phone.footnotes}>
         <p>
-          <strong>The same Sia.</strong> Phone commands use this assistant’s model, Mac access,
-          and action approval settings. Progress and replies stay in Sia’s conversation on this
-          Mac.
+          <strong>The same Sia, with you in charge.</strong> Phone requests use this assistant’s
+          model and Mac access. Each step a phone request takes asks for your OK here on the
+          Mac, one at a time. Progress and replies stay in Sia’s conversation on this Mac.
         </p>
         <p>
           <strong>Your private link controls Sia.</strong> Keep it private and use trusted
@@ -232,5 +232,17 @@ export function PhoneRemoteSettings({
         </p>
       </div>
     </SettingsSectionHeader>
+  );
+}
+
+/** The model's catalog name ("GPT-6 Astra"), falling back to its id when the catalog has none. */
+function modelLabel(
+  agent: Pick<AgentView, 'provider' | 'model'>,
+  providers: readonly ProviderSetup[],
+): string | undefined {
+  return (
+    providers
+      .find((provider) => provider.id === agent.provider)
+      ?.models?.find((model) => model.id === agent.model)?.label ?? agent.model
   );
 }
