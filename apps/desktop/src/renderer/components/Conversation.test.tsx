@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MessageEvent, ThreadDetail } from '../types';
-import { Conversation } from './Conversation';
+import { Conversation, findCountLabel } from './Conversation';
 
 afterEach(cleanup);
 
@@ -775,7 +775,18 @@ describe('Conversation continuity tools', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: 'Find in this thread' }), {
       target: { value: 'release gate' },
     });
-    expect(screen.getByText('1 found')).toBeTruthy();
+    expect(screen.getByText('1 of 1')).toBeTruthy();
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find in this thread' }), {
+      target: { value: 'nothing like this' },
+    });
+    expect(screen.getByText('No matches')).toBeTruthy();
+  });
+
+  it('says where find stands in plain words', () => {
+    expect(findCountLabel('', 0, 0)).toBe('Type to find');
+    expect(findCountLabel('gate', 0, 0)).toBe('No matches');
+    expect(findCountLabel('gate', 1, 3)).toBe('2 of 3');
+    expect(findCountLabel('gate', 7, 3)).toBe('3 of 3');
   });
 });
 
