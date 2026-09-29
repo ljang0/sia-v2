@@ -2480,6 +2480,7 @@ export class DesktopController {
         expiresUnixMs: request.expiresUnixMs.toString(),
       },
     });
+    this.#waitForApproval(context.threadId);
     this.#commit();
     this.#notifyNeedsAttention(context.threadId, 'approval', presentation.title);
 
@@ -2489,6 +2490,7 @@ export class DesktopController {
       const timeout = setTimeout(
         () => {
           this.#pendingApprovals.delete(approvalId);
+          this.#resumeAfterRequest(context.threadId);
           this.#setApprovalStatus(approvalId, 'expired');
           this.#stageApprovalDecision(approvalId, context, 'expired');
           resolve('cancel');
@@ -4022,7 +4024,7 @@ export class DesktopController {
     }
     clearTimeout(pending.timeout);
     this.#pendingApprovals.delete(input.approvalId);
-    if (pending.kind === 'provider') this.#resumeAfterProviderRequest(pending.threadId);
+    this.#resumeAfterRequest(pending.threadId);
     this.#setApprovalStatus(
       input.approvalId,
       input.decision === 'approve' ? 'approved' : 'denied',
@@ -7361,6 +7363,7 @@ export class DesktopController {
       toolName: request.tool.name,
       timestamp: new Date().toISOString(),
     });
+    this.#waitForApproval(request.threadId);
     this.#commit();
     this.#notifyNeedsAttention(
       request.threadId,
@@ -7403,6 +7406,7 @@ export class DesktopController {
       };
       const abort = (): void => {
         this.#pendingApprovals.delete(approvalId);
+        this.#resumeAfterRequest(request.threadId);
         this.#setApprovalStatus(approvalId, 'expired');
         finish('cancel');
       };
@@ -7419,18 +7423,23 @@ export class DesktopController {
     });
   }
 
-  /** A provider keeps working after its approval is answered; leave "waiting" once nothing is pending. */
-  #resumeAfterProviderRequest(threadId: string): void {
+  /** A task keeps working after its approval is answered; leave "waiting" once nothing is pending. */
+  #resumeAfterRequest(threadId: string): void {
     const thread = this.#state.threads.find(({ id }) => id === threadId);
     if (
       thread?.status === 'waiting' &&
       this.#runningTurns.has(threadId) &&
       !this.#pendingQuestions.has(threadId) &&
-      ![...this.#pendingApprovals.values()].some(
-        (pending) => pending.kind === 'provider' && pending.threadId === threadId,
-      )
+      ![...this.#pendingApprovals.values()].some((pending) => pending.threadId === threadId)
     )
       thread.status = 'running';
+  }
+
+  /** A running task that asks the person to approve an action is waiting on them. */
+  #waitForApproval(threadId: string): void {
+    const thread = this.#state.threads.find(({ id }) => id === threadId);
+    if (thread?.status === 'running' && this.#runningTurns.has(threadId))
+      thread.status = 'waiting';
   }
 
   #activeTurnId(threadId: string): string | undefined {

@@ -2374,10 +2374,15 @@ describe('DesktopController', () => {
       title: 'Juniper needs your OK',
       body: 'Mail Send',
     });
+    const status = () =>
+      controller.snapshot().threads.find(({ id }) => id === threadId)?.status;
+    // The thread shows it needs the person, not "Working", until they answer.
+    expect(status()).toBe('waiting');
     await controller.invoke('approvals.resolve', {
       approvalId: controller.snapshot().approvals.at(-1)!.id,
       decision: 'deny',
     });
+    expect(status()).toBe('running');
     await expect(pending).resolves.toEqual({ approved: false });
     await controller.shutdown();
   });
