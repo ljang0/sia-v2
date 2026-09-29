@@ -247,6 +247,169 @@ describe('DesktopController', () => {
     }
   });
 
+  it('keeps compatibility providers off new agents and threads but preserves pinned threads', async () => {
+    const turns: RuntimeTurnInput[] = [];
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        turns.push(input);
+        yield {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: input.thread.provider,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+    };
+    const providerProbe = async (only?: Parameters<typeof probeProviders>[0]) =>
+      (await deterministicProviderProbe(only)).map((provider) =>
+        provider.id === 'claude'
+          ? { ...provider, status: 'ready' as const, version: '2.1.238' }
+          : provider,
+      );
+    const first = await createHarness({ fakeServices: false, providerProbe });
+    await expect(
+      first.controller.invoke('agents.save', {
+        name: 'Claude agent',
+        instructions: '',
+        provider: 'claude',
+        model: 'sonnet',
+        workspace: '/tmp/sia-workspace',
+      }),
+    ).rejects.toThrow('not available for new conversations');
+    const { agentId } = await first.controller.invoke('agents.save', {
+      name: 'Pinned agent',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const threadId = first.controller
+      .snapshot()
+      .threads.find((thread) => thread.agentId === agentId)!.id;
+    await expect(
+      first.controller.invoke('agents.save', {
+        id: agentId,
+        name: 'Pinned agent',
+        instructions: '',
+        provider: 'claude',
+        model: 'sonnet',
+      }),
+    ).rejects.toThrow('not available for new conversations');
+
+    // Simulate state saved by an earlier build that allowed a Claude agent.
+    const state = first.repository.get<{
+      agents: Array<Record<string, unknown>>;
+      threads: Array<Record<string, unknown>>;
+    }>('desktop', 'state')!;
+    const claudeTarget = {
+      provider: 'claude',
+      model: 'sonnet',
+      harnessId: 'claude_code',
+      harnessModelId: 'sonnet',
+      credentialSource: 'provider_subscription',
+      resolutionSource: 'legacy_default',
+    };
+    for (const agent of state.agents)
+      Object.assign(agent, { provider: 'claude', model: 'sonnet' });
+    for (const thread of state.threads)
+      Object.assign(thread, {
+        provider: 'claude',
+        model: 'sonnet',
+        harnessId: 'claude_code',
+        resolvedExecutionTarget: claudeTarget,
+      });
+    first.repository.put('desktop', 'state', state);
+
+    const { controller } = await createHarness({
+      fakeServices: false,
+      providerProbe,
+      repository: first.repository,
+      runtime,
+    });
+    try {
+      await expect(
+        controller.invoke('threads.create', { agentId, title: 'Another' }),
+      ).rejects.toThrow('not available for new conversations');
+      await expect(controller.invoke('agents.duplicate', { agentId })).rejects.toThrow(
+        'not available for new conversations',
+      );
+      await controller.invoke('agents.save', {
+        id: agentId,
+        name: 'Renamed',
+        instructions: '',
+        model: 'sonnet',
+      });
+      // Use my Mac is Codex-only; a retained Claude thread runs in connected mode.
+      await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+      await controller.invoke('threads.send', { threadId, text: 'Continue.' });
+      await vi.waitFor(() => expect(turns).toHaveLength(1));
+      expect(turns[0]?.thread).toMatchObject({ provider: 'claude', model: 'sonnet' });
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('runs workspace commands only after Developer tools is turned on', async () => {
+    const runTerminal = vi.fn(async () => ({
+      command: 'pwd',
+      cwd: '/tmp/sia-workspace',
+      output: '/tmp/sia-workspace',
+      exitCode: 0,
+      timedOut: false,
+    }));
+    const startBackgroundTerminal = vi.fn();
+    const writeBackgroundTerminal = vi.fn();
+    const { controller, repository } = await createHarness({
+      workspaceOperations: {
+        runTerminal,
+        startBackgroundTerminal,
+        writeBackgroundTerminal,
+      } as never,
+    });
+    try {
+      const { agentId } = await controller.invoke('agents.save', {
+        name: 'Commands',
+        instructions: '',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const threadId = controller
+        .snapshot()
+        .threads.find((thread) => thread.agentId === agentId)!.id;
+      expect(controller.snapshot().preferences.developerTools).toBeUndefined();
+      for (const request of [
+        controller.invoke('terminal.run', { threadId, command: 'pwd' }),
+        controller.invoke('terminal.start', { threadId, command: 'sleep 30' }),
+        controller.invoke('terminal.write', { threadId, terminalId: 'term', input: 'y\n' }),
+      ])
+        await expect(request).rejects.toThrow('Turn on Developer tools');
+      expect(runTerminal).not.toHaveBeenCalled();
+      expect(startBackgroundTerminal).not.toHaveBeenCalled();
+      expect(writeBackgroundTerminal).not.toHaveBeenCalled();
+
+      await controller.invoke('settings.setDeveloperTools', { enabled: true });
+      expect(
+        repository.get<{ preferences: { developerTools?: boolean } }>('desktop', 'state')
+          ?.preferences.developerTools,
+      ).toBe(true);
+      await controller.invoke('terminal.run', { threadId, command: 'pwd' });
+      expect(runTerminal).toHaveBeenCalledWith('/tmp/sia-workspace', 'pwd');
+
+      await controller.invoke('settings.setDeveloperTools', { enabled: false });
+      await expect(
+        controller.invoke('terminal.run', { threadId, command: 'pwd' }),
+      ).rejects.toThrow('Turn on Developer tools');
+      expect(runTerminal).toHaveBeenCalledOnce();
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
   it('saves setup before restarting and rechecks access without reviving a browser grant', async () => {
     const restartApp = vi.fn();
     const h = await createHarness({
@@ -1271,7 +1434,7 @@ describe('DesktopController', () => {
         model: 'gemini-2.5-pro',
         workspace: '/tmp/sia-workspace',
       }),
-    ).rejects.toThrow(/Gemini is not ready \(disabled\)/);
+    ).rejects.toThrow('not available for new conversations');
     await controller.shutdown();
 
     let identityState: 'signed_in' | 'signed_out' = 'signed_in';
@@ -4682,6 +4845,7 @@ describe('DesktopController', () => {
         ),
     });
     try {
+      await controller.invoke('settings.setDeveloperTools', { enabled: true });
       const pending = controller.invoke('providers.login', { providerId: 'codex' });
       await vi.waitFor(() => expect(installCodex).toHaveBeenCalledOnce());
       await expect(

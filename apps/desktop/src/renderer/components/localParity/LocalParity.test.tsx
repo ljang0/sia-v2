@@ -468,6 +468,39 @@ describe('changed file summaries', () => {
     );
   });
 
+  it('offers Command only when Developer tools is on', async () => {
+    const openTools = () =>
+      fireEvent.pointerDown(screen.getByRole('button', { name: 'Tools' }), {
+        button: 0,
+        ctrlKey: false,
+      });
+    const snapshot = structuredClone(demoSnapshot);
+    delete snapshot.preferences.developerTools;
+    const props = {
+      thread: structuredClone(demoSnapshot.activeThread!),
+      api: createDemoRendererApi(structuredClone(demoSnapshot)),
+      run: async (action: () => Promise<unknown>) => void (await action()),
+    };
+    const { rerender } = render(<ThreadWorkspaceTools {...props} snapshot={snapshot} />);
+    openTools();
+    expect(await screen.findByRole('menuitem', { name: 'Changes' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Command' })).toBeNull();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+
+    rerender(
+      <ThreadWorkspaceTools
+        {...props}
+        snapshot={{
+          ...snapshot,
+          preferences: { ...snapshot.preferences, developerTools: true },
+        }}
+      />,
+    );
+    openTools();
+    expect(await screen.findByRole('menuitem', { name: 'Command' })).toBeTruthy();
+  });
+
   it('explains an unreadable folder instead of claiming there are no changes', async () => {
     const api = createDemoRendererApi(structuredClone(demoSnapshot));
     api.readChanges = vi.fn(async () => {

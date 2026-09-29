@@ -406,7 +406,7 @@ export interface ComputerView extends ComputerPermissionsView {
   automation?: import('./mac-permissions.js').AutomationPermissions;
   /** Local Apple Messages readability; sends additionally prompt for Automation once. */
   messagesAccess?: 'ready' | 'needs_full_disk_access' | 'unavailable';
-  /** Chrome's persistent remote-debugging toggle for silent attachment. */
+  /** Chrome's own remote-debugging toggle, read-only; Sia never changes it. */
   chromeConnection?: 'enabled' | 'off' | 'unavailable';
   /**
    * 'auto': computer and browser actions run without per-action approval and Chrome
@@ -484,6 +484,8 @@ export interface DesktopSnapshot {
     completionSound: boolean;
     openAtLogin?: boolean;
     appearance?: 'calm' | 'expressive';
+    /** Shows the workspace Command tool. Off unless turned on in Settings; main enforces it. */
+    developerTools?: boolean;
     onboarding?: OnboardingProgress;
   };
   providerUsage?: ProviderUsageView[];
@@ -672,6 +674,7 @@ export interface BridgeRequestMap {
   'settings.setAppearance': { appearance: 'calm' | 'expressive' };
   'settings.setCompletionSound': { enabled: boolean };
   'settings.setOpenAtLogin': { enabled: boolean };
+  'settings.setDeveloperTools': { enabled: boolean };
   'feedback.compose': { message: string; threadId?: string; includeDiagnostics: boolean };
   'updates.check': undefined;
   'updates.openDownload': undefined;
@@ -797,6 +800,7 @@ export interface BridgeResultMap {
   'settings.setAppearance': DesktopSnapshot;
   'settings.setCompletionSound': DesktopSnapshot;
   'settings.setOpenAtLogin': DesktopSnapshot;
+  'settings.setDeveloperTools': DesktopSnapshot;
   'feedback.compose': { opened: boolean };
   'updates.check': UpdateView;
   'updates.openDownload': { opened: boolean };
@@ -973,6 +977,7 @@ export interface DesktopBridgeApi {
     setAppearance(appearance: 'calm' | 'expressive'): Promise<DesktopSnapshot>;
     setCompletionSound(enabled: boolean): Promise<DesktopSnapshot>;
     setOpenAtLogin(enabled: boolean): Promise<DesktopSnapshot>;
+    setDeveloperTools(enabled: boolean): Promise<DesktopSnapshot>;
   };
   feedback: {
     compose(

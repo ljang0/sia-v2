@@ -21,7 +21,7 @@ describe('probeProviders', () => {
     expect(providers.find(({ id }) => id === 'meta')?.plan).toBe('Included with Sia');
     expect(providers.find(({ id }) => id === 'gemini')).toMatchObject({
       status: 'disabled',
-      restriction: expect.stringContaining('Codex or Claude'),
+      restriction: 'Use Codex or a model included with Sia.',
     });
     expect(providers.find(({ id }) => id === 'meta')).toMatchObject({
       status: 'unavailable',

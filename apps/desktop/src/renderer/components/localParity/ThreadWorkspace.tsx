@@ -116,6 +116,11 @@ export function ThreadWorkspaceTools({
   const changedFiles = useMemo(() => mapChangedFiles(changes), [changes]);
   const schedules = snapshot.schedules.filter((schedule) => schedule.threadId === thread.id);
   const schedulesAvailable = snapshot.cloudAuth.features?.schedules !== false;
+  const developerTools = snapshot.preferences.developerTools === true;
+
+  useEffect(() => {
+    if (!developerTools) setTool((current) => (current === 'terminal' ? undefined : current));
+  }, [developerTools]);
 
   return (
     <>
@@ -151,13 +156,15 @@ export function ThreadWorkspaceTools({
               >
                 <GitDiff size={14} aria-hidden="true" /> Changes
               </DropdownMenu.Item>
-              <DropdownMenu.Item
-                className={styles.threadMenuItem}
-                onSelect={() => setTool('terminal')}
-                data-testid="terminal-open"
-              >
-                <Code size={14} aria-hidden="true" /> Command
-              </DropdownMenu.Item>
+              {developerTools ? (
+                <DropdownMenu.Item
+                  className={styles.threadMenuItem}
+                  onSelect={() => setTool('terminal')}
+                  data-testid="terminal-open"
+                >
+                  <Code size={14} aria-hidden="true" /> Command
+                </DropdownMenu.Item>
+              ) : null}
               {schedulesAvailable ? (
                 <DropdownMenu.Item
                   className={styles.threadMenuItem}

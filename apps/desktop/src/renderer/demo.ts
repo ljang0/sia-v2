@@ -1130,6 +1130,11 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         current.preferences.openAtLogin = enabled;
       });
     },
+    async setDeveloperTools(enabled) {
+      mutate((current) => {
+        current.preferences.developerTools = enabled;
+      });
+    },
     async composeFeedback() {},
     async checkForUpdates() {
       mutate((current) => {

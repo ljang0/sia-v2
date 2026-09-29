@@ -211,6 +211,12 @@ test('conversation tools, access panels and dialogs fit the minimum desktop wind
       await page.getByRole('button', { name: 'Close thread tool' }).click();
       await expect(tools).toBeFocused();
     }
+    // Command runs unreviewed shell commands, so it appears only after Developer tools is on.
+    await tools.click();
+    await expect(page.getByRole('menu', { name: 'Tools', exact: true })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Command', exact: true })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => window.sia.settings.setDeveloperTools(true));
     await tools.click();
     await page.getByRole('menuitem', { name: 'Command', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Terminal' })).toBeInViewport({ ratio: 1 });

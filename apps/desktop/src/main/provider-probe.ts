@@ -69,7 +69,7 @@ const PROVIDERS: Record<ProviderId, ProviderCommand> = {
     label: 'Gemini',
     billing: 'Not available as a user-connected plan.',
     detail: 'Legacy adapter retained so existing threads remain readable.',
-    restriction: 'Connect Codex or Claude, or use a model included with Sia.',
+    restriction: 'Use Codex or a model included with Sia.',
     disabled: true,
   },
   claude: {
