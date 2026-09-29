@@ -11,7 +11,7 @@ describe('open at login', () => {
     const setOpenAtLogin = vi.fn(async () => undefined);
     render(<StartupSettings openAtLogin={false} onSetOpenAtLogin={setOpenAtLogin} />);
     expect(screen.getByText(/run only while Sia is open and your Mac is awake/)).toBeTruthy();
-    const toggle = screen.getByRole('checkbox', { name: /Open Sia at login/ });
+    const toggle = screen.getByRole('switch', { name: /Open Sia at login/ });
     expect((toggle as HTMLInputElement).checked).toBe(false);
     fireEvent.click(toggle);
     await waitFor(() => expect(setOpenAtLogin).toHaveBeenCalledWith(true));
@@ -26,7 +26,7 @@ describe('open at login', () => {
         }}
       />,
     );
-    fireEvent.click(screen.getByRole('checkbox', { name: /Open Sia at login/ }));
+    fireEvent.click(screen.getByRole('switch', { name: /Open Sia at login/ }));
     expect((await screen.findByRole('alert')).textContent).toContain('installed Sia app');
   });
 });

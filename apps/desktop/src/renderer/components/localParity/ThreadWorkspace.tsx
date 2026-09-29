@@ -238,6 +238,8 @@ export function ThreadWorkspaceTools({
               }
               onDelete={(scheduleId) => run(() => api.deleteSchedule(scheduleId))}
               onRunNow={(scheduleId) => run(() => api.runScheduleNow(scheduleId))}
+              openAtLogin={snapshot.preferences.openAtLogin === true}
+              onSetOpenAtLogin={(enabled) => api.setOpenAtLogin(enabled)}
             />
           ) : changesLoading ? (
             <p className={styles.localEmpty} role="status">

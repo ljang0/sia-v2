@@ -155,6 +155,24 @@ describe('local parity renderer contracts', () => {
     expect(lifecycle.onClearGoal).toHaveBeenCalledWith();
   });
 
+  it('offers Open Sia at login right where schedules are managed', async () => {
+    const onSetOpenAtLogin = vi.fn(async () => undefined);
+    render(
+      <ScheduleControls
+        schedules={[]}
+        onCreate={vi.fn()}
+        onSetEnabled={vi.fn()}
+        onDelete={vi.fn()}
+        openAtLogin={false}
+        onSetOpenAtLogin={onSetOpenAtLogin}
+      />,
+    );
+    const toggle = screen.getByRole('switch', { name: /Open Sia at login/ });
+    expect((toggle as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(toggle);
+    await waitFor(() => expect(onSetOpenAtLogin).toHaveBeenCalledWith(true));
+  });
+
   it('creates, pauses, and deletes a schedule through explicit callbacks', async () => {
     const onCreate = vi.fn(async () => undefined);
     const onSetEnabled = vi.fn();

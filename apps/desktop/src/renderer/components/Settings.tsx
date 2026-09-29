@@ -384,12 +384,14 @@ export function Settings({
               onSetComputerTrust={onSetComputerTrust}
               onSetTrajectoryLog={onSetTrajectoryLog}
               onRevealTrajectories={onRevealTrajectories}
-            />
-          ) : null}
-          {section === 'computer' && onSetOpenAtLogin ? (
-            <StartupSettings
-              openAtLogin={snapshot.preferences.openAtLogin === true}
-              onSetOpenAtLogin={onSetOpenAtLogin}
+              startup={
+                onSetOpenAtLogin ? (
+                  <StartupSettings
+                    openAtLogin={snapshot.preferences.openAtLogin === true}
+                    onSetOpenAtLogin={onSetOpenAtLogin}
+                  />
+                ) : undefined
+              }
             />
           ) : null}
           {section === 'advanced' && onSetDeveloperTools ? (
