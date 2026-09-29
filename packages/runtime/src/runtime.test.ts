@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 import type { ProviderSessionOptions, ThreadEventEnvelope } from '@sia/protocol';
@@ -1979,15 +1982,18 @@ describe('Notch-style native Mac sessions', () => {
 });
 
 describe('Codex turn resilience', () => {
-  function codexServer(onTurn: (peers: ReturnType<typeof linkedPeers>) => Promise<unknown>) {
+  function codexServer(
+    onTurn: (peers: ReturnType<typeof linkedPeers>, params: unknown) => Promise<unknown>,
+    onInterrupt: (params: unknown) => unknown = () => ({}),
+  ) {
     const peers = linkedPeers();
     peers.server.onRequest(async (method, params) => {
       if (method === 'initialize') return {};
       if (method === 'account/read') return { account: { type: 'chatgpt', email: 'a@b.c' } };
       if (method === 'thread/start')
         return { thread: { id: 'native-thread' }, sandbox: { type: 'workspaceWrite' } };
-      if (method === 'turn/start') return await onTurn(peers);
-      if (method === 'turn/interrupt') return {};
+      if (method === 'turn/start') return await onTurn(peers, params);
+      if (method === 'turn/interrupt') return await onInterrupt(params);
       const isolationResponse = codexIsolationResponse(method, params);
       if (isolationResponse !== undefined) return isolationResponse;
       throw new Error(`unexpected ${method}`);
@@ -2029,6 +2035,58 @@ describe('Codex turn resilience', () => {
       types.push(event.type);
     expect(types).toEqual(['completion']);
     await adapter.dispose();
+  });
+
+  it('names attached files in the text and inlines small text files', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sia-attach-'));
+    await writeFile(join(dir, 'notes.txt'), 'quarterly numbers');
+    await writeFile(join(dir, 'report.pdf'), Buffer.from([0x25, 0x50, 0x44, 0x46, 0, 1]));
+    let turnParams: any;
+    const peers = codexServer(async (p, params) => {
+      turnParams = params;
+      setTimeout(() => {
+        void p.server.notify('turn/completed', {
+          threadId: 'native-thread',
+          turn: { id: 'native-turn', status: 'completed' },
+        });
+      }, 5);
+      return { turn: { id: 'native-turn' } };
+    });
+    const adapter = new CodexAppServerAdapter({
+      sessionEphemeral: true,
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    try {
+      const session = await adapter.createSession(sessionOptions);
+      for await (const _event of adapter.sendTurn(session, {
+        turnId: 't1',
+        text: 'Review these.',
+        attachments: [
+          { kind: 'file', name: 'notes.txt', path: join(dir, 'notes.txt') },
+          { kind: 'file', name: 'report.pdf', path: join(dir, 'report.pdf') },
+          { kind: 'image', name: 'shot.png', path: join(dir, 'shot.png') },
+        ],
+      }));
+      expect(JSON.stringify(turnParams.input)).not.toContain('mention');
+      expect(turnParams.input.slice(1)).toEqual([
+        { type: 'localImage', path: join(dir, 'shot.png') },
+      ]);
+      const text: string = turnParams.input[0].text;
+      expect(text.startsWith('Review these.\n\nAttached files')).toBe(true);
+      expect(text).toContain(`- notes.txt: ${join(dir, 'notes.txt')}`);
+      expect(text).toContain(`- report.pdf: ${join(dir, 'report.pdf')}`);
+      expect(text).toContain('quarterly numbers');
+      expect(text).not.toContain('PDF');
+    } finally {
+      await adapter.dispose();
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it('ends the active turn and forgets sessions when the app-server exits', async () => {
