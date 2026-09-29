@@ -1,8 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import type { DesktopSnapshot } from '../shared/bridge.js';
 import type { LauncherState } from '../shared/launcher.js';
 import { activityLabel } from '../shared/activity-label.js';
-import { latestTaskTurn } from './latest-task-turn.js';
+import { latestTaskTurn, type TaskSnapshot } from './latest-task-turn.js';
 
 /** Only main can bind a target. A stale panel cannot reply to or stop a replacement task. */
 export class LauncherSession {
@@ -13,13 +12,13 @@ export class LauncherSession {
   clear(): void {
     this.#binding = undefined;
   }
-  target(sessionId: string, snapshot: DesktopSnapshot): string {
+  target(sessionId: string, snapshot: TaskSnapshot): string {
     const state = this.view(snapshot);
     if (!state.task || state.task.sessionId !== sessionId || !this.#binding)
       throw new Error('This panel has changed. Review the current request and try again.');
     return this.#binding.threadId;
   }
-  view(snapshot: DesktopSnapshot): LauncherState {
+  view(snapshot: TaskSnapshot): LauncherState {
     const result: LauncherState = {
       appearance: snapshot.preferences?.appearance ?? 'expressive',
       agents: snapshot.agents.map(({ id, name }) => ({ id, name })),

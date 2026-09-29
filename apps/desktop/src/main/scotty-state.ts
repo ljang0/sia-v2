@@ -9,7 +9,7 @@ import type {
   ScottyTask,
 } from '../shared/scotty.js';
 import { activityLabel } from '../shared/activity-label.js';
-import { latestTaskTurn } from './latest-task-turn.js';
+import { latestTaskTurn, type TaskSnapshot } from './latest-task-turn.js';
 
 export const scottyCommand = z.discriminatedUnion('operation', [
   z.object({ operation: z.enum(['status', 'show', 'hide', 'resetPosition']) }).strict(),
@@ -59,7 +59,7 @@ export class ScottyTasks {
     this.#bindings.clear();
     this.#pinned = undefined;
   }
-  view(snapshot: DesktopSnapshot, settings: ScottySettings, available: boolean): ScottyState {
+  view(snapshot: TaskSnapshot, settings: ScottySettings, available: boolean): ScottyState {
     const state: ScottyState = {
       revision: snapshot.revision,
       settings: { ...settings },
@@ -213,7 +213,7 @@ export class ScottyTasks {
   }
   async act(
     raw: unknown,
-    controller: Pick<DesktopController, 'snapshot' | 'invoke' | 'remoteAccessAllowed'>,
+    controller: Pick<DesktopController, 'taskSnapshot' | 'invoke' | 'remoteAccessAllowed'>,
     settings: ScottySettings,
     openSia: () => void,
     isAvailable: () => boolean = () => true,
@@ -221,7 +221,7 @@ export class ScottyTasks {
     if (!settings.enabled || !controller.remoteAccessAllowed() || !isAvailable())
       throw new Error('Open Sia and sign in to continue.');
     const input = scottyAction.parse(raw);
-    const state = this.view(controller.snapshot(), settings, true);
+    const state = this.view(controller.taskSnapshot(), settings, true);
     if (input.kind === 'new') {
       if (!state.agents.some((agent) => agent.id === input.agentId))
         throw new Error('Choose an available Sia agent.');
@@ -247,7 +247,7 @@ export class ScottyTasks {
       await controller.invoke('threads.cancel', { threadId });
     } else if (input.kind === 'approve') {
       const approval = controller
-        .snapshot()
+        .taskSnapshot()
         .approvals.find(
           (item) =>
             item.id === input.approvalId &&

@@ -1392,7 +1392,7 @@ describe('DesktopController', () => {
           payload: {
             messageId: `reply-${input.turnId}`,
             role: 'assistant' as const,
-            parts: [{ kind: 'text' as const, text: `Reply to ${input.thread.title}` }],
+            parts: [{ kind: 'text' as const, text: `Reply for turn ${input.turnId}` }],
           },
         };
         yield {
@@ -1429,6 +1429,10 @@ describe('DesktopController', () => {
       threadIds.push(threadId);
     }
     const [first, second] = threadIds as [string, string];
+    await controller.invoke('threads.send', { threadId: first, text: 'Add a hotel' });
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find(({ id }) => id === first)?.status).toBe('idle'),
+    );
     const pushed: DesktopSnapshot[] = [];
     controller.subscribe((event) => {
       if (event.type === 'snapshot') pushed.push(event.snapshot);
@@ -1443,7 +1447,7 @@ describe('DesktopController', () => {
       expect(snapshot.timeline.every(({ threadId }) => threadId === first)).toBe(true);
       expect(snapshot.previews?.[second]).toEqual({
         label: 'Latest reply',
-        text: expect.stringContaining('Reply to'),
+        text: expect.stringContaining('Reply for turn'),
       });
       expect(snapshot.previews?.[first]?.label).toBe('Latest reply');
     }
@@ -1451,6 +1455,13 @@ describe('DesktopController', () => {
     const full = await controller.invoke('threads.select', { threadId: first });
     expect(new Set(full.timeline.map(({ threadId }) => threadId))).toEqual(new Set(threadIds));
     expect(full.previews).toBeUndefined();
+    // Scotty and the launcher read only each thread's latest turn and see the same tasks.
+    const narrow = controller.taskSnapshot();
+    expect(narrow.timeline.length).toBeLessThan(full.timeline.length);
+    expect(narrow.timeline.some(({ text }) => text === 'Plan the trip')).toBe(false);
+    const tasks = new ScottyTasks();
+    const settings = { enabled: true, size: 'medium', motion: true } as const;
+    expect(tasks.view(narrow, settings, true)).toEqual(tasks.view(full, settings, true));
     await controller.shutdown();
   });
 

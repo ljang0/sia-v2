@@ -1,4 +1,5 @@
 import { taskRecoveryContext } from './task-recovery.js';
+import type { TaskSnapshot } from './latest-task-turn.js';
 import type { AutomationApp, AutomationPermissions } from '../shared/mac-permissions.js';
 import {
   completedJournal,
@@ -1415,6 +1416,36 @@ export class DesktopController {
    */
   rendererSnapshot(): DesktopSnapshot {
     return this.#snapshot(true);
+  }
+
+  /** Task metadata and each thread's latest turn, without cloning every thread's history. */
+  taskSnapshot(): TaskSnapshot {
+    if (this.#releaseAccessLocked())
+      return {
+        revision: this.#revision,
+        agents: [],
+        threads: [],
+        timeline: [],
+        approvals: [],
+        preferences: { completionSound: false },
+      };
+    const lastRequest = new Map<string, TimelineItemView>();
+    for (const item of this.#state.timeline)
+      if (item.kind === 'user') lastRequest.set(item.threadId, item);
+    return {
+      revision: this.#revision,
+      agents: structuredClone(this.#state.agents),
+      threads: structuredClone(this.#state.threads),
+      timeline: structuredClone(
+        this.#state.timeline.filter((item) => {
+          const request = lastRequest.get(item.threadId);
+          return request !== undefined && item.sequence >= request.sequence;
+        }),
+      ),
+      approvals: structuredClone(this.#state.approvals),
+      preferences: structuredClone(this.#state.preferences),
+      ...(this.#state.activeAgentId ? { activeAgentId: this.#state.activeAgentId } : {}),
+    };
   }
 
   /** Runs a renderer bridge call so that any snapshot it returns is the renderer's scoped view. */
