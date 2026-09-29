@@ -7,7 +7,7 @@ no client secret, OAuth code, token, connection ID, or participant content.
 
 - Google Cloud project: `sia-production-connectors` (`Sia Production`)
 - OAuth app name: `Sia`
-- Operator account: `superintelligentagents@gmail.com`
+- Operator account: the operator Google account
 - User type: External
 - Publishing status: In production
 - Homepage: `https://superintelligentagents.ai/`
@@ -16,10 +16,10 @@ no client secret, OAuth code, token, connection ID, or participant content.
 - Participant notice: `https://superintelligentagents.ai/research/`
 - Support: `https://superintelligentagents.ai/support/`
 - Intended support email: `support@superintelligentagents.ai`
-- Developer contact: `superintelligentagents@gmail.com`
+- Developer contact: the operator Google account
 - Authorized domain: `superintelligentagents.ai`
 - Authorized redirect URI:
-  `https://uve01q24la.execute-api.us-east-1.amazonaws.com/alpha/v1/oauth/google/callback`
+  `https://<api-id>.execute-api.us-east-1.amazonaws.com/alpha/v1/oauth/google/callback`
 - Consent-screen logo: `apps/site/public/assets/sia-oauth-logo.png` (120 by 120 PNG)
 
 The public site identifies Sia, explains the optional Google features and research boundary, and
