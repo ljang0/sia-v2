@@ -23,6 +23,8 @@ export interface ProviderSetupProgress {
 export interface ProviderView {
   id: ProviderId;
   label: string;
+  /** Plan wording from the provider catalog, e.g. "ChatGPT plan". */
+  plan?: string;
   status: ProviderStatus;
   model: string;
   version?: string;

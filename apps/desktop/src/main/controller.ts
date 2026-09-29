@@ -65,7 +65,7 @@ import type {
   TerminalResultView,
 } from '../shared/bridge.js';
 import type { RecordRepository } from './persistence.js';
-import { probeProviders } from './provider-probe.js';
+import { probeProviders, providerPlan } from './provider-probe.js';
 import type { RuntimeCoordinator } from './runtime-coordinator.js';
 import type { CloudIdentityStatus } from './identity.js';
 import type { CuaAuthorizationContext } from './cua-service.js';
@@ -1297,6 +1297,7 @@ export class DesktopController {
       const fakeCodex: ProviderView = {
         id: 'codex',
         label: 'Codex',
+        ...(providerPlan('codex') ? { plan: providerPlan('codex')! } : {}),
         status: 'ready',
         model: 'gpt-5.6-sol',
         version: '0.147.0',

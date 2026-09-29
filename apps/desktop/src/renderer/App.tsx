@@ -35,6 +35,7 @@ import {
 } from './components/localParity';
 import type { AgentDraft, RendererApi, RendererSnapshot } from './types';
 import { useAppController } from './useAppController';
+import { executionLabel } from './agentModels';
 import { focusComposer } from './composerFocus';
 import { heldAsQueued, OfflineBanner, useOfflineOutbox, useOnline } from './offline';
 import { recentThreads, welcomePrompts } from './welcome';
@@ -566,10 +567,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 }
                 executionLabel={
                   activeThread
-                    ? (providerModels(snapshot, activeThread.provider).find(
-                        (model) => model.id === activeThread.model,
-                      )?.label ??
-                      snapshot.providers.find(({ id }) => id === activeThread.provider)?.name)
+                    ? executionLabel(
+                        snapshot.providers,
+                        activeThread.provider,
+                        activeThread.model,
+                      )
                     : undefined
                 }
                 agentName={roomAgent?.name}

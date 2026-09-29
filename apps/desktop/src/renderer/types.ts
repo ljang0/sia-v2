@@ -353,6 +353,8 @@ export interface ProviderSetup {
   setup?: import('../shared/bridge').ProviderSetupProgress | undefined;
   id: ProviderId;
   name: string;
+  /** Plan wording from the provider catalog, e.g. "ChatGPT plan". */
+  plan?: string | undefined;
   model: string;
   description: string;
   status: ProviderStatus;

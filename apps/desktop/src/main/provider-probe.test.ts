@@ -16,6 +16,9 @@ describe('probeProviders', () => {
       restriction: expect.stringContaining('inherited plugins, skills, and MCP'),
     });
     expect(providers.find(({ id }) => id === 'claude')?.status).toBe('needs_install');
+    // Consumer plan wording comes from the catalog, not from UI conditionals.
+    expect(providers.find(({ id }) => id === 'codex')?.plan).toBe('ChatGPT plan');
+    expect(providers.find(({ id }) => id === 'meta')?.plan).toBe('Included with Sia');
     expect(providers.find(({ id }) => id === 'gemini')).toMatchObject({
       status: 'disabled',
       restriction: expect.stringContaining('Codex or Claude'),

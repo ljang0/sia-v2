@@ -621,6 +621,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
       return {
         id: provider.id,
         name: provider.label,
+        plan: provider.plan,
         model: provider.model,
         description: provider.detail,
         status: mapProviderStatus(provider.status),
