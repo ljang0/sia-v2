@@ -179,7 +179,7 @@ export function ConversationOutline({
           <header>
             <div>
               <span>Thread trail</span>
-              <h2>How this room unfolded</h2>
+              <h2>How this conversation unfolded</h2>
               <p>{outlineSummary(messageCount, workCount)}</p>
             </div>
             <button

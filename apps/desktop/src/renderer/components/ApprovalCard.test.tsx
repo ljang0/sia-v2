@@ -176,4 +176,53 @@ describe('ApprovalCard', () => {
     expect(screen.getByText('approved')).toBeTruthy();
     expect(screen.queryByText(/Preview expire/)).toBeNull();
   });
+
+  it('shows a native shell command in a monospace block', () => {
+    render(
+      <ApprovalCard
+        event={nativeApproval('Run a command: git push --force origin main')}
+        onResolve={vi.fn()}
+      />,
+    );
+    const command = screen.getByText('git push --force origin main');
+    expect(command.tagName).toBe('CODE');
+    expect(command.closest('pre')).toBeTruthy();
+    expect(screen.getByText('Run this command')).toBeTruthy();
+    expect(screen.queryByText(/Run a command:/)).toBeNull();
+  });
+
+  it('takes focus onto the card, not Approve, only when focus has nowhere better to be', () => {
+    const { unmount } = render(
+      <ApprovalCard event={nativeApproval('Change notes.md')} onResolve={vi.fn()} />,
+    );
+    expect(document.activeElement).toBe(
+      screen.getByRole('region', { name: 'Allow Mac action' }),
+    );
+    unmount();
+
+    const other = document.createElement('input');
+    document.body.append(other);
+    other.focus();
+    render(<ApprovalCard event={nativeApproval('Change notes.md')} onResolve={vi.fn()} />);
+    expect(document.activeElement).toBe(other);
+    other.remove();
+  });
 });
+
+function nativeApproval(summary: string): ApprovalEvent {
+  return {
+    id: 'approval-native',
+    type: 'approval',
+    status: 'pending',
+    timestamp: '2026-08-13T00:00:00.000Z',
+    request: {
+      id: 'approval-native',
+      kind: 'action',
+      title: 'Allow Mac action',
+      category: 'Tool',
+      summary,
+      target: 'This Mac',
+      reversible: false,
+    },
+  };
+}

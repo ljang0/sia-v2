@@ -8,6 +8,34 @@ import { Sidebar } from './Sidebar';
 afterEach(cleanup);
 
 describe('thread navigation', () => {
+  it('fades the list bottom only while more conversations sit below the fold', () => {
+    const { container } = render(
+      <Sidebar
+        agents={demoSnapshot.agents}
+        selectedAgentId="agent-work"
+        collapsed={false}
+        onToggle={vi.fn()}
+        onSelectAgent={vi.fn()}
+        onSelectThread={vi.fn()}
+        onCreateThread={vi.fn()}
+        onRenameThread={vi.fn()}
+        onDeleteThread={vi.fn()}
+        onCreateAgent={vi.fn()}
+        onEditAgent={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    );
+    const list = container.querySelector<HTMLElement>('[class*="sidebarScroll"]')!;
+    expect(list.hasAttribute('data-more-below')).toBe(false);
+    Object.defineProperty(list, 'scrollHeight', { configurable: true, value: 900 });
+    Object.defineProperty(list, 'clientHeight', { configurable: true, value: 400 });
+    fireEvent.scroll(list);
+    expect(list.hasAttribute('data-more-below')).toBe(true);
+    list.scrollTop = 500;
+    fireEvent.scroll(list);
+    expect(list.hasAttribute('data-more-below')).toBe(false);
+  });
+
   it('derives agent presence from real thread state', () => {
     const agents = structuredClone(demoSnapshot.agents);
     agents[0]!.threads[0]!.status = 'running';

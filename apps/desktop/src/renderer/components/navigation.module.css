@@ -78,6 +78,10 @@ aside.navigation {
   padding: 2px 2px 12px 12px;
   scrollbar-gutter: stable;
 }
+.navigation .scroll[data-more-below] {
+  /* Tell people the list continues below the fold. */
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
+}
 .navigation .sectionHeader {
   padding: 0 12px 0 24px;
   font-size: 10px;

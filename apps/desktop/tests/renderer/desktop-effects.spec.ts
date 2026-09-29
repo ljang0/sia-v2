@@ -412,7 +412,7 @@ test('navigation reveals a distant selected task without scrolling the app windo
     await nav.getByRole('button', { name: 'New conversation', exact: true }).click();
   }
   await page.keyboard.press('ControlOrMeta+k');
-  await page.getByRole('combobox', { name: 'Search rooms and actions' }).fill('Triage');
+  await page.getByRole('combobox', { name: 'Search conversations and actions' }).fill('Triage');
   await page.getByRole('option', { name: /Triage today’s inbox/ }).click();
   const selected = nav.getByRole('button', { name: 'Triage today’s inbox', exact: true });
   await expect(selected).toHaveAttribute('aria-current', 'page');

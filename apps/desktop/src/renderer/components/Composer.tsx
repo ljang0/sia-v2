@@ -643,6 +643,7 @@ export function Composer({
           disabled={disabled}
           placeholder={placeholder}
           aria-label="Message"
+          data-composer-input
           onChange={(event) => updateValue(event.target.value)}
           onKeyDown={handleKeyDown}
         />

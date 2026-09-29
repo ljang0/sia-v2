@@ -42,7 +42,7 @@ describe('app privacy routing', () => {
     fireEvent.keyDown(window, { key: 'k', metaKey: true });
     expect(await screen.findByRole('dialog', { name: 'Move through Sia' })).toBeTruthy();
 
-    const search = screen.getByRole('combobox', { name: 'Search rooms and actions' });
+    const search = screen.getByRole('combobox', { name: 'Search conversations and actions' });
     fireEvent.change(search, { target: { value: 'archived' } });
     fireEvent.click(screen.getByRole('option', { name: /Open archived threads/ }));
 

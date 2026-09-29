@@ -96,7 +96,7 @@ describe('ConversationOutline', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByRole('complementary', { name: 'Conversation outline' })).toBeTruthy();
     expect(screen.getByText('1 message · 2 work notes')).toBeTruthy();
-    expect(screen.getByText('How this room unfolded')).toBeTruthy();
+    expect(screen.getByText('How this conversation unfolded')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: /Run participant acceptance/ }));
     expect(onNavigate).toHaveBeenCalledWith('plan-1');

@@ -481,3 +481,22 @@ it('does not auto-finish a resumed guide just because access is already ready', 
   await waitFor(() => expect(api.refreshComputerPermissions).toHaveBeenCalled());
   expect(api.setOnboarding).not.toHaveBeenCalledWith('complete');
 });
+
+it('lands in the conversation composer when setup finishes', async () => {
+  const { snapshot, props } = setup('practice');
+  const view = render(
+    <Onboarding {...props}>
+      <textarea aria-label="Message" data-composer-input />
+    </Onboarding>,
+  );
+  const done = structuredClone(snapshot);
+  done.preferences.onboarding = { step: 'complete' };
+  view.rerender(
+    <Onboarding {...props} snapshot={done}>
+      <textarea aria-label="Message" data-composer-input />
+    </Onboarding>,
+  );
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' })),
+  );
+});

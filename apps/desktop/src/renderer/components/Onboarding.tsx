@@ -2,6 +2,7 @@ import { Check, Sparkle } from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { OnboardingStep } from '../../shared/bridge';
 import { modelChoices } from '../agentModels';
+import { focusComposer } from '../composerFocus';
 import { STARTER_INSTRUCTIONS } from '../welcome';
 import type { RendererApi, RendererSnapshot } from '../types';
 import { SetupConnections } from './OnboardingConnections';
@@ -89,6 +90,13 @@ export function Onboarding({
   useEffect(() => {
     title.current?.focus();
   }, [starting]);
+  // Finishing or leaving setup lands in the first conversation, ready to type.
+  const inSetup = Boolean(step);
+  const wasInSetup = useRef(inSetup);
+  useEffect(() => {
+    if (wasInSetup.current && !inSetup) focusComposer();
+    wasInSetup.current = inSetup;
+  }, [inSetup]);
   // Resuming setup only checks status. The shared checklist handles focus refreshes.
   useEffect(() => {
     if (!step || starting || restarting) return;

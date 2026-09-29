@@ -61,9 +61,12 @@ describe('QuickSwitcher resources', () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Search rooms and actions' }), {
-      target: { value: 'release spec' },
-    });
+    fireEvent.change(
+      screen.getByRole('combobox', { name: 'Search conversations and actions' }),
+      {
+        target: { value: 'release spec' },
+      },
+    );
     const result = await screen.findByRole('option', { name: /release-spec.pdf/ });
     fireEvent.click(result);
     await waitFor(() => expect(onSelectThread).toHaveBeenCalledWith('thread-1', false));

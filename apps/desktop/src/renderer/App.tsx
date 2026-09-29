@@ -34,6 +34,7 @@ import {
 } from './components/localParity';
 import type { AgentDraft, RendererApi, RendererSnapshot } from './types';
 import { useAppController } from './useAppController';
+import { focusComposer } from './composerFocus';
 import { recentThreads, welcomePrompts } from './welcome';
 import { useViewTransition } from './components/effects/use-view-transition';
 import './tokens.css';
@@ -117,7 +118,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         const agentId = app.snapshot.selectedAgentId;
         app.closeSettings();
         app.closeActivity();
-        void app.run(() => app.api.createThread(agentId));
+        void app.run(() => app.api.createThread(agentId)).then(() => focusComposer());
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -131,6 +132,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         setQuickSwitcherOpen(false);
         setConversationFindOpen(false);
         setReveal((current) => current + 1);
+        focusComposer();
       }),
     [app.api, app.closeSettings, app.closeActivity],
   );
@@ -203,10 +205,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
             detail: `Start in ${selectedAgent.name}`,
             keywords: 'new chat task',
             icon: <ChatCircle size={17} />,
+            opensConversation: true,
             run: () => {
               app.closeSettings();
               app.closeActivity();
-              void run(() => api.createThread(selectedAgent.id));
+              void run(() => api.createThread(selectedAgent.id)).then(() => focusComposer());
             },
           },
         ]
@@ -250,7 +253,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     {
       id: 'archived',
       label: 'Open archived threads',
-      detail: 'Restore or revisit a room',
+      detail: 'Restore or revisit a conversation',
       keywords: 'history old',
       icon: <Archive size={17} />,
       run: () => app.openActivity('archived'),
@@ -292,7 +295,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         onCreateThread={(agentId) => {
           app.closeSettings();
           app.closeActivity();
-          void run(() => api.createThread(agentId));
+          void run(() => api.createThread(agentId)).then(() => focusComposer());
         }}
         onRenameThread={(threadId, title) =>
           app.attempt(() => api.renameThread(threadId, title)) as Promise<void>
@@ -306,7 +309,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         onForkThread={(threadId, isolated, title) =>
           app.attempt(() => api.forkThread(threadId, isolated, title)) as Promise<void>
         }
-        onArchiveThread={app.archiveThread}
+        onArchiveThread={(threadId) => app.archiveThread(threadId).then(() => focusComposer())}
         onCreateAgent={app.openNewAgent}
         onEditAgent={app.openEditAgent}
         onSetAgentPinned={(agentId, pinned) =>
@@ -336,7 +339,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         onSelectAgent={(agentId) => {
           app.closeSettings();
           app.closeActivity();
-          void run(() => api.selectAgent(agentId));
+          void run(() => api.selectAgent(agentId)).then(() => focusComposer());
         }}
         onSelectThread={(threadId, archived) => {
           app.closeSettings();
@@ -344,7 +347,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
           void run(async () => {
             if (archived) await api.unarchiveThread(threadId);
             await api.selectThread(threadId);
-          });
+          }).then(() => focusComposer());
         }}
         searchResources={(query) => api.searchThreads(query)}
       />
@@ -616,11 +619,15 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                     : Promise.resolve()
                 }
                 onStop={() =>
-                  activeThread ? run(() => api.cancelTurn(activeThread.id)) : Promise.resolve()
+                  activeThread
+                    ? run(() => api.cancelTurn(activeThread.id)).then(() => focusComposer())
+                    : Promise.resolve()
                 }
                 onRemoveQueued={(messageId) =>
                   activeThread
-                    ? run(() => api.removeQueuedMessage(activeThread.id, messageId))
+                    ? run(() => api.removeQueuedMessage(activeThread.id, messageId)).then(() =>
+                        focusComposer(),
+                      )
                     : Promise.resolve()
                 }
                 browserRecovery={
@@ -640,7 +647,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                   activeThread ? run(() => api.retryThread(activeThread.id)) : Promise.resolve()
                 }
                 onResolveApproval={(id, decision) =>
-                  run(() => api.respondToApproval(id, decision))
+                  run(() => api.respondToApproval(id, decision)).then(() => focusComposer())
                 }
                 onDraftChange={
                   activeThread
@@ -649,7 +656,10 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 }
                 onCreateThread={
                   selectedAgent
-                    ? () => void run(() => api.createThread(selectedAgent.id))
+                    ? () =>
+                        void run(() => api.createThread(selectedAgent.id)).then(() =>
+                          focusComposer(),
+                        )
                     : undefined
                 }
                 onCreateAgent={!selectedAgent ? app.openNewAgent : undefined}
