@@ -744,7 +744,6 @@ export function Conversation({
       <Composer
         key={thread.id}
         initialValue={thread.draft ?? ''}
-        disabled={waitingForApproval}
         running={running || queued || waitingForApproval}
         stoppable={running || queued || waiting}
         executionLabel={executionLabel}
@@ -807,7 +806,7 @@ export function Conversation({
           pendingQuestion
             ? `Reply to ${agentName ?? 'Sia'}’s question`
             : waitingForApproval
-              ? 'Review the pending approval or stop this turn'
+              ? `Add a follow-up — ${agentName ?? 'Sia'} will pick it up after the approval`
               : running || queued
                 ? `Add a follow-up — ${agentName ?? 'Sia'} will pick it up next`
                 : thread.events.length === 0

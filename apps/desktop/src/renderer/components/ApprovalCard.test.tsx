@@ -207,6 +207,31 @@ describe('ApprovalCard', () => {
     expect(document.activeElement).toBe(other);
     other.remove();
   });
+
+  it('leaves focus with someone typing in the composer', () => {
+    const composer = document.createElement('div');
+    composer.setAttribute('data-companion-composer', '');
+    const input = document.createElement('textarea');
+    input.setAttribute('data-composer-input', '');
+    composer.append(input);
+    document.body.append(composer);
+    input.focus();
+    input.value = 'Half a sentence';
+    const { unmount } = render(
+      <ApprovalCard event={nativeApproval('Change notes.md')} onResolve={vi.fn()} />,
+    );
+    expect(document.activeElement).toBe(input);
+    unmount();
+
+    // An empty composer is not someone typing: the new request takes focus.
+    input.value = '';
+    input.focus();
+    render(<ApprovalCard event={nativeApproval('Change notes.md')} onResolve={vi.fn()} />);
+    expect(document.activeElement).toBe(
+      screen.getByRole('region', { name: 'Allow Mac action' }),
+    );
+    composer.remove();
+  });
 });
 
 function nativeApproval(summary: string): ApprovalEvent {
