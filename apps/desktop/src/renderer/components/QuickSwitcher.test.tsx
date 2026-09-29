@@ -136,4 +136,37 @@ describe('QuickSwitcher resources', () => {
     fireEvent.keyDown(screen.getByRole('combobox'), { key: 'ArrowUp' });
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
   });
+
+  it('groups the browse view and marks what matched a search', () => {
+    render(
+      <QuickSwitcher
+        open
+        agents={agents}
+        selectedThreadId="thread-1"
+        actions={[
+          {
+            id: 'settings',
+            label: 'Open Settings',
+            detail: '',
+            icon: null,
+            run: () => undefined,
+          },
+        ]}
+        onOpenChange={() => undefined}
+        onSelectAgent={() => undefined}
+        onSelectThread={() => undefined}
+      />,
+    );
+
+    expect(screen.getByRole('group', { name: 'Quick actions' })).toBeTruthy();
+    const recent = screen.getByRole('group', { name: 'Recent conversations' });
+    expect(recent.textContent).toContain('Alpha readiness');
+    expect(recent.textContent).toContain('open now');
+    expect(recent.textContent).toContain('Conversation');
+
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'READI' } });
+    expect(screen.queryByRole('group')).toBeNull();
+    const option = screen.getByRole('option', { name: /Alpha readiness/ });
+    expect(option.querySelector('mark')?.textContent).toBe('readi');
+  });
 });

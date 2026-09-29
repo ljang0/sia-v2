@@ -446,9 +446,25 @@
     transform var(--motion-fast) var(--ease-standard);
 }
 
-.quickSwitcherRow:hover,
 .quickSwitcherRow[aria-selected='true'] {
   background: var(--bg-selected);
+}
+
+.quickSwitcherSection + .quickSwitcherSection {
+  margin-top: 6px;
+}
+
+.quickSwitcherHeading {
+  padding: 8px 10px 4px;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.quickSwitcherRow mark {
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--focus-ring) 22%, transparent);
+  color: inherit;
 }
 
 .quickSwitcherRow:active {
@@ -490,7 +506,13 @@
 }
 
 .quickSwitcherKind {
-  text-transform: capitalize;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-standard);
+}
+
+.quickSwitcherRow[aria-selected='true'] .quickSwitcherKind,
+.quickSwitcherResults:not(:has([role='group'])) .quickSwitcherKind {
+  opacity: 1;
 }
 
 .quickSwitcherEmpty {
@@ -605,5 +627,9 @@
   .agentFormBody,
   .agentFormOrbit {
     border: 1px solid CanvasText;
+  }
+  .quickSwitcherRow[aria-selected='true'] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
   }
 }
