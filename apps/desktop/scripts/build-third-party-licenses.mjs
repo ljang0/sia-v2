@@ -19,9 +19,9 @@ const canonicalSpdxLicenses = new Map([
 ]);
 
 const supplementalLicenses = new Map([
-  ['@trycua/cua-driver@0.19.3', ['cua-driver-rs-v0.19.3-MIT.txt']],
-  ['@trycua/cua-driver-darwin-arm64@0.19.3', ['cua-driver-rs-v0.19.3-MIT.txt']],
-  ['@trycua/cua-driver-darwin-x64@0.19.3', ['cua-driver-rs-v0.19.3-MIT.txt']],
+  ['@trycua/cua-driver@0.21.0', ['cua-driver-rs-v0.21.0-MIT.txt']],
+  ['@trycua/cua-driver-darwin-arm64@0.21.0', ['cua-driver-rs-v0.21.0-MIT.txt']],
+  ['@trycua/cua-driver-darwin-x64@0.21.0', ['cua-driver-rs-v0.21.0-MIT.txt']],
   ['@ubjs/core@0.31.0-3', ['uniffi-bindgen-react-native-v0.31.0-3-LICENSE.txt']],
   ['@ubjs/node@0.31.0-3', ['uniffi-bindgen-react-native-v0.31.0-3-LICENSE.txt']],
   ['@ubjs/node-darwin-arm64@0.31.0-3', ['uniffi-bindgen-react-native-v0.31.0-3-LICENSE.txt']],
@@ -145,6 +145,15 @@ if (packagesWithoutTerms.length > 0) {
     `Installed packages without bundled license terms: ${packagesWithoutTerms
       .map((item) => item.key)
       .join(', ')}`,
+  );
+}
+
+const unmatchedSupplements = [...supplementalLicenses.keys()].filter(
+  (key) => !packages.has(key),
+);
+if (unmatchedSupplements.length > 0) {
+  throw new Error(
+    `Supplemental license entries match no installed package (update their versions): ${unmatchedSupplements.join(', ')}`,
   );
 }
 
