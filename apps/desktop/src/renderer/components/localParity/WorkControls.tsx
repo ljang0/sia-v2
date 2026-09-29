@@ -23,7 +23,7 @@ interface SelectOption {
 }
 
 interface ThreadModelControlsProps {
-  workspace?: string;
+  workspace?: string | undefined;
   modelId: string;
   reasoningId: string;
   models: readonly SelectOption[];
@@ -71,9 +71,9 @@ export function ThreadModelControls({
   return (
     <details ref={menu} className={styles.agentSettingsMenu}>
       <summary>
-        Agent settings <CaretDown size={13} aria-hidden="true" />
+        Model for this conversation <CaretDown size={13} aria-hidden="true" />
       </summary>
-      <section className={styles.threadControls} aria-label="Thread model settings">
+      <section className={styles.threadControls} aria-label="Model for this conversation">
         <label>
           <span>Model</span>
           <select

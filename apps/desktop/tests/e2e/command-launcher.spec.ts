@@ -22,13 +22,13 @@ test('launcher uses an isolated bridge, opens from the menu, and dispatches to t
       path: 'test-results/conversation-clean.png',
       animations: 'disabled',
     });
-    await page.getByText('Agent settings', { exact: true }).click();
+    await page.getByText('Model for this conversation', { exact: true }).click();
     await expect(page.getByTestId('thread-model-select')).toBeVisible();
     await page.screenshot({
       path: 'test-results/conversation-agent-menu.png',
       animations: 'disabled',
     });
-    await page.getByText('Agent settings', { exact: true }).click();
+    await page.getByText('Model for this conversation', { exact: true }).click();
     await sia.application.evaluate(({ Menu }) => {
       const menu = Menu.getApplicationMenu()!;
       const item = menu.items[0]!.submenu!.items.find((item) => item.label === 'Ask Sia')!;

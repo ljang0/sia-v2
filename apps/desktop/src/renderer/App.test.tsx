@@ -73,6 +73,23 @@ describe('app privacy routing', () => {
     expect(screen.getByRole('button', { name: 'Access' })).toBeTruthy();
   });
 
+  it('names the conversation model plainly and keeps the folder path for developers', async () => {
+    const snapshot = structuredClone(demoSnapshot);
+    for (const provider of snapshot.providers) provider.models = [];
+    const { unmount } = render(<App api={createDemoRendererApi(snapshot)} />);
+    fireEvent.click(await screen.findByText('Model for this conversation'));
+    const model = screen.getByRole('combobox', { name: 'Model' }) as HTMLSelectElement;
+    expect(model.selectedOptions[0]?.textContent).not.toMatch(/^[a-z0-9.-]+$/);
+    expect(screen.queryByText('Workspace')).toBeNull();
+    unmount();
+
+    const developer = structuredClone(snapshot);
+    developer.preferences.developerTools = true;
+    render(<App api={createDemoRendererApi(developer)} />);
+    fireEvent.click(await screen.findByText('Model for this conversation'));
+    expect(screen.getByText('Workspace')).toBeTruthy();
+  });
+
   it('closes Settings with Escape', async () => {
     render(<App api={createDemoRendererApi(structuredClone(demoSnapshot))} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));

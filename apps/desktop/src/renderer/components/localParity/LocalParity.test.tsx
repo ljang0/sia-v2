@@ -35,7 +35,7 @@ describe('local parity renderer contracts', () => {
       />,
     );
 
-    fireEvent.click(screen.getByText('Agent settings'));
+    fireEvent.click(screen.getByText('Model for this conversation'));
     fireEvent.change(screen.getByRole('combobox', { name: 'Model' }), {
       target: { value: 'gpt-5.4' },
     });

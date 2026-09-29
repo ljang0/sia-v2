@@ -35,7 +35,7 @@ import {
 } from './components/localParity';
 import type { AgentDraft, RendererApi, RendererSnapshot } from './types';
 import { useAppController } from './useAppController';
-import { executionLabel } from './agentModels';
+import { executionLabel, friendlyModelName } from './agentModels';
 import { cancelComposerFocus, focusComposer } from './composerFocus';
 import { heldAsQueued, OfflineBanner, useOfflineOutbox, useOnline } from './offline';
 import { recentThreads, welcomePrompts } from './welcome';
@@ -382,7 +382,12 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               <div className={styles.topbarActions}>
                 {activeThread ? (
                   <ThreadModelControls
-                    workspace={activeThread.workspace}
+                    // The folder path is a developer detail.
+                    workspace={
+                      snapshot.preferences.developerTools === true
+                        ? activeThread.workspace
+                        : undefined
+                    }
                     modelId={activeThread.model}
                     reasoningId={activeThread.reasoningEffort ?? ''}
                     models={modelOptions(snapshot, activeThread.provider, activeThread.model)}
@@ -826,7 +831,12 @@ function modelOptions(
   const models = providerModels(snapshot, provider);
   return models.length
     ? models.map((model) => ({ id: model.id, label: model.label, detail: model.description }))
-    : [{ id: selectedModel, label: selectedModel }];
+    : [
+        {
+          id: selectedModel,
+          label: friendlyModelName(provider as import('./types').ProviderId, selectedModel),
+        },
+      ];
 }
 
 function reasoningOptions(
