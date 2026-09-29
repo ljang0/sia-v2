@@ -48,6 +48,10 @@ export function ActivityRow({ event }: ActivityRowProps) {
   const label =
     event.status === 'complete' ? completedActivityLabel(runningLabel) : runningLabel;
   const summary = activitySummary(event, [runningLabel, label]);
+  // The plain title only when the rich detail below does not already say it. Never the raw
+  // tool name (computer_action, mail_send): the label above already names the step.
+  const detailTitle =
+    !event.presentation && summary && event.title !== event.detail ? event.title : '';
 
   return (
     <div className={`${styles.activityRow} ${statusClass}`}>
@@ -89,8 +93,7 @@ export function ActivityRow({ event }: ActivityRowProps) {
       </button>
       {expanded && hasDetail ? (
         <div className={styles.activityDetail}>
-          <small>{event.toolName ?? event.title}</small>
-          {event.toolName && event.title !== event.toolName && <p>{event.title}</p>}
+          {detailTitle ? <p>{detailTitle}</p> : null}
           <RichActivityDetail event={event} />
         </div>
       ) : null}

@@ -189,3 +189,26 @@ describe('plan steps', () => {
     expect(screen.getByRole('status').textContent).toContain('Step 2 of 3');
   });
 });
+
+describe('activity detail', () => {
+  it('never shows the raw tool name', () => {
+    render(
+      <ActivityRow
+        event={{
+          id: 'mail',
+          type: 'activity',
+          kind: 'connector',
+          toolName: 'mail_send',
+          title: 'Sent the note to Avery',
+          detail: 'avery@example.com',
+          status: 'complete',
+          timestamp: '2026-09-28T10:00:05.000Z',
+        }}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.queryByText('mail_send')).toBeNull();
+    expect(screen.getAllByText('Sent the note to Avery').length).toBeGreaterThan(0);
+    expect(screen.getByText('avery@example.com')).toBeTruthy();
+  });
+});
