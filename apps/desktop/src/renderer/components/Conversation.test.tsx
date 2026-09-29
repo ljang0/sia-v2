@@ -721,7 +721,9 @@ describe('Conversation continuity tools', () => {
     render(
       <Conversation
         thread={baseThread({ status: 'idle', events: [] })}
-        starterPrompts={['Review the release blockers.']}
+        starterPrompts={[
+          { icon: 'review', title: 'Review blockers', prompt: 'Review the release blockers.' },
+        ]}
         onSend={onSend}
         onStop={async () => undefined}
         onRetry={async () => undefined}
@@ -729,7 +731,9 @@ describe('Conversation continuity tools', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Review the release blockers/ }));
+    fireEvent.click(
+      screen.getByRole('button', { name: /Review blockers.*Review the release blockers/ }),
+    );
     expect(onSend).toHaveBeenCalledWith('Review the release blockers.');
   });
 

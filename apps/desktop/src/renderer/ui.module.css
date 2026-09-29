@@ -5388,43 +5388,78 @@ input[type='checkbox'].switch:disabled {
 
 .starterPrompts {
   display: grid;
-  width: min(100%, 560px);
-  gap: 1px;
+  width: 100%;
+  gap: 8px;
   margin-top: 24px;
-  overflow: hidden;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-control);
-  background: var(--border-subtle);
   text-align: left;
 }
 
 .starterPrompts button {
-  display: flex;
-  min-height: 46px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 14px;
   align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 9px 13px;
-  border: 0;
+  gap: 12px;
+  padding: 10px 14px 10px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-surface);
   background: color-mix(in srgb, var(--bg-raised) 94%, transparent);
   color: var(--text-primary);
   font: inherit;
+  text-align: left;
   cursor: pointer;
-  transition: background 200ms var(--ease-standard);
+  transition:
+    background 200ms var(--ease-standard),
+    border-color 200ms var(--ease-standard),
+    transform 220ms var(--ease-out-soft),
+    box-shadow 220ms var(--ease-out-soft);
 }
 
 .starterPrompts button:hover {
-  background: var(--bg-hover);
+  border-color: var(--border-control);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-raised);
+  transform: translateY(-1px);
 }
 
-.starterPrompts button span:last-child {
+.starterPrompts button:active {
+  transform: translateY(0);
+}
+
+.starterIcon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-control);
+  background: var(--agent-soft);
+  color: var(--text-primary);
+}
+
+.starterText {
+  display: grid;
+  gap: 1px;
+}
+
+.starterText strong {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.starterText span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.starterArrow {
   color: var(--text-tertiary);
   transition:
     transform 220ms var(--ease-out-soft),
     color 220ms ease;
 }
 
-.starterPrompts button:hover span:last-child {
+.starterPrompts button:hover .starterArrow {
   color: var(--text-primary);
   transform: translate(2px, -2px);
 }
@@ -7368,8 +7403,12 @@ button.agentAvatar {
   }
   .conversationAurora,
   .composer,
-  .starterPrompts button span:last-child {
+  .starterPrompts button,
+  .starterArrow {
     transition: none;
+  }
+  .starterPrompts button:hover {
+    transform: none;
   }
   :where(button, a, input, textarea, select, summary) {
     transition-duration: 0.01ms;

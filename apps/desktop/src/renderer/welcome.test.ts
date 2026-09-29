@@ -34,14 +34,18 @@ describe('personal welcome', () => {
       instructions: 'Help me with everyday work.',
       provider: 'codex',
     } as AgentSummary;
-    expect(welcomePrompts(agent)[0]).toContain('plan today');
+    expect(welcomePrompts(agent)[0]?.prompt).toContain('plan today');
+    // Each suggestion has a short title to scan and the full request it sends.
+    for (const item of welcomePrompts(agent))
+      expect(item.title.length).toBeLessThan(item.prompt.length);
     expect(welcomePrompts({ ...agent, provider: 'claude' })).toEqual(welcomePrompts(agent));
     expect(
-      welcomePrompts({ ...agent, instructions: 'Help with my software repository.' })[0],
+      welcomePrompts({ ...agent, instructions: 'Help with my software repository.' })[0]
+        ?.prompt,
     ).toContain('current changes');
     // The onboarding starter mentions research as one example; it is not a stated purpose.
-    expect(welcomePrompts({ ...agent, instructions: STARTER_INSTRUCTIONS })[0]).toContain(
-      'plan today',
-    );
+    expect(
+      welcomePrompts({ ...agent, instructions: STARTER_INSTRUCTIONS })[0]?.prompt,
+    ).toContain('plan today');
   });
 });

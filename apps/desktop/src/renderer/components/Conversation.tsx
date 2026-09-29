@@ -37,7 +37,8 @@ import type {
   ThreadEvent,
   ThreadSummary,
 } from '../types';
-import { timeGreeting } from '../welcome';
+import { timeGreeting, type StarterPrompt } from '../welcome';
+import { StarterPrompts } from './StarterPrompts';
 import { completedReplyId } from '../task-result';
 import { WelcomeRecents } from './WelcomeRecents';
 import { ReplyReadyMark, ReplySurface } from './ResultCard';
@@ -75,7 +76,7 @@ interface ConversationProps {
   onPreviewAttachment?: ((attachmentId: string) => Promise<AttachmentPreview>) | undefined;
   onOpenAttachment?: ((attachmentId: string) => Promise<void>) | undefined;
   onRevealAttachment?: ((attachmentId: string) => Promise<void>) | undefined;
-  starterPrompts?: readonly string[] | undefined;
+  starterPrompts?: readonly StarterPrompt[] | undefined;
   findOpen?: boolean | undefined;
   onFindOpenChange?: ((open: boolean) => void) | undefined;
   voiceEnabled?: boolean | undefined;
@@ -709,16 +710,10 @@ export function Conversation({
                   Connect work apps
                 </button>
               ) : null}
-              {starterPrompts.length ? (
-                <div className={styles.starterPrompts} aria-label="Suggested starts">
-                  {starterPrompts.map((prompt) => (
-                    <button key={prompt} type="button" onClick={() => void onSend(prompt)}>
-                      <span>{prompt}</span>
-                      <span aria-hidden="true">↗</span>
-                    </button>
-                  ))}
-                </div>
-              ) : null}
+              <StarterPrompts
+                prompts={starterPrompts}
+                onSend={(prompt) => void onSend(prompt)}
+              />
               <WelcomeRecents threads={recentThreads} onOpen={onOpenThread} />
             </div>
           ) : (
