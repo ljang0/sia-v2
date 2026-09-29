@@ -3583,7 +3583,8 @@ export class DesktopController {
     threadId: string,
     selected: readonly string[],
   ): Promise<BridgeResultMap['attachments.pick']> {
-    const thread = this.#requireIdleThread(threadId, 'attach files');
+    // Files can be attached while the thread works; they travel with a queued follow-up.
+    const thread = this.#requireThread(threadId);
     if (selected.length > 20) throw new Error('Choose at most 20 files at a time.');
     const grants: AttachmentView[] = [];
     let totalBytes = 0;

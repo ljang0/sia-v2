@@ -2574,6 +2574,65 @@ describe('DesktopController', () => {
     }
   });
 
+  it('lets a queued follow-up carry files attached while the thread works', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sia-followup-attachment-'));
+    const path = join(directory, 'notes.txt');
+    await writeFile(path, 'notes', 'utf8');
+    const inputs: RuntimeTurnInput[] = [];
+    const release = Promise.withResolvers<void>();
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        inputs.push(input);
+        if (inputs.length === 1) await release.promise;
+        yield {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({
+      fakeServices: false,
+      runtime,
+      chooseFiles: async () => [path],
+    });
+    try {
+      const agent = await controller.invoke('agents.save', {
+        name: 'Personal',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: agent.agentId,
+      });
+      await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+      await controller.invoke('threads.send', { threadId, text: 'Start' });
+      await vi.waitFor(() => expect(inputs).toHaveLength(1));
+      const picked = await controller.invoke('attachments.pick', { threadId });
+      await controller.invoke('threads.send', {
+        threadId,
+        text: 'Use these notes next',
+        attachmentIds: picked.attachments.map(({ id }) => id),
+      });
+      release.resolve();
+      await vi.waitFor(() => expect(inputs).toHaveLength(2));
+      expect(inputs[1]!.attachments).toEqual([{ kind: 'file', path, name: 'notes.txt' }]);
+    } finally {
+      await controller.shutdown();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it('restores partial progress for Continue task after an app restart', async () => {
     const root = await mkdtemp(join(tmpdir(), 'sia-recovery-'));
     const path = join(root, 'state.sqlite');
