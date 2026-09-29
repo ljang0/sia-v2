@@ -2266,7 +2266,6 @@ button.agentAvatar {
   transform: none;
 }
 
-.threadEmpty,
 .emptyState,
 .fatalState,
 .inspectorEmpty {
@@ -2306,13 +2305,6 @@ button.agentAvatar {
   }
 }
 
-.threadEmpty {
-  min-height: 46vh;
-  padding-top: 4vh;
-  color: var(--text-tertiary);
-}
-
-.threadEmpty h2,
 .emptyState h1,
 .fatalState h1 {
   margin: 18px 0 8px;
@@ -2334,7 +2326,6 @@ button.agentAvatar {
   letter-spacing: -0.02em;
 }
 
-.threadEmpty p,
 .emptyState p,
 .fatalState p,
 .inspectorEmpty p {
@@ -2358,8 +2349,7 @@ button.agentAvatar {
   margin-top: 22px;
 }
 
-.emptyState .textButton,
-.threadEmpty .textButton {
+.emptyState .textButton {
   margin-top: 13px;
 }
 
@@ -7597,30 +7587,6 @@ button.agentAvatar {
   font-weight: var(--weight-semibold);
   letter-spacing: 0.055em;
   text-transform: uppercase;
-}
-
-.threadEmpty {
-  align-items: flex-start;
-  max-width: 660px;
-  min-height: 36vh;
-  margin: 0 auto;
-  padding: 4vh 28px 0;
-  text-align: left;
-}
-
-.threadEmpty h2 {
-  max-width: 16ch;
-  margin-top: 13px;
-  font-family: var(--font-display);
-  font-size: clamp(30px, 3vw, 42px);
-  letter-spacing: -0.045em;
-  line-height: 1.08;
-}
-
-.threadEmpty p {
-  max-width: 48ch;
-  font-size: var(--text-lg);
-  line-height: 1.6;
 }
 
 .composerArea {

@@ -39,8 +39,8 @@ import type {
   ThreadSummary,
 } from '../types';
 import { timeGreeting, type StarterPrompt } from '../welcome';
-import { StarterPrompts } from './StarterPrompts';
 import { completedReplyId } from '../task-result';
+import { WelcomeHome } from './WelcomeHome';
 import { WelcomeRecents } from './WelcomeRecents';
 import { ReplyReadyMark, ReplySurface } from './ResultCard';
 import styles from '../ui.module.css';
@@ -482,7 +482,7 @@ export function Conversation({
             {agentName ? `${timeGreeting()} · ${agentName} is ready` : 'Start here'}
           </span>
           <h1 className={styles.gradientHeading}>
-            {agentName ? `Start a thread with ${agentName}.` : 'Create your first agent.'}
+            {agentName ? `Start a conversation with ${agentName}.` : 'Create your first agent.'}
           </h1>
           <p>
             {agentName
@@ -493,7 +493,7 @@ export function Conversation({
           </p>
           {onCreateThread ? (
             <LiquidMetalButton tone="sage" onClick={onCreateThread}>
-              New thread
+              New conversation
             </LiquidMetalButton>
           ) : onCreateAgent ? (
             <LiquidMetalButton tone="sage" onClick={onCreateAgent}>
@@ -711,25 +711,15 @@ export function Conversation({
           ) : null}
 
           {thread.events.length === 0 ? (
-            <div className={styles.threadEmpty} data-companion-thread-empty>
-              <AgentForm identity={agentHue} size="medium" />
-              <span className={styles.emptyStateKicker}>
-                {timeGreeting()}
-                {agentName ? ` · ${agentName} is ready` : ''}
-              </span>
-              <h2 className={styles.gradientHeading}>What would you like to do?</h2>
-              <p>Describe the outcome, attach any useful files, or choose a suggested start.</p>
-              {onOpenApps ? (
-                <button className={styles.textButton} type="button" onClick={onOpenApps}>
-                  Connect work apps
-                </button>
-              ) : null}
-              <StarterPrompts
-                prompts={starterPrompts}
-                onSend={(prompt) => void onSend(prompt)}
-              />
-              <WelcomeRecents threads={recentThreads} onOpen={onOpenThread} />
-            </div>
+            <WelcomeHome
+              agentName={agentName}
+              agentHue={agentHue}
+              prompts={starterPrompts}
+              recentThreads={recentThreads}
+              onSend={(prompt) => void onSend(prompt)}
+              onOpenThread={onOpenThread}
+              onOpenApps={onOpenApps}
+            />
           ) : (
             <div className={styles.eventList}>
               {blocks.map((block) =>

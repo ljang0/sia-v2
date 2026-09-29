@@ -1,6 +1,15 @@
-import { ArrowUpRight, ChatCircle } from '@phosphor-icons/react';
+import { ArrowRight } from '@phosphor-icons/react';
 import type { ThreadSummary } from '../types';
+import { threadDisplayTitle } from '../threadTitle';
+import { timeAgo } from '../welcome';
 import styles from './welcome-recents.module.css';
+
+const STATUS: Partial<Record<ThreadSummary['status'], string>> = {
+  waiting: 'Needs you',
+  error: 'Needs attention',
+  running: 'Working',
+  queued: 'Queued',
+};
 
 export function WelcomeRecents({
   threads,
@@ -13,31 +22,32 @@ export function WelcomeRecents({
   return (
     <section className={styles.recents} aria-label="Pick up where you left off">
       <h3>Pick up where you left off</h3>
-      <div className={styles.grid}>
-        {threads.map((thread) => (
-          <button key={thread.id} type="button" onClick={() => onOpen(thread.id)}>
-            <span className={styles.meta}>
-              <ChatCircle size={15} aria-hidden="true" />
-              {thread.status === 'waiting'
-                ? 'Needs you'
-                : thread.status === 'error'
-                  ? 'Needs attention'
-                  : thread.status === 'running'
-                    ? 'In progress'
-                    : thread.status === 'queued'
-                      ? 'Queued'
-                      : 'Recent conversation'}
-              <ArrowUpRight size={14} aria-hidden="true" />
-            </span>
-            <strong>{thread.title}</strong>
-            <span className={styles.preview}>
-              {thread.draft?.trim()
-                ? 'You have a draft here.'
-                : thread.preview?.text ||
-                  'Open this conversation to pick up where you left off.'}
-            </span>
-          </button>
-        ))}
+      <div className={styles.list}>
+        {threads.map((thread) => {
+          const status = STATUS[thread.status];
+          const preview = thread.draft?.trim()
+            ? 'You have an unsent draft here.'
+            : thread.preview?.text;
+          return (
+            <button
+              key={thread.id}
+              type="button"
+              data-status={thread.status}
+              onClick={() => onOpen(thread.id)}
+            >
+              <span className={styles.dot} aria-hidden="true" />
+              <span className={styles.copy}>
+                <strong>{threadDisplayTitle(thread.title)}</strong>
+                {preview ? <span className={styles.preview}>{preview}</span> : null}
+              </span>
+              <span className={styles.meta}>
+                {status ? <span className={styles.status}>{status}</span> : null}
+                <time dateTime={thread.updatedAt}>{timeAgo(thread.updatedAt)}</time>
+              </span>
+              <ArrowRight className={styles.arrow} size={14} aria-hidden="true" />
+            </button>
+          );
+        })}
       </div>
     </section>
   );

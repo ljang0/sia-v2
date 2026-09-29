@@ -226,9 +226,9 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
       ? [
           {
             id: 'new-thread',
-            label: 'Create a new thread',
+            label: 'New conversation',
             detail: `Start in ${selectedAgent.name}`,
-            keywords: 'new chat task',
+            keywords: 'new chat task thread',
             icon: <ChatCircle size={17} />,
             opensConversation: true,
             run: () => {
@@ -249,7 +249,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     },
     {
       id: 'new-agent',
-      label: 'Create a new agent',
+      label: 'New agent',
       detail: 'Start another kind of work',
       keywords: 'new room assistant',
       icon: <Plus size={17} />,
@@ -261,9 +261,9 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     },
     {
       id: 'search-transcripts',
-      label: 'Search all transcripts',
-      detail: 'Includes archived threads',
-      keywords: 'find messages history',
+      label: 'Search all conversations',
+      detail: 'Every message, including archived ones',
+      keywords: 'find messages history transcripts',
       icon: <MagnifyingGlass size={17} />,
       run: () => app.openActivity('search'),
     },
@@ -277,9 +277,9 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     },
     {
       id: 'archived',
-      label: 'Open archived threads',
+      label: 'Open archived conversations',
       detail: 'Restore or revisit a conversation',
-      keywords: 'history old',
+      keywords: 'history old threads',
       icon: <Archive size={17} />,
       run: () => app.openActivity('archived'),
     },
@@ -625,7 +625,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                         app.run(() => api.revealAttachment(activeThread.id, attachmentId))
                     : undefined
                 }
-                starterPrompts={welcomePrompts(roomAgent)}
+                starterPrompts={welcomePrompts(roomAgent, { apps: snapshot.apps })}
                 recentThreads={
                   activeThread?.events.length
                     ? []

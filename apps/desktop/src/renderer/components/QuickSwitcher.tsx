@@ -59,6 +59,12 @@ type SwitcherEntry =
 
 type ThreadSwitcherEntry = Extract<SwitcherEntry, { kind: 'thread' }>;
 
+interface SwitcherSection {
+  /** Shown above the section when the list is browsed rather than searched. */
+  label?: string | undefined;
+  entries: SwitcherEntry[];
+}
+
 export function QuickSwitcher({
   open,
   agents,
@@ -95,7 +101,7 @@ export function QuickSwitcher({
     };
   }, [open, query, searchResources]);
 
-  const entries = useMemo(() => {
+  const sections = useMemo((): SwitcherSection[] => {
     const normalized = normalize(query);
     const actionEntries: SwitcherEntry[] = actions.map((action) => ({
       kind: 'action',
@@ -119,7 +125,7 @@ export function QuickSwitcher({
         kind: 'thread' as const,
         id: `thread-${thread.id}`,
         label: thread.title,
-        detail: `${agent.name}${thread.id === selectedThreadId ? ' · current thread' : ''}`,
+        detail: `${agent.name}${thread.id === selectedThreadId ? ' · open now' : ''}`,
         updatedAt: thread.updatedAt,
         run: () => onSelectThread(thread.id),
       })),
@@ -137,28 +143,40 @@ export function QuickSwitcher({
           resourceKind: match.kind,
           id: `resource-${result.threadId}-${match.itemId}`,
           label: match.label ?? match.excerpt,
-          detail: `${result.threadTitle} · ${match.kind}`,
+          detail: result.threadTitle,
           run: () => onSelectThread(result.threadId, result.archived),
         })),
     );
 
     if (!normalized) {
       return [
-        ...actionEntries,
-        ...threadEntries
-          .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-          .slice(0, 6),
-        ...agentEntries.filter((entry) => entry.id !== `agent-${selectedAgentId}`).slice(0, 4),
-      ];
+        { label: 'Quick actions', entries: actionEntries },
+        {
+          label: 'Recent conversations',
+          entries: threadEntries
+            .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+            .slice(0, 6),
+        },
+        {
+          label: 'Other agents',
+          entries: agentEntries
+            .filter((entry) => entry.id !== `agent-${selectedAgentId}`)
+            .slice(0, 4),
+        },
+      ].filter((section) => section.entries.length);
     }
 
     // Equal scores keep this order, so conversation titles outrank message excerpts.
-    return [...threadEntries, ...resourceEntries, ...agentEntries, ...actionEntries]
-      .map((entry) => ({ entry, score: matchScore(entry, normalized, actions) }))
-      .filter((candidate) => candidate.score >= 0)
-      .sort((left, right) => right.score - left.score)
-      .slice(0, 14)
-      .map(({ entry }) => entry);
+    return [
+      {
+        entries: [...threadEntries, ...resourceEntries, ...agentEntries, ...actionEntries]
+          .map((entry) => ({ entry, score: matchScore(entry, normalized, actions) }))
+          .filter((candidate) => candidate.score >= 0)
+          .sort((left, right) => right.score - left.score)
+          .slice(0, 14)
+          .map(({ entry }) => entry),
+      },
+    ];
   }, [
     actions,
     agents,
@@ -169,6 +187,8 @@ export function QuickSwitcher({
     selectedAgentId,
     selectedThreadId,
   ]);
+  const entries = useMemo(() => sections.flatMap((section) => section.entries), [sections]);
+  const highlightQuery = normalize(query);
 
   useEffect(() => {
     if (!open) return;
@@ -258,43 +278,63 @@ export function QuickSwitcher({
             role="listbox"
             aria-label="Sia destinations"
           >
-            {entries.map((entry, index) => (
-              <button
-                type="button"
-                role="option"
-                id={entry.id}
-                key={entry.id}
-                aria-selected={index === highlighted}
-                className={companion.quickSwitcherRow}
-                onPointerMove={() => setHighlighted(index)}
-                onClick={() => activate(entry)}
-              >
-                <span className={companion.quickSwitcherIcon} aria-hidden="true">
-                  {entry.kind === 'agent' ? (
-                    <AgentForm identity={entry.hue} size="small" />
-                  ) : entry.kind === 'thread' ? (
-                    <ChatCircle size={17} />
-                  ) : entry.kind === 'resource' ? (
-                    entry.resourceKind === 'file' ? (
-                      <File size={17} />
-                    ) : entry.resourceKind === 'link' ? (
-                      <LinkSimple size={17} />
-                    ) : (
-                      <MagnifyingGlass size={17} />
-                    )
-                  ) : (
-                    entry.icon
-                  )}
-                </span>
-                <span>
-                  <strong>{entry.label}</strong>
-                  <small>{entry.detail}</small>
-                </span>
-                <span className={companion.quickSwitcherKind}>
-                  {entry.kind === 'resource' ? entry.resourceKind : entry.kind}
-                </span>
-              </button>
-            ))}
+            {sections.map((section) => {
+              const rows = section.entries.map((entry) => {
+                const index = entries.indexOf(entry);
+                return (
+                  <button
+                    type="button"
+                    role="option"
+                    id={entry.id}
+                    key={entry.id}
+                    aria-selected={index === highlighted}
+                    className={companion.quickSwitcherRow}
+                    onPointerMove={() => setHighlighted(index)}
+                    onClick={() => activate(entry)}
+                  >
+                    <span className={companion.quickSwitcherIcon} aria-hidden="true">
+                      {entry.kind === 'agent' ? (
+                        <AgentForm identity={entry.hue} size="small" />
+                      ) : entry.kind === 'thread' ? (
+                        <ChatCircle size={17} />
+                      ) : entry.kind === 'resource' ? (
+                        entry.resourceKind === 'file' ? (
+                          <File size={17} />
+                        ) : entry.resourceKind === 'link' ? (
+                          <LinkSimple size={17} />
+                        ) : (
+                          <MagnifyingGlass size={17} />
+                        )
+                      ) : (
+                        entry.icon
+                      )}
+                    </span>
+                    <span>
+                      <strong>
+                        <Highlighted text={entry.label} query={highlightQuery} />
+                      </strong>
+                      {entry.detail ? <small>{entry.detail}</small> : null}
+                    </span>
+                    <span className={companion.quickSwitcherKind}>{kindLabel(entry)}</span>
+                  </button>
+                );
+              });
+              return section.label ? (
+                <div
+                  key={section.label}
+                  role="group"
+                  aria-label={section.label}
+                  className={companion.quickSwitcherSection}
+                >
+                  <div className={companion.quickSwitcherHeading} aria-hidden="true">
+                    {section.label}
+                  </div>
+                  {rows}
+                </div>
+              ) : (
+                rows
+              );
+            })}
             {entries.length === 0 ? (
               <p className={companion.quickSwitcherEmpty}>
                 No conversations, messages, or actions match.
@@ -329,4 +369,29 @@ function matchScore(entry: SwitcherEntry, query: string, actions: QuickSwitcherA
   if (haystack.includes(query)) return 2;
   const tokens = query.split(/\s+/u);
   return tokens.every((token) => haystack.includes(token)) ? 1 : -1;
+}
+
+function kindLabel(entry: SwitcherEntry) {
+  if (entry.kind === 'thread') return 'Conversation';
+  if (entry.kind === 'agent') return 'Agent';
+  if (entry.kind === 'action') return 'Action';
+  if (entry.resourceKind === 'thread') return 'Conversation';
+  if (entry.resourceKind === 'file') return 'File';
+  if (entry.resourceKind === 'link') return 'Link';
+  return 'Message';
+}
+
+/** The label with the first stretch that matches the search softly marked. */
+function Highlighted({ text, query }: { text: string; query: string }) {
+  const lower = text.toLocaleLowerCase();
+  // Case folding that changes length (rare scripts) would misplace the mark; skip it then.
+  const start = query && lower.length === text.length ? lower.indexOf(query) : -1;
+  if (start < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, start)}
+      <mark>{text.slice(start, start + query.length)}</mark>
+      {text.slice(start + query.length)}
+    </>
+  );
 }

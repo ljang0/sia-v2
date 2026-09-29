@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import type { AgentSummary, ThreadDetail } from '../types';
 import companion from '../companion.module.css';
 import { AgentForm } from './AgentForm';
+import { threadDisplayTitle } from '../threadTitle';
 import { workingLabel } from './WorkGroup';
 import type { SiaPresenceState } from './SiaPresence';
 
@@ -66,10 +67,14 @@ export function RoomHeader({
           <span className={companion.roomEyebrow}>
             {agent?.name ?? 'Sia'} · {label}
           </span>
-          <strong title={thread?.title}>
+          <strong title={thread ? threadDisplayTitle(thread.title) : undefined}>
             {setup
               ? 'Welcome'
-              : (thread?.title ?? (agent ? 'New conversation' : 'Your conversations'))}
+              : thread
+                ? threadDisplayTitle(thread.title)
+                : agent
+                  ? 'New conversation'
+                  : 'Your conversations'}
           </strong>
           {thread?.goal ? (
             <div className={companion.roomMeta}>

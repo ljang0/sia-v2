@@ -15,7 +15,6 @@ import {
   Bell,
   BellSlash,
   Copy,
-  GitFork,
   PushPin,
   Pulse,
 } from '@phosphor-icons/react';
@@ -27,7 +26,9 @@ import { AgentForm } from './AgentForm';
 import navigation from './navigation.module.css';
 import { TaskPreviewButton } from './TaskPreviewButton';
 import { SiaLogo } from './SiaLogo';
+import { MotionList } from './MotionList';
 import { NavigationGroup } from './NavigationGroup';
+import { threadDisplayTitle } from '../threadTitle';
 
 interface SidebarProps {
   agents: AgentSummary[];
@@ -162,15 +163,22 @@ export function Sidebar({
   const orderedAgents = useMemo(() => {
     const normalizedQuery = collapsed ? '' : query.trim().toLocaleLowerCase();
     return [...agents]
-      .map((agent) => ({
-        ...agent,
-        threads:
-          normalizedQuery && !agent.name.toLocaleLowerCase().includes(normalizedQuery)
-            ? agent.threads.filter((thread) =>
-                thread.title.toLocaleLowerCase().includes(normalizedQuery),
-              )
-            : agent.threads,
-      }))
+      .map((agent) => {
+        const threads = agent.threads.map((thread) =>
+          thread.title === threadDisplayTitle(thread.title)
+            ? thread
+            : { ...thread, title: threadDisplayTitle(thread.title) },
+        );
+        return {
+          ...agent,
+          threads:
+            normalizedQuery && !agent.name.toLocaleLowerCase().includes(normalizedQuery)
+              ? threads.filter((thread) =>
+                  thread.title.toLocaleLowerCase().includes(normalizedQuery),
+                )
+              : threads,
+        };
+      })
       .filter(
         (agent) =>
           !normalizedQuery ||
@@ -385,8 +393,8 @@ export function Sidebar({
                       type="button"
                       className={styles.agentEditButton}
                       onClick={() => onCreateThread(agent.id)}
-                      aria-label={`Start a thread with ${agent.name}`}
-                      title="New thread"
+                      aria-label={`Start a conversation with ${agent.name}`}
+                      title="New conversation"
                     >
                       <Plus size={14} aria-hidden="true" />
                     </button>
@@ -416,12 +424,15 @@ export function Sidebar({
                 }
               >
                 <div className={navigation.tasks}>
-                  {agent.threads.length ? (
-                    agent.threads.map((thread) =>
+                  <MotionList
+                    items={agent.threads}
+                    className={navigation.taskList}
+                    instant={Boolean(query.trim())}
+                  >
+                    {(thread) =>
                       editingThread?.id === thread.id ? (
                         <form
                           className={styles.threadRenameForm}
-                          key={thread.id}
                           onSubmit={(event) => {
                             event.preventDefault();
                             commitRename(thread);
@@ -459,7 +470,6 @@ export function Sidebar({
                         </form>
                       ) : (
                         <div
-                          key={thread.id}
                           className={`${styles.threadRow} ${navigation.task} ${
                             thread.id === selectedThreadId && activePage === 'conversation'
                               ? styles.threadRowSelected
@@ -483,7 +493,7 @@ export function Sidebar({
                                 ? (opener) => {
                                     dialogOpener.current = opener;
                                     setForkingThread(thread);
-                                    setForkTitle(`${thread.title} fork`);
+                                    setForkTitle(`${thread.title} (copy)`);
                                     setForkIsolated(false);
                                   }
                                 : undefined
@@ -508,15 +518,16 @@ export function Sidebar({
                             }}
                           />
                         </div>
-                      ),
-                    )
-                  ) : query ? null : (
+                      )
+                    }
+                  </MotionList>
+                  {agent.threads.length || query ? null : (
                     <button
                       className={styles.newThreadInline}
                       type="button"
                       onClick={() => onCreateThread(agent.id)}
                     >
-                      Start the first thread
+                      Start a conversation
                     </button>
                   )}
                 </div>
@@ -641,13 +652,13 @@ export function Sidebar({
             className={styles.alertDialogContent}
             onCloseAutoFocus={restoreDialogFocus}
           >
-            <Dialog.Title>Fork this thread</Dialog.Title>
+            <Dialog.Title>Duplicate this conversation</Dialog.Title>
             <Dialog.Description>
-              Copy the local transcript. Use an isolated Git worktree to run in parallel without
-              sharing workspace writes.
+              The copy starts with everything said so far. What happens next in each one stays
+              separate.
             </Dialog.Description>
             <label className={styles.localField}>
-              <span>Fork title</span>
+              <span>Name of the copy</span>
               <input
                 value={forkTitle}
                 onChange={(event) => setForkTitle(event.target.value)}
@@ -662,8 +673,8 @@ export function Sidebar({
                 data-testid="fork-isolation-checkbox"
               />
               <span>
-                <strong>Isolated Git worktree</strong>
-                <small>Recommended for parallel coding tasks.</small>
+                <strong>Work in a separate copy of the folder</strong>
+                <small>Keeps file changes apart when both conversations run at once.</small>
               </span>
             </label>
             <div className={styles.dialogActions}>
@@ -688,7 +699,7 @@ export function Sidebar({
                   );
                 }}
               >
-                Create fork
+                Duplicate
               </button>
             </div>
           </Dialog.Content>
@@ -729,6 +740,7 @@ function useScrollEdges(ref: RefObject<HTMLElement | null>): {
 function ThreadLabel({ thread }: { thread: ThreadSummary }) {
   const draft = Boolean(thread.draft?.trim());
   const state = threadStateLabel(thread);
+  const signal = threadSignal(thread);
   return (
     <span
       className={styles.threadCopy}
@@ -737,13 +749,26 @@ function ThreadLabel({ thread }: { thread: ThreadSummary }) {
     >
       <span className={`${styles.threadTitle} ${navigation.taskTitle}`}>{thread.title}</span>
       {draft || state ? (
-        <span className={navigation.taskMeta}>
+        <span className={navigation.taskMeta} data-signal={signal}>
           {draft ? <strong>Draft</strong> : null}
           {state ? <span>{state}</span> : null}
         </span>
       ) : null}
+      {signal ? (
+        <i className={navigation.taskSignal} data-signal={signal} aria-hidden="true" />
+      ) : null}
     </span>
   );
+}
+
+/** The dot at a row's end: what, if anything, the conversation wants from the person. */
+function threadSignal(
+  thread: ThreadSummary,
+): 'working' | 'needs-you' | 'problem' | 'unread' | undefined {
+  if (thread.status === 'running' || thread.status === 'queued') return 'working';
+  if (thread.status === 'waiting') return 'needs-you';
+  if (thread.status === 'error') return 'problem';
+  return thread.unread ? 'unread' : undefined;
 }
 
 function threadStateLabel(thread: ThreadSummary) {
@@ -789,7 +814,7 @@ function ThreadMenu({
           ref={trigger}
           type="button"
           className={styles.threadMenuButton}
-          aria-label={`Thread actions for ${thread.title}`}
+          aria-label={`Conversation actions for ${thread.title}`}
           data-testid="thread-actions"
         >
           <DotsThree size={16} weight="bold" aria-hidden="true" />
@@ -807,10 +832,10 @@ function ThreadMenu({
               onSelect={() => onFork(trigger.current)}
               data-testid="thread-fork"
               disabled={busy}
-              title={busy ? 'Stop or finish the current task before forking.' : undefined}
+              title={busy ? 'Stop or finish the current task before duplicating.' : undefined}
             >
-              <GitFork size={14} aria-hidden="true" />
-              Fork
+              <Copy size={14} aria-hidden="true" />
+              Duplicate
             </DropdownMenu.Item>
           ) : null}
           {onArchive ? (
