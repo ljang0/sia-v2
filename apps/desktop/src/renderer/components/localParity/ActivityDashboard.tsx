@@ -4,7 +4,8 @@ import {
   Circle,
   Clock,
   Desktop,
-  Pause,
+  HandPalm,
+  SealCheck,
   SpinnerGap,
   WarningCircle,
 } from '@phosphor-icons/react';
@@ -62,16 +63,16 @@ export function ActivityDashboard({ activities, onOpenThread }: ActivityDashboar
       right.updatedAt.localeCompare(left.updatedAt),
   );
   const metricLabels = {
-    running: 'Running',
-    waiting: 'Waiting',
+    running: 'Working',
+    waiting: 'Need you',
     failed: 'Stopped',
-    unread: 'Unread',
+    unread: 'New results',
   } as const;
 
   return (
     <section className={styles.activityDashboard} aria-labelledby={titleId}>
       <div className={styles.localSurfaceHeader}>
-        <h2 id={titleId}>Across agents</h2>
+        <h2 id={titleId}>Your agents’ work</h2>
         <div className={styles.segmentedControl} aria-label="Activity filter">
           <button
             type="button"
@@ -93,14 +94,15 @@ export function ActivityDashboard({ activities, onOpenThread }: ActivityDashboar
       </div>
 
       <div className={styles.activityMetrics}>
-        {(['running', 'waiting', 'failed', 'unread'] as const).map((status) => (
-          <div key={status}>
-            <strong>
-              {activities.filter((activity) => activity.status === status).length}
-            </strong>
-            <span>{metricLabels[status]}</span>
-          </div>
-        ))}
+        {(['running', 'waiting', 'failed', 'unread'] as const).map((status) => {
+          const count = activities.filter((activity) => activity.status === status).length;
+          return (
+            <div key={status} data-status={status} data-empty={count === 0}>
+              <strong>{count}</strong>
+              <span>{metricLabels[status]}</span>
+            </div>
+          );
+        })}
       </div>
 
       <div className={styles.dashboardList}>
@@ -131,7 +133,12 @@ export function ActivityDashboard({ activities, onOpenThread }: ActivityDashboar
             </button>
           ))
         ) : (
-          <p className={styles.localEmpty}>Nothing needs attention.</p>
+          <p className={styles.activityAllClear}>
+            <SealCheck size={18} aria-hidden="true" />
+            {filter === 'active'
+              ? 'All clear — nothing needs you right now.'
+              : 'No work yet. Start a conversation and it will show up here.'}
+          </p>
         )}
       </div>
     </section>
@@ -142,7 +149,7 @@ function ActivityStatusIcon({ status }: { status: DashboardActivityStatus }) {
   const props = { size: 17, 'aria-hidden': true as const };
   if (status === 'running') return <SpinnerGap className={styles.spin} {...props} />;
   if (status === 'queued') return <Clock {...props} />;
-  if (status === 'waiting') return <Pause {...props} />;
+  if (status === 'waiting') return <HandPalm {...props} />;
   if (status === 'unread') return <Bell weight="fill" {...props} />;
   if (status === 'background') return <Desktop {...props} />;
   if (status === 'failed') return <WarningCircle {...props} />;
@@ -151,9 +158,9 @@ function ActivityStatusIcon({ status }: { status: DashboardActivityStatus }) {
 
 function formatRelative(value: string) {
   const minutes = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 60_000));
-  if (minutes < 1) return 'now';
-  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.round(hours / 24)}d`;
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
 }

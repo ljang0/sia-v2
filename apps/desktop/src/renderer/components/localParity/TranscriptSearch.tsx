@@ -40,7 +40,7 @@ export function TranscriptSearch({
   return (
     <section className={styles.transcriptSearch} aria-labelledby={labelId}>
       <div className={styles.localSurfaceHeader}>
-        <h2 id={labelId}>Search transcripts</h2>
+        <h2 id={labelId}>Search conversations</h2>
       </div>
       <label className={styles.threadSearch}>
         <MagnifyingGlass size={14} aria-hidden="true" />
@@ -49,7 +49,7 @@ export function TranscriptSearch({
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search message text"
+          placeholder="Find something that was said"
           aria-label="Search message text"
           data-testid="thread-search-input"
         />
@@ -71,10 +71,10 @@ export function TranscriptSearch({
         )}
         {!query.trim() ? (
           <p className={styles.localEmpty}>
-            Searches every local thread, including archived ones.
+            Finds words in any conversation, including archived ones.
           </p>
         ) : results.length === 0 ? (
-          <p className={styles.localEmpty}>No transcript matches.</p>
+          <p className={styles.localEmpty}>No conversations mention “{query.trim()}”.</p>
         ) : null}
       </div>
     </section>
