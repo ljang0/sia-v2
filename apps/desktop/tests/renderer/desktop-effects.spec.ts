@@ -414,7 +414,8 @@ test('navigation reveals a distant selected task without scrolling the app windo
   await page.goto('/#demo');
   const nav = page.getByRole('complementary', { name: 'Agent navigation' });
   for (let index = 0; index < 4; index++) {
-    await nav.getByRole('button', { name: 'New conversation', exact: true }).click();
+    // New rows are also titled "New conversation"; use the ⌘N button.
+    await nav.locator('button[aria-keyshortcuts="Meta+N"]').click();
   }
   await page.keyboard.press('ControlOrMeta+k');
   await page.getByRole('combobox', { name: 'Search conversations and actions' }).fill('Triage');
