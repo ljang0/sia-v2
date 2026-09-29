@@ -6452,30 +6452,39 @@ export class DesktopController {
               item.turnId !== turn.id &&
               item.kind === 'assistant',
           );
-          const prepared = await nativeVault.engine(
-            this.#notchHelperPath,
-            {
-              operation: 'prepare',
-              background: this.macBackgroundControl(),
-              request: turn.text,
-              context: turn.context ?? '',
-              learning: library.learningAgents?.includes(thread.agentId) === true,
-              nativeLearning: library.nativeLearningAgents?.includes(thread.agentId) === true,
-              activeTasks: this.#state.threads
-                .filter(
-                  (item) =>
-                    item.agentId === thread.agentId &&
-                    item.id !== thread.id &&
-                    ['running', 'waiting', 'queued'].includes(item.status),
-                )
-                .map((item) => `- ${item.title} [${item.status}]`)
-                .join('\n'),
-            },
-            signal,
-          );
-          if (!prepared.prompt)
-            throw new Error('The native engine returned no request context.');
-          nativeRequest = prepared.prompt;
+          // The native memory engine only enriches the request. If it fails or times out,
+          // run the person's request with the ordinary memory prompt instead of failing.
+          try {
+            const prepared = await nativeVault.engine(
+              this.#notchHelperPath,
+              {
+                operation: 'prepare',
+                background: this.macBackgroundControl(),
+                request: turn.text,
+                context: turn.context ?? '',
+                learning: library.learningAgents?.includes(thread.agentId) === true,
+                nativeLearning: library.nativeLearningAgents?.includes(thread.agentId) === true,
+                activeTasks: this.#state.threads
+                  .filter(
+                    (item) =>
+                      item.agentId === thread.agentId &&
+                      item.id !== thread.id &&
+                      ['running', 'waiting', 'queued'].includes(item.status),
+                  )
+                  .map((item) => `- ${item.title} [${item.status}]`)
+                  .join('\n'),
+              },
+              signal,
+            );
+            if (!prepared.prompt)
+              throw new Error('The native engine returned no request context.');
+            nativeRequest = prepared.prompt;
+          } catch (error) {
+            signal.throwIfAborted();
+            console.warn(
+              `[sia:notch] Preparing the request failed; continuing without it. ${error instanceof Error ? error.message : ''}`.trim(),
+            );
+          }
         }
         const runtimeThread = {
           ...(nativeVault ? { notchVault: nativeVault.root } : {}),

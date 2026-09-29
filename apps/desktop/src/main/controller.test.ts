@@ -7440,6 +7440,48 @@ describe('Use my Mac power and lock handling', () => {
     await controller.shutdown();
   });
 
+  it('runs the plain request when the native memory engine fails', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sia-broken-helper-'));
+    const helper = join(directory, 'notch-helper');
+    await writeFile(helper, `#!${process.execPath}\nprocess.exit(3);\n`, { mode: 0o755 });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const inputs: RuntimeTurnInput[] = [];
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        inputs.push(input);
+        yield {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller, threadId } = await macThread({ runtime, notchHelperPath: helper });
+    try {
+      await controller.invoke('threads.send', { threadId, text: 'Tidy my desktop' });
+      await vi.waitFor(() => expect(inputs).toHaveLength(1));
+      expect(inputs[0]!.text).toContain('Tidy my desktop');
+      expect(
+        controller
+          .snapshot()
+          .timeline.some((item) => item.threadId === threadId && item.kind === 'error'),
+      ).toBe(false);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('[sia:notch]'));
+    } finally {
+      warn.mockRestore();
+      await controller.shutdown();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it('does not hold the Mac awake for connected-app tasks', async () => {
     const { runtime } = holdingRuntime();
     const { controller, keepAwake, threadId, status } = await macThread({ runtime });
