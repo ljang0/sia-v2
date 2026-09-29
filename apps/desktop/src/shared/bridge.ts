@@ -406,7 +406,7 @@ export interface ComputerView extends ComputerPermissionsView {
   automation?: import('./mac-permissions.js').AutomationPermissions;
   /** Local Apple Messages readability; sends additionally prompt for Automation once. */
   messagesAccess?: 'ready' | 'needs_full_disk_access' | 'unavailable';
-  /** Chrome's persistent remote-debugging toggle for silent attachment. */
+  /** Chrome's own remote-debugging toggle, read-only; Sia never changes it. */
   chromeConnection?: 'enabled' | 'off' | 'unavailable';
   /**
    * 'auto': computer and browser actions run without per-action approval and Chrome
