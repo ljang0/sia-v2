@@ -46,24 +46,29 @@ export function ComputerAccessMode({
                 <input
                   type="radio"
                   name={controlId}
-                  checked={!computer.backgroundControl}
-                  onChange={() => change('mac', false)}
+                  checked={computer.backgroundControl === true}
+                  onChange={() => change('mac', true)}
                 />
                 <span>
-                  <strong>On my screen</strong>
-                  <span>Full app and file control. Apps may come forward.</span>
+                  <strong>Work in background</strong>
+                  <span>
+                    Recommended. Keep using your Mac while Sia works behind your windows.
+                  </span>
                 </span>
               </label>
               <label className={modeStyles.choice}>
                 <input
                   type="radio"
                   name={controlId}
-                  checked={computer.backgroundControl === true}
-                  onChange={() => change('mac', true)}
+                  checked={!computer.backgroundControl}
+                  onChange={() => change('mac', false)}
                 />
                 <span>
-                  <strong>Work in background</strong>
-                  <span>Keep working while Sia controls a supported window.</span>
+                  <strong>On my screen</strong>
+                  <span>
+                    Sia takes over your screen. Use this if a task needs full app and file
+                    control.
+                  </span>
                 </span>
               </label>
             </div>
@@ -91,7 +96,7 @@ export function ComputerAccessMode({
       <p className={styles.settingsNote}>
         {computer.accessMode === 'mac'
           ? computer.backgroundControl
-            ? 'Background control is experimental. Apps may still come forward; saved native scripts need On my screen. Changes apply to your next task.'
+            ? 'Sia works in the background so you can keep using your Mac. Saved native scripts need On my screen. Changes apply to your next task.'
             : 'Sia can control apps and files. With bypass enabled, native commands have full Mac access. Changes apply to your next task.'
           : 'Connect a browser or service in Connections. Mac app control requires Use my Mac.'}
       </p>

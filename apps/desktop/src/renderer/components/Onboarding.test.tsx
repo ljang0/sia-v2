@@ -154,12 +154,17 @@ it('prefers an available Astra model for Use my Mac while honoring a model the u
   );
   const selector = screen.getByRole('combobox', { name: 'AI access' }) as HTMLSelectElement;
   expect(selector.value).toBe('codex:gpt-6-astra');
+  expect(
+    screen.getByText(/Sia works in the background while you keep using your Mac/),
+  ).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Set up Sia' }));
   await waitFor(() =>
     expect(api.createAgent).toHaveBeenCalledWith(
       expect.objectContaining({ provider: 'codex', model: 'gpt-6-astra' }),
     ),
   );
+  // Setup keeps the stored background preference: new profiles work in the background.
+  expect(api.setComputerAccessMode).toHaveBeenCalledWith('mac');
 
   view.unmount();
   const another = setup();

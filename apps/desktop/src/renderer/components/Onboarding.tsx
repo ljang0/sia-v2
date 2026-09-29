@@ -203,7 +203,7 @@ export function Onboarding({
             ) : null}
             <p className={styles.note}>
               {setupRoute === 'mac-bypass'
-                ? 'Sia can use your apps, send messages, and change files without asking each time.'
+                ? 'Sia works in the background while you keep using your Mac. It can send messages and change files without asking each time. You can switch to On my screen in Settings → Computer.'
                 : 'Sia asks before taking actions in connected apps.'}
             </p>
             {setupRoute === 'mac-bypass' && aiReady ? (
@@ -251,7 +251,9 @@ export function Onboarding({
                   />
                   <span>
                     <strong>Use my Mac + full bypass</strong>
-                    <span>Use your signed-in apps. No per-action approvals.</span>
+                    <span>
+                      Works in the background with your signed-in apps. No per-action approvals.
+                    </span>
                   </span>
                 </label>
                 <label className={styles.setupChoice}>

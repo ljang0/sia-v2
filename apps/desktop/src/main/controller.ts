@@ -1013,8 +1013,9 @@ export class DesktopController {
     return this.#state.preferences.computerAccessMode ?? 'connected';
   }
 
+  /** Use my Mac works in the background unless the person explicitly chose On my screen. */
   macBackgroundControl(): boolean {
-    return this.#state.preferences.macBackgroundControl === true;
+    return this.#state.preferences.macBackgroundControl !== false;
   }
 
   macBackgroundFallback(): 'pause' | 'foreground' {

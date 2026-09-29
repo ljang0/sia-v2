@@ -6384,26 +6384,43 @@ it('persists Use my Mac separately from action confirmations and avoids Chrome p
   const { controller, repository } = await createHarness();
   await controller.invoke('computer.setTrust', { trust: 'ask' });
   expect(controller.computerAccessMode()).toBe('mac');
-  expect(controller.macBackgroundControl()).toBe(false);
+  expect(controller.macBackgroundControl()).toBe(true);
   expect(controller.macBackgroundFallback()).toBe('pause');
   expect(controller.computerTrust()).toBe('ask');
   await controller.invoke('computer.setAccessMode', {
     mode: 'mac',
-    background: true,
+    background: false,
     backgroundFallback: 'foreground',
   });
   await controller.invoke('computer.setAccessMode', { mode: 'mac' });
-  expect(controller.snapshot().computer.backgroundControl).toBe(true);
+  expect(controller.snapshot().computer.backgroundControl).toBe(false);
   expect(controller.snapshot().computer.accessMode).toBe('mac');
   expect(controller.computerTrust()).toBe('ask');
   expect(await controller.ensureBrowserAttachedForActions()).toContain('Use my Mac');
   expect(controller.snapshot().browser.status).toBe('detached');
   const restored = await createHarness({ repository });
   expect(restored.controller.computerAccessMode()).toBe('mac');
-  expect(restored.controller.macBackgroundControl()).toBe(true);
+  expect(restored.controller.macBackgroundControl()).toBe(false);
   expect(restored.controller.macBackgroundFallback()).toBe('foreground');
   expect(restored.controller.computerTrust()).toBe('ask');
   await restored.controller.shutdown();
+});
+
+it('works in the background by default, including profiles saved before the setting existed', async () => {
+  const { controller, repository } = await createHarness();
+  expect(controller.snapshot().computer.backgroundControl).toBe(true);
+  const stored = repository.get<{ preferences: { macBackgroundControl?: boolean } }>(
+    'desktop',
+    'state',
+  )!;
+  delete stored.preferences.macBackgroundControl;
+  repository.put('desktop', 'state', stored);
+  const legacy = await createHarness({ repository });
+  expect(legacy.controller.macBackgroundControl()).toBe(true);
+  await legacy.controller.invoke('computer.setAccessMode', { mode: 'mac', background: false });
+  const onScreen = await createHarness({ repository });
+  expect(onScreen.controller.macBackgroundControl()).toBe(false);
+  await onScreen.controller.shutdown();
 });
 
 it('preserves connected mode for existing profiles, including profiles predating the mode setting', async () => {
