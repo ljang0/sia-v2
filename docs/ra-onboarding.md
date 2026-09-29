@@ -133,8 +133,8 @@ A dropped connection preserves unsent text; retrying a command with an uncertain
 uses the same request identifier to avoid duplicate tasks.
 
 Phone requests use the assistant's existing Codex route and the Mac's current **Use my Mac** /
-**Connected apps** and **Full bypass** / **Ask first** settings. Approve pending computer actions
-on the Mac. Dictate with your phone's keyboard microphone; browser speech APIs usually require
+**Connected apps** settings, but phone turns always ask on the Mac, even with bypass on. Approve
+pending actions on the Mac, one request at a time. Dictate with your phone's keyboard microphone; browser speech APIs usually require
 HTTPS, while this Notch-style local link uses HTTP. Keep the link private and use trusted Wi-Fi:
 the local traffic is not encrypted. **Create a new link** revokes old links; **Turn off remote**
 closes the listener. The listener binds a private LAN address on port 8738 and accepts only that
@@ -210,9 +210,10 @@ apps open hidden where macOS supports it. Uncheck the option to defer those app 
 task needs them. Connected apps setup does not request these Automation grants.
 **Settings → Computer → Grant all permissions** runs the same guided pass later.
 
-The default is **Use my Mac + full bypass**: Sia works in the background with signed-in Mac apps
-and may send messages or change files without per-action approval. **Customize setup** contains the alternative
-**Connected apps + confirmations** mode, agent name, and model choice. The starter uses a ready
+The default is **Use my Mac** with bypass: Sia works in the background with signed-in Mac apps
+and may send messages or change files without per-action approval. **Customize setup** contains the
+alternative **Connected apps only** route, an **Ask before each action** checkbox (off by default)
+for confirmations, agent name, and model choice. The starter uses a ready
 model from the admitted catalog and an automatic private workspace. If no model is ready,
 complete AI sign-in first. No API key is required.
 
@@ -478,7 +479,8 @@ when first used; macOS cannot grant permission to every possible future app in a
 
 Mac tasks use native Codex execution outside the workspace sandbox. **Bypass action approvals**
 runs commands without per-action prompts, including sends, uploads, file changes and native scripts.
-Turn it off to use Codex's command confirmations. The change applies to the next task; cancel an
+Turn it off to use Codex's command confirmations; each card offers **Approve**, **Allow for this
+task** (the same command or files until the task ends), and **Don't allow**. The change applies to the next task; cancel an
 active task first to stop its current access. Native shell access is broader than Connected apps'
 window grants: its secure-surface exclusions and executable-skill review are not an enforcement
 boundary for arbitrary commands. macOS permissions still apply. The agent is instructed not to read

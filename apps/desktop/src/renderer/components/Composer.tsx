@@ -19,6 +19,7 @@ import {
 } from 'react';
 import styles from '../ui.module.css';
 import { SiaPresence, type SiaPresenceState } from './SiaPresence';
+import { VoiceWave } from './VoiceWave';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
 
 interface ComposerAttachment {
@@ -781,6 +782,7 @@ export function Composer({
               }
               audioLevel={voiceLevel}
             />
+            {voicePhase === 'recording' ? <VoiceWave level={voiceLevel} /> : null}
             <span className={styles.composerContext} role="status">
               {voiceConversation
                 ? voiceError

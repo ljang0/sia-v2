@@ -302,6 +302,41 @@ describe('bridge renderer truthfulness', () => {
       request: { kind: 'connector', account: 'Account unspecified' },
     });
   });
+
+  it('carries Allow for this task to the card and back to the main process', async () => {
+    const initial = snapshot([]);
+    initial.approvals = [
+      {
+        id: 'approval-1',
+        threadId: 'thread-1',
+        callId: 'call-1',
+        kind: 'native_tool',
+        title: 'Allow Mac action',
+        summary: 'Run a command: open -a TextEdit',
+        target: 'codex',
+        reversible: false,
+        status: 'approved',
+        allowForTask: true,
+        scope: 'task',
+      },
+    ];
+    expect(
+      mapDesktopSnapshot(initial).activeThread?.events.find(({ type }) => type === 'approval'),
+    ).toMatchObject({ status: 'approved', scope: 'task', request: { allowForTask: true } });
+    const resolve = vi.fn(async () => initial);
+    const bridge = {
+      bootstrap: async () => initial,
+      approvals: { resolve },
+      subscribe: () => () => undefined,
+    } as unknown as DesktopBridgeApi;
+    const api = createBridgeRendererApi(bridge);
+    await api.getSnapshot();
+    await api.respondToApproval('approval-1', 'approve_task');
+    expect(resolve).toHaveBeenCalledWith({
+      approvalId: 'approval-1',
+      decision: 'approve_task',
+    });
+  });
 });
 
 describe('bridge renderer queued follow-ups', () => {

@@ -158,9 +158,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--muted);
+  font-size: 13px;
+  font-weight: 560;
+  color: var(--ink);
 }
 .progress {
   display: flex;
@@ -171,8 +171,8 @@
   margin: 6px 0 12px;
 }
 .statusDot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: #749581;
   flex: none;
@@ -246,6 +246,16 @@
   }
   .result {
     animation: enter 140ms ease-out;
+  }
+  /* A running request breathes like the main window's working avatar; calm stays still. */
+  .launcher:not([data-appearance='calm']) .progress[data-status='running'] .statusDot {
+    animation: working 2s var(--ease-standard) infinite;
+  }
+  @keyframes working {
+    50% {
+      box-shadow: 0 0 0 4px #74958138;
+      transform: scale(0.84);
+    }
   }
   @keyframes enter {
     from {

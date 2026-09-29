@@ -125,6 +125,7 @@ interface ForegroundApproval {
   appName: string;
   target: string;
   restoresFocusTo: string;
+  allowForTask?: boolean | undefined;
 }
 
 interface ConnectorApproval {
@@ -137,6 +138,7 @@ interface ConnectorApproval {
   destination: string;
   preview: string;
   expiresAt?: string | undefined;
+  allowForTask?: boolean | undefined;
 }
 
 interface ActionApproval {
@@ -150,6 +152,7 @@ interface ActionApproval {
   dataLabel?: string | undefined;
   reversible: boolean;
   expiresAt?: string | undefined;
+  allowForTask?: boolean | undefined;
 }
 
 type ApprovalRequest = ForegroundApproval | ConnectorApproval | ActionApproval;
@@ -159,6 +162,8 @@ export interface ApprovalEvent {
   type: 'approval';
   request: ApprovalRequest;
   status: 'pending' | 'approved' | 'rejected' | 'expired';
+  /** Approved for the rest of its task, not just once. */
+  scope?: 'task' | undefined;
   timestamp: string;
 }
 
@@ -515,7 +520,7 @@ export interface ResearchBatchSummary {
   };
 }
 
-export type ApprovalDecision = 'approve' | 'reject';
+export type ApprovalDecision = 'approve' | 'approve_task' | 'reject';
 
 export interface RendererApi {
   onOpenConversation?(listener: () => void): () => void;

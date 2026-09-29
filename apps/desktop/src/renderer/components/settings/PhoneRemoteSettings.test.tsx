@@ -62,6 +62,7 @@ it('enables the chosen assistant, displays pairing, copies through the typed bri
   await waitFor(() => expect(api).toHaveBeenCalledWith({ operation: 'enable', agentId: 'b' }));
   expect(await screen.findByRole('img', { name: /Scan this private QR code/ })).toBeTruthy();
   expect(screen.getByText('This phone uses Work · gpt-6-astra.')).toBeTruthy();
+  expect(screen.getByText(/asks for your OK here on the Mac, one at a time/)).toBeTruthy();
   expect((screen.getByLabelText('Assistant') as HTMLSelectElement).value).toBe('b');
   fireEvent.change(screen.getByLabelText('Assistant'), { target: { value: 'a' } });
   expect(screen.getByText(/Switching creates a new private link/)).toBeTruthy();
@@ -113,4 +114,33 @@ it('warns when the phone assistant model is no longer available', async () => {
     />,
   );
   expect(await screen.findByText(/choose an available model/)).toBeTruthy();
+});
+
+it('names the paired model the way the model menu does', async () => {
+  const api = vi.fn<PhoneRemoteApi>(async () => ({
+    enabled: true,
+    running: true,
+    agentId: 'a',
+    detail: 'Ready.',
+  }));
+  render(
+    <PhoneRemoteSettings
+      api={api}
+      agents={[{ id: 'a', name: 'Personal', provider: 'codex', model: 'gpt-6-astra' }]}
+      providers={[
+        {
+          id: 'codex',
+          name: 'Codex',
+          status: 'ready',
+          model: 'gpt-6-astra',
+          description: 'Connected',
+          billedBy: '',
+          models: [
+            { id: 'gpt-6-astra', label: 'GPT-6 Astra', description: '', reasoningEfforts: [] },
+          ],
+        },
+      ]}
+    />,
+  );
+  expect(await screen.findByText('This phone uses Personal · GPT-6 Astra.')).toBeTruthy();
 });

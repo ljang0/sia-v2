@@ -8,7 +8,9 @@ import { clipText } from '../../shared/plain-text';
 import {
   Browser,
   CaretDown,
+  Check,
   CheckCircle,
+  CircleHalf,
   CircleNotch,
   Clock,
   Desktop,
@@ -22,7 +24,7 @@ import {
   TerminalWindow,
   WarningCircle,
 } from '@phosphor-icons/react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { ActivityEvent } from '../types';
 import styles from '../ui.module.css';
 
@@ -41,13 +43,28 @@ const icons = {
 
 export function ActivityRow({ event }: ActivityRowProps) {
   const [expanded, setExpanded] = useState(false);
+  // A step watched while it ran marks its finish with a small check pop; steps that were
+  // already done when the thread opened stay still.
+  const watchedLive = useRef(event.status === 'running' || event.status === 'queued');
   const Icon = presentationIcon(event) ?? icons[event.kind];
   const StatusIcon =
     event.status === 'complete'
       ? CheckCircle
       : event.status === 'error'
         ? WarningCircle
-        : Clock;
+        : event.status === 'running'
+          ? CircleNotch
+          : Clock;
+  const statusIconClass =
+    event.status === 'error'
+      ? styles.activityErrorIcon
+      : event.status === 'running'
+        ? styles.activitySpinner
+        : event.status === 'complete'
+          ? watchedLive.current
+            ? `${styles.activityDoneIcon} ${styles.activityDonePop}`
+            : styles.activityDoneIcon
+          : undefined;
   const statusClass = event.status === 'complete' ? '' : styles[`activity_${event.status}`];
   const hasDetail = Boolean(event.title || event.detail || event.presentation);
   const screen =
@@ -64,7 +81,7 @@ export function ActivityRow({ event }: ActivityRowProps) {
     !event.presentation && summary && event.title !== event.detail ? event.title : '';
 
   return (
-    <div className={`${styles.activityRow} ${statusClass}`}>
+    <div className={`${styles.activityRow} ${statusClass}`} data-status={event.status}>
       <button
         type="button"
         className={styles.activityButton}
@@ -88,11 +105,7 @@ export function ActivityRow({ event }: ActivityRowProps) {
           ) : null}
         </span>
         <span className={styles.visuallyHidden}>Status: {event.status}</span>
-        <StatusIcon
-          size={15}
-          className={event.status === 'error' ? styles.activityErrorIcon : undefined}
-          aria-hidden="true"
-        />
+        <StatusIcon size={15} className={statusIconClass} aria-hidden="true" />
         {hasDetail ? (
           <CaretDown
             size={13}
@@ -122,6 +135,10 @@ export function activitySummary(event: ActivityEvent, labels: readonly string[])
   }
   if (presentation?.kind === 'web_search' && presentation.query)
     return clipText(singleLine(presentation.query), 90);
+  if (presentation?.kind === 'plan' && presentation.steps.length) {
+    const done = presentation.steps.filter((step) => step.status === 'completed').length;
+    return `${done} of ${presentation.steps.length} done`;
+  }
   if (presentation?.kind === 'image')
     return isScreenCapture(presentation.path)
       ? ''
@@ -158,19 +175,28 @@ function RichActivityDetail({ event }: { event: ActivityEvent }) {
   if (!presentation) return event.detail;
   if (presentation.kind === 'command') {
     return (
-      <div className={styles.activityStack}>
-        <code>{presentation.command}</code>
+      <div className={styles.commandDetail}>
+        <code className={styles.commandLine}>{presentation.command}</code>
         {presentation.cwd ? <small>{presentation.cwd}</small> : null}
         {presentation.output ? (
-          <pre>{presentation.output}</pre>
+          <pre className={styles.commandOutput}>{presentation.output}</pre>
         ) : (
-          <span>Waiting for output…</span>
+          <span className={styles.commandWaiting}>
+            {event.status === 'running' ? 'Waiting for output…' : 'No output.'}
+          </span>
         )}
         {presentation.exitCode !== undefined || presentation.durationMs !== undefined ? (
-          <small>
-            {presentation.exitCode === null || presentation.exitCode === undefined
-              ? 'Running'
-              : `Exit ${presentation.exitCode}`}
+          <small
+            className={styles.commandResult}
+            data-outcome={
+              typeof presentation.exitCode === 'number'
+                ? presentation.exitCode === 0
+                  ? 'success'
+                  : 'failure'
+                : undefined
+            }
+          >
+            {commandOutcome(presentation.exitCode)}
             {presentation.durationMs === null || presentation.durationMs === undefined
               ? ''
               : ` · ${formatDuration(presentation.durationMs)}`}
@@ -235,16 +261,21 @@ function RichActivityDetail({ event }: { event: ActivityEvent }) {
             data-status={step.status}
             aria-current={step.status === 'in_progress' ? 'step' : undefined}
           >
-            <span aria-hidden="true">
+            <span className={styles.planMark} aria-hidden="true">
               {step.status === 'completed' ? (
-                '✓'
+                <Check size={10} weight="bold" />
               ) : step.status === 'in_progress' ? (
-                <CircleNotch size={11} className={styles.workingSpinner} />
-              ) : (
-                '·'
-              )}
+                <CircleHalf size={14} weight="fill" />
+              ) : null}
             </span>
-            {step.text}
+            <span className={styles.planText}>{step.text}</span>
+            <span className={styles.visuallyHidden}>
+              {step.status === 'completed'
+                ? ' (done)'
+                : step.status === 'in_progress'
+                  ? ' (in progress)'
+                  : ''}
+            </span>
           </li>
         ))}
       </ol>
@@ -310,6 +341,12 @@ export function fileChangeStats(file: { change: string; diff?: string | undefine
     else if (line.startsWith('-')) removed += 1;
   }
   return { added, removed };
+}
+
+/** How a command ended, in plain words; the code only when it failed. */
+export function commandOutcome(exitCode: number | null | undefined): string {
+  if (exitCode === null || exitCode === undefined) return 'Running';
+  return exitCode === 0 ? 'Finished' : `Failed (code ${exitCode})`;
 }
 
 function formatDuration(milliseconds: number): string {

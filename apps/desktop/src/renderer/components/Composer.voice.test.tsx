@@ -67,6 +67,8 @@ describe('composer voice input', () => {
     expect(await screen.findByRole('button', { name: 'Stop recording and transcribe' })).toBe(
       screen.getByTestId('composer-voice-input'),
     );
+    // A listening waveform shows only while the microphone is open.
+    expect(screen.getByTestId('voice-wave').getAttribute('aria-hidden')).toBe('true');
     fireEvent.click(screen.getByRole('button', { name: 'Stop recording and transcribe' }));
 
     await waitFor(() =>
@@ -74,6 +76,7 @@ describe('composer voice input', () => {
         (screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement).value,
       ).toBe('voice request'),
     );
+    expect(screen.queryByTestId('voice-wave')).toBeNull();
     expect(transcribe).toHaveBeenCalledOnce();
     expect(stopTrack).toHaveBeenCalled();
     expect(send).not.toHaveBeenCalled();

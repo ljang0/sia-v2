@@ -11,6 +11,7 @@ import {
   FolderSimple,
   ImageSquare,
   MagnifyingGlass,
+  Paperclip,
   PencilSimple,
   SpeakerHigh,
   SpinnerGap,
@@ -38,7 +39,8 @@ import type {
   ThreadEvent,
   ThreadSummary,
 } from '../types';
-import { timeGreeting } from '../welcome';
+import { timeGreeting, type StarterPrompt } from '../welcome';
+import { StarterPrompts } from './StarterPrompts';
 import { completedReplyId } from '../task-result';
 import { WelcomeRecents } from './WelcomeRecents';
 import { ReplyReadyMark, ReplySurface } from './ResultCard';
@@ -77,7 +79,7 @@ interface ConversationProps {
   onPreviewAttachment?: ((attachmentId: string) => Promise<AttachmentPreview>) | undefined;
   onOpenAttachment?: ((attachmentId: string) => Promise<void>) | undefined;
   onRevealAttachment?: ((attachmentId: string) => Promise<void>) | undefined;
-  starterPrompts?: readonly string[] | undefined;
+  starterPrompts?: readonly StarterPrompt[] | undefined;
   findOpen?: boolean | undefined;
   onFindOpenChange?: ((open: boolean) => void) | undefined;
   voiceEnabled?: boolean | undefined;
@@ -469,6 +471,12 @@ export function Conversation({
   );
   const events = thread?.events ?? [];
   const blocks = useMemo(() => conversationBlocks(events), [events]);
+  // What the thread held when it opened. Rows added after that (a sent message, a new step,
+  // the reply) ease in; reopening a thread shows its history still.
+  const openedEventIds = useMemo(
+    () => new Set((thread?.events ?? []).map(({ id }) => id)),
+    [thread?.id],
+  );
   const matchingEventIdSet = useMemo(
     () => new Set(matchingEventIds),
     [matchingEventIds.join(':')],
@@ -574,6 +582,7 @@ export function Conversation({
         actions={rowActions}
         findMatch={matchingEventIdSet.has(event.id)}
         findCurrent={matchingEventIds[findIndex] === event.id}
+        entering={!openedEventIds.has(event.id)}
         agentName={agentName}
         usageResetsAt={
           event.type === 'notice' && event.tone === 'error'
@@ -659,7 +668,9 @@ export function Conversation({
             placeholder="Find in this thread"
             aria-label="Find in this thread"
           />
-          <span>{findQuery ? `${matchingEventIds.length} found` : 'Type to find'}</span>
+          <span className={styles.findCount} aria-live="polite">
+            {findCountLabel(findQuery, findIndex, matchingEventIds.length)}
+          </span>
           <button
             type="button"
             className={styles.iconButtonSmall}
@@ -694,7 +705,11 @@ export function Conversation({
       ) : null}
       {draggingFiles ? (
         <div className={styles.attachmentDropOverlay} role="status">
-          Drop up to 20 files to attach
+          <span className={styles.attachmentDropCard}>
+            <Paperclip size={22} aria-hidden="true" />
+            <strong>Drop to attach</strong>
+            <small>Up to 20 files or images</small>
+          </span>
         </div>
       ) : null}
       <div
@@ -730,16 +745,10 @@ export function Conversation({
                   Connect work apps
                 </button>
               ) : null}
-              {starterPrompts.length ? (
-                <div className={styles.starterPrompts} aria-label="Suggested starts">
-                  {starterPrompts.map((prompt) => (
-                    <button key={prompt} type="button" onClick={() => void onSend(prompt)}>
-                      <span>{prompt}</span>
-                      <span aria-hidden="true">↗</span>
-                    </button>
-                  ))}
-                </div>
-              ) : null}
+              <StarterPrompts
+                prompts={starterPrompts}
+                onSend={(prompt) => void onSend(prompt)}
+              />
               <WelcomeRecents threads={recentThreads} onOpen={onOpenThread} />
             </div>
           ) : (
@@ -1027,6 +1036,8 @@ interface ConversationRowProps extends Omit<
   actions: RowActions;
   findMatch: boolean;
   findCurrent: boolean;
+  /** Added after the thread opened; the row eases in once when it mounts. */
+  entering: boolean;
   speakable: boolean;
   previewable: boolean;
   rateable: boolean;
@@ -1039,6 +1050,7 @@ const ConversationRow = memo(function ConversationRow({
   actions,
   findMatch,
   findCurrent,
+  entering,
   speakable,
   previewable,
   rateable,
@@ -1052,6 +1064,7 @@ const ConversationRow = memo(function ConversationRow({
       ref={(node) => actions.registerRow(event.id, node)}
       className={styles.eventSearchAnchor}
       tabIndex={-1}
+      data-entering={entering ? 'true' : undefined}
       data-find-match={findMatch ? 'true' : undefined}
       data-find-current={findCurrent ? 'true' : undefined}
     >
@@ -1167,7 +1180,8 @@ function EventViewContent({
         <span>{event.role === 'user' ? 'You' : agentName}</span>
         {event.role === 'assistant' ? <ReplyReadyMark ready={Boolean(completed)} /> : null}
         <time dateTime={event.timestamp}>{formatTime(event.timestamp)}</time>
-        <CopyMessageButton content={event.content} />
+        {/* A reply still being written has nothing whole to copy, read, or rate yet. */}
+        {streaming ? null : <CopyMessageButton content={event.content} />}
         {event.role === 'user' && onEditMessage && !editing ? (
           <button
             type="button"
@@ -1193,7 +1207,7 @@ function EventViewContent({
             <ArrowClockwise size={14} aria-hidden="true" />
           </button>
         ) : null}
-        {event.role === 'assistant' && onToggleSpeech ? (
+        {event.role === 'assistant' && onToggleSpeech && !streaming ? (
           <button
             type="button"
             className={styles.messageActionButton}
@@ -1387,13 +1401,19 @@ function CopyMessageButton({ content }: { content: string }) {
       className={styles.messageActionButton}
       onClick={() => void copy()}
       aria-label={copied ? 'Message copied' : 'Copy message'}
-      title={copied ? 'Copied' : 'Copy message'}
+      title={copied ? undefined : 'Copy message'}
+      data-copied={copied ? 'true' : undefined}
     >
       {copied ? (
-        <Check size={14} weight="bold" aria-hidden="true" />
+        <Check size={14} weight="bold" className={styles.copiedCheck} aria-hidden="true" />
       ) : (
         <Copy size={14} aria-hidden="true" />
       )}
+      {copied ? (
+        <span className={styles.copiedTip} aria-hidden="true">
+          Copied
+        </span>
+      ) : null}
     </button>
   );
 }
@@ -1467,6 +1487,13 @@ function AttachmentPreviewDialog({
       </Dialog.Portal>
     </Dialog.Root>
   );
+}
+
+/** Where find stands: “2 of 5”, “No matches”, or a prompt before anything is typed. */
+export function findCountLabel(query: string, index: number, total: number): string {
+  if (!query.trim()) return 'Type to find';
+  if (!total) return 'No matches';
+  return `${Math.min(index, total - 1) + 1} of ${total}`;
 }
 
 function eventSearchText(event: ThreadEvent): string {

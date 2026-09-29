@@ -197,7 +197,9 @@ export function ChangesReview({
           </div>
         </div>
       ) : (
-        <p className={styles.localEmpty}>The workspace has no uncommitted changes.</p>
+        <p className={styles.localEmpty}>
+          No file changes yet. When Sia edits files in this folder, you can review them here.
+        </p>
       )}
 
       <AlertDialog.Root

@@ -78,5 +78,8 @@ describe('RoomHeader', () => {
     expect(screen.getByText('Your conversations')).toBeTruthy();
     rerender(<RoomHeader agent={demoSnapshot.agents[0]} controls={null} />);
     expect(screen.getByText('New conversation')).toBeTruthy();
+    rerender(<RoomHeader agent={demoSnapshot.agents[0]} controls={null} setup />);
+    expect(screen.getByText('Welcome')).toBeTruthy();
+    expect(screen.getByText(/· getting set up/)).toBeTruthy();
   });
 });

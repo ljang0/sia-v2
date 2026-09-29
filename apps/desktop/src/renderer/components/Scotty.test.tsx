@@ -82,7 +82,8 @@ it('renders exact approval details and prevents a text answer from substituting 
   fireEvent.click(await screen.findByRole('button', { name: /Plan my week/ }));
   expect(screen.getByText('Personal calendar')).toBeTruthy();
   expect(screen.getByText('Event title and date')).toBeTruthy();
-  expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(true);
+  // Only the approval buttons can move this task forward; there is no text box to type into.
+  expect(screen.queryByRole('textbox')).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Approve once' }));
   await waitFor(() =>
     expect(api.action).toHaveBeenCalledWith({

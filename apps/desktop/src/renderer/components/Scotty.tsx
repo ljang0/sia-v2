@@ -121,7 +121,7 @@ export function ScottyPet({ api = window.siaScotty }: { api?: ScottyApi }) {
       : poses[state.status];
   const size = { small: 112, medium: 144, large: 176 }[state.settings.size];
   return (
-    <main className={styles.pet} data-status={state.status}>
+    <main className={styles.pet} data-status={state.status} data-motion={state.settings.motion}>
       <button
         className={styles.dog}
         data-scotty-hit
@@ -249,6 +249,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
   return (
     <main
       className={styles.panel}
+      data-motion={state.settings.motion}
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.preventDefault();
@@ -507,7 +508,8 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
               </div>
             )}
           </div>
-          {(composing || task) && (
+          {/* A running task or a pending approval has nothing to type; the tray keeps its room. */}
+          {(composing || task?.canReply) && (
             <form
               className={styles.composer}
               onSubmit={(event) => {
@@ -527,13 +529,11 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
                 onChange={(event) => setText(event.target.value)}
                 disabled={busy || (composing ? !agentId : !task?.canReply)}
                 placeholder={
-                  task?.approval
-                    ? 'Review the action above to continue'
+                  composing
+                    ? 'Ask Sia to do something…'
                     : task?.question
                       ? 'Your answer…'
-                      : task?.canStop
-                        ? 'Following your task…'
-                        : 'Ask, or follow up…'
+                      : 'Ask a follow-up…'
                 }
                 onKeyDown={(event) => {
                   if (

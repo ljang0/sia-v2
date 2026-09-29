@@ -161,6 +161,11 @@ interface ActiveTurn {
   readonly dynamicToolNames: ReadonlySet<string>;
   readonly mac: boolean;
   readonly nativeApproval: 'ask' | 'auto';
+  /**
+   * "Allow for this task" grants: Codex's acceptForSession semantics (the same command in the
+   * same folder, or the same files), kept in Sia so they end with this turn, not the session.
+   */
+  readonly taskGrants: Set<string>;
   lastActivity?: number;
   approvalPending?: boolean;
   dynamicToolsPending?: number;
@@ -508,6 +513,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       queue: new AsyncQueue(),
       events: new EventFactory(this.id, session.threadId, input.turnId),
       nativeItems: new Map(),
+      taskGrants: new Set(),
       mac: ['mac', 'mac-background'].includes(
         this.#sessionOptions.get(session.id)?.nativeTools ?? '',
       ),
@@ -1375,6 +1381,9 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       const active = this.#findActive(params);
       if (!active) return { decision: 'decline' };
       if (!active.mac || active.nativeApproval === 'auto') return { decision: 'accept' };
+      const grants = nativeTaskGrantKeys(method, active, params);
+      if (grants && grants.every((grant) => active.taskGrants.has(grant)))
+        return { decision: 'accept' };
       const requestId =
         stringAt(params, ['approvalId'], ['itemId']) ?? `${method}:${randomUUID()}`;
       active.approvalPending = true;
@@ -1394,11 +1403,24 @@ export class CodexAppServerAdapter implements ProviderAdapter {
             description: nativeApprovalDescription(active, params),
             choices: [
               { id: 'allow_once', label: 'Allow once', kind: 'allow_once' },
+              ...(grants
+                ? [
+                    {
+                      id: 'allow_task',
+                      label: 'Allow for this task',
+                      kind: 'allow_task' as const,
+                    },
+                  ]
+                : []),
               { id: 'deny', label: 'Deny', kind: 'deny' },
             ],
           }),
         );
         const response = await decision;
+        if (response.choiceId === 'allow_task' && grants) {
+          for (const grant of grants) active.taskGrants.add(grant);
+          return { decision: 'accept' };
+        }
         return { decision: response.choiceId === 'allow_once' ? 'accept' : 'decline' };
       } finally {
         active.approvalPending = false;
@@ -1542,6 +1564,42 @@ async function readSmallTextFile(path: string, limit: number): Promise<string | 
   } catch {
     return undefined;
   }
+}
+
+/**
+ * What an "Allow for this task" answer covers, or undefined when it cannot be offered. Like
+ * Codex's acceptForSession: a command is matched exactly (with its folder) and a file change by
+ * its paths. Requests for extra permissions, network access, terminal input, or a whole folder
+ * always ask.
+ */
+function nativeTaskGrantKeys(
+  method: string,
+  active: ActiveTurn,
+  params: unknown,
+): string[] | undefined {
+  const value = record(params);
+  if (method === 'item/commandExecution/requestApproval') {
+    const command = stringAt(params, ['command']);
+    if (
+      !command ||
+      (stringAt(params, ['kind']) ?? 'command') !== 'command' ||
+      value.additionalPermissions ||
+      value.networkApprovalContext
+    )
+      return undefined;
+    return [`command\u0000${stringAt(params, ['cwd']) ?? ''}\u0000${command}`];
+  }
+  if (method === 'item/fileChange/requestApproval') {
+    if (stringAt(params, ['grantRoot'])) return undefined;
+    const itemId = stringAt(params, ['itemId']);
+    const item = itemId ? active.nativeItems.get(itemId) : undefined;
+    const paths = (Array.isArray(item?.changes) ? item.changes : []).flatMap((candidate) => {
+      const path = stringAt(record(candidate), ['path']);
+      return path ? [`file\u0000${path}`] : [];
+    });
+    return paths.length ? paths : undefined;
+  }
+  return undefined;
 }
 
 function nativeApprovalDescription(active: ActiveTurn, params: unknown): string {

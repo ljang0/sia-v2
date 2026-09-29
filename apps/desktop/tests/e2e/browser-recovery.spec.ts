@@ -9,7 +9,8 @@ test('existing browser-blocked conversations offer inline recovery without openi
   const testRoot = sia.testRoot;
   try {
     await sia.page.getByText('Customize setup', { exact: true }).click();
-    await sia.page.getByRole('radio', { name: /Connected apps \+ confirmations/ }).check();
+    await sia.page.getByRole('radio', { name: /Connected apps only/ }).check();
+    await sia.page.getByRole('checkbox', { name: /Ask before each action/ }).check();
     await sia.completeSetup();
     // This fixture exercises gateway tools and confirmation-mode behavior.
     await expect(sia.page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
@@ -163,7 +164,8 @@ test('Use my Mac is a persistent access choice independent of action confirmatio
   const testRoot = sia.testRoot;
   try {
     await sia.page.getByText('Customize setup', { exact: true }).click();
-    await sia.page.getByRole('radio', { name: /Connected apps \+ confirmations/ }).check();
+    await sia.page.getByRole('radio', { name: /Connected apps only/ }).check();
+    await sia.page.getByRole('checkbox', { name: /Ask before each action/ }).check();
     await sia.completeSetup();
     // This fixture exercises gateway tools and confirmation-mode behavior.
     await expect(sia.page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();

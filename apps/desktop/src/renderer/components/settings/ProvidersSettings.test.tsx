@@ -161,7 +161,25 @@ describe('about settings', () => {
 
     expect(screen.getByRole('heading', { name: 'About Sia' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Download' })).toBeTruthy();
-    expect(screen.getByText('Latest release: 0.2.0')).toBeTruthy();
+    expect(screen.getByText('Sia 0.2.0 is ready to download.')).toBeTruthy();
+  });
+
+  it('explains a build without an update feed instead of offering a dead button', () => {
+    render(
+      <AboutSettings
+        updates={{
+          status: 'unconfigured',
+          currentVersion: '0.1.0',
+          detail: 'This build does not have a persistent signed update feed configured.',
+        }}
+        onCheckForUpdates={vi.fn()}
+        onOpenUpdateDownload={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Check for updates' })).toBeNull();
+    expect(screen.getByText(/doesn’t check for updates on its own/)).toBeTruthy();
+    expect(screen.queryByText(/signed update feed/)).toBeNull();
   });
 });
 

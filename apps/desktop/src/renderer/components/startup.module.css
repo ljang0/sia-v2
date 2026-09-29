@@ -42,13 +42,24 @@
   font: 650 42px/1 var(--font-brand);
   letter-spacing: -0.07em;
 }
+/* Three dots take turns, the same calm rhythm as a reply that is on its way. */
 .pulse {
+  display: inline-flex;
+  gap: 4px;
+  margin: 7px 0 0 3px;
+}
+.pulse i {
   width: 5px;
   height: 5px;
-  margin: 7px 0 0 3px;
   border-radius: 50%;
   background: #9fd3b5;
-  animation: breathe 1600ms ease-in-out infinite;
+  animation: breathe 1200ms ease-in-out infinite;
+}
+.pulse i:nth-child(2) {
+  animation-delay: 160ms;
+}
+.pulse i:nth-child(3) {
+  animation-delay: 320ms;
 }
 .startup[data-ready='true'] {
   animation: revealApp 220ms ease-out both;
@@ -108,7 +119,7 @@
 .startup[data-appearance='calm'] .blob,
 .startup[data-appearance='calm'] .brand,
 .startup[data-appearance='calm'] .loading,
-.startup[data-appearance='calm'] .pulse {
+.startup[data-appearance='calm'] .pulse i {
   animation: none;
 }
 .startup[data-appearance='calm'] .brand {
@@ -122,7 +133,7 @@
   .blob,
   .brand,
   .loading,
-  .pulse {
+  .pulse i {
     animation: none;
   }
   .brand {
@@ -144,7 +155,7 @@
   .wordmark {
     color: #173a34;
   }
-  .pulse {
+  .pulse i {
     background: #2f7a58;
   }
 }
@@ -164,7 +175,7 @@
   .wordmark {
     color: CanvasText;
   }
-  .pulse {
+  .pulse i {
     background: CanvasText;
   }
 }

@@ -326,13 +326,17 @@ describe('Use my Mac native execution', () => {
           context: expect.objectContaining({ backgroundOnly: false }),
         }),
       );
+      // A thread with no approval preference uses bypass, the product default.
+      delete thread.computerTrust;
+      await run();
+      expect(created[4]?.nativeApproval).toBe('auto');
       thread.computerAccessMode = 'connected';
       await run();
-      expect(created[4]?.nativeTools).toBeUndefined();
-      expect(created[4]?.baseInstructions).toBeUndefined();
-      expect(created[4]?.tools.map((t) => t.name)).toContain('browser_tabs');
-      expect(created[4]?.tools.map((t) => t.name)).not.toContain('memory_vault');
-      expect(created[4]?.tools.map((t) => t.name)).not.toContain('computer_task_complete');
+      expect(created[5]?.nativeTools).toBeUndefined();
+      expect(created[5]?.baseInstructions).toBeUndefined();
+      expect(created[5]?.tools.map((t) => t.name)).toContain('browser_tabs');
+      expect(created[5]?.tools.map((t) => t.name)).not.toContain('memory_vault');
+      expect(created[5]?.tools.map((t) => t.name)).not.toContain('computer_task_complete');
     } finally {
       await runtime.dispose();
     }

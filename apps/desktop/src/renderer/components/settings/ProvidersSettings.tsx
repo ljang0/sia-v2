@@ -1,4 +1,4 @@
-import { CheckCircle } from '@phosphor-icons/react';
+import { CheckCircle, Gift, Plug, Sparkle } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { usageLeftText } from '../../plainErrors';
 import { providerStatusLabel } from '../../providerSetup';
@@ -52,7 +52,7 @@ export function ProvidersSettings({
   return (
     <SettingsSectionHeader
       title="AI access"
-      description="Connect your ChatGPT plan. Sia handles Codex installation, updates, and browser sign-in."
+      description="This is what powers your agents. Use the model included with your Sia account, or connect your ChatGPT plan — Sia installs and updates everything for you."
     >
       <InlineSettingsError
         message={error ?? (setup?.phase === 'error' ? setup.message : undefined)}
@@ -63,9 +63,10 @@ export function ProvidersSettings({
             <div
               className={styles.providerGlyph}
               data-provider={provider.id}
+              data-ready={provider.status === 'ready'}
               aria-hidden="true"
             >
-              {providerMonogram(provider.id)}
+              <ProviderIcon provider={provider.id} />
             </div>
             <div className={styles.settingsRowBody}>
               <div className={styles.rowTitleLine}>
@@ -161,7 +162,7 @@ function providerDescription(provider: ProviderSetup): string {
       ? 'One button updates Codex, restarts Sia, and continues to ChatGPT sign-in. No terminal needed.'
       : 'One button downloads Codex, restarts Sia, and continues to ChatGPT sign-in. No terminal needed.';
   if (provider.id === 'meta')
-    return 'Provided with your Sia account. No API key needed; availability may vary during the pilot.';
+    return 'Comes with your Sia account, with nothing to set up. Availability may vary during the pilot.';
   if (provider.id === 'codex')
     return provider.status === 'needs-login'
       ? 'Sign in with ChatGPT in your browser. Sia checks the connection automatically.'
@@ -171,8 +172,11 @@ function providerDescription(provider: ProviderSetup): string {
   return provider.description;
 }
 
-function providerMonogram(provider: ProviderId): string {
-  return { meta: 'M', codex: 'C', claude: 'Cl', grok: 'G', gemini: 'Ge' }[provider];
+/** Plain, brand-neutral marks: a gift for the included model, a plug for a connected plan. */
+function ProviderIcon({ provider }: { provider: ProviderId }) {
+  if (provider === 'meta') return <Gift size={17} />;
+  if (provider === 'codex') return <Plug size={17} />;
+  return <Sparkle size={17} />;
 }
 
 function setupAction(provider: ProviderSetup): string {

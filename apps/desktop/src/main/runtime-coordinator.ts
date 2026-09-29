@@ -601,7 +601,7 @@ export class RuntimeCoordinator {
                 nativeTools: thread.macBackgroundControl
                   ? ('mac-background' as const)
                   : ('mac' as const),
-                nativeApproval: thread.computerTrust ?? 'ask',
+                nativeApproval: thread.computerTrust === 'ask' ? 'ask' : 'auto',
                 baseInstructions: macExecutionGuidance(
                   thread.macBackgroundControl,
                   thread.macBackgroundFallback,

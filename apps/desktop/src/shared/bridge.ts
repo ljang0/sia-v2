@@ -338,6 +338,10 @@ export interface ApprovalView {
   /** Absent when the request waits until it is answered or its turn ends, as in Codex. */
   expiresAt?: string;
   status: 'pending' | 'approved' | 'denied' | 'expired';
+  /** The request can be allowed for the rest of its task (never on phone turns). */
+  allowForTask?: boolean;
+  /** The person allowed this request, and equivalent ones, for the rest of its task. */
+  scope?: 'task';
 }
 
 export type ConnectionId = 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack';
@@ -612,7 +616,8 @@ export interface StartReviewInput {
 
 export interface ResolveApprovalInput {
   approvalId: string;
-  decision: 'approve' | 'deny';
+  /** approve_task also allows equivalent requests until the task ends. */
+  decision: 'approve' | 'approve_task' | 'deny';
 }
 
 export interface BridgeRequestMap {
