@@ -40,7 +40,7 @@ export function RoomHeader({
   );
   const label =
     thread?.status === 'queued'
-      ? 'Waiting to start'
+      ? 'Queued'
       : state === 'working'
         ? latestActivity?.type === 'activity'
           ? activityLabel(

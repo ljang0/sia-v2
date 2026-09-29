@@ -44,6 +44,8 @@ interface ComposerProps {
   voiceConversation?: boolean | undefined;
   voiceCanListen?: boolean | undefined;
   presence?: SiaPresenceState | undefined;
+  /** The turn is queued behind other work; the status line says Queued, as the sidebar does. */
+  queued?: boolean | undefined;
   onVoiceConversationChange?: ((active: boolean) => void) | undefined;
   onDraftChange?: ((content: string) => Promise<void> | void) | undefined;
   onSend(content: string, attachmentIds?: readonly string[]): Promise<void> | void;
@@ -73,6 +75,7 @@ export function Composer({
   voiceConversation = false,
   voiceCanListen = true,
   presence = 'idle',
+  queued = false,
   onVoiceConversationChange,
   onDraftChange,
   onSend,
@@ -769,7 +772,7 @@ export function Composer({
                     : voicePhase === 'transcribing'
                       ? 'Transcribing…'
                       : presence === 'working'
-                        ? `Working · ${executionLabel ?? 'Local'}`
+                        ? `${queued ? 'Queued' : 'Working'} · ${executionLabel ?? 'Local'}`
                         : presence === 'waiting'
                           ? 'Waiting for you'
                           : presence === 'complete'

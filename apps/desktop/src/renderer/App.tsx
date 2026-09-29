@@ -866,23 +866,27 @@ function activityItems(snapshot: import('./types').RendererSnapshot) {
           thread.queueReason ??
           (thread.status === 'running'
             ? 'Working in the background'
-            : thread.status === 'waiting'
-              ? 'Waiting for your input'
-              : thread.status === 'error'
-                ? 'Stopped before it finished'
-                : 'New activity is ready to review'),
+            : thread.status === 'queued'
+              ? 'Queued'
+              : thread.status === 'waiting'
+                ? 'Waiting for your input'
+                : thread.status === 'error'
+                  ? 'Stopped before it finished'
+                  : 'New activity is ready to review'),
         agentName: agent.name,
         // Live state outranks the unread flag: a running thread that has unread output is running.
         status:
           thread.status === 'running'
             ? ('running' as const)
-            : thread.status === 'waiting' || thread.status === 'queued'
-              ? ('waiting' as const)
-              : thread.status === 'error'
-                ? ('failed' as const)
-                : thread.unread
-                  ? ('unread' as const)
-                  : ('background' as const),
+            : thread.status === 'queued'
+              ? ('queued' as const)
+              : thread.status === 'waiting'
+                ? ('waiting' as const)
+                : thread.status === 'error'
+                  ? ('failed' as const)
+                  : thread.unread
+                    ? ('unread' as const)
+                    : ('background' as const),
         updatedAt: thread.updatedAt,
       })),
   );

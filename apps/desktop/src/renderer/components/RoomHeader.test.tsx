@@ -4,6 +4,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { demoSnapshot } from '../demo';
 import type { ThreadDetail } from '../types';
+import { Composer } from './Composer';
 import { RoomHeader } from './RoomHeader';
 import { WorkingStatus } from './WorkGroup';
 
@@ -48,6 +49,28 @@ describe('RoomHeader', () => {
       />,
     );
     expect(screen.getByText(`${agent.name} · Writing the reply`)).toBeTruthy();
+  });
+
+  it('calls a queued thread Queued, like the sidebar and the composer', () => {
+    const agent = demoSnapshot.agents[0]!;
+    render(
+      <RoomHeader
+        agent={agent}
+        thread={{ ...runningThread([user]), status: 'queued' }}
+        controls={null}
+      />,
+    );
+    expect(screen.getByText(`${agent.name} · Queued`)).toBeTruthy();
+    render(
+      <Composer
+        queued
+        presence="working"
+        executionLabel="Included with Sia"
+        onSend={() => undefined}
+        onStop={() => undefined}
+      />,
+    );
+    expect(screen.getByText('Queued · Included with Sia')).toBeTruthy();
   });
 
   it('describes an empty workspace in plain language', () => {

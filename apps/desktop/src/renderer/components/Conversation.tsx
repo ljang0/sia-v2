@@ -842,6 +842,7 @@ export function Conversation({
         voiceCanListen={Boolean(
           voiceEnabled && dictationEnabled && speech.phase === 'idle' && !globalVoiceActive,
         )}
+        queued={queued}
         presence={
           speech.phase === 'playing'
             ? 'speaking'
