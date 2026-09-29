@@ -858,7 +858,8 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
           (event) => event.type === 'approval' && event.id === approvalId,
         );
         if (approval?.type === 'approval') {
-          approval.status = decision === 'approve' ? 'approved' : 'rejected';
+          approval.status = decision === 'reject' ? 'rejected' : 'approved';
+          if (decision === 'approve_task') approval.scope = 'task';
         }
         if (current.activeThread) current.activeThread.status = 'idle';
       });
@@ -1105,7 +1106,18 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
       });
     },
     async setupMessages() {},
-    async requestAutomationPermission() {},
+    async requestAutomationPermission(app) {
+      mutate((current) => {
+        current.computer.automation = {
+          calendar: 'needs_permission',
+          reminders: 'needs_permission',
+          finder: 'needs_permission',
+          messages: 'needs_permission',
+          ...current.computer.automation,
+          [app]: 'ready',
+        };
+      });
+    },
     async setOnboarding(step, permissionSetup) {
       mutate((current) => {
         current.preferences.onboarding = {

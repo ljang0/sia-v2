@@ -58,6 +58,6 @@ describe('status accessibility', () => {
     expect(screen.getAllByText('pnpm test').length).toBeGreaterThan(1);
     expect(screen.getByText('/tmp/workspace')).toBeTruthy();
     expect(screen.getByText('20 passed')).toBeTruthy();
-    expect(screen.getByText('Exit 0 · 912 ms')).toBeTruthy();
+    expect(screen.getByText('Finished · 912 ms')).toBeTruthy();
   });
 });

@@ -12,7 +12,8 @@ test('reviews exact memory changes and executable source before accepting', asyn
     let page = sia.page;
     // This scenario reviews structured suggestions, not the automatic native memory vault.
     await page.getByText('Customize setup', { exact: true }).click();
-    await page.getByRole('radio', { name: /Connected apps \+ confirmations/ }).check();
+    await page.getByRole('radio', { name: /Connected apps only/ }).check();
+    await page.getByRole('checkbox', { name: /Ask before each action/ }).check();
     page = await sia.completeSetup();
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     const agentId = (await page.evaluate(() => window.sia.bootstrap())).agents[0]!.id;

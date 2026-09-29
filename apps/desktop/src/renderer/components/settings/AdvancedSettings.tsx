@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import styles from '../../ui.module.css';
-import { errorMessage, InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
+import {
+  errorMessage,
+  InlineSettingsError,
+  SavedNote,
+  SettingsSectionHeader,
+  useSavedFlash,
+} from './SettingsShared';
 import { Switch } from '../Switch';
 
 /** Developer-only surfaces stay out of the main path until someone opts in here. */
@@ -13,6 +19,7 @@ export function AdvancedSettings({
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
+  const [saved, flashSaved] = useSavedFlash();
 
   return (
     <SettingsSectionHeader
@@ -22,7 +29,9 @@ export function AdvancedSettings({
       <InlineSettingsError message={error} />
       <label className={styles.voicePreference}>
         <span>
-          <strong>Developer tools</strong>
+          <strong>
+            Developer tools <SavedNote show={saved} />
+          </strong>
           <small>
             Adds Command to a conversation’s Tools menu. Commands run in the agent’s folder
             right away, without asking first.
@@ -36,6 +45,7 @@ export function AdvancedSettings({
             setPending(true);
             setError(undefined);
             void onSetDeveloperTools(enabled)
+              .then(flashSaved)
               .catch((cause: unknown) =>
                 setError(errorMessage(cause, 'This setting could not be changed.')),
               )

@@ -1,4 +1,5 @@
-import { WarningCircle } from '@phosphor-icons/react';
+import { Check, WarningCircle } from '@phosphor-icons/react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from '../../ui.module.css';
 
 export function SettingsSectionHeader({
@@ -33,4 +34,37 @@ export function InlineSettingsError({ message }: { message?: string | undefined 
 
 export function errorMessage(cause: unknown, fallback: string) {
   return cause instanceof Error ? cause.message : fallback;
+}
+
+/** How long the inline "Saved" note stays after a setting changes. */
+export const SAVED_NOTE_MS = 1800;
+
+/**
+ * A short-lived confirmation for settings that save as soon as they change. `flash()` shows the
+ * note; it hides itself after a moment, and a newer change restarts the timer.
+ */
+export function useSavedFlash(): [boolean, () => void] {
+  const [saved, setSaved] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const flash = useCallback(() => {
+    clearTimeout(timer.current);
+    setSaved(true);
+    timer.current = setTimeout(() => setSaved(false), SAVED_NOTE_MS);
+  }, []);
+  return [saved, flash];
+}
+
+/** The inline "Saved" note. The live region stays mounted so screen readers hear each save. */
+export function SavedNote({ show }: { show: boolean }) {
+  return (
+    <span className={styles.savedNote} role="status" aria-live="polite">
+      {show ? (
+        <span>
+          <Check size={12} weight="bold" aria-hidden="true" />
+          Saved
+        </span>
+      ) : null}
+    </span>
+  );
 }

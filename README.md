@@ -8,9 +8,9 @@ Sia accounts, or the user's existing Codex plan through Codex's official ChatGPT
 through the Codex App Server harness. Users do not paste model API keys into Sia.
 
 Google Workspace, Slack, signed-in Chrome, Apple Messages, computer use, and app-open schedules are
-optional capabilities. New profiles default to Use my Mac with automatic action approval. Onboarding
-also offers confirmations for supervised testing. Existing approval preferences are preserved, and
-macOS still requires its own permission grants. Research capture is a
+optional capabilities. New profiles default to Use my Mac with automatic action approval, and profiles that never chose
+an approval preference use it too. Onboarding also offers confirmations for supervised testing; an
+explicit confirmation choice is preserved, and macOS still requires its own permission grants. Research capture is a
 separate opt-in program and is not enabled by joining the pilot.
 
 ## Start developing

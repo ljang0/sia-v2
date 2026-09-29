@@ -338,8 +338,8 @@ function BrowserPanel({
 
       <form className={styles.browserOpenSite} onSubmit={submitSite}>
         <div>
-          <strong>Open in signed-in Chrome</strong>
-          <p>Only the opened site’s origin is granted.</p>
+          <strong>Open a site in your signed-in Chrome</strong>
+          <p>Sia gets access to that one site, nothing else.</p>
         </div>
         <input
           value={site}
