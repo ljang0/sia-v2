@@ -131,7 +131,7 @@ interface ConnectorApproval {
   action: string;
   destination: string;
   preview: string;
-  expiresAt: string;
+  expiresAt?: string | undefined;
 }
 
 interface ActionApproval {

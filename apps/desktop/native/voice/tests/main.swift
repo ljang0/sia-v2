@@ -125,6 +125,10 @@ Task { @MainActor in
         monitor.handleTapEvent(type: type, event: event)
     }
     func pause() async { try? await Task.sleep(nanoseconds: 360_000_000) }
+    // A busy runner can wake the 0.3 s hold timer late; wait for it rather than racing it.
+    func waitUntil(_ condition: () -> Bool) async {
+        for _ in 0..<60 where !condition() { try? await Task.sleep(nanoseconds: 50_000_000) }
+    }
     event(.flagsChanged, 63, held: true)
     event(.flagsChanged, 63, held: false)
     await pause()
@@ -140,18 +144,18 @@ Task { @MainActor in
     event(.flagsChanged, 63, held: false)
     precondition(holds == 0, "Fn-click must not activate")
     event(.flagsChanged, 63, held: true)
-    await pause()
+    await waitUntil { holds == 1 }
     precondition(holds == 1, "Hold must activate once")
     event(.flagsChanged, 63, held: true)
     event(.flagsChanged, 63, held: false)
     precondition(releases == 1, "Release must finish exactly once")
     event(.flagsChanged, 63, held: true)
-    await pause()
+    await waitUntil { holds == 2 }
     event(.keyDown, 53, held: true)
     event(.flagsChanged, 63, held: false)
     precondition(holds == 2 && releases == 1 && cancellations == 1, "Escape must cancel without release/send")
     event(.flagsChanged, 63, held: true)
-    await pause()
+    await waitUntil { holds == 3 }
     event(.tapDisabledByTimeout, 0, held: true)
     event(.flagsChanged, 63, held: false)
     precondition(releases == 1 && cancellations == 2, "A dropped event tap must cancel")

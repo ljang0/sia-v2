@@ -353,7 +353,8 @@ const LOCAL_RESEARCH_IDENTITY = '__local__';
 
 interface PendingApproval {
   resolve(decision: 'allow' | 'deny' | 'cancel'): void;
-  timeout: NodeJS.Timeout;
+  /** Only computer-helper requests carry their own deadline; the rest wait for the person. */
+  timeout?: NodeJS.Timeout | undefined;
   kind: 'computer' | 'gateway' | 'provider';
   threadId: string;
   turnId: string;
@@ -6911,7 +6912,7 @@ export class DesktopController {
         pending.requestId === event.payload.requestId,
     );
     const approvalId = randomUUID();
-    const expiresAt = new Date(Date.now() + 2 * 60_000).toISOString();
+    // Like Codex, a native approval waits until it is answered or the turn ends.
     this.#state.approvals.push({
       id: approvalId,
       threadId: event.threadId,
@@ -6921,7 +6922,6 @@ export class DesktopController {
       summary: event.payload.description,
       target: event.provider,
       reversible: false,
-      expiresAt,
       status: 'pending',
     });
     this.#appendTimeline(event.threadId, {
@@ -6936,20 +6936,8 @@ export class DesktopController {
       toolName: 'provider.native',
       timestamp: event.timestamp,
     });
-    const timeout = setTimeout(() => {
-      this.#pendingApprovals.delete(approvalId);
-      this.#resumeAfterProviderRequest(event.threadId);
-      this.#setApprovalStatus(approvalId, 'expired');
-      void this.#runtime
-        ?.respondToRequest(event.threadId, {
-          requestId: event.payload.requestId,
-          choiceId: 'deny',
-        })
-        .catch(() => undefined);
-    }, 120_000);
     this.#pendingApprovals.set(approvalId, {
       resolve: () => undefined,
-      timeout,
       kind: 'provider',
       threadId: event.threadId,
       turnId: event.turnId,
@@ -6970,7 +6958,6 @@ export class DesktopController {
   ): Promise<{ approved: boolean }> {
     this.#taintResearchTurn(request.turnId);
     const approvalId = randomUUID();
-    const expiresAt = new Date(Date.now() + 2 * 60_000).toISOString();
     const connector = /^(mail|drive|docs|sheets|slides|slack)_/.test(request.tool.name);
     const upload = /upload/.test(request.tool.name);
     let reviewArguments = request.arguments;
@@ -7077,7 +7064,6 @@ export class DesktopController {
       ...(dataLeaving ? { dataLeaving } : {}),
       ...(dataLabel ? { dataLabel } : {}),
       reversible: false,
-      expiresAt,
       status: 'pending',
     });
     this.#appendTimeline(request.threadId, {
@@ -7137,10 +7123,9 @@ export class DesktopController {
         this.#setApprovalStatus(approvalId, 'expired');
         finish('cancel');
       };
-      const timeout = setTimeout(abort, 120_000);
+      // Waits for the person; the turn ending (or the tool call aborting) revokes it.
       this.#pendingApprovals.set(approvalId, {
         resolve: finish,
-        timeout,
         kind: 'gateway',
         threadId: request.threadId,
         turnId: request.turnId,
