@@ -482,7 +482,7 @@ export class RuntimeCoordinator {
       thread.provider !== 'meta'
     ) {
       throw new Error(
-        'This legacy provider is disabled for new turns. Connect Codex or Claude, or choose a model included with Sia.',
+        'This model is no longer available in Sia. Choose Codex or a model included with Sia.',
       );
     }
     const target = thread.resolvedExecutionTarget ?? {

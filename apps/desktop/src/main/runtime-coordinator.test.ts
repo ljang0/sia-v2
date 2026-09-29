@@ -389,7 +389,9 @@ describe('RuntimeCoordinator', () => {
       })) {
         // no-op
       }
-    }).rejects.toThrow('disabled');
+    }).rejects.toThrow(
+      'This model is no longer available in Sia. Choose Codex or a model included with Sia.',
+    );
     await runtime.dispose();
   });
 

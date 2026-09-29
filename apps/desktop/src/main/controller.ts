@@ -2537,6 +2537,9 @@ export class DesktopController {
     const agentId = existing?.id ?? randomUUID();
     const model = input.model.trim();
     const provider = input.provider ?? existing?.provider ?? this.#providerForModel(model);
+    // An agent already running on a retained compatibility provider keeps its route; nothing
+    // new may choose one.
+    if (provider !== existing?.provider) requireReleaseProvider(provider);
     this.#requireReadyProvider(provider, model);
     let workspace: string;
     if (input.workspace?.trim()) {
@@ -2636,6 +2639,7 @@ export class DesktopController {
 
   #duplicateAgent(agentId: string): BridgeResultMap['agents.duplicate'] {
     const source = this.#requireAgent(agentId);
+    requireReleaseProvider(source.provider);
     const now = new Date().toISOString();
     const copy: AgentView = {
       ...structuredClone(source),
@@ -2770,6 +2774,7 @@ export class DesktopController {
   ): BridgeResultMap['threads.create'] {
     this.#requireSignedInReleaseAccount();
     const agent = this.#requireAgent(input.agentId);
+    requireReleaseProvider(agent.provider);
     const id = randomUUID();
     const now = new Date().toISOString();
     const releaseRoute = legacyModelRoute(agent.provider, agent.model);
@@ -8001,6 +8006,16 @@ function workspaceSlug(value: string): string {
 
 function modelRouteKey(provider: ProviderId, model: string): string {
   return `${provider}\u0000${model}`;
+}
+
+/** Providers a new agent or thread may choose in this release. Others stay for pinned threads. */
+const RELEASE_PROVIDERS: ReadonlySet<ProviderId> = new Set<ProviderId>(['codex', 'meta']);
+
+function requireReleaseProvider(provider: ProviderId): void {
+  if (RELEASE_PROVIDERS.has(provider)) return;
+  throw new Error(
+    'This model is not available for new conversations in this version of Sia. Choose Codex or a model included with Sia. Existing conversations keep working.',
+  );
 }
 
 function legacyHarnessForProvider(
