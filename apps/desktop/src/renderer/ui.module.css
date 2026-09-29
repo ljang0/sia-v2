@@ -1574,6 +1574,17 @@ button.agentAvatar {
   color: var(--text-tertiary);
 }
 
+.activityPlan li[data-status='in_progress'] {
+  color: var(--text-primary);
+  font-weight: var(--weight-semibold);
+}
+
+.activityPlan li > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .activity_running {
   color: var(--text-primary);
 }

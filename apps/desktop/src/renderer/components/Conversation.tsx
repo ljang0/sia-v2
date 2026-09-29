@@ -42,7 +42,7 @@ import { WelcomeRecents } from './WelcomeRecents';
 import { ResultCard } from './ResultCard';
 import styles from '../ui.module.css';
 import { ActivityRow } from './ActivityRow';
-import { WorkGroup, WorkingStatus } from './WorkGroup';
+import { planProgress, WorkGroup, WorkingStatus } from './WorkGroup';
 import { AgentForm } from './AgentForm';
 import { ApprovalCard } from './ApprovalCard';
 import { Composer } from './Composer';
@@ -519,6 +519,16 @@ export function Conversation({
             event.type === 'activity' && event.status === 'running',
         )
     : undefined;
+  const currentPlan = running
+    ? thread.events
+        .slice(lastUserEventIndex + 1)
+        .findLast(
+          (event): event is ActivityEvent =>
+            event.type === 'activity' && event.presentation?.kind === 'plan',
+        )?.presentation
+    : undefined;
+  const currentPlanProgress =
+    currentPlan?.kind === 'plan' ? planProgress(currentPlan.steps) : undefined;
   const renderEvent = (event: ThreadEvent, index: number) => {
     const previous = events[index - 1];
     return (
@@ -719,6 +729,7 @@ export function Conversation({
                   step={currentStep}
                   writing={Boolean(currentAssistantEventId)}
                   thinking={thread.thinking}
+                  plan={currentPlanProgress}
                 />
               ) : null}
               {browserRecovery}

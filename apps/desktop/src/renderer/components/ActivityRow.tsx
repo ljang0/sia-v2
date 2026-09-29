@@ -4,6 +4,7 @@ import {
   Browser,
   CaretDown,
   CheckCircle,
+  CircleNotch,
   Clock,
   Desktop,
   GitDiff,
@@ -211,8 +212,20 @@ function RichActivityDetail({ event }: { event: ActivityEvent }) {
     return (
       <ol className={styles.activityPlan}>
         {presentation.steps.map((step) => (
-          <li key={step.id} data-status={step.status}>
-            <span aria-hidden="true">{step.status === 'completed' ? '✓' : '·'}</span>
+          <li
+            key={step.id}
+            data-status={step.status}
+            aria-current={step.status === 'in_progress' ? 'step' : undefined}
+          >
+            <span aria-hidden="true">
+              {step.status === 'completed' ? (
+                '✓'
+              ) : step.status === 'in_progress' ? (
+                <CircleNotch size={11} className={styles.workingSpinner} />
+              ) : (
+                '·'
+              )}
+            </span>
             {step.text}
           </li>
         ))}

@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { ActivityEvent, ThreadEvent } from '../types';
 import { ActivityRow } from './ActivityRow';
 import { conversationBlocks } from './Conversation';
-import { elapsed, WorkGroup, WorkingStatus } from './WorkGroup';
+import { elapsed, planProgress, WorkGroup, WorkingStatus } from './WorkGroup';
 import styles from '../ui.module.css';
 
 afterEach(cleanup);
@@ -149,5 +149,43 @@ describe('file change steps', () => {
     );
     fireEvent.click(screen.getByRole('button'));
     expect(screen.queryByText('Preparing file changes…')).toBeNull();
+  });
+});
+
+describe('plan steps', () => {
+  const steps = [
+    { id: '1', text: 'Find the flights', status: 'completed' as const },
+    { id: '2', text: 'Compare prices', status: 'in_progress' as const },
+    { id: '3', text: 'Book the best one', status: 'pending' as const },
+  ];
+
+  it('marks the step in progress apart from the pending ones', () => {
+    render(
+      <ActivityRow
+        event={step('plan', {
+          kind: 'plan',
+          toolName: 'plan.update',
+          title: 'Plan',
+          status: 'running',
+          presentation: { kind: 'plan', steps },
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button'));
+    const current = screen.getByText('Compare prices').closest('li')!;
+    const pending = screen.getByText('Book the best one').closest('li')!;
+    expect(current.getAttribute('aria-current')).toBe('step');
+    expect(current.querySelector('svg')).not.toBeNull();
+    expect(pending.getAttribute('aria-current')).toBeNull();
+    expect(pending.querySelector('svg')).toBeNull();
+  });
+
+  it('shows the step count on the live line', () => {
+    expect(planProgress(steps)).toEqual({ current: 2, total: 3 });
+    expect(planProgress(steps.map((item) => ({ ...item, status: 'completed' as const })))).toBe(
+      undefined,
+    );
+    render(<WorkingStatus writing={false} plan={planProgress(steps)} />);
+    expect(screen.getByRole('status').textContent).toContain('Step 2 of 3');
   });
 });
