@@ -5054,7 +5054,10 @@ input[type='checkbox'].switch:disabled {
   }
 }
 
-.streamingContent > p:last-of-type::after {
+/* The caret follows the last text written, including the last item of a list or quote. */
+.streamingContent > :is(p, h1, h2, h3, h4, h5, h6):last-child::after,
+.streamingContent > :is(ul, ol):last-child > li:last-child::after,
+.streamingContent > blockquote:last-child > :last-child::after {
   display: inline-block;
   width: 2px;
   height: 13px;
@@ -7325,7 +7328,9 @@ button.agentAvatar {
   .offlineBanner,
   .actionError,
   .researchEventRow[open] pre,
-  .streamingContent > p:last-of-type::after {
+  .streamingContent > :is(p, h1, h2, h3, h4, h5, h6):last-child::after,
+  .streamingContent > :is(ul, ol):last-child > li:last-child::after,
+  .streamingContent > blockquote:last-child > :last-child::after {
     animation: none;
   }
 
