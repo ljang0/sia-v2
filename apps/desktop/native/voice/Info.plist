@@ -6,7 +6,7 @@
 <key>NSMicrophoneUsageDescription</key><string>Sia records your microphone while you hold Fn to dictate a request.</string>
 <key>NSAccessibilityUsageDescription</key><string>Sia detects holding the Fn key when you enable push-to-talk.</string>
 <key>NSSpeechRecognitionUsageDescription</key><string>Sia transcribes speech on this Mac when you choose dictation.</string>
-<key>NSAppleEventsUsageDescription</key><string>Sia requests Automation access for native app control, keyboard input and your browser during setup.</string>
+<key>NSAppleEventsUsageDescription</key><string>Sia uses this to work in apps like Calendar, Reminders, Messages and Safari when you give it a task.</string>
 <key>NSLocalNetworkUsageDescription</key><string>Sia connects to your phone on the same Wi-Fi when you enable Phone remote.</string>
 <key>NSBonjourServices</key><array><string>_http._tcp</string></array>
 <key>LSUIElement</key><true/>
