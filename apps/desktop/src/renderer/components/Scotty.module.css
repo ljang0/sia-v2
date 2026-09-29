@@ -109,6 +109,31 @@
 }
 [data-status='ready'] .dot {
   background: #82b89c;
+  box-shadow: 0 0 0 2px #82b89c33;
+}
+/* Working reads as alive, the same soft halo the main window's agent avatars use. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-motion='true'] [data-status='working'] .dot,
+  [data-motion='true'][data-status='working'] .dot {
+    animation: scotty-working 2s var(--ease-standard) infinite;
+  }
+  [data-motion='true'] .detail,
+  [data-motion='true'] .taskList,
+  [data-motion='true'] .composeIntro {
+    animation: scotty-enter var(--motion-surface) var(--ease-out-soft) both;
+  }
+}
+@keyframes scotty-working {
+  50% {
+    box-shadow: 0 0 0 4px #82b89c38;
+    transform: scale(0.84);
+  }
+}
+@keyframes scotty-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
 }
 .panel {
   box-sizing: border-box;
