@@ -1,9 +1,10 @@
 import { isAbsolute, normalize, sep } from 'node:path';
+import { isSensitiveComputerApp } from './sensitive-apps.js';
 import { isSensitiveLocalPath } from './sensitive-paths.js';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { ProviderId, ToolDescriptor } from '@sia/protocol';
-import { actionTargetDigest, OneShotGrantStore } from './grants.js';
+import { actionTargetDigest } from './grants.js';
 import type { LeaseResource, TurnLease } from './leases.js';
 import {
   ACTION_TOOL_DESCRIPTORS,
@@ -68,7 +69,6 @@ export interface ActionInvocation {
   readonly name: string;
   readonly arguments: unknown;
   readonly context: ActionContext;
-  readonly oneShotGrantId?: string;
 }
 
 export interface ActionInvocationNotice {
@@ -130,8 +130,6 @@ export interface ApprovalBroker {
   ): Promise<{ readonly approved: boolean }>;
 }
 
-const SENSITIVE_APP =
-  /(?:1password|bitwarden|lastpass|dashlane|keychain|password|terminal|iterm|warp|alacritty|system settings|system preferences|com\.apple\.security|com\.google\.chrome|chrome|safari|firefox|arc)/i;
 const SENSITIVE_ROLE = /(?:secure|password)/i;
 function pathLooksSensitive(value: unknown): boolean {
   return typeof value === 'string' && isSensitiveLocalPath(value);
@@ -153,8 +151,9 @@ function defaultSafetyDecision(
     };
   }
   if (request.name.startsWith('computer_') && request.name !== 'computer_list') {
-    const app = `${String(args.app_id ?? '')} ${String(args.app_name ?? '')}`;
-    if (SENSITIVE_APP.test(app))
+    // app_id is normally a host-minted opaque id; the backend repeats this check against the
+    // resolved app name and bundle id.
+    if (isSensitiveComputerApp(typeof args.app_id === 'string' ? args.app_id : undefined))
       return {
         decision: 'deny',
         reason: 'This application must not be controlled through generic computer tools',
@@ -229,7 +228,6 @@ export class ActionGateway {
   readonly #backend: ActionBackend;
   readonly #policy: ActionAuthorizationPolicy;
   readonly #approvals: ApprovalBroker | undefined;
-  readonly #grants: OneShotGrantStore;
   readonly #onInvocation: ActionInvocationObserver | undefined;
   readonly #onResult: ActionResultObserver | undefined;
   readonly #isToolAvailable: ((name: ActionToolName) => boolean) | undefined;
@@ -238,7 +236,6 @@ export class ActionGateway {
     readonly backend: ActionBackend;
     readonly policy?: ActionAuthorizationPolicy;
     readonly approvals?: ApprovalBroker;
-    readonly grants?: OneShotGrantStore;
     readonly onInvocation?: ActionInvocationObserver;
     readonly onResult?: ActionResultObserver;
     readonly isToolAvailable?: (name: ActionToolName) => boolean;
@@ -246,7 +243,6 @@ export class ActionGateway {
     this.#backend = options.backend;
     this.#policy = options.policy ?? new DefaultActionAuthorizationPolicy();
     this.#approvals = options.approvals;
-    this.#grants = options.grants ?? new OneShotGrantStore();
     this.#onInvocation = options.onInvocation;
     this.#onResult = options.onResult;
     this.#isToolAvailable = options.isToolAvailable;
@@ -311,53 +307,24 @@ export class ActionGateway {
     if (authorization.decision === 'deny') return refused(authorization.reason);
     if (authorization.decision === 'approval') {
       const targetDigest = actionTargetDigest(request.name, request.arguments);
-      if (invocation.oneShotGrantId) {
-        const consumed = this.#grants.consume({
-          id: invocation.oneShotGrantId,
-          sessionId: invocation.context.sessionId,
-          toolName: request.name,
-          targetDigest,
-        });
-        if (!consumed)
-          return refused(
-            'The one-shot approval is missing, expired, already used, or belongs to another action',
-          );
-      } else {
-        if (!this.#approvals)
-          return refused('This action requires approval, but no approval broker is available');
-        const approvalId = randomUUID();
-        const decision = await this.#approvals.requestApproval(
-          {
-            id: approvalId,
-            sessionId: request.context.sessionId,
-            threadId: request.context.threadId,
-            turnId: request.context.turnId,
-            tool: descriptor,
-            arguments: request.arguments,
-            targetDigest,
-            reason: authorization.reason,
-          },
-          request.context.signal,
-        );
-        if (!decision.approved) return refused('User denied the action');
-        approvedRequestId = approvalId;
-        const grant = this.#grants.issue({
+      if (!this.#approvals)
+        return refused('This action requires approval, but no approval broker is available');
+      const approvalId = randomUUID();
+      const decision = await this.#approvals.requestApproval(
+        {
+          id: approvalId,
           sessionId: request.context.sessionId,
-          toolName: request.name,
+          threadId: request.context.threadId,
+          turnId: request.context.turnId,
+          tool: descriptor,
+          arguments: request.arguments,
           targetDigest,
-          ttlMs: 60_000,
-        });
-        if (
-          !this.#grants.consume({
-            id: grant.id,
-            sessionId: request.context.sessionId,
-            toolName: request.name,
-            targetDigest,
-          })
-        ) {
-          return refused('Approval expired before execution');
-        }
-      }
+          reason: authorization.reason,
+        },
+        request.context.signal,
+      );
+      if (!decision.approved) return refused('User denied the action');
+      approvedRequestId = approvalId;
     }
 
     const resource = resourceFor(request);

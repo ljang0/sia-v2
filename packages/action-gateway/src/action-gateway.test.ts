@@ -4,10 +4,10 @@ import {
   ActionGateway,
   DefaultActionAuthorizationPolicy,
   LocalLeaseCoordinator,
-  OneShotGrantStore,
   actionTargetDigest,
   getActionToolDescriptor,
   isPathInsideWorkspace,
+  isSensitiveComputerApp,
   parseActionArguments,
   type ActionBackend,
   type ActionContext,
@@ -494,6 +494,31 @@ describe('curated tool surface', () => {
     expect(backend.invoke).not.toHaveBeenCalled();
   });
 
+  it('matches sensitive apps as whole words, not substrings of ordinary ids', async () => {
+    const backend = verifiedBackend();
+    const approvals = { requestApproval: vi.fn(async () => ({ approved: true })) };
+    const gateway = new ActionGateway({ backend, approvals });
+    const result = await gateway.invoke({
+      name: 'computer_action',
+      arguments: {
+        app_id: 'app:research-notes',
+        window_id: 'w',
+        snapshot_id: 's',
+        action: 'key',
+        element_ref: 'e',
+        value: 'Enter',
+      },
+      context,
+    });
+    expect(result.outcome).toBe('verified');
+    expect(isSensitiveComputerApp('Arc')).toBe(true);
+    expect(isSensitiveComputerApp('Google Chrome', 'com.google.Chrome')).toBe(true);
+    expect(isSensitiveComputerApp('1Password 7')).toBe(true);
+    expect(isSensitiveComputerApp('Research', 'com.example.search')).toBe(false);
+    expect(isSensitiveComputerApp('Password Hints Tutorial')).toBe(true);
+    expect(isSensitiveComputerApp('Notes', 'com.apple.Notes')).toBe(false);
+  });
+
   it('rejects raw computer coordinates and requires exact snapshot refs', async () => {
     const backend = verifiedBackend();
     const gateway = new ActionGateway({ backend });
@@ -650,42 +675,6 @@ describe('curated tool surface', () => {
     expect(result).toMatchObject({ outcome: 'refused' });
     expect(requestApproval).toHaveBeenCalledOnce();
     expect(backend.invoke).not.toHaveBeenCalled();
-  });
-
-  it('binds one-shot grants to session, tool, arguments, and expiry', () => {
-    let now = 1_000;
-    const grants = new OneShotGrantStore({ now: () => now, maximumTtlMs: 100 });
-    const targetDigest = actionTargetDigest('slack_post', { text: 'hello' });
-    const grant = grants.issue({
-      sessionId: 's',
-      toolName: 'slack_post',
-      targetDigest,
-      ttlMs: 50,
-    });
-    expect(
-      grants.consume({
-        id: grant.id,
-        sessionId: 'wrong',
-        toolName: 'slack_post',
-        targetDigest,
-      }),
-    ).toBe(false);
-    expect(
-      grants.consume({ id: grant.id, sessionId: 's', toolName: 'slack_post', targetDigest }),
-    ).toBe(true);
-    expect(
-      grants.consume({ id: grant.id, sessionId: 's', toolName: 'slack_post', targetDigest }),
-    ).toBe(false);
-    const expired = grants.issue({
-      sessionId: 's',
-      toolName: 'slack_post',
-      targetDigest,
-      ttlMs: 20,
-    });
-    now += 21;
-    expect(
-      grants.consume({ id: expired.id, sessionId: 's', toolName: 'slack_post', targetDigest }),
-    ).toBe(false);
   });
 
   it('checks workspace containment without prefix confusion', () => {

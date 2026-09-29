@@ -24,6 +24,7 @@ import { tmpdir } from 'node:os';
 import { basename, extname, isAbsolute, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import {
+  isSensitiveComputerApp,
   isSensitiveLocalPath,
   type ActionBackend,
   type ActionExecutionResult,
@@ -236,8 +237,6 @@ const BROWSER_UPLOAD_RETENTION_MS = 10 * 60_000;
 // every snapshot/action still revalidates the live process and exact window,
 // and every mutation remains bound to the latest host-minted snapshot ref.
 const COMPUTER_GRANT_TTL_MS = 10 * 60_000;
-const SENSITIVE_COMPUTER_APP =
-  /(?:^|[\s._-])(?:sia|1password|bitwarden|lastpass|dashlane|keeper|enpass|strongbox|keepass|secrets?|authenticator|keychain|password|terminal|iterm|warp|alacritty|system settings|system preferences|script editor|scripteditor2?|automator|shortcuts|chrome|chromium|safari|firefox|arc|brave|edge|opera|vivaldi|orion|dia)(?:$|[\s._-])|(?:ai\.sia\.desktop|com\.apple\.security|com\.google\.chrome)/i;
 const SENSITIVE_BROWSER_HOST =
   /(?:^|\.)(?:accounts\.google\.com|login\.microsoftonline\.com|appleid\.apple\.com|id\.apple\.com|auth0\.com|okta\.com|1password\.com|bitwarden\.com|lastpass\.com|dashlane\.com|keepersecurity\.com)$/i;
 const SENSITIVE_BROWSER_PATH =
@@ -776,7 +775,7 @@ export class DesktopActionBackend implements ActionBackend {
   #computerAppBlocked(name: string | undefined, bundleId?: string): boolean {
     if (bundleId && MAC_BROWSER_BUNDLES.has(bundleId.toLowerCase()))
       return !this.#macBrowserAccess() || !this.#inspectBrowserWindow;
-    return computerAppLooksSensitive(name, bundleId);
+    return isSensitiveComputerApp(name, bundleId);
   }
 
   #isNativeBrowser(binding: ComputerWindowBinding): boolean {
@@ -2707,10 +2706,6 @@ function computerAppIdentity(
   if (bundle) return `bundle:${bundle}`;
   const label = name?.trim().toLowerCase();
   return label ? `name:${label}` : undefined;
-}
-
-function computerAppLooksSensitive(...values: Array<string | undefined>): boolean {
-  return values.some((value) => value !== undefined && SENSITIVE_COMPUTER_APP.test(value));
 }
 
 function stringValue(value: unknown): string | undefined {
