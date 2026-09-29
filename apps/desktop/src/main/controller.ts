@@ -7,6 +7,7 @@ import {
   NATIVE_MEMORY_REVIEW_PROMPT,
 } from './memory-suggestions.js';
 import { NativeSkills } from './native-skills.js';
+import { imageActivityTitle } from '../shared/activity-label.js';
 import { conversationTitle } from '../shared/plain-text.js';
 import { threadPreviews, type ThreadPreviewMemo } from '../shared/thread-previews.js';
 import { skillExecutionMode, skillUnavailableReason } from '../shared/skill-execution.js';
@@ -8442,7 +8443,7 @@ function runtimeToolTitle(name: string, presentation?: ActivityPresentationView)
   if (presentation.kind === 'web_search') {
     return presentation.query ? `Searched for ${presentation.query}` : 'Searched the web';
   }
-  if (presentation.kind === 'image') return `Viewed ${basename(presentation.path)}`;
+  if (presentation.kind === 'image') return imageActivityTitle(presentation.path);
   if (presentation.kind === 'review') return presentation.review || 'Code review';
   if (presentation.kind === 'compaction') return 'Compacted context';
   return humanizeToolName(name);

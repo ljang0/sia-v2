@@ -462,6 +462,18 @@ button.agentAvatar {
   cursor: default;
 }
 
+.messageAttachments button[data-thumbnail] {
+  padding-left: 4px;
+}
+
+.attachmentThumbnail {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: var(--radius-tight);
+  object-fit: cover;
+}
+
 .forkSourceLabel {
   margin-right: auto;
 }

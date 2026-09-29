@@ -212,3 +212,35 @@ describe('activity detail', () => {
     expect(screen.getByText('avery@example.com')).toBeTruthy();
   });
 });
+
+describe('image steps', () => {
+  const imageStep = (path: string): ActivityEvent => ({
+    id: path,
+    type: 'activity',
+    kind: 'other',
+    toolName: 'imageView',
+    title: 'Viewed',
+    status: 'complete',
+    timestamp: '2026-09-28T10:00:05.000Z',
+    presentation: { kind: 'image', path },
+  });
+
+  it('words a screen capture as looking at the screen, without the temp path', () => {
+    const { container } = render(
+      <ActivityRow event={imageStep('/private/var/folders/x1/T/sia-screen.png')} />,
+    );
+    expect(screen.getByRole('button').textContent).toContain('Looked at the screen');
+    fireEvent.click(screen.getByRole('button'));
+    expect(container.textContent).not.toContain('/private/var');
+    expect(container.textContent).not.toContain('Ran a command');
+  });
+
+  it('shows only the file name of a viewed image', () => {
+    const { container } = render(
+      <ActivityRow event={imageStep('/Users/me/Pictures/receipt.jpg')} />,
+    );
+    expect(screen.getByRole('button').textContent).toContain('receipt.jpg');
+    fireEvent.click(screen.getByRole('button'));
+    expect(container.textContent).not.toContain('/Users/me/Pictures');
+  });
+});

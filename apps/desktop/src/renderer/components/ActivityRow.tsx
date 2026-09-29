@@ -1,4 +1,9 @@
-import { activityLabel, completedActivityLabel } from '../../shared/activity-label';
+import {
+  activityLabel,
+  completedActivityLabel,
+  fileBaseName,
+  isScreenCapture,
+} from '../../shared/activity-label';
 import { clipText } from '../../shared/plain-text';
 import {
   Browser,
@@ -9,6 +14,7 @@ import {
   Desktop,
   GitDiff,
   Globe,
+  Image as ImageIcon,
   ListChecks,
   PlugsConnected,
   Robot,
@@ -44,7 +50,11 @@ export function ActivityRow({ event }: ActivityRowProps) {
         : Clock;
   const statusClass = event.status === 'complete' ? '' : styles[`activity_${event.status}`];
   const hasDetail = Boolean(event.title || event.detail || event.presentation);
-  const runningLabel = activityLabel(event.toolName, event.presentation?.kind ?? event.kind);
+  const screen =
+    event.presentation?.kind === 'image' && isScreenCapture(event.presentation.path);
+  const runningLabel = screen
+    ? 'Looking at the screen'
+    : activityLabel(event.toolName, event.presentation?.kind ?? event.kind);
   const label =
     event.status === 'complete' ? completedActivityLabel(runningLabel) : runningLabel;
   const summary = activitySummary(event, [runningLabel, label]);
@@ -112,6 +122,10 @@ export function activitySummary(event: ActivityEvent, labels: readonly string[])
   }
   if (presentation?.kind === 'web_search' && presentation.query)
     return clipText(singleLine(presentation.query), 90);
+  if (presentation?.kind === 'image')
+    return isScreenCapture(presentation.path)
+      ? ''
+      : clipText(fileBaseName(presentation.path), 90);
   const title = singleLine(event.title ?? '');
   const key = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
   if (
@@ -134,6 +148,7 @@ function baseName(path: string): string {
 function presentationIcon(event: ActivityEvent) {
   if (event.presentation?.kind === 'file_change') return GitDiff;
   if (event.presentation?.kind === 'web_search') return Globe;
+  if (event.presentation?.kind === 'image') return ImageIcon;
   if (event.presentation?.kind === 'subagent') return Robot;
   return undefined;
 }
@@ -247,7 +262,15 @@ function RichActivityDetail({ event }: { event: ActivityEvent }) {
       </div>
     );
   }
-  if (presentation.kind === 'image') return <span>{presentation.path}</span>;
+  if (presentation.kind === 'image') {
+    return (
+      <span>
+        {isScreenCapture(presentation.path)
+          ? 'Sia looked at the screen to check its work.'
+          : fileBaseName(presentation.path)}
+      </span>
+    );
+  }
   if (presentation.kind === 'review') return <span>{presentation.review}</span>;
   if (presentation.kind === 'compaction') {
     return <span>Sia reduced older context while keeping the current task active.</span>;
