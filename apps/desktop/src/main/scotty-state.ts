@@ -258,8 +258,9 @@ export class ScottyTasks {
         !approval ||
         task.approval?.id !== approval.id ||
         task.approval.requiresMainApp ||
-        !Number.isFinite(Date.parse(approval.expiresAt)) ||
-        Date.parse(approval.expiresAt) <= Date.now()
+        (approval.expiresAt !== undefined &&
+          (!Number.isFinite(Date.parse(approval.expiresAt)) ||
+            Date.parse(approval.expiresAt) <= Date.now()))
       )
         throw new Error('Review the current approval in Sia.');
       await controller.invoke('approvals.resolve', {

@@ -1851,6 +1851,10 @@ describe('DesktopController', () => {
         [{ threadId, title: 'Juniper needs your OK', body: 'Run a command: pnpm test' }],
         [{ threadId, title: 'Juniper has a question', body: 'Which calendar should I use?' }],
       ]);
+      expect(
+        controller.snapshot().approvals.find((approval) => approval.threadId === threadId)
+          ?.expiresAt,
+      ).toBeUndefined();
 
       await controller.invoke('threads.cancel', { threadId });
       notify.mockClear();
@@ -1916,6 +1920,65 @@ describe('DesktopController', () => {
     });
     await expect(pending).resolves.toEqual({ approved: false });
     await controller.shutdown();
+  });
+
+  it('keeps approvals waiting for the person instead of skipping them after two minutes', async () => {
+    let runtimeThreadId = '';
+    const gate = Promise.withResolvers<void>();
+    const runtime = {
+      async *runTurn(input: { turnId: string }) {
+        yield {
+          id: randomUUID(),
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+          sequence: 1,
+          type: 'approval' as const,
+          payload: {
+            phase: 'requested',
+            requestId: 'command-wait',
+            title: 'Allow Mac action',
+            description: 'Run a command: pnpm test',
+          },
+        } as never;
+        // A real turn stays open while it waits on the person.
+        await gate.promise;
+      },
+      dispose: vi.fn(async () => gate.resolve()),
+      cancel: vi.fn(async () => gate.resolve()),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    try {
+      const agent = await controller.invoke('agents.save', {
+        name: 'Juniper',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: agent.agentId,
+      });
+      runtimeThreadId = threadId;
+      await controller.invoke('threads.send', { threadId, text: 'Run the tests' });
+      await vi.waitFor(() => expect(controller.snapshot().approvals).toHaveLength(1));
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+      vi.useRealTimers();
+      const approval = controller.snapshot().approvals[0]!;
+      expect(approval).toMatchObject({ threadId, status: 'pending' });
+      expect(approval.expiresAt).toBeUndefined();
+      expect(runtime.respondToRequest).not.toHaveBeenCalled();
+      expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+        'waiting',
+      );
+    } finally {
+      vi.useRealTimers();
+      gate.resolve();
+      await controller.shutdown();
+    }
   });
 
   it('retries a failed turn without appending the user message again', async () => {

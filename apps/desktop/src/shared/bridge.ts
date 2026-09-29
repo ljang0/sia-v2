@@ -317,7 +317,8 @@ export interface ApprovalView {
   dataLeaving?: string;
   dataLabel?: string;
   reversible: boolean;
-  expiresAt: string;
+  /** Absent when the request waits until it is answered or its turn ends, as in Codex. */
+  expiresAt?: string;
   status: 'pending' | 'approved' | 'denied' | 'expired';
 }
 
