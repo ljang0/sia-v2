@@ -4,8 +4,9 @@ Use this checklist on the exact signed artifact before adding a tester. Automate
 code and deterministic flows; these checks cover provider-owned login screens, macOS permissions,
 and real accounts. Use disposable, non-sensitive fixtures and keep research sharing off.
 
-For `0.1.0-alpha.24`, record the result in the private pilot log. The source and artifact hashes are
-in [`release-evidence-2026-08-28-alpha.24.md`](./release-evidence-2026-08-28-alpha.24.md).
+Record the result in the private pilot log with the exact Sia version and artifact hash under
+test. The source is `0.1.0-alpha.25`; the latest signed artifact (`0.1.0-alpha.24`) and its hashes
+are in [`release-evidence-2026-08-28-alpha.24.md`](./release-evidence-2026-08-28-alpha.24.md).
 
 ## Automated gate
 
