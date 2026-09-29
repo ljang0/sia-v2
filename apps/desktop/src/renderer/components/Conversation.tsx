@@ -52,6 +52,7 @@ import { ConversationOutline, hasConversationOutline } from './ConversationOutli
 import { SafeMarkdown } from './SafeMarkdown';
 import { RowErrorBoundary } from './ErrorBoundary';
 import { NoticeText, ThreadErrorText } from './PlainErrorText';
+import { usageWarningText } from '../plainErrors';
 import { ReplyFeedbackButtons, type ReplyRating } from './ReplyFeedback';
 import { DitherAurora as Aurora } from './effects/DitherAurora';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
@@ -527,6 +528,7 @@ export function Conversation({
             event.type === 'activity' && event.status === 'running',
         )
     : undefined;
+  const usageWarning = usageWarningText(thread?.usageLimit);
   const currentPlan = running
     ? thread.events
         .slice(lastUserEventIndex + 1)
@@ -547,6 +549,11 @@ export function Conversation({
         findMatch={matchingEventIdSet.has(event.id)}
         findCurrent={matchingEventIds[findIndex] === event.id}
         agentName={agentName}
+        usageResetsAt={
+          event.type === 'notice' && event.tone === 'error'
+            ? thread?.usageLimit?.resetsAt
+            : undefined
+        }
         noticeExplained={
           event.id === bannerNoticeId ||
           (event.type === 'notice' &&
@@ -752,7 +759,11 @@ export function Conversation({
               <WarningCircle size={18} aria-hidden="true" />
               <div>
                 <strong>Task needs attention</strong>
-                <ThreadErrorText error={thread.error} explained={errorAlreadyExplained} />
+                <ThreadErrorText
+                  error={thread.error}
+                  explained={errorAlreadyExplained}
+                  usageResetsAt={thread.usageLimit?.resetsAt}
+                />
               </div>
               <button
                 type="button"
@@ -804,6 +815,12 @@ export function Conversation({
         </div>
       ) : null}
 
+      {usageWarning ? (
+        <p className={styles.usageWarning} role="status" data-testid="usage-warning">
+          <WarningCircle size={14} aria-hidden="true" />
+          {usageWarning}
+        </p>
+      ) : null}
       <QueuedMessages
         messages={thread.queuedMessages ?? []}
         agentName={agentName}
@@ -906,6 +923,8 @@ interface EventViewProps {
   agentName?: string | undefined;
   completed?: boolean | undefined;
   noticeExplained?: boolean;
+  /** When the thread's plan usage window resets, for a usage-limit failure. */
+  usageResetsAt?: string | undefined;
   event: ThreadEvent;
   agentHue?: number | undefined;
   busyApprovalId?: string | undefined;
@@ -991,6 +1010,7 @@ function EventViewContent({
   completed,
   event,
   noticeExplained,
+  usageResetsAt,
   agentHue,
   busyApprovalId,
   speechPhase,
@@ -1023,6 +1043,7 @@ function EventViewContent({
             detail={event.detail}
             tone={event.tone}
             explained={noticeExplained}
+            usageResetsAt={usageResetsAt}
           />
         </div>
       </div>

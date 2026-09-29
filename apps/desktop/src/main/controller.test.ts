@@ -3060,6 +3060,80 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('shows the plan usage window on the provider without dropping turn token usage', async () => {
+    let runtimeThreadId = '';
+    const runtime = {
+      async *runTurn(input: { turnId: string }) {
+        const base = {
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: '2026-09-29T12:00:00.000Z',
+        };
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 1,
+          type: 'usage' as const,
+          payload: { inputTokens: 40, outputTokens: 5, providerReported: true },
+        };
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 2,
+          type: 'usage' as const,
+          payload: {
+            limits: {
+              usedPercent: 83,
+              resetsAt: '2026-09-29T15:00:00.000Z',
+              windowMinutes: 300,
+            },
+            providerReported: true,
+          },
+        };
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 3,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    const created = await controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', {
+      agentId: created.agentId,
+    });
+    runtimeThreadId = threadId;
+    await controller.invoke('threads.send', { threadId, text: 'Check mail' });
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+        'idle',
+      ),
+    );
+    expect(controller.snapshot().providers.find(({ id }) => id === 'codex')?.limits).toEqual({
+      usedPercent: 83,
+      resetsAt: '2026-09-29T15:00:00.000Z',
+      windowMinutes: 300,
+      updatedAt: '2026-09-29T12:00:00.000Z',
+    });
+    expect(
+      controller.snapshot().providerUsage?.find(({ provider }) => provider === 'codex'),
+    ).toMatchObject({ inputTokens: 40, outputTokens: 5 });
+    await controller.shutdown();
+  });
+
   it('discards a spoofed Sia-tool event that has no matching gateway invocation', async () => {
     let runtimeThreadId = '';
     const runtime = {

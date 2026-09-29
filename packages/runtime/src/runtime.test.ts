@@ -2071,6 +2071,82 @@ describe('Codex turn resilience', () => {
     await adapter.dispose();
   });
 
+  it('carries the plan usage window from account rate-limit updates', async () => {
+    const resetsAt = Date.parse('2026-09-29T18:30:00.000Z') / 1_000;
+    const peers = codexServer(async (p) => {
+      setTimeout(() => {
+        void (async () => {
+          await p.server.notify('account/rateLimits/updated', {
+            rateLimits: {
+              limitId: 'codex',
+              limitName: null,
+              primary: { usedPercent: 42, windowDurationMins: 300, resetsAt },
+              secondary: { usedPercent: 12, windowDurationMins: 10080, resetsAt: null },
+              credits: null,
+              individualLimit: null,
+              spendControlReached: null,
+              planType: 'plus',
+              rateLimitReachedType: null,
+            },
+          });
+          // Sparse update: a null window keeps the one seen before.
+          await p.server.notify('account/rateLimits/updated', {
+            rateLimits: {
+              limitId: 'codex',
+              limitName: null,
+              primary: null,
+              secondary: { usedPercent: 85, windowDurationMins: 10080, resetsAt: null },
+              credits: null,
+              individualLimit: null,
+              spendControlReached: null,
+              planType: null,
+              rateLimitReachedType: null,
+            },
+          });
+          await p.server.notify('thread/tokenUsage/updated', {
+            threadId: 'native-thread',
+            turnId: 'native-turn',
+            tokenUsage: { last: { inputTokens: 10, outputTokens: 2, cachedInputTokens: 0 } },
+          });
+          await p.server.notify('turn/completed', {
+            threadId: 'native-thread',
+            turn: { id: 'native-turn', status: 'completed' },
+          });
+        })();
+      }, 5);
+      return { turn: { id: 'native-turn' } };
+    });
+    const adapter = new CodexAppServerAdapter({
+      sessionEphemeral: true,
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    const session = await adapter.createSession(sessionOptions);
+    const usage: unknown[] = [];
+    for await (const event of adapter.sendTurn(session, { turnId: 't1', text: 'hi' }))
+      if (event.type === 'usage') usage.push(event.payload);
+    expect(usage).toEqual([
+      {
+        limits: { usedPercent: 42, resetsAt: '2026-09-29T18:30:00.000Z', windowMinutes: 300 },
+        providerReported: true,
+      },
+      { limits: { usedPercent: 85, windowMinutes: 10080 }, providerReported: true },
+      {
+        inputTokens: 10,
+        outputTokens: 2,
+        cachedInputTokens: 0,
+        limits: { usedPercent: 85, windowMinutes: 10080 },
+        providerReported: true,
+      },
+    ]);
+    await adapter.dispose();
+  });
+
   it('does not surface an error that Codex is about to retry', async () => {
     const peers = codexServer(async (p) => {
       setTimeout(() => {

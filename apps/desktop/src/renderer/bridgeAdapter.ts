@@ -639,6 +639,9 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         .map((approval) => mapApproval(approval))
     : [];
 
+  const threadLimits = currentThread
+    ? source.providers.find(({ id }) => id === currentThread.provider)?.limits
+    : undefined;
   const activeThread: ThreadDetail | undefined = currentThread
     ? {
         id: currentThread.id,
@@ -659,6 +662,14 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         worktree: currentThread.worktree ? structuredClone(currentThread.worktree) : undefined,
         events: [...timeline, ...pendingApprovals],
         ...(thinking && currentThread.status === 'running' ? { thinking } : {}),
+        ...(threadLimits
+          ? {
+              usageLimit: {
+                usedPercent: threadLimits.usedPercent,
+                ...(threadLimits.resetsAt ? { resetsAt: threadLimits.resetsAt } : {}),
+              },
+            }
+          : {}),
         ...(queuedMessages.length ? { queuedMessages } : {}),
         error:
           currentThread.status === 'failed'
@@ -708,6 +719,14 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         version: provider.version,
         billedBy: provider.billing,
         restriction: provider.restriction,
+        ...(provider.limits
+          ? {
+              limits: {
+                usedPercent: provider.limits.usedPercent,
+                ...(provider.limits.resetsAt ? { resetsAt: provider.limits.resetsAt } : {}),
+              },
+            }
+          : {}),
         ...(usage
           ? {
               usage: {

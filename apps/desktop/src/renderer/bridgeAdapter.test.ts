@@ -437,3 +437,33 @@ describe('bridge renderer reasoning', () => {
     expect(reasoningHeadline('')).toBeUndefined();
   });
 });
+
+describe('bridge renderer plan usage', () => {
+  it('passes the provider usage window to settings and to threads on that provider', () => {
+    const source = snapshot([]);
+    source.providers = [
+      {
+        id: 'codex',
+        label: 'Codex',
+        status: 'ready',
+        model: 'gpt-5.6-sol',
+        detail: '',
+        billing: 'subscription',
+        limits: {
+          usedPercent: 91,
+          resetsAt: '2026-09-29T15:00:00.000Z',
+          updatedAt: '2026-09-29T12:00:00.000Z',
+        },
+      },
+    ];
+    const mapped = mapDesktopSnapshot(source);
+    expect(mapped.providers[0]?.limits).toEqual({
+      usedPercent: 91,
+      resetsAt: '2026-09-29T15:00:00.000Z',
+    });
+    expect(mapped.activeThread?.usageLimit).toEqual({
+      usedPercent: 91,
+      resetsAt: '2026-09-29T15:00:00.000Z',
+    });
+  });
+});

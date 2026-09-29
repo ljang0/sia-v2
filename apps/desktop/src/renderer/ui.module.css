@@ -7509,3 +7509,24 @@ button.agentAvatar {
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
+
+.usageWarning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: min(100%, calc(var(--composer-max) + 64px));
+  margin: 0 auto 6px;
+  padding: 0 34px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.usageWarning svg {
+  flex: none;
+  color: var(--text-danger);
+}
+
+.providerUsage {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}

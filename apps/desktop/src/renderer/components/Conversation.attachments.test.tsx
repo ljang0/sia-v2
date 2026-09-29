@@ -57,3 +57,22 @@ it('shows a thumbnail for a sent image and an icon for other files', async () =>
   expect(preview).toHaveBeenCalledTimes(1);
   expect(preview).toHaveBeenCalledWith('img-1');
 });
+
+it('warns above the composer once most of the plan usage window is used', () => {
+  const props = {
+    onSend: async () => undefined,
+    onStop: async () => undefined,
+    onRetry: async () => undefined,
+    onResolveApproval: async () => undefined,
+  };
+  const view = render(
+    <Conversation thread={{ ...thread, usageLimit: { usedPercent: 50 } }} {...props} />,
+  );
+  expect(screen.queryByTestId('usage-warning')).toBeNull();
+  view.rerender(
+    <Conversation thread={{ ...thread, usageLimit: { usedPercent: 86 } }} {...props} />,
+  );
+  expect(screen.getByTestId('usage-warning').textContent).toContain(
+    'You’ve used 86% of your plan’s usage limit.',
+  );
+});

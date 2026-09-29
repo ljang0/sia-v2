@@ -30,6 +30,17 @@ describe('AI access settings', () => {
     expect(screen.queryByRole('button', { name: 'Recheck' })).toBeNull();
   });
 
+  it('shows how much of the plan usage window is left', () => {
+    renderSettings({
+      providers: demoSnapshot.providers.map((provider) =>
+        provider.id === 'codex'
+          ? { ...provider, status: 'ready' as const, limits: { usedPercent: 37 } }
+          : provider,
+      ),
+    });
+    expect(screen.getByText('Plan usage: 63% left')).toBeTruthy();
+  });
+
   it('can retry a temporarily unavailable plan', async () => {
     const onProbe = vi.fn().mockResolvedValue(undefined);
     renderSettings({

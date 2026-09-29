@@ -11,6 +11,7 @@ import type {
   ProviderTurnInput,
   ThreadEventEnvelope,
   ToolEvent,
+  UsageLimit,
 } from '@sia/protocol';
 import { randomUUID } from 'node:crypto';
 import { AsyncQueue } from '../async-queue.js';
@@ -180,6 +181,9 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   readonly #sessionOptions = new Map<string, ProviderSessionOptions>();
   readonly #dynamicToolNamesBySession = new Map<string, ReadonlySet<string>>();
   readonly #activeByThread = new Map<string, ActiveTurn>();
+  /** Latest plan usage per limit bucket, merged from sparse account/rateLimits/updated. */
+  readonly #rateLimits = new Map<string, Record<string, unknown>>();
+  #usageLimit: UsageLimit | undefined;
   readonly #activeByNativeTurn = new Map<string, ActiveTurn>();
   readonly #pendingRequests = new Map<string, DeferredRequest>();
   readonly #loginWaiters = new Map<string, CodexLoginWaiter>();
@@ -953,6 +957,39 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     throw new Error('inventory pagination exceeded its safety limit');
   }
 
+  /**
+   * Merges one sparse rate-limit update (a null field keeps the value seen before) and returns
+   * the bucket's most used window.
+   */
+  #recordRateLimits(update: Readonly<Record<string, unknown>>): UsageLimit | undefined {
+    const bucket = stringAt(update, ['limitId']) ?? 'default';
+    const merged = { ...(this.#rateLimits.get(bucket) ?? {}) };
+    for (const [key, value] of Object.entries(update)) {
+      if (value !== null && value !== undefined) merged[key] = value;
+    }
+    this.#rateLimits.set(bucket, merged);
+    const windows = [merged.primary, merged.secondary].flatMap((candidate) => {
+      const window = record(candidate);
+      const usedPercent = numberAt(window, ['usedPercent']);
+      return usedPercent === undefined ? [] : [{ window, usedPercent }];
+    });
+    const most = windows.sort((a, b) => b.usedPercent - a.usedPercent)[0];
+    if (!most) return undefined;
+    const resetsAt = numberAt(most.window, ['resetsAt']);
+    const windowMinutes = numberAt(most.window, ['windowDurationMins']);
+    const limit: UsageLimit = {
+      usedPercent: Math.min(100, Math.max(0, most.usedPercent)),
+      ...(resetsAt !== undefined && Number.isFinite(resetsAt)
+        ? { resetsAt: new Date(resetsAt * 1_000).toISOString() }
+        : {}),
+      ...(windowMinutes !== undefined && Number.isInteger(windowMinutes) && windowMinutes > 0
+        ? { windowMinutes }
+        : {}),
+    };
+    this.#usageLimit = limit;
+    return limit;
+  }
+
   #findActive(params: unknown): ActiveTurn | undefined {
     const nativeTurnId = stringAt(params, ['turnId'], ['turn', 'id']);
     if (nativeTurnId) {
@@ -979,6 +1016,17 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         waiter.resolve(outcome);
       } else {
         this.#completedLogins.set(loginId, outcome);
+      }
+      return;
+    }
+    if (method === 'account/rateLimits/updated') {
+      const limit = this.#recordRateLimits(record(record(params).rateLimits));
+      if (!limit) return;
+      // Account-wide, so it names no thread: every running turn carries it to the app.
+      for (const running of new Set(this.#activeByThread.values())) {
+        running.queue.push(
+          running.events.create('usage', { limits: limit, providerReported: true }),
+        );
       }
       return;
     }
@@ -1054,6 +1102,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
           ...(numberAt(last, ['cachedInputTokens']) === undefined
             ? {}
             : { cachedInputTokens: numberAt(last, ['cachedInputTokens']) }),
+          ...(this.#usageLimit ? { limits: this.#usageLimit } : {}),
           providerReported: true,
         }),
       );

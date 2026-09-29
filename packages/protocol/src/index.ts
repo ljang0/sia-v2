@@ -508,6 +508,15 @@ export const subagentEventSchema = z.object({
 });
 export type SubagentEvent = z.infer<typeof subagentEventSchema>;
 
+/** The account's most constrained plan usage window, as the provider reports it. */
+export const usageLimitSchema = z.object({
+  usedPercent: z.number().min(0).max(100),
+  /** ISO time the window resets. */
+  resetsAt: z.string().datetime().optional(),
+  windowMinutes: z.number().int().positive().optional(),
+});
+export type UsageLimit = z.infer<typeof usageLimitSchema>;
+
 export const usageEventSchema = z.object({
   ...envelopeBase,
   type: z.literal('usage'),
@@ -515,6 +524,7 @@ export const usageEventSchema = z.object({
     inputTokens: z.number().int().nonnegative().optional(),
     outputTokens: z.number().int().nonnegative().optional(),
     cachedInputTokens: z.number().int().nonnegative().optional(),
+    limits: usageLimitSchema.optional(),
     providerReported: z.boolean().default(true),
   }),
 });

@@ -58,6 +58,7 @@ import type {
   DesktopSnapshot,
   ProviderId,
   ProviderUsageView,
+  ProviderUsageLimitView,
   ProviderView,
   ScheduleView,
   ThreadView,
@@ -509,6 +510,8 @@ export class DesktopController {
   #browserSessionId: string | undefined;
   #state: PersistedState = structuredClone(INITIAL_STATE);
   #providers: ProviderView[] = [];
+  /** Plan usage windows reported during this session; kept apart so a provider refresh keeps them. */
+  readonly #usageLimits = new Map<ProviderId, ProviderUsageLimitView>();
   #computerState: ComputerPermissionsView = {
     status: 'unavailable',
     accessibility: false,
@@ -1614,6 +1617,9 @@ export class DesktopController {
           }),
       providers: this.#providers.map((provider) => ({
         ...structuredClone(provider),
+        ...(this.#usageLimits.has(provider.id)
+          ? { limits: { ...this.#usageLimits.get(provider.id)! } }
+          : {}),
         ...(provider.id === 'codex' && this.#codexSetup
           ? { setup: { ...this.#codexSetup } }
           : {}),
@@ -7044,6 +7050,24 @@ export class DesktopController {
       return;
     }
     if (event.type === 'usage') {
+      if (event.payload.limits) {
+        this.#usageLimits.set(thread.provider, {
+          usedPercent: event.payload.limits.usedPercent,
+          ...(event.payload.limits.resetsAt ? { resetsAt: event.payload.limits.resetsAt } : {}),
+          ...(event.payload.limits.windowMinutes
+            ? { windowMinutes: event.payload.limits.windowMinutes }
+            : {}),
+          updatedAt: event.timestamp,
+        });
+      }
+      // A plan-usage update alone carries no token counts for this turn.
+      if (
+        event.payload.inputTokens === undefined &&
+        event.payload.outputTokens === undefined &&
+        event.payload.cachedInputTokens === undefined &&
+        event.payload.limits
+      )
+        return;
       this.#state.usageByTurn[event.turnId] = {
         threadId: event.threadId,
         provider: thread.provider,

@@ -189,6 +189,8 @@ export interface ThreadDetail extends ThreadSummary {
   workspace: string;
   goal?: ThreadGoal | undefined;
   events: ThreadEvent[];
+  /** The thread's provider plan usage window, when reported. */
+  usageLimit?: { usedPercent: number; resetsAt?: string | undefined } | undefined;
   /** Headline of the running turn's latest reasoning summary, for the live status line. */
   thinking?: string | undefined;
   /** Follow-ups sent while the thread works; they start in order after the current task. */
@@ -369,6 +371,8 @@ export interface ProviderSetup {
   version?: string | undefined;
   billedBy: string;
   restriction?: string | undefined;
+  /** Latest plan usage window the provider reported. */
+  limits?: { usedPercent: number; resetsAt?: string | undefined } | undefined;
   usage?: {
     requests: number;
     inputTokens: number;
