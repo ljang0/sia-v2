@@ -3891,6 +3891,58 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('keeps a computer approval open until the driver deadline instead of two minutes', async () => {
+    const gate = Promise.withResolvers<void>();
+    const runtime = {
+      async *runTurn() {
+        await gate.promise;
+      },
+      dispose: vi.fn(async () => gate.resolve()),
+      cancel: vi.fn(async () => gate.resolve()),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
+    const started = await controller.invoke('threads.send', { threadId, text: 'Use Notes' });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const decision = controller.authorizeComputer(
+        {
+          adapterId: 'desktop_input',
+          riskClass: 'r2',
+          permissionMode: 'standard',
+          publicSession: started.turnId,
+          requestDigest: 'digest-wait',
+          humanSummary: 'Control the selected Notes window',
+          resourceJson: JSON.stringify({ app_name: 'Notes', window_title: 'Draft' }),
+          expiresUnixMs: BigInt(Date.now() + 30 * 60_000),
+        },
+        { kind: 'turn', threadId, turnId: started.turnId },
+      );
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+      const approval = controller.snapshot().approvals.at(-1)!;
+      expect(approval.status).toBe('pending');
+      await controller.invoke('approvals.resolve', {
+        approvalId: approval.id,
+        decision: 'approve',
+      });
+      await expect(decision).resolves.toBe('allow');
+    } finally {
+      vi.useRealTimers();
+      gate.resolve();
+      await controller.shutdown();
+    }
+  });
+
   it('shows exact connector recipients and content in the approval preview', async () => {
     const controller = await createController();
     await controller.invoke('computer.setTrust', { trust: 'ask' });

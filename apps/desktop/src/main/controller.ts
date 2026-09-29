@@ -2482,6 +2482,7 @@ export class DesktopController {
     this.#notifyNeedsAttention(context.threadId, 'approval', presentation.title);
 
     return new Promise((resolve) => {
+      // Wait for the person until the driver's own deadline; Sia adds no shorter limit.
       const remaining = Math.max(0, Number(request.expiresUnixMs) - Date.now());
       const timeout = setTimeout(
         () => {
@@ -2490,7 +2491,7 @@ export class DesktopController {
           this.#stageApprovalDecision(approvalId, context, 'expired');
           resolve('cancel');
         },
-        Math.min(remaining, 120_000),
+        Math.min(remaining, 2_147_483_647),
       );
       this.#pendingApprovals.set(approvalId, {
         resolve,
