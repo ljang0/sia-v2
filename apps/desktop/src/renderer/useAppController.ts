@@ -6,7 +6,7 @@ import type { AgentSummary, RendererApi, RendererSnapshot } from './types';
 const BRIDGE_ERROR =
   'Sia could not load its secure desktop bridge. Quit and reopen Sia; if this continues, reinstall the app.';
 type ActivityTarget = 'activity' | 'archived' | 'search';
-/** How long the "Conversation archived" notice keeps its Undo button. */
+/** How long the "Conversation archived" notice keeps its Undo button while not in use. */
 export const ARCHIVE_UNDO_MS = 8000;
 
 interface ActionIssue {
@@ -102,12 +102,6 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
   useEffect(() => {
     setAttachments([]);
   }, [snapshot?.selectedThreadId]);
-
-  useEffect(() => {
-    if (!archivedThread) return;
-    const timer = setTimeout(() => setArchivedThread(undefined), ARCHIVE_UNDO_MS);
-    return () => clearTimeout(timer);
-  }, [archivedThread]);
 
   const archiveThread = async (threadId: string) => {
     const reselect = snapshot?.selectedThreadId === threadId;

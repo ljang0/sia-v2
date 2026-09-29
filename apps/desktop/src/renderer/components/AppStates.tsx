@@ -1,13 +1,29 @@
 import { Archive, Check, CloudSlash, Copy, WarningCircle } from '@phosphor-icons/react';
-import { useState } from 'react';
-import type { useAppController } from '../useAppController';
+import { useEffect, useRef, useState } from 'react';
+import { ARCHIVE_UNDO_MS, type useAppController } from '../useAppController';
 import styles from '../ui.module.css';
 
 type AppController = ReturnType<typeof useAppController>;
 
 export function WorkspaceNotice({ app }: { app: AppController }) {
-  const [copied, setCopied] = useState(false);
+  // An action error must not hide a pending Undo, so the two can show together.
+  return (
+    <>
+      {app.actionIssue ? <ActionIssueNotice app={app} /> : null}
+      {app.archivedThreadId ? (
+        <ArchiveUndoNotice
+          key={app.archivedThreadId}
+          onUndo={app.undoArchive}
+          onDismiss={app.dismissArchived}
+        />
+      ) : null}
+      {!app.actionIssue && !app.archivedThreadId ? <AmbientNotice app={app} /> : null}
+    </>
+  );
+}
 
+function ActionIssueNotice({ app }: { app: AppController }) {
+  const [copied, setCopied] = useState(false);
   if (app.actionIssue) {
     const diagnostic = [
       `Sia support ID: ${app.actionIssue.supportId}`,
@@ -51,23 +67,60 @@ export function WorkspaceNotice({ app }: { app: AppController }) {
     );
   }
 
-  if (app.archivedThreadId) {
-    return (
-      <div className={`${styles.actionError} ${styles.undoNotice}`} role="status">
-        <Archive size={16} aria-hidden="true" />
-        <span>Conversation archived</span>
-        <span className={styles.actionErrorActions}>
-          <button type="button" onClick={app.undoArchive}>
-            Undo
-          </button>
-          <button type="button" onClick={app.dismissArchived}>
-            Dismiss
-          </button>
-        </span>
-      </div>
-    );
-  }
+  return null;
+}
 
+/** Offers Undo for a while. The countdown pauses while the pointer or focus is on it. */
+function ArchiveUndoNotice({ onUndo, onDismiss }: { onUndo(): void; onDismiss(): void }) {
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const remaining = useRef(ARCHIVE_UNDO_MS);
+  const dismiss = useRef(onDismiss);
+  dismiss.current = onDismiss;
+  const paused = hovered || focused;
+  useEffect(() => {
+    if (paused) return undefined;
+    const started = Date.now();
+    const timer = setTimeout(() => dismiss.current(), remaining.current);
+    return () => {
+      clearTimeout(timer);
+      remaining.current = Math.max(0, remaining.current - (Date.now() - started));
+    };
+  }, [paused]);
+  return (
+    <div
+      className={`${styles.actionError} ${styles.undoNotice}`}
+      role="status"
+      data-paused={paused || undefined}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+          setFocused(false);
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault();
+        event.stopPropagation();
+        onDismiss();
+      }}
+    >
+      <Archive size={16} aria-hidden="true" />
+      <span>Conversation archived</span>
+      <span className={styles.actionErrorActions}>
+        <button type="button" onClick={onUndo}>
+          Undo
+        </button>
+        <button type="button" onClick={onDismiss}>
+          Dismiss
+        </button>
+      </span>
+    </div>
+  );
+}
+
+function AmbientNotice({ app }: { app: AppController }) {
   if (app.snapshot?.startupNotice && !app.startupNoticeDismissed) {
     return (
       <div className={styles.actionError} role="status">

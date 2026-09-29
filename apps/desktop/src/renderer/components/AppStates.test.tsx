@@ -74,6 +74,53 @@ describe('archive feedback', () => {
   });
 });
 
+describe('archive undo notice', () => {
+  async function archive() {
+    const api = createDemoRendererApi(structuredClone(demoSnapshot));
+    render(<ArchiveHarness api={api} />);
+    const button = await screen.findByRole('button', { name: 'Archive inbox' });
+    vi.useFakeTimers();
+    await act(async () => {
+      fireEvent.click(button);
+    });
+    return api;
+  }
+
+  it('pauses its countdown while hovered or focused', async () => {
+    await archive();
+    const notice = screen.getByText('Conversation archived').closest('[role="status"]')!;
+    act(() => vi.advanceTimersByTime(ARCHIVE_UNDO_MS - 1000));
+    fireEvent.pointerEnter(notice);
+    act(() => vi.advanceTimersByTime(ARCHIVE_UNDO_MS * 2));
+    expect(screen.getByText('Conversation archived')).toBeTruthy();
+    fireEvent.pointerLeave(notice);
+    act(() => screen.getByRole('button', { name: 'Undo' }).focus());
+    act(() => vi.advanceTimersByTime(ARCHIVE_UNDO_MS * 2));
+    expect(screen.getByText('Conversation archived')).toBeTruthy();
+    act(() => screen.getByRole('button', { name: 'Undo' }).blur());
+    act(() => vi.advanceTimersByTime(999));
+    expect(screen.getByText('Conversation archived')).toBeTruthy();
+    act(() => vi.advanceTimersByTime(2));
+    expect(screen.queryByText('Conversation archived')).toBeNull();
+  });
+
+  it('dismisses with Escape', async () => {
+    await archive();
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Undo' }), { key: 'Escape' });
+    expect(screen.queryByText('Conversation archived')).toBeNull();
+  });
+
+  it('keeps Undo available when a later action fails', async () => {
+    const api = await archive();
+    api.refreshProvider = vi.fn().mockRejectedValue(new Error('Model check failed.'));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Trigger failure' }));
+    });
+    expect(screen.getByTestId('diagnostic-tray').textContent).toContain('Model check failed.');
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeTruthy();
+  });
+});
+
 function ArchiveHarness({ api }: { api: RendererApi }) {
   const app = useAppController(api);
   if (!app.snapshot) return null;
@@ -81,6 +128,9 @@ function ArchiveHarness({ api }: { api: RendererApi }) {
     <>
       <button type="button" onClick={() => void app.archiveThread('thread-inbox')}>
         Archive inbox
+      </button>
+      <button type="button" onClick={() => void app.run(() => api.refreshProvider('codex'))}>
+        Trigger failure
       </button>
       <WorkspaceNotice app={app} />
     </>
