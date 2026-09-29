@@ -34,7 +34,10 @@ for (const reducedMotion of ['no-preference', 'reduce'] as const) {
       const original = Element.prototype.animate;
       Object.assign(window, { viewMotionCalls: [] as string[] });
       Element.prototype.animate = function (...args) {
-        const view = this.getAttribute('data-workspace-view');
+        // Page changes animate the workspace (header and body); others animate the body.
+        const view =
+          this.getAttribute('data-workspace-view') ??
+          this.querySelector('[data-workspace-view]')?.getAttribute('data-workspace-view');
         if (view)
           (window as unknown as { viewMotionCalls: string[] }).viewMotionCalls.push(view);
         return original.apply(this, args);

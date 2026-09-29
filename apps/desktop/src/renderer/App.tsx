@@ -39,7 +39,10 @@ import { executionLabel, friendlyModelName } from './agentModels';
 import { cancelComposerFocus, focusComposer } from './composerFocus';
 import { heldAsQueued, OfflineBanner, useOfflineOutbox, useOnline } from './offline';
 import { recentThreads, welcomePrompts } from './welcome';
-import { useViewTransition } from './components/effects/use-view-transition';
+import {
+  useInstantThemeSwitch,
+  useViewTransition,
+} from './components/effects/use-view-transition';
 import './tokens.css';
 import companion from './companion.module.css';
 import styles from './ui.module.css';
@@ -65,7 +68,13 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     : app.activityOpen
       ? 'activity'
       : `thread:${app.snapshot?.selectedThreadId ?? ''}`;
-  useViewTransition(viewSurface, viewKey, app.snapshot?.preferences.appearance === 'calm');
+  useViewTransition(
+    viewSurface,
+    viewKey,
+    app.snapshot?.preferences.appearance === 'calm',
+    workspace,
+  );
+  useInstantThemeSwitch();
   const [reveal, setReveal] = useState(0);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);

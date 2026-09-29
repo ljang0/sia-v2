@@ -202,6 +202,14 @@
   box-sizing: border-box;
 }
 
+/* Set for two frames while the Mac switches light and dark (useInstantThemeSwitch). The
+   repeated attribute outranks component transitions without a cascade override. */
+:root[data-theme-switching][data-theme-switching][data-theme-switching] *,
+:root[data-theme-switching][data-theme-switching][data-theme-switching] *::before,
+:root[data-theme-switching][data-theme-switching][data-theme-switching] *::after {
+  transition: none;
+}
+
 html,
 body,
 #root {
