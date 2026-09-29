@@ -2935,7 +2935,8 @@ export class DesktopController {
     input: BridgeRequestMap['threads.fork'],
     primary = false,
   ): Promise<BridgeResultMap['threads.fork']> {
-    const source = this.#requireThread(input.threadId);
+    // A busy thread's live approval, question and queued follow-ups belong to that run.
+    const source = this.#requireIdleThread(input.threadId, 'fork this thread');
     const id = randomUUID();
     let workspace = primary
       ? normalizeWorkspace(source.worktree?.sourceWorkspace ?? source.workspace)
@@ -2979,7 +2980,14 @@ export class DesktopController {
     this.#state.threads.push(forked);
     this.#state.timeline.push(
       ...this.#state.timeline
-        .filter((item) => item.threadId === source.id)
+        .filter(
+          (item) =>
+            item.threadId === source.id &&
+            !(
+              item.status === 'pending' &&
+              (item.kind === 'user' || item.kind === 'approval' || item.kind === 'question')
+            ),
+        )
         .map((item) => ({ ...structuredClone(item), id: randomUUID(), threadId: id })),
     );
     const agent = this.#requireAgent(source.agentId);

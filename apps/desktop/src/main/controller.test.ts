@@ -2193,6 +2193,62 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('refuses to fork a busy thread so its live approval and follow-ups stay with it', async () => {
+    let runtimeThreadId = '';
+    const release = Promise.withResolvers<void>();
+    const runtime = {
+      async *runTurn(input: { turnId: string }) {
+        const base = {
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 1,
+          type: 'approval' as const,
+          payload: { phase: 'requested', requestId: 'r1', title: 'Run', description: 'ls' },
+        } as never;
+        await release.promise;
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
+    runtimeThreadId = threadId;
+    await controller.invoke('threads.send', { threadId, text: 'List files' });
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+        'waiting',
+      ),
+    );
+    await controller.invoke('threads.send', { threadId, text: 'Then summarize' });
+    await expect(controller.invoke('threads.fork', { threadId })).rejects.toThrow(
+      'Stop the active task before you fork this thread.',
+    );
+    expect(controller.snapshot().threads).toHaveLength(1);
+    release.resolve();
+    await controller.shutdown();
+  });
+
   it('notifies once when a task pauses for an approval or a question', async () => {
     let runtimeThreadId = '';
     // Each turn waits on its own gate so cancelling the first can't finish the second.
