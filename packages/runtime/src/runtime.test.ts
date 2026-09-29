@@ -153,6 +153,34 @@ describe('JSON-RPC transport and peer', () => {
     transport.close();
   });
 
+  it('rejects pending requests as soon as the peer’s output ends', async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const peer = new JsonRpcPeer(new JsonLinesTransport(input, output));
+    const pending = peer.request('slow');
+    input.end();
+    await expect(pending).rejects.toThrow('JSON-RPC input ended');
+    await expect(peer.request('after')).rejects.toThrow('closed');
+    await peer.close();
+  });
+
+  it('closes with an error instead of buffering an unbounded line', async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const transport = new JsonLinesTransport(input, output, { maxBufferCharacters: 16 });
+    const peer = new JsonRpcPeer(transport);
+    const pending = peer.request('slow');
+    const closed = new Promise<Error | undefined>((resolve) => transport.onClose(resolve));
+    input.write('{"jsonrpc":"2.0","method":"x",');
+    input.write('"params":"0123456789"');
+    await expect(closed).resolves.toMatchObject({
+      message: expect.stringContaining('size limit'),
+    });
+    await expect(pending).rejects.toThrow('size limit');
+    expect(input.destroyed).toBe(true);
+    await peer.close();
+  });
+
   it('normalizes Codex app-server envelopes that omit the jsonrpc member', () => {
     expect(parseJsonRpcMessage({ id: 1, result: { ok: true } })).toEqual({
       jsonrpc: '2.0',
