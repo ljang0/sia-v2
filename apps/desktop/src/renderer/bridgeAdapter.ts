@@ -112,7 +112,8 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       publish(await bridge.threads.rename(threadId, title));
     },
     async saveDraft(threadId, content) {
-      publish(await bridge.threads.setDraft(threadId, content));
+      // The composer already shows the text; saving a draft sends no snapshot back.
+      await bridge.threads.setDraft(threadId, content);
     },
     async deleteThread(threadId) {
       publish(await bridge.threads.delete(threadId));

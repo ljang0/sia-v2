@@ -2775,12 +2775,14 @@ export class DesktopController {
     return this.#resultSnapshot();
   }
 
-  #setThreadDraft(input: BridgeRequestMap['threads.draft']): DesktopSnapshot {
+  #setThreadDraft(input: BridgeRequestMap['threads.draft']): { saved: true } {
     const thread = this.#requireThread(input.threadId);
     if (input.text) thread.draft = input.text;
     else delete thread.draft;
-    this.#commit();
-    return this.#resultSnapshot();
+    // Drafts are saved on each pause in typing. The composer already shows the text, so skip
+    // the push and write the encrypted state with the next save, shortly after, or at shutdown.
+    this.#persistSoon();
+    return { saved: true };
   }
 
   #configureThread(input: BridgeRequestMap['threads.config']): DesktopSnapshot {
@@ -3763,10 +3765,14 @@ export class DesktopController {
           Boolean(schedule.activeRun) ||
           (schedule.enabled && Date.parse(schedule.nextRunAt) <= now.getTime()),
       );
+      // A due run that waits for a busy thread changes nothing. Saving the whole encrypted
+      // state for it every 30 seconds grew costly as history grew.
+      let changed = false;
       for (const schedule of due) {
         const thread = this.#state.threads.find(({ id }) => id === schedule.threadId);
         if (!thread || thread.archivedAt) {
           schedule.enabled = false;
+          changed = true;
           continue;
         }
         if (
@@ -3776,6 +3782,7 @@ export class DesktopController {
         ) {
           continue;
         }
+        changed = true;
         try {
           this.#dispatchSchedule(schedule, now);
         } catch (error) {
@@ -3792,7 +3799,7 @@ export class DesktopController {
           });
         }
       }
-      if (due.length) this.#commit();
+      if (changed) this.#commit();
     } finally {
       this.#scheduleRunInFlight = false;
     }
@@ -7662,8 +7669,12 @@ export class DesktopController {
     // A CUA browser attachment is process-local. Never revive its UI grant without
     // preparing a fresh native session and rebuilding host-only tab capabilities.
     recovered.browser = { status: 'detached', grantedOrigins: [] };
-    recovered.approvals = recovered.approvals.map((approval) =>
-      approval.status === 'pending' ? { ...approval, status: 'expired' } : approval,
+    recovered.approvals = pruneSettledApprovals(
+      recovered.approvals.map((approval) =>
+        approval.status === 'pending' ? { ...approval, status: 'expired' } : approval,
+      ),
+      recovered.timeline,
+      Date.now(),
     );
     // No turn survives a relaunch, so no activity row may keep spinning.
     for (const item of recovered.timeline)
@@ -7771,18 +7782,21 @@ export class DesktopController {
       }
       // Keep the visible stream responsive without encrypting the entire history
       // at UI cadence. Completion, actions and shutdown still persist immediately.
-      if (!this.#streamPersistTimer) {
-        this.#streamPersistTimer = setTimeout(() => {
-          this.#streamPersistTimer = undefined;
-          this.#persist();
-        }, 500);
-        this.#streamPersistTimer.unref();
-      }
+      this.#persistSoon();
       return;
     }
     this.#cancelStreamCommit();
     this.#persist();
     this.#emit();
+  }
+
+  #persistSoon(): void {
+    if (this.#streamPersistTimer) return;
+    this.#streamPersistTimer = setTimeout(() => {
+      this.#streamPersistTimer = undefined;
+      this.#persist();
+    }, 500);
+    this.#streamPersistTimer.unref();
   }
 
   #cancelStreamCommit(): void {
@@ -7826,6 +7840,31 @@ async function settleBeforeShutdown(
     }),
   ]);
   if (timeout) clearTimeout(timeout);
+}
+
+/** How long a settled approval with no transcript row stays after it expired. */
+const SETTLED_APPROVAL_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Approvals a transcript row refers to are part of that thread's history and stay. The rest,
+ * such as computer-use requests, are shown only beside their turn; drop them a week after
+ * they expired so state does not grow with every answered request.
+ */
+export function pruneSettledApprovals(
+  approvals: readonly ApprovalView[],
+  timeline: readonly TimelineItemView[],
+  now: number,
+): ApprovalView[] {
+  const referenced = new Set(
+    timeline.flatMap((item) =>
+      item.kind === 'approval' && item.approvalId ? [item.approvalId] : [],
+    ),
+  );
+  return approvals.filter((approval) => {
+    if (approval.status === 'pending' || referenced.has(approval.id)) return true;
+    const expiresAt = approval.expiresAt ? Date.parse(approval.expiresAt) : Number.NaN;
+    return !Number.isFinite(expiresAt) || now - expiresAt < SETTLED_APPROVAL_RETENTION_MS;
+  });
 }
 
 function isStreamingDelta(event: ThreadEventEnvelope): boolean {

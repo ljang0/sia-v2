@@ -740,7 +740,7 @@ export interface BridgeResultMap {
   'threads.create': { threadId: string; snapshot: DesktopSnapshot };
   'threads.select': DesktopSnapshot;
   'threads.rename': DesktopSnapshot;
-  'threads.draft': DesktopSnapshot;
+  'threads.draft': { saved: true };
   'threads.config': DesktopSnapshot;
   'threads.archive': DesktopSnapshot;
   'threads.unarchive': DesktopSnapshot;
@@ -878,7 +878,7 @@ export interface DesktopBridgeApi {
     create(input: CreateThreadInput): Promise<BridgeResultMap['threads.create']>;
     select(threadId: string): Promise<DesktopSnapshot>;
     rename(threadId: string, title: string): Promise<DesktopSnapshot>;
-    setDraft(threadId: string, text: string): Promise<DesktopSnapshot>;
+    setDraft(threadId: string, text: string): Promise<{ saved: true }>;
     config(input: UpdateThreadConfigInput): Promise<DesktopSnapshot>;
     archive(threadId: string): Promise<DesktopSnapshot>;
     unarchive(threadId: string): Promise<DesktopSnapshot>;

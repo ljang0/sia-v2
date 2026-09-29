@@ -869,18 +869,27 @@ describe('DesktopController', () => {
     });
     const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
 
+    let pushes = 0;
+    controller.subscribe(() => {
+      pushes += 1;
+    });
     const drafted = await controller.invoke('threads.draft', {
       threadId,
       text: 'Keep this thought across a restart.',
     });
-    expect(drafted.threads.find(({ id }) => id === threadId)?.draft).toBe(
+    // Typing pauses save drafts often: no snapshot comes back and no push goes out.
+    expect(drafted).toEqual({ saved: true });
+    expect(pushes).toBe(0);
+    expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.draft).toBe(
       'Keep this thought across a restart.',
     );
-    expect(
-      repository
-        .get<{ threads: Array<{ id: string; draft?: string }> }>('desktop', 'state')
-        ?.threads.find(({ id }) => id === threadId)?.draft,
-    ).toBe('Keep this thought across a restart.');
+    await vi.waitFor(() =>
+      expect(
+        repository
+          .get<{ threads: Array<{ id: string; draft?: string }> }>('desktop', 'state')
+          ?.threads.find(({ id }) => id === threadId)?.draft,
+      ).toBe('Keep this thought across a restart.'),
+    );
 
     const sent = await controller.invoke('threads.send', {
       threadId,
@@ -1069,6 +1078,118 @@ describe('DesktopController', () => {
       runHistory: [{ id: claimId, outcome: 'started' }],
     });
     await recovered.controller.shutdown();
+  });
+
+  it('does not rewrite state while a due schedule waits for its busy thread', async () => {
+    const initial = await createHarness({ fakeServices: false });
+    await initial.controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    const agent = await initial.controller.invoke('agents.save', {
+      name: 'Busy scheduler',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await initial.controller.invoke('threads.create', {
+      agentId: agent.agentId,
+    });
+    initial.controller.createScheduleFromAction(threadId, {
+      task: 'Check the web.',
+      cadence: 'hourly',
+      firstRunAt: '2030-08-21T03:00:00.000Z',
+    });
+    const persisted = structuredClone(
+      initial.repository.get<{ schedules: Array<{ id: string; nextRunAt: string }> }>(
+        'desktop',
+        'state',
+      )!,
+    );
+    await initial.controller.shutdown();
+    // Several runs are overdue on one thread: once one holds the thread, the rest must wait.
+    const first = persisted.schedules[0]!;
+    first.nextRunAt = '2026-01-01T00:00:00.000Z';
+    for (let copy = 0; copy < 3; copy += 1)
+      persisted.schedules.push({ ...structuredClone(first), id: randomUUID() });
+    const repository = new CountingRepository();
+    repository.put('desktop', 'state', persisted);
+
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const runtime = {
+      async *runTurn() {
+        await held;
+      },
+      dispose: vi.fn(async () => release()),
+      cancel: vi.fn(async () => release()),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    vi.useFakeTimers({ toFake: ['setInterval'] });
+    try {
+      const { controller } = await createHarness({ fakeServices: false, runtime, repository });
+      // The startup pass runs before the runtime attaches; the next pass starts a held turn.
+      await vi.advanceTimersByTimeAsync(30_000);
+      await vi.waitFor(() =>
+        expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+          'running',
+        ),
+      );
+      const writes = repository.desktopStateWrites;
+      await vi.advanceTimersByTimeAsync(90_000);
+      expect(repository.desktopStateWrites).toBe(writes);
+      release();
+      await controller.shutdown();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('drops settled approvals without a transcript row a week after they expired', async () => {
+    const initial = await createHarness();
+    const persisted = structuredClone(
+      initial.repository.get<{
+        approvals: Array<Record<string, unknown>>;
+        timeline: Array<Record<string, unknown>>;
+      }>('desktop', 'state')!,
+    );
+    await initial.controller.shutdown();
+    const approval = (id: string, expiresAt: string, status = 'approved') => ({
+      id,
+      threadId: 'thread-1',
+      callId: `call-${id}`,
+      kind: 'computer_action',
+      title: 'Use the Mac',
+      summary: 'Click Save',
+      target: 'TextEdit',
+      reversible: false,
+      expiresAt,
+      status,
+    });
+    const old = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+    const recent = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    persisted.approvals.push(
+      approval('old-settled', old),
+      approval('old-in-transcript', old, 'denied'),
+      approval('recent-settled', recent, 'expired'),
+    );
+    persisted.timeline.push({
+      id: 'approval-row',
+      threadId: 'thread-1',
+      sequence: 1,
+      kind: 'approval',
+      approvalId: 'old-in-transcript',
+      status: 'denied',
+      timestamp: old,
+    });
+    const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+    repository.put('desktop', 'state', persisted);
+    const { controller } = await createHarness({ repository });
+    expect(controller.snapshot().approvals.map(({ id }) => id)).toEqual([
+      'old-in-transcript',
+      'recent-settled',
+    ]);
+    await controller.shutdown();
   });
 
   it('requires an active turn to stop before its thread can be deleted', async () => {
