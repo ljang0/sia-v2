@@ -7,11 +7,13 @@ import {
 } from './memory-suggestions.js';
 import { NativeSkills } from './native-skills.js';
 import { conversationTitle } from '../shared/plain-text.js';
+import { threadPreviews, type ThreadPreviewMemo } from '../shared/thread-previews.js';
 import { skillExecutionMode, skillUnavailableReason } from '../shared/skill-execution.js';
 import { NotchVault } from './notch/vault.js';
 import { notchConsolidationInstructions } from './notch/foreground.js';
 import type { MacTaskResult } from './mac-execution.js';
 import { AssistantLibrary, DESKTOP_EXECUTION_GUIDANCE } from './assistant-library.js';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, stat } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join, normalize, resolve } from 'node:path';
@@ -450,6 +452,8 @@ export class DesktopController {
   #pushToTalk: PushToTalkService | undefined;
   readonly #startupNotice: ControllerOptions['startupNotice'];
   readonly #listeners = new Set<(event: DesktopPushEvent) => void>();
+  readonly #rendererCall = new AsyncLocalStorage<true>();
+  readonly #previewMemo: ThreadPreviewMemo = new WeakMap();
   readonly #runningTurns = new Map<string, AbortController>();
   readonly #phoneTurns = new Set<string>();
   readonly #turnTasks = new Map<string, Promise<void>>();
@@ -1399,7 +1403,33 @@ export class DesktopController {
     void this.#runDueSchedules();
   }
 
+  /** The complete state, including every thread's history, for in-process callers and tests. */
   snapshot(): DesktopSnapshot {
+    return this.#snapshot(false);
+  }
+
+  /**
+   * What the renderer draws: the active thread's history, one preview per thread and the active
+   * thread's approvals. Pushing every thread's history on each streamed token made the app slow
+   * down as history grew.
+   */
+  rendererSnapshot(): DesktopSnapshot {
+    return this.#snapshot(true);
+  }
+
+  /** Runs a renderer bridge call so that any snapshot it returns is the renderer's scoped view. */
+  invokeForRenderer<M extends BridgeMethod>(
+    method: M,
+    input: BridgeRequestMap[M],
+  ): Promise<BridgeResultMap[M]> {
+    return this.#rendererCall.run(true, () => this.invoke(method, input));
+  }
+
+  #resultSnapshot(): DesktopSnapshot {
+    return this.#snapshot(this.#rendererCall.getStore() === true);
+  }
+
+  #snapshot(scoped: boolean): DesktopSnapshot {
     const identity = this.#identity.status();
     const cloud: DesktopSnapshot['cloud'] = {
       status:
@@ -1451,8 +1481,26 @@ export class DesktopController {
       revision: this.#revision,
       agents: structuredClone(this.#state.agents),
       threads: structuredClone(this.#state.threads),
-      timeline: structuredClone(this.#state.timeline),
-      approvals: structuredClone(this.#state.approvals),
+      ...(scoped
+        ? {
+            timeline: structuredClone(
+              this.#state.timeline.filter(
+                ({ threadId }) => threadId === this.#state.activeThreadId,
+              ),
+            ),
+            previews: structuredClone(
+              Object.fromEntries(threadPreviews(this.#state.timeline, this.#previewMemo)),
+            ),
+            approvals: structuredClone(
+              this.#state.approvals.filter(
+                ({ threadId }) => threadId === this.#state.activeThreadId,
+              ),
+            ),
+          }
+        : {
+            timeline: structuredClone(this.#state.timeline),
+            approvals: structuredClone(this.#state.approvals),
+          }),
       providers: this.#providers.map((provider) => ({
         ...structuredClone(provider),
         ...(provider.id === 'codex' && this.#codexSetup
@@ -1592,7 +1640,7 @@ export class DesktopController {
     }
     switch (method) {
       case 'bootstrap':
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       case 'scotty.configure':
         if (!this.#scotty) throw new Error('Scotty is unavailable in this build.');
         return (await this.#scotty(
@@ -1944,7 +1992,7 @@ export class DesktopController {
           ...(agent ? { agentId: agent.id } : {}),
         };
         this.#commit();
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       }
       case 'settings.restartForOnboarding': {
         const progress = this.#state.preferences.onboarding;
@@ -1964,7 +2012,7 @@ export class DesktopController {
           throw new Error(
             'Wait for the current task or recording to finish before restarting.',
           );
-        if (progress.restartPending) return this.snapshot() as BridgeResultMap[M];
+        if (progress.restartPending) return this.#resultSnapshot() as BridgeResultMap[M];
         this.#state.preferences.onboarding = {
           ...progress,
           step: 'verify',
@@ -1979,7 +2027,7 @@ export class DesktopController {
           this.#commit();
           throw error;
         }
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       }
       case 'computer.setupMessages':
         if (!this.#openMessagesPermissions)
@@ -1987,19 +2035,19 @@ export class DesktopController {
         await this.#openMessagesPermissions();
         await this.#refreshCapabilityStatuses();
         this.#emit();
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       case 'settings.setAppearance':
         this.#state.preferences.appearance = (
           input as BridgeRequestMap['settings.setAppearance']
         ).appearance;
         this.#commit();
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       case 'settings.setCompletionSound':
         this.#state.preferences.completionSound = (
           input as BridgeRequestMap['settings.setCompletionSound']
         ).enabled;
         this.#commit();
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       case 'feedback.compose':
         return (await this.#composeFeedbackMessage(
           input as BridgeRequestMap['feedback.compose'],
@@ -2019,7 +2067,7 @@ export class DesktopController {
           (input as BridgeRequestMap['computer.requestAutomation']).app,
         );
         this.#emit();
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       }
       case 'computer.openMessages':
         return (await this.#openMessagesApp()) as unknown as BridgeResultMap[M];
@@ -2038,25 +2086,25 @@ export class DesktopController {
           this.computerAccessMode() === 'mac',
         );
         this.#commit();
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       }
       case 'computer.setTrust':
         this.#state.preferences.computerTrust = (
           input as BridgeRequestMap['computer.setTrust']
         ).trust;
         this.#commit();
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       case 'computer.setTrajectoryLog':
         this.#state.preferences.trajectoryLog = (
           input as BridgeRequestMap['computer.setTrajectoryLog']
         ).enabled;
         this.#commit();
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       case 'computer.revealTrajectories':
         if (this.#trajectory && this.#revealDirectory) {
           await this.#revealDirectory(this.#trajectory.rootDirectory);
         }
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       case 'browser.connectAndContinue':
         return (await this.#connectBrowserAndContinue(
           input as BridgeRequestMap['browser.connectAndContinue'],
@@ -2084,7 +2132,7 @@ export class DesktopController {
           value.requestAccessibility,
           value.speakReplies,
         );
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       }
       case 'voice.pushToTalk.cancel':
         this.#pushToTalk?.cancel();
@@ -2367,7 +2415,7 @@ export class DesktopController {
     if (input.startOnboarding) {
       if (input.id)
         throw new Error('Setup creates a new agent; existing agents are unchanged.');
-      if (starter) return { agentId: starter.id, snapshot: this.snapshot() };
+      if (starter) return { agentId: starter.id, snapshot: this.#resultSnapshot() };
       if (this.#state.agents.length)
         throw new Error('Continue setup with your existing agent.');
     }
@@ -2405,7 +2453,7 @@ export class DesktopController {
       const created = this.#state.agents.find(
         ({ id }) => id === this.#state.preferences.onboarding?.agentId,
       );
-      if (created) return { agentId: created.id, snapshot: this.snapshot() };
+      if (created) return { agentId: created.id, snapshot: this.#resultSnapshot() };
       throw new Error('An agent was created while setup was in progress.');
     }
     const hue = input.hue ?? existing?.hue ?? this.#leastUsedHue();
@@ -2456,7 +2504,7 @@ export class DesktopController {
       return { agentId, snapshot: created.snapshot };
     }
     this.#commit();
-    return { agentId, snapshot: this.snapshot() };
+    return { agentId, snapshot: this.#resultSnapshot() };
   }
 
   #setAgentPinned(input: BridgeRequestMap['agents.setPinned']): DesktopSnapshot {
@@ -2464,7 +2512,7 @@ export class DesktopController {
     agent.pinned = input.pinned;
     agent.updatedAt = new Date().toISOString();
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #setAgentNotifications(input: BridgeRequestMap['agents.setNotifications']): DesktopSnapshot {
@@ -2472,7 +2520,7 @@ export class DesktopController {
     agent.notificationsEnabled = input.enabled;
     agent.updatedAt = new Date().toISOString();
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #duplicateAgent(agentId: string): BridgeResultMap['agents.duplicate'] {
@@ -2491,7 +2539,7 @@ export class DesktopController {
     this.#state.activeAgentId = copy.id;
     delete this.#state.activeThreadId;
     this.#commit();
-    return { agentId: copy.id, snapshot: this.snapshot() };
+    return { agentId: copy.id, snapshot: this.#resultSnapshot() };
   }
 
   #deleteAgent(agentId: string): DesktopSnapshot {
@@ -2527,7 +2575,7 @@ export class DesktopController {
     else delete this.#state.activeAgentId;
     delete this.#state.activeThreadId;
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #awaitCompletedTurns(): Promise<void> {
@@ -2674,7 +2722,7 @@ export class DesktopController {
       this.#state.activeThreadId = id;
     }
     this.#commit();
-    return { threadId: id, snapshot: this.snapshot() };
+    return { threadId: id, snapshot: this.#resultSnapshot() };
   }
 
   #selectThread(threadId: string): DesktopSnapshot {
@@ -2683,7 +2731,7 @@ export class DesktopController {
     this.#state.activeThreadId = thread.id;
     this.#state.activeAgentId = thread.agentId;
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #renameThread(input: BridgeRequestMap['threads.rename']): DesktopSnapshot {
@@ -2693,7 +2741,7 @@ export class DesktopController {
     thread.title = title;
     thread.updatedAt = new Date().toISOString();
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #setThreadDraft(input: BridgeRequestMap['threads.draft']): DesktopSnapshot {
@@ -2701,7 +2749,7 @@ export class DesktopController {
     if (input.text) thread.draft = input.text;
     else delete thread.draft;
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #configureThread(input: BridgeRequestMap['threads.config']): DesktopSnapshot {
@@ -2724,7 +2772,7 @@ export class DesktopController {
     else delete thread.reasoningEffort;
     thread.updatedAt = new Date().toISOString();
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #archiveThread(threadId: string): DesktopSnapshot {
@@ -2733,7 +2781,7 @@ export class DesktopController {
     thread.unread = false;
     if (this.#state.activeThreadId === thread.id) delete this.#state.activeThreadId;
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #unarchiveThread(threadId: string): DesktopSnapshot {
@@ -2741,14 +2789,14 @@ export class DesktopController {
     delete thread.archivedAt;
     thread.updatedAt = new Date().toISOString();
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #setThreadUnread(input: BridgeRequestMap['threads.setUnread']): DesktopSnapshot {
     const thread = this.#requireThread(input.threadId);
     thread.unread = input.unread;
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #forkThread(
@@ -2808,7 +2856,7 @@ export class DesktopController {
     this.#state.activeAgentId = source.agentId;
     this.#state.activeThreadId = id;
     this.#commit();
-    return { threadId: id, snapshot: this.snapshot() };
+    return { threadId: id, snapshot: this.#resultSnapshot() };
   }
 
   async #handoffThread(
@@ -2929,7 +2977,7 @@ export class DesktopController {
       updatedAt: now,
     };
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #pauseGoal(threadId: string): DesktopSnapshot {
@@ -2938,7 +2986,7 @@ export class DesktopController {
     thread.goal.status = 'paused';
     thread.goal.updatedAt = new Date().toISOString();
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #resumeGoal(threadId: string): DesktopSnapshot {
@@ -2960,7 +3008,7 @@ export class DesktopController {
     const thread = this.#requireIdleThread(threadId, 'clear this goal');
     delete thread.goal;
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #deleteThread(threadId: string): DesktopSnapshot {
@@ -2993,7 +3041,7 @@ export class DesktopController {
     );
     if (this.#state.activeThreadId === thread.id) delete this.#state.activeThreadId;
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   /** Host-only Cmd+E capture, before the command panel takes the user's app focus. */
@@ -3111,7 +3159,7 @@ export class DesktopController {
           this.#commit();
         });
       this.#commit();
-      return { turnId: pendingQuestion.turnId, snapshot: this.snapshot() };
+      return { turnId: pendingQuestion.turnId, snapshot: this.#resultSnapshot() };
     }
     // Provider state can change after an agent or immutable thread was created.
     // Revalidate every new turn instead of trusting persisted configuration.
@@ -3189,7 +3237,7 @@ export class DesktopController {
     }
     thread.updatedAt = new Date().toISOString();
     this.#commit();
-    return { turnId, snapshot: this.snapshot() };
+    return { turnId, snapshot: this.#resultSnapshot() };
   }
 
   #retryTurn(threadId: string): BridgeResultMap['threads.retry'] {
@@ -3259,7 +3307,7 @@ export class DesktopController {
     }
     thread.updatedAt = new Date().toISOString();
     this.#commit();
-    return { turnId: failed.turnId, snapshot: this.snapshot() };
+    return { turnId: failed.turnId, snapshot: this.#resultSnapshot() };
   }
 
   async #cancelTurn(threadId: string): Promise<DesktopSnapshot> {
@@ -3302,7 +3350,7 @@ export class DesktopController {
       timestamp: new Date().toISOString(),
     });
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   /** A finished turn leaves its thread idle, or queued when a follow-up is about to start. */
@@ -3343,7 +3391,7 @@ export class DesktopController {
     }
     thread.updatedAt = new Date().toISOString();
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   /** Drops the pending user messages of queued follow-ups that will no longer run. */
@@ -3614,7 +3662,7 @@ export class DesktopController {
 
   #createSchedule(input: BridgeRequestMap['schedules.create']): DesktopSnapshot {
     this.#insertSchedule(input);
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #insertSchedule(input: BridgeRequestMap['schedules.create']): ScheduleView {
@@ -3650,14 +3698,14 @@ export class DesktopController {
     schedule.enabled = input.enabled;
     this.#commit();
     if (input.enabled) void this.#runDueSchedules();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #deleteSchedule(scheduleId: string): DesktopSnapshot {
     this.#requireSchedule(scheduleId);
     this.#state.schedules = this.#state.schedules.filter(({ id }) => id !== scheduleId);
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #runScheduleNow(scheduleId: string): BridgeResultMap['schedules.runNow'] {
@@ -3749,7 +3797,7 @@ export class DesktopController {
       (item) => item.scheduleRunId === claim.id && item.kind === 'user' && item.turnId,
     );
     const result = dispatched?.turnId
-      ? { turnId: dispatched.turnId, snapshot: this.snapshot() }
+      ? { turnId: dispatched.turnId, snapshot: this.#resultSnapshot() }
       : this.#sendTurn(
           { threadId: schedule.threadId, text: schedule.prompt },
           'schedule',
@@ -3799,7 +3847,7 @@ export class DesktopController {
         .catch(() => undefined);
     }
     pending.resolve(input.decision === 'approve' ? 'allow' : 'deny');
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #probeProviders(providerId?: ProviderId): Promise<DesktopSnapshot> {
@@ -3824,7 +3872,7 @@ export class DesktopController {
     )
       this.#codexSetup = undefined;
     this.#emit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #refreshProviderModels(providerId?: ProviderId): Promise<void> {
@@ -3892,7 +3940,8 @@ export class DesktopController {
     const installation =
       provider.status === 'needs_install' || provider.status === 'incompatible';
     if (providerId === 'codex') {
-      if (provider.status === 'ready') return { opened: false, snapshot: this.snapshot() };
+      if (provider.status === 'ready')
+        return { opened: false, snapshot: this.#resultSnapshot() };
       this.#codexSetupPending = true;
       try {
         if (installation) {
@@ -3916,7 +3965,7 @@ export class DesktopController {
             'Restarting Sia. ChatGPT sign-in will continue automatically.',
           );
           this.#restartApp();
-          return { opened: true, snapshot: this.snapshot() };
+          return { opened: true, snapshot: this.#resultSnapshot() };
         }
         if (!this.#runtime)
           throw new Error(
@@ -3942,7 +3991,7 @@ export class DesktopController {
             'ChatGPT sign-in finished, but Codex could not verify the connected plan. Try setup again.',
           );
         this.#codexSetup = undefined;
-        return { opened: true, snapshot: this.snapshot() };
+        return { opened: true, snapshot: this.#resultSnapshot() };
       } catch (error) {
         this.#repository.remove('setup', 'codex-login');
         this.#setCodexSetup(
@@ -3961,7 +4010,7 @@ export class DesktopController {
     const url = urls[providerId];
     if (!url) throw new Error('This provider has no supported sign-in flow in the alpha.');
     await this.#openExternal(url);
-    return { opened: true, snapshot: this.snapshot() };
+    return { opened: true, snapshot: this.#resultSnapshot() };
   }
 
   #setCodexSetup(phase: NonNullable<ProviderView['setup']>['phase'], message: string): void {
@@ -4009,13 +4058,13 @@ export class DesktopController {
     await this.#voice?.refreshPermissions?.().catch(() => undefined);
     this.#pushToTalk?.refreshPermissions();
     this.#emit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #openMessagesApp(): Promise<DesktopSnapshot> {
     if (!this.#openMessages) throw new Error('Messages is unavailable on this Mac.');
     await this.#openMessages();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #connectBrowserAndContinue(
@@ -4056,7 +4105,7 @@ export class DesktopController {
         );
       }
       validate(); // Window selection may outlive a thread change, sign-out, or cancellation.
-      if (this.#state.browser.status !== 'attached') return this.snapshot();
+      if (this.#state.browser.status !== 'attached') return this.#resultSnapshot();
       if (!this.#state.browser.grantedOrigins.length)
         throw new Error(
           'Chrome is connected. Open the website for this task in that window, then connect again to grant it.',
@@ -4071,7 +4120,7 @@ export class DesktopController {
         thread.draft = draft;
         this.#commit();
       }
-      return this.snapshot();
+      return this.#resultSnapshot();
     } finally {
       this.#browserContinuations.delete(input.threadId);
     }
@@ -4151,7 +4200,7 @@ export class DesktopController {
               : 'That Chrome window changed or closed. Choose one of the current windows.',
         };
         this.#commit();
-        return this.snapshot();
+        return this.#resultSnapshot();
       }
       let lastFailure: unknown;
       let attachedWindow: BrowserWindowView | undefined;
@@ -4232,7 +4281,7 @@ export class DesktopController {
       };
     }
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #openBrowserUrl(urlValue: string): Promise<DesktopSnapshot> {
@@ -4281,7 +4330,7 @@ export class DesktopController {
       grantedOrigins,
     };
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #detachBrowser(): Promise<DesktopSnapshot> {
@@ -4301,31 +4350,31 @@ export class DesktopController {
     this.#browserSessionId = undefined;
     this.#state.browser = { status: 'detached', grantedOrigins: [] };
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #configureVoice(): Promise<DesktopSnapshot> {
     await this.#requireVoice().configure();
     this.#emit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #refreshVoice(): Promise<DesktopSnapshot> {
     await this.#requireVoice().refresh();
     this.#emit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #selectVoice(voiceId: string): Promise<DesktopSnapshot> {
     await this.#requireVoice().select(voiceId);
     this.#emit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #disconnectVoice(): DesktopSnapshot {
     this.#requireVoice().disconnect();
     this.#emit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #requireVoiceAvailable(): void {
@@ -4365,10 +4414,10 @@ export class DesktopController {
       throw new Error('Connect Google read-only before enabling editing and sending.');
     }
     if (google.every(({ googleAccess }) => googleAccess === 'read_write')) {
-      return { opened: false, snapshot: this.snapshot() };
+      return { opened: false, snapshot: this.#resultSnapshot() };
     }
     if (google.some(({ upgradeConnectionId }) => Boolean(upgradeConnectionId))) {
-      return { opened: false, snapshot: this.snapshot() };
+      return { opened: false, snapshot: this.#resultSnapshot() };
     }
     const owner = this.#currentIdentityKey();
     if (!this.#fakeServices && !owner) {
@@ -4379,7 +4428,7 @@ export class DesktopController {
         this.#updateConnection(id, { googleAccess: 'read_write' });
       }
       this.#commit();
-      return { opened: false, snapshot: this.snapshot() };
+      return { opened: false, snapshot: this.#resultSnapshot() };
     }
 
     const started = await this.#cloud.startConnection('gmail', 'read_write');
@@ -4399,7 +4448,7 @@ export class DesktopController {
       connectionId: started.connectionId,
     });
     void this.#pollGoogleUpgrade(started.connectionId);
-    return { opened: true, snapshot: this.snapshot() };
+    return { opened: true, snapshot: this.#resultSnapshot() };
   }
 
   async #startGoogleConnection(
@@ -4442,7 +4491,7 @@ export class DesktopController {
       enabled ? 'connector.service.enabled' : 'connector.service.disabled',
       { app: connectionId, connectionId: connection.connectionId },
     );
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #removeLegacyGoogleConnections(): Promise<void> {
@@ -4492,7 +4541,7 @@ export class DesktopController {
         (connection) => included.includes(connection.id) && connection.status !== 'connected',
       )
       .map((connection) => connection.id);
-    if (pending.length === 0) return { opened: false, snapshot: this.snapshot() };
+    if (pending.length === 0) return { opened: false, snapshot: this.#resultSnapshot() };
     this.#recordLifecycleEvent('connector.guided_setup.started', { apps: pending });
 
     if (this.#fakeServices) {
@@ -4500,7 +4549,7 @@ export class DesktopController {
         await this.#startConnection(connectionId, { partOfBundle: true });
       }
       this.#recordLifecycleEvent('connector.guided_setup.completed', { apps: pending });
-      return { opened: false, snapshot: this.snapshot() };
+      return { opened: false, snapshot: this.#resultSnapshot() };
     }
 
     const firstId = pending[0]!;
@@ -4518,7 +4567,7 @@ export class DesktopController {
       if (this.#connectionSetup?.task === task) this.#connectionSetup = undefined;
     };
     void task.then(finish, finish);
-    return { opened: started.opened, snapshot: this.snapshot() };
+    return { opened: started.opened, snapshot: this.#resultSnapshot() };
   }
 
   async #continueConnectionSetup(
@@ -4611,7 +4660,7 @@ export class DesktopController {
         account: connectedAccount,
         connectionId: connectedId,
       });
-      return { opened: false, snapshot: this.snapshot() };
+      return { opened: false, snapshot: this.#resultSnapshot() };
     }
     try {
       const started = await this.#cloud.startConnection(connectionId);
@@ -4635,7 +4684,7 @@ export class DesktopController {
         connectionId: started.connectionId,
       });
       if (options.poll !== false) void this.#pollConnection(connectionId, started.connectionId);
-      return { opened: true, snapshot: this.snapshot() };
+      return { opened: true, snapshot: this.#resultSnapshot() };
     } catch (error) {
       for (const id of affected) {
         this.#updateConnection(id, {
@@ -4656,7 +4705,7 @@ export class DesktopController {
     if (this.#cloud.configured) await this.#cloud.registerAccount(email);
     await this.#identity.startEmailSignIn(email);
     this.#emit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #completeSignIn(code: string): Promise<DesktopSnapshot> {
@@ -4680,7 +4729,7 @@ export class DesktopController {
     await this.#voice?.refresh().catch(() => undefined);
     this.#scheduleResearchSync();
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #completeMfaEnrollment(code: string): Promise<DesktopSnapshot> {
@@ -4689,7 +4738,7 @@ export class DesktopController {
     }
     await this.#identity.completeMfaEnrollment(code);
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #refreshCloudSession(): Promise<void> {
@@ -4750,7 +4799,7 @@ export class DesktopController {
       await this.#refreshMetaProviderState();
       this.#lockConnections('Sign in with the account that created this grant to manage it.');
       this.#commit();
-      return this.snapshot();
+      return this.#resultSnapshot();
     } finally {
       this.#signOutInProgress = false;
       this.#emit();
@@ -4898,7 +4947,7 @@ export class DesktopController {
       await this.#refreshMetaProviderState();
       this.#revision += 1;
       this.#emit();
-      return this.snapshot();
+      return this.#resultSnapshot();
     } catch (error) {
       if (cloudCompleted) {
         throw new Error(
@@ -5097,7 +5146,7 @@ export class DesktopController {
       app: connectionId,
       ...(current?.connectionId ? { connectionId: current.connectionId } : {}),
     });
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #pollConnection(
@@ -5360,7 +5409,7 @@ export class DesktopController {
     });
     this.#commit();
     if (input.enabled) this.#scheduleResearchSync();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #exportResearch(): Promise<BridgeResultMap['research.export']> {
@@ -5429,7 +5478,7 @@ export class DesktopController {
         ...(promptReviewedVersion ? { promptReviewedVersion } : {}),
       };
       this.#commit();
-      return this.snapshot();
+      return this.#resultSnapshot();
     } catch (error) {
       this.#state.capture = previousCapture;
       this.#refreshResearchPendingCount();
@@ -7723,7 +7772,7 @@ export class DesktopController {
   #emit(): void {
     this.#pushToTalk?.syncAccess();
     this.#pushToTalk?.syncTasks();
-    const event: DesktopPushEvent = { type: 'snapshot', snapshot: this.snapshot() };
+    const event: DesktopPushEvent = { type: 'snapshot', snapshot: this.rendererSnapshot() };
     for (const listener of this.#listeners) listener(event);
   }
 }

@@ -17,6 +17,7 @@ import { MacVoiceService } from './mac-voice-service.js';
 import { probeProviders } from './provider-probe.js';
 import type { RuntimeTurnInput } from './runtime-coordinator.js';
 import { canonicalJson } from './update-manifest.js';
+import type { DesktopSnapshot } from '../shared/bridge.js';
 import {
   EphemeralPayloadCipher,
   PlaintextTestCipher,
@@ -1371,6 +1372,85 @@ describe('DesktopController', () => {
     expect(
       controller.snapshot().timeline.find(({ detail }) => detail === 'streamed-answer')?.text,
     ).toHaveLength(30);
+    await controller.shutdown();
+  });
+
+  it('pushes only the active thread history to the renderer and previews the rest', async () => {
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        const base = {
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+        };
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'message' as const,
+          payload: {
+            messageId: `reply-${input.turnId}`,
+            role: 'assistant' as const,
+            parts: [{ kind: 'text' as const, text: `Reply to ${input.thread.title}` }],
+          },
+        };
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 2,
+          timestamp: new Date().toISOString(),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'History helper',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const threadIds: string[] = [];
+    for (const text of ['Plan the trip', 'Draft the budget']) {
+      const { threadId } = await controller.invoke('threads.create', { agentId });
+      await controller.invoke('threads.send', { threadId, text });
+      await vi.waitFor(() =>
+        expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+          'idle',
+        ),
+      );
+      threadIds.push(threadId);
+    }
+    const [first, second] = threadIds as [string, string];
+    const pushed: DesktopSnapshot[] = [];
+    controller.subscribe((event) => {
+      if (event.type === 'snapshot') pushed.push(event.snapshot);
+    });
+
+    const returned = await controller.invokeForRenderer('threads.select', { threadId: first });
+
+    expect(pushed.length).toBeGreaterThan(0);
+    for (const snapshot of [...pushed, returned]) {
+      expect(snapshot.activeThreadId).toBe(first);
+      expect(snapshot.timeline.length).toBeGreaterThan(0);
+      expect(snapshot.timeline.every(({ threadId }) => threadId === first)).toBe(true);
+      expect(snapshot.previews?.[second]).toEqual({
+        label: 'Latest reply',
+        text: expect.stringContaining('Reply to'),
+      });
+      expect(snapshot.previews?.[first]?.label).toBe('Latest reply');
+    }
+    // In-process callers and ordinary invokes still see every thread.
+    const full = await controller.invoke('threads.select', { threadId: first });
+    expect(new Set(full.timeline.map(({ threadId }) => threadId))).toEqual(new Set(threadIds));
+    expect(full.previews).toBeUndefined();
     await controller.shutdown();
   });
 

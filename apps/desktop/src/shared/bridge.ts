@@ -455,11 +455,22 @@ export interface VoiceView {
   detail?: string;
 }
 
+/** A one-line sidebar summary of a thread's latest turn. */
+export interface ThreadPreview {
+  label: 'Request' | 'Latest reply' | 'Latest activity';
+  text: string;
+}
+
 export interface DesktopSnapshot {
   revision: number;
   agents: AgentView[];
   threads: ThreadView[];
+  /**
+   * The full history for in-process callers. Snapshots pushed to the renderer carry only the
+   * active thread's items and summarize every other thread in `previews`.
+   */
   timeline: TimelineItemView[];
+  previews?: Record<string, ThreadPreview>;
   approvals: ApprovalView[];
   providers: ProviderView[];
   connections: ConnectionView[];

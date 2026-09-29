@@ -306,3 +306,14 @@ describe('bridge renderer queued follow-ups', () => {
     expect(unqueue).toHaveBeenCalledWith('thread-1', 'user-2');
   });
 });
+
+describe('bridge renderer scoped snapshots', () => {
+  it('uses pushed previews for threads whose history was not sent', () => {
+    const source = snapshot([]);
+    source.previews = { 'thread-1': { label: 'Request', text: 'Plan the trip' } };
+    expect(mapDesktopSnapshot(source).agents[0]?.threads[0]?.preview).toEqual({
+      label: 'Request',
+      text: 'Plan the trip',
+    });
+  });
+});

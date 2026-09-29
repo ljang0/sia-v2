@@ -1,4 +1,4 @@
-import { threadPreviews } from './threadPreviews';
+import { threadPreviews } from '../shared/thread-previews';
 import { agentIdentity } from './agentIdentity';
 import type {
   ApprovalView,
@@ -41,14 +41,19 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     } else {
       selectedAgentOverride = undefined;
     }
-    listeners.forEach((listener) => listener(structuredClone(latest!)));
-    return latest;
+    // Each mapped snapshot is fresh and never mutated afterwards, so listeners share it.
+    // Copying it per listener cost more than the mapping itself on long histories.
+    const snapshot = latest;
+    listeners.forEach((listener) => listener(snapshot));
+    return snapshot;
   };
 
   const publishLocal = (update: (snapshot: RendererSnapshot) => void) => {
     if (!latest) return;
-    update(latest);
-    listeners.forEach((listener) => listener(structuredClone(latest!)));
+    const snapshot = { ...latest };
+    update(snapshot);
+    latest = snapshot;
+    listeners.forEach((listener) => listener(snapshot));
   };
 
   return {
@@ -60,7 +65,7 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     scotty: (input) => bridge.scotty(input),
     phoneRemote: (input) => bridge.phoneRemote(input),
     async getSnapshot() {
-      return structuredClone(publish(await bridge.bootstrap()));
+      return publish(await bridge.bootstrap());
     },
     subscribe(listener, onError) {
       listeners.add(listener);
@@ -487,7 +492,10 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
 }
 
 export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
-  const previews = threadPreviews(source.timeline);
+  // Pushed snapshots carry previews because their timeline holds only the active thread.
+  const previews = source.previews
+    ? new Map(Object.entries(source.previews))
+    : threadPreviews(source.timeline);
   const threadMap = new Map(source.threads.map((thread) => [thread.id, thread]));
   const agents: AgentSummary[] = source.agents.map((agent) => ({
     id: agent.id,

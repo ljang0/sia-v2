@@ -343,7 +343,7 @@ export function registerDesktopIpc(
     }
     const envelope = parseEnvelope(rawEnvelope);
     try {
-      return await controller.invoke(envelope.method, envelope.input as never);
+      return await controller.invokeForRenderer(envelope.method, envelope.input as never);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'The request failed.';
       throw new Error(sanitizeErrorMessage(message));
