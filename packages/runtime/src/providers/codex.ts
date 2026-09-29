@@ -165,6 +165,8 @@ interface ActiveTurn {
   watchdogError?: string;
   hasFinalResponse?: boolean;
   nativeTurnId?: string;
+  /** Stop arrived before Codex reported the native turn id. */
+  interruptPending?: boolean;
 }
 
 interface DeferredRequest {
@@ -527,16 +529,16 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         this.#failTurn(active, error),
       );
     };
-    signal?.addEventListener('abort', onAbort, { once: true });
+    if (signal?.aborted) active.interruptPending = true;
+    else signal?.addEventListener('abort', onAbort, { once: true });
+    // Do not abort the start request with the turn signal: Stop needs its turn id to
+    // interrupt a turn that Codex already began.
     void peer
-      .request(method, params, { ...(signal ? { signal } : {}), timeoutMs: this.#timeout })
+      .request(method, params, { timeoutMs: this.#timeout })
       .then((result) => {
         if (this.#activeByThread.get(session.nativeId) !== active) return;
         const nativeTurnId = stringAt(result, ['turn', 'id'], ['turnId'], ['id']);
-        if (nativeTurnId) {
-          active.nativeTurnId = nativeTurnId;
-          this.#activeByNativeTurn.set(nativeTurnId, active);
-        }
+        if (nativeTurnId && !active.nativeTurnId) this.#learnNativeTurnId(active, nativeTurnId);
       })
       .catch((error: unknown) => this.#failTurn(active, error));
 
@@ -588,14 +590,31 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   async cancelTurn(session: ProviderSession, turnId: string): Promise<void> {
     const active = this.#activeByThread.get(session.nativeId);
     if (!active || active.input.turnId !== turnId) return;
+    // turn/interrupt requires the native turn id. Until Codex reports it, remember the
+    // Stop and send it as soon as the id arrives; the turn stays active until completion.
+    if (!active.nativeTurnId) {
+      active.interruptPending = true;
+      return;
+    }
+    await this.#interrupt(active, active.nativeTurnId);
+  }
+
+  async #interrupt(active: ActiveTurn, nativeTurnId: string): Promise<void> {
     const peer = await this.#peer();
     await peer.request(
       'turn/interrupt',
-      {
-        threadId: session.nativeId,
-        ...(active.nativeTurnId ? { turnId: active.nativeTurnId } : {}),
-      },
+      { threadId: active.session.nativeId, turnId: nativeTurnId },
       { timeoutMs: this.#timeout },
+    );
+  }
+
+  #learnNativeTurnId(active: ActiveTurn, nativeTurnId: string): void {
+    active.nativeTurnId = nativeTurnId;
+    this.#activeByNativeTurn.set(nativeTurnId, active);
+    if (!active.interruptPending) return;
+    active.interruptPending = false;
+    void this.#interrupt(active, nativeTurnId).catch((error: unknown) =>
+      this.#failTurn(active, error),
     );
   }
 
@@ -998,10 +1017,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       method === 'turn/started' && !active.nativeTurnId
         ? stringAt(value, ['turn', 'id'])
         : undefined;
-    if (startedTurnId) {
-      active.nativeTurnId = startedTurnId;
-      this.#activeByNativeTurn.set(startedTurnId, active);
-    }
+    if (startedTurnId) this.#learnNativeTurnId(active, startedTurnId);
     const item = record(value.item);
     const itemId = stringAt(value, ['itemId'], ['item', 'id']) ?? 'provider-item';
     if (method === 'item/agentMessage/delta') {

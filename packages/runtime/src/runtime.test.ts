@@ -2089,6 +2089,64 @@ describe('Codex turn resilience', () => {
     }
   });
 
+  it('sends a Stop that arrives before turn/start returns once the turn id is known', async () => {
+    const startReply = Promise.withResolvers<unknown>();
+    const started = Promise.withResolvers<void>();
+    const interrupts: unknown[] = [];
+    let server!: ReturnType<typeof linkedPeers>;
+    const peers = codexServer(
+      async (p) => {
+        server = p;
+        started.resolve();
+        return await startReply.promise;
+      },
+      async (params) => {
+        interrupts.push(params);
+        setTimeout(() => {
+          void server.server.notify('turn/completed', {
+            threadId: 'native-thread',
+            turn: { id: 'native-turn', status: 'interrupted' },
+          });
+        }, 1);
+        return {};
+      },
+    );
+    const adapter = new CodexAppServerAdapter({
+      sessionEphemeral: true,
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    try {
+      const session = await adapter.createSession(sessionOptions);
+      const controller = new AbortController();
+      const events: ThreadEventEnvelope[] = [];
+      const finished = (async () => {
+        for await (const event of adapter.sendTurn(
+          session,
+          { turnId: 't1', text: 'hi' },
+          controller.signal,
+        ))
+          events.push(event);
+      })();
+      await started.promise;
+      controller.abort();
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(interrupts).toEqual([]);
+      startReply.resolve({ turn: { id: 'native-turn' } });
+      await finished;
+      expect(interrupts).toEqual([{ threadId: 'native-thread', turnId: 'native-turn' }]);
+      expect(events.at(-1)).toMatchObject({ type: 'completion' });
+      expect(events.some((event) => event.type === 'error')).toBe(false);
+    } finally {
+      await adapter.dispose();
+    }
+  });
+
   it('ends the active turn and forgets sessions when the app-server exits', async () => {
     let exit!: () => void;
     const exited = new Promise<void>((resolve) => {
