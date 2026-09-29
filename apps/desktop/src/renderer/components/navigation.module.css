@@ -1,3 +1,11 @@
+aside.navigation,
+aside.rail {
+  /* Status colors tuned for the dark shell in both themes. */
+  --signal-working: #7fd8a8;
+  --signal-needs-you: #f3c76e;
+  --signal-problem: #f59a8f;
+  --signal-unread: var(--shell-text);
+}
 aside.navigation {
   flex-basis: 272px;
   border-right: 1px solid var(--shell-line);
@@ -184,18 +192,40 @@ aside.navigation {
   min-width: 18px;
   padding: 1px 6px;
   border-radius: 999px;
-  background: var(--shell-text);
-  color: var(--shell-bg);
+  background: var(--signal-needs-you);
+  color: #2b2208;
   font-size: 11px;
   font-weight: 650;
   line-height: 16px;
   text-align: center;
+  animation: badgePop 320ms var(--ease-out-soft) both;
+}
+@keyframes badgePop {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
 }
 .chevron {
   flex: none;
-  margin-left: auto;
+  order: 1;
   color: var(--shell-muted);
-  transition: transform var(--navigation-duration) var(--ease-standard);
+  opacity: 0.7;
+  transition:
+    transform var(--navigation-duration) var(--ease-standard),
+    opacity 150ms ease;
+}
+.groupHeader:hover .chevron,
+.groupTrigger:focus-visible .chevron {
+  opacity: 1;
+}
+.groupBadge {
+  order: 2;
+  margin-left: auto;
 }
 .groupTrigger[aria-expanded='true'] .chevron {
   transform: rotate(90deg);
@@ -243,8 +273,69 @@ aside.navigation {
   margin: 2px 0 6px;
 }
 .navigation .task {
+  position: relative;
   margin: 0;
   border-radius: 8px;
+  transition: background-color 150ms ease;
+}
+.navigation .task > button:first-child {
+  transition:
+    color 150ms ease,
+    transform 120ms ease;
+}
+.navigation .task > button:first-child:active {
+  opacity: 1;
+  transform: scale(0.985);
+}
+/* The row's status dot sits where its menu button appears on hover. */
+.taskSignal {
+  position: absolute;
+  top: 50%;
+  right: 13px;
+  width: 7px;
+  height: 7px;
+  margin-top: -3.5px;
+  border-radius: 50%;
+  background: var(--signal-unread);
+  pointer-events: none;
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+.taskSignal[data-signal='working'] {
+  background: var(--signal-working);
+  animation: signalPulse 1.8s var(--ease-standard) infinite;
+}
+.taskSignal[data-signal='needs-you'] {
+  background: var(--signal-needs-you);
+  animation: badgePop 320ms var(--ease-out-soft) both;
+}
+.taskSignal[data-signal='problem'] {
+  background: var(--signal-problem);
+}
+.task:hover .taskSignal,
+.task:focus-within .taskSignal,
+.task:has([data-state='open']) .taskSignal {
+  opacity: 0;
+  transform: scale(0.5);
+}
+@keyframes signalPulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--signal-working) 55%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+.taskMeta[data-signal='needs-you'] > span {
+  color: var(--signal-needs-you);
+}
+.taskMeta[data-signal='problem'] > span {
+  color: var(--signal-problem);
+}
+.taskMeta[data-signal='working'] > span {
+  color: var(--signal-working);
 }
 .navigation .task > button:first-child {
   min-height: 44px;
@@ -274,6 +365,15 @@ aside.navigation {
 }
 [data-appearance='calm'] .group {
   --navigation-duration: 0ms;
+}
+[data-appearance='calm'] .taskSignal[data-signal],
+[data-appearance='calm'] .groupBadge {
+  animation: none;
+}
+.taskList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 .navigation .taskTitle {
   display: block;
@@ -410,6 +510,10 @@ aside.rail {
 @media (prefers-reduced-motion: reduce) {
   .group {
     --navigation-duration: 0ms;
+  }
+  .taskSignal[data-signal],
+  .groupBadge {
+    animation: none;
   }
   .preview {
     animation: none;

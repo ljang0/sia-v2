@@ -1,0 +1,54 @@
+/* Each row sits in a one-row grid so it can open from, and fold to, zero height. */
+.item {
+  display: grid;
+  grid-template-rows: 1fr;
+  min-width: 0;
+}
+.clip {
+  min-width: 0;
+  min-height: 0;
+}
+.item[data-motion] > .clip {
+  overflow: hidden;
+}
+.item[data-motion='enter'] {
+  animation: motionEnter 300ms var(--ease-out-soft) both;
+}
+.item[data-motion='leave'] {
+  pointer-events: none;
+  animation: motionLeave 200ms var(--ease-standard) both;
+}
+@keyframes motionEnter {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes motionLeave {
+  from {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+  to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .item[data-motion] {
+    animation: none;
+  }
+}
+:global([data-appearance='calm']) .item[data-motion] {
+  animation: none;
+}

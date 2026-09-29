@@ -67,6 +67,38 @@ describe('thread navigation', () => {
     ).toBeTruthy();
   });
 
+  it('marks each conversation with what it wants from the person', () => {
+    const agents = structuredClone(demoSnapshot.agents);
+    const [first, second] = agents[0]!.threads;
+    first!.status = 'waiting';
+    second!.status = 'running';
+    agents[1]!.threads[0]!.unread = true;
+    render(
+      <Sidebar
+        agents={agents}
+        selectedAgentId={agents[0]!.id}
+        collapsed={false}
+        onToggle={vi.fn()}
+        onSelectAgent={vi.fn()}
+        onSelectThread={vi.fn()}
+        onCreateThread={vi.fn()}
+        onRenameThread={vi.fn()}
+        onDeleteThread={vi.fn()}
+        onCreateAgent={vi.fn()}
+        onEditAgent={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    );
+    const signal = (title: string) =>
+      screen
+        .getByRole('button', { name: title })
+        .querySelector('i[data-signal]')
+        ?.getAttribute('data-signal');
+    expect(signal(first!.title)).toBe('needs-you');
+    expect(signal(second!.title)).toBe('working');
+    expect(signal(agents[1]!.threads[0]!.title)).toBe('unread');
+  });
+
   it('explains the empty list before any agent exists', () => {
     render(
       <Sidebar

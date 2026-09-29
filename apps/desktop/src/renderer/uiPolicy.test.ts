@@ -40,7 +40,15 @@ const welcome = readFileSync(
   fileURLToPath(new URL('./components/welcome-recents.module.css', import.meta.url)),
   'utf8',
 );
-const css = `${tokens}\n${styles}\n${companion}\n${aurora}\n${metal}\n${navigation}\n${appearance}\n${startup}\n${results}\n${welcome}`;
+const home = ['welcome-home', 'motion-list']
+  .map((name) =>
+    readFileSync(
+      fileURLToPath(new URL(`./components/${name}.module.css`, import.meta.url)),
+      'utf8',
+    ),
+  )
+  .join('\n');
+const css = `${tokens}\n${styles}\n${companion}\n${aurora}\n${metal}\n${navigation}\n${appearance}\n${startup}\n${results}\n${welcome}\n${home}`;
 
 describe('renderer accessibility CSS policy', () => {
   it('keeps explicit reduced-motion, increased-contrast, and forced-color modes', () => {

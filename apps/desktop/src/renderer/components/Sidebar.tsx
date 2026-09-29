@@ -26,6 +26,7 @@ import { AgentForm } from './AgentForm';
 import navigation from './navigation.module.css';
 import { TaskPreviewButton } from './TaskPreviewButton';
 import { SiaLogo } from './SiaLogo';
+import { MotionList } from './MotionList';
 import { NavigationGroup } from './NavigationGroup';
 import { threadDisplayTitle } from '../threadTitle';
 
@@ -423,12 +424,15 @@ export function Sidebar({
                 }
               >
                 <div className={navigation.tasks}>
-                  {agent.threads.length ? (
-                    agent.threads.map((thread) =>
+                  <MotionList
+                    items={agent.threads}
+                    className={navigation.taskList}
+                    instant={Boolean(query.trim())}
+                  >
+                    {(thread) =>
                       editingThread?.id === thread.id ? (
                         <form
                           className={styles.threadRenameForm}
-                          key={thread.id}
                           onSubmit={(event) => {
                             event.preventDefault();
                             commitRename(thread);
@@ -466,7 +470,6 @@ export function Sidebar({
                         </form>
                       ) : (
                         <div
-                          key={thread.id}
                           className={`${styles.threadRow} ${navigation.task} ${
                             thread.id === selectedThreadId && activePage === 'conversation'
                               ? styles.threadRowSelected
@@ -515,9 +518,10 @@ export function Sidebar({
                             }}
                           />
                         </div>
-                      ),
-                    )
-                  ) : query ? null : (
+                      )
+                    }
+                  </MotionList>
+                  {agent.threads.length || query ? null : (
                     <button
                       className={styles.newThreadInline}
                       type="button"
@@ -736,6 +740,7 @@ function useScrollEdges(ref: RefObject<HTMLElement | null>): {
 function ThreadLabel({ thread }: { thread: ThreadSummary }) {
   const draft = Boolean(thread.draft?.trim());
   const state = threadStateLabel(thread);
+  const signal = threadSignal(thread);
   return (
     <span
       className={styles.threadCopy}
@@ -744,13 +749,26 @@ function ThreadLabel({ thread }: { thread: ThreadSummary }) {
     >
       <span className={`${styles.threadTitle} ${navigation.taskTitle}`}>{thread.title}</span>
       {draft || state ? (
-        <span className={navigation.taskMeta}>
+        <span className={navigation.taskMeta} data-signal={signal}>
           {draft ? <strong>Draft</strong> : null}
           {state ? <span>{state}</span> : null}
         </span>
       ) : null}
+      {signal ? (
+        <i className={navigation.taskSignal} data-signal={signal} aria-hidden="true" />
+      ) : null}
     </span>
   );
+}
+
+/** The dot at a row's end: what, if anything, the conversation wants from the person. */
+function threadSignal(
+  thread: ThreadSummary,
+): 'working' | 'needs-you' | 'problem' | 'unread' | undefined {
+  if (thread.status === 'running' || thread.status === 'queued') return 'working';
+  if (thread.status === 'waiting') return 'needs-you';
+  if (thread.status === 'error') return 'problem';
+  return thread.unread ? 'unread' : undefined;
 }
 
 function threadStateLabel(thread: ThreadSummary) {
