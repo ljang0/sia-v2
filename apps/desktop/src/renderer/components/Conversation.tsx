@@ -37,8 +37,9 @@ import type {
   ThreadEvent,
   ThreadSummary,
 } from '../types';
-import { timeGreeting } from '../welcome';
+import { timeGreeting, type WelcomePrompt } from '../welcome';
 import { completedReplyId } from '../task-result';
+import { WelcomeHome } from './WelcomeHome';
 import { WelcomeRecents } from './WelcomeRecents';
 import { ReplyReadyMark, ReplySurface } from './ResultCard';
 import styles from '../ui.module.css';
@@ -75,7 +76,7 @@ interface ConversationProps {
   onPreviewAttachment?: ((attachmentId: string) => Promise<AttachmentPreview>) | undefined;
   onOpenAttachment?: ((attachmentId: string) => Promise<void>) | undefined;
   onRevealAttachment?: ((attachmentId: string) => Promise<void>) | undefined;
-  starterPrompts?: readonly string[] | undefined;
+  starterPrompts?: readonly WelcomePrompt[] | undefined;
   findOpen?: boolean | undefined;
   onFindOpenChange?: ((open: boolean) => void) | undefined;
   voiceEnabled?: boolean | undefined;
@@ -696,31 +697,15 @@ export function Conversation({
           ) : null}
 
           {thread.events.length === 0 ? (
-            <div className={styles.threadEmpty} data-companion-thread-empty>
-              <AgentForm identity={agentHue} size="medium" />
-              <span className={styles.emptyStateKicker}>
-                {timeGreeting()}
-                {agentName ? ` · ${agentName} is ready` : ''}
-              </span>
-              <h2 className={styles.gradientHeading}>What would you like to do?</h2>
-              <p>Describe the outcome, attach any useful files, or choose a suggested start.</p>
-              {onOpenApps ? (
-                <button className={styles.textButton} type="button" onClick={onOpenApps}>
-                  Connect work apps
-                </button>
-              ) : null}
-              {starterPrompts.length ? (
-                <div className={styles.starterPrompts} aria-label="Suggested starts">
-                  {starterPrompts.map((prompt) => (
-                    <button key={prompt} type="button" onClick={() => void onSend(prompt)}>
-                      <span>{prompt}</span>
-                      <span aria-hidden="true">↗</span>
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-              <WelcomeRecents threads={recentThreads} onOpen={onOpenThread} />
-            </div>
+            <WelcomeHome
+              agentName={agentName}
+              agentHue={agentHue}
+              prompts={starterPrompts}
+              recentThreads={recentThreads}
+              onSend={(prompt) => void onSend(prompt)}
+              onOpenThread={onOpenThread}
+              onOpenApps={onOpenApps}
+            />
           ) : (
             <div className={styles.eventList}>
               {blocks.map((block) =>

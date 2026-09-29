@@ -2018,7 +2018,6 @@ button.agentAvatar {
   transform: none;
 }
 
-.threadEmpty,
 .emptyState,
 .fatalState,
 .inspectorEmpty {
@@ -2042,13 +2041,6 @@ button.agentAvatar {
   margin-top: 0;
 }
 
-.threadEmpty {
-  min-height: 46vh;
-  padding-top: 4vh;
-  color: var(--text-tertiary);
-}
-
-.threadEmpty h2,
 .emptyState h1,
 .fatalState h1 {
   margin: 18px 0 8px;
@@ -2070,7 +2062,6 @@ button.agentAvatar {
   letter-spacing: -0.02em;
 }
 
-.threadEmpty p,
 .emptyState p,
 .fatalState p,
 .inspectorEmpty p {
@@ -2094,8 +2085,7 @@ button.agentAvatar {
   margin-top: 22px;
 }
 
-.emptyState .textButton,
-.threadEmpty .textButton {
+.emptyState .textButton {
   margin-top: 13px;
 }
 
@@ -5386,49 +5376,6 @@ input[type='checkbox'].switch:disabled {
   pointer-events: none;
 }
 
-.starterPrompts {
-  display: grid;
-  width: min(100%, 560px);
-  gap: 1px;
-  margin-top: 24px;
-  overflow: hidden;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-control);
-  background: var(--border-subtle);
-  text-align: left;
-}
-
-.starterPrompts button {
-  display: flex;
-  min-height: 46px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 9px 13px;
-  border: 0;
-  background: color-mix(in srgb, var(--bg-raised) 94%, transparent);
-  color: var(--text-primary);
-  font: inherit;
-  cursor: pointer;
-  transition: background 200ms var(--ease-standard);
-}
-
-.starterPrompts button:hover {
-  background: var(--bg-hover);
-}
-
-.starterPrompts button span:last-child {
-  color: var(--text-tertiary);
-  transition:
-    transform 220ms var(--ease-out-soft),
-    color 220ms ease;
-}
-
-.starterPrompts button:hover span:last-child {
-  color: var(--text-primary);
-  transform: translate(2px, -2px);
-}
-
 .eventSearchAnchor {
   display: flex;
   flex-direction: column;
@@ -6965,30 +6912,6 @@ button.agentAvatar {
   text-transform: uppercase;
 }
 
-.threadEmpty {
-  align-items: flex-start;
-  max-width: 660px;
-  min-height: 36vh;
-  margin: 0 auto;
-  padding: 4vh 28px 0;
-  text-align: left;
-}
-
-.threadEmpty h2 {
-  max-width: 16ch;
-  margin-top: 13px;
-  font-family: var(--font-display);
-  font-size: clamp(30px, 3vw, 42px);
-  letter-spacing: -0.045em;
-  line-height: 1.08;
-}
-
-.threadEmpty p {
-  max-width: 48ch;
-  font-size: var(--text-lg);
-  line-height: 1.6;
-}
-
 .composerArea {
   padding-bottom: 16px;
 }
@@ -7367,8 +7290,7 @@ button.agentAvatar {
     animation: none;
   }
   .conversationAurora,
-  .composer,
-  .starterPrompts button span:last-child {
+  .composer {
     transition: none;
   }
   :where(button, a, input, textarea, select, summary) {

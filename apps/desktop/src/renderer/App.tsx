@@ -624,7 +624,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                         app.run(() => api.revealAttachment(activeThread.id, attachmentId))
                     : undefined
                 }
-                starterPrompts={welcomePrompts(roomAgent)}
+                starterPrompts={welcomePrompts(roomAgent, { apps: snapshot.apps })}
                 recentThreads={
                   activeThread?.events.length
                     ? []

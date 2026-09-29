@@ -721,7 +721,9 @@ describe('Conversation continuity tools', () => {
     render(
       <Conversation
         thread={baseThread({ status: 'idle', events: [] })}
-        starterPrompts={['Review the release blockers.']}
+        starterPrompts={[
+          { title: 'Review blockers', prompt: 'Review the release blockers.', icon: 'list' },
+        ]}
         onSend={onSend}
         onStop={async () => undefined}
         onRetry={async () => undefined}
