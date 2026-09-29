@@ -315,7 +315,7 @@ export function Onboarding({
                     {setupRoute === 'mac-bypass'
                       ? confirmActions
                         ? 'Sia works in the background while you keep using your Mac and asks before it sends messages or changes files.'
-                        : 'Sia works in the background while you use your Mac, without asking before each step. You can change this in Settings → Computer.'
+                        : 'Sia works in the background while you keep using your Mac, without asking before each step. You can change this in Settings → Computer.'
                       : confirmActions
                         ? 'Sia asks before taking actions in connected apps.'
                         : 'Sia takes actions in connected apps without asking each time. You can turn on confirmations in Settings → Computer.'}
