@@ -7,8 +7,9 @@ import {
   NATIVE_MEMORY_REVIEW_PROMPT,
 } from './memory-suggestions.js';
 import { NativeSkills } from './native-skills.js';
-import { imageActivityTitle } from '../shared/activity-label.js';
+import { activityLabel, imageActivityTitle } from '../shared/activity-label.js';
 import { conversationTitle } from '../shared/plain-text.js';
+import { turnFinishedNotice } from './notification-copy.js';
 import { threadPreviews, type ThreadPreviewMemo } from '../shared/thread-previews.js';
 import { skillExecutionMode, skillUnavailableReason } from '../shared/skill-execution.js';
 import { NotchVault } from './notch/vault.js';
@@ -6792,14 +6793,19 @@ export class DesktopController {
     if (agent?.notificationsEnabled !== false) {
       this.#notify?.({
         threadId: thread.id,
-        title:
-          outcome === 'complete'
-            ? `${thread.title} finished`
-            : `${thread.title} needs attention`,
-        body:
-          outcome === 'complete'
-            ? 'Background work is ready to review.'
-            : 'The task stopped before it could finish.',
+        ...turnFinishedNotice({
+          title: thread.title,
+          outcome,
+          reply: this.#state.timeline
+            .filter(
+              (item) =>
+                item.threadId === thread.id &&
+                item.turnId === turn.id &&
+                item.kind === 'assistant',
+            )
+            .map((item) => item.text ?? '')
+            .join('\n\n'),
+        }),
       });
     }
   }
@@ -7406,10 +7412,12 @@ export class DesktopController {
     });
     this.#waitForApproval(request.threadId);
     this.#commit();
+    // The notification names the step in words ("Sending your mail"), not the tool id.
+    const step = activityLabel(request.tool.name);
     this.#notifyNeedsAttention(
       request.threadId,
       'approval',
-      runtimeToolTitle(request.tool.name),
+      step === activityLabel(undefined) ? runtimeToolTitle(request.tool.name) : step,
     );
     return await new Promise((resolve) => {
       const finish = (decision: 'allow' | 'deny' | 'cancel'): void => {

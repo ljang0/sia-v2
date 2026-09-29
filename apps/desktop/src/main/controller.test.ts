@@ -2372,7 +2372,7 @@ describe('DesktopController', () => {
     expect(notify).toHaveBeenCalledExactlyOnceWith({
       threadId,
       title: 'Juniper needs your OK',
-      body: 'Mail Send',
+      body: 'Sending your mail',
     });
     const status = () =>
       controller.snapshot().threads.find(({ id }) => id === threadId)?.status;

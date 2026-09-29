@@ -70,6 +70,7 @@ import {
   personalVoicePath,
 } from './personal-voice.js';
 import { nativeVoiceHelperFactory } from './push-to-talk.js';
+import { dockBadgeText } from './dock-badge.js';
 
 const WINDOW_SIZE = { width: 1220, height: 780, minWidth: 960, minHeight: 640 };
 const PRODUCTION_CSP =
@@ -624,11 +625,13 @@ async function performApplicationCreation(): Promise<void> {
     activeController.attachRuntime(activeRuntime);
     await activeController.initialize();
     unsubscribeDockBadge?.();
+    let dockBadge: string | undefined;
     const updateDockBadge = (snapshot: ReturnType<typeof activeController.snapshot>) => {
-      const unread = snapshot.threads.filter(
-        (thread) => thread.unread && !thread.archivedAt,
-      ).length;
-      app.dock?.setBadge(unread ? String(unread) : '');
+      // Snapshots arrive while replies stream; only a changed count reaches the Dock.
+      const next = dockBadgeText(snapshot.threads);
+      if (next === dockBadge) return;
+      dockBadge = next;
+      app.dock?.setBadge(next);
     };
     updateDockBadge(activeController.snapshot());
     unsubscribeDockBadge = activeController.subscribe((event) => {
