@@ -2241,9 +2241,9 @@ describe('DesktopController', () => {
       ),
     );
     await controller.invoke('threads.send', { threadId, text: 'Then summarize' });
-    await expect(controller.invoke('threads.fork', { threadId })).rejects.toThrow(
-      'Stop the active task before you fork this thread.',
-    );
+    await expect(
+      controller.invoke('threads.fork', { threadId, isolated: false }),
+    ).rejects.toThrow('Stop the active task before you fork this thread.');
     expect(controller.snapshot().threads).toHaveLength(1);
     release.resolve();
     await controller.shutdown();
