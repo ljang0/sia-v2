@@ -4031,8 +4031,173 @@ describe('DesktopController', () => {
     );
     const approval = controller.snapshot().approvals.at(-1)!;
     expect(approval).toMatchObject({ kind: 'native_tool', title: 'Allow computer access' });
+    // Phone turns never offer, or accept, "Allow for this task".
+    expect(approval.allowForTask).toBeUndefined();
+    await expect(
+      controller.invoke('approvals.resolve', {
+        approvalId: approval.id,
+        decision: 'approve_task',
+      }),
+    ).rejects.toThrow('only be allowed once');
     await controller.invoke('approvals.resolve', { approvalId: approval.id, decision: 'deny' });
     await expect(decision).resolves.toBe('deny');
+    await controller.shutdown();
+  });
+
+  it('allows equivalent computer and Sia actions for the rest of the task only', async () => {
+    const controller = await createController();
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
+    const started = await controller.invoke('threads.send', { threadId, text: 'Use Notes' });
+    const computer = (turnId: string, app: string, digest: string) =>
+      controller.authorizeComputer(
+        {
+          adapterId: 'desktop_input',
+          riskClass: 'r2',
+          permissionMode: 'standard',
+          publicSession: turnId,
+          requestDigest: digest,
+          humanSummary: `Control the selected ${app} window`,
+          resourceJson: JSON.stringify({ app_name: app, window_title: 'Draft' }),
+          expiresUnixMs: BigInt(Date.now() + 30_000),
+        },
+        { kind: 'turn', threadId, turnId },
+      );
+    const message = (recipient: string, text: string) =>
+      controller.approvalBroker().requestApproval({
+        id: randomUUID(),
+        sessionId: 'session-1',
+        threadId,
+        turnId: started.turnId,
+        tool: getActionToolDescriptor('messages_send')!,
+        arguments: { recipient, text },
+        targetDigest: 'digest',
+        reason: 'This sends a message.',
+      });
+
+    const first = computer(started.turnId, 'Notes', 'digest-1');
+    const approval = controller.snapshot().approvals.at(-1)!;
+    expect(approval.allowForTask).toBe(true);
+    await controller.invoke('approvals.resolve', {
+      approvalId: approval.id,
+      decision: 'approve_task',
+    });
+    await expect(first).resolves.toBe('allow');
+    expect(controller.snapshot().approvals.at(-1)).toMatchObject({
+      id: approval.id,
+      status: 'approved',
+      scope: 'task',
+    });
+    const count = controller.snapshot().approvals.length;
+    await expect(computer(started.turnId, 'Notes', 'digest-2')).resolves.toBe('allow');
+    expect(controller.snapshot().approvals).toHaveLength(count);
+    const other = computer(started.turnId, 'TextEdit', 'digest-3');
+    const textEdit = controller.snapshot().approvals.at(-1)!;
+    expect(textEdit).toMatchObject({ target: 'TextEdit, Draft', status: 'pending' });
+    await controller.invoke('approvals.resolve', { approvalId: textEdit.id, decision: 'deny' });
+    await expect(other).resolves.toBe('deny');
+
+    const sent = message('+15555550100', 'On my way');
+    const send = controller.snapshot().approvals.at(-1)!;
+    expect(send.allowForTask).toBe(true);
+    await controller.invoke('approvals.resolve', {
+      approvalId: send.id,
+      decision: 'approve_task',
+    });
+    await expect(sent).resolves.toEqual({ approved: true });
+    await expect(message('+15555550100', 'Running late')).resolves.toEqual({ approved: true });
+    const stranger = message('+15555550199', 'Hello');
+    const asked = controller.snapshot().approvals.at(-1)!;
+    expect(asked).toMatchObject({ status: 'pending', target: 'recipient: +15555550199' });
+    await controller.invoke('approvals.resolve', { approvalId: asked.id, decision: 'deny' });
+    await expect(stranger).resolves.toEqual({ approved: false });
+
+    // The grant ends with its task.
+    await controller.invoke('threads.cancel', { threadId });
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).not.toBe(
+        'running',
+      ),
+    );
+    const next = await controller.invoke('threads.send', { threadId, text: 'Use Notes again' });
+    const again = computer(next.turnId, 'Notes', 'digest-4');
+    const renewed = controller.snapshot().approvals.at(-1)!;
+    expect(renewed).toMatchObject({ status: 'pending', target: 'Notes, Draft' });
+    await controller.invoke('approvals.resolve', { approvalId: renewed.id, decision: 'deny' });
+    await expect(again).resolves.toBe('deny');
+    await controller.shutdown();
+  });
+
+  it('passes "Allow for this task" to native provider requests that offer it', async () => {
+    let runtimeThreadId = '';
+    const runtime = {
+      async *runTurn(input: { turnId: string }, signal?: AbortSignal) {
+        yield {
+          id: crypto.randomUUID(),
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'approval' as const,
+          payload: {
+            requestId: 'provider-request-1',
+            phase: 'requested' as const,
+            title: 'Allow Mac action',
+            description: 'Run a command: open -a TextEdit',
+            choices: [
+              { id: 'allow_once', label: 'Allow once', kind: 'allow_once' as const },
+              { id: 'allow_task', label: 'Allow for this task', kind: 'allow_task' as const },
+              { id: 'deny', label: 'Deny', kind: 'deny' as const },
+            ],
+          },
+        };
+        await new Promise<void>((resolve) => {
+          if (signal?.aborted) resolve();
+          else signal?.addEventListener('abort', () => resolve(), { once: true });
+        });
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
+    runtimeThreadId = threadId;
+    await controller.invoke('threads.send', { threadId, text: 'Open TextEdit' });
+    await vi.waitFor(() =>
+      expect(controller.snapshot().approvals.at(-1)?.status).toBe('pending'),
+    );
+    const approval = controller.snapshot().approvals.at(-1)!;
+    expect(approval.allowForTask).toBe(true);
+    await controller.invoke('approvals.resolve', {
+      approvalId: approval.id,
+      decision: 'approve_task',
+    });
+    expect(runtime.respondToRequest).toHaveBeenCalledWith(threadId, {
+      requestId: 'provider-request-1',
+      choiceId: 'allow_task',
+    });
+    expect(controller.snapshot().approvals.at(-1)).toMatchObject({
+      status: 'approved',
+      scope: 'task',
+    });
+    await controller.invoke('threads.cancel', { threadId });
     await controller.shutdown();
   });
 

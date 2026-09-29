@@ -858,7 +858,8 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
           (event) => event.type === 'approval' && event.id === approvalId,
         );
         if (approval?.type === 'approval') {
-          approval.status = decision === 'approve' ? 'approved' : 'rejected';
+          approval.status = decision === 'reject' ? 'rejected' : 'approved';
+          if (decision === 'approve_task') approval.scope = 'task';
         }
         if (current.activeThread) current.activeThread.status = 'idle';
       });
