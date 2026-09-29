@@ -28,6 +28,8 @@ export function focusComposer(windowMs = 1500): void {
   };
   const attempt = () => {
     if (stopped) return;
+    // The page may have gone away (window closed, test environment torn down) between retries.
+    if (typeof document === 'undefined') return stop();
     const composer = document.querySelector<HTMLTextAreaElement>(COMPOSER_INPUT);
     const active = document.activeElement;
     if (active !== composer && !focusIsAdrift(active, origin)) return stop();
@@ -39,6 +41,11 @@ export function focusComposer(windowMs = 1500): void {
   };
   cancelPending = stop;
   attempt();
+}
+
+/** Stops a pending focusComposer retry, for when the app unmounts. */
+export function cancelComposerFocus(): void {
+  cancelPending?.();
 }
 
 /** True when focus is nowhere the person chose: the body, the requesting control, or a dead node. */

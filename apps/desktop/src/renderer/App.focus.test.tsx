@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
-import { focusComposer } from './composerFocus';
+import { cancelComposerFocus, focusComposer } from './composerFocus';
 import { createDemoRendererApi, demoSnapshot } from './demo';
 import type { RendererApi, RendererSnapshot } from './types';
 
@@ -155,5 +155,27 @@ describe('focusComposer', () => {
     await new Promise((resolve) => setTimeout(resolve, 120));
     expect(document.activeElement).toBe(other);
     document.body.innerHTML = '';
+  });
+
+  it('stops retrying when the page goes away or the app cancels it', () => {
+    vi.useFakeTimers();
+    try {
+      document.body.innerHTML = '<textarea data-composer-input disabled></textarea>';
+      const field = document.querySelector('textarea')!;
+      focusComposer();
+      vi.stubGlobal('document', undefined);
+      expect(() => vi.advanceTimersByTime(200)).not.toThrow();
+      vi.unstubAllGlobals();
+
+      focusComposer();
+      cancelComposerFocus();
+      field.disabled = false;
+      vi.advanceTimersByTime(200);
+      expect(document.activeElement).toBe(document.body);
+      document.body.innerHTML = '';
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
   });
 });

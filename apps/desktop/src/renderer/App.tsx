@@ -36,7 +36,7 @@ import {
 import type { AgentDraft, RendererApi, RendererSnapshot } from './types';
 import { useAppController } from './useAppController';
 import { executionLabel } from './agentModels';
-import { focusComposer } from './composerFocus';
+import { cancelComposerFocus, focusComposer } from './composerFocus';
 import { heldAsQueued, OfflineBanner, useOfflineOutbox, useOnline } from './offline';
 import { recentThreads, welcomePrompts } from './welcome';
 import { useViewTransition } from './components/effects/use-view-transition';
@@ -72,6 +72,8 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   const [feedbackDraft, setFeedbackDraft] = useState<string>();
   const [conversationFindOpen, setConversationFindOpen] = useState(false);
   const online = useOnline();
+  // A focus retry must not outlive the app it was aiming at.
+  useEffect(() => cancelComposerFocus, []);
   const outbox = useOfflineOutbox(online, (message) =>
     app.attempt(() =>
       app.api.sendMessage(
