@@ -6,6 +6,7 @@ import type { ActivityEvent, ThreadEvent } from '../types';
 import { ActivityRow } from './ActivityRow';
 import { conversationBlocks } from './Conversation';
 import { elapsed, WorkGroup, WorkingStatus } from './WorkGroup';
+import styles from '../ui.module.css';
 
 afterEach(cleanup);
 
@@ -98,9 +99,8 @@ describe('work groups', () => {
     expect(elapsed('2026-09-28T10:00:09Z', '2026-09-28T10:00:00Z')).toBe('');
   });
 
-  it('reads a failed step as finished, not still running', () => {
-    render(<ActivityRow event={step('failed', { status: 'error' })} />);
-    expect(screen.getByText('Ran a command')).toBeTruthy();
-    expect(screen.queryByText('Running a command')).toBeNull();
+  it('marks a failed step with the danger icon', () => {
+    const { container } = render(<ActivityRow event={step('failed', { status: 'error' })} />);
+    expect(container.querySelector(`svg.${styles.activityErrorIcon}`)).not.toBeNull();
   });
 });
