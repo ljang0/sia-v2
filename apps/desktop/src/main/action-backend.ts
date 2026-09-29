@@ -642,7 +642,7 @@ export class DesktopActionBackend implements ActionBackend {
     } catch (error) {
       if (isConnectionReconnectRequired(error)) {
         return refused(
-          'This connected app authorization expired. Reconnect it in Settings > Apps, then retry.',
+          'This connected app authorization expired. Reconnect it in Settings > Connections, then retry.',
         );
       }
       return classifyFailure(error);
@@ -2866,7 +2866,7 @@ function connectorBrowserFallback(
     slack: ['Slack', 'https://app.slack.com'],
   } as const;
   const [label, url] = destinations[app];
-  return `${label} is not connected. Continue now in signed-in Chrome at ${url} with browser or computer use, handing control to the user if sign-in is required. For reliable API and background access, the user can connect it later in Settings > Apps; after connection use account_id "${app}".`;
+  return `${label} is not connected. Continue now in signed-in Chrome at ${url} with browser or computer use, handing control to the user if sign-in is required. For reliable API and background access, the user can connect it later in Settings > Connections; after connection use account_id "${app}".`;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

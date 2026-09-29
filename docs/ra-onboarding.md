@@ -23,7 +23,7 @@ SIA_FAKE_SERVICES=1 pnpm dev
 ```
 
 In this mode, walk through first-run setup, create an agent with a name and a short instruction, send
-a read-only prompt, and open Settings → Apps and Settings → Computer. A local build without cloud
+a read-only prompt, and open Settings → Connections and Settings → Computer. A local build without cloud
 configuration intentionally skips email sign-in and labels cloud features unavailable. Fake services
 are deterministic; they are for UI and lifecycle development, not proof that an external provider is
 healthy.

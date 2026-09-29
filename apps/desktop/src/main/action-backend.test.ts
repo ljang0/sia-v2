@@ -1642,7 +1642,7 @@ describe('DesktopActionBackend connector boundary', () => {
     expect(result.outcome).toBe('refused');
     expect(result.reason).toContain('Google Drive is not connected');
     expect(result.reason).toContain('https://drive.google.com');
-    expect(result.reason).toContain('connect it later in Settings > Apps');
+    expect(result.reason).toContain('connect it later in Settings > Connections');
   });
 
   it('resolves stable account aliases to trusted cloud ids and strips account_id from input', async () => {
