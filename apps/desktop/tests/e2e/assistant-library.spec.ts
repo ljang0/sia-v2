@@ -81,7 +81,8 @@ test('personal library saves memory, edits workflow parameters and runs through 
     let page = sia.page;
     await page.setViewportSize({ width: 1220, height: 780 });
     await page.getByText('Customize setup', { exact: true }).click();
-    await page.getByRole('radio', { name: /Connected apps \+ confirmations/ }).check();
+    await page.getByRole('radio', { name: /Connected apps only/ }).check();
+    await page.getByRole('checkbox', { name: /Ask before each action/ }).check();
     page = await sia.completeSetup();
     // This fixture exercises gateway tools and confirmation-mode behavior.
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
@@ -160,7 +161,8 @@ test('automatic learning and executable skills persist and dispatch through the 
   try {
     let page = sia.page;
     await page.getByText('Customize setup', { exact: true }).click();
-    await page.getByRole('radio', { name: /Connected apps \+ confirmations/ }).check();
+    await page.getByRole('radio', { name: /Connected apps only/ }).check();
+    await page.getByRole('checkbox', { name: /Ask before each action/ }).check();
     page = await sia.completeSetup();
     // This fixture exercises gateway tools and confirmation-mode behavior.
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();

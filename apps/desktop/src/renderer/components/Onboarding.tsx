@@ -60,6 +60,8 @@ export function Onboarding({
       ? 'connected'
       : 'mac-bypass',
   );
+  // Bypass is the default for every route; confirmations are an explicit opt-in.
+  const [confirmActions, setConfirmActions] = useState(snapshot.computer.trust === 'ask');
   const working = useRef(false);
   const title = useRef<HTMLHeadingElement>(null);
   const agent = snapshot.agents.find(
@@ -122,7 +124,7 @@ export function Onboarding({
       autoFinished.current = false;
       setPermissionPassComplete(false);
       await api.setComputerAccessMode(setupRoute === 'mac-bypass' ? 'mac' : 'connected');
-      await api.setComputerTrust(setupRoute === 'mac-bypass' ? 'auto' : 'ask');
+      await api.setComputerTrust(confirmActions ? 'ask' : 'auto');
       if (!agent && choice?.ready)
         await api.createAgent({
           name: name.trim(),
@@ -211,8 +213,12 @@ export function Onboarding({
             ) : null}
             <p className={styles.note}>
               {setupRoute === 'mac-bypass'
-                ? 'Sia works in the background while you keep using your Mac. It can send messages and change files without asking each time. You can switch to On my screen in Settings → Computer.'
-                : 'Sia asks before taking actions in connected apps.'}
+                ? confirmActions
+                  ? 'Sia works in the background while you keep using your Mac and asks before it sends messages or changes files.'
+                  : 'Sia works in the background while you keep using your Mac. It can send messages and change files without asking each time. You can switch to On my screen in Settings → Computer.'
+                : confirmActions
+                  ? 'Sia asks before taking actions in connected apps.'
+                  : 'Sia takes actions in connected apps without asking each time. You can turn on confirmations in Settings → Computer.'}
             </p>
             {setupRoute === 'mac-bypass' && aiReady ? (
               <label className={styles.prepareApps}>
@@ -258,10 +264,8 @@ export function Onboarding({
                     onChange={() => setSetupRoute('mac-bypass')}
                   />
                   <span>
-                    <strong>Use my Mac + full bypass</strong>
-                    <span>
-                      Works in the background with your signed-in apps. No per-action approvals.
-                    </span>
+                    <strong>Use my Mac</strong>
+                    <span>Works in the background with your signed-in apps.</span>
                   </span>
                 </label>
                 <label className={styles.setupChoice}>
@@ -272,8 +276,21 @@ export function Onboarding({
                     onChange={() => setSetupRoute('connected')}
                   />
                   <span>
-                    <strong>Connected apps + confirmations</strong>
-                    <span>Connect accounts and approve actions.</span>
+                    <strong>Connected apps only</strong>
+                    <span>Works only with the accounts you connect.</span>
+                  </span>
+                </label>
+                <label className={styles.setupChoice}>
+                  <input
+                    type="checkbox"
+                    checked={confirmActions}
+                    onChange={(event) => setConfirmActions(event.currentTarget.checked)}
+                  />
+                  <span>
+                    <strong>Ask before each action</strong>
+                    <span>
+                      Off by default. Turn on to approve each message, file change, or click.
+                    </span>
                   </span>
                 </label>
                 {!agent ? (

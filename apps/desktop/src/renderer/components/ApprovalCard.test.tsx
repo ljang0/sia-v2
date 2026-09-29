@@ -11,6 +11,52 @@ afterEach(() => {
 });
 
 describe('ApprovalCard', () => {
+  it('offers Allow for this task only when available and shows it once chosen', () => {
+    const resolve = vi.fn();
+    const event: ApprovalEvent = {
+      id: 'approval-task',
+      type: 'approval',
+      status: 'pending',
+      timestamp: '2026-08-13T00:00:00.000Z',
+      request: {
+        id: 'approval-task',
+        kind: 'action',
+        title: 'Allow Mac action',
+        category: 'Tool',
+        summary: 'Run a command: open -a TextEdit',
+        target: 'This Mac',
+        reversible: false,
+        allowForTask: true,
+      },
+    };
+    const view = render(<ApprovalCard event={event} onResolve={resolve} />);
+    const button = screen.getByRole('button', { name: 'Allow for this task' });
+    // A native button: reachable with Tab and activated with Enter or Space.
+    expect(button.tagName).toBe('BUTTON');
+    button.focus();
+    expect(document.activeElement).toBe(button);
+    fireEvent.click(button);
+    expect(resolve).toHaveBeenCalledExactlyOnceWith('approval-task', 'approve_task');
+
+    view.rerender(
+      <ApprovalCard
+        event={{ ...event, status: 'approved', scope: 'task' }}
+        onResolve={resolve}
+      />,
+    );
+    expect(screen.getByText('Allowed for this task')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Allow for this task' })).toBeNull();
+
+    view.rerender(
+      <ApprovalCard
+        event={{ ...event, request: { ...event.request, allowForTask: undefined } }}
+        onResolve={resolve}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Allow for this task' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeTruthy();
+  });
+
   it('shows the exact foreground target and resolves only after a deliberate click', () => {
     const resolve = vi.fn();
     const event: ApprovalEvent = {

@@ -193,7 +193,7 @@ const inputSchemas = {
   'schedules.delete': z.object({ scheduleId: identifier }).strict(),
   'schedules.runNow': z.object({ scheduleId: identifier }).strict(),
   'approvals.resolve': z
-    .object({ approvalId: identifier, decision: z.enum(['approve', 'deny']) })
+    .object({ approvalId: identifier, decision: z.enum(['approve', 'approve_task', 'deny']) })
     .strict(),
   'providers.probe': z.object({ providerId: providerId.optional() }).strict(),
   'providers.login': z.object({ providerId }).strict(),

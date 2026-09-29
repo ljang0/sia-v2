@@ -21,9 +21,9 @@ safe, and easy to support. It is not approval for public distribution or a resea
 
 ## Recommended pilot settings
 
-- Keep confirmations on: onboarding preselects Use my Mac + full bypass, so turn off **Bypass
-  action approvals** in Settings → Computer (first-session step 3). **Customize setup → Connected
-  apps + confirmations** is onboarding's other confirmation route. Use full bypass only for a
+- Keep confirmations on: onboarding preselects Use my Mac with full bypass, so turn off **Bypass
+  action approvals** in Settings → Computer (first-session step 3). **Customize setup → Ask before each
+  action** turns confirmations on during onboarding instead. Use full bypass only for a
   bounded disposable test.
 - Use my Mac works in the background by default; Sia keeps the display awake during a task and
   pauses it if the Mac locks or sleeps (unlock and press **Continue task**). Choose **On my
