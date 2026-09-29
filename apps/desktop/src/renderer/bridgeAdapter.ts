@@ -313,7 +313,7 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       publish(
         await bridge.approvals.resolve({
           approvalId,
-          decision: decision === 'reject' ? 'deny' : 'approve',
+          decision: decision === 'reject' ? 'deny' : decision,
         }),
       );
     },
@@ -943,6 +943,7 @@ function mapApproval(
       id: approval.id,
       type: 'approval',
       status,
+      ...(approval.scope ? { scope: approval.scope } : {}),
       timestamp,
       request: {
         id: approval.id,
@@ -952,6 +953,7 @@ function mapApproval(
         appName: approval.target,
         target: approval.dataLeaving ?? approval.summary,
         restoresFocusTo: 'your current app',
+        allowForTask: approval.allowForTask,
       },
     };
   }
@@ -961,6 +963,7 @@ function mapApproval(
       id: approval.id,
       type: 'approval',
       status,
+      ...(approval.scope ? { scope: approval.scope } : {}),
       timestamp,
       request: {
         id: approval.id,
@@ -972,6 +975,7 @@ function mapApproval(
         destination: approval.target,
         preview: approval.dataLeaving ?? approval.summary,
         expiresAt: approval.expiresAt,
+        allowForTask: approval.allowForTask,
       },
     };
   }
@@ -980,6 +984,7 @@ function mapApproval(
     id: approval.id,
     type: 'approval',
     status,
+    ...(approval.scope ? { scope: approval.scope } : {}),
     timestamp,
     request: {
       id: approval.id,
@@ -997,6 +1002,7 @@ function mapApproval(
       dataLabel: approval.dataLabel,
       reversible: approval.reversible,
       expiresAt: approval.expiresAt,
+      allowForTask: approval.allowForTask,
     },
   };
 }
