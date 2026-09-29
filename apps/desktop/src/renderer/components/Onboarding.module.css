@@ -432,6 +432,35 @@
   font-size: 12.5px;
   line-height: 1.5;
 }
+/* Short windows keep the Set up button in view: drop the item details. */
+@media (max-height: 760px) {
+  .stage {
+    margin-top: 4px;
+  }
+  .topline {
+    margin-bottom: 20px;
+  }
+  .stage h1 {
+    margin-bottom: 10px;
+  }
+  .intro {
+    margin-bottom: 16px;
+  }
+  .included {
+    margin: 16px 0 14px;
+    gap: 10px;
+  }
+  .included li {
+    align-items: center;
+  }
+  .included li > span:last-child > span {
+    display: none;
+  }
+  .included .includedIcon {
+    width: 28px;
+    height: 28px;
+  }
+}
 .details {
   border-top: 1px solid var(--border-subtle);
   padding: 16px 0;
