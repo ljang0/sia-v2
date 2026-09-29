@@ -1,6 +1,6 @@
 # CMU pilot runbook
 
-This runbook is for the controlled `0.1.0-alpha.24` CMU pilot. It keeps the first session short,
+This runbook is for the controlled `0.1.0-alpha.25` CMU pilot. It keeps the first session short,
 safe, and easy to support. It is not approval for public distribution or a research launch.
 
 ## Five-minute first session
@@ -9,17 +9,25 @@ safe, and easy to support. It is not approval for public distribution or a resea
    there is no password or signed-out access to the app.
 2. Open **Settings → AI**, choose **Sign in with ChatGPT**, and complete OpenAI's browser flow.
    Codex is the recommended pilot provider. Do not paste an OpenAI API key into Sia.
-3. Create an agent with a name and one short instruction, for example: “Help me compare sources.
+3. In onboarding, keep **Use my Mac** (it is preselected with full bypass). Before the first task,
+   open **Settings → Computer** and turn off **Bypass action approvals** so Sia asks before it
+   clicks, types, sends, posts, or schedules. Sia works in the background by default, so the
+   tester can keep using the Mac.
+4. Create an agent with a name and one short instruction, for example: “Help me compare sources.
    Ask before changing files or sending anything.” Sia chooses its color and private folder.
-4. Start with a read-only task. Confirm that Sia shows progress and the completed result in the
+5. Start with a read-only task. Confirm that Sia shows progress and the completed result in the
    same thread.
-5. Add Google Workspace, Slack, Chrome, or macOS computer access only when the test requires it.
+6. Add Google Workspace, Slack, Chrome, or macOS computer access only when the test requires it.
 
 ## Recommended pilot settings
 
-- Choose a confirmation mode during onboarding; the initial selection is Use my Mac + full bypass.
-  Use autonomous actions only for a bounded disposable test. Use my Mac works in the background by
-  default; choose On my screen in Settings → Computer for native scripts or full file control.
+- Keep confirmations on: onboarding preselects Use my Mac + full bypass, so turn off **Bypass
+  action approvals** in Settings → Computer (first-session step 3). **Customize setup → Connected
+  apps + confirmations** is onboarding's other confirmation route. Use full bypass only for a
+  bounded disposable test.
+- Use my Mac works in the background by default; Sia keeps the display awake during a task and
+  pauses it if the Mac locks or sleeps (unlock and press **Continue task**). Choose **On my
+  screen** in Settings → Computer for native scripts or full file control.
 - New one-time schedules stop after one run. New recurring schedules stop after ten runs unless the
   tester selects another finite limit. Sia must remain open for local schedules to run.
 - Google begins read-only. The initial pilot does not include Gmail send, file editing, sharing, or
@@ -38,8 +46,8 @@ The tester must complete every provider-owned OAuth or macOS permission screen p
 - Slack: connect an approved test workspace, search a unique disposable phrase, read one thread,
   disconnect, restart Sia, and reconnect. Do not send a message during the first pass.
 - Computer use: check the permission status in **Settings → Computer**, grant only the requested
-  macOS permission, and keep confirmation enabled. Secure and authentication fields stay
-  user-controlled.
+  macOS permission, and confirm **Bypass action approvals** is off. Secure and authentication
+  fields stay user-controlled.
 
 Never copy OAuth codes, tokens, cookies, Keychain content, model credentials, private download
 links, or real workspace content into a bug report.
