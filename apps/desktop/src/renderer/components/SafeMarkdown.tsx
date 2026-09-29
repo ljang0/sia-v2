@@ -7,7 +7,9 @@ import styles from '../ui.module.css';
  * interactive.
  */
 export const SafeMarkdown = memo(function SafeMarkdown({ content }: { content: string }) {
-  return <>{renderBlocks(content.replaceAll('\r\n', '\n').split('\n'), 'md')}</>;
+  // Provider output crosses a process boundary; a missing body renders as nothing.
+  const source = typeof content === 'string' ? content : '';
+  return <>{renderBlocks(source.replaceAll('\r\n', '\n').split('\n'), 'md')}</>;
 });
 
 const FENCE = /^( {0,3})(`{3,}|~{3,})\s*([\w.+-]*)[^`]*$/;

@@ -41,6 +41,7 @@ import { Composer } from './Composer';
 import { QueuedMessages } from './QueuedMessages';
 import { ConversationOutline, hasConversationOutline } from './ConversationOutline';
 import { SafeMarkdown } from './SafeMarkdown';
+import { RowErrorBoundary } from './ErrorBoundary';
 import { DitherAurora as Aurora } from './effects/DitherAurora';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
 
@@ -176,7 +177,8 @@ export function Conversation({
     (event) => event.type === 'message' && event.role === 'assistant',
   );
   const errorAlreadyExplained =
-    lastAssistant?.type === 'message' && lastAssistant.content.trim() === thread?.error?.trim();
+    lastAssistant?.type === 'message' &&
+    (lastAssistant.content ?? '').trim() === thread?.error?.trim();
 
   const findNeedle = findQuery.trim().toLocaleLowerCase();
   const matchingEventIds = findNeedle
@@ -461,7 +463,8 @@ export function Conversation({
           event.tone === 'error' &&
           thread.events[index - 1]?.type === 'message' &&
           (thread.events[index - 1] as MessageEvent).role === 'assistant' &&
-          (thread.events[index - 1] as MessageEvent).content.trim() === event.detail.trim()
+          ((thread.events[index - 1] as MessageEvent).content ?? '').trim() ===
+            (event.detail ?? '').trim()
         }
         agentHue={agentHue}
         busyApprovalId={busyApprovalId}
@@ -848,7 +851,16 @@ interface EventViewProps {
   onResolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
 }
 
-function EventView({
+/** One conversation row; a rendering failure stays inside the row. */
+function EventView(props: EventViewProps) {
+  return (
+    <RowErrorBoundary resetKey={props.event}>
+      <EventViewContent {...props} />
+    </RowErrorBoundary>
+  );
+}
+
+function EventViewContent({
   agentName = 'Sia',
   completed,
   event,
