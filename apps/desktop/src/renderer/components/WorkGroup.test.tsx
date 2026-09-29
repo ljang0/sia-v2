@@ -91,6 +91,10 @@ describe('work groups', () => {
     cleanup();
     render(<WorkingStatus writing={false} />);
     expect(screen.getByRole('status').textContent).toContain('Thinking');
+    cleanup();
+    render(<WorkingStatus writing={false} thinking="Checking free slots" />);
+    expect(screen.getByRole('status').textContent).toContain('Checking free slots');
+    expect(screen.getByRole('status').textContent).not.toContain('Thinking');
   });
 
   it('formats elapsed time', () => {

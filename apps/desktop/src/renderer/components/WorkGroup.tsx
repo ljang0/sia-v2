@@ -66,6 +66,8 @@ interface WorkingStatusProps {
   since?: string | undefined;
   step?: ActivityEvent | undefined;
   writing: boolean;
+  /** Headline of the latest reasoning summary; replaces the plain "Thinking". */
+  thinking?: string | undefined;
 }
 
 /** The one word for a running turn, shared by the live line and the conversation header. */
@@ -74,14 +76,14 @@ export function workingLabel(step: boolean, writing: boolean): string {
 }
 
 /** The live line under a running turn: what Sia is doing now and for how long. */
-export function WorkingStatus({ since, step, writing }: WorkingStatusProps) {
+export function WorkingStatus({ since, step, writing, thinking }: WorkingStatusProps) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1_000);
     return () => window.clearInterval(interval);
   }, []);
   // The running step already shows as its own row above, so this line stays short.
-  const label = workingLabel(Boolean(step), writing);
+  const label = !step && !writing && thinking ? thinking : workingLabel(Boolean(step), writing);
   const duration = since ? elapsed(since, new Date(now).toISOString()) : '';
   return (
     <div className={styles.workingStatus} role="status" data-testid="turn-running">

@@ -62,7 +62,7 @@ export interface ActivityEvent {
   toolName?: string;
   id: string;
   type: 'activity';
-  kind: 'command' | 'browser' | 'computer' | 'connector' | 'plan';
+  kind: 'command' | 'browser' | 'computer' | 'connector' | 'plan' | 'other';
   title: string;
   detail?: string | undefined;
   status: 'running' | 'complete' | 'error' | 'queued';
@@ -189,6 +189,8 @@ export interface ThreadDetail extends ThreadSummary {
   workspace: string;
   goal?: ThreadGoal | undefined;
   events: ThreadEvent[];
+  /** Headline of the running turn's latest reasoning summary, for the live status line. */
+  thinking?: string | undefined;
   /** Follow-ups sent while the thread works; they start in order after the current task. */
   queuedMessages?: MessageEvent[] | undefined;
   error?: string | undefined;

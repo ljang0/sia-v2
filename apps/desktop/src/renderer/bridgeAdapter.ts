@@ -1,4 +1,5 @@
 import { threadPreviews } from '../shared/thread-previews';
+import { clipText } from '../shared/plain-text';
 import { agentIdentity } from './agentIdentity';
 import type {
   ApprovalView,
@@ -604,10 +605,20 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         .sort((a, b) => a.sequence - b.sequence)
         .map((item) => mapTimelineItem(item) as MessageEvent)
     : [];
-  const timeline = currentThread
+  const threadItems = currentThread
     ? source.timeline
         .filter((item) => item.threadId === currentThread.id && !isQueuedMessage(item))
         .sort((a, b) => a.sequence - b.sequence)
+    : [];
+  // Reasoning is not a step: its latest summary headline labels the live status line instead.
+  const lastUserItem = threadItems.findLastIndex((item) => item.kind === 'user');
+  const thinking = reasoningHeadline(
+    threadItems.slice(lastUserItem + 1).findLast((item) => item.kind === 'reasoning')?.text ??
+      '',
+  );
+  const timeline = currentThread
+    ? threadItems
+        .filter((item) => item.kind !== 'reasoning')
         .map((item) => {
           const approval =
             item.kind === 'approval'
@@ -647,6 +658,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         draft: currentThread.draft,
         worktree: currentThread.worktree ? structuredClone(currentThread.worktree) : undefined,
         events: [...timeline, ...pendingApprovals],
+        ...(thinking && currentThread.status === 'running' ? { thinking } : {}),
         ...(queuedMessages.length ? { queuedMessages } : {}),
         error:
           currentThread.status === 'failed'
@@ -1022,6 +1034,18 @@ function inferConnector(
   return 'Gmail';
 }
 
+/**
+ * The latest heading of a reasoning summary ("**Checking the calendar**"), or the first line of
+ * a finished summary paragraph when the provider sends no headings.
+ */
+export function reasoningHeadline(summary: string): string | undefined {
+  const headings = [...summary.matchAll(/\*\*([^*\n]+?)\*\*/g)];
+  const heading = headings.at(-1)?.[1]?.trim();
+  if (heading) return clipText(heading, 80);
+  const firstLine = summary.split(/\n/)[0]?.trim();
+  return firstLine && summary.includes('\n') ? clipText(firstLine, 80) : undefined;
+}
+
 function inferActivityKind(value?: string): ActivityEvent['kind'] {
   const normalized = value?.toLowerCase() ?? '';
   if (normalized.includes('browser')) return 'browser';
@@ -1037,7 +1061,14 @@ function inferActivityKind(value?: string): ActivityEvent['kind'] {
     return 'connector';
   }
   if (normalized.includes('plan')) return 'plan';
-  return 'command';
+  if (
+    normalized.includes('command') ||
+    normalized.includes('shell') ||
+    normalized.includes('exec')
+  )
+    return 'command';
+  // An unknown step is not a shell command; its presentation (if any) picks the label.
+  return 'other';
 }
 
 function inferApprovalCategory(value?: string): 'Tool' | 'Browser' | 'File' {

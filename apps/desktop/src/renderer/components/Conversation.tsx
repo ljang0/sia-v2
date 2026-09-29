@@ -718,6 +718,7 @@ export function Conversation({
                   since={eventTime(thread.events[lastUserEventIndex])}
                   step={currentStep}
                   writing={Boolean(currentAssistantEventId)}
+                  thinking={thread.thinking}
                 />
               ) : null}
               {browserRecovery}

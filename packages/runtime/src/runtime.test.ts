@@ -2024,6 +2024,53 @@ describe('Codex turn resilience', () => {
     return peers;
   }
 
+  it('keeps reasoning summaries apart from raw reasoning text', async () => {
+    const peers = codexServer(async (p) => {
+      setTimeout(() => {
+        void (async () => {
+          await p.server.notify('item/reasoning/summaryTextDelta', {
+            threadId: 'native-thread',
+            turnId: 'native-turn',
+            itemId: 'rs_1',
+            delta: '**Checking the calendar**',
+            summaryIndex: 0,
+          });
+          await p.server.notify('item/reasoning/textDelta', {
+            threadId: 'native-thread',
+            turnId: 'native-turn',
+            itemId: 'rs_1',
+            delta: 'raw chain',
+            contentIndex: 0,
+          });
+          await p.server.notify('turn/completed', {
+            threadId: 'native-thread',
+            turn: { id: 'native-turn', status: 'completed' },
+          });
+        })();
+      }, 5);
+      return { turn: { id: 'native-turn' } };
+    });
+    const adapter = new CodexAppServerAdapter({
+      sessionEphemeral: true,
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    const session = await adapter.createSession(sessionOptions);
+    const reasoning: unknown[] = [];
+    for await (const event of adapter.sendTurn(session, { turnId: 't1', text: 'hi' }))
+      if (event.type === 'reasoning') reasoning.push(event.payload);
+    expect(reasoning).toEqual([
+      { reasoningId: 'rs_1', text: '**Checking the calendar**', delta: true, part: 'summary' },
+      { reasoningId: 'rs_1', text: 'raw chain', delta: true, part: 'text' },
+    ]);
+    await adapter.dispose();
+  });
+
   it('does not surface an error that Codex is about to retry', async () => {
     const peers = codexServer(async (p) => {
       setTimeout(() => {

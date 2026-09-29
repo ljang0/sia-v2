@@ -377,6 +377,8 @@ export const reasoningEventSchema = z.object({
     reasoningId: idSchema,
     text: z.string(),
     delta: z.boolean().default(false),
+    /** `summary` is the user-facing summary; `text` is raw reasoning, kept apart from it. */
+    part: z.enum(['summary', 'text']).optional(),
   }),
 });
 export type ReasoningEvent = z.infer<typeof reasoningEventSchema>;

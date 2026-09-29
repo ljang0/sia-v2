@@ -2996,6 +2996,70 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('keeps raw reasoning text out of the reasoning summary', async () => {
+    let runtimeThreadId = '';
+    const runtime = {
+      async *runTurn(input: { turnId: string }) {
+        const base = {
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        let sequence = 0;
+        for (const [text, part] of [
+          ['**Reading the inbox**', 'summary'],
+          ['private chain of thought', 'text'],
+          ['\n\nLooking for dates.', 'summary'],
+        ] as const) {
+          yield {
+            ...base,
+            id: crypto.randomUUID(),
+            sequence: (sequence += 1),
+            type: 'reasoning' as const,
+            payload: { reasoningId: 'rs_1', text, delta: true, part },
+          };
+        }
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: (sequence += 1),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    const created = await controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', {
+      agentId: created.agentId,
+    });
+    runtimeThreadId = threadId;
+    await controller.invoke('threads.send', { threadId, text: 'Check mail' });
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+        'idle',
+      ),
+    );
+    const reasoning = controller
+      .snapshot()
+      .timeline.filter((item) => item.threadId === threadId && item.kind === 'reasoning');
+    expect(reasoning.map((item) => item.text)).toEqual([
+      '**Reading the inbox**\n\nLooking for dates.',
+    ]);
+    await controller.shutdown();
+  });
+
   it('discards a spoofed Sia-tool event that has no matching gateway invocation', async () => {
     let runtimeThreadId = '';
     const runtime = {

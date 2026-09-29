@@ -11,6 +11,7 @@ import {
   ListChecks,
   PlugsConnected,
   Robot,
+  Sparkle,
   TerminalWindow,
   WarningCircle,
 } from '@phosphor-icons/react';
@@ -28,6 +29,7 @@ const icons = {
   computer: Desktop,
   connector: PlugsConnected,
   plan: ListChecks,
+  other: Sparkle,
 };
 
 export function ActivityRow({ event }: ActivityRowProps) {

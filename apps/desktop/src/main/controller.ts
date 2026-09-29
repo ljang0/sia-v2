@@ -6816,6 +6816,9 @@ export class DesktopController {
       return;
     }
     if (event.type === 'reasoning') {
+      // Only the reasoning summary is shown (as the live status line). Raw reasoning text is
+      // never merged into it.
+      if (event.payload.part === 'text') return;
       const existing = this.#state.timeline.findLast(
         (item) =>
           item.threadId === event.threadId &&

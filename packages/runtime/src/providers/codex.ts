@@ -1016,6 +1016,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
           reasoningId: itemId,
           text: stringAt(value, ['delta'], ['text']) ?? '',
           delta: true,
+          part: method === 'item/reasoning/summaryTextDelta' ? 'summary' : 'text',
         }),
       );
       return;
