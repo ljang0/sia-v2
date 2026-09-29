@@ -467,6 +467,8 @@ export class DesktopController {
   /** Running Use my Mac turns by thread; they hold the keep-awake assertion. */
   readonly #macTurns = new Map<string, QueuedTurn>();
   readonly #keepAwake: ControllerOptions['keepAwake'];
+  /** Mac turns currently keeping the display awake; a turn waiting on the person does not. */
+  readonly #awakeTurns = new Set<string>();
   #macUnavailable: 'locked' | 'asleep' | undefined;
   readonly #phoneTurns = new Set<string>();
   readonly #turnTasks = new Map<string, Promise<void>>();
@@ -5116,7 +5118,8 @@ export class DesktopController {
       this.#workspaceGrants.clear();
       this.#approvedConnectorBindings.clear();
       this.#runningTurns.clear();
-      for (const threadId of this.#macTurns.keys()) this.#keepAwake?.release(threadId);
+      for (const threadId of this.#awakeTurns) this.#keepAwake?.release(threadId);
+      this.#awakeTurns.clear();
       this.#macTurns.clear();
       this.#turnTasks.clear();
       this.#workspaceLeases.clear();
@@ -6315,6 +6318,7 @@ export class DesktopController {
     this.#workspaceLeases.set(thread.workspace, turn.id);
     if (this.#isMacTurn(thread.id)) {
       this.#macTurns.set(thread.id, turn);
+      this.#awakeTurns.add(thread.id);
       this.#keepAwake?.hold(thread.id);
     }
     if (turn.fromPhone) this.#phoneTurns.add(turn.id);
@@ -7476,7 +7480,8 @@ export class DesktopController {
     const turnId = this.#activeTurnId(threadId);
     if (turnId) this.#phoneTurns.delete(turnId);
     this.#runningTurns.delete(threadId);
-    if (this.#macTurns.delete(threadId)) this.#keepAwake?.release(threadId);
+    this.#macTurns.delete(threadId);
+    if (this.#awakeTurns.delete(threadId)) this.#keepAwake?.release(threadId);
     if (thread) this.#workspaceLeases.delete(thread.workspace);
     this.#drainQueue();
     // A follow-up can still wait when another thread took the workspace first. A paused
@@ -7954,8 +7959,25 @@ export class DesktopController {
     return recovered;
   }
 
+  /**
+   * While a Mac task waits on the person (an approval or a question), let the display sleep
+   * as usual; hold it awake again once the task resumes.
+   */
+  #syncKeepAwake(): void {
+    for (const threadId of this.#macTurns.keys()) {
+      const waiting =
+        this.#state.threads.find(({ id }) => id === threadId)?.status === 'waiting';
+      if (waiting && this.#awakeTurns.delete(threadId)) this.#keepAwake?.release(threadId);
+      else if (!waiting && !this.#awakeTurns.has(threadId)) {
+        this.#awakeTurns.add(threadId);
+        this.#keepAwake?.hold(threadId);
+      }
+    }
+  }
+
   #commit(deferStreamDelta = false): void {
     this.#revision += 1;
+    this.#syncKeepAwake();
     if (deferStreamDelta) {
       if (!this.#streamCommitTimer) {
         this.#streamCommitTimer = setTimeout(() => {

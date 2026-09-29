@@ -7390,6 +7390,56 @@ describe('Use my Mac power and lock handling', () => {
     await failing.controller.shutdown();
   });
 
+  it('lets the display sleep while a Mac task waits on an approval', async () => {
+    const gate = Promise.withResolvers<void>();
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        const base = {
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 1,
+          type: 'approval' as const,
+          payload: { phase: 'requested', requestId: 'r1', title: 'Run', description: 'ls' },
+        } as never;
+        await gate.promise;
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => gate.resolve()),
+      cancel: vi.fn(async () => gate.resolve()),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller, keepAwake, threadId, status } = await macThread({ runtime });
+    await controller.invoke('threads.send', { threadId, text: 'Tidy my desktop' });
+    await vi.waitFor(() => expect(status()).toBe('waiting'));
+    expect(keepAwake.hold).toHaveBeenCalledTimes(1);
+    expect(keepAwake.release).toHaveBeenCalledWith(threadId);
+    const approval = controller
+      .snapshot()
+      .approvals.find((item) => item.threadId === threadId)!;
+    await controller.invoke('approvals.resolve', {
+      approvalId: approval.id,
+      decision: 'approve',
+    });
+    expect(status()).toBe('running');
+    expect(keepAwake.hold).toHaveBeenCalledTimes(2);
+    gate.resolve();
+    await vi.waitFor(() => expect(status()).toBe('idle'));
+    expect(keepAwake.release).toHaveBeenCalledTimes(2);
+    await controller.shutdown();
+  });
+
   it('does not hold the Mac awake for connected-app tasks', async () => {
     const { runtime } = holdingRuntime();
     const { controller, keepAwake, threadId, status } = await macThread({ runtime });
