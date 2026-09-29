@@ -45,6 +45,9 @@ describe('personal welcome', () => {
     expect(welcomePrompts({ ...agent, provider: 'claude' }, { now })).toEqual(
       welcomePrompts(agent, { now }),
     );
+    // Each suggestion has a short title to scan and the full request it sends.
+    for (const item of welcomePrompts(agent, { now }))
+      expect(item.title.length).toBeLessThan(item.prompt.length);
     expect(
       welcomePrompts({ ...agent, instructions: 'Help with my software repository.' })[0]
         ?.prompt,
@@ -71,7 +74,7 @@ describe('personal welcome', () => {
 
     expect(titles(new Date(2026, 8, 25, 8))).toEqual([
       'Plan my day',
-      'Summarize this page',
+      'Summarize a page',
       'Find a file',
     ]);
     expect(titles(new Date(2026, 8, 25, 14))[0]).toBe('Clear my to-do list');
@@ -88,7 +91,7 @@ describe('personal welcome', () => {
         app('gmail', 'error'),
         { ...app('slack'), enabled: false },
       ]),
-    ).toEqual(['Wrap up today', 'Summarize this page', 'Find a file']);
+    ).toEqual(['Wrap up today', 'Summarize a page', 'Find a file']);
   });
 
   it('says how long ago in plain words', () => {

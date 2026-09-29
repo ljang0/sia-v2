@@ -107,6 +107,8 @@ describe('renderer accessibility CSS policy', () => {
       '.conversationAurora',
       '.gradientHeading',
       '.composer',
+      // Text shimmer on the working status, like Codex and Claude; still under reduced motion.
+      '.workingLabel',
     ]);
     const rules = styles.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+){([^}]*)}/g);
     for (const rule of rules) {

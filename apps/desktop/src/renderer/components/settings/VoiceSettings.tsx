@@ -2,7 +2,13 @@ import { ArrowClockwise, CheckCircle, ShieldCheck, SpeakerHigh } from '@phosphor
 import { useState } from 'react';
 import type { VoiceSettingsState } from '../../types';
 import styles from '../../ui.module.css';
-import { errorMessage, InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
+import {
+  errorMessage,
+  InlineSettingsError,
+  SavedNote,
+  SettingsSectionHeader,
+  useSavedFlash,
+} from './SettingsShared';
 import { Switch } from '../Switch';
 import { voiceOptionLabel } from '../../voiceReadiness';
 
@@ -36,6 +42,8 @@ export function VoiceSettings({
     'connect' | 'refresh' | 'select' | 'disconnect' | 'sound' | 'push-to-talk'
   >();
   const [error, setError] = useState<string>();
+  const [voiceSaved, flashVoiceSaved] = useSavedFlash();
+  const [soundSaved, flashSoundSaved] = useSavedFlash();
   const [voiceAgent, setVoiceAgent] = useState(voice.pushToTalk?.agentId ?? '');
   const agentId = voiceAgent || agents[0]?.id;
   const pushToTalk = voice.pushToTalk;
@@ -84,12 +92,16 @@ export function VoiceSettings({
           </div>
 
           <label className={styles.voiceSelect}>
-            <span>Voice</span>
+            <span>
+              Voice <SavedNote show={voiceSaved} />
+            </span>
             <select
               value={voice.selectedVoiceId ?? ''}
               disabled={Boolean(pending)}
               onChange={(event) =>
-                void run('select', () => onSelect(event.currentTarget.value))
+                void run('select', () =>
+                  onSelect(event.currentTarget.value).then(flashVoiceSaved),
+                )
               }
             >
               {voice.voices.map((option) => (
@@ -236,7 +248,9 @@ export function VoiceSettings({
       ) : null}
       <label className={styles.voicePreference}>
         <span>
-          <strong>Completion sound</strong>
+          <strong>
+            Completion sound <SavedNote show={soundSaved} />
+          </strong>
           <small>Play a quiet local chime when a task finishes.</small>
         </span>
         <Switch
@@ -244,7 +258,7 @@ export function VoiceSettings({
           disabled={Boolean(pending)}
           onChange={(event) => {
             const enabled = event.currentTarget.checked;
-            void run('sound', () => onSetCompletionSound(enabled));
+            void run('sound', () => onSetCompletionSound(enabled).then(flashSoundSaved));
           }}
         />
       </label>

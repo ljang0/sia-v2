@@ -1,3 +1,4 @@
+import { Check } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import type { RendererApi, RendererSnapshot } from '../types';
 import { dictationReady } from '../voiceReadiness';
@@ -225,11 +226,14 @@ export function SetupMacAccess({
           Sia opens each step and moves on when access is granted. You approve macOS dialogs;
           your password stays with macOS.
         </span>
+        <span className={styles.meter} aria-hidden="true">
+          <span style={{ width: `${steps.length ? (ready / steps.length) * 100 : 100}%` }} />
+        </span>
       </p>
       {active && current && (
         <div className={styles.permissionGuide}>
           <span className={styles.eyebrow}>
-            STEP {steps.indexOf(current) + 1} OF {steps.length}
+            Step {steps.indexOf(current) + 1} of {steps.length}
           </span>
           <h3>{current.name}</h3>
           <p>{current.detail}</p>
@@ -295,6 +299,7 @@ export function SetupMacAccess({
                 <p>{step.detail}</p>
               </div>
               <span className={step.ready ? styles.ready : styles.status}>
+                {step.ready ? <Check size={11} weight="bold" aria-hidden="true" /> : null}
                 {step.ready ? 'Allowed' : 'Needs access'}
               </span>
             </li>
@@ -328,6 +333,7 @@ export function SetupMacAccess({
                 <li className={styles.permission} key={step.id}>
                   <strong>{step.name}</strong>
                   <span className={step.ready ? styles.ready : styles.status}>
+                    {step.ready ? <Check size={11} weight="bold" aria-hidden="true" /> : null}
                     {step.ready ? 'Allowed' : (step.status ?? 'Needs access')}
                   </span>
                 </li>

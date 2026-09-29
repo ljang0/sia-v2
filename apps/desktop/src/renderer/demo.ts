@@ -1106,7 +1106,18 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
       });
     },
     async setupMessages() {},
-    async requestAutomationPermission() {},
+    async requestAutomationPermission(app) {
+      mutate((current) => {
+        current.computer.automation = {
+          calendar: 'needs_permission',
+          reminders: 'needs_permission',
+          finder: 'needs_permission',
+          messages: 'needs_permission',
+          ...current.computer.automation,
+          [app]: 'ready',
+        };
+      });
+    },
     async setOnboarding(step, permissionSetup) {
       mutate((current) => {
         current.preferences.onboarding = {

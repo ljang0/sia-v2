@@ -45,31 +45,27 @@ export function recentThreads(
 /** Instructions for the agent onboarding creates. They describe Sia, not the person's purpose. */
 export const STARTER_INSTRUCTIONS = `You are Sia, a helpful personal assistant on the user's Mac. Help with everyday questions, writing, planning, research, and tasks in apps. Be concise, warm, and clear. Use the tools available to you to complete requested work. Explain the next step when access is missing. Use the provided action tools and follow the user's selected approval mode; when bypass is enabled, execute permitted actions without asking for each step. Never access passwords, secure fields, or authentication surfaces. Do not claim to have completed an action unless its result confirms it.`;
 
-/** Picture shown beside a suggestion; the component maps each to an icon. */
-export type WelcomeIcon =
-  | 'sun'
-  | 'list'
-  | 'moon'
-  | 'mail'
-  | 'chats'
-  | 'doc'
-  | 'globe'
-  | 'folder'
-  | 'pencil'
-  | 'scales'
-  | 'notebook'
-  | 'search'
-  | 'code'
-  | 'compass'
-  | 'bug';
-
-export interface WelcomePrompt {
-  /** A short name for the suggestion, shown in bold. */
+/** A suggested first task: a short title to scan and the full request Sia receives. */
+export type StarterPrompt = {
+  icon:
+    | 'calendar'
+    | 'todo'
+    | 'moon'
+    | 'mail'
+    | 'chats'
+    | 'document'
+    | 'page'
+    | 'search'
+    | 'write'
+    | 'compare'
+    | 'notes'
+    | 'question'
+    | 'review'
+    | 'summary'
+    | 'bug';
   title: string;
-  /** The request Sia sends when the suggestion is chosen. */
   prompt: string;
-  icon: WelcomeIcon;
-}
+};
 
 type PartOfDay = 'morning' | 'afternoon' | 'evening';
 
@@ -80,16 +76,16 @@ function partOfDay(now: Date): PartOfDay {
   return 'evening';
 }
 
-const TIME_OF_DAY: Record<PartOfDay, WelcomePrompt> = {
+const TIME_OF_DAY: Record<PartOfDay, StarterPrompt> = {
   morning: {
     title: 'Plan my day',
     prompt: 'Help me plan today. Ask what is on my plate, then put it in a sensible order.',
-    icon: 'sun',
+    icon: 'calendar',
   },
   afternoon: {
     title: 'Clear my to-do list',
     prompt: 'Help me get through my to-do list. Ask what is on it, then start with quick wins.',
-    icon: 'list',
+    icon: 'todo',
   },
   evening: {
     title: 'Wrap up today',
@@ -100,7 +96,7 @@ const TIME_OF_DAY: Record<PartOfDay, WelcomePrompt> = {
 };
 
 /** Suggestions that need a connected app, in the order they are offered. */
-const APP_PROMPTS: { apps: AppConnection['id'][]; prompt: WelcomePrompt }[] = [
+const APP_PROMPTS: { apps: AppConnection['id'][]; prompt: StarterPrompt }[] = [
   {
     apps: ['gmail'],
     prompt: {
@@ -123,61 +119,61 @@ const APP_PROMPTS: { apps: AppConnection['id'][]; prompt: WelcomePrompt }[] = [
       title: 'Summarize a document',
       prompt:
         'Find a recent document in my Google Drive and summarize it. Ask me which one first.',
-      icon: 'doc',
+      icon: 'document',
     },
   },
 ];
 
 /** Suggestions that work on any Mac, with nothing connected. */
-const MAC_PROMPTS: WelcomePrompt[] = [
+const MAC_PROMPTS: StarterPrompt[] = [
   {
-    title: 'Summarize this page',
+    title: 'Summarize a page',
     prompt: 'Summarize the page I have open and suggest the next steps.',
-    icon: 'globe',
+    icon: 'page',
   },
   {
     title: 'Find a file',
     prompt: 'Help me find a file. Ask me what I remember about it first.',
-    icon: 'folder',
+    icon: 'search',
   },
   {
     title: 'Write a message',
     prompt: 'Help me write a short message. Ask who it is for and what I want to say.',
-    icon: 'pencil',
+    icon: 'write',
   },
 ];
 
-const RESEARCH_PROMPTS: WelcomePrompt[] = [
+const RESEARCH_PROMPTS: StarterPrompt[] = [
   {
     title: 'Compare sources',
     prompt: 'Compare the strongest sources on a topic and show where they disagree.',
-    icon: 'scales',
+    icon: 'compare',
   },
   {
     title: 'Brief my notes',
     prompt: 'Turn my research notes into a concise briefing with sources.',
-    icon: 'notebook',
+    icon: 'notes',
   },
   {
     title: 'Investigate a question',
     prompt: 'Help me investigate a question. Ask what I want to learn first.',
-    icon: 'search',
+    icon: 'question',
   },
 ];
 
-const SOFTWARE_PROMPTS: WelcomePrompt[] = [
+const SOFTWARE_PROMPTS: StarterPrompt[] = [
   {
-    title: 'Review my changes',
+    title: 'Review changes',
     prompt: 'Review the current changes and flag the risky parts.',
-    icon: 'code',
+    icon: 'review',
   },
   {
-    title: 'Suggest a next step',
+    title: 'Summarize the project',
     prompt: 'Summarize this project and suggest the next useful step.',
-    icon: 'compass',
+    icon: 'summary',
   },
   {
-    title: 'Chase down a bug',
+    title: 'Track down a bug',
     prompt: 'Help me investigate a bug. Ask what is going wrong first.',
     icon: 'bug',
   },
@@ -193,7 +189,7 @@ export function welcomePrompts(
     now = new Date(),
     apps = [],
   }: { now?: Date | undefined; apps?: readonly AppConnection[] | undefined } = {},
-): WelcomePrompt[] {
+): StarterPrompt[] {
   if (!agent) return [];
   // Personalize from the person's stated purpose, never from the model/provider or a test-like name.
   const purpose =

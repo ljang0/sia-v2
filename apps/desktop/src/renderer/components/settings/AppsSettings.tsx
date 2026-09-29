@@ -1,9 +1,10 @@
 import {
   Browser,
   ChatCircleText,
+  ChatsCircle,
+  CheckCircle,
   CircleNotch,
   GoogleLogo,
-  PlugsConnected,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { useConfirmDialog } from '../ConfirmDialog';
@@ -82,11 +83,15 @@ export function AppsSettings({
   const connectorsEnabled = snapshot.cloudAuth.features?.connectors !== false;
   const accountReady = snapshot.cloudAuth.state === 'signed-in';
   const cloudReady = accountReady && connectorsEnabled;
+  // Once both apps are connected, the checklist only repeats the rows below, so it steps aside.
+  const allConnected = googleConnected && slackConnected;
   const connectorAvailability = !connectorsEnabled
     ? 'Not enabled for this account'
-    : accountReady
-      ? 'Available for this account'
-      : 'Sign in to connect';
+    : !accountReady
+      ? 'Sign in to connect'
+      : allConnected
+        ? 'All connected'
+        : 'Available for this account';
   const run = async (key: string, action: () => Promise<void>, fallback: string) => {
     setPending(key);
     setError(undefined);
@@ -131,7 +136,7 @@ export function AppsSettings({
   return (
     <SettingsSectionHeader
       title="Connections"
-      description="Google Workspace and Slack are optional. Google starts read-only."
+      description="Google Workspace and Slack are optional. Connect them when you want help with your mail, files, and messages. Google starts read-only."
     >
       {confirmDialog}
       {snapshot.cloudAuth.state !== 'signed-in' ? (
@@ -161,28 +166,31 @@ export function AppsSettings({
             </span>
           </div>
           <p>
-            Connect only what you need. Your workspace administrator may need to approve either
-            connection.
+            {allConnected
+              ? 'Both are connected. Choose which Google services your agents can use below.'
+              : 'Connect only what you need. Your workspace administrator may need to approve either connection.'}
           </p>
         </div>
-        <ConnectionChecklist
-          snapshot={snapshot}
-          pending={Boolean(pending)}
-          connect={(apps) =>
-            run(
-              'connect-selected',
-              () => onConnectSelected(apps),
-              'The selected apps could not be connected.',
-            )
-          }
-          cancel={(app, grant) =>
-            run(
-              'cancel-setup',
-              () => onDisconnect(app, grant),
-              'Connection setup could not be cancelled.',
-            )
-          }
-        />
+        {allConnected ? null : (
+          <ConnectionChecklist
+            snapshot={snapshot}
+            pending={Boolean(pending)}
+            connect={(apps) =>
+              run(
+                'connect-selected',
+                () => onConnectSelected(apps),
+                'The selected apps could not be connected.',
+              )
+            }
+            cancel={(app, grant) =>
+              run(
+                'cancel-setup',
+                () => onDisconnect(app, grant),
+                'Connection setup could not be cancelled.',
+              )
+            }
+          />
+        )}
         {googleConnected ||
         googleError ||
         googleNeedsUpgrade ||
@@ -202,6 +210,7 @@ export function AppsSettings({
                       : 'Gmail, Drive, Docs, Sheets, and Slides'}
                   </span>
                   <span className={styles.connectionGroupStatus}>
+                    {googleConnected ? <CheckCircle size={13} aria-hidden="true" /> : null}
                     {googleConnected
                       ? googleUpgrading
                         ? 'Read access stays on. Finish editor approval in your browser'
@@ -234,7 +243,7 @@ export function AppsSettings({
                     {setupActive
                       ? 'Finish in browser'
                       : pending === 'connect-google'
-                        ? 'Opening...'
+                        ? 'Opening…'
                         : googleError
                           ? `Reconnect ${appName(googleError.id)}`
                           : 'Upgrade Google'}
@@ -257,7 +266,7 @@ export function AppsSettings({
                         {googleUpgrading
                           ? 'Finish in browser'
                           : pending === 'upgrade-google'
-                            ? 'Opening...'
+                            ? 'Opening…'
                             : 'Enable editing'}
                       </button>
                     ) : null}
@@ -282,7 +291,7 @@ export function AppsSettings({
                       }
                     >
                       {pending === 'disconnect-google'
-                        ? 'Disconnecting...'
+                        ? 'Disconnecting…'
                         : 'Disconnect Google Workspace'}
                     </button>
                   </div>
@@ -292,12 +301,13 @@ export function AppsSettings({
             {slack && (slackConnected || slack.status === 'error') ? (
               <section className={styles.connectionGroup} data-connected={slackConnected}>
                 <span className={styles.connectionGroupIcon} aria-hidden="true">
-                  <PlugsConnected size={20} />
+                  <ChatsCircle size={20} />
                 </span>
                 <div className={styles.connectionGroupBody}>
                   <strong>Slack</strong>
-                  <span>Choose a workspace in your browser - no plugin or API key</span>
+                  <span>Messages and channels in the workspace you approved</span>
                   <span className={styles.connectionGroupStatus}>
+                    {slackConnected ? <CheckCircle size={13} aria-hidden="true" /> : null}
                     {slackConnected ? 'Connected' : 'One secure Slack approval'}
                   </span>
                 </div>
@@ -317,12 +327,12 @@ export function AppsSettings({
                     {pending === 'connect-slack' || setupActive ? (
                       <CircleNotch className={styles.spin} size={16} aria-hidden="true" />
                     ) : (
-                      <PlugsConnected size={16} aria-hidden="true" />
+                      <ChatsCircle size={16} aria-hidden="true" />
                     )}
                     {setupActive
                       ? 'Finish in browser'
                       : pending === 'connect-slack'
-                        ? 'Opening...'
+                        ? 'Opening…'
                         : 'Reconnect Slack'}
                   </button>
                 ) : (
@@ -346,7 +356,7 @@ export function AppsSettings({
                       })
                     }
                   >
-                    {pending === 'disconnect-slack' ? 'Disconnecting...' : 'Disconnect Slack'}
+                    {pending === 'disconnect-slack' ? 'Disconnecting…' : 'Disconnect Slack'}
                   </button>
                 )}
               </section>
@@ -485,7 +495,7 @@ function LegacyGrantRow({
         onClick={onDisconnect}
         aria-label={`Disconnect legacy ${appName(app.id)}`}
       >
-        {pending ? 'Disconnecting...' : 'Disconnect'}
+        {pending ? 'Disconnecting…' : 'Disconnect'}
       </button>
     </div>
   );
@@ -569,7 +579,7 @@ function LocalIntegrations({
             }}
           >
             {browserBusy
-              ? 'Updating...'
+              ? 'Updating…'
               : snapshot.browser.attached
                 ? 'Detach'
                 : computerReady
@@ -629,7 +639,7 @@ function LocalIntegrations({
               )
             }
           >
-            {messagesBusy ? 'Opening...' : computerReady ? 'Open Messages' : 'Open & set up'}
+            {messagesBusy ? 'Opening…' : computerReady ? 'Open Messages' : 'Open & set up'}
           </button>
         </div>
       </div>

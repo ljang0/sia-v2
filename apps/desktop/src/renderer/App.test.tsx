@@ -174,6 +174,8 @@ describe('app privacy routing', () => {
     fireEvent.change(await screen.findByRole('textbox', { name: 'Sign-in code' }), {
       target: { value: '12345678' },
     });
+    // The dialog's hint follows the step instead of repeating the email instruction.
+    expect(screen.getByText(/Check your inbox for a one-time code/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Verify code' }));
 
     expect(await screen.findByRole('button', { name: 'Set up Sia' })).toBeTruthy();

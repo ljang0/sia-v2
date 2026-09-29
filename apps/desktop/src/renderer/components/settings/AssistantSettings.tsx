@@ -13,6 +13,7 @@ import type {
 } from '../../../shared/assistant-library';
 import styles from './AssistantSettings.module.css';
 import { Switch } from '../Switch';
+import { SavedNote, useSavedFlash } from './SettingsShared';
 
 const empty: AssistantLibraryView = {
   memories: [],
@@ -45,6 +46,8 @@ export function AssistantSettings({
   const [parameterText, setParameterText] = useState('');
   const [values, setValues] = useState<Record<string, string>>({});
   const [confirm, confirmDialog] = useConfirmDialog();
+  const [memorySaved, flashMemorySaved] = useSavedFlash();
+  const [workflowSaved, flashWorkflowSaved] = useSavedFlash();
   useEffect(() => {
     let active = true;
     api
@@ -113,7 +116,7 @@ export function AssistantSettings({
       {confirmDialog}
       <header>
         <h2>Assistant</h2>
-        <p>Manage saved preferences and reusable tasks.</p>
+        <p>What your agents remember about you, plus the routines and skills they can reuse.</p>
       </header>
       {error && (
         <p role="alert" className={styles.error}>
@@ -200,7 +203,9 @@ export function AssistantSettings({
         <div className={styles.section} hidden={section !== 'Memory'}>
           <div className={styles.heading}>
             <div>
-              <h3>Memory</h3>
+              <h3>
+                Memory <SavedNote show={memorySaved} />
+              </h3>
               <p>Saved preferences and learned lessons are used for future requests.</p>
             </div>
             <button
@@ -294,7 +299,8 @@ export function AssistantSettings({
                   <strong>{entry.title}</strong>
                   <p>{entry.text}</p>
                   <small>
-                    {new Date(entry.timestamp).toLocaleString()} · {entry.kind}
+                    {new Date(entry.timestamp).toLocaleString()} ·{' '}
+                    {journalKindLabel(entry.kind)}
                     {entry.consolidated ? ' · Added to memory' : ''}
                   </small>
                 </article>
@@ -361,7 +367,9 @@ export function AssistantSettings({
                     enabled: memory.enabled ?? true,
                   },
                 }).then((ok) => {
-                  if (ok) setMemory(undefined);
+                  if (!ok) return;
+                  setMemory(undefined);
+                  flashMemorySaved();
                 });
               }}
             >
@@ -397,7 +405,9 @@ export function AssistantSettings({
         <div className={styles.section} hidden={section !== 'Workflows'}>
           <div className={styles.heading}>
             <div>
-              <h3>Workflows</h3>
+              <h3>
+                Workflows <SavedNote show={workflowSaved} />
+              </h3>
               <p>
                 Reusable steps with a check after each action. Each run uses your agent and
                 current permissions.
@@ -453,7 +463,8 @@ export function AssistantSettings({
                 <div>
                   <strong>{entry.title}</strong>
                   <p>
-                    {entry.steps.length} steps · {entry.parameters.length} inputs
+                    {countLabel(entry.steps.length, 'step')} ·{' '}
+                    {countLabel(entry.parameters.length, 'input')}
                   </p>
                 </div>
                 <div className={styles.actions}>
@@ -506,7 +517,9 @@ export function AssistantSettings({
                     steps: workflow.steps ?? [],
                   },
                 }).then((ok) => {
-                  if (ok) setWorkflow(undefined);
+                  if (!ok) return;
+                  setWorkflow(undefined);
+                  flashWorkflowSaved();
                 });
               }}
             >
@@ -663,4 +676,18 @@ export function AssistantSettings({
       </p>
     </section>
   );
+}
+
+function countLabel(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
+const JOURNAL_KIND_LABELS: Record<string, string> = {
+  task: 'Task',
+  lesson: 'Lesson',
+  action: 'Action',
+};
+
+function journalKindLabel(kind: string): string {
+  return JOURNAL_KIND_LABELS[kind] ?? kind;
 }

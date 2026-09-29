@@ -65,7 +65,9 @@ export function ArchivedThreadsSection({
           ))}
         </div>
       ) : (
-        <p className={styles.localEmpty}>Archived threads will appear here.</p>
+        <p className={styles.localEmpty}>
+          Nothing archived. Conversations you archive will rest here.
+        </p>
       )}
     </section>
   );

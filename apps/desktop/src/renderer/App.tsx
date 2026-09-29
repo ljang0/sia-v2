@@ -12,7 +12,7 @@ import {
   WarningCircle,
 } from '@phosphor-icons/react';
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Onboarding } from './components/Onboarding';
+import { Onboarding, onboardingStep } from './components/Onboarding';
 import { AgentDialog } from './components/AgentDialog';
 import { WorkspaceNotice } from './components/AppStates';
 import { StartupTransition } from './components/StartupTransition';
@@ -388,6 +388,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
           <RoomHeader
             agent={roomAgent}
             thread={activeThread}
+            setup={Boolean(onboardingStep(snapshot))}
             controls={
               <div className={styles.topbarActions}>
                 {activeThread ? (
@@ -444,7 +445,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               <header className={styles.activityPageHeader}>
                 <div>
                   <h1>Activity</h1>
-                  <p>Running work and threads that need your attention.</p>
+                  <p>What your agents are doing, and anything waiting for you.</p>
                 </div>
                 <button
                   type="button"
@@ -456,6 +457,13 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 </button>
               </header>
               <div className={styles.activityPageContent}>
+                <ActivityDashboard
+                  activities={activityItems(snapshot)}
+                  onOpenThread={(threadId) => {
+                    app.closeActivity();
+                    void run(() => api.selectThread(threadId));
+                  }}
+                />
                 <TranscriptSearch
                   focusOnMount={app.activityTarget === 'search'}
                   search={(query) => api.searchThreads(query)}
@@ -465,13 +473,6 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                       if (archived) await api.unarchiveThread(threadId);
                       await api.selectThread(threadId);
                     });
-                  }}
-                />
-                <ActivityDashboard
-                  activities={activityItems(snapshot)}
-                  onOpenThread={(threadId) => {
-                    app.closeActivity();
-                    void run(() => api.selectThread(threadId));
                   }}
                 />
                 <ArchivedThreadsSection
