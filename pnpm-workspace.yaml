@@ -13,8 +13,10 @@ minimumReleaseAgeExclude:
 
 supportedArchitectures:
   os:
+    - current
     - darwin
   cpu:
+    - current
     - arm64
     - x64
 
