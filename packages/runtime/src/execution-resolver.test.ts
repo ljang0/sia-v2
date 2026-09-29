@@ -64,6 +64,29 @@ describe('execution target resolver', () => {
     expect(() => legacyModelRoute('codex', '   ')).toThrow('non-empty canonical model id');
   });
 
+  it('never admits a non-release harness through the implicit legacy allowlist', () => {
+    for (const provider of ['grok', 'gemini', 'claude'] as const) {
+      expect(resolveExecutionTarget({ provider, model: 'legacy-model' })).toMatchObject({
+        ok: false,
+        code: 'incompatible_route',
+      });
+    }
+    expect(resolveExecutionTarget({ provider: 'meta', model: 'muse-spark' })).toMatchObject({
+      ok: true,
+      target: { harnessId: 'sia_direct' },
+    });
+  });
+
+  it('keeps a pinned legacy target for an existing thread', () => {
+    const existingTarget: ResolvedExecutionTarget = {
+      ...legacyModelRoute('claude', 'sonnet'),
+      resolutionSource: 'legacy_default',
+    };
+    expect(
+      resolveExecutionTarget({ provider: 'claude', model: 'sonnet', existingTarget }),
+    ).toEqual({ ok: true, target: existingTarget });
+  });
+
   it('keeps an existing thread target ahead of all mutable defaults', () => {
     const existingTarget: ResolvedExecutionTarget = {
       ...piRoute,

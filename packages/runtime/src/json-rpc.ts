@@ -28,8 +28,13 @@ export type JsonRpcMessage = JsonRpcRequest | JsonRpcNotification | JsonRpcRespo
 export interface JsonRpcTransport {
   send(message: JsonRpcMessage): void | Promise<void>;
   onMessage(listener: (message: JsonRpcMessage) => void): () => void;
+  /** Reports that no further messages can arrive, with the reason when it was a failure. */
+  onClose?(listener: (error?: Error) => void): () => void;
   close(): void | Promise<void>;
 }
+
+/** Largest unterminated line a JSON-lines peer may send before the transport closes. */
+export const JSON_LINES_MAX_BUFFER_CHARACTERS = 64 * 1024 * 1024;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -81,21 +86,46 @@ export class JsonLinesTransport implements JsonRpcTransport {
   readonly #input: Readable;
   readonly #output: Writable;
   readonly #listeners = new Set<(message: JsonRpcMessage) => void>();
+  readonly #closeListeners = new Set<(error?: Error) => void>();
+  readonly #maxBufferCharacters: number;
   #buffer = '';
   #closed = false;
 
-  constructor(input: Readable, output: Writable) {
+  constructor(
+    input: Readable,
+    output: Writable,
+    options: { readonly maxBufferCharacters?: number } = {},
+  ) {
     this.#input = input;
     this.#output = output;
+    this.#maxBufferCharacters = options.maxBufferCharacters ?? JSON_LINES_MAX_BUFFER_CHARACTERS;
     input.setEncoding('utf8');
     input.on('data', this.#onData);
+    input.on('end', this.#onEnd);
+    input.on('close', this.#onEnd);
+    input.on('error', this.#onError);
   }
 
+  readonly #onEnd = (): void => {
+    this.#shutdown(new Error('JSON-RPC input ended'));
+  };
+
+  readonly #onError = (error: Error): void => {
+    this.#shutdown(error);
+  };
+
   readonly #onData = (chunk: string): void => {
+    if (this.#closed) return;
     this.#buffer += chunk;
     while (true) {
       const newline = this.#buffer.indexOf('\n');
-      if (newline < 0) return;
+      if (newline < 0) {
+        if (this.#buffer.length > this.#maxBufferCharacters) {
+          this.#shutdown(new Error('JSON-RPC message exceeded the transport size limit'));
+          this.#input.destroy();
+        }
+        return;
+      }
       const line = this.#buffer.slice(0, newline).trim();
       this.#buffer = this.#buffer.slice(newline + 1);
       if (!line) continue;
@@ -106,6 +136,7 @@ export class JsonLinesTransport implements JsonRpcTransport {
         continue;
       }
       for (const listener of this.#listeners) listener(parsed);
+      if (this.#closed) return;
     }
   };
 
@@ -137,11 +168,29 @@ export class JsonLinesTransport implements JsonRpcTransport {
     return () => this.#listeners.delete(listener);
   }
 
+  onClose(listener: (error?: Error) => void): () => void {
+    this.#closeListeners.add(listener);
+    return () => this.#closeListeners.delete(listener);
+  }
+
   close(): void {
+    this.#shutdown();
+  }
+
+  #shutdown(error?: Error): void {
     if (this.#closed) return;
     this.#closed = true;
+    this.#buffer = '';
     this.#input.off('data', this.#onData);
+    this.#input.off('end', this.#onEnd);
+    this.#input.off('close', this.#onEnd);
+    // Keep a listener so a later stream error cannot become an uncaught exception.
+    this.#input.off('error', this.#onError);
+    this.#input.on('error', () => undefined);
     this.#listeners.clear();
+    const listeners = [...this.#closeListeners];
+    this.#closeListeners.clear();
+    for (const listener of listeners) listener(error);
   }
 }
 
@@ -164,7 +213,9 @@ export class JsonRpcPeer {
   readonly #notificationListeners = new Set<(method: string, params: unknown) => void>();
   #requestHandler?: JsonRpcRequestHandler;
   #closed = false;
+  #disposed = false;
   readonly #unsubscribe: () => void;
+  readonly #unsubscribeClose: () => void;
 
   constructor(transport: JsonRpcTransport) {
     this.#transport = transport;
@@ -174,6 +225,12 @@ export class JsonRpcPeer {
       // could observe a rejected receive promise.
       void this.#receive(message).catch(() => undefined);
     });
+    // Without this, a request whose peer exited would wait for its timeout (or forever).
+    this.#unsubscribeClose =
+      transport.onClose?.((error) => {
+        this.#closed = true;
+        this.#rejectPending(error ?? new Error('JSON-RPC transport closed'));
+      }) ?? (() => undefined);
   }
 
   onNotification(listener: (method: string, params: unknown) => void): () => void {
@@ -291,14 +348,21 @@ export class JsonRpcPeer {
   }
 
   async close(): Promise<void> {
-    if (this.#closed) return;
-    this.#closed = true;
+    if (this.#disposed) return;
+    this.#disposed = true;
     this.#unsubscribe();
-    for (const pending of this.#pending.values()) {
-      pending.cleanup();
-      pending.reject(new Error('JSON-RPC peer closed'));
-    }
-    this.#pending.clear();
+    this.#unsubscribeClose();
+    this.#closed = true;
+    this.#rejectPending(new Error('JSON-RPC peer closed'));
     await this.#transport.close();
+  }
+
+  #rejectPending(error: Error): void {
+    const pending = [...this.#pending.values()];
+    this.#pending.clear();
+    for (const entry of pending) {
+      entry.cleanup();
+      entry.reject(error);
+    }
   }
 }

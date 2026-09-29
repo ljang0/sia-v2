@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+import { registerDesktopIpc } from './ipc.js';
 
 // This snapshot keeps the public renderer boundary intentionally small.
 describe('desktop IPC contract', () => {
@@ -9,5 +11,49 @@ describe('desktop IPC contract', () => {
     for (const forbidden of ['shell.exec', 'filesystem.read', 'http.fetch', 'tool.invoke']) {
       expect(source).not.toContain(forbidden);
     }
+  });
+});
+
+describe('desktop IPC dispatch', () => {
+  function register(failure?: Error) {
+    let handler!: (event: unknown, envelope: unknown) => Promise<unknown>;
+    const mainFrame = {};
+    const invokeForRenderer = vi.fn(async () => {
+      if (failure) throw failure;
+      return { ok: true };
+    });
+    registerDesktopIpc(
+      {
+        handle: (_channel: string, listener: typeof handler) => {
+          handler = listener;
+        },
+        removeHandler: () => undefined,
+      } as never,
+      { isDestroyed: () => false, webContents: { mainFrame, send: () => undefined } } as never,
+      { subscribe: () => () => undefined, invokeForRenderer } as never,
+    );
+    return {
+      invoke: (envelope: unknown) => handler({ senderFrame: mainFrame }, envelope),
+      invokeForRenderer,
+    };
+  }
+
+  it('rejects inherited object members as method names', async () => {
+    const ipc = register();
+    for (const method of ['toString', 'constructor', '__proto__', 'hasOwnProperty'])
+      await expect(ipc.invoke({ method })).rejects.toThrow('Unknown Sia IPC method.');
+    expect(ipc.invokeForRenderer).not.toHaveBeenCalled();
+  });
+
+  it('redacts bearer tokens and JWTs from renderer-visible errors', async () => {
+    const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyLTEyMyJ9.c2lnbmF0dXJlLXZhbHVlLWhlcmU';
+    const ipc = register(
+      new Error(`Request failed: Authorization: Bearer abcDEF123456789xyz; session ${jwt}`),
+    );
+    const error = await ipc.invoke({ method: 'bootstrap' }).catch((cause: Error) => cause);
+    expect(String(error)).not.toContain('abcDEF123456789xyz');
+    expect(String(error)).not.toContain(jwt);
+    expect(String(error)).not.toContain('eyJhbGciOiJIUzI1NiJ9');
+    expect(String(error)).toContain('Request failed');
   });
 });

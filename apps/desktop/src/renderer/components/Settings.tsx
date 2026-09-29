@@ -2,6 +2,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { MacSetupApi } from './SetupMacAccess';
 import {
   CaretDown,
+  Code,
   Palette,
   CheckSquareOffset,
   Database,
@@ -20,6 +21,7 @@ import type { AppConnection, ProviderId, RendererApi, RendererSnapshot } from '.
 import styles from '../ui.module.css';
 import { AssistantSettings } from './settings/AssistantSettings';
 import { AboutSettings } from './settings/AboutSettings';
+import { AdvancedSettings } from './settings/AdvancedSettings';
 import { AppsSettings } from './settings/AppsSettings';
 import { ComputerSettings } from './settings/ComputerSettings';
 import { PrivacySettings } from './settings/PrivacySettings';
@@ -43,6 +45,7 @@ export type SettingsSection =
   | 'phone'
   | 'privacy'
   | 'about'
+  | 'advanced'
   | 'release'
   | 'research';
 
@@ -93,6 +96,7 @@ interface SettingsProps {
   onSetAppearance?: ((appearance: 'calm' | 'expressive') => Promise<void>) | undefined;
   onSetCompletionSound(enabled: boolean): Promise<void>;
   onSetOpenAtLogin?: ((enabled: boolean) => Promise<void>) | undefined;
+  onSetDeveloperTools?: ((enabled: boolean) => Promise<void>) | undefined;
   onSetCapturePaused(paused: boolean): Promise<void>;
   onExport(): Promise<void>;
   onDelete(): Promise<void>;
@@ -143,6 +147,7 @@ export function Settings({
   onSetAppearance,
   onSetCompletionSound,
   onSetOpenAtLogin,
+  onSetDeveloperTools,
   onStartSetup,
   onConfigurePushToTalk,
   onSetCapturePaused,
@@ -242,9 +247,14 @@ export function Settings({
               <button
                 type="button"
                 className={
-                  ['appearance', 'about', 'assistant', 'release', 'research'].includes(
-                    section,
-                  ) ||
+                  [
+                    'appearance',
+                    'about',
+                    'advanced',
+                    'assistant',
+                    'release',
+                    'research',
+                  ].includes(section) ||
                   (usesMac && section === 'apps')
                     ? styles.settingsNavActive
                     : undefined
@@ -284,6 +294,13 @@ export function Settings({
                     icon={<PlugsConnected size={17} />}
                     label="Connections"
                     onSelect={() => setSection('apps')}
+                  />
+                )}
+                {onSetDeveloperTools && (
+                  <SettingsMenuItem
+                    icon={<Code size={17} />}
+                    label="Advanced"
+                    onSelect={() => setSection('advanced')}
                   />
                 )}
                 {canReviewRelease && (
@@ -373,6 +390,12 @@ export function Settings({
             <StartupSettings
               openAtLogin={snapshot.preferences.openAtLogin === true}
               onSetOpenAtLogin={onSetOpenAtLogin}
+            />
+          ) : null}
+          {section === 'advanced' && onSetDeveloperTools ? (
+            <AdvancedSettings
+              developerTools={snapshot.preferences.developerTools === true}
+              onSetDeveloperTools={onSetDeveloperTools}
             />
           ) : null}
           {section === 'voice' ? (

@@ -468,6 +468,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async setOpenAtLogin(enabled) {
       publish(await bridge.settings.setOpenAtLogin(enabled));
     },
+    async setDeveloperTools(enabled) {
+      publish(await bridge.settings.setDeveloperTools(enabled));
+    },
     async composeFeedback(message, threadId, includeDiagnostics) {
       await bridge.feedback.compose(message, threadId, includeDiagnostics);
     },

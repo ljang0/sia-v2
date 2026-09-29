@@ -111,6 +111,7 @@ export class RuntimeCoordinator {
   readonly #activeByThread = new Map<string, ActiveTurnContext>();
   readonly #activeByProviderSession = new Map<string, ActiveTurnContext>();
   readonly #onDispose: (() => Promise<void>) | undefined;
+  readonly #onSessionsReset: (() => void) | undefined;
 
   constructor(
     gateway: ActionGateway,
@@ -124,6 +125,8 @@ export class RuntimeCoordinator {
         session: ProviderSessionOptions,
       ) => readonly AcpMcpServer[];
       onDispose?: () => Promise<void>;
+      /** Runs when every provider session is dropped, so session-bound grants can be revoked. */
+      onSessionsReset?: () => void;
       /** Additional audited adapters. Registration never overrides a built-in route. */
       harnessAdapters?: readonly RuntimeHarnessRegistration[];
     } = {},
@@ -131,6 +134,7 @@ export class RuntimeCoordinator {
     this.#gateway = gateway;
     this.#macContext = options.macContext;
     this.#onDispose = options.onDispose;
+    this.#onSessionsReset = options.onSessionsReset;
     this.#codexAdapter = createCodexAdapter({
       ...(options.codexCommand ? { command: options.codexCommand } : {}),
       // Sia owns the encrypted local transcript and reconstructs context when
@@ -452,6 +456,7 @@ export class RuntimeCoordinator {
 
   /** Drops all provider-side conversation state while keeping the app runtime reusable. */
   async resetSessions(): Promise<void> {
+    this.#onSessionsReset?.();
     this.#activeByThread.clear();
     this.#activeByProviderSession.clear();
     this.#sessions.clear();
@@ -482,7 +487,7 @@ export class RuntimeCoordinator {
       thread.provider !== 'meta'
     ) {
       throw new Error(
-        'This legacy provider is disabled for new turns. Connect Codex or Claude, or choose a model included with Sia.',
+        'This model is no longer available in Sia. Choose Codex or a model included with Sia.',
       );
     }
     const target = thread.resolvedExecutionTarget ?? {

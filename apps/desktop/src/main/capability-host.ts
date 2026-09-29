@@ -73,10 +73,16 @@ export class CapabilitySocketHost {
     await chmod(this.#socketPath, 0o600);
   }
 
+  /**
+   * Issues the only live capability for a provider session. A thread's new provider session
+   * replaces its old one, so earlier capabilities for the same session id are revoked.
+   */
   mint(sessionId: string): AcpMcpServer {
     if (!this.#socketPath || !this.#electronExecutable || !this.#entryPath) {
       throw new Error('The ACP capability host is not running.');
     }
+    this.#pruneExpired();
+    this.revokeSession(sessionId);
     const capability: Capability = {
       id: randomUUID(),
       sessionId,
@@ -97,6 +103,21 @@ export class CapabilitySocketHost {
       args: launch.args,
       env: launch.env,
     };
+  }
+
+  /** Ends every capability minted for a provider session that has been disposed. */
+  revokeSession(sessionId: string): void {
+    for (const [id, capability] of this.#capabilities)
+      if (capability.sessionId === sessionId) this.#capabilities.delete(id);
+  }
+
+  /** Ends every capability, for example when all provider sessions are reset. */
+  revokeAll(): void {
+    this.#capabilities.clear();
+  }
+
+  get capabilityCount(): number {
+    return this.#capabilities.size;
   }
 
   async stop(): Promise<void> {
@@ -143,12 +164,13 @@ export class CapabilitySocketHost {
     const id = requiredString(idValue, 'capabilityId');
     const sessionId = requiredString(sessionValue, 'sessionId');
     const capability = this.#capabilities.get(id);
+    // A caller naming the wrong session must not be able to revoke someone else's capability.
+    if (capability && capability.expiresAt <= Date.now()) this.#capabilities.delete(id);
     if (
       !capability ||
       capability.sessionId !== sessionId ||
       capability.expiresAt <= Date.now()
     ) {
-      this.#capabilities.delete(id);
       throw Object.assign(
         new Error('Capability is missing, expired, or belongs to another session.'),
         {
@@ -157,6 +179,12 @@ export class CapabilitySocketHost {
       );
     }
     return capability;
+  }
+
+  #pruneExpired(): void {
+    const now = Date.now();
+    for (const [id, capability] of this.#capabilities)
+      if (capability.expiresAt <= now) this.#capabilities.delete(id);
   }
 }
 

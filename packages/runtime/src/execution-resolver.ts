@@ -7,6 +7,9 @@ import type {
   ProviderId,
   ResolvedExecutionTarget,
 } from '@sia/protocol';
+import { HarnessRegistry } from './harness-registry.js';
+
+const BUILTIN_HARNESSES = new HarnessRegistry();
 
 export interface HarnessReadiness {
   readonly available: boolean;
@@ -27,8 +30,9 @@ export interface ResolveExecutionTargetInput {
   readonly legacyDefault?: ModelRoute;
   /**
    * Complete release-policy allowlist for this resolution. If omitted, only the
-   * built-in legacy route is allowed. Merely receiving a backend route does not
-   * make it trusted.
+   * built-in legacy route is allowed, and only when its harness is release-admitted
+   * (or it is an existing thread's pinned target). Merely receiving a backend route
+   * does not make it trusted.
    */
   readonly allowedRoutes?: readonly ModelRoute[];
   /** Narrows routes when the same provider/model exists under multiple accounts. */
@@ -98,7 +102,13 @@ export function resolveExecutionTarget(
   }
 
   const legacyDefault = input.legacyDefault ?? legacyModelRoute(input.provider, model);
-  const allowedRoutes = input.allowedRoutes ?? [legacyDefault];
+  // Without an explicit allowlist, a new resolution may only use a release-admitted harness.
+  // A target already pinned into an existing thread keeps its legacy route.
+  const allowedRoutes =
+    input.allowedRoutes ??
+    (input.existingTarget || BUILTIN_HARNESSES.get(legacyDefault.harnessId)?.productionEnabled
+      ? [legacyDefault]
+      : []);
   if (input.existingTarget) {
     const mismatch = contextMismatch(
       input.existingTarget,

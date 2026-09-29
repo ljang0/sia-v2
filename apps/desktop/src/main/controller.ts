@@ -211,6 +211,8 @@ interface PersistedState {
     completionSound: boolean;
     openAtLogin?: boolean;
     appearance?: 'calm' | 'expressive';
+    /** Workspace Command tool (arbitrary shell in the agent folder). Off unless set to true. */
+    developerTools?: boolean;
     onboarding?: NonNullable<DesktopSnapshot['preferences']['onboarding']>;
     /** All eligible actions run without in-app approval only when explicitly set to 'auto'. */
     computerAccessMode?: 'mac' | 'connected';
@@ -2159,6 +2161,13 @@ export class DesktopController {
         this.#commit();
         return this.#resultSnapshot() as BridgeResultMap[M];
       }
+      case 'settings.setDeveloperTools': {
+        const { enabled } = input as BridgeRequestMap['settings.setDeveloperTools'];
+        if (enabled) this.#state.preferences.developerTools = true;
+        else delete this.#state.preferences.developerTools;
+        this.#commit();
+        return this.#resultSnapshot() as BridgeResultMap[M];
+      }
       case 'feedback.compose':
         return (await this.#composeFeedbackMessage(
           input as BridgeRequestMap['feedback.compose'],
@@ -2537,6 +2546,9 @@ export class DesktopController {
     const agentId = existing?.id ?? randomUUID();
     const model = input.model.trim();
     const provider = input.provider ?? existing?.provider ?? this.#providerForModel(model);
+    // An agent already running on a retained compatibility provider keeps its route; nothing
+    // new may choose one.
+    if (provider !== existing?.provider) requireReleaseProvider(provider);
     this.#requireReadyProvider(provider, model);
     let workspace: string;
     if (input.workspace?.trim()) {
@@ -2636,6 +2648,7 @@ export class DesktopController {
 
   #duplicateAgent(agentId: string): BridgeResultMap['agents.duplicate'] {
     const source = this.#requireAgent(agentId);
+    requireReleaseProvider(source.provider);
     const now = new Date().toISOString();
     const copy: AgentView = {
       ...structuredClone(source),
@@ -2770,6 +2783,7 @@ export class DesktopController {
   ): BridgeResultMap['threads.create'] {
     this.#requireSignedInReleaseAccount();
     const agent = this.#requireAgent(input.agentId);
+    requireReleaseProvider(agent.provider);
     const id = randomUUID();
     const now = new Date().toISOString();
     const releaseRoute = legacyModelRoute(agent.provider, agent.model);
@@ -3693,7 +3707,14 @@ export class DesktopController {
     return { snapshots: await operations.deleteSnapshot(thread.workspace, input.snapshotId) };
   }
 
+  /** The renderer's Command tool runs unreviewed shell commands, so it is opt-in. */
+  #requireDeveloperTools(): void {
+    if (this.#state.preferences.developerTools === true) return;
+    throw new Error('Turn on Developer tools in Settings to run commands.');
+  }
+
   async #runTerminal(input: BridgeRequestMap['terminal.run']): Promise<TerminalResultView> {
+    this.#requireDeveloperTools();
     this.#requireCodexSetupIdle();
     const thread = this.#requireIdleThread(input.threadId, 'run a terminal command');
     this.#pendingTerminalOperations += 1;
@@ -3710,6 +3731,7 @@ export class DesktopController {
   async #startBackgroundTerminal(
     input: BridgeRequestMap['terminal.start'],
   ): Promise<BackgroundTerminalView> {
+    this.#requireDeveloperTools();
     this.#requireCodexSetupIdle();
     const thread = this.#requireIdleThread(input.threadId, 'start a background process');
     const service = this.#requireWorkspaceOperations();
@@ -3736,6 +3758,7 @@ export class DesktopController {
   async #writeBackgroundTerminal(
     input: BridgeRequestMap['terminal.write'],
   ): Promise<BackgroundTerminalView> {
+    this.#requireDeveloperTools();
     const thread = this.#requireThread(input.threadId);
     const service = this.#requireWorkspaceOperations();
     if (!service.writeBackgroundTerminal) {
@@ -8001,6 +8024,16 @@ function workspaceSlug(value: string): string {
 
 function modelRouteKey(provider: ProviderId, model: string): string {
   return `${provider}\u0000${model}`;
+}
+
+/** Providers a new agent or thread may choose in this release. Others stay for pinned threads. */
+const RELEASE_PROVIDERS: ReadonlySet<ProviderId> = new Set<ProviderId>(['codex', 'meta']);
+
+function requireReleaseProvider(provider: ProviderId): void {
+  if (RELEASE_PROVIDERS.has(provider)) return;
+  throw new Error(
+    'This model is not available for new conversations in this version of Sia. Choose Codex or a model included with Sia. Existing conversations keep working.',
+  );
 }
 
 function legacyHarnessForProvider(

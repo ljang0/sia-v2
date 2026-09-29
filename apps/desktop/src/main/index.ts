@@ -34,10 +34,7 @@ import { ActionGateway, DefaultActionAuthorizationPolicy } from '@sia/action-gat
 import { TrajectoryRecorder } from './trajectory-recorder.js';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import {
-  chromeRemoteDebuggingStatus,
-  ensureChromeRemoteDebuggingEnabled,
-} from './chrome-debug-setup.js';
+import { chromeRemoteDebuggingStatus } from './chrome-debug-setup.js';
 
 const execFileAsync = promisify(execFile);
 import { MessagesService } from './messages-service.js';
@@ -598,6 +595,7 @@ async function performApplicationCreation(): Promise<void> {
             acpMcpServerFactory: (_provider, session) => [
               capabilityHost!.mint(session.threadId),
             ],
+            onSessionsReset: () => capabilityHost!.revokeAll(),
           }
         : {}),
       ...(hostedResponsesProxy || capabilityHost
@@ -624,25 +622,6 @@ async function performApplicationCreation(): Promise<void> {
     unsubscribeDockBadge = activeController.subscribe((event) => {
       if (event.type === 'snapshot') updateDockBadge(event.snapshot);
     });
-    if (
-      !fakeServices &&
-      activeController.computerAccessMode() === 'connected' &&
-      activeController.computerTrust() === 'auto'
-    ) {
-      // Trusted local mode also makes the signed-in Chrome reachable by default: Chrome's own
-      // persistent remote-debugging toggle is enabled whenever Chrome is closed at launch, so
-      // attachment needs no per-session consent prompt. Visible and revocable at
-      // chrome://inspect/#remote-debugging.
-      void ensureChromeRemoteDebuggingEnabled().then((result) => {
-        if (result === 'enabled') {
-          trajectory.record({
-            type: 'chrome_debug_setup',
-            threadId: 'app',
-            result,
-          });
-        }
-      });
-    }
     activeController.attachPushToTalk({
       available: process.platform === 'darwin' && !fakeServices,
       createHelper: nativeVoiceHelperFactory(

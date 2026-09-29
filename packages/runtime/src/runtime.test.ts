@@ -153,6 +153,34 @@ describe('JSON-RPC transport and peer', () => {
     transport.close();
   });
 
+  it('rejects pending requests as soon as the peer’s output ends', async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const peer = new JsonRpcPeer(new JsonLinesTransport(input, output));
+    const pending = peer.request('slow');
+    input.end();
+    await expect(pending).rejects.toThrow('JSON-RPC input ended');
+    await expect(peer.request('after')).rejects.toThrow('closed');
+    await peer.close();
+  });
+
+  it('closes with an error instead of buffering an unbounded line', async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const transport = new JsonLinesTransport(input, output, { maxBufferCharacters: 16 });
+    const peer = new JsonRpcPeer(transport);
+    const pending = peer.request('slow');
+    const closed = new Promise<Error | undefined>((resolve) => transport.onClose(resolve));
+    input.write('{"jsonrpc":"2.0","method":"x",');
+    input.write('"params":"0123456789"');
+    await expect(closed).resolves.toMatchObject({
+      message: expect.stringContaining('size limit'),
+    });
+    await expect(pending).rejects.toThrow('size limit');
+    expect(input.destroyed).toBe(true);
+    await peer.close();
+  });
+
   it('normalizes Codex app-server envelopes that omit the jsonrpc member', () => {
     expect(parseJsonRpcMessage({ id: 1, result: { ok: true } })).toEqual({
       jsonrpc: '2.0',
@@ -1622,6 +1650,90 @@ describe('Notch-style native Mac sessions', () => {
       await adapter.dispose();
     }
   });
+  it('gives id-less provider questions distinct request ids', async () => {
+    const peers = linkedPeers();
+    const answers: unknown[] = [];
+    peers.server.onRequest(async (method, params) => {
+      if (method === 'initialize') return {};
+      if (method === 'thread/start')
+        return {
+          thread: { id: 'native-questions' },
+          sandbox: { type: 'dangerFullAccess' },
+          approvalPolicy: 'never',
+        };
+      if (method === 'experimentalFeature/list')
+        return {
+          data: Object.entries({ ...isolatedCodexFeatures, multi_agent: false }).map(
+            ([name, enabled]) => ({ name, enabled }),
+          ),
+          nextCursor: null,
+        };
+      if (method === 'turn/start') {
+        setImmediate(() => {
+          void (async () => {
+            answers.push(
+              ...(await Promise.all(
+                ['first', 'second'].map((question) =>
+                  peers.server.request('item/tool/requestUserInput', {
+                    threadId: 'native-questions',
+                    turnId: 'native-turn',
+                    question,
+                  }),
+                ),
+              )),
+            );
+            await peers.server.notify('turn/completed', {
+              threadId: 'native-questions',
+              turn: { id: 'native-turn', status: 'completed' },
+            });
+          })();
+        });
+        return { turn: { id: 'native-turn' } };
+      }
+      if (method === 'thread/backgroundTerminals/clean') return {};
+      const isolated = codexIsolationResponse(method, params);
+      if (isolated !== undefined) return isolated;
+      throw new Error(`Unexpected ${method}`);
+    });
+    const adapter = new CodexAppServerAdapter({
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+    try {
+      const session = await adapter.createSession({
+        ...sessionOptions,
+        tools: [],
+        nativeTools: 'mac',
+        nativeApproval: 'auto',
+        baseInstructions: 'You are Sia.',
+      });
+      const requestIds: string[] = [];
+      for await (const event of adapter.sendTurn(session, { turnId: 'turn', text: 'Ask me' })) {
+        if (event.type !== 'question' || event.payload.phase !== 'requested') continue;
+        requestIds.push(event.payload.requestId);
+        await adapter.respondToRequest(session, {
+          requestId: event.payload.requestId,
+          text: `answer ${requestIds.length}`,
+        });
+      }
+      expect(requestIds).toHaveLength(2);
+      expect(new Set(requestIds).size).toBe(2);
+      expect(answers).toEqual([
+        { answers: { answer: 'answer 1' } },
+        { answers: { answer: 'answer 2' } },
+      ]);
+    } finally {
+      clock.mockRestore();
+      await adapter.dispose();
+    }
+  });
+
   it.each(['ask', 'auto'] as const)(
     'retains native tools, replaces the coding persona, and honors %s approval',
     async (nativeApproval) => {

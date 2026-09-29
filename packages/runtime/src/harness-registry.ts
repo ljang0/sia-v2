@@ -34,7 +34,8 @@ export const BUILTIN_HARNESS_DEFINITIONS = [
     name: 'Claude Code',
     modelProtocols: ['anthropic_messages'],
     credentialSources: ['provider_subscription'],
-    productionEnabled: true,
+    // Retained so existing Claude threads keep their pinned route; not a release choice.
+    productionEnabled: false,
   },
   {
     id: 'legacy_acp',

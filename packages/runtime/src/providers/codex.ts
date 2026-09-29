@@ -12,6 +12,7 @@ import type {
   ThreadEventEnvelope,
   ToolEvent,
 } from '@sia/protocol';
+import { randomUUID } from 'node:crypto';
 import { AsyncQueue } from '../async-queue.js';
 import { discoverCli, type CommandRunner, type SupportedVersionRange } from '../discovery.js';
 import { EventFactory, numberAt, record, stringAt } from '../events.js';
@@ -1262,7 +1263,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       if (!active) return { decision: 'decline' };
       if (!active.mac || active.nativeApproval === 'auto') return { decision: 'accept' };
       const requestId =
-        stringAt(params, ['approvalId'], ['itemId']) ?? `${method}:${Date.now()}`;
+        stringAt(params, ['approvalId'], ['itemId']) ?? `${method}:${randomUUID()}`;
       active.approvalPending = true;
       try {
         const decision = new Promise<ProviderRequestResponse>((resolve, reject) => {
@@ -1293,7 +1294,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     }
     if (method.includes('requestUserInput')) {
       const requestId =
-        stringAt(params, ['requestId'], ['itemId'], ['id']) ?? `${method}:${Date.now()}`;
+        stringAt(params, ['requestId'], ['itemId'], ['id']) ?? `${method}:${randomUUID()}`;
       const active = this.#findActive(params);
       if (!active) throw new Error('Approval does not belong to an active turn');
       active.queue.push(

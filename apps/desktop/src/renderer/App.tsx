@@ -536,6 +536,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onSetAppearance={(appearance) => api.setAppearance(appearance)}
               onSetCompletionSound={(enabled) => api.setCompletionSound(enabled)}
               onSetOpenAtLogin={(enabled) => api.setOpenAtLogin(enabled)}
+              onSetDeveloperTools={(enabled) => api.setDeveloperTools(enabled)}
               onSetCapturePaused={(paused) => api.setCapturePaused(paused)}
               onExport={() => api.exportResearchData()}
               onDelete={() => api.deleteResearchData()}

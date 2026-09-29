@@ -56,6 +56,15 @@ describe('harness registry', () => {
     ]);
   });
 
+  it('admits only the Codex app server and Sia-managed harnesses for release', () => {
+    expect(
+      new HarnessRegistry()
+        .list()
+        .filter(({ productionEnabled }) => productionEnabled)
+        .map(({ id }) => id),
+    ).toEqual(['codex_app_server', 'sia_direct']);
+  });
+
   it('makes a lab harness one explicit registration without widening built-ins', () => {
     const labHarness: HarnessDefinition = {
       id: 'example_lab_harness',
