@@ -195,7 +195,10 @@ it.each(['voice', 'access', 'apps', 'restart', 'verify', 'practice'] as const)(
       </Onboarding>,
     );
     await waitFor(() => expect(api.refreshComputerPermissions).toHaveBeenCalledTimes(1));
-    expect(screen.getByRole('heading', { name: 'Your Sia setup.' })).toBeTruthy();
+    expect(
+      screen.getByRole('heading', { name: /^(Give Sia access to your Mac|You’re all set)\.$/ }),
+    ).toBeTruthy();
+    expect(screen.getByRole('list', { name: 'Setup progress' })).toBeTruthy();
     expect(api.requestComputerPermissions).not.toHaveBeenCalled();
     expect(api.requestAutomationPermission).not.toHaveBeenCalled();
     expect(api.createAgent).not.toHaveBeenCalled();
@@ -504,4 +507,60 @@ it('lands in the conversation composer when setup finishes', async () => {
   await waitFor(() =>
     expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' })),
   );
+});
+
+it('shows progress through setup and a calm note after finishing', async () => {
+  const { snapshot, api, props } = setup();
+  const view = render(
+    <Onboarding {...props}>
+      <div>Conversation</div>
+    </Onboarding>,
+  );
+  const progress = screen.getByRole('list', { name: 'Setup progress' });
+  expect(progress.querySelector('[aria-current="step"]')?.textContent).toContain('Welcome');
+
+  snapshot.agents = structuredClone(demoSnapshot.agents.slice(0, 1));
+  snapshot.preferences.onboarding = { step: 'verify', agentId: snapshot.agents[0]!.id };
+  view.rerender(
+    <Onboarding {...props}>
+      <div>Conversation</div>
+    </Onboarding>,
+  );
+  expect(
+    screen.getByRole('list', { name: 'Setup progress' }).querySelector('[aria-current="step"]')
+      ?.textContent,
+  ).toMatch(/Mac access|Ready/);
+
+  api.setOnboarding.mockImplementation(async (step: OnboardingStep) => {
+    snapshot.preferences.onboarding = { step };
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Start using Sia' }));
+  await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('complete'));
+  view.rerender(
+    <Onboarding {...props}>
+      <div>Conversation</div>
+    </Onboarding>,
+  );
+  expect(screen.getByText('Conversation')).toBeTruthy();
+  expect((await screen.findByRole('status')).textContent).toContain('You’re all set.');
+});
+
+it('skipping setup does not claim it finished', async () => {
+  const { snapshot, api, props } = setup('verify');
+  api.setOnboarding.mockImplementation(async (step: OnboardingStep) => {
+    snapshot.preferences.onboarding = { step };
+  });
+  const view = render(
+    <Onboarding {...props}>
+      <div>Conversation</div>
+    </Onboarding>,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Exit setup' }));
+  await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('complete'));
+  view.rerender(
+    <Onboarding {...props}>
+      <div>Conversation</div>
+    </Onboarding>,
+  );
+  expect(screen.queryByText(/You’re all set/)).toBeNull();
 });

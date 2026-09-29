@@ -12,7 +12,7 @@ import {
   WarningCircle,
 } from '@phosphor-icons/react';
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Onboarding } from './components/Onboarding';
+import { Onboarding, onboardingStep } from './components/Onboarding';
 import { AgentDialog } from './components/AgentDialog';
 import { WorkspaceNotice } from './components/AppStates';
 import { StartupTransition } from './components/StartupTransition';
@@ -388,6 +388,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
           <RoomHeader
             agent={roomAgent}
             thread={activeThread}
+            setup={Boolean(onboardingStep(snapshot))}
             controls={
               <div className={styles.topbarActions}>
                 {activeThread ? (
