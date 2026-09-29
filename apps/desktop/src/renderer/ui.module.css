@@ -1117,6 +1117,17 @@ button.agentAvatar {
     transform var(--motion-fast) var(--ease-standard);
 }
 
+.jumpToLatest {
+  animation: jumpToLatestIn 220ms var(--ease-out-soft) both;
+}
+
+@keyframes jumpToLatestIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 6px));
+  }
+}
+
 .jumpToLatest[data-attention='true'] {
   border-color: color-mix(in srgb, var(--text-warning) 45%, var(--border-subtle));
   color: var(--text-primary);
@@ -1235,6 +1246,58 @@ button.agentAvatar {
 
 .messageActionButton:disabled {
   cursor: default;
+}
+
+.messageActionButton[data-copied='true'] {
+  position: relative;
+  color: var(--text-success);
+  opacity: 1;
+}
+
+.copiedCheck {
+  animation: copiedPop 320ms var(--ease-out-soft) both;
+}
+
+/* A small “Copied” tag above the button confirms the copy without moving the header. */
+.copiedTip {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  padding: 2px 7px;
+  border-radius: var(--radius-round);
+  background: var(--text-primary);
+  color: var(--bg-canvas);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  pointer-events: none;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  animation: copiedTip 1.6s var(--ease-standard) both;
+}
+
+@keyframes copiedPop {
+  0% {
+    transform: scale(0.5);
+  }
+  60% {
+    transform: scale(1.2);
+  }
+}
+
+@keyframes copiedTip {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 3px);
+  }
+  12%,
+  78% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 0);
+  }
 }
 
 .messageVoiceError {
@@ -5624,6 +5687,37 @@ input[type='checkbox'].switch:disabled {
 
 .eventSearchAnchor[data-find-current='true'] {
   box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+/* Rows that arrive while the thread is open ease in; a sent message rises from the composer. */
+.eventSearchAnchor[data-entering='true']:not(:has(> .userMessage)) {
+  animation: rowEnter 280ms var(--ease-out-soft) both;
+}
+
+.eventSearchAnchor[data-entering='true'] > .userMessage {
+  animation: sentRise 360ms var(--ease-out-soft) both;
+}
+
+@keyframes rowEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes sentRise {
+  from {
+    opacity: 0.4;
+    transform: translateY(18px) scale(0.985);
+  }
+}
+
+.findCount {
+  min-width: 64px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .attachmentPreview {
