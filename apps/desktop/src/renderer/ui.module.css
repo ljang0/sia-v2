@@ -2042,6 +2042,22 @@ button.agentAvatar {
   margin-top: 0;
 }
 
+.fatalIcon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border-radius: 18px;
+  background: var(--surface-danger);
+  color: var(--text-danger);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .fatalState > * {
+    animation: statusEnter var(--motion-surface) var(--ease-out-soft) both;
+  }
+}
+
 .threadEmpty {
   min-height: 46vh;
   padding-top: 4vh;

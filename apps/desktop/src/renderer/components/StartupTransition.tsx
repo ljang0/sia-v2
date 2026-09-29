@@ -53,7 +53,11 @@ export function StartupTransition({
           >
             <span>Loading</span>
             <span className={styles.wordmark}>Sia</span>
-            <span className={styles.pulse} aria-hidden="true" />
+            <span className={styles.pulse} aria-hidden="true">
+              <i />
+              <i />
+              <i />
+            </span>
           </div>
         </div>
       )}
