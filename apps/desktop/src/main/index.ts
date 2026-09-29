@@ -13,6 +13,7 @@ import { openApplicationRepository } from './application-repository.js';
 import { showStorageStartup } from './storage-startup.js';
 import { requestMicrophonePermission } from './microphone-permission.js';
 import { contextMenuTemplate } from './context-menu.js';
+import { viewMenu } from './app-menu.js';
 import { quitConfirmation, RendererRecovery } from './app-lifecycle.js';
 import {
   readWindowState,
@@ -211,7 +212,7 @@ function createApplication(): Promise<void> {
 }
 
 async function performApplicationCreation(): Promise<void> {
-  installApplicationMenu();
+  installApplicationMenu(controller?.developerToolsEnabled() ?? false);
   configureSessionSecurity();
   await configureProviderPath();
   const developmentMode = !app.isPackaged;
@@ -699,6 +700,11 @@ async function performApplicationCreation(): Promise<void> {
     await phoneRemote.initialize();
     scotty.initialize();
     controller = activeController;
+    // Reload appears in the View menu while Settings → Developer tools is on.
+    installApplicationMenu(activeController.developerToolsEnabled());
+    activeController.subscribe(() =>
+      installApplicationMenu(activeController.developerToolsEnabled()),
+    );
   }
   const activeController = controller;
   commandLauncher ??= createCommandLauncher(
@@ -830,7 +836,11 @@ function configureSessionSecurity(): void {
   });
 }
 
-function installApplicationMenu(): void {
+let menuDeveloperTools: boolean | undefined;
+
+function installApplicationMenu(developerTools = false): void {
+  if (menuDeveloperTools === developerTools) return;
+  menuDeveloperTools = developerTools;
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       {
@@ -868,7 +878,7 @@ function installApplicationMenu(): void {
         ],
       },
       { role: 'editMenu' },
-      { role: 'viewMenu' },
+      viewMenu({ packaged: app.isPackaged, developerTools }),
       { role: 'windowMenu' },
     ]),
   );

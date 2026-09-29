@@ -1107,6 +1107,11 @@ export class DesktopController {
     return this.#state.preferences.computerAccessMode ?? 'connected';
   }
 
+  /** Settings → Developer tools (Command tool, worktree duplicates, View → Reload). */
+  developerToolsEnabled(): boolean {
+    return this.#state.preferences.developerTools === true;
+  }
+
   /** Use my Mac works in the background unless the person explicitly chose On my screen. */
   macBackgroundControl(): boolean {
     return this.#state.preferences.macBackgroundControl !== false;
