@@ -1,5 +1,13 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { ArrowLeft, CalendarDots, CaretDown, Code, Flag, GitDiff } from '@phosphor-icons/react';
+import {
+  ArrowLeft,
+  CalendarDots,
+  CaretDown,
+  Code,
+  Flag,
+  GitDiff,
+  X,
+} from '@phosphor-icons/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   BackgroundTerminal,
@@ -204,8 +212,9 @@ export function ThreadWorkspaceTools({
             className={styles.threadToolClose}
             onClick={closePanel}
             aria-label="Close thread tool"
+            title="Close"
           >
-            Close
+            <X size={15} aria-hidden="true" />
           </button>
           {tool === 'goal' ? (
             <GoalControls

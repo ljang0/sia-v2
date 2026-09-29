@@ -541,5 +541,9 @@ describe('changed file summaries', () => {
       'not a Git repository',
     );
     expect(screen.queryByText('The workspace has no uncommitted changes.')).toBeNull();
+    // Tool panels close with the same × as the rest of the app.
+    const close = screen.getByRole('button', { name: 'Close thread tool' });
+    expect(close.textContent).toBe('');
+    expect(close.querySelector('svg')).toBeTruthy();
   });
 });
