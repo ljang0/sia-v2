@@ -11,7 +11,8 @@ interface WorkGroupProps {
   endedAt?: string | undefined;
   open: boolean;
   onToggle(): void;
-  renderStep(event: ActivityEvent): ReactNode;
+  /** `position` is the step's place in this group; groups hold consecutive timeline events. */
+  renderStep(event: ActivityEvent, position: number): ReactNode;
 }
 
 /** Folds a finished run of tool steps into one "Worked for 1m 12s · 8 steps" line. */

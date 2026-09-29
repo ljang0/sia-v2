@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DesktopBridgeApi, DesktopSnapshot } from '../shared/bridge';
 import { createBridgeRendererApi, mapDesktopSnapshot } from './bridgeAdapter';
+import type { RendererSnapshot } from './types';
 
 function snapshot(timeline: DesktopSnapshot['timeline']): DesktopSnapshot {
   return {
@@ -308,6 +309,43 @@ describe('bridge renderer queued follow-ups', () => {
 });
 
 describe('bridge renderer scoped snapshots', () => {
+  it('keeps unchanged transcript events identical while one reply streams', async () => {
+    const item = (id: string, sequence: number, text: string) => ({
+      id,
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      sequence,
+      kind: 'assistant' as const,
+      text,
+      status: 'complete' as const,
+      timestamp: '2026-01-01T00:00:00.000Z',
+    });
+    let push!: (event: { type: 'snapshot'; snapshot: DesktopSnapshot }) => void;
+    const first = snapshot([item('earlier', 1, 'Done'), item('streaming', 2, 'Hel')]);
+    const api = createBridgeRendererApi({
+      bootstrap: async () => first,
+      subscribe: (listener: typeof push) => {
+        push = listener;
+        return () => undefined;
+      },
+    } as unknown as DesktopBridgeApi);
+    const published: Array<RendererSnapshot> = [];
+    api.subscribe((next) => published.push(next));
+    await api.getSnapshot();
+    push({
+      type: 'snapshot',
+      snapshot: snapshot([item('earlier', 1, 'Done'), item('streaming', 2, 'Hello')]),
+    });
+    const [before, after] = [published.at(-2)!, published.at(-1)!];
+    expect(after.activeThread!.events[0]).toBe(before.activeThread!.events[0]);
+    expect(after.activeThread!.events[1]).not.toBe(before.activeThread!.events[1]);
+    push({
+      type: 'snapshot',
+      snapshot: snapshot([item('earlier', 1, 'Done'), item('streaming', 2, 'Hello')]),
+    });
+    expect(published.at(-1)!.activeThread!.events).toBe(after.activeThread!.events);
+  });
+
   it('uses pushed previews for threads whose history was not sent', () => {
     const source = snapshot([]);
     source.previews = { 'thread-1': { label: 'Request', text: 'Plan the trip' } };

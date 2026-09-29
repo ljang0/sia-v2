@@ -121,12 +121,14 @@ export function ConversationOutline({
   const panelId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLElement>(null);
+  // Every message and tool step gets one entry. Count them cheaply and build the previews only
+  // while the outline is open, so a streaming reply does not re-summarize the whole thread.
+  const messageCount = events.filter(({ type }) => type === 'message').length;
+  const workCount = events.filter(({ type }) => type === 'activity').length;
   const entries = useMemo(
-    () => projectConversationOutline(events, agentName),
-    [agentName, events],
+    () => (open ? projectConversationOutline(events, agentName) : []),
+    [agentName, events, open],
   );
-  const messageCount = entries.filter(({ kind }) => kind === 'message').length;
-  const workCount = entries.length - messageCount;
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -145,7 +147,7 @@ export function ConversationOutline({
     return () => document.removeEventListener('keydown', closeOnEscape, true);
   }, [open]);
 
-  if (entries.length === 0) return null;
+  if (messageCount + workCount === 0) return null;
 
   const navigate = (eventId: string) => {
     setOpen(false);
@@ -166,7 +168,7 @@ export function ConversationOutline({
       >
         <ListBullets size={15} aria-hidden="true" />
         <span>Outline</span>
-        <small>{entries.length}</small>
+        <small>{messageCount + workCount}</small>
       </button>
 
       {open ? (

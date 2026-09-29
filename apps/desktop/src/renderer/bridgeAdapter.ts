@@ -28,7 +28,13 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
   const listeners = new Set<(snapshot: RendererSnapshot) => void>();
 
   const publish = (desktop: DesktopSnapshot) => {
+    const previous = latest?.activeThread;
     latest = mapDesktopSnapshot(desktop);
+    if (latest.activeThread && previous?.id === latest.activeThread.id)
+      latest.activeThread.events = reuseUnchangedEvents(
+        previous.events,
+        latest.activeThread.events,
+      );
     if (
       selectedAgentOverride &&
       latest.agents.some((agent) => agent.id === selectedAgentOverride)
@@ -489,6 +495,38 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       return (await bridge.research.readAdminBatch(subject, batchId)).batch;
     },
   };
+}
+
+/**
+ * Keeps the previous object for every event whose content is unchanged, and the previous array
+ * when nothing changed, so memoized transcript rows skip work while one reply streams.
+ */
+export function reuseUnchangedEvents(
+  previous: readonly ThreadEvent[],
+  next: ThreadEvent[],
+): ThreadEvent[] {
+  const byId = new Map(previous.map((event) => [event.id, event]));
+  const events = next.map((event) => {
+    const earlier = byId.get(event.id);
+    return earlier && sameData(earlier, event) ? earlier : event;
+  });
+  return events.length === previous.length &&
+    events.every((event, index) => event === previous[index])
+    ? (previous as ThreadEvent[])
+    : events;
+}
+
+function sameData(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (typeof left !== 'object' || typeof right !== 'object' || !left || !right) return false;
+  if (Array.isArray(left) !== Array.isArray(right)) return false;
+  const leftKeys = Object.keys(left);
+  if (leftKeys.length !== Object.keys(right).length) return false;
+  return leftKeys.every(
+    (key) =>
+      Object.hasOwn(right, key) &&
+      sameData((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key]),
+  );
 }
 
 export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {

@@ -17,7 +17,15 @@ import {
   WarningCircle,
   X,
 } from '@phosphor-icons/react';
-import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  memo,
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type {
   ActivityEvent,
   ApprovalDecision,
@@ -368,6 +376,56 @@ export function Conversation({
     scrollToLatest(scroller, 'smooth');
   };
 
+  // Rows call the latest handlers through one stable object, so a memoized row re-renders only
+  // when its own event or state changes, not on every streamed token.
+  const latestRowActions = useRef<RowActions | undefined>(undefined);
+  useLayoutEffect(() => {
+    latestRowActions.current = {
+      registerRow: () => undefined,
+      toggleSpeech: (eventId, text) => toggleSpeech(eventId, text),
+      previewAttachment: (attachment) => {
+        if (!onPreviewAttachment) return;
+        setPreview({ attachment });
+        void onPreviewAttachment(attachment.id).then(
+          (result) => setPreview({ attachment, result }),
+          (cause: unknown) =>
+            setPreview({
+              attachment,
+              result: attachmentPreviewFailure(cause),
+            }),
+        );
+      },
+      resolveApproval: async (approvalId, decision) => {
+        setBusyApprovalId(approvalId);
+        try {
+          await onResolveApproval(approvalId, decision);
+        } finally {
+          setBusyApprovalId(undefined);
+        }
+      },
+    };
+  });
+  const rowActions = useMemo<RowActions>(
+    () => ({
+      registerRow: (eventId, node) => {
+        if (node) eventRefs.current.set(eventId, node);
+        else eventRefs.current.delete(eventId);
+      },
+      toggleSpeech: (eventId, text) =>
+        latestRowActions.current?.toggleSpeech(eventId, text) ?? Promise.resolve(),
+      previewAttachment: (attachment) =>
+        latestRowActions.current?.previewAttachment(attachment),
+      resolveApproval: (approvalId, decision) =>
+        latestRowActions.current?.resolveApproval(approvalId, decision) ?? Promise.resolve(),
+    }),
+    [],
+  );
+  const events = thread?.events ?? [];
+  const blocks = useMemo(() => conversationBlocks(events), [events]);
+  const matchingEventIdSet = useMemo(
+    () => new Set(matchingEventIds),
+    [matchingEventIds.join(':')],
+  );
   if (loading) return <ConversationSkeleton />;
 
   if (!thread) {
@@ -441,64 +499,35 @@ export function Conversation({
             event.type === 'activity' && event.status === 'running',
         )
     : undefined;
-  const renderEvent = (event: ThreadEvent, index: number) => (
-    <div
-      key={event.id}
-      ref={(node) => {
-        if (node) eventRefs.current.set(event.id, node);
-        else eventRefs.current.delete(event.id);
-      }}
-      className={styles.eventSearchAnchor}
-      tabIndex={-1}
-      data-find-match={matchingEventIds.includes(event.id) ? 'true' : undefined}
-      data-find-current={matchingEventIds[findIndex] === event.id ? 'true' : undefined}
-    >
-      <EventView
+  const renderEvent = (event: ThreadEvent, index: number) => {
+    const previous = events[index - 1];
+    return (
+      <ConversationRow
+        key={event.id}
         event={event}
+        actions={rowActions}
+        findMatch={matchingEventIdSet.has(event.id)}
+        findCurrent={matchingEventIds[findIndex] === event.id}
         agentName={agentName}
         noticeExplained={
           event.type === 'notice' &&
           event.tone === 'error' &&
-          thread.events[index - 1]?.type === 'message' &&
-          (thread.events[index - 1] as MessageEvent).role === 'assistant' &&
-          (thread.events[index - 1] as MessageEvent).content.trim() === event.detail.trim()
+          previous?.type === 'message' &&
+          previous.role === 'assistant' &&
+          previous.content.trim() === event.detail.trim()
         }
         agentHue={agentHue}
-        busyApprovalId={busyApprovalId}
+        busyApprovalId={event.type === 'approval' ? busyApprovalId : undefined}
         speechPhase={speech.eventId === event.id ? speech.phase : 'idle'}
         speechError={speech.eventId === event.id ? speech.error : undefined}
         streaming={running && event.id === currentAssistantEventId}
         justCompleted={justCompleted && event.id === currentAssistantEventId}
         completed={event.id === resultId}
-        onToggleSpeech={
-          voiceEnabled && onSpeak ? (text) => toggleSpeech(event.id, text) : undefined
-        }
-        onPreviewAttachment={
-          onPreviewAttachment
-            ? (attachment) => {
-                setPreview({ attachment });
-                void onPreviewAttachment(attachment.id).then(
-                  (result) => setPreview({ attachment, result }),
-                  (cause: unknown) =>
-                    setPreview({
-                      attachment,
-                      result: attachmentPreviewFailure(cause),
-                    }),
-                );
-              }
-            : undefined
-        }
-        onResolveApproval={async (approvalId, decision) => {
-          setBusyApprovalId(approvalId);
-          try {
-            await onResolveApproval(approvalId, decision);
-          } finally {
-            setBusyApprovalId(undefined);
-          }
-        }}
+        speakable={Boolean(voiceEnabled && onSpeak)}
+        previewable={Boolean(onPreviewAttachment)}
       />
-    </div>
-  );
+    );
+  };
 
   return (
     <main
@@ -640,7 +669,7 @@ export function Conversation({
             </div>
           ) : (
             <div className={styles.eventList}>
-              {conversationBlocks(thread.events).map((block) =>
+              {blocks.map((block) =>
                 block.kind === 'event' ? (
                   renderEvent(block.event, block.index)
                 ) : (
@@ -658,7 +687,7 @@ export function Conversation({
                         return next;
                       })
                     }
-                    renderStep={(event) => renderEvent(event, thread.events.indexOf(event))}
+                    renderStep={(event, position) => renderEvent(event, block.start + position)}
                   />
                 ),
               )}
@@ -847,6 +876,52 @@ interface EventViewProps {
   onPreviewAttachment?: ((attachment: RendererAttachment) => void) | undefined;
   onResolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
 }
+
+interface RowActions {
+  registerRow(eventId: string, node: HTMLDivElement | null): void;
+  toggleSpeech(eventId: string, text: string): Promise<void>;
+  previewAttachment(attachment: RendererAttachment): void;
+  resolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
+}
+
+interface ConversationRowProps extends Omit<
+  EventViewProps,
+  'onToggleSpeech' | 'onPreviewAttachment' | 'onResolveApproval'
+> {
+  actions: RowActions;
+  findMatch: boolean;
+  findCurrent: boolean;
+  speakable: boolean;
+  previewable: boolean;
+}
+
+/** One transcript row. Memoized so streaming into the last reply leaves earlier rows alone. */
+const ConversationRow = memo(function ConversationRow({
+  actions,
+  findMatch,
+  findCurrent,
+  speakable,
+  previewable,
+  ...view
+}: ConversationRowProps) {
+  const { event } = view;
+  return (
+    <div
+      ref={(node) => actions.registerRow(event.id, node)}
+      className={styles.eventSearchAnchor}
+      tabIndex={-1}
+      data-find-match={findMatch ? 'true' : undefined}
+      data-find-current={findCurrent ? 'true' : undefined}
+    >
+      <EventView
+        {...view}
+        onToggleSpeech={speakable ? (text) => actions.toggleSpeech(event.id, text) : undefined}
+        onPreviewAttachment={previewable ? actions.previewAttachment : undefined}
+        onResolveApproval={actions.resolveApproval}
+      />
+    </div>
+  );
+});
 
 function EventView({
   agentName = 'Sia',
