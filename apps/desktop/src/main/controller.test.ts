@@ -354,6 +354,62 @@ describe('DesktopController', () => {
     }
   });
 
+  it('runs workspace commands only after Developer tools is turned on', async () => {
+    const runTerminal = vi.fn(async () => ({
+      command: 'pwd',
+      cwd: '/tmp/sia-workspace',
+      output: '/tmp/sia-workspace',
+      exitCode: 0,
+      timedOut: false,
+    }));
+    const startBackgroundTerminal = vi.fn();
+    const writeBackgroundTerminal = vi.fn();
+    const { controller, repository } = await createHarness({
+      workspaceOperations: {
+        runTerminal,
+        startBackgroundTerminal,
+        writeBackgroundTerminal,
+      } as never,
+    });
+    try {
+      const { agentId } = await controller.invoke('agents.save', {
+        name: 'Commands',
+        instructions: '',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const threadId = controller
+        .snapshot()
+        .threads.find((thread) => thread.agentId === agentId)!.id;
+      expect(controller.snapshot().preferences.developerTools).toBeUndefined();
+      for (const request of [
+        controller.invoke('terminal.run', { threadId, command: 'pwd' }),
+        controller.invoke('terminal.start', { threadId, command: 'sleep 30' }),
+        controller.invoke('terminal.write', { threadId, terminalId: 'term', input: 'y\n' }),
+      ])
+        await expect(request).rejects.toThrow('Turn on Developer tools');
+      expect(runTerminal).not.toHaveBeenCalled();
+      expect(startBackgroundTerminal).not.toHaveBeenCalled();
+      expect(writeBackgroundTerminal).not.toHaveBeenCalled();
+
+      await controller.invoke('settings.setDeveloperTools', { enabled: true });
+      expect(
+        repository.get<{ preferences: { developerTools?: boolean } }>('desktop', 'state')
+          ?.preferences.developerTools,
+      ).toBe(true);
+      await controller.invoke('terminal.run', { threadId, command: 'pwd' });
+      expect(runTerminal).toHaveBeenCalledWith('/tmp/sia-workspace', 'pwd');
+
+      await controller.invoke('settings.setDeveloperTools', { enabled: false });
+      await expect(
+        controller.invoke('terminal.run', { threadId, command: 'pwd' }),
+      ).rejects.toThrow('Turn on Developer tools');
+      expect(runTerminal).toHaveBeenCalledOnce();
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
   it('saves setup before restarting and rechecks access without reviving a browser grant', async () => {
     const restartApp = vi.fn();
     const h = await createHarness({
@@ -4789,6 +4845,7 @@ describe('DesktopController', () => {
         ),
     });
     try {
+      await controller.invoke('settings.setDeveloperTools', { enabled: true });
       const pending = controller.invoke('providers.login', { providerId: 'codex' });
       await vi.waitFor(() => expect(installCodex).toHaveBeenCalledOnce());
       await expect(

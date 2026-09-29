@@ -442,6 +442,8 @@ export interface RendererSnapshot {
     /** Sia opens when the person logs in to their Mac. Off unless they turn it on. */
     openAtLogin?: boolean;
     appearance?: 'calm' | 'expressive';
+    /** Shows the workspace Command tool. Off unless turned on in Settings. */
+    developerTools?: boolean;
     onboarding?: OnboardingProgress;
   };
   updates: {
@@ -654,6 +656,7 @@ export interface RendererApi {
   setAppearance(appearance: 'calm' | 'expressive'): Promise<void>;
   setCompletionSound(enabled: boolean): Promise<void>;
   setOpenAtLogin(enabled: boolean): Promise<void>;
+  setDeveloperTools(enabled: boolean): Promise<void>;
   composeFeedback(
     message: string,
     threadId: string | undefined,

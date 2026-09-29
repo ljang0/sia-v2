@@ -321,6 +321,7 @@ test('terminal commands remain scoped to the granted workspace', async ({}, test
   const harness = await launchParityFixture('scopedTerminal');
   try {
     const { workspace } = await createAgentAndThread(harness.page);
+    await enableDeveloperTools(harness.page);
     await harness.page.getByRole('button', { name: 'Tools', exact: true }).click();
     await harness.page.getByTestId(parityContract.scopedTerminal.testIds[0]).click();
     const command = harness.page.getByTestId(parityContract.scopedTerminal.testIds[1]);
@@ -349,6 +350,7 @@ test('background terminals accept input and stop without blocking the thread', a
   const harness = await launchParityFixture('backgroundTerminal');
   try {
     await createAgentAndThread(harness.page);
+    await enableDeveloperTools(harness.page);
     await harness.page.getByRole('button', { name: 'Tools', exact: true }).click();
     await harness.page.getByTestId(parityContract.backgroundTerminal.testIds[0]).click();
     await harness.page
@@ -511,6 +513,11 @@ function requireFeature(feature: ParityFeature, testInfo: TestInfo): void {
   } else {
     test.skip(missing.length > 0, `Waiting for bridge contract: ${missing.join(', ')}`);
   }
+}
+
+/** The Command tool is opt-in; main rejects terminal requests until this is on. */
+async function enableDeveloperTools(page: Page): Promise<void> {
+  await page.evaluate(() => window.sia.settings.setDeveloperTools(true));
 }
 
 async function launchParityFixture(
