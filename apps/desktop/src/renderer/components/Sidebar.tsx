@@ -22,6 +22,7 @@ import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState }
 import type { AgentSummary, ThreadSummary } from '../types';
 import styles from '../ui.module.css';
 import { focusComposer } from '../composerFocus';
+import { sidebarAgentOrder } from '../shortcuts';
 import { AgentForm } from './AgentForm';
 import navigation from './navigation.module.css';
 import { TaskPreviewButton } from './TaskPreviewButton';
@@ -163,26 +164,24 @@ export function Sidebar({
 
   const orderedAgents = useMemo(() => {
     const normalizedQuery = collapsed ? '' : query.trim().toLocaleLowerCase();
-    return [...agents]
-      .map((agent) => ({
-        ...agent,
-        threads:
-          normalizedQuery && !agent.name.toLocaleLowerCase().includes(normalizedQuery)
-            ? agent.threads.filter((thread) =>
-                thread.title.toLocaleLowerCase().includes(normalizedQuery),
-              )
-            : agent.threads,
-      }))
-      .filter(
-        (agent) =>
-          !normalizedQuery ||
-          agent.name.toLocaleLowerCase().includes(normalizedQuery) ||
-          agent.threads.length > 0,
-      )
-      .sort((a, b) => {
-        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-        return a.name.localeCompare(b.name);
-      });
+    return sidebarAgentOrder(
+      agents
+        .map((agent) => ({
+          ...agent,
+          threads:
+            normalizedQuery && !agent.name.toLocaleLowerCase().includes(normalizedQuery)
+              ? agent.threads.filter((thread) =>
+                  thread.title.toLocaleLowerCase().includes(normalizedQuery),
+                )
+              : agent.threads,
+        }))
+        .filter(
+          (agent) =>
+            !normalizedQuery ||
+            agent.name.toLocaleLowerCase().includes(normalizedQuery) ||
+            agent.threads.length > 0,
+        ),
+    );
   }, [agents, collapsed, query]);
 
   if (collapsed) {

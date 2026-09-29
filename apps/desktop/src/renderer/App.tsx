@@ -3,6 +3,7 @@ import {
   Archive,
   ChatCircle,
   EnvelopeSimple,
+  Keyboard,
   GearSix,
   MagnifyingGlass,
   Plus,
@@ -22,6 +23,8 @@ import { replyFeedbackDraft } from './components/ReplyFeedback';
 import { Inspector } from './components/Inspector';
 import { RoomHeader } from './components/RoomHeader';
 import { QuickSwitcher, type QuickSwitcherAction } from './components/QuickSwitcher';
+import { KeyboardShortcuts } from './components/KeyboardShortcuts';
+import { conversationForShortcut } from './shortcuts';
 import { Settings } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
 import { AppearanceContext } from './components/effects/appearance';
@@ -80,6 +83,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackDraft, setFeedbackDraft] = useState<string>();
   const [conversationFindOpen, setConversationFindOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const online = useOnline();
   // A focus retry must not outlive the app it was aiming at.
   useEffect(() => cancelComposerFocus, []);
@@ -115,9 +119,43 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
           return;
         }
       }
+      // Esc stops the running task, unless it is closing something else first.
+      const running = app.snapshot?.activeThread;
+      if (
+        event.key === 'Escape' &&
+        !event.defaultPrevented &&
+        running?.status === 'running' &&
+        !app.activityOpen &&
+        !app.settingsOpen &&
+        !conversationFindOpen &&
+        !document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]')
+      ) {
+        event.preventDefault();
+        void app.run(() => app.api.cancelTurn(running.id)).then(() => focusComposer());
+        return;
+      }
       const modifier = mac ? event.metaKey && !event.ctrlKey : event.metaKey || event.ctrlKey;
       if (!modifier || event.altKey) return;
       const key = event.key.toLocaleLowerCase();
+      // ⌘1–9 open the conversations listed in the sidebar, in order.
+      const digit = /^Digit([1-9])$/.exec(event.code)?.[1] ?? /^[1-9]$/.exec(key)?.[0];
+      if (digit && !event.shiftKey && app.snapshot) {
+        const threadId = conversationForShortcut(app.snapshot.agents, Number(digit));
+        if (!threadId) return;
+        event.preventDefault();
+        setQuickSwitcherOpen(false);
+        setShortcutsOpen(false);
+        app.closeSettings();
+        app.closeActivity();
+        void app.run(() => app.api.selectThread(threadId)).then(() => focusComposer());
+        return;
+      }
+      if (key === '/' || event.code === 'Slash') {
+        event.preventDefault();
+        setQuickSwitcherOpen(false);
+        setShortcutsOpen((current) => !current);
+        return;
+      }
       if (key === 'k') {
         event.preventDefault();
         setQuickSwitcherOpen((current) => !current);
@@ -148,7 +186,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [app, auditMode, signInRequired]);
+  }, [app, auditMode, signInRequired, conversationFindOpen]);
   useEffect(
     () =>
       app.api.onOpenConversation?.(() => {
@@ -239,6 +277,14 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
           },
         ]
       : []),
+    {
+      id: 'keyboard-shortcuts',
+      label: 'Keyboard shortcuts',
+      detail: '⌘/',
+      keywords: 'keys hotkeys help',
+      icon: <Keyboard size={17} />,
+      run: () => setShortcutsOpen(true),
+    },
     {
       id: 'feedback',
       label: 'Send feedback',
@@ -377,6 +423,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         }}
         searchResources={(query) => api.searchThreads(query)}
       />
+      <KeyboardShortcuts open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
 
       <section
         ref={workspace}
