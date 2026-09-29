@@ -21,7 +21,7 @@ whose availability can still vary; Codex remains the recommended fallback.
 
 The private recipient record is
 `/Users/lawrencejang/.sia-release/jingyuk-alpha24-download.json`, mode `0600`. Copy only its
-`downloadUrl` into a direct message to `jingyuk@andrew.cmu.edu`. It expires
+`downloadUrl` into a direct message to a pilot tester. It expires
 `2026-09-04T22:38:43.604Z`; do not commit or post it publicly.
 
 ## Five-minute setup

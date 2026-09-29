@@ -2,7 +2,7 @@
 
 This is the reviewed wording and operator checklist for a new Amazon SES production-access request
 in `us-east-1`. It is not evidence that AWS approved the request. As last verified, account
-`677513020767` has healthy SES enforcement and sending enabled, but
+`<AWS account ID>` has healthy SES enforcement and sending enabled, but
 `ProductionAccessEnabled: false`; the earlier request was denied under case `178215835700668`.
 
 ## Suggested request wording
@@ -51,7 +51,7 @@ the lower managed-delivery quota. For an internal cohort of at most 20 people, d
 
 ```sh
 EmailSendingAccount=COGNITO_DEFAULT
-SesSourceArn=arn:aws:ses:us-east-1:677513020767:identity/auth@superintelligentagents.ai
+SesSourceArn=arn:aws:ses:us-east-1:<AWS account ID>:identity/auth@superintelligentagents.ai
 FromEmail=
 ```
 
