@@ -47,7 +47,7 @@ Chrome process that owns that local-only endpoint. Chrome must have restarted at
 the toggle was enabled for the endpoint to serve; turning trusted mode off stops Sia from using
 it. Every action is still bound to a live window, tab, and fresh
 snapshot, still refuses incognito, authentication, password, and secure surfaces, and is written to
-the local trajectory log. `Settings → Computer → Confirm before changes` restores per-action
+the local trajectory log. Turning off `Settings → Computer → Bypass action approvals` restores per-action
 previews and explicit window selection. Sia does not copy cookies. Computer access requires macOS
 Accessibility and Screen Recording, which Sia requests once at first launch. Browsers, terminals,
 password managers, Sia itself, Keychain, and security settings are excluded from generic computer

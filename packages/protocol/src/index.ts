@@ -452,7 +452,7 @@ export const approvalEventSchema = z.object({
         z.object({
           id: idSchema,
           label: z.string().min(1),
-          kind: z.enum(['allow_once', 'deny']),
+          kind: z.enum(['allow_once', 'allow_task', 'deny']),
         }),
       )
       .min(1),

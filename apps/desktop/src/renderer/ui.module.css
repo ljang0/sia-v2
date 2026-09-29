@@ -1852,6 +1852,10 @@ button.agentAvatar {
   text-transform: capitalize;
 }
 
+.approvalStatusPlain {
+  text-transform: none;
+}
+
 .approvalDetails {
   padding: 13px 14px;
 }
@@ -1933,6 +1937,7 @@ button.agentAvatar {
 
 .approvalActions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
   padding: 4px 14px 14px;

@@ -6,6 +6,7 @@ import {
   LockKey,
   Microphone,
   Moon,
+  PlugsConnected,
   Sparkle,
   type Icon,
 } from '@phosphor-icons/react';
@@ -112,6 +113,8 @@ export function Onboarding({
       ? 'connected'
       : 'mac-bypass',
   );
+  // Bypass is the default for every route; confirmations are an explicit opt-in.
+  const [confirmActions, setConfirmActions] = useState(snapshot.computer.trust === 'ask');
   const working = useRef(false);
   const title = useRef<HTMLHeadingElement>(null);
   const agent = snapshot.agents.find(
@@ -174,7 +177,7 @@ export function Onboarding({
       autoFinished.current = false;
       setPermissionPassComplete(false);
       await api.setComputerAccessMode(setupRoute === 'mac-bypass' ? 'mac' : 'connected');
-      await api.setComputerTrust(setupRoute === 'mac-bypass' ? 'auto' : 'ask');
+      await api.setComputerTrust(confirmActions ? 'ask' : 'auto');
       if (!agent && choice?.ready)
         await api.createAgent({
           name: name.trim(),
@@ -292,18 +295,30 @@ export function Onboarding({
               ) : null}
               <div className={styles.modeSummary}>
                 <span className={styles.includedIcon} aria-hidden="true">
-                  {setupRoute === 'mac-bypass' ? <Moon size={18} /> : <ChatsCircle size={18} />}
+                  {confirmActions ? (
+                    <ChatsCircle size={18} />
+                  ) : setupRoute === 'mac-bypass' ? (
+                    <Moon size={18} />
+                  ) : (
+                    <PlugsConnected size={18} />
+                  )}
                 </span>
                 <p>
                   <strong>
-                    {setupRoute === 'mac-bypass'
-                      ? 'Works quietly in the background'
-                      : 'Asks before it acts'}
+                    {confirmActions
+                      ? 'Asks before it acts'
+                      : setupRoute === 'mac-bypass'
+                        ? 'Works quietly in the background'
+                        : 'Works in your connected apps'}
                   </strong>
                   <span>
                     {setupRoute === 'mac-bypass'
-                      ? 'Sia works in the background while you keep using your Mac. It can send messages and change files without asking each time. You can switch to On my screen in Settings → Computer.'
-                      : 'Sia asks before taking actions in connected apps.'}
+                      ? confirmActions
+                        ? 'Sia works in the background while you keep using your Mac and asks before it sends messages or changes files.'
+                        : 'Sia works in the background while you keep using your Mac. It can send messages and change files without asking each time. You can switch to On my screen in Settings → Computer.'
+                      : confirmActions
+                        ? 'Sia asks before taking actions in connected apps.'
+                        : 'Sia takes actions in connected apps without asking each time. You can turn on confirmations in Settings → Computer.'}
                   </span>
                 </p>
                 <button
@@ -314,7 +329,7 @@ export function Onboarding({
                     const details = customize.current;
                     if (!details) return;
                     details.open = true;
-                    details.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                    details.scrollIntoView?.({ block: 'nearest' });
                     details.querySelector<HTMLInputElement>('input:checked')?.focus();
                   }}
                 >
@@ -370,11 +385,8 @@ export function Onboarding({
                       <Moon size={18} />
                     </span>
                     <span>
-                      <strong>Use my Mac + full bypass</strong>
-                      <span>
-                        Works in the background with your signed-in apps. No per-action
-                        approvals.
-                      </span>
+                      <strong>Use my Mac</strong>
+                      <span>Works in the background with your signed-in apps.</span>
                     </span>
                   </label>
                   <label className={styles.setupChoice}>
@@ -385,11 +397,27 @@ export function Onboarding({
                       onChange={() => setSetupRoute('connected')}
                     />
                     <span className={styles.choiceIcon} aria-hidden="true">
+                      <PlugsConnected size={18} />
+                    </span>
+                    <span>
+                      <strong>Connected apps only</strong>
+                      <span>Works only with the accounts you connect.</span>
+                    </span>
+                  </label>
+                  <label className={styles.setupChoice}>
+                    <input
+                      type="checkbox"
+                      checked={confirmActions}
+                      onChange={(event) => setConfirmActions(event.currentTarget.checked)}
+                    />
+                    <span className={styles.choiceIcon} aria-hidden="true">
                       <ChatsCircle size={18} />
                     </span>
                     <span>
-                      <strong>Connected apps + confirmations</strong>
-                      <span>Connect accounts and approve actions.</span>
+                      <strong>Ask before each action</strong>
+                      <span>
+                        Off by default. Turn on to approve each message, file change, or click.
+                      </span>
                     </span>
                   </label>
                   {!agent ? (
