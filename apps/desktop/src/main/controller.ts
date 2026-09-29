@@ -6712,7 +6712,11 @@ export class DesktopController {
       /* Optional memory storage must never turn completed work into a failed task. */
     }
     this.#markScheduleRunFinished(turn, outcome === 'complete' ? 'completed' : 'failed');
+    // Continue task resends the failed turn's files, whatever ended it (start error,
+    // model error or a task that reported it could not finish).
     if (outcome === 'complete') this.#failedTurnAttachments.delete(turn.id);
+    else if (turn.attachments?.length)
+      this.#failedTurnAttachments.set(turn.id, turn.attachments);
     // Streamed items are appended early and mutated as text arrives; the finished turn is
     // written once more so the log always ends with the final transcript for that turn.
     this.#trajectory?.record({

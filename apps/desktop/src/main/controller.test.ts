@@ -2502,6 +2502,78 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('resends attachments when continuing a turn that failed with a model error', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sia-retry-attachment-'));
+    const path = join(directory, 'budget.csv');
+    await writeFile(path, 'month,total\n', 'utf8');
+    const inputs: RuntimeTurnInput[] = [];
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        inputs.push(input);
+        const base = {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+        };
+        if (inputs.length === 1)
+          yield {
+            ...base,
+            type: 'error' as const,
+            payload: { code: 'model_error', message: 'The model failed', recoverable: true },
+          };
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: {
+            status: inputs.length === 1 ? ('failed' as const) : ('completed' as const),
+          },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({
+      fakeServices: false,
+      runtime,
+      chooseFiles: async () => [path],
+    });
+    try {
+      const agent = await controller.invoke('agents.save', {
+        name: 'Personal',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: agent.agentId,
+      });
+      await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+      const picked = await controller.invoke('attachments.pick', { threadId });
+      await controller.invoke('threads.send', {
+        threadId,
+        text: 'Check this budget',
+        attachmentIds: picked.attachments.map(({ id }) => id),
+      });
+      const status = () =>
+        controller.snapshot().threads.find(({ id }) => id === threadId)?.status;
+      await vi.waitFor(() => expect(status()).toBe('failed'));
+      await controller.invoke('threads.retry', { threadId });
+      await vi.waitFor(() => expect(status()).toBe('idle'));
+      expect(inputs).toHaveLength(2);
+      expect(inputs[1]!.attachments).toEqual([{ kind: 'file', path, name: 'budget.csv' }]);
+    } finally {
+      await controller.shutdown();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it('restores partial progress for Continue task after an app restart', async () => {
     const root = await mkdtemp(join(tmpdir(), 'sia-recovery-'));
     const path = join(root, 'state.sqlite');
