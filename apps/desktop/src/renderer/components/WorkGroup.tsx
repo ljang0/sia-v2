@@ -67,6 +67,11 @@ interface WorkingStatusProps {
   writing: boolean;
 }
 
+/** The one word for a running turn, shared by the live line and the conversation header. */
+export function workingLabel(step: boolean, writing: boolean): string {
+  return step ? 'Working' : writing ? 'Writing the reply' : 'Thinking';
+}
+
 /** The live line under a running turn: what Sia is doing now and for how long. */
 export function WorkingStatus({ since, step, writing }: WorkingStatusProps) {
   const [now, setNow] = useState(() => Date.now());
@@ -75,7 +80,7 @@ export function WorkingStatus({ since, step, writing }: WorkingStatusProps) {
     return () => window.clearInterval(interval);
   }, []);
   // The running step already shows as its own row above, so this line stays short.
-  const label = step ? 'Working' : writing ? 'Writing the reply' : 'Thinking';
+  const label = workingLabel(Boolean(step), writing);
   const duration = since ? elapsed(since, new Date(now).toISOString()) : '';
   return (
     <div className={styles.workingStatus} role="status" data-testid="turn-running">

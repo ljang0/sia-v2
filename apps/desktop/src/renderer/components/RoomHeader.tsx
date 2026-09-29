@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import type { AgentSummary, ThreadDetail } from '../types';
 import companion from '../companion.module.css';
 import { AgentForm } from './AgentForm';
+import { workingLabel } from './WorkGroup';
 import type { SiaPresenceState } from './SiaPresence';
 
 export function RoomHeader({
@@ -31,6 +32,9 @@ export function RoomHeader({
   const latestActivity = current
     .filter((event) => event.type === 'activity' && event.status === 'running')
     .at(-1);
+  const writing = current.some(
+    (event) => event.type === 'message' && event.role === 'assistant',
+  );
   const pendingApproval = current.some(
     (event) => event.type === 'approval' && event.status === 'pending',
   );
@@ -43,7 +47,7 @@ export function RoomHeader({
               latestActivity.toolName,
               latestActivity.presentation?.kind ?? latestActivity.kind,
             )
-          : 'Thinking…'
+          : workingLabel(false, writing)
         : state === 'waiting'
           ? pendingApproval
             ? 'Waiting for your approval'
@@ -58,7 +62,7 @@ export function RoomHeader({
             {agent?.name ?? 'Sia'} · {label}
           </span>
           <strong title={thread?.title}>
-            {thread?.title ?? (agent ? 'A fresh room' : 'Your agent rooms')}
+            {thread?.title ?? (agent ? 'New conversation' : 'Your conversations')}
           </strong>
           {thread?.goal ? (
             <div className={companion.roomMeta}>
