@@ -131,8 +131,8 @@
   .arrow {
     transform: none;
   }
-  .dot {
-    animation: none !important;
+  [data-status] .dot {
+    animation: none;
   }
 }
 @media (forced-colors: active) {
