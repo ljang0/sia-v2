@@ -137,6 +137,8 @@ interface ControllerOptions {
   };
   /** Reveals a directory in Finder; used for the trajectory log. */
   revealDirectory?(path: string): Promise<void>;
+  /** Keeps the Mac awake while Use my Mac tasks run; absent in tests that do not care. */
+  keepAwake?: { hold(id: string): void; release(id: string): void };
   chooseDirectory(): Promise<string | null>;
   /** Visible app-managed root used when a new agent does not choose a custom folder. */
   defaultWorkspaceRoot?: string;
@@ -451,6 +453,10 @@ export class DesktopController {
   readonly #startupNotice: ControllerOptions['startupNotice'];
   readonly #listeners = new Set<(event: DesktopPushEvent) => void>();
   readonly #runningTurns = new Map<string, AbortController>();
+  /** Running Use my Mac turns by thread; they hold the keep-awake assertion. */
+  readonly #macTurns = new Map<string, QueuedTurn>();
+  readonly #keepAwake: ControllerOptions['keepAwake'];
+  #macUnavailable: 'locked' | 'asleep' | undefined;
   readonly #phoneTurns = new Set<string>();
   readonly #turnTasks = new Map<string, Promise<void>>();
   readonly #workspaceLeases = new Map<string, string>();
@@ -528,6 +534,7 @@ export class DesktopController {
     this.#openExternal = options.openExternal;
     this.#trajectory = options.trajectory;
     this.#capabilitySetup = options.capabilitySetup;
+    this.#keepAwake = options.keepAwake;
     this.#runCommand = options.runCommand ?? defaultRunCommand;
     this.#providerProbe = options.providerProbe ?? probeProviders;
     this.#captureMacContext = options.captureMacContext;
@@ -641,6 +648,64 @@ export class DesktopController {
       this.computerAccessMode() === 'mac',
     );
     this.#pushToTalk.syncAccess();
+  }
+
+  /**
+   * A locked or sleeping Mac blocks both Use my Mac routes. Running Mac tasks pause with a
+   * Continue task banner; new ones wait in the queue until the Mac is available again.
+   */
+  setMacAvailability(state: 'available' | 'locked' | 'asleep'): void {
+    const wasUnavailable = this.#macUnavailable;
+    this.#macUnavailable = state === 'available' ? undefined : state;
+    if (!this.#macUnavailable) {
+      if (wasUnavailable) {
+        this.#drainQueue();
+        this.#commit();
+      }
+      return;
+    }
+    const text =
+      state === 'locked'
+        ? 'Your Mac locked, so Sia paused this task. Unlock your Mac and press Continue task.'
+        : 'Your Mac went to sleep, so Sia paused this task. Wake your Mac and press Continue task.';
+    if (!this.#macTurns.size) return;
+    for (const threadId of [...this.#macTurns.keys()]) this.#pauseMacTurn(threadId, text);
+    this.#commit();
+  }
+
+  #pauseMacTurn(threadId: string, text: string): void {
+    const thread = this.#requireThread(threadId);
+    const running = this.#runningTurns.get(threadId);
+    const turn = this.#macTurns.get(threadId);
+    if (!running || !turn || running.signal.aborted) return;
+    this.#pushToTalk?.cancelTask(threadId);
+    running.abort();
+    this.#revokeApprovalsForTurn(threadId, turn.id);
+    void this.#runtime?.cancel(threadId, turn.id).catch(() => undefined);
+    const question = this.#pendingQuestions.get(threadId);
+    this.#pendingQuestions.delete(threadId);
+    if (question)
+      void this.#runtime
+        ?.respondToRequest(threadId, { requestId: question.requestId })
+        .catch(() => undefined);
+    if (turn.attachments?.length) this.#failedTurnAttachments.set(turn.id, turn.attachments);
+    thread.status = 'failed';
+    delete thread.queueReason;
+    thread.interruptedTurnId = turn.id;
+    this.#appendTimeline(threadId, {
+      id: randomUUID(),
+      turnId: turn.id,
+      kind: 'error',
+      title: 'Task paused',
+      text,
+      status: 'failed',
+      timestamp: new Date().toISOString(),
+    });
+    thread.updatedAt = new Date().toISOString();
+  }
+
+  #isMacTurn(threadId: string): boolean {
+    return this.computerAccessMode() === 'mac' && !this.#assistantLibrary.isReview(threadId);
   }
 
   #assistantSuspended = false;
@@ -4889,6 +4954,8 @@ export class DesktopController {
       this.#workspaceGrants.clear();
       this.#approvedConnectorBindings.clear();
       this.#runningTurns.clear();
+      for (const threadId of this.#macTurns.keys()) this.#keepAwake?.release(threadId);
+      this.#macTurns.clear();
       this.#turnTasks.clear();
       this.#workspaceLeases.clear();
       this.#pendingApprovals.clear();
@@ -6038,6 +6105,16 @@ export class DesktopController {
   #startTurn(turn: QueuedTurn): void {
     if (this.#shuttingDown) return;
     const thread = this.#requireThread(turn.threadId);
+    if (this.#macUnavailable && this.#isMacTurn(thread.id)) {
+      // Screen control cannot work while the Mac is locked or asleep; start once it is back.
+      this.#queuedTurns.unshift(turn);
+      thread.status = 'queued';
+      thread.queueReason =
+        this.#macUnavailable === 'locked'
+          ? 'Waiting for your Mac to unlock.'
+          : 'Waiting for your Mac to wake.';
+      return;
+    }
     const followUp = this.#state.timeline.find(
       (item) =>
         item.threadId === thread.id &&
@@ -6074,6 +6151,10 @@ export class DesktopController {
     const controller = new AbortController();
     this.#runningTurns.set(thread.id, controller);
     this.#workspaceLeases.set(thread.workspace, turn.id);
+    if (this.#isMacTurn(thread.id)) {
+      this.#macTurns.set(thread.id, turn);
+      this.#keepAwake?.hold(thread.id);
+    }
     if (turn.fromPhone) this.#phoneTurns.add(turn.id);
     thread.status = 'running';
     delete thread.queueReason;
@@ -6185,6 +6266,13 @@ export class DesktopController {
         ) {
           macTask = { request: turn.text };
           recordVault = new NotchVault(thread.workspace, thread.agentId);
+        }
+        if (macTask && this.macBackgroundControl()) {
+          // The background driver ships in the app, but it can fail to load or lack access.
+          // Stop with a plain next step instead of letting the first window action fail.
+          this.#computerState = await this.#computer.permissions();
+          const unavailable = backgroundControlUnavailable(this.#computerState);
+          if (unavailable) throw new Error(unavailable);
         }
         const notchReview = this.#assistantLibrary.isNotchReview(thread.id);
         let nativeRequest: string | undefined;
@@ -7222,6 +7310,7 @@ export class DesktopController {
     const turnId = this.#activeTurnId(threadId);
     if (turnId) this.#phoneTurns.delete(turnId);
     this.#runningTurns.delete(threadId);
+    if (this.#macTurns.delete(threadId)) this.#keepAwake?.release(threadId);
     if (thread) this.#workspaceLeases.delete(thread.workspace);
     this.#drainQueue();
     // A follow-up can still wait when another thread took the workspace first.
@@ -7240,7 +7329,11 @@ export class DesktopController {
     if (this.#runningTurns.size >= 4) return;
     const nextIndex = this.#queuedTurns.findIndex((turn) => {
       const thread = this.#state.threads.find(({ id }) => id === turn.threadId);
-      return thread && !this.#workspaceLeases.has(thread.workspace);
+      return (
+        thread &&
+        !this.#workspaceLeases.has(thread.workspace) &&
+        !(this.#macUnavailable && this.#isMacTurn(thread.id))
+      );
     });
     if (nextIndex < 0) return;
     const [next] = this.#queuedTurns.splice(nextIndex, 1);
@@ -8611,4 +8704,11 @@ function worktreeLabel(title: string, id: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 80);
   return `${slug || 'thread'}-${id}`;
+}
+
+function backgroundControlUnavailable(access: ComputerPermissionsView): string | undefined {
+  if (access.status === 'ready') return undefined;
+  if (access.status === 'needs_permission')
+    return 'Sia needs Accessibility and Screen Recording to work in the background. Allow them in Settings → Computer, then press Continue task.';
+  return 'Working in the background isn’t available on this Mac right now. Choose On my screen in Settings → Computer, then press Continue task.';
 }
