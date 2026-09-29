@@ -8466,6 +8466,7 @@ function mapRuntimePresentation(
       files: presentation.files.map((file) => ({
         path: file.path,
         change: file.change,
+        ...(file.movePath ? { movePath: file.movePath } : {}),
         ...(file.diff ? { diff: file.diff } : {}),
       })),
     };

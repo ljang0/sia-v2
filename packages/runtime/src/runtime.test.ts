@@ -673,7 +673,18 @@ describe('Codex app-server adapter', () => {
             id: 'fileChange',
             type: 'fileChange',
             status: 'completed',
-            changes: [{ path: 'src/index.ts', kind: 'update', diff: '+ready' }],
+            changes: [
+              { path: 'src/index.ts', kind: 'update', diff: '+ready' },
+              // App Server v2 shape: PatchChangeKind is an object.
+              { path: 'notes/new.md', kind: { type: 'add' }, diff: 'one\ntwo\n' },
+              { path: 'old.txt', kind: { type: 'delete' }, diff: 'gone\n' },
+              {
+                path: 'draft.md',
+                kind: { type: 'update', move_path: 'final.md' },
+                diff: '@@ -1 +1 @@\n-a\n+b\n',
+              },
+              { path: 'plain.md', kind: { type: 'update', move_path: null }, diff: '' },
+            ],
           },
           {
             id: 'webSearch',
@@ -833,6 +844,24 @@ describe('Codex app-server adapter', () => {
       command: 'pnpm test',
       output: '20 passed',
       exitCode: 0,
+    });
+    const fileChangeEvent = events.find(
+      (event) => event.type === 'tool' && event.payload.name === 'fileChange',
+    );
+    expect(fileChangeEvent?.type === 'tool' && fileChangeEvent.payload.presentation).toEqual({
+      kind: 'file_change',
+      files: [
+        { path: 'src/index.ts', change: 'update', diff: '+ready' },
+        { path: 'notes/new.md', change: 'add', diff: 'one\ntwo\n' },
+        { path: 'old.txt', change: 'delete', diff: 'gone\n' },
+        {
+          path: 'draft.md',
+          change: 'rename',
+          movePath: 'final.md',
+          diff: '@@ -1 +1 @@\n-a\n+b\n',
+        },
+        { path: 'plain.md', change: 'update' },
+      ],
     });
     const dynamicToolEvent = events.find(
       (event) => event.type === 'tool' && event.payload.name === 'browser_tabs',

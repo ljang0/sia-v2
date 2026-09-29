@@ -409,6 +409,7 @@ export const toolEventSchema = z.object({
             z.object({
               path: z.string().min(1),
               change: z.string().min(1),
+              movePath: z.string().min(1).optional(),
               diff: z.string().optional(),
             }),
           ),

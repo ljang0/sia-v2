@@ -1537,6 +1537,14 @@ button.agentAvatar {
   gap: 10px;
 }
 
+.activityList .diffAdded {
+  color: var(--text-success);
+}
+
+.activityList .diffRemoved {
+  color: var(--text-danger);
+}
+
 .activityList li span,
 .activitySources a {
   overflow: hidden;

@@ -1464,10 +1464,17 @@ function nativePresentation(
       files: (Array.isArray(item.changes) ? item.changes : []).flatMap((candidate) => {
         const change = record(candidate);
         const path = stringAt(change, ['path']);
-        const kind = stringAt(change, ['kind']);
+        const kind = fileChangeKind(change.kind);
         if (!path || !kind) return [];
         const diff = stringAt(change, ['diff']);
-        return [{ path, change: kind, ...(diff ? { diff } : {}) }];
+        return [
+          {
+            path,
+            change: kind.change,
+            ...(kind.movePath ? { movePath: kind.movePath } : {}),
+            ...(diff ? { diff } : {}),
+          },
+        ];
       }),
     };
   }
@@ -1496,6 +1503,20 @@ function nativePresentation(
   }
   if (itemType === 'contextCompaction') return { kind: 'compaction' };
   return undefined;
+}
+
+/**
+ * App Server sends `PatchChangeKind` as `{ type: 'add' | 'delete' | 'update', move_path }`;
+ * older builds and fixtures sent a bare string. An update with a move path is a rename.
+ */
+function fileChangeKind(value: unknown): { change: string; movePath?: string } | undefined {
+  if (typeof value === 'string') return value.trim() ? { change: value.trim() } : undefined;
+  const kind = record(value);
+  const type = stringAt(kind, ['type']);
+  if (!type) return undefined;
+  const movePath = stringAt(kind, ['move_path'], ['movePath']);
+  if (type === 'update' && movePath) return { change: 'rename', movePath };
+  return { change: type };
 }
 
 function codexSubagentEvents(

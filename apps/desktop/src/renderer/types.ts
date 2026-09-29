@@ -82,7 +82,12 @@ type ActivityPresentation =
     }
   | {
       kind: 'file_change';
-      files: Array<{ path: string; change: string; diff?: string | undefined }>;
+      files: Array<{
+        path: string;
+        change: string;
+        movePath?: string | undefined;
+        diff?: string | undefined;
+      }>;
     }
   | {
       kind: 'web_search';

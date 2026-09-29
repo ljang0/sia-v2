@@ -104,3 +104,46 @@ describe('work groups', () => {
     expect(container.querySelector(`svg.${styles.activityErrorIcon}`)).not.toBeNull();
   });
 });
+
+describe('file change steps', () => {
+  const fileStep = (overrides: Partial<ActivityEvent> = {}): ActivityEvent => ({
+    id: 'files',
+    type: 'activity',
+    kind: 'command',
+    title: 'Changed 2 files',
+    status: 'complete',
+    timestamp: '2026-09-28T10:00:05.000Z',
+    presentation: {
+      kind: 'file_change',
+      files: [
+        { path: '/Users/me/notes/new.md', change: 'add', diff: 'one\ntwo\n' },
+        {
+          path: '/Users/me/draft.md',
+          change: 'rename',
+          movePath: '/Users/me/final.md',
+          diff: '@@ -1,2 +1,2 @@\n-a\n+b\n c\n',
+        },
+      ],
+    },
+    ...overrides,
+  });
+
+  it('lists each file with a plain change word and line counts', () => {
+    render(<ActivityRow event={fileStep()} />);
+    fireEvent.click(screen.getByRole('button'));
+    const items = screen.getAllByRole('listitem').map((item) => item.textContent);
+    expect(items[0]).toContain('/Users/me/notes/new.md');
+    expect(items[0]).toContain('Added +2');
+    expect(items[1]).toContain('/Users/me/draft.md → /Users/me/final.md');
+    expect(items[1]).toContain('Renamed +1 −1');
+    expect(screen.queryByText('Preparing file changes…')).toBeNull();
+  });
+
+  it('only says it is preparing while the step runs', () => {
+    render(
+      <ActivityRow event={fileStep({ presentation: { kind: 'file_change', files: [] } })} />,
+    );
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.queryByText('Preparing file changes…')).toBeNull();
+  });
+});
