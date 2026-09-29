@@ -654,6 +654,7 @@ export interface BridgeRequestMap {
   'threads.steer': { threadId: string; messageId: string };
   'attachments.pick': { threadId: string };
   'attachments.drop': { threadId: string; paths: string[] };
+  'attachments.paste': { threadId: string; name?: string; mimeType: string; data: Uint8Array };
   'attachments.preview': { threadId: string; attachmentId: string };
   'attachments.open': { threadId: string; attachmentId: string };
   'attachments.reveal': { threadId: string; attachmentId: string };
@@ -785,6 +786,7 @@ export interface BridgeResultMap {
   'threads.steer': DesktopSnapshot;
   'attachments.pick': { attachments: AttachmentView[] };
   'attachments.drop': { attachments: AttachmentView[] };
+  'attachments.paste': { attachments: AttachmentView[] };
   'attachments.preview': AttachmentPreviewView;
   'attachments.open': { opened: boolean };
   'attachments.reveal': { revealed: boolean };
@@ -938,6 +940,8 @@ export interface DesktopBridgeApi {
   attachments: {
     pick(threadId: string): Promise<BridgeResultMap['attachments.pick']>;
     drop(threadId: string, files: File[]): Promise<BridgeResultMap['attachments.drop']>;
+    /** Clipboard files: Finder copies attach by path, screenshots and text are saved first. */
+    paste(threadId: string, files: File[]): Promise<BridgeResultMap['attachments.paste']>;
     preview(
       threadId: string,
       attachmentId: string,

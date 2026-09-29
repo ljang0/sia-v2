@@ -90,6 +90,7 @@ async function createHarness(
     notify?: ConstructorParameters<typeof DesktopController>[0]['notify'];
     keepAwake?: ConstructorParameters<typeof DesktopController>[0]['keepAwake'];
     notchHelperPath?: string;
+    pastedAttachmentRoot?: string;
   } = {},
 ): Promise<{
   controller: DesktopController;
@@ -151,6 +152,9 @@ async function createHarness(
     ...(options.notify ? { notify: options.notify } : {}),
     ...(options.keepAwake ? { keepAwake: options.keepAwake } : {}),
     ...(options.notchHelperPath ? { notchHelperPath: options.notchHelperPath } : {}),
+    ...(options.pastedAttachmentRoot
+      ? { pastedAttachmentRoot: options.pastedAttachmentRoot }
+      : {}),
   });
   await controller.initialize();
   if (
@@ -7400,8 +7404,12 @@ describe('follow-up messages while a turn runs', () => {
     return { runtime, turns, release };
   }
 
-  async function startThread(runtime: unknown) {
-    const { controller, repository } = await createHarness({ fakeServices: false, runtime });
+  async function startThread(runtime: unknown, pastedAttachmentRoot?: string) {
+    const { controller, repository } = await createHarness({
+      fakeServices: false,
+      runtime,
+      ...(pastedAttachmentRoot ? { pastedAttachmentRoot } : {}),
+    });
     await controller.invoke('computer.setAccessMode', { mode: 'connected' });
     const { agentId } = await controller.invoke('agents.save', {
       name: 'Follow-ups',
@@ -7533,6 +7541,52 @@ describe('follow-up messages while a turn runs', () => {
       expect(thread().status).toBe('idle');
     } finally {
       await controller.shutdown();
+    }
+  });
+
+  it('attaches a pasted screenshot to a follow-up sent while the turn runs', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'sia-pasted-'));
+    const { runtime, turns, release } = followUpRuntime();
+    const { controller, threadId, users } = await startThread(runtime, root);
+    try {
+      const first = await controller.invoke('threads.send', { threadId, text: 'Tidy my desk' });
+      await vi.waitFor(() => expect(release.has(first.turnId)).toBe(true));
+      const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+      const { attachments } = await controller.invoke('attachments.paste', {
+        threadId,
+        name: 'image.png',
+        mimeType: 'image/png',
+        data: png,
+      });
+      expect(attachments).toEqual([
+        expect.objectContaining({ name: 'Pasted image.png', kind: 'image', bytes: png.length }),
+      ]);
+      await expect(
+        controller.invoke('attachments.paste', {
+          threadId,
+          mimeType: 'image/png',
+          data: new TextEncoder().encode('not really a png'),
+        }),
+      ).rejects.toThrow('could not be read');
+
+      await controller.invoke('threads.send', {
+        threadId,
+        text: 'Like this one',
+        attachmentIds: [attachments[0]!.id],
+      });
+      expect(users().at(-1)).toMatchObject({
+        status: 'pending',
+        attachments: [expect.objectContaining({ name: 'Pasted image.png' })],
+      });
+      release.get(first.turnId)!();
+      await vi.waitFor(() => expect(turns).toHaveLength(2));
+      const [attached] = turns[1]!.attachments ?? [];
+      expect(attached).toMatchObject({ kind: 'image', name: 'Pasted image.png' });
+      expect(attached!.path.startsWith(root)).toBe(true);
+      release.get(turns[1]!.turnId)?.();
+    } finally {
+      await controller.shutdown();
+      await rm(root, { recursive: true, force: true });
     }
   });
 

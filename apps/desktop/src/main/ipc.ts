@@ -123,6 +123,18 @@ const inputSchemas = {
       paths: z.array(z.string().trim().min(1).max(4_096)).min(1).max(20),
     })
     .strict(),
+  'attachments.paste': z
+    .object({
+      threadId: identifier,
+      name: z.string().trim().max(255).optional(),
+      mimeType: z.string().trim().min(1).max(100),
+      data: z
+        .instanceof(Uint8Array)
+        .refine((data) => data.byteLength > 0 && data.byteLength <= 25 * 1024 * 1024, {
+          message: 'Pasted items must be between 1 byte and 25 MB.',
+        }),
+    })
+    .strict(),
   'attachments.preview': z.object({ threadId: identifier, attachmentId: identifier }).strict(),
   'attachments.open': z.object({ threadId: identifier, attachmentId: identifier }).strict(),
   'attachments.reveal': z.object({ threadId: identifier, attachmentId: identifier }).strict(),

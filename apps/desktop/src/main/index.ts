@@ -444,6 +444,7 @@ async function performApplicationCreation(): Promise<void> {
           ? process.env.SIA_TEST_WORKSPACE
           : join(app.getPath('home'), 'Sia', 'Agents'),
       chooseFiles,
+      pastedAttachmentRoot: join(app.getPath('userData'), 'attachments', 'pasted'),
       exportJson,
       openPath: async (path) => {
         const error = await shell.openPath(path);

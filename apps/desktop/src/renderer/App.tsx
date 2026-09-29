@@ -607,6 +607,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                     ? (files) => app.dropAttachments(activeThread.id, files)
                     : undefined
                 }
+                onPasteAttachments={
+                  activeThread
+                    ? (files) => app.run(() => app.pasteAttachments(activeThread.id, files))
+                    : undefined
+                }
                 onPreviewAttachment={
                   activeThread
                     ? (attachmentId) => api.previewAttachment(activeThread.id, attachmentId)

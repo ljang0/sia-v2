@@ -7,6 +7,7 @@ import {
   NATIVE_MEMORY_REVIEW_PROMPT,
 } from './memory-suggestions.js';
 import { NativeSkills } from './native-skills.js';
+import { savePastedAttachment } from './pasted-attachments.js';
 import { imageActivityTitle } from '../shared/activity-label.js';
 import { conversationTitle } from '../shared/plain-text.js';
 import { threadPreviews, type ThreadPreviewMemo } from '../shared/thread-previews.js';
@@ -149,6 +150,8 @@ interface ControllerOptions {
   defaultWorkspaceRoot?: string;
   createDirectory?(path: string): Promise<void>;
   chooseFiles?(): Promise<string[]>;
+  /** Private folder where pasted screenshots, files and long text are saved as attachments. */
+  pastedAttachmentRoot?: string;
   openPath?(path: string): Promise<void>;
   composeFeedback?(subject: string, body: string): Promise<void>;
   /** Registers or removes Sia as a macOS login item. */
@@ -449,6 +452,7 @@ export class DesktopController {
   readonly #defaultWorkspaceRoot: string | undefined;
   readonly #createDirectory: (path: string) => Promise<void>;
   readonly #chooseFiles: (() => Promise<string[]>) | undefined;
+  readonly #pastedAttachmentRoot: string | undefined;
   readonly #openPath: ((path: string) => Promise<void>) | undefined;
   readonly #composeFeedback: ((subject: string, body: string) => Promise<void>) | undefined;
   readonly #setOpenAtLogin: ((enabled: boolean) => void) | undefined;
@@ -576,6 +580,7 @@ export class DesktopController {
         await mkdir(path, { recursive: true, mode: 0o700 });
       });
     this.#chooseFiles = options.chooseFiles;
+    this.#pastedAttachmentRoot = options.pastedAttachmentRoot;
     this.#openPath = options.openPath;
     this.#composeFeedback = options.composeFeedback;
     this.#setOpenAtLogin = options.setOpenAtLogin;
@@ -2009,6 +2014,10 @@ export class DesktopController {
         return (await this.#grantAttachments(
           (input as BridgeRequestMap['attachments.drop']).threadId,
           (input as BridgeRequestMap['attachments.drop']).paths,
+        )) as BridgeResultMap[M];
+      case 'attachments.paste':
+        return (await this.#pasteAttachment(
+          input as BridgeRequestMap['attachments.paste'],
         )) as BridgeResultMap[M];
       case 'attachments.preview':
         return (await this.#previewAttachment(
@@ -3685,6 +3694,16 @@ export class DesktopController {
     if (!this.#chooseFiles) throw new Error('File attachments are unavailable in this build.');
     const selected = await this.#chooseFiles();
     return await this.#grantAttachments(threadId, selected);
+  }
+
+  async #pasteAttachment(
+    input: BridgeRequestMap['attachments.paste'],
+  ): Promise<BridgeResultMap['attachments.paste']> {
+    if (!this.#pastedAttachmentRoot)
+      throw new Error('Pasting files is unavailable in this build.');
+    this.#requireThread(input.threadId);
+    const path = await savePastedAttachment(this.#pastedAttachmentRoot, input);
+    return await this.#grantAttachments(input.threadId, [path]);
   }
 
   async #grantAttachments(

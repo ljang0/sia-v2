@@ -560,6 +560,8 @@ export interface RendererApi {
   clearGoal(threadId: string): Promise<void>;
   pickAttachments(threadId: string): Promise<RendererAttachment[]>;
   dropAttachments(threadId: string, files: File[]): Promise<RendererAttachment[]>;
+  /** Pasted screenshots, copied files and long pasted text, attached like a dropped file. */
+  pasteAttachments(threadId: string, files: File[]): Promise<RendererAttachment[]>;
   previewAttachment(threadId: string, attachmentId: string): Promise<AttachmentPreview>;
   openAttachment(threadId: string, attachmentId: string): Promise<void>;
   revealAttachment(threadId: string, attachmentId: string): Promise<void>;

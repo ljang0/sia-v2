@@ -718,6 +718,14 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
     async dropAttachments() {
       return [];
     },
+    async pasteAttachments(_threadId, files) {
+      return files.map((file, index) => ({
+        id: `pasted-${Date.now()}-${index}`,
+        name: file.name || 'Pasted image.png',
+        kind: file.type.startsWith('image/') ? ('image' as const) : ('file' as const),
+        bytes: file.size,
+      }));
+    },
     async previewAttachment() {
       return { kind: 'unavailable', detail: 'Attach a local file in the desktop build.' };
     },

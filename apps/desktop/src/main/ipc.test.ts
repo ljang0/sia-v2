@@ -56,4 +56,22 @@ describe('desktop IPC dispatch', () => {
     expect(String(error)).not.toContain('eyJhbGciOiJIUzI1NiJ9');
     expect(String(error)).toContain('Request failed');
   });
+
+  it('accepts pasted bytes only as a bounded byte array', async () => {
+    const ipc = register();
+    const threadId = '00000000-0000-4000-8000-000000000001';
+    await ipc.invoke({
+      method: 'attachments.paste',
+      input: { threadId, mimeType: 'image/png', data: new Uint8Array([1]) },
+    });
+    expect(ipc.invokeForRenderer).toHaveBeenCalledTimes(1);
+    for (const data of ['aGk=', [1, 2], new Uint8Array()])
+      await expect(
+        ipc.invoke({
+          method: 'attachments.paste',
+          input: { threadId, mimeType: 'image/png', data },
+        }),
+      ).rejects.toThrow();
+    expect(ipc.invokeForRenderer).toHaveBeenCalledTimes(1);
+  });
 });

@@ -221,6 +221,10 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       const result = await bridge.attachments.drop(threadId, files);
       return structuredClone(result.attachments);
     },
+    async pasteAttachments(threadId, files) {
+      const result = await bridge.attachments.paste(threadId, files);
+      return structuredClone(result.attachments);
+    },
     async previewAttachment(threadId, attachmentId) {
       return structuredClone(await bridge.attachments.preview(threadId, attachmentId));
     },

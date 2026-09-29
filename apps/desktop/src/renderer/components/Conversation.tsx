@@ -72,6 +72,7 @@ interface ConversationProps {
   onPickAttachments?: (() => Promise<void> | void) | undefined;
   onRemoveAttachment?: ((attachmentId: string) => Promise<void> | void) | undefined;
   onDropAttachments?: ((files: File[]) => Promise<void> | void) | undefined;
+  onPasteAttachments?: ((files: File[]) => Promise<void> | void) | undefined;
   onPreviewAttachment?: ((attachmentId: string) => Promise<AttachmentPreview>) | undefined;
   onOpenAttachment?: ((attachmentId: string) => Promise<void>) | undefined;
   onRevealAttachment?: ((attachmentId: string) => Promise<void>) | undefined;
@@ -123,6 +124,7 @@ export function Conversation({
   onPickAttachments,
   onRemoveAttachment,
   onDropAttachments,
+  onPasteAttachments,
   onPreviewAttachment,
   onOpenAttachment,
   onRevealAttachment,
@@ -857,6 +859,7 @@ export function Conversation({
         acceptingAttachments={acceptingAttachments}
         onPickAttachments={onPickAttachments}
         onRemoveAttachment={onRemoveAttachment}
+        onPasteFiles={onPasteAttachments}
         onPreviewAttachment={
           onPreviewAttachment
             ? (attachmentId) => {
