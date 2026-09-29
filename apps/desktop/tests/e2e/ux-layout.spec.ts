@@ -38,7 +38,11 @@ test('minimum viewport keeps dialogs, thread tools, and Activity within bounds',
     await sia.page.keyboard.press('ArrowDown');
     const toolMenu = sia.page.getByRole('menu', { name: 'Tools', exact: true });
     await expect(toolMenu).toBeInViewport({ ratio: 1 });
-    await expect(toolMenu.getByRole('menuitem')).toHaveCount(4);
+    // Command stays hidden until Developer tools is on.
+    await expect(toolMenu.getByRole('menuitem')).toHaveCount(3);
+    await expect(toolMenu.getByRole('menuitem', { name: 'Command', exact: true })).toHaveCount(
+      0,
+    );
     await expect(toolMenu.getByRole('menuitem', { name: 'Goal', exact: true })).toBeFocused();
     await sia.page.keyboard.press('Enter');
     await expect(sia.page.getByRole('complementary', { name: 'Thread tool' })).toBeFocused();

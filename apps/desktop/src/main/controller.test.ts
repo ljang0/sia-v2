@@ -7,7 +7,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { ActionGateway, getActionToolDescriptor } from '@sia/action-gateway';
 
 import { CloudClient } from './cloud-client.js';
@@ -89,6 +89,7 @@ async function createHarness(
     createDirectory?: (path: string) => Promise<void>;
     notify?: ConstructorParameters<typeof DesktopController>[0]['notify'];
     keepAwake?: ConstructorParameters<typeof DesktopController>[0]['keepAwake'];
+    notchHelperPath?: string;
   } = {},
 ): Promise<{
   controller: DesktopController;
@@ -149,6 +150,7 @@ async function createHarness(
     ...(options.trajectory ? { trajectory: options.trajectory } : {}),
     ...(options.notify ? { notify: options.notify } : {}),
     ...(options.keepAwake ? { keepAwake: options.keepAwake } : {}),
+    ...(options.notchHelperPath ? { notchHelperPath: options.notchHelperPath } : {}),
   });
   await controller.initialize();
   if (
@@ -7084,9 +7086,33 @@ describe('Use my Mac power and lock handling', () => {
     return { runtime, requests };
   }
 
+  /** Stands in for the macOS memory engine so these checks run on any platform. */
+  let notchHelperPath: string | undefined;
+  async function fakeNotchHelper() {
+    if (notchHelperPath) return notchHelperPath;
+    const directory = await mkdtemp(join(tmpdir(), 'sia-notch-helper-'));
+    const path = join(directory, 'notch-helper');
+    await writeFile(
+      path,
+      `#!${process.execPath}\nlet input = '';\nprocess.stdin.on('data', (chunk) => (input += chunk));\nprocess.stdin.on('end', () => {\n  const request = JSON.parse(input);\n  process.stdout.write(JSON.stringify({ prompt: String(request.request ?? ''), recorded: true }));\n});\n`,
+      { mode: 0o755 },
+    );
+    notchHelperPath = path;
+    return path;
+  }
+  afterAll(async () => {
+    if (notchHelperPath)
+      await rm(join(notchHelperPath, '..'), { recursive: true, force: true });
+  });
+
   async function macThread(options: Parameters<typeof createHarness>[0]) {
     const keepAwake = { hold: vi.fn(), release: vi.fn() };
-    const harness = await createHarness({ fakeServices: false, keepAwake, ...options });
+    const harness = await createHarness({
+      fakeServices: false,
+      keepAwake,
+      notchHelperPath: await fakeNotchHelper(),
+      ...options,
+    });
     const agent = await harness.controller.invoke('agents.save', {
       name: 'Personal',
       instructions: '',

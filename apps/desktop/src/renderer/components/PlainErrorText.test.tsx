@@ -71,3 +71,35 @@ describe('plain failure banner', () => {
     expect(screen.getByText('429 Too Many Requests').closest('details')).toBeTruthy();
   });
 });
+
+describe('interrupted task banner', () => {
+  it('keeps the reason beside Continue task and shows it once', () => {
+    const reason =
+      'The task was interrupted when Sia closed. Completed work is preserved, and it is safe to retry.';
+    render(
+      <Conversation
+        thread={{
+          ...thread(),
+          error: reason,
+          events: [
+            {
+              id: 'interrupted',
+              type: 'notice',
+              tone: 'error',
+              title: 'Task was interrupted',
+              detail: reason,
+            },
+          ],
+        }}
+        onSend={async () => undefined}
+        onStop={async () => undefined}
+        onRetry={async () => undefined}
+        onResolveApproval={async () => undefined}
+      />,
+    );
+    const banner = screen.getByTestId('interrupted-turn-banner');
+    expect(banner.querySelector('span')?.textContent).toBe(reason);
+    expect(screen.getAllByText(reason)).toHaveLength(1);
+    expect(screen.getByText('Task was interrupted')).toBeTruthy();
+  });
+});

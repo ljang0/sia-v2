@@ -190,17 +190,19 @@ export function Conversation({
     (event) => event.type === 'message' && event.role === 'assistant',
   );
   const errorAlreadyExplained =
-    (lastAssistant?.type === 'message' &&
-      (lastAssistant.content ?? '').trim() === thread?.error?.trim()) ||
-    Boolean(
-      thread?.error &&
-      thread.events.some(
-        (event) =>
-          event.type === 'notice' &&
-          event.tone === 'error' &&
-          (event.detail ?? '').trim() === thread.error?.trim(),
-      ),
-    );
+    lastAssistant?.type === 'message' &&
+    (lastAssistant.content ?? '').trim() === thread?.error?.trim();
+  // The Task needs attention banner explains the current failure next to Continue task,
+  // so the conversation notice that reported it keeps only its title.
+  const bannerNoticeId =
+    thread?.error && !errorAlreadyExplained
+      ? thread.events.findLast(
+          (event) =>
+            event.type === 'notice' &&
+            event.tone === 'error' &&
+            (event.detail ?? '').trim() === thread.error?.trim(),
+        )?.id
+      : undefined;
 
   const findNeedle = findQuery.trim().toLocaleLowerCase();
   const matchingEventIds = findNeedle
@@ -528,11 +530,12 @@ export function Conversation({
         findCurrent={matchingEventIds[findIndex] === event.id}
         agentName={agentName}
         noticeExplained={
-          event.type === 'notice' &&
-          event.tone === 'error' &&
-          previous?.type === 'message' &&
-          previous.role === 'assistant' &&
-          (previous.content ?? '').trim() === (event.detail ?? '').trim()
+          event.id === bannerNoticeId ||
+          (event.type === 'notice' &&
+            event.tone === 'error' &&
+            previous?.type === 'message' &&
+            previous.role === 'assistant' &&
+            (previous.content ?? '').trim() === (event.detail ?? '').trim())
         }
         agentHue={agentHue}
         busyApprovalId={event.type === 'approval' ? busyApprovalId : undefined}
