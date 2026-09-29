@@ -18,7 +18,8 @@ safe, and easy to support. It is not approval for public distribution or a resea
 ## Recommended pilot settings
 
 - Choose a confirmation mode during onboarding; the initial selection is Use my Mac + full bypass.
-  Use autonomous actions only for a bounded disposable test.
+  Use autonomous actions only for a bounded disposable test. Use my Mac works in the background by
+  default; choose On my screen in Settings → Computer for native scripts or full file control.
 - New one-time schedules stop after one run. New recurring schedules stop after ten runs unless the
   tester selects another finite limit. Sia must remain open for local schedules to run.
 - Google begins read-only. The initial pilot does not include Gmail send, file editing, sharing, or

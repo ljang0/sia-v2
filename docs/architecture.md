@@ -179,7 +179,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   Sleep hides it; wake rechecks remaining tasks. No task content is sent to the decorative overlay.
   The native view respects Reduced Motion and fades out without activating a window.
 - `computer_list` also discovers installed apps from fixed application directories. Launch validates
-  a currently installed bundle and excludes sensitive apps and script runners. These capability-bound computer tools also provide optional background control in Use my Mac. New profiles default to Use my Mac with automatic action approval. Existing access modes and approval preferences are preserved; legacy profiles without a saved approval preference retain confirmations. macOS permissions remain separate. The access mode is persisted independently of action confirmations. Safari’s system-owned Cryptex app link is recognized without admitting arbitrary symlinks. Native
+  a currently installed bundle and excludes sensitive apps and script runners. These capability-bound computer tools also provide Use my Mac's default background control. New profiles default to Use my Mac, working in the background, with automatic action approval. Existing access modes and approval preferences are preserved; legacy profiles without a saved approval preference retain confirmations. macOS permissions remain separate. The access mode is persisted independently of action confirmations. Safari’s system-owned Cryptex app link is recognized without admitting arbitrary symlinks. Native
   click/drag can use screenshot pixels bound to a recent host-owned window capability. The backend
   validates PNG dimensions, coordinates, live app/window ownership, and protected controls again
   before delivery; no global-coordinate tool is exposed. Windows with protected controls omit
@@ -188,12 +188,12 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   observations remain available to diagnose the blocker. Chrome attachment failures include an
   actionable connection repair instruction without changing trust mode. Connected apps returns a connection refusal for
   unattached `browser_tabs`.
-  **Use my Mac now runs the Notch-style native execution path.** It uses the same Codex
+  **On my screen runs the Notch-style native execution path.** It uses the same Codex
   App Server harness and subscription login, with `baseInstructions` replacing the coding persona
   with the port of Notch's `ClaudeCodeInvoker` prompt. Native shell, file operations and image
   viewing are enabled in `danger-full-access`; provider web search, inherited plugins/MCPs,
   project instruction discovery and subagents are disabled. Connected-browser tools are not exposed.
-  The default native route exposes only Sia library/memory/schedule tools through ActionGateway,
+  The native route exposes only Sia library/memory/schedule tools through ActionGateway,
   with no CUA tools. Its foreground operating prompt comes from the pinned Notch source, followed
   by the Codex tool-name, screenshot-coordinate, presentation and permission adapters. It does not
   append the separate background window-control recipe or a hardcoded Canvas investigation plan.
@@ -208,7 +208,12 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   Report files are verified by readback and linked in Sia/phone, without repeatedly activating an
   external editor. Native learning uses the same indexed vault for later verification.
   Every Mac turn receives the current local date/time and timezone, including after a session
-  resumes. A structured unsuccessful task result ends as needing attention across desktop,
+  resumes. While any Use my Mac turn runs, the main process holds one Electron
+  `prevent-display-sleep` power-save blocker (display sleep would lock the session and block
+  window capture and input on both routes); the last turn to end, fail or be cancelled releases it.
+  `powerMonitor` lock-screen or suspend stops running Mac turns as failed with a plain
+  "Your Mac locked/went to sleep" message and the Continue task banner. New or continued Mac turns
+  stay queued until unlock or resume. A structured unsuccessful task result ends as needing attention across desktop,
   phone, schedules, journal and notifications, even when Codex completed its response normally.
   Cmd+E captures source context before its panel takes focus and delivers it through the host
   send route, without placing private context in renderer IPC or the displayed user message.
@@ -224,15 +229,19 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   points-per-image-pixel transform. The native prompt uses this command for observation and
   verification; it must not divide those image coordinates by Retina scale again. Pure native tests
   cover Retina/large/portrait geometry and PNG orientation without OS capture or input.
-  **Work in background (experimental)** under Settings → Computer → Where Sia works is separately
-  persisted and off by default; **On my screen** selects the native route. The background route uses
+  **Work in background** under Settings → Computer → Where Sia works is the Use my Mac default:
+  profiles without a saved choice use it, and an explicit **On my screen** choice selects the native
+  route and is kept. Onboarding does not change this choice. Before a background turn starts, the host
+  rereads driver permissions; if the driver cannot load or Accessibility/Screen Recording is missing,
+  the turn fails before any model call with a plain next step (allow access, or choose On my screen)
+  and the Continue task banner. The background route uses
   `@trycua/cua-driver` through `CuaService` in the Electron main process, without a VM or driver daemon.
   Native computer calls use a fresh opaque CUA session for each active turn, separate from the
   reusable Codex conversation and explicitly attached browser sessions. A new turn revokes prior
   app/window/snapshot refs and discovers fresh ones; an aborted old call cannot clear current refs.
   Ended driver sessions are never revived and uncertain input is never replayed. Window ids stay
   stable across inventory refreshes within the same turn.
-  Opting in adds built-in CUA `computer_list`, `computer_snapshot`, `computer_action`,
+  Background control adds built-in CUA `computer_list`, `computer_snapshot`, `computer_action`,
   `computer_open_app` and `computer_open_url` through ActionGateway and changes the session prompt.
   It uses a distinct `mac-background` Codex session with verified native-tool disablement and a
   workspace-write sandbox with no additional writable roots, temporary-directory grant or process

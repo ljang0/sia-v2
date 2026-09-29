@@ -84,8 +84,8 @@ These checks passed with GPT-5.6-Sol. Existing agents keep their memory preferen
 automatic recall. This is separate from a fresh validation agent's successful memory test.
 The [course investigation smoke](../apps/desktop/src/main/course-investigation.smoke.test.ts)
 uses a real model with **in-memory browser fixtures** to check coursework outside the calendar and
-inaccessible-course reporting. Neither replaces the live GUI checks above. Experimental background
-window control must be validated separately, including its selected foreground fallback policy.
+inaccessible-course reporting. Neither replaces the live GUI checks above. Background
+window control (the Use my Mac default) must be validated separately, including its selected foreground fallback policy.
 
 For composer voice, record a short disposable sentence with **Dictate message**, then click its
 stop control. Verify the transcript enters the draft without sending. In **Start voice conversation**,
