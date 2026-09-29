@@ -135,7 +135,7 @@ test('archive, transcript search, and fork preserve source context', async ({}, 
   requireFeature('threadLibrary', testInfo);
   const harness = await launchParityFixture('threadLibrary');
   try {
-    const { threadId } = await createAgentAndThread(harness.page);
+    await createAgentAndThread(harness.page);
     const token = 'PARITY-ARCHIVE-4F92';
     await harness.page.getByRole('textbox', { name: 'Message' }).fill(`Remember ${token}.`);
     await harness.page.getByRole('textbox', { name: 'Message' }).press('Enter');
@@ -156,10 +156,10 @@ test('archive, transcript search, and fork preserve source context', async ({}, 
 
     await harness.page.getByTestId(parityContract.threadLibrary.testIds[0]).click();
     await harness.page.getByTestId(parityContract.threadLibrary.testIds[6]).click();
-    await harness.page.getByRole('button', { name: 'Duplicate' }).click();
+    await harness.page.getByRole('button', { name: 'Duplicate', exact: true }).click();
     await expect(
       harness.page.getByTestId(parityContract.threadLibrary.testIds[7]),
-    ).toContainText(threadId);
+    ).toContainText('Copied from');
     await expect(
       harness.page.getByLabel('Conversation').getByText(token, { exact: false }),
     ).toBeVisible();
@@ -420,6 +420,8 @@ test('two worktrees can run independent deterministic tasks concurrently', async
   try {
     const { threadId: sourceThreadId, workspace } = await createAgentAndThread(harness.page);
     await initializeGitWorkspace(workspace);
+    // The worktree option is a developer tool.
+    await enableDeveloperTools(harness.page);
     for (const name of ['parity-alpha', 'parity-beta']) {
       if (name === 'parity-beta') {
         await harness.page.evaluate((id) => window.sia.threads.select(id), sourceThreadId);
@@ -429,8 +431,8 @@ test('two worktrees can run independent deterministic tasks concurrently', async
         .click();
       await harness.page.getByTestId(parityContract.worktreeParallelism.testIds[0]).click();
       await harness.page.getByTestId(parityContract.worktreeParallelism.testIds[1]).check();
-      await harness.page.getByLabel('Name of the copy').fill(name);
-      await harness.page.getByRole('button', { name: 'Duplicate' }).click();
+      await harness.page.getByLabel('Name', { exact: true }).fill(name);
+      await harness.page.getByRole('button', { name: 'Duplicate', exact: true }).click();
       await harness.page
         .getByRole('textbox', { name: 'Message' })
         .fill(`PARITY_WORKTREE: ${name}`);

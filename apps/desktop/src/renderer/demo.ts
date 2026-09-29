@@ -718,6 +718,14 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
     async dropAttachments() {
       return [];
     },
+    async pasteAttachments(_threadId, files) {
+      return files.map((file, index) => ({
+        id: `pasted-${Date.now()}-${index}`,
+        name: file.name || 'Pasted image.png',
+        kind: file.type.startsWith('image/') ? ('image' as const) : ('file' as const),
+        bytes: file.size,
+      }));
+    },
     async previewAttachment() {
       return { kind: 'unavailable', detail: 'Attach a local file in the desktop build.' };
     },
@@ -852,6 +860,19 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         else delete current.activeThread.queuedMessages;
       });
     },
+    async steerQueuedMessage(threadId, messageId) {
+      mutate((current) => {
+        if (current.activeThread?.id !== threadId) return;
+        const message = current.activeThread.queuedMessages?.find(({ id }) => id === messageId);
+        if (!message) return;
+        const remaining = (current.activeThread.queuedMessages ?? []).filter(
+          ({ id }) => id !== messageId,
+        );
+        if (remaining.length) current.activeThread.queuedMessages = remaining;
+        else delete current.activeThread.queuedMessages;
+        current.activeThread.events = [...current.activeThread.events, message];
+      });
+    },
     async respondToApproval(approvalId, decision: ApprovalDecision) {
       mutate((current) => {
         const approval = current.activeThread?.events.find(
@@ -870,6 +891,29 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
           current.activeThread.error = undefined;
           current.activeThread.status = 'running';
         }
+      });
+    },
+    async redoLastMessage(threadId, text) {
+      mutate((current) => {
+        const thread = current.activeThread;
+        if (thread?.id !== threadId) return;
+        const index = thread.events.findLastIndex(
+          (event) => event.type === 'message' && event.role === 'user',
+        );
+        const last = thread.events[index];
+        if (last?.type !== 'message') return;
+        thread.error = undefined;
+        thread.events = [
+          ...thread.events.slice(0, index),
+          { ...last, content: text?.trim() || last.content },
+          {
+            id: `demo-redo-${Date.now()}`,
+            type: 'message',
+            role: 'assistant',
+            content: 'Here is another take on that.',
+            timestamp: new Date().toISOString(),
+          },
+        ];
       });
     },
     async setCapturePaused(paused) {

@@ -33,7 +33,8 @@ export function AdvancedSettings({
             Developer tools <SavedNote show={saved} />
           </strong>
           <small>
-            Adds Command to a conversation’s Tools menu. Commands run in the agent’s folder
+            Adds Command to a conversation’s Tools menu, a Git worktree option when you
+            duplicate a conversation, and View → Reload. Commands run in the agent’s folder
             right away, without asking first.
           </small>
         </span>

@@ -8,6 +8,7 @@ import type {
   ProviderReviewInput,
   ProviderSession,
   ProviderSessionOptions,
+  ProviderSteerInput,
   ResolvedExecutionTarget,
   ThreadEventEnvelope,
 } from '@sia/protocol';
@@ -423,6 +424,14 @@ export class RuntimeCoordinator {
   async cancel(threadId: string, turnId: string): Promise<void> {
     const state = this.#sessions.get(threadId);
     if (state) await state.adapter.cancelTurn(state.session, turnId);
+  }
+
+  /** Adds a person's message to the thread's running turn. Rejects if it cannot be added. */
+  async steer(threadId: string, turnId: string, input: ProviderSteerInput): Promise<void> {
+    const state = this.#sessions.get(threadId);
+    if (!state?.adapter.steerTurn)
+      throw new Error('This task cannot take new messages while it works.');
+    await state.adapter.steerTurn(state.session, turnId, input);
   }
 
   /** Forgets a deleted thread's provider session and lets the provider release it. */

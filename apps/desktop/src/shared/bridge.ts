@@ -653,11 +653,15 @@ export interface BridgeRequestMap {
   'threads.delete': { threadId: string };
   'threads.send': SendTurnInput;
   'threads.retry': { threadId: string };
+  /** Replaces the last exchange: Try again resends it, Edit sends new text in its place. */
+  'threads.redo': { threadId: string; text?: string; attachmentIds?: string[] };
   'threads.cancel': { threadId: string };
   /** Removes a queued follow-up (a pending user message) before it starts. */
   'threads.unqueue': { threadId: string; messageId: string };
+  'threads.steer': { threadId: string; messageId: string };
   'attachments.pick': { threadId: string };
   'attachments.drop': { threadId: string; paths: string[] };
+  'attachments.paste': { threadId: string; name?: string; mimeType: string; data: Uint8Array };
   'attachments.preview': { threadId: string; attachmentId: string };
   'attachments.open': { threadId: string; attachmentId: string };
   'attachments.reveal': { threadId: string; attachmentId: string };
@@ -784,10 +788,13 @@ export interface BridgeResultMap {
   'threads.delete': DesktopSnapshot;
   'threads.send': { turnId: string; snapshot: DesktopSnapshot };
   'threads.retry': { turnId: string; snapshot: DesktopSnapshot };
+  'threads.redo': { turnId: string; snapshot: DesktopSnapshot };
   'threads.cancel': DesktopSnapshot;
   'threads.unqueue': DesktopSnapshot;
+  'threads.steer': DesktopSnapshot;
   'attachments.pick': { attachments: AttachmentView[] };
   'attachments.drop': { attachments: AttachmentView[] };
+  'attachments.paste': { attachments: AttachmentView[] };
   'attachments.preview': AttachmentPreviewView;
   'attachments.open': { opened: boolean };
   'attachments.reveal': { revealed: boolean };
@@ -931,8 +938,14 @@ export interface DesktopBridgeApi {
     delete(threadId: string): Promise<DesktopSnapshot>;
     send(input: SendTurnInput): Promise<BridgeResultMap['threads.send']>;
     retry(threadId: string): Promise<BridgeResultMap['threads.retry']>;
+    redo(
+      threadId: string,
+      text?: string,
+      attachmentIds?: readonly string[],
+    ): Promise<BridgeResultMap['threads.redo']>;
     cancel(threadId: string): Promise<DesktopSnapshot>;
     unqueue(threadId: string, messageId: string): Promise<DesktopSnapshot>;
+    steer(threadId: string, messageId: string): Promise<DesktopSnapshot>;
   };
   worktrees: {
     cleanup(threadId: string): Promise<DesktopSnapshot>;
@@ -940,6 +953,8 @@ export interface DesktopBridgeApi {
   attachments: {
     pick(threadId: string): Promise<BridgeResultMap['attachments.pick']>;
     drop(threadId: string, files: File[]): Promise<BridgeResultMap['attachments.drop']>;
+    /** Clipboard files: Finder copies attach by path, screenshots and text are saved first. */
+    paste(threadId: string, files: File[]): Promise<BridgeResultMap['attachments.paste']>;
     preview(
       threadId: string,
       attachmentId: string,

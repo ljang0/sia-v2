@@ -7,6 +7,7 @@ import {
   NATIVE_MEMORY_REVIEW_PROMPT,
 } from './memory-suggestions.js';
 import { NativeSkills } from './native-skills.js';
+import { savePastedAttachment } from './pasted-attachments.js';
 import { activityLabel, imageActivityTitle } from '../shared/activity-label.js';
 import { conversationTitle } from '../shared/plain-text.js';
 import { turnFinishedNotice } from './notification-copy.js';
@@ -150,6 +151,8 @@ interface ControllerOptions {
   defaultWorkspaceRoot?: string;
   createDirectory?(path: string): Promise<void>;
   chooseFiles?(): Promise<string[]>;
+  /** Private folder where pasted screenshots, files and long text are saved as attachments. */
+  pastedAttachmentRoot?: string;
   openPath?(path: string): Promise<void>;
   composeFeedback?(subject: string, body: string): Promise<void>;
   /** Registers or removes Sia as a macOS login item. */
@@ -452,6 +455,7 @@ export class DesktopController {
   readonly #defaultWorkspaceRoot: string | undefined;
   readonly #createDirectory: (path: string) => Promise<void>;
   readonly #chooseFiles: (() => Promise<string[]>) | undefined;
+  readonly #pastedAttachmentRoot: string | undefined;
   readonly #openPath: ((path: string) => Promise<void>) | undefined;
   readonly #composeFeedback: ((subject: string, body: string) => Promise<void>) | undefined;
   readonly #setOpenAtLogin: ((enabled: boolean) => void) | undefined;
@@ -581,6 +585,7 @@ export class DesktopController {
         await mkdir(path, { recursive: true, mode: 0o700 });
       });
     this.#chooseFiles = options.chooseFiles;
+    this.#pastedAttachmentRoot = options.pastedAttachmentRoot;
     this.#openPath = options.openPath;
     this.#composeFeedback = options.composeFeedback;
     this.#setOpenAtLogin = options.setOpenAtLogin;
@@ -1105,6 +1110,11 @@ export class DesktopController {
   /** 'auto' runs eligible actions without in-app approval. */
   computerAccessMode(): 'mac' | 'connected' {
     return this.#state.preferences.computerAccessMode ?? 'connected';
+  }
+
+  /** Settings → Developer tools (Command tool, worktree duplicates, View → Reload). */
+  developerToolsEnabled(): boolean {
+    return this.#state.preferences.developerTools === true;
   }
 
   /** Use my Mac works in the background unless the person explicitly chose On my screen. */
@@ -1993,6 +2003,10 @@ export class DesktopController {
         return this.#retryTurn(
           (input as BridgeRequestMap['threads.retry']).threadId,
         ) as BridgeResultMap[M];
+      case 'threads.redo':
+        return (await this.#redoLastTurn(
+          input as BridgeRequestMap['threads.redo'],
+        )) as BridgeResultMap[M];
       case 'threads.unqueue':
         return this.#unqueueMessage(
           (input as BridgeRequestMap['threads.unqueue']).threadId,
@@ -2002,6 +2016,11 @@ export class DesktopController {
         return (await this.#cancelTurn(
           (input as BridgeRequestMap['threads.cancel']).threadId,
         )) as BridgeResultMap[M];
+      case 'threads.steer':
+        return (await this.#steerQueuedMessage(
+          (input as BridgeRequestMap['threads.steer']).threadId,
+          (input as BridgeRequestMap['threads.steer']).messageId,
+        )) as BridgeResultMap[M];
       case 'attachments.pick':
         return (await this.#pickAttachments(
           (input as BridgeRequestMap['attachments.pick']).threadId,
@@ -2010,6 +2029,10 @@ export class DesktopController {
         return (await this.#grantAttachments(
           (input as BridgeRequestMap['attachments.drop']).threadId,
           (input as BridgeRequestMap['attachments.drop']).paths,
+        )) as BridgeResultMap[M];
+      case 'attachments.paste':
+        return (await this.#pasteAttachment(
+          input as BridgeRequestMap['attachments.paste'],
         )) as BridgeResultMap[M];
       case 'attachments.preview':
         return (await this.#previewAttachment(
@@ -3455,6 +3478,65 @@ export class DesktopController {
     return { turnId, snapshot: this.#resultSnapshot() };
   }
 
+  /**
+   * Edit or Try again: replaces the thread's last exchange with a new turn. The last message
+   * and everything after it leave the transcript, and the provider starts a fresh session
+   * seeded with the conversation before it, so the old reply is not part of the context.
+   * Actions the agent already took stay done.
+   */
+  async #redoLastTurn(
+    input: BridgeRequestMap['threads.redo'],
+  ): Promise<BridgeResultMap['threads.redo']> {
+    const thread = this.#requireThread(input.threadId);
+    if (
+      !['idle', 'failed'].includes(thread.status) ||
+      this.#runningTurns.has(thread.id) ||
+      this.#queuedTurns.some((turn) => turn.threadId === thread.id) ||
+      this.#pendingQuestions.has(thread.id)
+    ) {
+      throw new Error('Wait for Sia to finish before changing the last message.');
+    }
+    const items = this.#state.timeline
+      .filter((item) => item.threadId === thread.id)
+      .sort((left, right) => left.sequence - right.sequence);
+    const last = items.findLast((item) => item.kind === 'user' && item.status === 'complete');
+    if (!last?.text) throw new Error('There is no message to change in this conversation.');
+    const text = input.text?.trim() || last.text;
+    // The original files go with the message again while their one-hour access lasts.
+    const attachmentIds = [
+      ...new Set([
+        ...(last.attachments ?? []).map(({ id }) => id),
+        ...(input.attachmentIds ?? []),
+      ]),
+    ];
+    for (const id of attachmentIds) {
+      const grant = this.#attachmentGrants.get(id);
+      if (!grant || grant.threadId !== thread.id || grant.expiresAt <= Date.now()) {
+        throw new Error(
+          'A file on this message is no longer available. Attach it again and send.',
+        );
+      }
+    }
+    const removed = new Set(items.filter((item) => item.sequence >= last.sequence));
+    const timeline = this.#state.timeline;
+    this.#state.timeline = timeline.filter((item) => !removed.has(item));
+    const previousStatus = thread.status;
+    thread.status = 'idle';
+    try {
+      // The next turn starts a fresh provider session from the remaining conversation.
+      void this.#runtime?.releaseSession(thread.id).catch(() => undefined);
+      return this.#sendTurn({
+        threadId: thread.id,
+        text,
+        ...(attachmentIds.length ? { attachmentIds } : {}),
+      });
+    } catch (error) {
+      this.#state.timeline = timeline;
+      thread.status = previousStatus;
+      throw error;
+    }
+  }
+
   #retryTurn(threadId: string): BridgeResultMap['threads.retry'] {
     this.#requireSignedInReleaseAccount();
     this.#requireCodexSetupIdle();
@@ -3616,6 +3698,73 @@ export class DesktopController {
     return this.#resultSnapshot();
   }
 
+  /**
+   * "Send now": a queued follow-up joins the running turn instead of waiting for it to end.
+   * The message stays queued when the provider cannot take it.
+   */
+  async #steerQueuedMessage(threadId: string, messageId: string): Promise<DesktopSnapshot> {
+    const thread = this.#requireThread(threadId);
+    const item = this.#state.timeline.find(
+      (candidate) =>
+        candidate.id === messageId &&
+        candidate.threadId === threadId &&
+        candidate.kind === 'user' &&
+        candidate.status === 'pending',
+    );
+    const index = this.#queuedTurns.findIndex((turn) => turn.id === item?.turnId);
+    const queued = this.#queuedTurns[index];
+    if (!item || !queued) throw new Error('This message has already started or was removed.');
+    const activeTurnId = this.#activeTurnId(threadId);
+    if (
+      !activeTurnId ||
+      thread.status !== 'running' ||
+      this.#runningTurns.get(threadId)?.signal.aborted
+    ) {
+      throw new Error('Sia is not working on this right now. Your message will be sent next.');
+    }
+    // Take it out of the queue first so the turn ending meanwhile cannot also start it.
+    this.#queuedTurns.splice(index, 1);
+    try {
+      if (!this.#fakeServices) {
+        const runtime = this.#runtime;
+        if (!runtime) throw new Error('The provider runtime did not initialize.');
+        await runtime.steer(threadId, activeTurnId, {
+          text: queued.text,
+          ...(queued.attachments?.length ? { attachments: queued.attachments } : {}),
+        });
+      }
+    } catch (error) {
+      this.#queuedTurns.splice(Math.min(index, this.#queuedTurns.length), 0, queued);
+      // The turn may have ended while the provider refused; the message then runs next.
+      if (!this.#runningTurns.has(threadId)) this.#drainQueue();
+      this.#commit();
+      throw new Error(
+        `Sia could not add this to the current task, so it will be sent next. ${error instanceof Error ? error.message : ''}`.trim(),
+      );
+    }
+    // The message now belongs to the running turn and appears where it joined.
+    item.status = 'complete';
+    item.turnId = activeTurnId;
+    item.sequence =
+      this.#state.timeline.reduce(
+        (highest, candidate) =>
+          candidate.threadId === threadId ? Math.max(highest, candidate.sequence) : highest,
+        0,
+      ) + 1;
+    this.#discardResearchTurn(queued.id);
+    this.#stageResearchText({
+      turnId: activeTurnId,
+      eventId: item.id,
+      occurredAt: item.timestamp,
+      role: 'user',
+      text: queued.text,
+      provider: thread.provider,
+    });
+    thread.updatedAt = new Date().toISOString();
+    this.#commit();
+    return this.#resultSnapshot();
+  }
+
   /** Drops the pending user messages of queued follow-ups that will no longer run. */
   #removeQueuedMessages(threadId: string, turnIds: ReadonlySet<string>): number {
     const before = this.#state.timeline.length;
@@ -3636,6 +3785,16 @@ export class DesktopController {
     if (!this.#chooseFiles) throw new Error('File attachments are unavailable in this build.');
     const selected = await this.#chooseFiles();
     return await this.#grantAttachments(threadId, selected);
+  }
+
+  async #pasteAttachment(
+    input: BridgeRequestMap['attachments.paste'],
+  ): Promise<BridgeResultMap['attachments.paste']> {
+    if (!this.#pastedAttachmentRoot)
+      throw new Error('Pasting files is unavailable in this build.');
+    this.#requireThread(input.threadId);
+    const path = await savePastedAttachment(this.#pastedAttachmentRoot, input);
+    return await this.#grantAttachments(input.threadId, [path]);
   }
 
   async #grantAttachments(

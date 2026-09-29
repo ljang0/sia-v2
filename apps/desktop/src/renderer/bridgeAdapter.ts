@@ -221,6 +221,10 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       const result = await bridge.attachments.drop(threadId, files);
       return structuredClone(result.attachments);
     },
+    async pasteAttachments(threadId, files) {
+      const result = await bridge.attachments.paste(threadId, files);
+      return structuredClone(result.attachments);
+    },
     async previewAttachment(threadId, attachmentId) {
       return structuredClone(await bridge.attachments.preview(threadId, attachmentId));
     },
@@ -309,6 +313,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async removeQueuedMessage(threadId, messageId) {
       publish(await bridge.threads.unqueue(threadId, messageId));
     },
+    async steerQueuedMessage(threadId, messageId) {
+      publish(await bridge.threads.steer(threadId, messageId));
+    },
     async respondToApproval(approvalId, decision) {
       publish(
         await bridge.approvals.resolve({
@@ -320,6 +327,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async retryThread(threadId) {
       const result = await bridge.threads.retry(threadId);
       publish(result.snapshot);
+    },
+    async redoLastMessage(threadId, text) {
+      publish((await bridge.threads.redo(threadId, text)).snapshot);
     },
     async setCapturePaused(paused) {
       publish(

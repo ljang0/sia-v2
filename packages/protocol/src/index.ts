@@ -635,6 +635,12 @@ export interface ProviderTurnInput {
   readonly outputSchema?: Readonly<Record<string, unknown>>;
 }
 
+/** Text a person adds to a turn that is already running ("steer"). */
+export interface ProviderSteerInput {
+  readonly text: string;
+  readonly attachments?: readonly ProviderAttachment[];
+}
+
 export interface ProviderReviewInput {
   readonly turnId: string;
   readonly target:
@@ -689,6 +695,15 @@ export interface ProviderAdapter {
   /** Releases an idle session whose thread was deleted. */
   closeSession?(session: ProviderSession): Promise<void>;
   cancelTurn(session: ProviderSession, turnId: string): Promise<void>;
+  /**
+   * Adds input to the running turn instead of starting a new one. Rejects when the turn
+   * already ended or the provider refused it, so the caller can keep the message queued.
+   */
+  steerTurn?(
+    session: ProviderSession,
+    turnId: string,
+    input: ProviderSteerInput,
+  ): Promise<void>;
   respondToRequest(session: ProviderSession, response: ProviderRequestResponse): Promise<void>;
   dispose(): Promise<void>;
 }

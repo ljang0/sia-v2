@@ -8275,3 +8275,59 @@ button.agentAvatar {
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
 }
+
+.messageEditor {
+  display: grid;
+  gap: 8px;
+}
+
+.messageEditor textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  font: inherit;
+  resize: vertical;
+}
+
+.messageEditor > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.shortcutList {
+  display: grid;
+  gap: 2px;
+  margin: 4px 0 0;
+}
+
+.shortcutList > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.shortcutList dt {
+  color: var(--text-primary);
+  font-size: var(--text-md);
+}
+
+.shortcutList dd {
+  margin: 0;
+}
+
+.shortcutList kbd {
+  padding: 2px 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-tight);
+  background: var(--bg-raised);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: var(--text-sm);
+}

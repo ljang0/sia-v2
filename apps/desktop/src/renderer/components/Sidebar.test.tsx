@@ -266,6 +266,54 @@ describe('thread navigation', () => {
     );
   });
 
+  it('duplicates a conversation and shows the worktree option only with developer tools', async () => {
+    const agents = structuredClone(demoSnapshot.agents);
+    const thread = agents[0]!.threads[0]!;
+    thread.status = 'idle';
+    const onForkThread = vi.fn().mockResolvedValue(undefined);
+    const view = (worktreeForks: boolean) => (
+      <Sidebar
+        agents={agents}
+        selectedAgentId={agents[0]!.id}
+        collapsed={false}
+        onToggle={vi.fn()}
+        onSelectAgent={vi.fn()}
+        onSelectThread={vi.fn()}
+        onCreateThread={vi.fn()}
+        onRenameThread={vi.fn()}
+        onDeleteThread={vi.fn()}
+        onForkThread={onForkThread}
+        worktreeForks={worktreeForks}
+        onCreateAgent={vi.fn()}
+        onEditAgent={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />
+    );
+    const openDialog = async () => {
+      fireEvent.pointerDown(
+        screen.getByRole('button', { name: `Conversation actions for ${thread.title}` }),
+        { button: 0, ctrlKey: false },
+      );
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Duplicate' }));
+      return screen.findByRole('dialog', { name: 'Duplicate conversation' });
+    };
+    const { rerender } = render(view(false));
+    await openDialog();
+    expect(screen.queryByTestId('fork-isolation-checkbox')).toBeNull();
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe(
+      `${thread.title} (copy)`,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate' }));
+    await waitFor(() =>
+      expect(onForkThread).toHaveBeenCalledWith(thread.id, false, `${thread.title} (copy)`),
+    );
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    rerender(view(true));
+    await openDialog();
+    expect(screen.getByTestId('fork-isolation-checkbox')).toBeTruthy();
+  });
+
   it('searches, renames, and confirms deletion of an idle thread', async () => {
     const onRenameThread = vi.fn().mockResolvedValue(undefined);
     const onDeleteThread = vi.fn().mockResolvedValue(undefined);

@@ -90,6 +90,7 @@ async function createHarness(
     notify?: ConstructorParameters<typeof DesktopController>[0]['notify'];
     keepAwake?: ConstructorParameters<typeof DesktopController>[0]['keepAwake'];
     notchHelperPath?: string;
+    pastedAttachmentRoot?: string;
   } = {},
 ): Promise<{
   controller: DesktopController;
@@ -151,6 +152,9 @@ async function createHarness(
     ...(options.notify ? { notify: options.notify } : {}),
     ...(options.keepAwake ? { keepAwake: options.keepAwake } : {}),
     ...(options.notchHelperPath ? { notchHelperPath: options.notchHelperPath } : {}),
+    ...(options.pastedAttachmentRoot
+      ? { pastedAttachmentRoot: options.pastedAttachmentRoot }
+      : {}),
   });
   await controller.initialize();
   if (
@@ -7566,8 +7570,12 @@ describe('follow-up messages while a turn runs', () => {
     return { runtime, turns, release };
   }
 
-  async function startThread(runtime: unknown) {
-    const { controller, repository } = await createHarness({ fakeServices: false, runtime });
+  async function startThread(runtime: unknown, pastedAttachmentRoot?: string) {
+    const { controller, repository } = await createHarness({
+      fakeServices: false,
+      runtime,
+      ...(pastedAttachmentRoot ? { pastedAttachmentRoot } : {}),
+    });
     await controller.invoke('computer.setAccessMode', { mode: 'connected' });
     const { agentId } = await controller.invoke('agents.save', {
       name: 'Follow-ups',
@@ -7697,6 +7705,156 @@ describe('follow-up messages while a turn runs', () => {
       await new Promise((resolve) => setTimeout(resolve, 120));
       expect(turns).toHaveLength(1);
       expect(thread().status).toBe('idle');
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('Try again and Edit replace the last exchange and start from the conversation before it', async () => {
+    const { runtime, turns, release } = followUpRuntime();
+    const releaseSession = vi.fn(async () => undefined);
+    const { controller, threadId, thread } = await startThread({ ...runtime, releaseSession });
+    const transcript = () =>
+      controller
+        .snapshot()
+        .timeline.filter(
+          (item) =>
+            item.threadId === threadId && (item.kind === 'user' || item.kind === 'assistant'),
+        )
+        .sort((left, right) => left.sequence - right.sequence)
+        .map(({ text }) => text);
+    const finish = async (count: number) => {
+      await vi.waitFor(() => expect(turns).toHaveLength(count));
+      await vi.waitFor(() => expect(release.has(turns.at(-1)!.turnId)).toBe(true));
+      release.get(turns.at(-1)!.turnId)!();
+      await vi.waitFor(() => expect(thread().status).toBe('idle'));
+    };
+    try {
+      await controller.invoke('threads.send', { threadId, text: 'Plan a trip' });
+      await expect(controller.invoke('threads.redo', { threadId })).rejects.toThrow(
+        'Wait for Sia to finish',
+      );
+      await finish(1);
+      await controller.invoke('threads.send', { threadId, text: 'Somewhere warm' });
+      await finish(2);
+      expect(transcript()).toEqual(['Plan a trip', 'Reply 1', 'Somewhere warm', 'Reply 2']);
+
+      await controller.invoke('threads.redo', { threadId });
+      expect(releaseSession).toHaveBeenCalledWith(threadId);
+      await finish(3);
+      expect(transcript()).toEqual(['Plan a trip', 'Reply 1', 'Somewhere warm', 'Reply 3']);
+      // The replaced reply is not part of what the provider sees.
+      expect(turns[2]!.text).toContain('Somewhere warm');
+      expect(turns[2]!.thread.priorMessages?.map(({ text }) => text)).toEqual([
+        'Plan a trip',
+        'Reply 1',
+      ]);
+
+      await controller.invoke('threads.redo', { threadId, text: 'Somewhere cold' });
+      await finish(4);
+      expect(transcript()).toEqual(['Plan a trip', 'Reply 1', 'Somewhere cold', 'Reply 4']);
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('attaches a pasted screenshot to a follow-up sent while the turn runs', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'sia-pasted-'));
+    const { runtime, turns, release } = followUpRuntime();
+    const { controller, threadId, users } = await startThread(runtime, root);
+    try {
+      const first = await controller.invoke('threads.send', { threadId, text: 'Tidy my desk' });
+      await vi.waitFor(() => expect(release.has(first.turnId)).toBe(true));
+      const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+      const { attachments } = await controller.invoke('attachments.paste', {
+        threadId,
+        name: 'image.png',
+        mimeType: 'image/png',
+        data: png,
+      });
+      expect(attachments).toEqual([
+        expect.objectContaining({ name: 'Pasted image.png', kind: 'image', bytes: png.length }),
+      ]);
+      await expect(
+        controller.invoke('attachments.paste', {
+          threadId,
+          mimeType: 'image/png',
+          data: new TextEncoder().encode('not really a png'),
+        }),
+      ).rejects.toThrow('could not be read');
+
+      await controller.invoke('threads.send', {
+        threadId,
+        text: 'Like this one',
+        attachmentIds: [attachments[0]!.id],
+      });
+      expect(users().at(-1)).toMatchObject({
+        status: 'pending',
+        attachments: [expect.objectContaining({ name: 'Pasted image.png' })],
+      });
+      release.get(first.turnId)!();
+      await vi.waitFor(() => expect(turns).toHaveLength(2));
+      const [attached] = turns[1]!.attachments ?? [];
+      expect(attached).toMatchObject({ kind: 'image', name: 'Pasted image.png' });
+      expect(attached!.path.startsWith(root)).toBe(true);
+      release.get(turns[1]!.turnId)?.();
+    } finally {
+      await controller.shutdown();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('sends a queued follow-up into the running turn, and keeps it queued when that fails', async () => {
+    const { runtime, turns, release } = followUpRuntime();
+    const steer = vi.fn(async () => undefined);
+    const { controller, threadId, thread, users } = await startThread({ ...runtime, steer });
+    try {
+      const first = await controller.invoke('threads.send', { threadId, text: 'Plan a trip' });
+      await vi.waitFor(() => expect(release.has(first.turnId)).toBe(true));
+      await controller.invoke('threads.send', { threadId, text: 'Make it Portugal' });
+      await controller.invoke('threads.send', { threadId, text: 'Under $2k' });
+      const portugal = users().find(({ text }) => text === 'Make it Portugal')!;
+
+      await controller.invoke('threads.steer', { threadId, messageId: portugal.id });
+      expect(steer).toHaveBeenCalledWith(threadId, first.turnId, { text: 'Make it Portugal' });
+      // It joins the running turn after what the agent already said; the other stays queued.
+      const ordered = controller
+        .snapshot()
+        .timeline.filter(
+          (item) =>
+            item.threadId === threadId && (item.kind === 'user' || item.kind === 'assistant'),
+        )
+        .sort((left, right) => left.sequence - right.sequence)
+        .map(({ text, status, turnId }) => ({ text, status, turnId }));
+      expect(ordered.filter(({ status }) => status !== 'pending')).toEqual([
+        { text: 'Plan a trip', status: 'complete', turnId: first.turnId },
+        { text: 'Reply 1', status: 'complete', turnId: first.turnId },
+        { text: 'Make it Portugal', status: 'complete', turnId: first.turnId },
+      ]);
+      expect(ordered.filter(({ status }) => status === 'pending')).toMatchObject([
+        { text: 'Under $2k' },
+      ]);
+      await expect(
+        controller.invoke('threads.steer', { threadId, messageId: portugal.id }),
+      ).rejects.toThrow('already started or was removed');
+
+      steer.mockRejectedValueOnce(new Error('Turn mismatch.'));
+      const budget = users().find(({ text }) => text === 'Under $2k')!;
+      await expect(
+        controller.invoke('threads.steer', { threadId, messageId: budget.id }),
+      ).rejects.toThrow('it will be sent next');
+      expect(users().find(({ id }) => id === budget.id)).toMatchObject({ status: 'pending' });
+
+      release.get(first.turnId)!();
+      await vi.waitFor(() => expect(turns).toHaveLength(2));
+      // The steered message never starts a turn of its own.
+      expect(turns[1]!.text).toContain('Under $2k');
+      await vi.waitFor(() => expect(release.has(turns[1]!.turnId)).toBe(true));
+      await expect(
+        controller.invoke('threads.steer', { threadId, messageId: budget.id }),
+      ).rejects.toThrow('already started or was removed');
+      release.get(turns[1]!.turnId)!();
+      await vi.waitFor(() => expect(thread().status).toBe('idle'));
     } finally {
       await controller.shutdown();
     }

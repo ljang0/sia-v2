@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { cancelComposerFocus, focusComposer } from './composerFocus';
 import { createDemoRendererApi, demoSnapshot } from './demo';
+import { conversationForShortcut } from './shortcuts';
 import type { RendererApi, RendererSnapshot } from './types';
 
 afterEach(cleanup);
@@ -137,6 +138,43 @@ describe('focus after actions that remove the focused control', () => {
     fireEvent.keyDown(dialog, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+});
+
+describe('keyboard shortcuts', () => {
+  it('stops the running task with Esc', async () => {
+    await renderApp(runningInbox);
+    await screen.findByRole('button', { name: 'Stop current turn' });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Stop current turn' })).toBeNull(),
+    );
+    await waitFor(() => expect(document.activeElement).toBe(composer()));
+  });
+
+  it('leaves the task running when Esc closes a dialog', async () => {
+    await renderApp(runningInbox);
+    await screen.findByRole('button', { name: 'Stop current turn' });
+    fireEvent.keyDown(window, { key: '/', metaKey: true });
+    const dialog = await screen.findByRole('dialog', { name: 'Keyboard shortcuts' });
+    expect(dialog.textContent).toContain('Stop the running task');
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.getByRole('button', { name: 'Stop current turn' })).toBeTruthy();
+  });
+
+  it('opens the nth sidebar conversation with ⌘1–9', async () => {
+    await renderApp();
+    const threadId = conversationForShortcut(demoSnapshot.agents, 2)!;
+    const title = demoSnapshot.agents
+      .flatMap(({ threads }) => threads)
+      .find(({ id }) => id === threadId)!.title;
+    fireEvent.keyDown(window, { key: '2', code: 'Digit2', metaKey: true });
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: title }).getAttribute('aria-current')).toBe(
+        'page',
+      ),
+    );
   });
 });
 

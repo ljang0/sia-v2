@@ -2197,12 +2197,70 @@ describe('Codex turn resilience', () => {
         return { thread: { id: 'native-thread' }, sandbox: { type: 'workspaceWrite' } };
       if (method === 'turn/start') return await onTurn(peers, params);
       if (method === 'turn/interrupt') return await onInterrupt(params);
+      if (method === 'turn/steer') return { turnId: 'native-turn' };
       const isolationResponse = codexIsolationResponse(method, params);
       if (isolationResponse !== undefined) return isolationResponse;
       throw new Error(`unexpected ${method}`);
     });
     return peers;
   }
+
+  it('steers the running turn with its native turn id, waiting for Codex to report it', async () => {
+    const steers: unknown[] = [];
+    const turnStarted = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const peers = codexServer(
+      async (p) => {
+        turnStarted.resolve();
+        await release.promise;
+        setTimeout(() => {
+          void p.server.notify('turn/completed', {
+            threadId: 'native-thread',
+            turn: { id: 'native-turn', status: 'completed' },
+          });
+        }, 5);
+        return { turn: { id: 'native-turn' } };
+      },
+      undefined,
+      (method, params) => {
+        if (method === 'turn/steer') steers.push(params);
+      },
+    );
+    const adapter = new CodexAppServerAdapter({
+      sessionEphemeral: true,
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    const session = await adapter.createSession(sessionOptions);
+    const done = (async () => {
+      for await (const event of adapter.sendTurn(session, { turnId: 't1', text: 'hi' }))
+        void event;
+    })();
+    await turnStarted.promise;
+    const steered = adapter.steerTurn(session, 't1', { text: 'Also check Friday' });
+    // The native turn id is not known yet; the steer waits for it instead of failing.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(steers).toEqual([]);
+    release.resolve();
+    await steered;
+    expect(steers).toEqual([
+      {
+        threadId: 'native-thread',
+        input: [{ type: 'text', text: 'Also check Friday', text_elements: [] }],
+        expectedTurnId: 'native-turn',
+      },
+    ]);
+    await done;
+    await expect(adapter.steerTurn(session, 't1', { text: 'Too late' })).rejects.toThrow(
+      'This task already finished.',
+    );
+    await adapter.dispose();
+  });
 
   it('keeps reasoning summaries apart from raw reasoning text', async () => {
     const peers = codexServer(async (p) => {

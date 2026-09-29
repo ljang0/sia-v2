@@ -22,6 +22,7 @@ import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState }
 import type { AgentSummary, ThreadSummary } from '../types';
 import styles from '../ui.module.css';
 import { focusComposer } from '../composerFocus';
+import { sidebarAgentOrder } from '../shortcuts';
 import { AgentForm } from './AgentForm';
 import navigation from './navigation.module.css';
 import { TaskPreviewButton } from './TaskPreviewButton';
@@ -44,6 +45,8 @@ interface SidebarProps {
   onDeleteThread(threadId: string): Promise<void>;
   onCleanupWorktree?(threadId: string): Promise<void>;
   onForkThread?(threadId: string, isolated: boolean, title?: string): Promise<void>;
+  /** Offers a separate Git worktree when duplicating (Settings → Developer tools). */
+  worktreeForks?: boolean | undefined;
   onArchiveThread?(threadId: string): Promise<void>;
   onCreateAgent(): void;
   onEditAgent(agent: AgentSummary): void;
@@ -70,6 +73,7 @@ export function Sidebar({
   onDeleteThread,
   onCleanupWorktree,
   onForkThread,
+  worktreeForks = false,
   onArchiveThread,
   onCreateAgent,
   onEditAgent,
@@ -162,33 +166,31 @@ export function Sidebar({
 
   const orderedAgents = useMemo(() => {
     const normalizedQuery = collapsed ? '' : query.trim().toLocaleLowerCase();
-    return [...agents]
-      .map((agent) => {
-        const threads = agent.threads.map((thread) =>
-          thread.title === threadDisplayTitle(thread.title)
-            ? thread
-            : { ...thread, title: threadDisplayTitle(thread.title) },
-        );
-        return {
-          ...agent,
-          threads:
-            normalizedQuery && !agent.name.toLocaleLowerCase().includes(normalizedQuery)
-              ? threads.filter((thread) =>
-                  thread.title.toLocaleLowerCase().includes(normalizedQuery),
-                )
-              : threads,
-        };
-      })
-      .filter(
-        (agent) =>
-          !normalizedQuery ||
-          agent.name.toLocaleLowerCase().includes(normalizedQuery) ||
-          agent.threads.length > 0,
-      )
-      .sort((a, b) => {
-        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-        return a.name.localeCompare(b.name);
-      });
+    return sidebarAgentOrder(
+      agents
+        .map((agent) => {
+          const threads = agent.threads.map((thread) =>
+            thread.title === threadDisplayTitle(thread.title)
+              ? thread
+              : { ...thread, title: threadDisplayTitle(thread.title) },
+          );
+          return {
+            ...agent,
+            threads:
+              normalizedQuery && !agent.name.toLocaleLowerCase().includes(normalizedQuery)
+                ? threads.filter((thread) =>
+                    thread.title.toLocaleLowerCase().includes(normalizedQuery),
+                  )
+                : threads,
+          };
+        })
+        .filter(
+          (agent) =>
+            !normalizedQuery ||
+            agent.name.toLocaleLowerCase().includes(normalizedQuery) ||
+            agent.threads.length > 0,
+        ),
+    );
   }, [agents, collapsed, query]);
 
   if (collapsed) {
@@ -652,31 +654,32 @@ export function Sidebar({
             className={styles.alertDialogContent}
             onCloseAutoFocus={restoreDialogFocus}
           >
-            <Dialog.Title>Duplicate this conversation</Dialog.Title>
+            <Dialog.Title>Duplicate conversation</Dialog.Title>
             <Dialog.Description>
-              The copy starts with everything said so far. What happens next in each one stays
-              separate.
+              Make a copy you can take in a new direction. The original stays as it is.
             </Dialog.Description>
             <label className={styles.localField}>
-              <span>Name of the copy</span>
+              <span>Name</span>
               <input
                 value={forkTitle}
                 onChange={(event) => setForkTitle(event.target.value)}
                 maxLength={120}
               />
             </label>
-            <label className={styles.forkIsolationOption}>
-              <input
-                type="checkbox"
-                checked={forkIsolated}
-                onChange={(event) => setForkIsolated(event.target.checked)}
-                data-testid="fork-isolation-checkbox"
-              />
-              <span>
-                <strong>Work in a separate copy of the folder</strong>
-                <small>Keeps file changes apart when both conversations run at once.</small>
-              </span>
-            </label>
+            {worktreeForks ? (
+              <label className={styles.forkIsolationOption}>
+                <input
+                  type="checkbox"
+                  checked={forkIsolated}
+                  onChange={(event) => setForkIsolated(event.target.checked)}
+                  data-testid="fork-isolation-checkbox"
+                />
+                <span>
+                  <strong>Isolated Git worktree</strong>
+                  <small>Recommended for parallel coding tasks.</small>
+                </span>
+              </label>
+            ) : null}
             <div className={styles.dialogActions}>
               <Dialog.Close asChild>
                 <button type="button" className={styles.secondaryButton}>
@@ -690,7 +693,11 @@ export function Sidebar({
                 onClick={() => {
                   if (!forkingThread || !onForkThread) return;
                   setPendingThreadAction(true);
-                  void onForkThread(forkingThread.id, forkIsolated, forkTitle.trim()).then(
+                  void onForkThread(
+                    forkingThread.id,
+                    worktreeForks && forkIsolated,
+                    forkTitle.trim(),
+                  ).then(
                     () => {
                       setForkingThread(undefined);
                       setPendingThreadAction(false);
