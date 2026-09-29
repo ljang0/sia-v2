@@ -425,6 +425,14 @@ export class RuntimeCoordinator {
     if (state) await state.adapter.cancelTurn(state.session, turnId);
   }
 
+  /** Forgets a deleted thread's provider session and lets the provider release it. */
+  async releaseSession(threadId: string): Promise<void> {
+    const state = this.#sessions.get(threadId);
+    if (!state || this.#activeByThread.has(threadId)) return;
+    this.#sessions.delete(threadId);
+    await state.adapter.closeSession?.(state.session).catch(() => undefined);
+  }
+
   async respondToRequest(threadId: string, response: ProviderRequestResponse): Promise<void> {
     const state = this.#sessions.get(threadId);
     if (!state) throw new Error('The provider session ended before approval was resolved.');

@@ -3177,6 +3177,17 @@ export class DesktopController {
     const agent = this.#requireAgent(thread.agentId);
     agent.threadIds = agent.threadIds.filter((id) => id !== thread.id);
     agent.updatedAt = new Date().toISOString();
+    // Release what the deleted thread still holds: its provider session and file grants.
+    for (const item of this.#state.timeline)
+      if (item.threadId === thread.id && item.turnId)
+        this.#failedTurnAttachments.delete(item.turnId);
+    for (const [id, grant] of this.#attachmentGrants)
+      if (grant.threadId === thread.id) this.#attachmentGrants.delete(id);
+    this.#heldThreads.delete(thread.id);
+    const runtime = this.#runtime;
+    void Promise.resolve()
+      .then(() => runtime?.releaseSession(thread.id))
+      .catch(() => undefined);
     this.#state.threads = this.#state.threads.filter((candidate) => candidate.id !== thread.id);
     this.#state.timeline = this.#state.timeline.filter((item) => item.threadId !== thread.id);
     this.#state.approvals = this.#state.approvals.filter(

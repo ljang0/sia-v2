@@ -682,6 +682,22 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     return this.#sessions.has(session.id);
   }
 
+  async closeSession(session: ProviderSession): Promise<void> {
+    if (!this.#sessions.has(session.id)) return;
+    this.#sessions.delete(session.id);
+    this.#sessionOptions.delete(session.id);
+    this.#dynamicToolNamesBySession.delete(session.id);
+    if (this.#activeByThread.has(session.nativeId) || !this.#peerHandle) return;
+    const peer = await this.#peer();
+    await peer
+      .request(
+        'thread/unsubscribe',
+        { threadId: session.nativeId },
+        { timeoutMs: this.#timeout },
+      )
+      .catch(() => undefined);
+  }
+
   get #timeout(): number {
     return this.#options.requestTimeoutMs ?? 30_000;
   }

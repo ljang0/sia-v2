@@ -2638,6 +2638,50 @@ describe('DesktopController', () => {
     }
   });
 
+  it('releases the provider session when a thread is deleted', async () => {
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        yield {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+      releaseSession: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    try {
+      const agent = await controller.invoke('agents.save', {
+        name: 'Personal',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: agent.agentId,
+      });
+      await controller.invoke('threads.send', { threadId, text: 'Hello' });
+      await vi.waitFor(() =>
+        expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+          'idle',
+        ),
+      );
+      await controller.invoke('threads.delete', { threadId });
+      await vi.waitFor(() => expect(runtime.releaseSession).toHaveBeenCalledWith(threadId));
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
   it('restores partial progress for Continue task after an app restart', async () => {
     const root = await mkdtemp(join(tmpdir(), 'sia-recovery-'));
     const path = join(root, 'state.sqlite');

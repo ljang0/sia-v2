@@ -2011,9 +2011,11 @@ describe('Codex turn resilience', () => {
   function codexServer(
     onTurn: (peers: ReturnType<typeof linkedPeers>, params: unknown) => Promise<unknown>,
     onInterrupt: (params: unknown) => unknown = () => ({}),
+    onMethod: (method: string, params: unknown) => void = () => undefined,
   ) {
     const peers = linkedPeers();
     peers.server.onRequest(async (method, params) => {
+      onMethod(method, params);
       if (method === 'initialize') return {};
       if (method === 'account/read') return { account: { type: 'chatgpt', email: 'a@b.c' } };
       if (method === 'thread/start')
@@ -2168,6 +2170,35 @@ describe('Codex turn resilience', () => {
       expect(interrupts).toEqual([{ threadId: 'native-thread', turnId: 'native-turn' }]);
       expect(events.at(-1)).toMatchObject({ type: 'completion' });
       expect(events.some((event) => event.type === 'error')).toBe(false);
+    } finally {
+      await adapter.dispose();
+    }
+  });
+
+  it('unsubscribes and forgets a closed session', async () => {
+    const unsubscribed: unknown[] = [];
+    const peers = codexServer(
+      async () => ({ turn: { id: 'native-turn' } }),
+      undefined,
+      (method, params) => {
+        if (method === 'thread/unsubscribe') unsubscribed.push(params);
+      },
+    );
+    const adapter = new CodexAppServerAdapter({
+      sessionEphemeral: true,
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    try {
+      const session = await adapter.createSession(sessionOptions);
+      await adapter.closeSession(session);
+      expect(adapter.hasSession(session)).toBe(false);
+      expect(unsubscribed).toEqual([{ threadId: 'native-thread' }]);
     } finally {
       await adapter.dispose();
     }
