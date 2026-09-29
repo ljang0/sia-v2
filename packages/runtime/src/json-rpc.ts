@@ -111,11 +111,23 @@ export class JsonLinesTransport implements JsonRpcTransport {
 
   async send(message: JsonRpcMessage): Promise<void> {
     if (this.#closed) throw new Error('JSON-RPC transport is closed');
+    if (this.#output.destroyed || this.#output.writableEnded)
+      throw new Error('JSON-RPC transport is closed');
     const line = `${JSON.stringify(message)}\n`;
     if (!this.#output.write(line)) {
       await new Promise<void>((resolve, reject) => {
-        this.#output.once('drain', resolve);
-        this.#output.once('error', reject);
+        const settle = (error?: Error): void => {
+          this.#output.off('drain', settle);
+          this.#output.off('error', settle);
+          this.#output.off('close', settle);
+          if (error) reject(error);
+          else if (this.#output.writableEnded || this.#output.destroyed)
+            reject(new Error('JSON-RPC transport is closed'));
+          else resolve();
+        };
+        this.#output.once('drain', settle);
+        this.#output.once('error', settle);
+        this.#output.once('close', settle);
       });
     }
   }

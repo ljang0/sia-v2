@@ -57,7 +57,9 @@ export function RoomHeader({
           <span className={companion.roomEyebrow}>
             {agent?.name ?? 'Sia'} · {label}
           </span>
-          <strong>{thread?.title ?? (agent ? 'A fresh room' : 'Your agent rooms')}</strong>
+          <strong title={thread?.title}>
+            {thread?.title ?? (agent ? 'A fresh room' : 'Your agent rooms')}
+          </strong>
           {thread?.goal ? (
             <div className={companion.roomMeta}>
               {thread.goal ? (

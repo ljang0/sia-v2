@@ -7,6 +7,8 @@ import { ActivityDashboard } from './ActivityDashboard';
 import { ChangesReview } from './ChangesReview';
 import { TerminalDrawer } from './TerminalDrawer';
 import { ArchivedThreadsSection } from './ThreadLifecycle';
+import { ThreadWorkspaceTools } from './ThreadWorkspace';
+import { createDemoRendererApi, demoSnapshot } from '../../demo';
 import { TranscriptSearch } from './TranscriptSearch';
 import { GoalControls, ScheduleControls, ThreadModelControls } from './WorkControls';
 
@@ -41,7 +43,8 @@ describe('local parity renderer contracts', () => {
       target: { value: 'medium' },
     });
     expect(onChangeModel).toHaveBeenCalledWith('gpt-5.4');
-    expect(onChangeReasoning).toHaveBeenCalledWith('medium');
+    // The props still carry the old model; reasoning must follow the model just picked.
+    expect(onChangeReasoning).toHaveBeenCalledWith('medium', 'gpt-5.4');
   });
 
   it('summarizes attention states and opens the selected activity', () => {
@@ -191,8 +194,13 @@ describe('local parity renderer contracts', () => {
       }),
     );
     fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete Morning summary' }));
     expect(onSetEnabled).toHaveBeenCalledWith('schedule-1', false);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Morning summary' }));
+    expect(screen.getByRole('alertdialog', { name: 'Delete this schedule?' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(onDelete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Morning summary' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     expect(onDelete).toHaveBeenCalledWith('schedule-1');
   });
 
@@ -370,3 +378,117 @@ function TerminalFocusHarness() {
     </>
   );
 }
+
+describe('changed file summaries', () => {
+  it('counts hunk lines that look like diff headers and matches each file exactly', async () => {
+    const { countPatchLines, filePatch } = await import('./ThreadWorkspace');
+    const patch = [
+      'diff --git a/notes.md b/notes.md',
+      '--- a/notes.md',
+      '+++ b/notes.md',
+      '@@ -1,2 +1,2 @@',
+      '----',
+      '+++counter',
+      '',
+    ].join('\n');
+    expect(countPatchLines(patch, '+')).toBe(1);
+    expect(countPatchLines(patch, '-')).toBe(1);
+    expect(filePatch(patch, 'new.txt')).toBe('No textual diff is available for new.txt.');
+    expect(filePatch(patch, 'notes.md')).toBe(patch);
+  });
+
+  it('keeps stopped work in the default Activity view, ahead of unread results', () => {
+    render(
+      <ActivityDashboard
+        activities={[
+          {
+            id: 'activity-unread',
+            threadId: 'thread-unread',
+            title: 'Trip plan',
+            detail: 'New activity is ready to review',
+            agentName: 'Personal admin',
+            status: 'unread',
+            updatedAt: new Date().toISOString(),
+          },
+          {
+            id: 'activity-failed',
+            threadId: 'thread-failed',
+            title: 'Book dentist',
+            detail: 'Stopped before it finished',
+            agentName: 'Personal admin',
+            status: 'failed',
+            updatedAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+          },
+        ]}
+        onOpenThread={() => undefined}
+      />,
+    );
+
+    const rows = screen.getAllByTestId('background-task-row');
+    expect(rows.map((row) => row.textContent)).toEqual([
+      expect.stringContaining('Book dentist'),
+      expect.stringContaining('Trip plan'),
+    ]);
+    expect(rows[0]?.textContent).toContain('3d');
+  });
+
+  it('keeps a schedule draft when creating it fails, and offers no Resume once finished', async () => {
+    const onCreate = vi.fn().mockRejectedValue(new Error('Schedules are off.'));
+    render(
+      <ScheduleControls
+        schedules={[
+          {
+            id: 'schedule-done',
+            label: 'Lease reminder',
+            prompt: 'Check the lease',
+            cadence: 'once',
+            nextRunAt: '2026-08-15T09:00:00.000Z',
+            enabled: false,
+            runCount: 1,
+            maxRuns: 1,
+          },
+        ]}
+        onCreate={onCreate}
+        onSetEnabled={() => undefined}
+        onDelete={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText('Finished')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Resume' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'New schedule' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Task' }), {
+      target: { value: 'Draft my Monday plan' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create schedule' }));
+    await waitFor(() => expect(onCreate).toHaveBeenCalled());
+    await Promise.resolve();
+    expect((screen.getByRole('textbox', { name: 'Task' }) as HTMLInputElement).value).toBe(
+      'Draft my Monday plan',
+    );
+  });
+
+  it('explains an unreadable folder instead of claiming there are no changes', async () => {
+    const api = createDemoRendererApi(structuredClone(demoSnapshot));
+    api.readChanges = vi.fn(async () => {
+      throw new Error('The selected workspace is not a Git repository.');
+    });
+    render(
+      <ThreadWorkspaceTools
+        thread={structuredClone(demoSnapshot.activeThread!)}
+        snapshot={structuredClone(demoSnapshot)}
+        api={api}
+        run={async (action) => void (await action())}
+      />,
+    );
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Tools' }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Changes' }));
+    expect((await screen.findByTestId('changes-error')).textContent).toContain(
+      'not a Git repository',
+    );
+    expect(screen.queryByText('The workspace has no uncommitted changes.')).toBeNull();
+  });
+});

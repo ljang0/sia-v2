@@ -2,6 +2,7 @@ import type {
   AgentDraft,
   AgentSummary,
   ApprovalDecision,
+  MessageEvent,
   RendererApi,
   RendererSnapshot,
   ThreadDetail,
@@ -722,13 +723,20 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
     async sendMessage(threadId, content) {
       mutate((current) => {
         if (!current.activeThread || current.activeThread.id !== threadId) return;
-        const event: ThreadEvent = {
+        const event: MessageEvent = {
           id: `message-${Date.now()}`,
           type: 'message',
           role: 'user',
           content,
           timestamp: new Date().toISOString(),
         };
+        if (['running', 'queued'].includes(current.activeThread.status)) {
+          current.activeThread.queuedMessages = [
+            ...(current.activeThread.queuedMessages ?? []),
+            event,
+          ];
+          return;
+        }
         current.activeThread.events.push(event);
         current.activeThread.status = 'running';
       });
@@ -826,7 +834,19 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
     },
     async cancelTurn(threadId) {
       mutate((current) => {
-        if (current.activeThread?.id === threadId) current.activeThread.status = 'idle';
+        if (current.activeThread?.id !== threadId) return;
+        current.activeThread.status = 'idle';
+        delete current.activeThread.queuedMessages;
+      });
+    },
+    async removeQueuedMessage(threadId, messageId) {
+      mutate((current) => {
+        if (current.activeThread?.id !== threadId) return;
+        const remaining = (current.activeThread.queuedMessages ?? []).filter(
+          (message) => message.id !== messageId,
+        );
+        if (remaining.length) current.activeThread.queuedMessages = remaining;
+        else delete current.activeThread.queuedMessages;
       });
     },
     async respondToApproval(approvalId, decision: ApprovalDecision) {

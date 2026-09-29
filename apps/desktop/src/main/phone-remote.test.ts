@@ -557,3 +557,29 @@ it('shows a repeated model and host blocker once while preserving failure status
     response: 'Opening Canvas.\n\nScreen access is missing.',
   });
 });
+
+it('tells the phone which step is waiting for approval on the Mac', async () => {
+  const { state, root } = await setup();
+  state.activeThreadId = 'thread';
+  state.threads = [{ id: 'thread', agentId, status: 'waiting' }] as DesktopSnapshot['threads'];
+  state.timeline = [
+    { kind: 'user', text: 'Tidy my Desktop' },
+    { kind: 'assistant', text: 'I will move old screenshots to the Trash.' },
+  ].map((item, sequence) => ({
+    ...item,
+    id: String(sequence),
+    threadId: 'thread',
+    sequence,
+    timestamp: '',
+  })) as DesktopSnapshot['timeline'];
+  state.approvals = [
+    { id: 'done', threadId: 'thread', title: 'Old request', status: 'denied' },
+    { id: 'live', threadId: 'thread', title: 'Run a command', status: 'pending' },
+  ] as DesktopSnapshot['approvals'];
+  expect(remoteState(state, agentId, root).turns[0]).toMatchObject({
+    status: 'waiting',
+    approval: 'Run a command',
+  });
+  state.threads[0]!.status = 'idle';
+  expect(remoteState(state, agentId, root).turns[0]).not.toHaveProperty('approval');
+});

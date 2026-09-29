@@ -110,6 +110,13 @@ describe('access dialog', () => {
     expect(document.activeElement).toBe(computerTab);
     expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(computerTab.id);
     expect(screen.getByText(/complete window inventory is unavailable/i)).toBeTruthy();
+    expect(screen.getByTestId('computer-approval-mode').textContent).toContain(
+      'Asks before each action',
+    );
+    expect(
+      screen.getByText(/Sia’s own browser and computer actions can’t use password/),
+    ).toBeTruthy();
+    expect(screen.queryByText(/stay blocked/)).toBeNull();
     expect(screen.queryByText('alpha-flow.pdf')).toBeNull();
 
     fireEvent.keyDown(computerTab, { key: 'ArrowRight' });
@@ -122,5 +129,32 @@ describe('access dialog', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Access' })).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+
+  it('shows full bypass plainly and does not over-claim for native Mac commands', () => {
+    render(
+      <Inspector
+        browser={demoSnapshot.browser}
+        computer={{ ...demoSnapshot.computer, trust: 'auto', accessMode: 'mac' }}
+        connection={demoSnapshot.connection}
+        cloudAuth={demoSnapshot.cloudAuth}
+        research={demoSnapshot.research}
+        onClose={vi.fn()}
+        onAttachBrowser={vi.fn()}
+        onOpenBrowserSite={vi.fn()}
+        onDetachBrowser={vi.fn()}
+        onRequestPermissions={vi.fn()}
+        onOpenCloudSettings={vi.fn()}
+        onOpenResearchSettings={vi.fn()}
+        onToggleResearch={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('tab', { name: 'Computer' }));
+    expect(screen.getByTestId('computer-approval-mode').textContent).toContain(
+      'Runs without asking (full bypass)',
+    );
+    expect(
+      screen.getByText(/Commands your agent runs directly on this Mac aren’t covered/),
+    ).toBeTruthy();
   });
 });

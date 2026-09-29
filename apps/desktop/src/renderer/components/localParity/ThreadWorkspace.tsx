@@ -23,6 +23,8 @@ interface ThreadWorkspaceToolsProps {
   snapshot: RendererSnapshot;
   api: RendererApi;
   run(action: () => Promise<unknown>): Promise<void>;
+  /** Like run, but rejects after reporting so a form can keep what the person typed. */
+  attempt?(action: () => Promise<unknown>): Promise<void>;
 }
 
 export function ThreadWorkspaceTools({
@@ -30,10 +32,12 @@ export function ThreadWorkspaceTools({
   snapshot,
   api,
   run,
+  attempt = run,
 }: ThreadWorkspaceToolsProps) {
   const [tool, setTool] = useState<Tool>();
   const [changes, setChanges] = useState<WorkspaceDiff>();
   const [changesLoading, setChangesLoading] = useState(false);
+  const [changesError, setChangesError] = useState<string>();
   const [busyPath, setBusyPath] = useState<string>();
   const [reviewing, setReviewing] = useState(false);
   const [snapshots, setSnapshots] = useState<WorkspaceSnapshot[]>([]);
@@ -47,6 +51,7 @@ export function ThreadWorkspaceTools({
   useEffect(() => {
     setTool(undefined);
     setChanges(undefined);
+    setChangesError(undefined);
     setTerminalRun({ status: 'idle' });
     setBackgroundTerminals([]);
     setBackgroundStarting(false);
@@ -87,6 +92,7 @@ export function ThreadWorkspaceTools({
   const openChanges = async () => {
     setTool('changes');
     setChangesLoading(true);
+    setChangesError(undefined);
     try {
       const [nextChanges, nextSnapshots] = await Promise.all([
         api.readChanges(thread.id),
@@ -94,6 +100,14 @@ export function ThreadWorkspaceTools({
       ]);
       setChanges(nextChanges);
       setSnapshots(nextSnapshots);
+    } catch (cause) {
+      // Without this, an unreadable folder looked like "no uncommitted changes".
+      setChanges(undefined);
+      setChangesError(
+        cause instanceof Error && cause.message
+          ? cause.message
+          : 'Sia could not read the changes in this folder.',
+      );
     } finally {
       setChangesLoading(false);
     }
@@ -101,6 +115,7 @@ export function ThreadWorkspaceTools({
 
   const changedFiles = useMemo(() => mapChangedFiles(changes), [changes]);
   const schedules = snapshot.schedules.filter((schedule) => schedule.threadId === thread.id);
+  const schedulesAvailable = snapshot.cloudAuth.features?.schedules !== false;
 
   return (
     <>
@@ -143,12 +158,14 @@ export function ThreadWorkspaceTools({
               >
                 <Code size={14} aria-hidden="true" /> Command
               </DropdownMenu.Item>
-              <DropdownMenu.Item
-                className={styles.threadMenuItem}
-                onSelect={() => setTool('schedules')}
-              >
-                <CalendarDots size={14} aria-hidden="true" /> Schedules
-              </DropdownMenu.Item>
+              {schedulesAvailable ? (
+                <DropdownMenu.Item
+                  className={styles.threadMenuItem}
+                  onSelect={() => setTool('schedules')}
+                >
+                  <CalendarDots size={14} aria-hidden="true" /> Schedules
+                </DropdownMenu.Item>
+              ) : null}
               {thread.worktree?.kind === 'linked' ? (
                 <DropdownMenu.Item
                   className={styles.threadMenuItem}
@@ -199,7 +216,7 @@ export function ThreadWorkspaceTools({
                 enabled: schedule.enabled !== false,
               }))}
               onCreate={(draft) =>
-                run(() =>
+                attempt(() =>
                   api.createSchedule(
                     thread.id,
                     draft.prompt,
@@ -218,6 +235,10 @@ export function ThreadWorkspaceTools({
           ) : changesLoading ? (
             <p className={styles.localEmpty} role="status">
               Reading workspace changes…
+            </p>
+          ) : changesError ? (
+            <p className={styles.localEmpty} role="alert" data-testid="changes-error">
+              {changesError}
             </p>
           ) : (
             <ChangesReview
@@ -355,18 +376,24 @@ function mapChangedFiles(diff?: WorkspaceDiff): ChangedFile[] {
   });
 }
 
-function filePatch(unifiedDiff: string, path: string): string {
-  const blocks = unifiedDiff.split(/(?=^diff --git )/m).filter(Boolean);
-  return (
-    blocks.find((block) => block.split('\n', 1)[0]?.includes(` a/${path} b/${path}`)) ??
-    (blocks.length === 1 ? blocks[0]! : `No textual diff is available for ${path}.`)
-  );
+export function filePatch(unifiedDiff: string, path: string): string {
+  const blocks = unifiedDiff
+    .split(/(?=^diff --git )/m)
+    .filter((block) => block.split('\n', 1)[0]?.endsWith(` b/${path}`));
+  // Staged and unstaged edits to one file are separate blocks; show both.
+  return blocks.length ? blocks.join('') : `No textual diff is available for ${path}.`;
 }
 
-function countPatchLines(patch: string, prefix: '+' | '-') {
-  return patch
-    .split('\n')
-    .filter((line) => line.startsWith(prefix) && !line.startsWith(prefix.repeat(3))).length;
+/** Counts changed lines inside hunks only, so content such as `---` or `++i` is not skipped. */
+export function countPatchLines(patch: string, prefix: '+' | '-') {
+  let inHunk = false;
+  let count = 0;
+  for (const line of patch.split('\n')) {
+    if (line.startsWith('diff --git ')) inHunk = false;
+    else if (line.startsWith('@@')) inHunk = true;
+    else if (inHunk && line.startsWith(prefix)) count += 1;
+  }
+  return count;
 }
 
 function mapTerminalResult(result: TerminalResult): TerminalRunState {

@@ -1,4 +1,4 @@
-import { Check, CloudSlash, Copy, WarningCircle } from '@phosphor-icons/react';
+import { Archive, Check, CloudSlash, Copy, WarningCircle } from '@phosphor-icons/react';
 import { useState } from 'react';
 import type { useAppController } from '../useAppController';
 import styles from '../ui.module.css';
@@ -44,6 +44,23 @@ export function WorkspaceNotice({ app }: { app: AppController }) {
             {copied ? 'Copied' : 'Copy details'}
           </button>
           <button type="button" onClick={app.clearActionError}>
+            Dismiss
+          </button>
+        </span>
+      </div>
+    );
+  }
+
+  if (app.archivedThreadId) {
+    return (
+      <div className={`${styles.actionError} ${styles.undoNotice}`} role="status">
+        <Archive size={16} aria-hidden="true" />
+        <span>Conversation archived</span>
+        <span className={styles.actionErrorActions}>
+          <button type="button" onClick={app.undoArchive}>
+            Undo
+          </button>
+          <button type="button" onClick={app.dismissArchived}>
             Dismiss
           </button>
         </span>

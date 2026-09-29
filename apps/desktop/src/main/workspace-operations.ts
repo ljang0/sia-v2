@@ -528,6 +528,9 @@ export class WorkspaceGitService implements WorkspaceGitOperations {
       'core.hooksPath=/dev/null',
       '-c',
       'core.fsmonitor=false',
+      // Keep non-ASCII paths readable in diff headers so the UI can match them to status.
+      '-c',
+      'core.quotePath=false',
       ...args,
     ];
     const result = await runCapturedProcess(this.#gitExecutable, hardenedArgs, {

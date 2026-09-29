@@ -82,7 +82,9 @@ export function Turn({ turn, agent }: { turn: RemoteTurn; agent: string }) {
       )}
       {turn.status === 'waiting' && (
         <p className="waiting-note">
-          Reply below if Sia asked a question. Approve computer actions in Sia on your Mac.
+          {turn.approval
+            ? `Waiting for your OK on your Mac: “${turn.approval}”. Approve or deny it in Sia on your Mac, or stop the task here.`
+            : 'Reply below to answer Sia.'}
         </p>
       )}
     </section>

@@ -71,8 +71,19 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
 
   useEffect(() => {
     if (auditMode || signInRequired) return undefined;
+    // macOS text fields use Control+B/F/N/K for cursor movement, so only Command is ours there.
+    const mac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform);
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+      if (event.key === 'Escape' && app.activityOpen && !event.defaultPrevented) {
+        const target = event.target as HTMLElement | null;
+        const clearingField = target instanceof HTMLInputElement && target.value !== '';
+        if (!clearingField && !document.querySelector('[role="dialog"], [role="menu"]')) {
+          app.closeActivity();
+          return;
+        }
+      }
+      const modifier = mac ? event.metaKey && !event.ctrlKey : event.metaKey || event.ctrlKey;
+      if (!modifier || event.altKey) return;
       const key = event.key.toLocaleLowerCase();
       if (key === 'k') {
         event.preventDefault();
@@ -288,9 +299,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         onForkThread={(threadId, isolated, title) =>
           app.attempt(() => api.forkThread(threadId, isolated, title)) as Promise<void>
         }
-        onArchiveThread={(threadId) =>
-          app.attempt(() => api.archiveThread(threadId)) as Promise<void>
-        }
+        onArchiveThread={app.archiveThread}
         onCreateAgent={app.openNewAgent}
         onEditAgent={app.openEditAgent}
         onSetAgentPinned={(agentId, pinned) =>
@@ -365,12 +374,8 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                         defaultReasoning(snapshot, activeThread.provider, model),
                       )
                     }
-                    onChangeReasoning={(reasoning) =>
-                      api.configureThread(
-                        activeThread.id,
-                        activeThread.model,
-                        reasoning || undefined,
-                      )
+                    onChangeReasoning={(reasoning, model) =>
+                      api.configureThread(activeThread.id, model, reasoning || undefined)
                     }
                   />
                 ) : null}
@@ -520,10 +525,18 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               api={api}
               onCustomize={app.openNewAgent}
               onModels={() => app.openSettings('providers')}
-              onAccount={() => app.openSettings('privacy')}
+              onAccount={() => app.openSettings('apps')}
             >
               <Conversation
                 thread={activeThread}
+                executionLabel={
+                  activeThread
+                    ? (providerModels(snapshot, activeThread.provider).find(
+                        (model) => model.id === activeThread.model,
+                      )?.label ??
+                      snapshot.providers.find(({ id }) => id === activeThread.provider)?.name)
+                    : undefined
+                }
                 agentName={roomAgent?.name}
                 agentInitials={roomAgent?.initials}
                 agentHue={roomAgent?.hue}
@@ -598,6 +611,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 onStop={() =>
                   activeThread ? run(() => api.cancelTurn(activeThread.id)) : Promise.resolve()
                 }
+                onRemoveQueued={(messageId) =>
+                  activeThread
+                    ? run(() => api.removeQueuedMessage(activeThread.id, messageId))
+                    : Promise.resolve()
+                }
                 browserRecovery={
                   snapshot.activeThread ? (
                     <BrowserTaskRecovery
@@ -648,6 +666,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                         snapshot={snapshot}
                         api={api}
                         run={run}
+                        attempt={app.attempt}
                       />
                     </>
                   ) : undefined
@@ -778,19 +797,21 @@ function activityItems(snapshot: import('./types').RendererSnapshot) {
             ? 'Working in the background'
             : thread.status === 'waiting'
               ? 'Waiting for your input'
-              : thread.unread
-                ? 'New activity is ready to review'
-                : 'The last turn stopped'),
+              : thread.status === 'error'
+                ? 'Stopped before it finished'
+                : 'New activity is ready to review'),
         agentName: agent.name,
-        status: thread.unread
-          ? ('unread' as const)
-          : thread.status === 'running'
+        // Live state outranks the unread flag: a running thread that has unread output is running.
+        status:
+          thread.status === 'running'
             ? ('running' as const)
             : thread.status === 'waiting' || thread.status === 'queued'
               ? ('waiting' as const)
               : thread.status === 'error'
                 ? ('failed' as const)
-                : ('background' as const),
+                : thread.unread
+                  ? ('unread' as const)
+                  : ('background' as const),
         updatedAt: thread.updatedAt,
       })),
   );

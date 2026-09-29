@@ -1,4 +1,5 @@
-import { activityLabel } from '../../shared/activity-label';
+import { activityLabel, completedActivityLabel } from '../../shared/activity-label';
+import { clipText } from '../../shared/plain-text';
 import {
   Browser,
   CaretDown,
@@ -40,6 +41,10 @@ export function ActivityRow({ event }: ActivityRowProps) {
         : Clock;
   const statusClass = event.status === 'complete' ? '' : styles[`activity_${event.status}`];
   const hasDetail = Boolean(event.title || event.detail || event.presentation);
+  const runningLabel = activityLabel(event.toolName, event.presentation?.kind ?? event.kind);
+  const label =
+    event.status === 'complete' ? completedActivityLabel(runningLabel) : runningLabel;
+  const summary = activitySummary(event, [runningLabel, label]);
 
   return (
     <div className={`${styles.activityRow} ${statusClass}`}>
@@ -52,7 +57,18 @@ export function ActivityRow({ event }: ActivityRowProps) {
       >
         <Icon size={16} aria-hidden="true" />
         <span className={styles.activityTitle}>
-          {activityLabel(event.toolName, event.presentation?.kind ?? event.kind)}
+          {label}
+          {summary ? (
+            <span
+              className={
+                event.presentation?.kind === 'command'
+                  ? `${styles.activitySummary} ${styles.activitySummaryCode}`
+                  : styles.activitySummary
+              }
+            >
+              {summary}
+            </span>
+          ) : null}
         </span>
         <span className={styles.visuallyHidden}>Status: {event.status}</span>
         <StatusIcon size={15} aria-hidden="true" />
@@ -73,6 +89,36 @@ export function ActivityRow({ event }: ActivityRowProps) {
       ) : null}
     </div>
   );
+}
+
+/** One specific, plain line about the step: the command, the files, or the search. */
+export function activitySummary(event: ActivityEvent, labels: readonly string[]): string {
+  const presentation = event.presentation;
+  if (presentation?.kind === 'command') return clipText(singleLine(presentation.command), 90);
+  if (presentation?.kind === 'file_change' && presentation.files.length) {
+    const first = baseName(presentation.files[0]!.path);
+    const more = presentation.files.length - 1;
+    return more ? `${first} and ${more} more` : first;
+  }
+  if (presentation?.kind === 'web_search' && presentation.query)
+    return clipText(singleLine(presentation.query), 90);
+  const title = singleLine(event.title ?? '');
+  const key = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (
+    !title ||
+    labels.some((label) => key(label).includes(key(title))) ||
+    (event.toolName && key(event.toolName) === key(title))
+  )
+    return '';
+  return clipText(title, 90);
+}
+
+function singleLine(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function baseName(path: string): string {
+  return path.split('/').filter(Boolean).at(-1) ?? path;
 }
 
 function presentationIcon(event: ActivityEvent) {

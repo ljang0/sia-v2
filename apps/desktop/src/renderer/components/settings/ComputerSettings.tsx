@@ -1,4 +1,5 @@
 import { ComputerAccessMode } from '../ComputerAccessMode';
+import { useConfirmDialog } from '../ConfirmDialog';
 import { SetupMacAccess, type MacSetupApi } from '../SetupMacAccess';
 import { Notebook, ShieldCheck } from '@phosphor-icons/react';
 import { useState } from 'react';
@@ -31,6 +32,7 @@ export function ComputerSettings({
   const trusted = snapshot.computer.trust === 'auto';
   const [error, setError] = useState<string>();
   const [settingUp, setSettingUp] = useState(false);
+  const [confirm, confirmDialog] = useConfirmDialog();
   const busy = Boolean(pending) || settingUp;
 
   const run = async (kind: 'computer' | 'trust' | 'log', action: () => Promise<void>) => {
@@ -90,7 +92,16 @@ export function ComputerSettings({
             className={styles.secondaryButton}
             disabled={busy}
             onClick={() =>
-              void run('trust', () => onSetComputerTrust(trusted ? 'ask' : 'auto'))
+              trusted
+                ? void run('trust', () => onSetComputerTrust('ask'))
+                : confirm({
+                    title: 'Let Sia act without asking?',
+                    description:
+                      'Sia will click, type, send messages, post, upload, and schedule without showing you each action first. Mistakes can reach other people before you see them. You can turn this off at any time.',
+                    confirmLabel: 'Act without asking',
+                    cancelLabel: 'Keep asking me',
+                    onConfirm: () => run('trust', () => onSetComputerTrust('auto')),
+                  })
             }
             data-testid="computer-trust-toggle"
           >
@@ -98,6 +109,7 @@ export function ComputerSettings({
           </button>
         </div>
       </div>
+      {confirmDialog}
       <SetupMacAccess
         snapshot={snapshot}
         api={macSetupApi}

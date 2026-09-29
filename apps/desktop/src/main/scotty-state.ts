@@ -174,7 +174,11 @@ export class ScottyTasks {
             id: approval.id,
             title: approval.title.slice(0, 1000),
             summary: approval.summary.slice(0, 8000),
-            target: approval.target.slice(0, 8000),
+            // Match the main approval card: native approvals name the Mac, not the harness.
+            target: (approval.kind === 'native_tool' ? 'This Mac' : approval.target).slice(
+              0,
+              8000,
+            ),
             ...(approval.account ? { account: approval.account.slice(0, 1000) } : {}),
             ...(approval.dataLeaving
               ? { dataLeaving: approval.dataLeaving.slice(0, 8000) }

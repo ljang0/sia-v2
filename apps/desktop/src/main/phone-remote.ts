@@ -535,6 +535,10 @@ export class PhoneRemote {
     const last = state.turns.at(-1);
     if (last?.status === 'working')
       throw new RemoteError('Sia is working. Stop this task before sending another.');
+    if (last?.approval)
+      throw new RemoteError(
+        'Sia is waiting for you to approve a step on your Mac. Approve or deny it there, or stop the task here.',
+      );
     this.#requireReadyAssistant(session);
     let createdThreadId: string | undefined;
     const previousThreadId = this.#deps.controller.snapshot().activeThreadId;

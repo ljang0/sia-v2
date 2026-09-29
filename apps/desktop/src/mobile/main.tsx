@@ -448,15 +448,19 @@ function App() {
               {busy && (
                 <div className="live-task-line" role="status">
                   <span className={`activity-light ${latest?.status}`} />
-                  {latest?.status === 'waiting'
-                    ? 'Sia needs your attention'
-                    : online
-                      ? 'Sia is working on your Mac'
-                      : 'Reconnecting for task updates'}
+                  {latest?.approval
+                    ? 'Approve this step on your Mac'
+                    : latest?.status === 'waiting'
+                      ? 'Sia needs your answer'
+                      : online
+                        ? 'Sia is working on your Mac'
+                        : 'Reconnecting for task updates'}
                   <span>
                     {latest?.status === 'working'
                       ? 'You can leave this page'
-                      : 'Check the latest reply'}
+                      : latest?.approval
+                        ? 'Your phone can’t approve'
+                        : 'Reply below'}
                   </span>
                 </div>
               )}
@@ -473,7 +477,15 @@ function App() {
                   rows={1}
                   maxLength={8000}
                   value={text}
-                  placeholder={busy ? 'Write a follow-up…' : 'What can I take off your hands?'}
+                  placeholder={
+                    latest?.approval
+                      ? 'Approve on your Mac to continue'
+                      : latest?.status === 'waiting'
+                        ? 'Answer Sia…'
+                        : busy
+                          ? 'Write a follow-up…'
+                          : 'What can I take off your hands?'
+                  }
                   onChange={(event) => setText(event.currentTarget.value)}
                   onKeyDown={(event) => {
                     if (

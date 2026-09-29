@@ -229,6 +229,10 @@ test('automatic learning and executable skills persist and dispatch through the 
       .getByRole('button', { name: /^Skills/ })
       .click();
     await page.getByRole('button', { name: 'Delete skill', exact: true }).click();
+    await page
+      .getByRole('alertdialog')
+      .getByRole('button', { name: 'Delete', exact: true })
+      .click();
     await expect(
       page.getByRole('article').filter({ hasText: 'Find available apps before a task.' }),
     ).toHaveCount(0);

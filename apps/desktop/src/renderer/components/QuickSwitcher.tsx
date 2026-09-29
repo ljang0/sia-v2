@@ -111,15 +111,22 @@ export function QuickSwitcher({
         run: () => onSelectThread(thread.id),
       })),
     );
+    const listedThreadIds = new Set(threadEntries.map((entry) => entry.id));
     const resourceEntries: SwitcherEntry[] = resourceResults.flatMap((result) =>
-      result.matches.map((match) => ({
-        kind: 'resource' as const,
-        resourceKind: match.kind,
-        id: `resource-${result.threadId}-${match.itemId}`,
-        label: match.label ?? match.excerpt,
-        detail: `${result.threadTitle} · ${match.kind}`,
-        run: () => onSelectThread(result.threadId, result.archived),
-      })),
+      result.matches
+        // A title-only hit duplicates the thread row that is already listed.
+        .filter(
+          (match) =>
+            match.kind !== 'thread' || !listedThreadIds.has(`thread-${result.threadId}`),
+        )
+        .map((match) => ({
+          kind: 'resource' as const,
+          resourceKind: match.kind,
+          id: `resource-${result.threadId}-${match.itemId}`,
+          label: match.label ?? match.excerpt,
+          detail: `${result.threadTitle} · ${match.kind}`,
+          run: () => onSelectThread(result.threadId, result.archived),
+        })),
     );
 
     if (!normalized) {
@@ -132,7 +139,8 @@ export function QuickSwitcher({
       ];
     }
 
-    return [...resourceEntries, ...threadEntries, ...agentEntries, ...actionEntries]
+    // Equal scores keep this order, so conversation titles outrank message excerpts.
+    return [...threadEntries, ...resourceEntries, ...agentEntries, ...actionEntries]
       .map((entry) => ({ entry, score: matchScore(entry, normalized, actions) }))
       .filter((candidate) => candidate.score >= 0)
       .sort((left, right) => right.score - left.score)
@@ -158,6 +166,12 @@ export function QuickSwitcher({
   useEffect(() => {
     setHighlighted((current) => Math.min(current, Math.max(0, entries.length - 1)));
   }, [entries.length]);
+
+  const highlightedId = entries[highlighted]?.id;
+  useEffect(() => {
+    if (!open || !highlightedId) return;
+    document.getElementById(highlightedId)?.scrollIntoView?.({ block: 'nearest' });
+  }, [open, highlightedId]);
 
   const activate = (entry: SwitcherEntry | undefined) => {
     if (!entry) return;
@@ -208,7 +222,7 @@ export function QuickSwitcher({
                   setHighlighted((current) =>
                     entries.length ? (current - 1 + entries.length) % entries.length : 0,
                   );
-                } else if (event.key === 'Enter') {
+                } else if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
                   event.preventDefault();
                   activate(entries[highlighted]);
                 }
@@ -262,7 +276,9 @@ export function QuickSwitcher({
               </button>
             ))}
             {entries.length === 0 ? (
-              <p className={companion.quickSwitcherEmpty}>No room or action matches.</p>
+              <p className={companion.quickSwitcherEmpty}>
+                No conversations, messages, or actions match.
+              </p>
             ) : null}
           </div>
           <footer>

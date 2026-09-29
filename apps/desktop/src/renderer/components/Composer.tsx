@@ -9,7 +9,7 @@ import {
   Waveform,
   X,
 } from '@phosphor-icons/react';
-import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
+import { type KeyboardEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import styles from '../ui.module.css';
 import { SiaPresence, type SiaPresenceState } from './SiaPresence';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
@@ -27,7 +27,7 @@ interface ComposerProps {
   running?: boolean;
   stoppable?: boolean;
   placeholder?: string;
-  executionLabel?: string;
+  executionLabel?: string | undefined;
   attachments?: readonly ComposerAttachment[] | undefined;
   acceptingAttachments?: boolean | undefined;
   onPickAttachments?: (() => Promise<void> | void) | undefined;
@@ -120,6 +120,14 @@ export function Composer({
   const draftChangeHandler = useRef(onDraftChange);
   realtimeStopHandler.current = onStopRealtime;
   draftChangeHandler.current = onDraftChange;
+
+  // Size the box to its text, including a multi-line draft restored when the thread opens.
+  useLayoutEffect(() => {
+    const input = textArea.current;
+    if (!input) return;
+    input.style.height = 'auto';
+    input.style.height = `${Math.min(input.scrollHeight, 168)}px`;
+  }, [value]);
 
   const updateVoiceLevel = (rms: number) => {
     const next = microphoneLevel(rms);
@@ -220,6 +228,7 @@ export function Composer({
 
   const submit = async () => {
     const content = value.trim();
+    // While a turn runs, a sent message is queued as a follow-up by the main process.
     if ((!content && attachments.length === 0) || disabled || sending) return;
     setSending(true);
     if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
@@ -232,7 +241,6 @@ export function Composer({
       );
       setValue('');
       persistDraftNow('');
-      if (textArea.current) textArea.current.style.height = 'auto';
     } catch {
       persistDraftNow(value);
       textArea.current?.focus();
@@ -546,11 +554,7 @@ export function Composer({
       updateValue(`${draft.trimEnd()}${draft.trim() ? ' ' : ''}${transcript}`);
     }
     requestAnimationFrame(() => {
-      const input = textArea.current;
-      if (!input) return;
-      input.style.height = 'auto';
-      input.style.height = `${Math.min(input.scrollHeight, 168)}px`;
-      if (recordingPurpose.current === 'dictation') input.focus();
+      if (recordingPurpose.current === 'dictation') textArea.current?.focus();
     });
   };
 
@@ -639,11 +643,7 @@ export function Composer({
           disabled={disabled}
           placeholder={placeholder}
           aria-label="Message"
-          onChange={(event) => {
-            updateValue(event.target.value);
-            event.currentTarget.style.height = 'auto';
-            event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 168)}px`;
-          }}
+          onChange={(event) => updateValue(event.target.value)}
           onKeyDown={handleKeyDown}
         />
         <div className={styles.composerControls}>
@@ -792,20 +792,19 @@ export function Composer({
               Stop
             </LiquidMetalButton>
           ) : null}
-          {!running ? (
-            <LiquidMetalButton
-              type="button"
-              size="compact"
-              viewMode="icon"
-              tone="sage"
-              onClick={() => void submit()}
-              disabled={disabled || (!value.trim() && attachments.length === 0) || sending}
-              aria-label="Send message"
-              data-testid="composer-send"
-            >
-              <ArrowUp weight="bold" size={16} aria-hidden="true" />
-            </LiquidMetalButton>
-          ) : null}
+          <LiquidMetalButton
+            type="button"
+            size="compact"
+            viewMode="icon"
+            tone="sage"
+            onClick={() => void submit()}
+            disabled={disabled || (!value.trim() && attachments.length === 0) || sending}
+            aria-label={running ? 'Queue follow-up message' : 'Send message'}
+            title={running ? 'Queue follow-up' : undefined}
+            data-testid="composer-send"
+          >
+            <ArrowUp weight="bold" size={16} aria-hidden="true" />
+          </LiquidMetalButton>
         </div>
       </div>
       {voiceError ? (

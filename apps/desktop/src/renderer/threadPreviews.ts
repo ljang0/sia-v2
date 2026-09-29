@@ -1,11 +1,13 @@
 import type { TimelineItemView } from '../shared/bridge';
 import { activityLabel } from '../shared/activity-label';
-import { plainText } from '../shared/plain-text';
+import { clipText, plainText } from '../shared/plain-text';
 import type { ThreadSummary } from './types';
 
 /** Summaries come from the existing snapshot; hovering never selects or reads a task. */
-export function threadPreviews(items: readonly TimelineItemView[]) {
+export function threadPreviews(timeline: readonly TimelineItemView[]) {
   const requests = new Map<string, TimelineItemView>();
+  // A queued follow-up is not the thread's request until it starts.
+  const items = timeline.filter((item) => !(item.kind === 'user' && item.status === 'pending'));
   for (const item of items) {
     if (item.kind === 'user' && item.sequence > (requests.get(item.threadId)?.sequence ?? -1))
       requests.set(item.threadId, item);
@@ -25,7 +27,7 @@ export function threadPreviews(items: readonly TimelineItemView[]) {
       if (text)
         preview = {
           label: item.kind === 'user' ? 'Request' : 'Latest reply',
-          text: clip(text),
+          text: clipText(text, 420),
         };
     } else if (item.kind === 'activity') {
       preview = {
@@ -38,7 +40,4 @@ export function threadPreviews(items: readonly TimelineItemView[]) {
     }
   }
   return new Map([...latest].map(([id, value]) => [id, value.preview]));
-}
-function clip(text: string) {
-  return text.length > 420 ? `${text.slice(0, 417)}…` : text;
 }

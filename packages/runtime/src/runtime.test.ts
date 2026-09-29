@@ -1757,9 +1757,9 @@ describe('Notch-style native Mac sessions', () => {
         expect(approvalDecision).toEqual({
           decision: nativeApproval === 'auto' ? 'accept' : 'decline',
         });
-        expect(events.filter((e) => e.type === 'approval')).toHaveLength(
-          nativeApproval === 'auto' ? 0 : 1,
-        );
+        expect(
+          events.flatMap((e) => (e.type === 'approval' ? [e.payload.description] : [])),
+        ).toEqual(nativeApproval === 'auto' ? [] : ['Run a command: open -a TextEdit']);
         expect(events.filter((e) => e.type === 'message')).toMatchObject([
           { payload: { delta: false, parts: [{ text: finalText }] } },
         ]);
@@ -1779,4 +1779,173 @@ describe('Notch-style native Mac sessions', () => {
       }
     },
   );
+  it('names the files a native file-change approval will touch', async () => {
+    const peers = linkedPeers();
+    peers.server.onRequest(async (method, params) => {
+      if (method === 'initialize') return {};
+      if (method === 'thread/start')
+        return {
+          thread: { id: 'native-mac' },
+          sandbox: { type: 'dangerFullAccess' },
+          approvalPolicy: 'untrusted',
+        };
+      if (method === 'experimentalFeature/list')
+        return {
+          data: Object.entries({ ...isolatedCodexFeatures, multi_agent: false }).map(
+            ([name, enabled]) => ({ name, enabled }),
+          ),
+          nextCursor: null,
+        };
+      if (method === 'turn/start') {
+        setImmediate(() => {
+          void (async () => {
+            await peers.server.notify('item/started', {
+              threadId: 'native-mac',
+              item: {
+                type: 'fileChange',
+                id: 'patch',
+                status: 'inProgress',
+                changes: [
+                  { path: '/Users/me/notes.md', kind: 'update' },
+                  { path: '/Users/me/todo.md', kind: 'add' },
+                ],
+              },
+            });
+            await peers.server.request('item/fileChange/requestApproval', {
+              threadId: 'native-mac',
+              turnId: 'native-turn',
+              itemId: 'patch',
+            });
+            await peers.server.notify('turn/completed', {
+              threadId: 'native-mac',
+              turn: { id: 'native-turn', status: 'completed' },
+            });
+          })();
+        });
+        return { turn: { id: 'native-turn' } };
+      }
+      if (method === 'thread/backgroundTerminals/clean') return {};
+      const isolated = codexIsolationResponse(method, params);
+      if (isolated !== undefined) return isolated;
+      throw new Error(`Unexpected ${method}`);
+    });
+    const adapter = new CodexAppServerAdapter({
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    try {
+      const session = await adapter.createSession({
+        ...sessionOptions,
+        model: 'gpt-6-astra',
+        tools: [],
+        nativeTools: 'mac',
+        nativeApproval: 'ask',
+        baseInstructions: 'You are Sia.',
+      });
+      const approvals = [];
+      for await (const event of adapter.sendTurn(session, {
+        turnId: 'turn',
+        text: 'Tidy notes',
+      })) {
+        if (event.type !== 'approval') continue;
+        approvals.push(event.payload.description);
+        await adapter.respondToRequest(session, {
+          requestId: event.payload.requestId,
+          choiceId: 'deny',
+        });
+      }
+      expect(approvals).toEqual(['Change 2 files: /Users/me/notes.md, /Users/me/todo.md']);
+    } finally {
+      await adapter.dispose();
+    }
+  });
+});
+
+describe('Codex turn resilience', () => {
+  function codexServer(onTurn: (peers: ReturnType<typeof linkedPeers>) => Promise<unknown>) {
+    const peers = linkedPeers();
+    peers.server.onRequest(async (method, params) => {
+      if (method === 'initialize') return {};
+      if (method === 'account/read') return { account: { type: 'chatgpt', email: 'a@b.c' } };
+      if (method === 'thread/start')
+        return { thread: { id: 'native-thread' }, sandbox: { type: 'workspaceWrite' } };
+      if (method === 'turn/start') return await onTurn(peers);
+      if (method === 'turn/interrupt') return {};
+      const isolationResponse = codexIsolationResponse(method, params);
+      if (isolationResponse !== undefined) return isolationResponse;
+      throw new Error(`unexpected ${method}`);
+    });
+    return peers;
+  }
+
+  it('does not surface an error that Codex is about to retry', async () => {
+    const peers = codexServer(async (p) => {
+      setTimeout(() => {
+        void (async () => {
+          await p.server.notify('error', {
+            threadId: 'native-thread',
+            turnId: 'native-turn',
+            willRetry: true,
+            error: { message: 'Reconnecting... 1/5' },
+          });
+          await p.server.notify('turn/completed', {
+            threadId: 'native-thread',
+            turn: { id: 'native-turn', status: 'completed' },
+          });
+        })();
+      }, 5);
+      return { turn: { id: 'native-turn' } };
+    });
+    const adapter = new CodexAppServerAdapter({
+      sessionEphemeral: true,
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    const session = await adapter.createSession(sessionOptions);
+    const types: string[] = [];
+    for await (const event of adapter.sendTurn(session, { turnId: 't1', text: 'hi' }))
+      types.push(event.type);
+    expect(types).toEqual(['completion']);
+    await adapter.dispose();
+  });
+
+  it('ends the active turn and forgets sessions when the app-server exits', async () => {
+    let exit!: () => void;
+    const exited = new Promise<void>((resolve) => {
+      exit = resolve;
+    });
+    const peers = codexServer(async () => {
+      setTimeout(exit, 5);
+      return { turn: { id: 'native-turn' } };
+    });
+    const adapter = new CodexAppServerAdapter({
+      sessionEphemeral: true,
+      peerFactory: async () => ({
+        peer: peers.client,
+        exited,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    const session = await adapter.createSession(sessionOptions);
+    const events: ThreadEventEnvelope[] = [];
+    for await (const event of adapter.sendTurn(session, { turnId: 't1', text: 'hi' }))
+      events.push(event);
+    expect(events.map(({ type }) => type)).toEqual(['error', 'completion']);
+    expect(events[1]).toMatchObject({ payload: { status: 'failed' } });
+    expect(adapter.hasSession(session)).toBe(false);
+    await adapter.dispose();
+  });
 });

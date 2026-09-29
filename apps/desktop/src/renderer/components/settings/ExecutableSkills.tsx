@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useConfirmDialog } from '../ConfirmDialog';
 import { skillUnavailableReason } from '../../../shared/skill-execution';
 import type {
   AssistantLibraryCommand,
@@ -22,8 +23,10 @@ export function ExecutableSkills({
   const [runner, setRunner] = useState<AssistantSkill>();
   const [input, setInput] = useState('{}');
   const [error, setError] = useState('');
+  const [confirm, confirmDialog] = useConfirmDialog();
   return (
     <>
+      {confirmDialog}
       <div className={styles.heading}>
         <div>
           <h3>Executable skills</h3>
@@ -78,7 +81,16 @@ export function ExecutableSkills({
                 Run skill
               </button>
               <button onClick={() => setEditor(entry)}>Edit skill</button>
-              <button onClick={() => void command({ operation: 'deleteSkill', id: entry.id })}>
+              <button
+                onClick={() =>
+                  confirm({
+                    title: 'Delete this skill?',
+                    description: `“${entry.title}” will be removed. This can’t be undone.`,
+                    confirmLabel: 'Delete',
+                    onConfirm: () => command({ operation: 'deleteSkill', id: entry.id }),
+                  })
+                }
+              >
                 Delete skill
               </button>
             </div>

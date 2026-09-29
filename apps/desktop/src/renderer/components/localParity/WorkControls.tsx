@@ -13,6 +13,7 @@ import {
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { ScheduleRun, ThreadGoal } from '../../types';
 import styles from '../../ui.module.css';
+import { useConfirmDialog } from '../ConfirmDialog';
 
 interface SelectOption {
   id: string;
@@ -28,7 +29,7 @@ interface ThreadModelControlsProps {
   reasoningOptions: readonly SelectOption[];
   disabled?: boolean | undefined;
   onChangeModel(modelId: string): Promise<void> | void;
-  onChangeReasoning(reasoningId: string): Promise<void> | void;
+  onChangeReasoning(reasoningId: string, modelId: string): Promise<void> | void;
 }
 
 export function ThreadModelControls({
@@ -42,6 +43,12 @@ export function ThreadModelControls({
   onChangeReasoning,
 }: ThreadModelControlsProps) {
   const menu = useRef<HTMLDetailsElement>(null);
+  // The snapshot carrying a new model can arrive after the next reasoning change, so reasoning
+  // changes send the model the person last picked rather than the one from the last render.
+  const pickedModel = useRef(modelId);
+  useEffect(() => {
+    pickedModel.current = modelId;
+  }, [modelId]);
   useEffect(() => {
     const outside = (event: PointerEvent) => {
       if (menu.current && !menu.current.contains(event.target as Node))
@@ -73,7 +80,13 @@ export function ThreadModelControls({
             data-testid="thread-model-select"
             value={modelId}
             disabled={disabled}
-            onChange={(event) => void onChangeModel(event.target.value)}
+            onChange={(event) => {
+              const next = event.target.value;
+              pickedModel.current = next;
+              void Promise.resolve(onChangeModel(next)).catch(() => {
+                pickedModel.current = modelId;
+              });
+            }}
           >
             {models.map((model) => (
               <option key={model.id} value={model.id} title={model.detail}>
@@ -92,7 +105,9 @@ export function ThreadModelControls({
             data-testid="thread-reasoning-select"
             value={reasoningId}
             disabled={disabled}
-            onChange={(event) => void onChangeReasoning(event.target.value)}
+            onChange={(event) =>
+              void onChangeReasoning(event.target.value, pickedModel.current)
+            }
           >
             {reasoningOptions.map((option) => (
               <option key={option.id} value={option.id} title={option.detail}>
@@ -146,7 +161,7 @@ export function GoalControls({
             ) : (
               <Pause size={15} aria-hidden="true" />
             )}
-            {goal.status}
+            {goal.status === 'running' ? 'Active' : 'Paused'}
           </span>
         </div>
         <div className={styles.localActionRow}>
@@ -266,6 +281,7 @@ export function ScheduleControls({
   const [runAt, setRunAt] = useState('');
   const [maxRuns, setMaxRuns] = useState('1');
   const [expandedHistoryId, setExpandedHistoryId] = useState<string>();
+  const [confirm, confirmDialog] = useConfirmDialog();
   const titleId = useId();
 
   const submit = (event: FormEvent) => {
@@ -278,17 +294,22 @@ export function ScheduleControls({
         runAt: runAt || inferredFirstRun(cadence),
         ...(maxRuns ? { maxRuns: Number(maxRuns) } : {}),
       }),
-    ).then(() => {
-      setPrompt('');
-      setCadence('once');
-      setRunAt('');
-      setMaxRuns('1');
-      setExpanded(false);
-    });
+    ).then(
+      () => {
+        setPrompt('');
+        setCadence('once');
+        setRunAt('');
+        setMaxRuns('1');
+        setExpanded(false);
+      },
+      // The failure is already reported; keep the draft so the person can try again.
+      () => undefined,
+    );
   };
 
   return (
     <section className={styles.scheduleControl} aria-labelledby={titleId}>
+      {confirmDialog}
       <div className={styles.localSurfaceHeader}>
         <div>
           <span className={styles.sectionLabel}>Runs while Sia is open</span>
@@ -437,14 +458,17 @@ export function ScheduleControls({
                   </div>
                 </div>
                 <div className={styles.scheduleActions}>
-                  <button
-                    type="button"
-                    className={styles.secondaryButton}
-                    disabled={busy}
-                    onClick={() => void onSetEnabled(schedule.id, !schedule.enabled)}
-                  >
-                    {schedule.enabled ? 'Pause' : 'Resume'}
-                  </button>
+                  {/* Resuming a finished schedule would run it again at once, past its limit. */}
+                  {schedule.enabled || !scheduleFinished(schedule) ? (
+                    <button
+                      type="button"
+                      className={styles.secondaryButton}
+                      disabled={busy}
+                      onClick={() => void onSetEnabled(schedule.id, !schedule.enabled)}
+                    >
+                      {schedule.enabled ? 'Pause' : 'Resume'}
+                    </button>
+                  ) : null}
                   {onRunNow ? (
                     <button
                       type="button"
@@ -460,7 +484,14 @@ export function ScheduleControls({
                   type="button"
                   className={styles.iconButtonSmall}
                   disabled={busy}
-                  onClick={() => void onDelete(schedule.id)}
+                  onClick={() =>
+                    confirm({
+                      title: 'Delete this schedule?',
+                      description: `“${schedule.label}” won’t run again. This can’t be undone.`,
+                      confirmLabel: 'Delete',
+                      onConfirm: () => onDelete(schedule.id),
+                    })
+                  }
                   aria-label={`Delete ${schedule.label}`}
                 >
                   <Trash size={14} aria-hidden="true" />
@@ -507,12 +538,18 @@ function scheduleRuns(schedule: ThreadSchedule): readonly ScheduleRun[] {
   return schedule.lastRun ? [schedule.lastRun] : [];
 }
 
+function scheduleFinished(schedule: ThreadSchedule): boolean {
+  const runs = schedule.runCount ?? 0;
+  return (
+    (schedule.cadence === 'once' && runs > 0) ||
+    (schedule.maxRuns !== undefined && runs >= schedule.maxRuns)
+  );
+}
+
 function scheduleNextLabel(schedule: ThreadSchedule): string {
   if (schedule.enabled) return `Next ${formatScheduleTime(schedule.nextRunAt)}`;
-  if (schedule.maxRuns !== undefined && (schedule.runCount ?? 0) >= schedule.maxRuns) {
-    return 'Run limit reached';
-  }
   if (schedule.cadence === 'once' && (schedule.runCount ?? 0) > 0) return 'Finished';
+  if (scheduleFinished(schedule)) return 'Run limit reached';
   return 'Paused';
 }
 

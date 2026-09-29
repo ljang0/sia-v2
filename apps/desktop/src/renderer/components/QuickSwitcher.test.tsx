@@ -68,4 +68,69 @@ describe('QuickSwitcher resources', () => {
     fireEvent.click(result);
     await waitFor(() => expect(onSelectThread).toHaveBeenCalledWith('thread-1', false));
   });
+
+  it('ranks a title match above message excerpts and does not list it twice', async () => {
+    render(
+      <QuickSwitcher
+        open
+        agents={agents}
+        actions={[]}
+        onOpenChange={() => undefined}
+        onSelectAgent={() => undefined}
+        onSelectThread={() => undefined}
+        searchResources={async () => [
+          {
+            threadId: 'thread-1',
+            threadTitle: 'Alpha readiness',
+            archived: false,
+            matches: [
+              {
+                itemId: 'thread-1',
+                excerpt: 'Alpha readiness',
+                timestamp: '2026-08-26T00:00:00.000Z',
+                kind: 'thread',
+              },
+              {
+                itemId: 'message-1',
+                excerpt: 'Checked the alpha build notes',
+                timestamp: '2026-08-26T00:00:00.000Z',
+                kind: 'message',
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'alpha' } });
+    await screen.findByRole('option', { name: /alpha build notes/ });
+    const options = screen.getAllByRole('option');
+    expect(options).toHaveLength(2);
+    expect(options[0]?.textContent).toContain('Alpha readiness');
+  });
+
+  it('keeps the highlighted row in view while moving with the keyboard', () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    render(
+      <QuickSwitcher
+        open
+        agents={agents}
+        actions={Array.from({ length: 12 }, (_, index) => ({
+          id: `action-${index}`,
+          label: `Action ${index}`,
+          detail: '',
+          icon: null,
+          run: () => undefined,
+        }))}
+        onOpenChange={() => undefined}
+        onSelectAgent={() => undefined}
+        onSelectThread={() => undefined}
+      />,
+    );
+
+    scrollIntoView.mockClear();
+    fireEvent.keyDown(screen.getByRole('combobox'), { key: 'ArrowUp' });
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
+  });
 });

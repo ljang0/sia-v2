@@ -152,6 +152,7 @@ it('rejects stale, foreign, expired, oversized and hidden approvals while using 
   const task = tasks.view(state, settings, true).tasks[0]!;
   const action = { kind: 'approve', token: task.token, approvalId: id, decision: 'approve' };
   expect(task.canReply).toBe(false);
+  expect(task.approval?.target).toBe('This Mac');
   await expect(
     tasks.act({ kind: 'reply', token: task.token, text: 'yes' }, controller, settings, vi.fn()),
   ).rejects.toThrow('approval');

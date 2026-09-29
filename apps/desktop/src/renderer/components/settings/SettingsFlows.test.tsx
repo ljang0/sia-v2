@@ -367,6 +367,41 @@ describe('cloud account settings', () => {
     await waitFor(() => expect(onSetEnabled).toHaveBeenCalledWith('docs', false));
   });
 
+  it('asks before disconnecting Google or Slack', async () => {
+    const snapshot = withCloud('signed-in', 'lawrence@example.com');
+    snapshot.apps = snapshot.apps.map((app) => ({
+      ...app,
+      status: 'connected',
+      connectionId: app.id === 'slack' ? 'slack_1' : 'gw_shared',
+    }));
+    const onDisconnect = vi.fn().mockResolvedValue(undefined);
+    render(
+      <AppsSettings
+        snapshot={snapshot}
+        onConnectSelected={vi.fn()}
+        onConnectGoogle={vi.fn()}
+        onConnect={vi.fn()}
+        onDisconnect={onDisconnect}
+        onStartCloudSignIn={vi.fn()}
+        onCompleteCloudSignIn={vi.fn()}
+        onSignOutCloud={vi.fn()}
+        onDeleteCloudAccount={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Disconnect Google Workspace' }));
+    const google = screen.getByRole('alertdialog', { name: 'Disconnect Google?' });
+    expect(google.textContent).toMatch(/until you connect again/);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(onDisconnect).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Disconnect Slack' }));
+    expect(screen.getByRole('alertdialog', { name: 'Disconnect Slack?' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }));
+    await waitFor(() => expect(onDisconnect).toHaveBeenCalledWith('slack', 'slack_1'));
+    expect(onDisconnect).toHaveBeenCalledOnce();
+  });
+
   it('lets people connect Slack without connecting Google', async () => {
     const onConnectSelected = vi.fn().mockResolvedValue(undefined);
     render(
@@ -616,6 +651,37 @@ describe('computer access settings', () => {
     expect(screen.queryByRole('button', { name: 'Choose window' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Connections' }));
     expect(onReviewConnections).toHaveBeenCalledOnce();
+  });
+
+  it('asks for confirmation before bypassing action approvals', async () => {
+    const onSetComputerTrust = vi.fn(async () => undefined);
+    const snapshot = structuredClone(demoSnapshot);
+    snapshot.computer.trust = 'ask';
+    render(
+      <ComputerSettings
+        snapshot={snapshot}
+        onReviewConnections={vi.fn()}
+        macSetupApi={{
+          requestComputerPermissions: vi.fn(),
+          requestAutomationPermission: vi.fn(),
+          refreshComputerPermissions: vi.fn(),
+          configureVoice: vi.fn(),
+          configurePushToTalk: vi.fn(),
+        }}
+        onSetComputerTrust={onSetComputerTrust}
+        onSetTrajectoryLog={vi.fn()}
+        onRevealTrajectories={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('switch', { name: 'Bypass action approvals' }));
+    expect(
+      screen.getByRole('alertdialog', { name: 'Let Sia act without asking?' }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Keep asking me' }));
+    expect(onSetComputerTrust).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('switch', { name: 'Bypass action approvals' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Act without asking' }));
+    await waitFor(() => expect(onSetComputerTrust).toHaveBeenCalledWith('auto'));
   });
 
   it('flips trust and the local log through the switches', async () => {

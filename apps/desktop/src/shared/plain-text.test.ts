@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { plainText } from './plain-text';
+import { clipText, conversationTitle, plainText } from './plain-text';
 
 describe('plainText', () => {
   it('removes emphasis, code, links, and list markers', () => {
@@ -17,5 +17,22 @@ describe('plainText', () => {
       'Use snake_case_names and 2 * 3 = 6',
     );
     expect(plainText('Before\n\n```js\nconsole.log(1)\n```\nafter')).toBe('Before after');
+  });
+
+  it('clips without splitting emoji or words', () => {
+    expect(clipText('short', 10)).toBe('short');
+    const clipped = clipText(`Check my calendar ${'📅'.repeat(30)}`, 40);
+    expect(clipped.endsWith('…')).toBe(true);
+    expect(clipped).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+    expect(clipText('Please look at the internationalization requirements', 40)).toBe(
+      'Please look at the internationalization…',
+    );
+  });
+
+  it('builds readable conversation titles', () => {
+    expect(
+      conversationTitle('## Summarize **this** doc: https://docs.google.com/d/1Ab/edit'),
+    ).toBe('Summarize this doc: docs.google.com');
+    expect(conversationTitle('```\nconst x = 1\n```')).toBe('');
   });
 });

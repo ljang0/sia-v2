@@ -165,6 +165,52 @@ describe('Conversation waiting controls', () => {
     expect(onStop).toHaveBeenCalledOnce();
   });
 
+  it('names the agent on replies and questions and keeps typed line breaks', () => {
+    render(
+      <Conversation
+        agentName="Research partner"
+        thread={baseThread({
+          events: [
+            {
+              id: 'user-1',
+              type: 'message',
+              role: 'user',
+              content: 'Plan my trip:\n- Friday\n- Sunday',
+              timestamp: '2026-08-13T00:00:00.000Z',
+            },
+            {
+              id: 'reply-1',
+              type: 'message',
+              role: 'assistant',
+              content: 'Which seat?',
+              timestamp: '2026-08-13T00:00:00.000Z',
+            },
+            {
+              id: 'question-1',
+              type: 'question',
+              prompt: 'Do you prefer an **aisle** seat?',
+              status: 'pending',
+              timestamp: '2026-08-13T00:00:00.000Z',
+            },
+          ],
+        })}
+        onSend={async () => undefined}
+        onStop={async () => undefined}
+        onRetry={async () => undefined}
+        onResolveApproval={async () => undefined}
+      />,
+    );
+    expect(screen.getByText('Research partner has a question')).toBeTruthy();
+    expect(screen.queryByText('Provider needs input')).toBeNull();
+    expect(screen.getByText('aisle').tagName).toBe('STRONG');
+    expect(
+      document.querySelector('[data-message-role="assistant"] header span')?.textContent,
+    ).toBe('Research partner');
+    expect(document.querySelector('[data-message-role="user"] p')?.textContent).toBe(
+      'Plan my trip:\n- Friday\n- Sunday',
+    );
+  });
+
   it('ignores an answered-turn question once the thread is no longer waiting', () => {
     renderConversation(
       baseThread({
@@ -547,5 +593,71 @@ describe('Conversation continuity tools', () => {
       target: { value: 'release gate' },
     });
     expect(screen.getByText('1 found')).toBeTruthy();
+  });
+});
+
+describe('Conversation follow-ups while running', () => {
+  const queuedMessage: MessageEvent = {
+    id: 'queued-1',
+    type: 'message',
+    role: 'user',
+    content: 'Also add the dates',
+    timestamp: '2026-09-28T00:00:00.000Z',
+  };
+
+  it('accepts a follow-up while the turn runs and keeps Stop visible', async () => {
+    const { onSend } = renderConversation(baseThread({ status: 'running' }));
+    const input = screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement;
+    expect(input.disabled).toBe(false);
+    expect(input.placeholder).toBe('Add a follow-up — Sia will pick it up next');
+    expect(screen.getByRole('button', { name: 'Stop current turn' })).toBeTruthy();
+
+    fireEvent.change(input, { target: { value: 'Also add the dates' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('Also add the dates', []));
+    await waitFor(() => expect(input.value).toBe(''));
+  });
+
+  it('accepts a follow-up while a stopped turn winds down', () => {
+    renderConversation(
+      baseThread({ status: 'queued', queueReason: 'Finishing the stopped task.' }),
+    );
+    const input = screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement;
+    expect(input.disabled).toBe(false);
+    expect(screen.getByRole('button', { name: 'Queue follow-up message' })).toBeTruthy();
+    expect(screen.getByText('Finishing the stopped task.')).toBeTruthy();
+  });
+
+  it('shows queued follow-ups apart from the transcript and removes one', async () => {
+    const onRemoveQueued = vi.fn(async () => undefined);
+    render(
+      <Conversation
+        thread={baseThread({
+          status: 'running',
+          events: [
+            {
+              id: 'first',
+              type: 'message',
+              role: 'user',
+              content: 'Draft the plan',
+              timestamp: '2026-09-28T00:00:00.000Z',
+            },
+          ],
+          queuedMessages: [queuedMessage],
+        })}
+        onSend={vi.fn(async () => undefined)}
+        onStop={vi.fn(async () => undefined)}
+        onRemoveQueued={onRemoveQueued}
+        onRetry={async () => undefined}
+        onResolveApproval={async () => undefined}
+      />,
+    );
+    const queue = screen.getByRole('region', { name: 'Queued messages' });
+    expect(queue.textContent).toContain('Queued · Sia will pick this up next');
+    expect(queue.textContent).toContain('Also add the dates');
+    expect(screen.getAllByText('Also add the dates')).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove queued message' }));
+    await waitFor(() => expect(onRemoveQueued).toHaveBeenCalledWith('queued-1'));
   });
 });

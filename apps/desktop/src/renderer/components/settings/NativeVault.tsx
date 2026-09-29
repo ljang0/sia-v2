@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useConfirmDialog } from '../ConfirmDialog';
 import type {
   AssistantLibraryCommand,
   AssistantLibraryView,
@@ -16,9 +17,11 @@ export function NativeVault({
 }) {
   const notes = library.vaults?.find((vault) => vault.agentId === agentId)?.notes ?? [];
   const [editing, setEditing] = useState<{ name: string; text: string; revision: string }>();
+  const [confirm, confirmDialog] = useConfirmDialog();
   return (
     <details>
       <summary>Native memory vault ({notes.length} files)</summary>
+      {confirmDialog}
       <p className={styles.note}>
         Linked notes, lessons and skills used directly by your Mac agent. These are local files
         in the agent’s workspace. Saved preferences below remain encrypted in Sia and are copied
@@ -45,11 +48,17 @@ export function NativeVault({
                 <button
                   type="button"
                   onClick={() =>
-                    void command({
-                      operation: 'deleteVaultNote',
-                      agentId,
-                      name: note.name,
-                      revision: note.revision,
+                    confirm({
+                      title: 'Delete this note?',
+                      description: `Sia will forget “${note.name}”. This can’t be undone.`,
+                      confirmLabel: 'Delete',
+                      onConfirm: () =>
+                        command({
+                          operation: 'deleteVaultNote',
+                          agentId,
+                          name: note.name,
+                          revision: note.revision,
+                        }),
                     })
                   }
                 >

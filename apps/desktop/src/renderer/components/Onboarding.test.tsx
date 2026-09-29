@@ -356,6 +356,32 @@ it('keeps pending account approvals visible and blocks leaving until cancellatio
   ).toBe(false);
 });
 
+it('keeps the connections section open when an account approval finishes', () => {
+  const { snapshot, props } = setup('verify');
+  snapshot.cloudAuth.state = 'signed-in';
+  snapshot.apps.forEach((app) => {
+    app.status = 'disconnected';
+  });
+  snapshot.apps[0]!.status = 'connecting';
+  const view = render(
+    <Onboarding {...props}>
+      <div />
+    </Onboarding>,
+  );
+  const section = () =>
+    screen.getByText('Connect Google or Slack').closest('details') as HTMLDetailsElement;
+  expect(section().open).toBe(true);
+  snapshot.apps[0]!.status = 'error';
+  snapshot.apps[0]!.connectionId = 'failed-google';
+  view.rerender(
+    <Onboarding {...props}>
+      <div />
+    </Onboarding>,
+  );
+  expect(section().open).toBe(true);
+  expect(screen.getByRole('alert').textContent).toContain('needs attention');
+});
+
 it('replays setup with the existing agent without creating another', async () => {
   const { snapshot, api, props } = setup('voice');
   snapshot.preferences.onboarding!.step = 'welcome';

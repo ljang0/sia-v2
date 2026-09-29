@@ -3,6 +3,7 @@ import { NativeVault } from './NativeVault';
 import { ExecutableSkills } from './ExecutableSkills';
 import { skillExecutionMode } from '../../../shared/skill-execution';
 import { useEffect, useState } from 'react';
+import { useConfirmDialog } from '../ConfirmDialog';
 import type { RendererApi } from '../../types';
 import type {
   AssistantLibraryCommand,
@@ -42,6 +43,7 @@ export function AssistantSettings({
   const [runner, setRunner] = useState<AssistantWorkflow>();
   const [parameterText, setParameterText] = useState('');
   const [values, setValues] = useState<Record<string, string>>({});
+  const [confirm, confirmDialog] = useConfirmDialog();
   useEffect(() => {
     let active = true;
     api
@@ -53,7 +55,8 @@ export function AssistantSettings({
         }
       })
       .catch((cause) => {
-        if (active) setError(String(cause));
+        if (active)
+          setError(cause instanceof Error ? cause.message : 'Could not load the library.');
       });
     return () => {
       active = false;
@@ -106,6 +109,7 @@ export function AssistantSettings({
   }
   return (
     <section className={styles.page}>
+      {confirmDialog}
       <header>
         <h2>Assistant</h2>
         <p>Manage saved preferences and reusable tasks.</p>
@@ -266,7 +270,15 @@ export function AssistantSettings({
               </button>
               <button
                 disabled={!agentId}
-                onClick={() => void command({ operation: 'clearJournal', agentId })}
+                onClick={() =>
+                  confirm({
+                    title: 'Clear the task journal?',
+                    description:
+                      'Sia will forget these journal entries and any lessons waiting for review. This can’t be undone.',
+                    confirmLabel: 'Clear journal',
+                    onConfirm: () => command({ operation: 'clearJournal', agentId }),
+                  })
+                }
               >
                 Clear journal
               </button>
@@ -315,7 +327,14 @@ export function AssistantSettings({
                     {entry.enabled ? 'Pause' : 'Enable'}
                   </button>
                   <button
-                    onClick={() => void command({ operation: 'deleteMemory', id: entry.id })}
+                    onClick={() =>
+                      confirm({
+                        title: 'Delete this memory?',
+                        description: 'Sia will forget it. This can’t be undone.',
+                        confirmLabel: 'Delete',
+                        onConfirm: () => command({ operation: 'deleteMemory', id: entry.id }),
+                      })
+                    }
                   >
                     Delete
                   </button>
@@ -457,7 +476,14 @@ export function AssistantSettings({
                     Edit
                   </button>
                   <button
-                    onClick={() => void command({ operation: 'deleteWorkflow', id: entry.id })}
+                    onClick={() =>
+                      confirm({
+                        title: 'Delete this workflow?',
+                        description: `“${entry.title}” will be removed. This can’t be undone.`,
+                        confirmLabel: 'Delete',
+                        onConfirm: () => command({ operation: 'deleteWorkflow', id: entry.id }),
+                      })
+                    }
                   >
                     Delete
                   </button>

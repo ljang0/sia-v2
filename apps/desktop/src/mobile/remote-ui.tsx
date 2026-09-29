@@ -262,7 +262,9 @@ export function Activity({
                   {turn.status === 'working'
                     ? turn.steps.at(-1) || 'Getting started on your Mac…'
                     : turn.status === 'waiting'
-                      ? 'Open the conversation to see what Sia needs.'
+                      ? turn.approval
+                        ? `Approve on your Mac: ${turn.approval}`
+                        : 'Sia asked you a question. Open the conversation to reply.'
                       : turn.status === 'error'
                         ? turn.error || 'Open the conversation for details.'
                         : turn.status === 'cancelled'

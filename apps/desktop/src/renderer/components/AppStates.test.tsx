@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createDemoRendererApi, demoSnapshot } from '../demo';
 import type { ProviderId, RendererApi } from '../types';
-import { useAppController } from '../useAppController';
+import { ARCHIVE_UNDO_MS, useAppController } from '../useAppController';
 import { WorkspaceNotice } from './AppStates';
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -38,6 +39,53 @@ describe('workspace diagnostics', () => {
     expect(writeText.mock.calls[0]?.[0]).toContain('Occurrences: 2');
   });
 });
+
+describe('archive feedback', () => {
+  it('confirms an archive and restores the open conversation on Undo', async () => {
+    const api = createDemoRendererApi(structuredClone(demoSnapshot));
+    await api.selectThread('thread-inbox');
+    render(<ArchiveHarness api={api} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Archive inbox' }));
+
+    const notice = await screen.findByRole('status');
+    expect(notice.textContent).toContain('Conversation archived');
+    let current = await api.getSnapshot();
+    expect(current.archivedThreads.map(({ id }) => id)).toContain('thread-inbox');
+    expect(current.selectedThreadId).toBeUndefined();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(screen.queryByText('Conversation archived')).toBeNull());
+    current = await api.getSnapshot();
+    expect(current.archivedThreads.map(({ id }) => id)).not.toContain('thread-inbox');
+    expect(current.selectedThreadId).toBe('thread-inbox');
+  });
+
+  it('clears the archive notice on its own', async () => {
+    const api = createDemoRendererApi(structuredClone(demoSnapshot));
+    render(<ArchiveHarness api={api} />);
+    const archive = await screen.findByRole('button', { name: 'Archive inbox' });
+    vi.useFakeTimers();
+    await act(async () => {
+      fireEvent.click(archive);
+    });
+    expect(screen.getByText('Conversation archived')).toBeTruthy();
+    act(() => vi.advanceTimersByTime(ARCHIVE_UNDO_MS));
+    expect(screen.queryByText('Conversation archived')).toBeNull();
+  });
+});
+
+function ArchiveHarness({ api }: { api: RendererApi }) {
+  const app = useAppController(api);
+  if (!app.snapshot) return null;
+  return (
+    <>
+      <button type="button" onClick={() => void app.archiveThread('thread-inbox')}>
+        Archive inbox
+      </button>
+      <WorkspaceNotice app={app} />
+    </>
+  );
+}
 
 function DiagnosticHarness({ api }: { api: RendererApi }) {
   const app = useAppController(api);

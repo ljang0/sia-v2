@@ -6,6 +6,7 @@ import {
   NATIVE_MEMORY_REVIEW_PROMPT,
 } from './memory-suggestions.js';
 import { NativeSkills } from './native-skills.js';
+import { conversationTitle } from '../shared/plain-text.js';
 import { skillExecutionMode, skillUnavailableReason } from '../shared/skill-execution.js';
 import { NotchVault } from './notch/vault.js';
 import { notchConsolidationInstructions } from './notch/foreground.js';
@@ -1033,6 +1034,11 @@ export class DesktopController {
     return turnId && this.#phoneTurns.has(turnId) ? 'ask' : this.computerTrust();
   }
 
+  /** Action-gateway trust for one turn; phone turns always confirm on the Mac. */
+  trustForTurn(turnId: string | undefined): 'auto' | 'ask' {
+    return this.#trustForTurn(turnId);
+  }
+
   trajectoryLogEnabled(): boolean {
     return this.#state.preferences.trajectoryLog ?? true;
   }
@@ -1734,7 +1740,7 @@ export class DesktopController {
           (input as BridgeRequestMap['agents.duplicate']).agentId,
         ) as BridgeResultMap[M];
       case 'threads.create':
-        return this.#createThread(
+        return this.#openNewThread(
           input as BridgeRequestMap['threads.create'],
         ) as BridgeResultMap[M];
       case 'threads.select':
@@ -1806,6 +1812,11 @@ export class DesktopController {
       case 'threads.retry':
         return this.#retryTurn(
           (input as BridgeRequestMap['threads.retry']).threadId,
+        ) as BridgeResultMap[M];
+      case 'threads.unqueue':
+        return this.#unqueueMessage(
+          (input as BridgeRequestMap['threads.unqueue']).threadId,
+          (input as BridgeRequestMap['threads.unqueue']).messageId,
         ) as BridgeResultMap[M];
       case 'threads.cancel':
         return (await this.#cancelTurn(
@@ -2288,6 +2299,7 @@ export class DesktopController {
       },
     });
     this.#commit();
+    this.#notifyNeedsAttention(context.threadId, 'approval', presentation.title);
 
     return new Promise((resolve) => {
       const remaining = Math.max(0, Number(request.expiresUnixMs) - Date.now());
@@ -2564,6 +2576,34 @@ export class DesktopController {
     return threadId;
   }
 
+  /**
+   * The user-facing "New conversation" route. Like a single draft tab, it reopens the agent's
+   * untouched thread instead of saving another empty "New thread" row.
+   */
+  #openNewThread(input: BridgeRequestMap['threads.create']): BridgeResultMap['threads.create'] {
+    this.#requireSignedInReleaseAccount();
+    const agent = this.#requireAgent(input.agentId);
+    const unused = input.title?.trim()
+      ? undefined
+      : this.#state.threads.findLast(
+          (thread) =>
+            thread.agentId === agent.id &&
+            !thread.archivedAt &&
+            thread.status === 'idle' &&
+            thread.provider === agent.provider &&
+            thread.model === agent.model &&
+            thread.workspace === agent.workspace &&
+            thread.instructionsSnapshot === agent.instructions &&
+            thread.worktree?.kind !== 'linked' &&
+            !this.#runningTurns.has(thread.id) &&
+            !this.#queuedTurns.some((turn) => turn.threadId === thread.id) &&
+            !this.#state.schedules.some((schedule) => schedule.threadId === thread.id) &&
+            !this.#state.timeline.some((item) => item.threadId === thread.id),
+        );
+    if (!unused) return this.#createThread(input);
+    return { threadId: unused.id, snapshot: this.#selectThread(unused.id) };
+  }
+
   #createThread(
     input: BridgeRequestMap['threads.create'],
     activate = true,
@@ -2817,12 +2857,12 @@ export class DesktopController {
   #searchThreads(query: string): BridgeResultMap['threads.search'] {
     const needle = query.trim().toLocaleLowerCase();
     if (!needle) return { results: [] };
+    // One pass over the timeline instead of one full scan per thread.
+    const timelineByThread = Map.groupBy(this.#state.timeline, ({ threadId }) => threadId);
     const results = this.#state.threads
       .map((thread) => {
         const matches: BridgeResultMap['threads.search']['results'][number]['matches'] = [];
-        for (const item of this.#state.timeline.filter(
-          ({ threadId }) => threadId === thread.id,
-        )) {
+        for (const item of timelineByThread.get(thread.id) ?? []) {
           const copy = [item.title, item.text, item.detail].filter(Boolean).join(' ');
           if (copy.toLocaleLowerCase().includes(needle)) {
             matches.push({
@@ -3075,10 +3115,12 @@ export class DesktopController {
     // Provider state can change after an agent or immutable thread was created.
     // Revalidate every new turn instead of trusting persisted configuration.
     this.#requireReadyProvider(thread.provider, thread.model);
-    if (
-      this.#runningTurns.has(thread.id) ||
-      this.#queuedTurns.some(({ threadId }) => threadId === thread.id)
-    ) {
+    const running = this.#runningTurns.get(thread.id);
+    // A person can add follow-ups while the thread works, or while a stopped turn is still
+    // winding down. They wait behind the thread's own turn and start in order when it ends.
+    const followUp =
+      Boolean(running) || this.#queuedTurns.some(({ threadId }) => threadId === thread.id);
+    if (followUp && (source !== 'manual' || reviewTarget)) {
       throw new Error('This thread already has an active turn.');
     }
     delete thread.draft;
@@ -3093,7 +3135,8 @@ export class DesktopController {
       ...(attachmentGrants.length
         ? { attachments: attachmentGrants.map(({ view }) => structuredClone(view)) }
         : {}),
-      status: 'complete',
+      // A pending user message is a queued follow-up. #startTurn marks it complete.
+      status: followUp ? 'pending' : 'complete',
       timestamp,
       ...(scheduleRunId ? { scheduleRunId } : {}),
     });
@@ -3106,9 +3149,10 @@ export class DesktopController {
       provider: thread.provider,
     });
     if (thread.title === 'New thread') {
-      thread.title = summarizeTitle(
-        input.text || attachmentGrants[0]?.view.name || 'Attached files',
-      );
+      thread.title =
+        conversationTitle(input.text) ||
+        attachmentGrants[0]?.view.name ||
+        (attachmentGrants.length ? 'Attached files' : 'New thread');
     }
     const queued: QueuedTurn = {
       ...(context ? { context } : {}),
@@ -3125,7 +3169,13 @@ export class DesktopController {
     };
     // Keep short-lived grants available for local preview/open after send. They still expire
     // after one hour and are never persisted, so a relaunch cannot revive file access.
-    if (this.#runningTurns.size >= 4) {
+    if (followUp) {
+      this.#queuedTurns.push(queued);
+      if (running?.signal.aborted) {
+        thread.status = 'queued';
+        thread.queueReason = 'Finishing the stopped task.';
+      }
+    } else if (this.#runningTurns.size >= 4) {
       thread.status = 'queued';
       thread.queueReason = 'Four local tasks are already running.';
       this.#queuedTurns.push(queued);
@@ -3229,6 +3279,8 @@ export class DesktopController {
     this.#queuedTurns = this.#queuedTurns.filter((turn) => turn.threadId !== threadId);
     if (activeTurnId) this.#discardResearchTurn(activeTurnId);
     for (const turnId of queuedTurnIds) this.#discardResearchTurn(turnId);
+    // Stop cancels queued follow-ups too; their unsent messages leave the thread.
+    const removedFollowUps = this.#removeQueuedMessages(threadId, new Set(queuedTurnIds));
     const question = this.#pendingQuestions.get(threadId);
     this.#pendingQuestions.delete(threadId);
     if (question) {
@@ -3242,12 +3294,71 @@ export class DesktopController {
       id: randomUUID(),
       kind: 'notice',
       title: 'Task cancelled',
-      text: 'Completed work remains in this thread.',
+      text: removedFollowUps
+        ? `Completed work remains in this thread. ${removedFollowUps === 1 ? 'Your queued message was' : 'Your queued messages were'} not sent.`
+        : 'Completed work remains in this thread.',
       status: 'complete',
       timestamp: new Date().toISOString(),
     });
     this.#commit();
     return this.snapshot();
+  }
+
+  /** A finished turn leaves its thread idle, or queued when a follow-up is about to start. */
+  #settleFinishedTurn(thread: ThreadView): void {
+    if (this.#queuedTurns.some((turn) => turn.threadId === thread.id)) {
+      thread.status = 'queued';
+      thread.queueReason = 'Starting your next message.';
+    } else {
+      thread.status = 'idle';
+      delete thread.queueReason;
+    }
+  }
+
+  /** Removes a follow-up that has not started yet. */
+  #unqueueMessage(threadId: string, messageId: string): DesktopSnapshot {
+    const thread = this.#requireThread(threadId);
+    const item = this.#state.timeline.find(
+      (candidate) =>
+        candidate.id === messageId &&
+        candidate.threadId === threadId &&
+        candidate.kind === 'user' &&
+        candidate.status === 'pending',
+    );
+    const turnId = item?.turnId;
+    if (!turnId || !this.#queuedTurns.some((turn) => turn.id === turnId)) {
+      throw new Error('This message has already started or was removed.');
+    }
+    this.#queuedTurns = this.#queuedTurns.filter((turn) => turn.id !== turnId);
+    this.#discardResearchTurn(turnId);
+    this.#removeQueuedMessages(threadId, new Set([turnId]));
+    if (
+      thread.status === 'queued' &&
+      !this.#runningTurns.has(threadId) &&
+      !this.#queuedTurns.some((turn) => turn.threadId === threadId)
+    ) {
+      thread.status = 'idle';
+      delete thread.queueReason;
+    }
+    thread.updatedAt = new Date().toISOString();
+    this.#commit();
+    return this.snapshot();
+  }
+
+  /** Drops the pending user messages of queued follow-ups that will no longer run. */
+  #removeQueuedMessages(threadId: string, turnIds: ReadonlySet<string>): number {
+    const before = this.#state.timeline.length;
+    this.#state.timeline = this.#state.timeline.filter(
+      (item) =>
+        !(
+          item.threadId === threadId &&
+          item.kind === 'user' &&
+          item.status === 'pending' &&
+          item.turnId &&
+          turnIds.has(item.turnId)
+        ),
+    );
+    return before - this.#state.timeline.length;
   }
 
   async #pickAttachments(threadId: string): Promise<BridgeResultMap['attachments.pick']> {
@@ -3507,7 +3618,7 @@ export class DesktopController {
 
   #insertSchedule(input: BridgeRequestMap['schedules.create']): ScheduleView {
     if (!this.#schedulesAvailable()) {
-      throw new Error('Scheduled execution is temporarily disabled by the alpha operator.');
+      throw new Error('Schedules are turned off for this pilot right now.');
     }
     const thread = this.#requireThread(input.threadId);
     if (thread.archivedAt) throw new Error('Unarchive this thread before scheduling work.');
@@ -3532,7 +3643,7 @@ export class DesktopController {
 
   #setScheduleEnabled(input: BridgeRequestMap['schedules.setEnabled']): DesktopSnapshot {
     if (input.enabled && !this.#schedulesAvailable()) {
-      throw new Error('Scheduled execution is temporarily disabled by the alpha operator.');
+      throw new Error('Schedules are turned off for this pilot right now.');
     }
     const schedule = this.#requireSchedule(input.scheduleId);
     schedule.enabled = input.enabled;
@@ -3550,7 +3661,7 @@ export class DesktopController {
 
   #runScheduleNow(scheduleId: string): BridgeResultMap['schedules.runNow'] {
     if (!this.#schedulesAvailable()) {
-      throw new Error('Scheduled execution is temporarily disabled by the alpha operator.');
+      throw new Error('Schedules are turned off for this pilot right now.');
     }
     const schedule = this.#requireSchedule(scheduleId);
     return this.#dispatchSchedule(schedule, new Date());
@@ -3668,6 +3779,7 @@ export class DesktopController {
     }
     clearTimeout(pending.timeout);
     this.#pendingApprovals.delete(input.approvalId);
+    if (pending.kind === 'provider') this.#resumeAfterProviderRequest(pending.threadId);
     this.#setApprovalStatus(
       input.approvalId,
       input.decision === 'approve' ? 'approved' : 'denied',
@@ -3912,7 +4024,8 @@ export class DesktopController {
       this.#requireSignedInReleaseAccount();
       const thread = this.#requireThread(input.threadId);
       const lastUser = this.#state.timeline.findLast(
-        (item) => item.threadId === thread.id && item.kind === 'user',
+        (item) =>
+          item.threadId === thread.id && item.kind === 'user' && item.status !== 'pending',
       );
       if (thread.archivedAt || !lastUser || lastUser.id !== input.userMessageId)
         throw new Error(
@@ -5923,6 +6036,23 @@ export class DesktopController {
   #startTurn(turn: QueuedTurn): void {
     if (this.#shuttingDown) return;
     const thread = this.#requireThread(turn.threadId);
+    const followUp = this.#state.timeline.find(
+      (item) =>
+        item.threadId === thread.id &&
+        item.turnId === turn.id &&
+        item.kind === 'user' &&
+        item.status === 'pending',
+    );
+    if (followUp) {
+      // A queued follow-up joins the conversation when it starts, after the previous turn.
+      followUp.status = 'complete';
+      followUp.sequence =
+        this.#state.timeline.reduce(
+          (highest, item) =>
+            item.threadId === thread.id ? Math.max(highest, item.sequence) : highest,
+          0,
+        ) + 1;
+    }
     const unavailable = this.#providerReadinessError(thread.provider, thread.model);
     if (unavailable) {
       thread.status = 'failed';
@@ -6035,7 +6165,7 @@ export class DesktopController {
           provider: thread.provider,
         });
         this.#completeResearchTurn(turn.id);
-        thread.status = 'idle';
+        this.#settleFinishedTurn(thread);
         delete thread.interruptedTurnId;
         this.#markTurnFinished(thread, turn, 'complete');
         thread.updatedAt = new Date().toISOString();
@@ -6189,6 +6319,11 @@ export class DesktopController {
             item.toolName === 'runtime.start',
         );
         for await (const event of events) {
+          // After Stop, the thread's status belongs to #cancelTurn and to any follow-up sent
+          // since; late events from the stopped turn must not overwrite it.
+          const stoppedStatus = signal.aborted
+            ? { status: thread.status, queueReason: thread.queueReason }
+            : undefined;
           // Startup is over once the provider begins visible work. Complete only this
           // activity so an in-flight tool remains running until its own result arrives.
           if (startup?.status === 'running' && event.type !== 'usage' && event.type !== 'error')
@@ -6221,12 +6356,17 @@ export class DesktopController {
               payload: { ...event.payload, status: 'failed' },
             });
           } else this.#applyRuntimeEvent(event);
+          if (stoppedStatus) {
+            thread.status = stoppedStatus.status;
+            if (stoppedStatus.queueReason) thread.queueReason = stoppedStatus.queueReason;
+            else delete thread.queueReason;
+          }
           this.#commit(isStreamingDelta(event));
         }
         await recordNative(macTask?.result?.success ? 'complete' : 'failed');
         this.#completeRunningActivities(turn.threadId, turn.id);
         if (thread.status === 'running' || thread.status === 'waiting') {
-          thread.status = 'idle';
+          this.#settleFinishedTurn(thread);
           this.#completeResearchTurn(turn.id);
         }
         delete thread.interruptedTurnId;
@@ -6270,6 +6410,7 @@ export class DesktopController {
         this.#requireThread(turn.threadId).status === 'failed' ? 'failed' : 'complete',
       );
       if (signal.aborted) {
+        this.#completeRunningActivities(turn.threadId, turn.id);
         this.#discardResearchTurn(turn.id);
         this.#markScheduleRunFinished(turn, 'cancelled');
         if (macTask) {
@@ -6355,6 +6496,26 @@ export class DesktopController {
             : 'The task stopped before it could finish.',
       });
     }
+  }
+
+  /** Tell someone who is away from the window that a task is paused on them. */
+  #notifyNeedsAttention(threadId: string, need: 'approval' | 'question', step: string): void {
+    if (this.#assistantLibrary.isReview(threadId)) return;
+    const thread = this.#state.threads.find(({ id }) => id === threadId);
+    if (!thread) return;
+    const agent = this.#state.agents.find(({ id }) => id === thread.agentId);
+    if (agent?.notificationsEnabled === false) return;
+    const name = agent?.name ?? thread.title;
+    const body = step.replace(/\s+/g, ' ').trim();
+    this.#notify?.({
+      threadId,
+      title: need === 'approval' ? `${name} needs your OK` : `${name} has a question`,
+      body:
+        (body.length > 140 ? `${body.slice(0, 139)}…` : body) ||
+        (need === 'approval'
+          ? 'Open Sia to allow or deny the next step.'
+          : 'Open Sia to answer.'),
+    });
   }
 
   #markScheduleRunFinished(
@@ -6512,7 +6673,6 @@ export class DesktopController {
           turnId: event.turnId,
           kind: 'activity',
           title: runtimeToolTitle(event.payload.name, activity),
-          detail: event.payload.native ? 'Provider-native tool' : 'Sia action gateway',
           status:
             event.payload.phase === 'failed'
               ? 'failed'
@@ -6534,6 +6694,8 @@ export class DesktopController {
       return;
     }
     if (event.type === 'question' && event.payload.phase === 'requested') {
+      const alreadyAsked =
+        this.#pendingQuestions.get(event.threadId)?.requestId === event.payload.requestId;
       this.#pendingQuestions.set(event.threadId, {
         requestId: event.payload.requestId,
         turnId: event.turnId,
@@ -6548,6 +6710,8 @@ export class DesktopController {
         timestamp: event.timestamp,
       });
       thread.status = 'waiting';
+      if (!alreadyAsked)
+        this.#notifyNeedsAttention(event.threadId, 'question', event.payload.prompt);
       return;
     }
     if (event.type === 'plan') {
@@ -6705,7 +6869,8 @@ export class DesktopController {
     if (event.type === 'completion') {
       this.#pendingQuestions.delete(event.threadId);
       this.#completeRunningActivities(event.threadId, event.turnId);
-      thread.status = event.payload.status === 'failed' ? 'failed' : 'idle';
+      if (event.payload.status === 'failed') thread.status = 'failed';
+      else this.#settleFinishedTurn(thread);
       if (
         event.payload.status === 'failed' &&
         !this.#state.timeline.some(
@@ -6739,6 +6904,12 @@ export class DesktopController {
       return;
     }
     this.#taintResearchTurn(event.turnId);
+    const alreadyRequested = [...this.#pendingApprovals.values()].some(
+      (pending) =>
+        pending.kind === 'provider' &&
+        pending.threadId === event.threadId &&
+        pending.requestId === event.payload.requestId,
+    );
     const approvalId = randomUUID();
     const expiresAt = new Date(Date.now() + 2 * 60_000).toISOString();
     this.#state.approvals.push({
@@ -6767,6 +6938,7 @@ export class DesktopController {
     });
     const timeout = setTimeout(() => {
       this.#pendingApprovals.delete(approvalId);
+      this.#resumeAfterProviderRequest(event.threadId);
       this.#setApprovalStatus(approvalId, 'expired');
       void this.#runtime
         ?.respondToRequest(event.threadId, {
@@ -6784,6 +6956,12 @@ export class DesktopController {
       requestId: event.payload.requestId,
     });
     this.#commit();
+    if (!alreadyRequested)
+      this.#notifyNeedsAttention(
+        event.threadId,
+        'approval',
+        event.payload.description || event.payload.title,
+      );
   }
 
   async #authorizeGatewayAction(
@@ -6915,6 +7093,11 @@ export class DesktopController {
       timestamp: new Date().toISOString(),
     });
     this.#commit();
+    this.#notifyNeedsAttention(
+      request.threadId,
+      'approval',
+      runtimeToolTitle(request.tool.name),
+    );
     return await new Promise((resolve) => {
       const finish = (decision: 'allow' | 'deny' | 'cancel'): void => {
         signal?.removeEventListener('abort', abort);
@@ -6966,6 +7149,20 @@ export class DesktopController {
       if (signal?.aborted) abort();
       else signal?.addEventListener('abort', abort, { once: true });
     });
+  }
+
+  /** A provider keeps working after its approval is answered; leave "waiting" once nothing is pending. */
+  #resumeAfterProviderRequest(threadId: string): void {
+    const thread = this.#state.threads.find(({ id }) => id === threadId);
+    if (
+      thread?.status === 'waiting' &&
+      this.#runningTurns.has(threadId) &&
+      !this.#pendingQuestions.has(threadId) &&
+      ![...this.#pendingApprovals.values()].some(
+        (pending) => pending.kind === 'provider' && pending.threadId === threadId,
+      )
+    )
+      thread.status = 'running';
   }
 
   #activeTurnId(threadId: string): string | undefined {
@@ -7041,6 +7238,15 @@ export class DesktopController {
     this.#runningTurns.delete(threadId);
     if (thread) this.#workspaceLeases.delete(thread.workspace);
     this.#drainQueue();
+    // A follow-up can still wait when another thread took the workspace first.
+    if (
+      thread &&
+      !this.#runningTurns.has(threadId) &&
+      this.#queuedTurns.some((turn) => turn.threadId === threadId)
+    ) {
+      thread.status = 'queued';
+      thread.queueReason = 'Waiting for another task to release this workspace.';
+    }
   }
 
   #drainQueue(): void {
@@ -7394,6 +7600,9 @@ export class DesktopController {
     recovered.approvals = recovered.approvals.map((approval) =>
       approval.status === 'pending' ? { ...approval, status: 'expired' } : approval,
     );
+    // No turn survives a relaunch, so no activity row may keep spinning.
+    for (const item of recovered.timeline)
+      if (item.status === 'running') item.status = 'complete';
     const recoveredConnections = new Map(
       recovered.connections.map((connection) => [connection.id, connection]),
     );
@@ -7406,6 +7615,24 @@ export class DesktopController {
             detail: 'Connection setup was interrupted. Verify or disconnect this saved grant.',
           }
         : connection;
+    });
+    // Queued follow-ups live in memory. After a relaunch, return unsent text to the composer
+    // instead of starting it unattended or showing it as a message that was sent.
+    const unsentFollowUps = new Map<string, string[]>();
+    recovered.timeline = recovered.timeline.filter((item) => {
+      if (item.kind !== 'user' || item.status !== 'pending') return true;
+      const texts = unsentFollowUps.get(item.threadId) ?? [];
+      if (item.text?.trim()) texts.push(item.text.trim());
+      unsentFollowUps.set(item.threadId, texts);
+      return false;
+    });
+    recovered.threads = recovered.threads.map((thread) => {
+      const unsent = unsentFollowUps.get(thread.id);
+      if (!unsent?.length) return thread;
+      return {
+        ...thread,
+        draft: [thread.draft?.trim(), ...unsent].filter(Boolean).join('\n\n'),
+      };
     });
     recovered.threads = recovered.threads.map((thread) => {
       const agent = recovered.agents.find(({ id }) => id === thread.agentId);
@@ -7536,14 +7763,12 @@ async function settleBeforeShutdown(
   if (timeout) clearTimeout(timeout);
 }
 
-function summarizeTitle(value: string): string {
-  const words = value.trim().replace(/\s+/g, ' ').split(' ').slice(0, 7).join(' ');
-  return words.length > 52 ? `${words.slice(0, 49)}...` : words || 'New thread';
-}
-
 function isStreamingDelta(event: ThreadEventEnvelope): boolean {
   return (
-    (event.type === 'message' || event.type === 'reasoning') && event.payload.delta === true
+    ((event.type === 'message' || event.type === 'reasoning') &&
+      event.payload.delta === true) ||
+    // Command output and patch progress repeat the running tool; its terminal phase commits.
+    (event.type === 'tool' && event.payload.phase === 'started')
   );
 }
 

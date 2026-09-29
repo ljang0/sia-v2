@@ -85,6 +85,7 @@ async function createHarness(
     updateManifestPublicKey?: string;
     defaultWorkspaceRoot?: string;
     createDirectory?: (path: string) => Promise<void>;
+    notify?: ConstructorParameters<typeof DesktopController>[0]['notify'];
   } = {},
 ): Promise<{
   controller: DesktopController;
@@ -142,6 +143,7 @@ async function createHarness(
         ? { providerProbe: deterministicProviderProbe }
         : {}),
     ...(options.trajectory ? { trajectory: options.trajectory } : {}),
+    ...(options.notify ? { notify: options.notify } : {}),
   });
   await controller.initialize();
   if (
@@ -823,6 +825,38 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('reopens an untouched conversation instead of saving another empty one', async () => {
+    const controller = await createController();
+    const agent = await controller.invoke('agents.save', {
+      name: 'Drafts',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const first = await controller.invoke('threads.create', { agentId: agent.agentId });
+    const again = await controller.invoke('threads.create', { agentId: agent.agentId });
+    expect(again.threadId).toBe(first.threadId);
+    expect(again.snapshot.activeThreadId).toBe(first.threadId);
+    const countFor = (snapshot: typeof first.snapshot) =>
+      snapshot.threads.filter((thread) => thread.agentId === agent.agentId).length;
+    expect(countFor(again.snapshot)).toBe(countFor(first.snapshot));
+
+    await controller.invoke('threads.send', { threadId: first.threadId, text: 'Hello' });
+    const next = await controller.invoke('threads.create', { agentId: agent.agentId });
+    expect(next.threadId).not.toBe(first.threadId);
+
+    await controller.invoke('threads.archive', { threadId: next.threadId });
+    const afterArchive = await controller.invoke('threads.create', { agentId: agent.agentId });
+    expect(afterArchive.threadId).not.toBe(next.threadId);
+    const titled = await controller.invoke('threads.create', {
+      agentId: agent.agentId,
+      title: 'Named task',
+    });
+    expect(titled.threadId).not.toBe(afterArchive.threadId);
+    await controller.shutdown();
+  });
+
   it('persists a local thread draft and clears it only after a send is accepted', async () => {
     const { controller, repository } = await createHarness();
     const agent = await controller.invoke('agents.save', {
@@ -865,13 +899,14 @@ describe('DesktopController', () => {
       workspace: '/tmp/sia-workspace',
     });
     const first = await controller.invoke('threads.create', { agentId: agent.agentId });
-    const second = await controller.invoke('threads.create', { agentId: agent.agentId });
 
     const created = controller.createScheduleFromAction(first.threadId, {
       task: 'Search the web for meaningful changes and summarize them.',
       cadence: 'hourly',
       firstRunAt: '2030-08-21T12:00:00+09:00',
     });
+    const second = await controller.invoke('threads.create', { agentId: agent.agentId });
+    expect(second.threadId).not.toBe(first.threadId);
     expect(created).toMatchObject({
       threadId: first.threadId,
       prompt: 'Search the web for meaningful changes and summarize them.',
@@ -1110,23 +1145,34 @@ describe('DesktopController', () => {
         return { state: identityState } as const;
       },
     } satisfies ConstructorParameters<typeof DesktopController>[0]['identity'];
-    const { controller: cloudController } = await createHarness({
-      fakeServices: false,
-      runtime,
-      cloud: new CloudClient('https://api.example.test', { read: async () => 'token' }),
-      identity,
-    });
-    await expect(
-      cloudController.invoke('agents.save', {
-        name: 'Cloud assistant',
-        instructions: '',
-        provider: 'meta',
-        model: 'super_nova_ext',
-        workspace: '/tmp/sia-workspace',
+    // The cloud host is unreachable here; fail fast instead of waiting on DNS for a .test host.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('fetch failed');
       }),
-    ).rejects.toThrow(/Included models is not ready \(unavailable\)/);
-    expect(runtime.runTurn).not.toHaveBeenCalled();
-    await cloudController.shutdown();
+    );
+    try {
+      const { controller: cloudController } = await createHarness({
+        fakeServices: false,
+        runtime,
+        cloud: new CloudClient('https://api.example.test', { read: async () => 'token' }),
+        identity,
+      });
+      await expect(
+        cloudController.invoke('agents.save', {
+          name: 'Cloud assistant',
+          instructions: '',
+          provider: 'meta',
+          model: 'super_nova_ext',
+          workspace: '/tmp/sia-workspace',
+        }),
+      ).rejects.toThrow(/Included models is not ready \(unavailable\)/);
+      expect(runtime.runTurn).not.toHaveBeenCalled();
+      await cloudController.shutdown();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('streams deterministic local state and keeps completed work after a turn', async () => {
@@ -1654,6 +1700,221 @@ describe('DesktopController', () => {
       capture: { status: 'not_consented', pendingCount: 0 },
     });
     expect(repository.list('research')).toHaveLength(0);
+    await controller.shutdown();
+  });
+
+  it('returns to running after a provider approval and settles rows when a turn is cancelled', async () => {
+    let runtimeThreadId = '';
+    let waitForCancel = false;
+    const runtime = {
+      async *runTurn(input: { turnId: string }, signal: AbortSignal) {
+        if (waitForCancel)
+          await new Promise((_, reject) =>
+            signal.addEventListener('abort', () => reject(new Error('aborted')), {
+              once: true,
+            }),
+          );
+        const base = {
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 1,
+          type: 'approval' as const,
+          payload: {
+            phase: 'requested',
+            requestId: 'r1',
+            title: 'Run command',
+            description: 'ls',
+          },
+        } as never;
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const status = (id: string) =>
+      controller.snapshot().threads.find((t) => t.id === id)?.status;
+
+    const approved = await controller.invoke('threads.create', { agentId: agent.agentId });
+    runtimeThreadId = approved.threadId;
+    await controller.invoke('threads.send', {
+      threadId: approved.threadId,
+      text: 'List files',
+    });
+    await vi.waitFor(() => expect(status(approved.threadId)).toBe('waiting'));
+    const approval = controller
+      .snapshot()
+      .approvals.find((a) => a.threadId === approved.threadId)!;
+    await controller.invoke('approvals.resolve', {
+      approvalId: approval.id,
+      decision: 'approve',
+    });
+    expect(status(approved.threadId)).toBe('running');
+    await vi.waitFor(() => expect(status(approved.threadId)).toBe('idle'));
+
+    waitForCancel = true;
+    const cancelled = await controller.invoke('threads.create', { agentId: agent.agentId });
+    runtimeThreadId = cancelled.threadId;
+    await controller.invoke('threads.send', { threadId: cancelled.threadId, text: 'Wait' });
+    await controller.invoke('threads.cancel', { threadId: cancelled.threadId });
+    await vi.waitFor(() =>
+      expect(
+        controller
+          .snapshot()
+          .timeline.filter((item) => item.threadId === cancelled.threadId)
+          .filter((item) => item.status === 'running'),
+      ).toEqual([]),
+    );
+    await controller.shutdown();
+  });
+
+  it('notifies once when a task pauses for an approval or a question', async () => {
+    let runtimeThreadId = '';
+    // Each turn waits on its own gate so cancelling the first can't finish the second.
+    let release = Promise.withResolvers<void>();
+    const runtime = {
+      async *runTurn(input: { turnId: string }) {
+        const base = {
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        const approval = {
+          type: 'approval' as const,
+          payload: {
+            phase: 'requested',
+            requestId: 'command-1',
+            title: 'Allow Mac action',
+            description: 'Run a command: pnpm test',
+          },
+        };
+        const question = {
+          type: 'question' as const,
+          payload: {
+            phase: 'requested' as const,
+            requestId: 'question-1',
+            prompt: 'Which calendar should I use?',
+          },
+        };
+        // A provider may repeat a pending request; the person hears about it once.
+        const gate = release;
+        yield { ...base, id: randomUUID(), sequence: 1, ...approval } as never;
+        yield { ...base, id: randomUUID(), sequence: 2, ...approval } as never;
+        yield { ...base, id: randomUUID(), sequence: 3, ...question };
+        yield { ...base, id: randomUUID(), sequence: 4, ...question };
+        await gate.promise;
+      },
+      dispose: vi.fn(async () => release.resolve()),
+      cancel: vi.fn(async () => release.resolve()),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const notify = vi.fn();
+    const { controller } = await createHarness({ fakeServices: false, runtime, notify });
+    try {
+      const agent = await controller.invoke('agents.save', {
+        name: 'Juniper',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: agent.agentId,
+      });
+      runtimeThreadId = threadId;
+      await controller.invoke('threads.send', { threadId, text: 'Run the tests' });
+      await vi.waitFor(() => expect(notify).toHaveBeenCalledTimes(2));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(notify.mock.calls).toEqual([
+        [{ threadId, title: 'Juniper needs your OK', body: 'Run a command: pnpm test' }],
+        [{ threadId, title: 'Juniper has a question', body: 'Which calendar should I use?' }],
+      ]);
+
+      await controller.invoke('threads.cancel', { threadId });
+      notify.mockClear();
+      release = Promise.withResolvers<void>();
+      await controller.invoke('agents.setNotifications', {
+        agentId: agent.agentId,
+        enabled: false,
+      });
+      const quiet = await controller.invoke('threads.create', { agentId: agent.agentId });
+      runtimeThreadId = quiet.threadId;
+      await controller.invoke('threads.send', { threadId: quiet.threadId, text: 'Again' });
+      await vi.waitFor(() =>
+        expect(
+          controller.snapshot().threads.find(({ id }) => id === quiet.threadId)?.status,
+        ).toBe('waiting'),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(notify).not.toHaveBeenCalled();
+    } finally {
+      release.resolve();
+      await controller.shutdown();
+    }
+  });
+
+  it('notifies when a Sia action waits for approval', async () => {
+    const notify = vi.fn();
+    const { controller } = await createHarness({ notify });
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
+    await controller.invoke('connections.start', { connectionId: 'gmail' });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Juniper',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
+    const started = await controller.invoke('threads.send', { threadId, text: 'Email Sam' });
+    notify.mockClear();
+    const pending = controller.approvalBroker().requestApproval({
+      id: 'approval-notify-1',
+      sessionId: 'session-1',
+      threadId,
+      turnId: started.turnId,
+      tool: getActionToolDescriptor('mail_send')!,
+      arguments: {
+        account_id: 'gmail',
+        to: ['person@example.com'],
+        subject: 'Status',
+        body: 'Hello',
+      },
+      targetDigest: 'target-digest',
+      reason: 'This sends an email.',
+    });
+    expect(notify).toHaveBeenCalledExactlyOnceWith({
+      threadId,
+      title: 'Juniper needs your OK',
+      body: 'Mail Send',
+    });
+    await controller.invoke('approvals.resolve', {
+      approvalId: controller.snapshot().approvals.at(-1)!.id,
+      decision: 'deny',
+    });
+    await expect(pending).resolves.toEqual({ approved: false });
     await controller.shutdown();
   });
 
@@ -5617,8 +5878,8 @@ it('does not start queued work when an active turn releases its lease during shu
       workspace: '/tmp/sia-workspace',
     });
     const first = await controller.invoke('threads.create', { agentId });
-    const second = await controller.invoke('threads.create', { agentId });
     await controller.invoke('threads.send', { threadId: first.threadId, text: 'First task' });
+    const second = await controller.invoke('threads.create', { agentId });
     await controller.invoke('threads.send', { threadId: second.threadId, text: 'Queued task' });
     expect(
       controller.snapshot().threads.find((entry) => entry.id === second.threadId)?.status,
@@ -6096,4 +6357,214 @@ it('preserves connected mode for existing profiles, including profiles predating
   const legacy = await createHarness({ repository });
   expect(legacy.controller.computerAccessMode()).toBe('connected');
   await legacy.controller.shutdown();
+});
+
+describe('follow-up messages while a turn runs', () => {
+  function followUpRuntime() {
+    const turns: RuntimeTurnInput[] = [];
+    const release = new Map<string, () => void>();
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput, signal?: AbortSignal) {
+        turns.push(input);
+        const event = {
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        yield {
+          ...event,
+          id: randomUUID(),
+          sequence: 1,
+          type: 'message' as const,
+          payload: {
+            messageId: `reply-${input.turnId}`,
+            role: 'assistant' as const,
+            parts: [{ kind: 'text' as const, text: `Reply ${turns.length}` }],
+            delta: false,
+          },
+        };
+        await new Promise<void>((resolve) => {
+          release.set(input.turnId, resolve);
+          // A stopped native turn takes a moment to wind down, like Codex cleanup does.
+          signal?.addEventListener('abort', () => setTimeout(resolve, 60), { once: true });
+        });
+        yield {
+          ...event,
+          id: randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: {
+            status: signal?.aborted ? ('cancelled' as const) : ('completed' as const),
+          },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    return { runtime, turns, release };
+  }
+
+  async function startThread(runtime: unknown) {
+    const { controller, repository } = await createHarness({ fakeServices: false, runtime });
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'Follow-ups',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId });
+    const thread = () => controller.snapshot().threads.find(({ id }) => id === threadId)!;
+    const users = () =>
+      controller
+        .snapshot()
+        .timeline.filter((item) => item.threadId === threadId && item.kind === 'user')
+        .sort((left, right) => left.sequence - right.sequence);
+    return { controller, repository, threadId, thread, users };
+  }
+
+  it('queues a message sent while the turn runs and starts it when the turn ends', async () => {
+    const { runtime, turns, release } = followUpRuntime();
+    const { controller, threadId, thread, users } = await startThread(runtime);
+    try {
+      const first = await controller.invoke('threads.send', {
+        threadId,
+        text: 'Draft the plan',
+      });
+      await vi.waitFor(() => expect(release.has(first.turnId)).toBe(true));
+
+      const second = await controller.invoke('threads.send', {
+        threadId,
+        text: 'Also add dates',
+      });
+      expect(thread().status).toBe('running');
+      expect(users().map(({ text, status }) => ({ text, status }))).toEqual([
+        { text: 'Draft the plan', status: 'complete' },
+        { text: 'Also add dates', status: 'pending' },
+      ]);
+      expect(turns).toHaveLength(1);
+
+      release.get(first.turnId)!();
+      await vi.waitFor(() => expect(release.has(second.turnId)).toBe(true));
+      expect(thread().status).toBe('running');
+      expect(turns.map(({ turnId }) => turnId)).toEqual([first.turnId, second.turnId]);
+      expect(turns[1]!.text).toContain('Also add dates');
+      // The first turn's reply is context for the follow-up; the follow-up is not repeated.
+      expect(turns[1]!.thread.priorMessages?.map(({ text }) => text)).toEqual([
+        'Draft the plan',
+        'Reply 1',
+      ]);
+      // It joins the transcript after the reply it followed, exactly once.
+      const ordered = controller
+        .snapshot()
+        .timeline.filter(
+          (item) =>
+            item.threadId === threadId && (item.kind === 'user' || item.kind === 'assistant'),
+        )
+        .sort((left, right) => left.sequence - right.sequence)
+        .map(({ text }) => text);
+      expect(ordered).toEqual(['Draft the plan', 'Reply 1', 'Also add dates', 'Reply 2']);
+      expect(users().every(({ status }) => status === 'complete')).toBe(true);
+
+      release.get(second.turnId)!();
+      await vi.waitFor(() => expect(thread().status).toBe('idle'));
+      expect(turns).toHaveLength(2);
+      expect(users()).toHaveLength(2);
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('queues a message sent right after Stop and starts it once the stopped turn winds down', async () => {
+    const { runtime, turns, release } = followUpRuntime();
+    const { controller, threadId, thread, users } = await startThread(runtime);
+    try {
+      const first = await controller.invoke('threads.send', { threadId, text: 'Book a table' });
+      await vi.waitFor(() => expect(release.has(first.turnId)).toBe(true));
+      await controller.invoke('threads.cancel', { threadId });
+      expect(thread().status).toBe('idle');
+
+      const next = await controller.invoke('threads.send', {
+        threadId,
+        text: 'Try 7pm instead',
+      });
+      expect(thread()).toMatchObject({
+        status: 'queued',
+        queueReason: 'Finishing the stopped task.',
+      });
+      expect(users().at(-1)).toMatchObject({ text: 'Try 7pm instead', status: 'pending' });
+
+      await vi.waitFor(() => expect(release.has(next.turnId)).toBe(true));
+      expect(thread().status).toBe('running');
+      expect(turns.map(({ turnId }) => turnId)).toEqual([first.turnId, next.turnId]);
+      release.get(next.turnId)!();
+      await vi.waitFor(() => expect(thread().status).toBe('idle'));
+      expect(users().map(({ text, status }) => ({ text, status }))).toEqual([
+        { text: 'Book a table', status: 'complete' },
+        { text: 'Try 7pm instead', status: 'complete' },
+      ]);
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('removes a queued follow-up before it starts, and Stop drops the rest', async () => {
+    const { runtime, turns, release } = followUpRuntime();
+    const { controller, threadId, thread, users } = await startThread(runtime);
+    try {
+      const first = await controller.invoke('threads.send', { threadId, text: 'Summarize' });
+      await vi.waitFor(() => expect(release.has(first.turnId)).toBe(true));
+      await controller.invoke('threads.send', { threadId, text: 'Shorter please' });
+      await controller.invoke('threads.send', { threadId, text: 'And in French' });
+      const shorter = users().find(({ text }) => text === 'Shorter please')!;
+
+      await controller.invoke('threads.unqueue', { threadId, messageId: shorter.id });
+      expect(users().map(({ text }) => text)).toEqual(['Summarize', 'And in French']);
+      await expect(
+        controller.invoke('threads.unqueue', { threadId, messageId: shorter.id }),
+      ).rejects.toThrow('already started or was removed');
+
+      await controller.invoke('threads.cancel', { threadId });
+      expect(users().map(({ text }) => text)).toEqual(['Summarize']);
+      expect(controller.snapshot().timeline.at(-1)).toMatchObject({
+        title: 'Task cancelled',
+        text: expect.stringContaining('Your queued message was not sent.'),
+      });
+      await vi.waitFor(() => expect(controller.snapshot().timeline.length).toBeGreaterThan(0));
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      expect(turns).toHaveLength(1);
+      expect(thread().status).toBe('idle');
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('returns unsent follow-ups to the composer after a relaunch', async () => {
+    const { runtime, release } = followUpRuntime();
+    const { controller, repository: initial, threadId } = await startThread(runtime);
+    const first = await controller.invoke('threads.send', { threadId, text: 'Clean my inbox' });
+    await vi.waitFor(() => expect(release.has(first.turnId)).toBe(true));
+    await controller.invoke('threads.send', { threadId, text: 'Skip newsletters' });
+    // Sia closed while the follow-up was still waiting.
+    const persisted = structuredClone(initial.get('desktop', 'state'));
+    await controller.shutdown();
+
+    const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+    repository.put('desktop', 'state', persisted);
+    const restored = await createHarness({ repository });
+    try {
+      const snapshot = restored.controller.snapshot();
+      const thread = snapshot.threads.find(({ id }) => id === threadId)!;
+      expect(thread.status).toBe('failed');
+      expect(thread.draft).toBe('Skip newsletters');
+      expect(
+        snapshot.timeline.filter((item) => item.threadId === threadId && item.kind === 'user'),
+      ).toEqual([expect.objectContaining({ text: 'Clean my inbox', status: 'complete' })]);
+    } finally {
+      await restored.controller.shutdown();
+    }
+  });
 });

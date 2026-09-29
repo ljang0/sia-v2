@@ -103,13 +103,14 @@ it('keeps a denial incomplete and retries only the current step when the person 
   await waitFor(() => expect(api.requestAutomationPermission).toHaveBeenCalledTimes(1));
   await waitFor(() =>
     expect(
-      (screen.getByRole('button', { name: 'I don’t see the prompt' }) as HTMLButtonElement)
+      (screen.getByRole('button', { name: 'Open System Settings' }) as HTMLButtonElement)
         .disabled,
     ).toBe(false),
   );
   expect(screen.getByText('In Automation, expand Sia and turn on Safari.')).toBeTruthy();
+  expect(screen.getByText('Allow in System Settings')).toBeTruthy();
   expect(complete).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button', { name: 'I don’t see the prompt' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Open System Settings' }));
   await waitFor(() => expect(api.requestAutomationPermission).toHaveBeenCalledTimes(2));
   expect(api.requestComputerPermissions).not.toHaveBeenCalled();
 });

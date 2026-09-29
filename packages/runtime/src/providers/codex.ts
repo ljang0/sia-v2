@@ -127,6 +127,8 @@ export function codexAppServerArgs(
 
 export interface CodexPeerHandle {
   readonly peer: JsonRpcPeer;
+  /** Settles when the app-server process ends for any reason. */
+  readonly exited?: Promise<unknown>;
   dispose(): Promise<void>;
 }
 
@@ -567,11 +569,13 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       try {
         // Do not leave delayed GUI commands running after releasing the task's screen lease.
         if (active.mac)
-          await peer.request(
-            'thread/backgroundTerminals/clean',
-            { threadId: session.nativeId },
-            { timeoutMs: this.#timeout },
-          );
+          await peer
+            .request(
+              'thread/backgroundTerminals/clean',
+              { threadId: session.nativeId },
+              { timeoutMs: this.#timeout },
+            )
+            .catch(() => undefined);
       } finally {
         signal?.removeEventListener('abort', onAbort);
         this.#removeActive(active);
@@ -639,6 +643,24 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     }
   }
 
+  /** An app-server crash ends its turns now and lets the next request start a fresh process. */
+  #onPeerExit(handle: CodexPeerHandle): void {
+    if (this.#peerHandle !== handle || this.#disposing) return;
+    this.#peerHandle = undefined;
+    this.#peerGeneration += 1;
+    for (const active of [...this.#activeByThread.values()])
+      this.#failTurn(active, new Error('Codex stopped unexpectedly. Try the task again.'));
+    // Native thread ids belonged to the dead process; the next turn creates a new session.
+    this.#sessions.clear();
+    this.#sessionOptions.clear();
+    this.#dynamicToolNamesBySession.clear();
+    void handle.dispose().catch(() => undefined);
+  }
+
+  hasSession(session: ProviderSession): boolean {
+    return this.#sessions.has(session.id);
+  }
+
   get #timeout(): number {
     return this.#options.requestTimeoutMs ?? 30_000;
   }
@@ -658,6 +680,10 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         throw new Error('Codex connection reset during initialization');
       }
       this.#peerHandle = handle;
+      void handle.exited?.then(
+        () => this.#onPeerExit(handle),
+        () => this.#onPeerExit(handle),
+      );
       try {
         handle.peer.onNotification((method, params) => this.#onNotification(method, params));
         handle.peer.onRequest(async (method, params) => await this.#onRequest(method, params));
@@ -701,6 +727,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     );
     return {
       peer,
+      exited: process.exited,
       dispose: async () => {
         await peer.close();
         await process.stop();
@@ -964,6 +991,15 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     if (!active) return;
     active.lastActivity = Date.now();
     const value = record(params);
+    // turn/interrupt requires the native turn id; learn it before the turn/start response.
+    const startedTurnId =
+      method === 'turn/started' && !active.nativeTurnId
+        ? stringAt(value, ['turn', 'id'])
+        : undefined;
+    if (startedTurnId) {
+      active.nativeTurnId = startedTurnId;
+      this.#activeByNativeTurn.set(startedTurnId, active);
+    }
     const item = record(value.item);
     const itemId = stringAt(value, ['itemId'], ['item', 'id']) ?? 'provider-item';
     if (method === 'item/agentMessage/delta') {
@@ -992,7 +1028,8 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     if (method === 'item/commandExecution/outputDelta') {
       const cached = active.nativeItems.get(itemId) ?? { type: 'commandExecution', id: itemId };
       const delta = stringAt(value, ['delta']) ?? '';
-      const output = `${stringAt(cached, ['aggregatedOutput']) ?? ''}${delta}`;
+      // Keep the visible tail bounded; the provider still has the full output.
+      const output = `${stringAt(cached, ['aggregatedOutput']) ?? ''}${delta}`.slice(-64_000);
       const next = { ...cached, aggregatedOutput: output };
       active.nativeItems.set(itemId, next);
       active.queue.push(nativeToolEvent(active, itemId, next, 'started'));
@@ -1086,6 +1123,8 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       return;
     }
     if (method === 'error' || method === 'turn/error' || method === 'thread/error') {
+      // Codex retries transient stream failures itself; only a final error ends the turn.
+      if (value.willRetry === true) return;
       // The app-server reports why a turn is about to fail (auth, usage limits, transport)
       // through an error notification; surface it so a failed turn is never silent.
       const message =
@@ -1244,8 +1283,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
             requestId,
             phase: 'requested',
             title: 'Allow Mac action',
-            description:
-              stringAt(params, ['command'], ['reason']) ?? 'Allow this native file change?',
+            description: nativeApprovalDescription(active, params),
             choices: [
               { id: 'allow_once', label: 'Allow once', kind: 'allow_once' },
               { id: 'deny', label: 'Deny', kind: 'deny' },
@@ -1311,6 +1349,27 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     if (active.nativeTurnId && this.#activeByNativeTurn.get(active.nativeTurnId) === active)
       this.#activeByNativeTurn.delete(active.nativeTurnId);
   }
+}
+
+function nativeApprovalDescription(active: ActiveTurn, params: unknown): string {
+  const command = stringAt(params, ['command']);
+  if (command) return `Run a command: ${command}`;
+  const itemId = stringAt(params, ['itemId']);
+  const item = itemId ? active.nativeItems.get(itemId) : undefined;
+  const paths = (Array.isArray(item?.changes) ? item.changes : []).flatMap((candidate) => {
+    const path = stringAt(record(candidate), ['path']);
+    return path ? [path] : [];
+  });
+  const grantRoot = stringAt(params, ['grantRoot']);
+  const reason = stringAt(params, ['reason']);
+  if (paths.length === 1) return `Change ${paths[0]}`;
+  if (paths.length > 1) {
+    const shown = paths.slice(0, 3).join(', ');
+    const more = paths.length > 3 ? ` and ${paths.length - 3} more` : '';
+    return `Change ${paths.length} files: ${shown}${more}`;
+  }
+  if (grantRoot) return `Allow changes in ${grantRoot}`;
+  return reason ?? 'Allow this native file change?';
 }
 
 const MAX_RESTORED_HISTORY_CHARACTERS = 80_000;
@@ -1391,7 +1450,7 @@ function nativePresentation(
       command: stringAt(item, ['command']) ?? 'Command',
       ...(stringAt(item, ['cwd']) ? { cwd: stringAt(item, ['cwd']) } : {}),
       ...(stringAt(item, ['aggregatedOutput'])
-        ? { output: stringAt(item, ['aggregatedOutput']) }
+        ? { output: stringAt(item, ['aggregatedOutput'])?.slice(-64_000) }
         : {}),
       ...(item.exitCode === null || numberAt(item, ['exitCode']) !== undefined
         ? { exitCode: item.exitCode === null ? null : numberAt(item, ['exitCode']) }
