@@ -1842,8 +1842,6 @@ button.agentAvatar {
   .activitySpinner,
   .activityDonePop,
   .activityDetail,
-  .eventSearchAnchor[data-entering='true'],
-  .eventSearchAnchor[data-entering='true'] > .userMessage,
   .messageActionButton[data-copied='true'] .copiedCheck,
   .copiedTip,
   .jumpToLatest,
@@ -5735,12 +5733,36 @@ input[type='checkbox'].switch:disabled {
   scroll-margin-block: 80px;
 }
 
-.eventSearchAnchor[data-find-match='true'] {
-  background: color-mix(in srgb, var(--focus-ring) 7%, transparent);
+/* Find marks the matching row itself, so the ring hugs a message bubble or step, not the
+   full-width row around it. */
+.eventSearchAnchor[data-find-match='true'] > * {
+  outline: 1px dashed color-mix(in srgb, var(--focus-ring) 55%, transparent);
+  outline-offset: 4px;
 }
 
-.eventSearchAnchor[data-find-current='true'] {
-  box-shadow: 0 0 0 2px var(--focus-ring);
+.eventSearchAnchor[data-find-current='true'] > * {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 4px;
+}
+
+/* A reply's frame is its card, so find draws on the card instead of a box around the row. */
+.eventSearchAnchor[data-find-match='true'] > :has(> .assistantMessage) {
+  outline: none;
+}
+
+.eventSearchAnchor[data-find-match='true'] > :has(> .assistantMessage)::before {
+  border: 1px dashed color-mix(in srgb, var(--focus-ring) 60%, transparent);
+  opacity: 1;
+}
+
+.eventSearchAnchor[data-find-match='true']
+  > :has(> .assistantMessage):not([data-ready='true'])::before {
+  background: transparent;
+  box-shadow: none;
+}
+
+.eventSearchAnchor[data-find-current='true'] > :has(> .assistantMessage)::before {
+  border: 2px solid var(--focus-ring);
 }
 
 /* Rows that arrive while the thread is open ease in; a sent message rises from the composer. */
@@ -5763,6 +5785,13 @@ input[type='checkbox'].switch:disabled {
   from {
     opacity: 0.4;
     transform: translateY(18px) scale(0.985);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eventSearchAnchor[data-entering='true']:not(:has(> .userMessage)),
+  .eventSearchAnchor[data-entering='true'] > .userMessage {
+    animation: none;
   }
 }
 
