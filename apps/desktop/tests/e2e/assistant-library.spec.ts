@@ -8,6 +8,8 @@ test('background skills use gateway execution and native titles survive restart'
     let page = sia.page;
     page = await sia.completeSetup();
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
+    // New profiles work in the background; native skills are created On my screen.
+    await page.evaluate(() => window.sia.computer.setAccessMode('mac', false));
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('button', { name: 'More settings' }).click();
     await page.getByRole('menuitem', { name: 'Assistant', exact: true }).click();

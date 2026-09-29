@@ -86,6 +86,7 @@ async function createHarness(
     defaultWorkspaceRoot?: string;
     createDirectory?: (path: string) => Promise<void>;
     notify?: ConstructorParameters<typeof DesktopController>[0]['notify'];
+    keepAwake?: ConstructorParameters<typeof DesktopController>[0]['keepAwake'];
   } = {},
 ): Promise<{
   controller: DesktopController;
@@ -144,6 +145,7 @@ async function createHarness(
         : {}),
     ...(options.trajectory ? { trajectory: options.trajectory } : {}),
     ...(options.notify ? { notify: options.notify } : {}),
+    ...(options.keepAwake ? { keepAwake: options.keepAwake } : {}),
   });
   await controller.initialize();
   if (
@@ -6384,26 +6386,43 @@ it('persists Use my Mac separately from action confirmations and avoids Chrome p
   const { controller, repository } = await createHarness();
   await controller.invoke('computer.setTrust', { trust: 'ask' });
   expect(controller.computerAccessMode()).toBe('mac');
-  expect(controller.macBackgroundControl()).toBe(false);
+  expect(controller.macBackgroundControl()).toBe(true);
   expect(controller.macBackgroundFallback()).toBe('pause');
   expect(controller.computerTrust()).toBe('ask');
   await controller.invoke('computer.setAccessMode', {
     mode: 'mac',
-    background: true,
+    background: false,
     backgroundFallback: 'foreground',
   });
   await controller.invoke('computer.setAccessMode', { mode: 'mac' });
-  expect(controller.snapshot().computer.backgroundControl).toBe(true);
+  expect(controller.snapshot().computer.backgroundControl).toBe(false);
   expect(controller.snapshot().computer.accessMode).toBe('mac');
   expect(controller.computerTrust()).toBe('ask');
   expect(await controller.ensureBrowserAttachedForActions()).toContain('Use my Mac');
   expect(controller.snapshot().browser.status).toBe('detached');
   const restored = await createHarness({ repository });
   expect(restored.controller.computerAccessMode()).toBe('mac');
-  expect(restored.controller.macBackgroundControl()).toBe(true);
+  expect(restored.controller.macBackgroundControl()).toBe(false);
   expect(restored.controller.macBackgroundFallback()).toBe('foreground');
   expect(restored.controller.computerTrust()).toBe('ask');
   await restored.controller.shutdown();
+});
+
+it('works in the background by default, including profiles saved before the setting existed', async () => {
+  const { controller, repository } = await createHarness();
+  expect(controller.snapshot().computer.backgroundControl).toBe(true);
+  const stored = repository.get<{ preferences: { macBackgroundControl?: boolean } }>(
+    'desktop',
+    'state',
+  )!;
+  delete stored.preferences.macBackgroundControl;
+  repository.put('desktop', 'state', stored);
+  const legacy = await createHarness({ repository });
+  expect(legacy.controller.macBackgroundControl()).toBe(true);
+  await legacy.controller.invoke('computer.setAccessMode', { mode: 'mac', background: false });
+  const onScreen = await createHarness({ repository });
+  expect(onScreen.controller.macBackgroundControl()).toBe(false);
+  await onScreen.controller.shutdown();
 });
 
 it('preserves connected mode for existing profiles, including profiles predating the mode setting', async () => {
@@ -6629,5 +6648,187 @@ describe('follow-up messages while a turn runs', () => {
     } finally {
       await restored.controller.shutdown();
     }
+  });
+});
+
+describe('Use my Mac power and lock handling', () => {
+  /** A runtime whose first turn keeps working until it is stopped; later turns complete. */
+  function holdingRuntime(fail?: Error) {
+    const requests: string[] = [];
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput, signal: AbortSignal) {
+        requests.push(input.text);
+        if (fail) throw fail;
+        if (requests.length === 1)
+          await new Promise((_, reject) =>
+            signal.addEventListener('abort', () => reject(new Error('stopped')), {
+              once: true,
+            }),
+          );
+        yield {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    return { runtime, requests };
+  }
+
+  async function macThread(options: Parameters<typeof createHarness>[0]) {
+    const keepAwake = { hold: vi.fn(), release: vi.fn() };
+    const harness = await createHarness({ fakeServices: false, keepAwake, ...options });
+    const agent = await harness.controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await harness.controller.invoke('threads.create', {
+      agentId: agent.agentId,
+    });
+    const status = () =>
+      harness.controller.snapshot().threads.find(({ id }) => id === threadId)?.status;
+    return { ...harness, keepAwake, threadId, status };
+  }
+
+  it('keeps the Mac awake for a Mac task and releases it when the task stops or fails', async () => {
+    const { runtime } = holdingRuntime();
+    const { controller, keepAwake, threadId, status } = await macThread({ runtime });
+    expect(controller.computerAccessMode()).toBe('mac');
+    await controller.invoke('threads.send', { threadId, text: 'Tidy my desktop' });
+    await vi.waitFor(() => expect(keepAwake.hold).toHaveBeenCalledWith(threadId));
+    expect(keepAwake.release).not.toHaveBeenCalled();
+    await controller.invoke('threads.cancel', { threadId });
+    await vi.waitFor(() => expect(keepAwake.release).toHaveBeenCalledWith(threadId));
+    expect(status()).toBe('idle');
+    await controller.shutdown();
+
+    const failing = await macThread({ runtime: holdingRuntime(new Error('boom')).runtime });
+    await failing.controller.invoke('threads.send', {
+      threadId: failing.threadId,
+      text: 'Tidy my desktop',
+    });
+    await vi.waitFor(() => expect(failing.status()).toBe('failed'));
+    expect(failing.keepAwake.hold).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(failing.keepAwake.release).toHaveBeenCalledTimes(1));
+    await failing.controller.shutdown();
+  });
+
+  it('does not hold the Mac awake for connected-app tasks', async () => {
+    const { runtime } = holdingRuntime();
+    const { controller, keepAwake, threadId, status } = await macThread({ runtime });
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    await controller.invoke('threads.send', { threadId, text: 'Summarize my notes' });
+    await vi.waitFor(() => expect(status()).toBe('running'));
+    expect(keepAwake.hold).not.toHaveBeenCalled();
+    await controller.invoke('threads.cancel', { threadId });
+    await controller.shutdown();
+  });
+
+  it('pauses a Mac task when the screen locks and continues it after unlock', async () => {
+    const { runtime, requests } = holdingRuntime();
+    const { controller, keepAwake, threadId, status } = await macThread({ runtime });
+    await controller.invoke('threads.send', { threadId, text: 'File my receipts' });
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    controller.setMacAvailability('locked');
+    expect(status()).toBe('failed');
+    expect(runtime.cancel).toHaveBeenCalled();
+    expect(controller.snapshot().timeline.at(-1)).toMatchObject({
+      kind: 'error',
+      title: 'Task paused',
+      text: 'Your Mac locked, so Sia paused this task. Unlock your Mac and press Continue task.',
+    });
+    await vi.waitFor(() => expect(keepAwake.release).toHaveBeenCalledWith(threadId));
+    expect(status()).toBe('failed');
+
+    // Continue task while still locked waits instead of driving a locked screen.
+    await controller.invoke('threads.retry', { threadId });
+    const waiting = controller.snapshot().threads.find(({ id }) => id === threadId)!;
+    expect(waiting).toMatchObject({
+      status: 'queued',
+      queueReason: 'Waiting for your Mac to unlock.',
+    });
+    expect(requests).toHaveLength(1);
+    controller.setMacAvailability('available');
+    await vi.waitFor(() => expect(status()).toBe('idle'));
+    expect(requests).toHaveLength(2);
+    expect(requests[1]).toContain('File my receipts');
+    await controller.shutdown();
+  });
+
+  it('pauses with a plain message when the Mac goes to sleep', async () => {
+    const { runtime } = holdingRuntime();
+    const { controller, threadId, status } = await macThread({ runtime });
+    await controller.invoke('threads.send', { threadId, text: 'File my receipts' });
+    await vi.waitFor(() => expect(status()).toBe('running'));
+    controller.setMacAvailability('asleep');
+    expect(status()).toBe('failed');
+    expect(controller.snapshot().timeline.at(-1)?.text).toBe(
+      'Your Mac went to sleep, so Sia paused this task. Wake your Mac and press Continue task.',
+    );
+    await controller.shutdown();
+  });
+
+  it('stops a background task with a next step when the window-control driver is unavailable', async () => {
+    const { runtime, requests } = holdingRuntime();
+    const unavailable = {
+      ...computer,
+      permissions: async () => ({
+        status: 'error' as const,
+        accessibility: false,
+        screenRecording: false,
+        detail: "Cannot find package '@trycua/cua-driver'",
+      }),
+    };
+    const { controller, keepAwake, threadId, status } = await macThread({
+      runtime,
+      computer: unavailable,
+    });
+    expect(controller.macBackgroundControl()).toBe(true);
+    await controller.invoke('threads.send', { threadId, text: 'Tidy my desktop' });
+    await vi.waitFor(() => expect(status()).toBe('failed'));
+    expect(requests).toEqual([]);
+    expect(controller.snapshot().timeline.at(-1)?.text).toBe(
+      'Working in the background isn’t available on this Mac right now. Choose On my screen in Settings → Computer, then press Continue task.',
+    );
+    await vi.waitFor(() => expect(keepAwake.release).toHaveBeenCalledWith(threadId));
+
+    await controller.invoke('computer.setAccessMode', { mode: 'mac', background: false });
+    await controller.invoke('threads.retry', { threadId });
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    await controller.invoke('threads.cancel', { threadId });
+    await controller.shutdown();
+  });
+
+  it('asks for missing permissions before a background task starts', async () => {
+    const { runtime, requests } = holdingRuntime();
+    const { controller, threadId, status } = await macThread({
+      runtime,
+      computer: {
+        ...computer,
+        permissions: async () => ({
+          status: 'needs_permission' as const,
+          accessibility: true,
+          screenRecording: false,
+        }),
+      },
+    });
+    await controller.invoke('threads.send', { threadId, text: 'Tidy my desktop' });
+    await vi.waitFor(() => expect(status()).toBe('failed'));
+    expect(requests).toEqual([]);
+    expect(controller.snapshot().timeline.at(-1)?.text).toContain(
+      'Sia needs Accessibility and Screen Recording to work in the background.',
+    );
+    await controller.shutdown();
   });
 });

@@ -42,6 +42,7 @@ import { CloudClient } from './cloud-client.js';
 import { HostedResponsesProxy } from './hosted-responses-proxy.js';
 import { loadCloudConfiguration } from './cloud-config.js';
 import { DesktopController } from './controller.js';
+import { KeepAwake } from './keep-awake.js';
 import { CuaService } from './cua-service.js';
 import { DesktopActionBackend } from './action-backend.js';
 import { CapabilitySocketHost } from './capability-host.js';
@@ -317,6 +318,7 @@ async function performApplicationCreation(): Promise<void> {
       fakeServices,
       ...(fakeTurnDelayMs ? { fakeTurnDelayMs } : {}),
       trajectory,
+      keepAwake: new KeepAwake(),
       capabilitySetup: {
         automationPermissions: (request) => automationPermissions.check(request),
         messagesStatus: () => (fakeServices ? 'unavailable' : messagesService.status()),
@@ -584,6 +586,9 @@ async function performApplicationCreation(): Promise<void> {
     let voiceScreenLocked =
       process.platform === 'darwin' && powerMonitor.getSystemIdleState(1) === 'locked';
     const updateVoiceSuspension = () => {
+      activeController.setMacAvailability(
+        voiceAsleep ? 'asleep' : voiceScreenLocked ? 'locked' : 'available',
+      );
       activeController.suspendVoice(voiceAsleep || voiceScreenLocked);
       commandLauncher?.suspend(voiceAsleep || voiceScreenLocked);
       phoneRemote?.suspend(voiceAsleep || voiceScreenLocked);
