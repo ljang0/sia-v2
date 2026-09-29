@@ -14,6 +14,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { ScheduleRun, ThreadGoal } from '../../types';
 import styles from '../../ui.module.css';
 import { useConfirmDialog } from '../ConfirmDialog';
+import { StartupSettings } from '../settings/StartupSettings';
 
 interface SelectOption {
   id: string;
@@ -22,7 +23,7 @@ interface SelectOption {
 }
 
 interface ThreadModelControlsProps {
-  workspace?: string;
+  workspace?: string | undefined;
   modelId: string;
   reasoningId: string;
   models: readonly SelectOption[];
@@ -70,9 +71,9 @@ export function ThreadModelControls({
   return (
     <details ref={menu} className={styles.agentSettingsMenu}>
       <summary>
-        Agent settings <CaretDown size={13} aria-hidden="true" />
+        Model for this conversation <CaretDown size={13} aria-hidden="true" />
       </summary>
-      <section className={styles.threadControls} aria-label="Thread model settings">
+      <section className={styles.threadControls} aria-label="Model for this conversation">
         <label>
           <span>Model</span>
           <select
@@ -265,11 +266,16 @@ interface ScheduleControlsProps {
   onSetEnabled(scheduleId: string, enabled: boolean): Promise<void> | void;
   onRunNow?: ((scheduleId: string) => Promise<void> | void) | undefined;
   onDelete(scheduleId: string): Promise<void> | void;
+  /** Open Sia at login, offered here because schedules only run while Sia is open. */
+  openAtLogin?: boolean | undefined;
+  onSetOpenAtLogin?: ((enabled: boolean) => Promise<void>) | undefined;
 }
 
 export function ScheduleControls({
   schedules,
   busy,
+  openAtLogin = false,
+  onSetOpenAtLogin,
   onCreate,
   onSetEnabled,
   onRunNow,
@@ -330,6 +336,13 @@ export function ScheduleControls({
           {expanded ? 'Cancel' : 'New schedule'}
         </button>
       </div>
+      {onSetOpenAtLogin ? (
+        <StartupSettings
+          compact
+          openAtLogin={openAtLogin}
+          onSetOpenAtLogin={onSetOpenAtLogin}
+        />
+      ) : null}
 
       {expanded ? (
         <form className={styles.scheduleForm} onSubmit={submit}>

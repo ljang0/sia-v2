@@ -4,8 +4,9 @@ Use this checklist on the exact signed artifact before adding a tester. Automate
 code and deterministic flows; these checks cover provider-owned login screens, macOS permissions,
 and real accounts. Use disposable, non-sensitive fixtures and keep research sharing off.
 
-For `0.1.0-alpha.24`, record the result in the private pilot log. The source and artifact hashes are
-in [`release-evidence-2026-08-28-alpha.24.md`](./release-evidence-2026-08-28-alpha.24.md).
+Record the result in the private pilot log with the exact Sia version and artifact hash under
+test. The source is `0.1.0-alpha.25`; the latest signed artifact (`0.1.0-alpha.24`) and its hashes
+are in [`release-evidence-2026-08-28-alpha.24.md`](./release-evidence-2026-08-28-alpha.24.md).
 
 ## Automated gate
 
@@ -84,8 +85,8 @@ These checks passed with GPT-5.6-Sol. Existing agents keep their memory preferen
 automatic recall. This is separate from a fresh validation agent's successful memory test.
 The [course investigation smoke](../apps/desktop/src/main/course-investigation.smoke.test.ts)
 uses a real model with **in-memory browser fixtures** to check coursework outside the calendar and
-inaccessible-course reporting. Neither replaces the live GUI checks above. Experimental background
-window control must be validated separately, including its selected foreground fallback policy.
+inaccessible-course reporting. Neither replaces the live GUI checks above. Background
+window control (the Use my Mac default) must be validated separately, including its selected foreground fallback policy.
 
 For composer voice, record a short disposable sentence with **Dictate message**, then click its
 stop control. Verify the transcript enters the draft without sending. In **Start voice conversation**,

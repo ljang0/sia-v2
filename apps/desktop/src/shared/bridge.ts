@@ -23,6 +23,8 @@ export interface ProviderSetupProgress {
 export interface ProviderView {
   id: ProviderId;
   label: string;
+  /** Plan wording from the provider catalog, e.g. "ChatGPT plan". */
+  plan?: string;
   status: ProviderStatus;
   model: string;
   version?: string;
@@ -32,6 +34,17 @@ export interface ProviderView {
   restriction?: string;
   models?: ProviderModelView[];
   setup?: ProviderSetupProgress;
+  /** Latest plan usage window the provider reported this session. */
+  limits?: ProviderUsageLimitView;
+}
+
+export interface ProviderUsageLimitView {
+  /** 0–100. */
+  usedPercent: number;
+  /** ISO time the window resets. */
+  resetsAt?: string;
+  windowMinutes?: number;
+  updatedAt: string;
 }
 
 export interface ProviderModelView {
@@ -151,7 +164,12 @@ export type ActivityPresentationView =
     }
   | {
       kind: 'file_change';
-      files: Array<{ path: string; change: string; diff?: string | undefined }>;
+      files: Array<{
+        path: string;
+        change: string;
+        movePath?: string | undefined;
+        diff?: string | undefined;
+      }>;
     }
   | {
       kind: 'web_search';
@@ -404,7 +422,7 @@ export interface ComputerView extends ComputerPermissionsView {
   automation?: import('./mac-permissions.js').AutomationPermissions;
   /** Local Apple Messages readability; sends additionally prompt for Automation once. */
   messagesAccess?: 'ready' | 'needs_full_disk_access' | 'unavailable';
-  /** Chrome's persistent remote-debugging toggle for silent attachment. */
+  /** Chrome's own remote-debugging toggle, read-only; Sia never changes it. */
   chromeConnection?: 'enabled' | 'off' | 'unavailable';
   /**
    * 'auto': computer and browser actions run without per-action approval and Chrome
@@ -455,11 +473,22 @@ export interface VoiceView {
   detail?: string;
 }
 
+/** A one-line sidebar summary of a thread's latest turn. */
+export interface ThreadPreview {
+  label: 'Request' | 'Latest reply' | 'Latest activity';
+  text: string;
+}
+
 export interface DesktopSnapshot {
   revision: number;
   agents: AgentView[];
   threads: ThreadView[];
+  /**
+   * The full history for in-process callers. Snapshots pushed to the renderer carry only the
+   * active thread's items and summarize every other thread in `previews`.
+   */
   timeline: TimelineItemView[];
+  previews?: Record<string, ThreadPreview>;
   approvals: ApprovalView[];
   providers: ProviderView[];
   connections: ConnectionView[];
@@ -469,7 +498,10 @@ export interface DesktopSnapshot {
   voice: VoiceView;
   preferences: {
     completionSound: boolean;
+    openAtLogin?: boolean;
     appearance?: 'calm' | 'expressive';
+    /** Shows the workspace Command tool. Off unless turned on in Settings; main enforces it. */
+    developerTools?: boolean;
     onboarding?: OnboardingProgress;
   };
   providerUsage?: ProviderUsageView[];
@@ -657,6 +689,8 @@ export interface BridgeRequestMap {
   'computer.setupMessages': undefined;
   'settings.setAppearance': { appearance: 'calm' | 'expressive' };
   'settings.setCompletionSound': { enabled: boolean };
+  'settings.setOpenAtLogin': { enabled: boolean };
+  'settings.setDeveloperTools': { enabled: boolean };
   'feedback.compose': { message: string; threadId?: string; includeDiagnostics: boolean };
   'updates.check': undefined;
   'updates.openDownload': undefined;
@@ -729,7 +763,7 @@ export interface BridgeResultMap {
   'threads.create': { threadId: string; snapshot: DesktopSnapshot };
   'threads.select': DesktopSnapshot;
   'threads.rename': DesktopSnapshot;
-  'threads.draft': DesktopSnapshot;
+  'threads.draft': { saved: true };
   'threads.config': DesktopSnapshot;
   'threads.archive': DesktopSnapshot;
   'threads.unarchive': DesktopSnapshot;
@@ -781,6 +815,8 @@ export interface BridgeResultMap {
   'computer.setupMessages': DesktopSnapshot;
   'settings.setAppearance': DesktopSnapshot;
   'settings.setCompletionSound': DesktopSnapshot;
+  'settings.setOpenAtLogin': DesktopSnapshot;
+  'settings.setDeveloperTools': DesktopSnapshot;
   'feedback.compose': { opened: boolean };
   'updates.check': UpdateView;
   'updates.openDownload': { opened: boolean };
@@ -867,7 +903,7 @@ export interface DesktopBridgeApi {
     create(input: CreateThreadInput): Promise<BridgeResultMap['threads.create']>;
     select(threadId: string): Promise<DesktopSnapshot>;
     rename(threadId: string, title: string): Promise<DesktopSnapshot>;
-    setDraft(threadId: string, text: string): Promise<DesktopSnapshot>;
+    setDraft(threadId: string, text: string): Promise<{ saved: true }>;
     config(input: UpdateThreadConfigInput): Promise<DesktopSnapshot>;
     archive(threadId: string): Promise<DesktopSnapshot>;
     unarchive(threadId: string): Promise<DesktopSnapshot>;
@@ -956,6 +992,8 @@ export interface DesktopBridgeApi {
     restartForOnboarding(): Promise<DesktopSnapshot>;
     setAppearance(appearance: 'calm' | 'expressive'): Promise<DesktopSnapshot>;
     setCompletionSound(enabled: boolean): Promise<DesktopSnapshot>;
+    setOpenAtLogin(enabled: boolean): Promise<DesktopSnapshot>;
+    setDeveloperTools(enabled: boolean): Promise<DesktopSnapshot>;
   };
   feedback: {
     compose(

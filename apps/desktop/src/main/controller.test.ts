@@ -7,7 +7,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { ActionGateway, getActionToolDescriptor } from '@sia/action-gateway';
 
 import { CloudClient } from './cloud-client.js';
@@ -17,6 +17,7 @@ import { MacVoiceService } from './mac-voice-service.js';
 import { probeProviders } from './provider-probe.js';
 import type { RuntimeTurnInput } from './runtime-coordinator.js';
 import { canonicalJson } from './update-manifest.js';
+import type { DesktopSnapshot } from '../shared/bridge.js';
 import {
   EphemeralPayloadCipher,
   PlaintextTestCipher,
@@ -80,12 +81,15 @@ async function createHarness(
     openPath?: (path: string) => Promise<void>;
     revealDirectory?: (path: string) => Promise<void>;
     composeFeedback?: (subject: string, body: string) => Promise<void>;
+    setOpenAtLogin?: (enabled: boolean) => void;
     appVersion?: string;
     updateManifestUrl?: string;
     updateManifestPublicKey?: string;
     defaultWorkspaceRoot?: string;
     createDirectory?: (path: string) => Promise<void>;
     notify?: ConstructorParameters<typeof DesktopController>[0]['notify'];
+    keepAwake?: ConstructorParameters<typeof DesktopController>[0]['keepAwake'];
+    notchHelperPath?: string;
   } = {},
 ): Promise<{
   controller: DesktopController;
@@ -129,6 +133,7 @@ async function createHarness(
     ...(options.openPath ? { openPath: options.openPath } : {}),
     ...(options.revealDirectory ? { revealDirectory: options.revealDirectory } : {}),
     ...(options.composeFeedback ? { composeFeedback: options.composeFeedback } : {}),
+    ...(options.setOpenAtLogin ? { setOpenAtLogin: options.setOpenAtLogin } : {}),
     ...(options.appVersion ? { appVersion: options.appVersion } : {}),
     ...(options.updateManifestUrl ? { updateManifestUrl: options.updateManifestUrl } : {}),
     ...(options.updateManifestPublicKey
@@ -144,6 +149,8 @@ async function createHarness(
         : {}),
     ...(options.trajectory ? { trajectory: options.trajectory } : {}),
     ...(options.notify ? { notify: options.notify } : {}),
+    ...(options.keepAwake ? { keepAwake: options.keepAwake } : {}),
+    ...(options.notchHelperPath ? { notchHelperPath: options.notchHelperPath } : {}),
   });
   await controller.initialize();
   if (
@@ -237,6 +244,169 @@ describe('DesktopController', () => {
         );
       }
       expect(turns.map((turn) => turn.reasoningEffort)).toEqual(['low', 'medium']);
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('keeps compatibility providers off new agents and threads but preserves pinned threads', async () => {
+    const turns: RuntimeTurnInput[] = [];
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        turns.push(input);
+        yield {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: input.thread.provider,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+    };
+    const providerProbe = async (only?: Parameters<typeof probeProviders>[0]) =>
+      (await deterministicProviderProbe(only)).map((provider) =>
+        provider.id === 'claude'
+          ? { ...provider, status: 'ready' as const, version: '2.1.238' }
+          : provider,
+      );
+    const first = await createHarness({ fakeServices: false, providerProbe });
+    await expect(
+      first.controller.invoke('agents.save', {
+        name: 'Claude agent',
+        instructions: '',
+        provider: 'claude',
+        model: 'sonnet',
+        workspace: '/tmp/sia-workspace',
+      }),
+    ).rejects.toThrow('not available for new conversations');
+    const { agentId } = await first.controller.invoke('agents.save', {
+      name: 'Pinned agent',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const threadId = first.controller
+      .snapshot()
+      .threads.find((thread) => thread.agentId === agentId)!.id;
+    await expect(
+      first.controller.invoke('agents.save', {
+        id: agentId,
+        name: 'Pinned agent',
+        instructions: '',
+        provider: 'claude',
+        model: 'sonnet',
+      }),
+    ).rejects.toThrow('not available for new conversations');
+
+    // Simulate state saved by an earlier build that allowed a Claude agent.
+    const state = first.repository.get<{
+      agents: Array<Record<string, unknown>>;
+      threads: Array<Record<string, unknown>>;
+    }>('desktop', 'state')!;
+    const claudeTarget = {
+      provider: 'claude',
+      model: 'sonnet',
+      harnessId: 'claude_code',
+      harnessModelId: 'sonnet',
+      credentialSource: 'provider_subscription',
+      resolutionSource: 'legacy_default',
+    };
+    for (const agent of state.agents)
+      Object.assign(agent, { provider: 'claude', model: 'sonnet' });
+    for (const thread of state.threads)
+      Object.assign(thread, {
+        provider: 'claude',
+        model: 'sonnet',
+        harnessId: 'claude_code',
+        resolvedExecutionTarget: claudeTarget,
+      });
+    first.repository.put('desktop', 'state', state);
+
+    const { controller } = await createHarness({
+      fakeServices: false,
+      providerProbe,
+      repository: first.repository,
+      runtime,
+    });
+    try {
+      await expect(
+        controller.invoke('threads.create', { agentId, title: 'Another' }),
+      ).rejects.toThrow('not available for new conversations');
+      await expect(controller.invoke('agents.duplicate', { agentId })).rejects.toThrow(
+        'not available for new conversations',
+      );
+      await controller.invoke('agents.save', {
+        id: agentId,
+        name: 'Renamed',
+        instructions: '',
+        model: 'sonnet',
+      });
+      // Use my Mac is Codex-only; a retained Claude thread runs in connected mode.
+      await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+      await controller.invoke('threads.send', { threadId, text: 'Continue.' });
+      await vi.waitFor(() => expect(turns).toHaveLength(1));
+      expect(turns[0]?.thread).toMatchObject({ provider: 'claude', model: 'sonnet' });
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('runs workspace commands only after Developer tools is turned on', async () => {
+    const runTerminal = vi.fn(async () => ({
+      command: 'pwd',
+      cwd: '/tmp/sia-workspace',
+      output: '/tmp/sia-workspace',
+      exitCode: 0,
+      timedOut: false,
+    }));
+    const startBackgroundTerminal = vi.fn();
+    const writeBackgroundTerminal = vi.fn();
+    const { controller, repository } = await createHarness({
+      workspaceOperations: {
+        runTerminal,
+        startBackgroundTerminal,
+        writeBackgroundTerminal,
+      } as never,
+    });
+    try {
+      const { agentId } = await controller.invoke('agents.save', {
+        name: 'Commands',
+        instructions: '',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const threadId = controller
+        .snapshot()
+        .threads.find((thread) => thread.agentId === agentId)!.id;
+      expect(controller.snapshot().preferences.developerTools).toBeUndefined();
+      for (const request of [
+        controller.invoke('terminal.run', { threadId, command: 'pwd' }),
+        controller.invoke('terminal.start', { threadId, command: 'sleep 30' }),
+        controller.invoke('terminal.write', { threadId, terminalId: 'term', input: 'y\n' }),
+      ])
+        await expect(request).rejects.toThrow('Turn on Developer tools');
+      expect(runTerminal).not.toHaveBeenCalled();
+      expect(startBackgroundTerminal).not.toHaveBeenCalled();
+      expect(writeBackgroundTerminal).not.toHaveBeenCalled();
+
+      await controller.invoke('settings.setDeveloperTools', { enabled: true });
+      expect(
+        repository.get<{ preferences: { developerTools?: boolean } }>('desktop', 'state')
+          ?.preferences.developerTools,
+      ).toBe(true);
+      await controller.invoke('terminal.run', { threadId, command: 'pwd' });
+      expect(runTerminal).toHaveBeenCalledWith('/tmp/sia-workspace', 'pwd');
+
+      await controller.invoke('settings.setDeveloperTools', { enabled: false });
+      await expect(
+        controller.invoke('terminal.run', { threadId, command: 'pwd' }),
+      ).rejects.toThrow('Turn on Developer tools');
+      expect(runTerminal).toHaveBeenCalledOnce();
     } finally {
       await controller.shutdown();
     }
@@ -799,6 +969,29 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('registers Sia as a login item only when the person turns it on', async () => {
+    const setOpenAtLogin = vi.fn();
+    const { controller, repository } = await createHarness({ setOpenAtLogin });
+    expect(controller.snapshot().preferences.openAtLogin).toBeUndefined();
+
+    const updated = await controller.invoke('settings.setOpenAtLogin', { enabled: true });
+    expect(setOpenAtLogin).toHaveBeenCalledWith(true);
+    expect(updated.preferences.openAtLogin).toBe(true);
+    expect(
+      repository.get<{ preferences: { openAtLogin?: boolean } }>('desktop', 'state')
+        ?.preferences.openAtLogin,
+    ).toBe(true);
+
+    setOpenAtLogin.mockImplementationOnce(() => {
+      throw new Error('Opening at login is available in the installed Sia app.');
+    });
+    await expect(
+      controller.invoke('settings.setOpenAtLogin', { enabled: false }),
+    ).rejects.toThrow('installed Sia app');
+    expect(controller.snapshot().preferences.openAtLogin).toBe(true);
+    await controller.shutdown();
+  });
+
   it('renames and deletes an idle thread with its local transcript', async () => {
     const controller = await createController();
     const agent = await controller.invoke('agents.save', {
@@ -868,18 +1061,27 @@ describe('DesktopController', () => {
     });
     const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
 
+    let pushes = 0;
+    controller.subscribe(() => {
+      pushes += 1;
+    });
     const drafted = await controller.invoke('threads.draft', {
       threadId,
       text: 'Keep this thought across a restart.',
     });
-    expect(drafted.threads.find(({ id }) => id === threadId)?.draft).toBe(
+    // Typing pauses save drafts often: no snapshot comes back and no push goes out.
+    expect(drafted).toEqual({ saved: true });
+    expect(pushes).toBe(0);
+    expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.draft).toBe(
       'Keep this thought across a restart.',
     );
-    expect(
-      repository
-        .get<{ threads: Array<{ id: string; draft?: string }> }>('desktop', 'state')
-        ?.threads.find(({ id }) => id === threadId)?.draft,
-    ).toBe('Keep this thought across a restart.');
+    await vi.waitFor(() =>
+      expect(
+        repository
+          .get<{ threads: Array<{ id: string; draft?: string }> }>('desktop', 'state')
+          ?.threads.find(({ id }) => id === threadId)?.draft,
+      ).toBe('Keep this thought across a restart.'),
+    );
 
     const sent = await controller.invoke('threads.send', {
       threadId,
@@ -1070,6 +1272,118 @@ describe('DesktopController', () => {
     await recovered.controller.shutdown();
   });
 
+  it('does not rewrite state while a due schedule waits for its busy thread', async () => {
+    const initial = await createHarness({ fakeServices: false });
+    await initial.controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    const agent = await initial.controller.invoke('agents.save', {
+      name: 'Busy scheduler',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await initial.controller.invoke('threads.create', {
+      agentId: agent.agentId,
+    });
+    initial.controller.createScheduleFromAction(threadId, {
+      task: 'Check the web.',
+      cadence: 'hourly',
+      firstRunAt: '2030-08-21T03:00:00.000Z',
+    });
+    const persisted = structuredClone(
+      initial.repository.get<{ schedules: Array<{ id: string; nextRunAt: string }> }>(
+        'desktop',
+        'state',
+      )!,
+    );
+    await initial.controller.shutdown();
+    // Several runs are overdue on one thread: once one holds the thread, the rest must wait.
+    const first = persisted.schedules[0]!;
+    first.nextRunAt = '2026-01-01T00:00:00.000Z';
+    for (let copy = 0; copy < 3; copy += 1)
+      persisted.schedules.push({ ...structuredClone(first), id: randomUUID() });
+    const repository = new CountingRepository();
+    repository.put('desktop', 'state', persisted);
+
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const runtime = {
+      async *runTurn() {
+        await held;
+      },
+      dispose: vi.fn(async () => release()),
+      cancel: vi.fn(async () => release()),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    vi.useFakeTimers({ toFake: ['setInterval'] });
+    try {
+      const { controller } = await createHarness({ fakeServices: false, runtime, repository });
+      // The startup pass runs before the runtime attaches; the next pass starts a held turn.
+      await vi.advanceTimersByTimeAsync(30_000);
+      await vi.waitFor(() =>
+        expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+          'running',
+        ),
+      );
+      const writes = repository.desktopStateWrites;
+      await vi.advanceTimersByTimeAsync(90_000);
+      expect(repository.desktopStateWrites).toBe(writes);
+      release();
+      await controller.shutdown();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('drops settled approvals without a transcript row a week after they expired', async () => {
+    const initial = await createHarness();
+    const persisted = structuredClone(
+      initial.repository.get<{
+        approvals: Array<Record<string, unknown>>;
+        timeline: Array<Record<string, unknown>>;
+      }>('desktop', 'state')!,
+    );
+    await initial.controller.shutdown();
+    const approval = (id: string, expiresAt: string, status = 'approved') => ({
+      id,
+      threadId: 'thread-1',
+      callId: `call-${id}`,
+      kind: 'computer_action',
+      title: 'Use the Mac',
+      summary: 'Click Save',
+      target: 'TextEdit',
+      reversible: false,
+      expiresAt,
+      status,
+    });
+    const old = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+    const recent = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    persisted.approvals.push(
+      approval('old-settled', old),
+      approval('old-in-transcript', old, 'denied'),
+      approval('recent-settled', recent, 'expired'),
+    );
+    persisted.timeline.push({
+      id: 'approval-row',
+      threadId: 'thread-1',
+      sequence: 1,
+      kind: 'approval',
+      approvalId: 'old-in-transcript',
+      status: 'denied',
+      timestamp: old,
+    });
+    const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+    repository.put('desktop', 'state', persisted);
+    const { controller } = await createHarness({ repository });
+    expect(controller.snapshot().approvals.map(({ id }) => id)).toEqual([
+      'old-in-transcript',
+      'recent-settled',
+    ]);
+    await controller.shutdown();
+  });
+
   it('requires an active turn to stop before its thread can be deleted', async () => {
     const controller = await createController();
     const agent = await controller.invoke('agents.save', {
@@ -1122,7 +1436,7 @@ describe('DesktopController', () => {
         model: 'gemini-2.5-pro',
         workspace: '/tmp/sia-workspace',
       }),
-    ).rejects.toThrow(/Gemini is not ready \(disabled\)/);
+    ).rejects.toThrow('not available for new conversations');
     await controller.shutdown();
 
     let identityState: 'signed_in' | 'signed_out' = 'signed_in';
@@ -1371,6 +1685,96 @@ describe('DesktopController', () => {
     expect(
       controller.snapshot().timeline.find(({ detail }) => detail === 'streamed-answer')?.text,
     ).toHaveLength(30);
+    await controller.shutdown();
+  });
+
+  it('pushes only the active thread history to the renderer and previews the rest', async () => {
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        const base = {
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+        };
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'message' as const,
+          payload: {
+            messageId: `reply-${input.turnId}`,
+            role: 'assistant' as const,
+            parts: [{ kind: 'text' as const, text: `Reply for turn ${input.turnId}` }],
+          },
+        };
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 2,
+          timestamp: new Date().toISOString(),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'History helper',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const threadIds: string[] = [];
+    for (const text of ['Plan the trip', 'Draft the budget']) {
+      const { threadId } = await controller.invoke('threads.create', { agentId });
+      await controller.invoke('threads.send', { threadId, text });
+      await vi.waitFor(() =>
+        expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+          'idle',
+        ),
+      );
+      threadIds.push(threadId);
+    }
+    const [first, second] = threadIds as [string, string];
+    await controller.invoke('threads.send', { threadId: first, text: 'Add a hotel' });
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find(({ id }) => id === first)?.status).toBe('idle'),
+    );
+    const pushed: DesktopSnapshot[] = [];
+    controller.subscribe((event) => {
+      if (event.type === 'snapshot') pushed.push(event.snapshot);
+    });
+
+    const returned = await controller.invokeForRenderer('threads.select', { threadId: first });
+
+    expect(pushed.length).toBeGreaterThan(0);
+    for (const snapshot of [...pushed, returned]) {
+      expect(snapshot.activeThreadId).toBe(first);
+      expect(snapshot.timeline.length).toBeGreaterThan(0);
+      expect(snapshot.timeline.every(({ threadId }) => threadId === first)).toBe(true);
+      expect(snapshot.previews?.[second]).toEqual({
+        label: 'Latest reply',
+        text: expect.stringContaining('Reply for turn'),
+      });
+      expect(snapshot.previews?.[first]?.label).toBe('Latest reply');
+    }
+    // In-process callers and ordinary invokes still see every thread.
+    const full = await controller.invoke('threads.select', { threadId: first });
+    expect(new Set(full.timeline.map(({ threadId }) => threadId))).toEqual(new Set(threadIds));
+    expect(full.previews).toBeUndefined();
+    // Scotty and the launcher read only each thread's latest turn and see the same tasks.
+    const narrow = controller.taskSnapshot();
+    expect(narrow.timeline.length).toBeLessThan(full.timeline.length);
+    expect(narrow.timeline.some(({ text }) => text === 'Plan the trip')).toBe(false);
+    const tasks = new ScottyTasks();
+    const settings = { enabled: true, size: 'medium', motion: true } as const;
+    expect(tasks.view(narrow, settings, true)).toEqual(tasks.view(full, settings, true));
     await controller.shutdown();
   });
 
@@ -1789,6 +2193,62 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('refuses to fork a busy thread so its live approval and follow-ups stay with it', async () => {
+    let runtimeThreadId = '';
+    const release = Promise.withResolvers<void>();
+    const runtime = {
+      async *runTurn(input: { turnId: string }) {
+        const base = {
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 1,
+          type: 'approval' as const,
+          payload: { phase: 'requested', requestId: 'r1', title: 'Run', description: 'ls' },
+        } as never;
+        await release.promise;
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
+    runtimeThreadId = threadId;
+    await controller.invoke('threads.send', { threadId, text: 'List files' });
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+        'waiting',
+      ),
+    );
+    await controller.invoke('threads.send', { threadId, text: 'Then summarize' });
+    await expect(
+      controller.invoke('threads.fork', { threadId, isolated: false }),
+    ).rejects.toThrow('Stop the active task before you fork this thread.');
+    expect(controller.snapshot().threads).toHaveLength(1);
+    release.resolve();
+    await controller.shutdown();
+  });
+
   it('notifies once when a task pauses for an approval or a question', async () => {
     let runtimeThreadId = '';
     // Each turn waits on its own gate so cancelling the first can't finish the second.
@@ -1914,10 +2374,15 @@ describe('DesktopController', () => {
       title: 'Juniper needs your OK',
       body: 'Mail Send',
     });
+    const status = () =>
+      controller.snapshot().threads.find(({ id }) => id === threadId)?.status;
+    // The thread shows it needs the person, not "Working", until they answer.
+    expect(status()).toBe('waiting');
     await controller.invoke('approvals.resolve', {
       approvalId: controller.snapshot().approvals.at(-1)!.id,
       decision: 'deny',
     });
+    expect(status()).toBe('running');
     await expect(pending).resolves.toEqual({ approved: false });
     await controller.shutdown();
   });
@@ -2040,6 +2505,181 @@ describe('DesktopController', () => {
     expect(requests[1]).toContain('verify any uncertain write');
     expect(requests[1]).toContain('Retry this once');
     await controller.shutdown();
+  });
+
+  it('resends attachments when continuing a turn that failed with a model error', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sia-retry-attachment-'));
+    const path = join(directory, 'budget.csv');
+    await writeFile(path, 'month,total\n', 'utf8');
+    const inputs: RuntimeTurnInput[] = [];
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        inputs.push(input);
+        const base = {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+        };
+        if (inputs.length === 1)
+          yield {
+            ...base,
+            type: 'error' as const,
+            payload: { code: 'model_error', message: 'The model failed', recoverable: true },
+          };
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: {
+            status: inputs.length === 1 ? ('failed' as const) : ('completed' as const),
+          },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({
+      fakeServices: false,
+      runtime,
+      chooseFiles: async () => [path],
+    });
+    try {
+      const agent = await controller.invoke('agents.save', {
+        name: 'Personal',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: agent.agentId,
+      });
+      await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+      const picked = await controller.invoke('attachments.pick', { threadId });
+      await controller.invoke('threads.send', {
+        threadId,
+        text: 'Check this budget',
+        attachmentIds: picked.attachments.map(({ id }) => id),
+      });
+      const status = () =>
+        controller.snapshot().threads.find(({ id }) => id === threadId)?.status;
+      await vi.waitFor(() => expect(status()).toBe('failed'));
+      await controller.invoke('threads.retry', { threadId });
+      await vi.waitFor(() => expect(status()).toBe('idle'));
+      expect(inputs).toHaveLength(2);
+      expect(inputs[1]!.attachments).toEqual([{ kind: 'file', path, name: 'budget.csv' }]);
+    } finally {
+      await controller.shutdown();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('lets a queued follow-up carry files attached while the thread works', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sia-followup-attachment-'));
+    const path = join(directory, 'notes.txt');
+    await writeFile(path, 'notes', 'utf8');
+    const inputs: RuntimeTurnInput[] = [];
+    const release = Promise.withResolvers<void>();
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        inputs.push(input);
+        if (inputs.length === 1) await release.promise;
+        yield {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({
+      fakeServices: false,
+      runtime,
+      chooseFiles: async () => [path],
+    });
+    try {
+      const agent = await controller.invoke('agents.save', {
+        name: 'Personal',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: agent.agentId,
+      });
+      await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+      await controller.invoke('threads.send', { threadId, text: 'Start' });
+      await vi.waitFor(() => expect(inputs).toHaveLength(1));
+      const picked = await controller.invoke('attachments.pick', { threadId });
+      await controller.invoke('threads.send', {
+        threadId,
+        text: 'Use these notes next',
+        attachmentIds: picked.attachments.map(({ id }) => id),
+      });
+      release.resolve();
+      await vi.waitFor(() => expect(inputs).toHaveLength(2));
+      expect(inputs[1]!.attachments).toEqual([{ kind: 'file', path, name: 'notes.txt' }]);
+    } finally {
+      await controller.shutdown();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('releases the provider session when a thread is deleted', async () => {
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        yield {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+      releaseSession: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    try {
+      const agent = await controller.invoke('agents.save', {
+        name: 'Personal',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: agent.agentId,
+      });
+      await controller.invoke('threads.send', { threadId, text: 'Hello' });
+      await vi.waitFor(() =>
+        expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+          'idle',
+        ),
+      );
+      await controller.invoke('threads.delete', { threadId });
+      await vi.waitFor(() => expect(runtime.releaseSession).toHaveBeenCalledWith(threadId));
+    } finally {
+      await controller.shutdown();
+    }
   });
 
   it('restores partial progress for Continue task after an app restart', async () => {
@@ -2589,6 +3229,144 @@ describe('DesktopController', () => {
       pendingCount: 0,
     });
     expect(uploadResearchBatch).not.toHaveBeenCalled();
+    await controller.shutdown();
+  });
+
+  it('keeps raw reasoning text out of the reasoning summary', async () => {
+    let runtimeThreadId = '';
+    const runtime = {
+      async *runTurn(input: { turnId: string }) {
+        const base = {
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        let sequence = 0;
+        for (const [text, part] of [
+          ['**Reading the inbox**', 'summary'],
+          ['private chain of thought', 'text'],
+          ['\n\nLooking for dates.', 'summary'],
+        ] as const) {
+          yield {
+            ...base,
+            id: crypto.randomUUID(),
+            sequence: (sequence += 1),
+            type: 'reasoning' as const,
+            payload: { reasoningId: 'rs_1', text, delta: true, part },
+          };
+        }
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: (sequence += 1),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    const created = await controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', {
+      agentId: created.agentId,
+    });
+    runtimeThreadId = threadId;
+    await controller.invoke('threads.send', { threadId, text: 'Check mail' });
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+        'idle',
+      ),
+    );
+    const reasoning = controller
+      .snapshot()
+      .timeline.filter((item) => item.threadId === threadId && item.kind === 'reasoning');
+    expect(reasoning.map((item) => item.text)).toEqual([
+      '**Reading the inbox**\n\nLooking for dates.',
+    ]);
+    await controller.shutdown();
+  });
+
+  it('shows the plan usage window on the provider without dropping turn token usage', async () => {
+    let runtimeThreadId = '';
+    const runtime = {
+      async *runTurn(input: { turnId: string }) {
+        const base = {
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: '2026-09-29T12:00:00.000Z',
+        };
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 1,
+          type: 'usage' as const,
+          payload: { inputTokens: 40, outputTokens: 5, providerReported: true },
+        };
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 2,
+          type: 'usage' as const,
+          payload: {
+            limits: {
+              usedPercent: 83,
+              resetsAt: '2026-09-29T15:00:00.000Z',
+              windowMinutes: 300,
+            },
+            providerReported: true,
+          },
+        };
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 3,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    const created = await controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', {
+      agentId: created.agentId,
+    });
+    runtimeThreadId = threadId;
+    await controller.invoke('threads.send', { threadId, text: 'Check mail' });
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+        'idle',
+      ),
+    );
+    expect(controller.snapshot().providers.find(({ id }) => id === 'codex')?.limits).toEqual({
+      usedPercent: 83,
+      resetsAt: '2026-09-29T15:00:00.000Z',
+      windowMinutes: 300,
+      updatedAt: '2026-09-29T12:00:00.000Z',
+    });
+    expect(
+      controller.snapshot().providerUsage?.find(({ provider }) => provider === 'codex'),
+    ).toMatchObject({ inputTokens: 40, outputTokens: 5 });
     await controller.shutdown();
   });
 
@@ -3298,6 +4076,58 @@ describe('DesktopController', () => {
     });
     await expect(decision).resolves.toBe('allow');
     await controller.shutdown();
+  });
+
+  it('keeps a computer approval open until the driver deadline instead of two minutes', async () => {
+    const gate = Promise.withResolvers<void>();
+    const runtime = {
+      async *runTurn() {
+        await gate.promise;
+      },
+      dispose: vi.fn(async () => gate.resolve()),
+      cancel: vi.fn(async () => gate.resolve()),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
+    const started = await controller.invoke('threads.send', { threadId, text: 'Use Notes' });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const decision = controller.authorizeComputer(
+        {
+          adapterId: 'desktop_input',
+          riskClass: 'r2',
+          permissionMode: 'standard',
+          publicSession: started.turnId,
+          requestDigest: 'digest-wait',
+          humanSummary: 'Control the selected Notes window',
+          resourceJson: JSON.stringify({ app_name: 'Notes', window_title: 'Draft' }),
+          expiresUnixMs: BigInt(Date.now() + 30 * 60_000),
+        },
+        { kind: 'turn', threadId, turnId: started.turnId },
+      );
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+      const approval = controller.snapshot().approvals.at(-1)!;
+      expect(approval.status).toBe('pending');
+      await controller.invoke('approvals.resolve', {
+        approvalId: approval.id,
+        decision: 'approve',
+      });
+      await expect(decision).resolves.toBe('allow');
+    } finally {
+      vi.useRealTimers();
+      gate.resolve();
+      await controller.shutdown();
+    }
   });
 
   it('shows exact connector recipients and content in the approval preview', async () => {
@@ -4443,6 +5273,7 @@ describe('DesktopController', () => {
         ),
     });
     try {
+      await controller.invoke('settings.setDeveloperTools', { enabled: true });
       const pending = controller.invoke('providers.login', { providerId: 'codex' });
       await vi.waitFor(() => expect(installCodex).toHaveBeenCalledOnce());
       await expect(
@@ -5963,9 +6794,11 @@ it('does not start queued work when an active turn releases its lease during shu
 });
 
 it('memory reviews pin the owning agent and restrict host actions, including trusted mode', async () => {
+  const notify = vi.fn();
   const { controller } = await createHarness({
     defaultWorkspaceRoot: '/tmp/Sia/Agents',
     createDirectory: async () => undefined,
+    notify,
   });
   try {
     await controller.invoke('computer.setAccessMode', { mode: 'connected' });
@@ -6016,6 +6849,11 @@ it('memory reviews pin the owning agent and restrict host actions, including tru
         controller.snapshot().threads.find((thread) => thread.id === threadId)?.status,
       ).toBe('idle'),
     );
+    // Sia's own housekeeping neither marks the review unread nor notifies.
+    expect(controller.snapshot().threads.find((thread) => thread.id === threadId)?.unread).toBe(
+      false,
+    );
+    expect(notify).not.toHaveBeenCalled();
     expect(
       (await controller.invoke('assistant.library', { operation: 'list' })).journal,
     ).toEqual([]);
@@ -6025,6 +6863,82 @@ it('memory reviews pin the owning agent and restrict host actions, including tru
       enabled: false,
     });
     expect(controller.allowsReviewAction(threadId, 'memory_suggest')).toBe(false);
+  } finally {
+    await controller.shutdown();
+  }
+});
+
+it('lets a person’s message preempt a memory review, which stays quiet', async () => {
+  const reviewTurns: string[] = [];
+  const userTurns: string[] = [];
+  let reviewThreadId = '';
+  const runtime = {
+    async *runTurn(input: RuntimeTurnInput, signal: AbortSignal) {
+      const base = {
+        id: randomUUID(),
+        threadId: input.thread.id,
+        turnId: input.turnId,
+        provider: 'codex' as const,
+        sequence: 1,
+        timestamp: new Date().toISOString(),
+      };
+      if ((input.thread as { nativeTools?: string }).nativeTools === 'disabled') {
+        reviewTurns.push(input.turnId);
+        await new Promise((_, reject) =>
+          signal.addEventListener('abort', () => reject(new Error('stopped')), { once: true }),
+        );
+      }
+      userTurns.push(input.text);
+      yield { ...base, type: 'completion' as const, payload: { status: 'completed' as const } };
+    },
+    dispose: vi.fn(async () => undefined),
+    cancel: vi.fn(async () => undefined),
+    respondToRequest: vi.fn(async () => undefined),
+  };
+  const notify = vi.fn();
+  const { controller } = await createHarness({ fakeServices: false, runtime, notify });
+  try {
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'Reviewer',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId });
+    await controller.invoke('assistant.library', {
+      operation: 'learning',
+      agentId,
+      enabled: true,
+    });
+    const originalSelect = controller.snapshot().activeThreadId;
+    const review = controller.invoke('assistant.library', { operation: 'review', agentId });
+    await vi.waitFor(() => {
+      reviewThreadId =
+        controller.snapshot().threads.find(({ title }) => title === 'Memory and skill review')
+          ?.id ?? '';
+      expect(reviewThreadId).not.toBe('');
+    });
+    await review;
+    await vi.waitFor(() => expect(reviewTurns).toHaveLength(1));
+    expect(originalSelect).toBeDefined();
+
+    await controller.invoke('threads.send', { threadId, text: 'Book my flight' });
+    await vi.waitFor(() =>
+      expect(userTurns.some((text) => text.includes('Book my flight'))).toBe(true),
+    );
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+        'idle',
+      ),
+    );
+    const reviewThread = controller.snapshot().threads.find(({ id }) => id === reviewThreadId)!;
+    expect(reviewThread.status).toBe('idle');
+    expect(reviewThread.unread).toBe(false);
+    expect(notify).not.toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: reviewThreadId }),
+    );
   } finally {
     await controller.shutdown();
   }
@@ -6384,26 +7298,43 @@ it('persists Use my Mac separately from action confirmations and avoids Chrome p
   const { controller, repository } = await createHarness();
   await controller.invoke('computer.setTrust', { trust: 'ask' });
   expect(controller.computerAccessMode()).toBe('mac');
-  expect(controller.macBackgroundControl()).toBe(false);
+  expect(controller.macBackgroundControl()).toBe(true);
   expect(controller.macBackgroundFallback()).toBe('pause');
   expect(controller.computerTrust()).toBe('ask');
   await controller.invoke('computer.setAccessMode', {
     mode: 'mac',
-    background: true,
+    background: false,
     backgroundFallback: 'foreground',
   });
   await controller.invoke('computer.setAccessMode', { mode: 'mac' });
-  expect(controller.snapshot().computer.backgroundControl).toBe(true);
+  expect(controller.snapshot().computer.backgroundControl).toBe(false);
   expect(controller.snapshot().computer.accessMode).toBe('mac');
   expect(controller.computerTrust()).toBe('ask');
   expect(await controller.ensureBrowserAttachedForActions()).toContain('Use my Mac');
   expect(controller.snapshot().browser.status).toBe('detached');
   const restored = await createHarness({ repository });
   expect(restored.controller.computerAccessMode()).toBe('mac');
-  expect(restored.controller.macBackgroundControl()).toBe(true);
+  expect(restored.controller.macBackgroundControl()).toBe(false);
   expect(restored.controller.macBackgroundFallback()).toBe('foreground');
   expect(restored.controller.computerTrust()).toBe('ask');
   await restored.controller.shutdown();
+});
+
+it('works in the background by default, including profiles saved before the setting existed', async () => {
+  const { controller, repository } = await createHarness();
+  expect(controller.snapshot().computer.backgroundControl).toBe(true);
+  const stored = repository.get<{ preferences: { macBackgroundControl?: boolean } }>(
+    'desktop',
+    'state',
+  )!;
+  delete stored.preferences.macBackgroundControl;
+  repository.put('desktop', 'state', stored);
+  const legacy = await createHarness({ repository });
+  expect(legacy.controller.macBackgroundControl()).toBe(true);
+  await legacy.controller.invoke('computer.setAccessMode', { mode: 'mac', background: false });
+  const onScreen = await createHarness({ repository });
+  expect(onScreen.controller.macBackgroundControl()).toBe(false);
+  await onScreen.controller.shutdown();
 });
 
 it('preserves connected mode for existing profiles, including profiles predating the mode setting', async () => {
@@ -6629,5 +7560,357 @@ describe('follow-up messages while a turn runs', () => {
     } finally {
       await restored.controller.shutdown();
     }
+  });
+});
+
+describe('Use my Mac power and lock handling', () => {
+  /** A runtime whose first turn keeps working until it is stopped; later turns complete. */
+  function holdingRuntime(fail?: Error) {
+    const requests: string[] = [];
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput, signal: AbortSignal) {
+        requests.push(input.text);
+        if (fail) throw fail;
+        if (requests.length === 1)
+          await new Promise((_, reject) =>
+            signal.addEventListener('abort', () => reject(new Error('stopped')), {
+              once: true,
+            }),
+          );
+        yield {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    return { runtime, requests };
+  }
+
+  /** Stands in for the macOS memory engine so these checks run on any platform. */
+  let notchHelperPath: string | undefined;
+  async function fakeNotchHelper() {
+    if (notchHelperPath) return notchHelperPath;
+    const directory = await mkdtemp(join(tmpdir(), 'sia-notch-helper-'));
+    const path = join(directory, 'notch-helper');
+    await writeFile(
+      path,
+      `#!${process.execPath}\nlet input = '';\nprocess.stdin.on('data', (chunk) => (input += chunk));\nprocess.stdin.on('end', () => {\n  const request = JSON.parse(input);\n  process.stdout.write(JSON.stringify({ prompt: String(request.request ?? ''), recorded: true }));\n});\n`,
+      { mode: 0o755 },
+    );
+    notchHelperPath = path;
+    return path;
+  }
+  afterAll(async () => {
+    if (notchHelperPath)
+      await rm(join(notchHelperPath, '..'), { recursive: true, force: true });
+  });
+
+  async function macThread(options: Parameters<typeof createHarness>[0]) {
+    const keepAwake = { hold: vi.fn(), release: vi.fn() };
+    const harness = await createHarness({
+      fakeServices: false,
+      keepAwake,
+      notchHelperPath: await fakeNotchHelper(),
+      ...options,
+    });
+    const agent = await harness.controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await harness.controller.invoke('threads.create', {
+      agentId: agent.agentId,
+    });
+    const status = () =>
+      harness.controller.snapshot().threads.find(({ id }) => id === threadId)?.status;
+    return { ...harness, keepAwake, threadId, status };
+  }
+
+  it('keeps the Mac awake for a Mac task and releases it when the task stops or fails', async () => {
+    const { runtime } = holdingRuntime();
+    const { controller, keepAwake, threadId, status } = await macThread({ runtime });
+    expect(controller.computerAccessMode()).toBe('mac');
+    await controller.invoke('threads.send', { threadId, text: 'Tidy my desktop' });
+    await vi.waitFor(() => expect(keepAwake.hold).toHaveBeenCalledWith(threadId));
+    expect(keepAwake.release).not.toHaveBeenCalled();
+    await controller.invoke('threads.cancel', { threadId });
+    await vi.waitFor(() => expect(keepAwake.release).toHaveBeenCalledWith(threadId));
+    expect(status()).toBe('idle');
+    await controller.shutdown();
+
+    const failing = await macThread({ runtime: holdingRuntime(new Error('boom')).runtime });
+    await failing.controller.invoke('threads.send', {
+      threadId: failing.threadId,
+      text: 'Tidy my desktop',
+    });
+    await vi.waitFor(() => expect(failing.status()).toBe('failed'));
+    expect(failing.keepAwake.hold).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(failing.keepAwake.release).toHaveBeenCalledTimes(1));
+    await failing.controller.shutdown();
+  });
+
+  it('lets the display sleep while a Mac task waits on an approval', async () => {
+    const gate = Promise.withResolvers<void>();
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        const base = {
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 1,
+          type: 'approval' as const,
+          payload: { phase: 'requested', requestId: 'r1', title: 'Run', description: 'ls' },
+        } as never;
+        await gate.promise;
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => gate.resolve()),
+      cancel: vi.fn(async () => gate.resolve()),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller, keepAwake, threadId, status } = await macThread({ runtime });
+    await controller.invoke('threads.send', { threadId, text: 'Tidy my desktop' });
+    await vi.waitFor(() => expect(status()).toBe('waiting'));
+    expect(keepAwake.hold).toHaveBeenCalledTimes(1);
+    expect(keepAwake.release).toHaveBeenCalledWith(threadId);
+    const approval = controller
+      .snapshot()
+      .approvals.find((item) => item.threadId === threadId)!;
+    await controller.invoke('approvals.resolve', {
+      approvalId: approval.id,
+      decision: 'approve',
+    });
+    expect(status()).toBe('running');
+    expect(keepAwake.hold).toHaveBeenCalledTimes(2);
+    gate.resolve();
+    await vi.waitFor(() => expect(status()).toBe('idle'));
+    expect(keepAwake.release).toHaveBeenCalledTimes(2);
+    await controller.shutdown();
+  });
+
+  it('runs the plain request when the native memory engine fails', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sia-broken-helper-'));
+    const helper = join(directory, 'notch-helper');
+    await writeFile(helper, `#!${process.execPath}\nprocess.exit(3);\n`, { mode: 0o755 });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const inputs: RuntimeTurnInput[] = [];
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        inputs.push(input);
+        yield {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller, threadId } = await macThread({ runtime, notchHelperPath: helper });
+    try {
+      await controller.invoke('threads.send', { threadId, text: 'Tidy my desktop' });
+      await vi.waitFor(() => expect(inputs).toHaveLength(1));
+      expect(inputs[0]!.text).toContain('Tidy my desktop');
+      expect(
+        controller
+          .snapshot()
+          .timeline.some((item) => item.threadId === threadId && item.kind === 'error'),
+      ).toBe(false);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('[sia:notch]'));
+    } finally {
+      warn.mockRestore();
+      await controller.shutdown();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('does not hold the Mac awake for connected-app tasks', async () => {
+    const { runtime } = holdingRuntime();
+    const { controller, keepAwake, threadId, status } = await macThread({ runtime });
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    await controller.invoke('threads.send', { threadId, text: 'Summarize my notes' });
+    await vi.waitFor(() => expect(status()).toBe('running'));
+    expect(keepAwake.hold).not.toHaveBeenCalled();
+    await controller.invoke('threads.cancel', { threadId });
+    await controller.shutdown();
+  });
+
+  it('pauses a Mac task when the screen locks and continues it after unlock', async () => {
+    const { runtime, requests } = holdingRuntime();
+    const { controller, keepAwake, threadId, status } = await macThread({ runtime });
+    await controller.invoke('threads.send', { threadId, text: 'File my receipts' });
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    controller.setMacAvailability('locked');
+    expect(status()).toBe('failed');
+    expect(runtime.cancel).toHaveBeenCalled();
+    expect(controller.snapshot().timeline.at(-1)).toMatchObject({
+      kind: 'error',
+      title: 'Task paused',
+      text: 'Your Mac locked, so Sia paused this task. Unlock your Mac and press Continue task.',
+    });
+    await vi.waitFor(() => expect(keepAwake.release).toHaveBeenCalledWith(threadId));
+    expect(status()).toBe('failed');
+
+    // Continue task while still locked waits instead of driving a locked screen.
+    await controller.invoke('threads.retry', { threadId });
+    const waiting = controller.snapshot().threads.find(({ id }) => id === threadId)!;
+    expect(waiting).toMatchObject({
+      status: 'queued',
+      queueReason: 'Waiting for your Mac to unlock.',
+    });
+    expect(requests).toHaveLength(1);
+    controller.setMacAvailability('available');
+    await vi.waitFor(() => expect(status()).toBe('idle'));
+    expect(requests).toHaveLength(2);
+    expect(requests[1]).toContain('File my receipts');
+    await controller.shutdown();
+  });
+
+  it('holds a queued follow-up behind a paused Mac task until the person continues it', async () => {
+    const { runtime, requests } = holdingRuntime();
+    const { controller, keepAwake, threadId, status } = await macThread({ runtime });
+    const thread = () => controller.snapshot().threads.find(({ id }) => id === threadId)!;
+    await controller.invoke('threads.send', { threadId, text: 'File my receipts' });
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    await controller.invoke('threads.send', { threadId, text: 'Then email Sam' });
+    controller.setMacAvailability('locked');
+    await vi.waitFor(() => expect(keepAwake.release).toHaveBeenCalledWith(threadId));
+    // The pause keeps its Continue task instead of turning into a workspace wait.
+    expect(thread().status).toBe('failed');
+    expect(thread().queueReason).toBeUndefined();
+
+    controller.setMacAvailability('available');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(requests).toHaveLength(1);
+    expect(status()).toBe('failed');
+
+    controller.setMacAvailability('locked');
+    await controller.invoke('threads.retry', { threadId });
+    expect(thread()).toMatchObject({
+      status: 'queued',
+      queueReason: 'Waiting for your Mac to unlock.',
+    });
+    controller.setMacAvailability('available');
+    await vi.waitFor(() => expect(requests).toHaveLength(3));
+    expect(requests[1]).toContain('File my receipts');
+    expect(requests[2]).toContain('Then email Sam');
+    await vi.waitFor(() => expect(status()).toBe('idle'));
+    await controller.shutdown();
+  });
+
+  it('forgets a pause hold once the person removes its follow-ups and writes again', async () => {
+    const { runtime, requests } = holdingRuntime();
+    const { controller, threadId, status } = await macThread({ runtime });
+    await controller.invoke('threads.send', { threadId, text: 'File my receipts' });
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    await controller.invoke('threads.send', { threadId, text: 'Then email Sam' });
+    controller.setMacAvailability('locked');
+    await vi.waitFor(() => expect(controller.snapshot().threads[0]?.status).toBe('failed'));
+    const queued = controller
+      .snapshot()
+      .timeline.find((item) => item.kind === 'user' && item.status === 'pending')!;
+    await controller.invoke('threads.unqueue', { threadId, messageId: queued.id });
+    controller.setMacAvailability('available');
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    await controller.invoke('threads.send', { threadId, text: 'Just tidy the desktop' });
+    await controller.invoke('threads.send', { threadId, text: 'And empty the trash' });
+    await vi.waitFor(() => expect(requests).toHaveLength(3));
+    expect(requests[2]).toContain('And empty the trash');
+    await vi.waitFor(() => expect(status()).toBe('idle'));
+    await controller.shutdown();
+  });
+
+  it('pauses with a plain message when the Mac goes to sleep', async () => {
+    const { runtime } = holdingRuntime();
+    const { controller, threadId, status } = await macThread({ runtime });
+    await controller.invoke('threads.send', { threadId, text: 'File my receipts' });
+    await vi.waitFor(() => expect(status()).toBe('running'));
+    controller.setMacAvailability('asleep');
+    expect(status()).toBe('failed');
+    expect(controller.snapshot().timeline.at(-1)?.text).toBe(
+      'Your Mac went to sleep, so Sia paused this task. Wake your Mac and press Continue task.',
+    );
+    await controller.shutdown();
+  });
+
+  it('stops a background task with a next step when the window-control driver is unavailable', async () => {
+    const { runtime, requests } = holdingRuntime();
+    const unavailable = {
+      ...computer,
+      permissions: async () => ({
+        status: 'error' as const,
+        accessibility: false,
+        screenRecording: false,
+        detail: "Cannot find package '@trycua/cua-driver'",
+      }),
+    };
+    const { controller, keepAwake, threadId, status } = await macThread({
+      runtime,
+      computer: unavailable,
+    });
+    expect(controller.macBackgroundControl()).toBe(true);
+    await controller.invoke('threads.send', { threadId, text: 'Tidy my desktop' });
+    await vi.waitFor(() => expect(status()).toBe('failed'));
+    expect(requests).toEqual([]);
+    expect(controller.snapshot().timeline.at(-1)?.text).toBe(
+      'Working in the background isn’t available on this Mac right now. Choose On my screen in Settings → Computer, then press Continue task.',
+    );
+    await vi.waitFor(() => expect(keepAwake.release).toHaveBeenCalledWith(threadId));
+
+    await controller.invoke('computer.setAccessMode', { mode: 'mac', background: false });
+    await controller.invoke('threads.retry', { threadId });
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    await controller.invoke('threads.cancel', { threadId });
+    await controller.shutdown();
+  });
+
+  it('asks for missing permissions before a background task starts', async () => {
+    const { runtime, requests } = holdingRuntime();
+    const { controller, threadId, status } = await macThread({
+      runtime,
+      computer: {
+        ...computer,
+        permissions: async () => ({
+          status: 'needs_permission' as const,
+          accessibility: true,
+          screenRecording: false,
+        }),
+      },
+    });
+    await controller.invoke('threads.send', { threadId, text: 'Tidy my desktop' });
+    await vi.waitFor(() => expect(status()).toBe('failed'));
+    expect(requests).toEqual([]);
+    expect(controller.snapshot().timeline.at(-1)?.text).toContain(
+      'Sia needs Accessibility and Screen Recording to work in the background.',
+    );
+    await controller.shutdown();
   });
 });

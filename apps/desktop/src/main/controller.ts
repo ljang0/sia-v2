@@ -1,4 +1,5 @@
 import { taskRecoveryContext } from './task-recovery.js';
+import type { TaskSnapshot } from './latest-task-turn.js';
 import type { AutomationApp, AutomationPermissions } from '../shared/mac-permissions.js';
 import {
   completedJournal,
@@ -6,12 +7,15 @@ import {
   NATIVE_MEMORY_REVIEW_PROMPT,
 } from './memory-suggestions.js';
 import { NativeSkills } from './native-skills.js';
+import { imageActivityTitle } from '../shared/activity-label.js';
 import { conversationTitle } from '../shared/plain-text.js';
+import { threadPreviews, type ThreadPreviewMemo } from '../shared/thread-previews.js';
 import { skillExecutionMode, skillUnavailableReason } from '../shared/skill-execution.js';
 import { NotchVault } from './notch/vault.js';
 import { notchConsolidationInstructions } from './notch/foreground.js';
 import type { MacTaskResult } from './mac-execution.js';
 import { AssistantLibrary, DESKTOP_EXECUTION_GUIDANCE } from './assistant-library.js';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, stat } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join, normalize, resolve } from 'node:path';
@@ -54,6 +58,7 @@ import type {
   DesktopSnapshot,
   ProviderId,
   ProviderUsageView,
+  ProviderUsageLimitView,
   ProviderView,
   ScheduleView,
   ThreadView,
@@ -65,7 +70,7 @@ import type {
   TerminalResultView,
 } from '../shared/bridge.js';
 import type { RecordRepository } from './persistence.js';
-import { probeProviders } from './provider-probe.js';
+import { probeProviders, providerPlan } from './provider-probe.js';
 import type { RuntimeCoordinator } from './runtime-coordinator.js';
 import type { CloudIdentityStatus } from './identity.js';
 import type { CuaAuthorizationContext } from './cua-service.js';
@@ -137,6 +142,8 @@ interface ControllerOptions {
   };
   /** Reveals a directory in Finder; used for the trajectory log. */
   revealDirectory?(path: string): Promise<void>;
+  /** Keeps the Mac awake while Use my Mac tasks run; absent in tests that do not care. */
+  keepAwake?: { hold(id: string): void; release(id: string): void };
   chooseDirectory(): Promise<string | null>;
   /** Visible app-managed root used when a new agent does not choose a custom folder. */
   defaultWorkspaceRoot?: string;
@@ -144,6 +151,8 @@ interface ControllerOptions {
   chooseFiles?(): Promise<string[]>;
   openPath?(path: string): Promise<void>;
   composeFeedback?(subject: string, body: string): Promise<void>;
+  /** Registers or removes Sia as a macOS login item. */
+  setOpenAtLogin?(enabled: boolean): void;
   appVersion?: string;
   updateManifestUrl?: string;
   updateManifestPublicKey?: string;
@@ -202,7 +211,10 @@ interface PersistedState {
   cloudFeatures: CloudFeatureFlags;
   preferences: {
     completionSound: boolean;
+    openAtLogin?: boolean;
     appearance?: 'calm' | 'expressive';
+    /** Workspace Command tool (arbitrary shell in the agent folder). Off unless set to true. */
+    developerTools?: boolean;
     onboarding?: NonNullable<DesktopSnapshot['preferences']['onboarding']>;
     /** All eligible actions run without in-app approval only when explicitly set to 'auto'. */
     computerAccessMode?: 'mac' | 'connected';
@@ -439,6 +451,7 @@ export class DesktopController {
   readonly #chooseFiles: (() => Promise<string[]>) | undefined;
   readonly #openPath: ((path: string) => Promise<void>) | undefined;
   readonly #composeFeedback: ((subject: string, body: string) => Promise<void>) | undefined;
+  readonly #setOpenAtLogin: ((enabled: boolean) => void) | undefined;
   readonly #appVersion: string;
   readonly #updateManifestUrl: string | undefined;
   readonly #updateManifestPublicKey: string | undefined;
@@ -450,7 +463,15 @@ export class DesktopController {
   #pushToTalk: PushToTalkService | undefined;
   readonly #startupNotice: ControllerOptions['startupNotice'];
   readonly #listeners = new Set<(event: DesktopPushEvent) => void>();
+  readonly #rendererCall = new AsyncLocalStorage<true>();
+  readonly #previewMemo: ThreadPreviewMemo = new WeakMap();
   readonly #runningTurns = new Map<string, AbortController>();
+  /** Running Use my Mac turns by thread; they hold the keep-awake assertion. */
+  readonly #macTurns = new Map<string, QueuedTurn>();
+  readonly #keepAwake: ControllerOptions['keepAwake'];
+  /** Mac turns currently keeping the display awake; a turn waiting on the person does not. */
+  readonly #awakeTurns = new Set<string>();
+  #macUnavailable: 'locked' | 'asleep' | undefined;
   readonly #phoneTurns = new Set<string>();
   readonly #turnTasks = new Map<string, Promise<void>>();
   readonly #workspaceLeases = new Map<string, string>();
@@ -472,6 +493,11 @@ export class DesktopController {
   readonly #allowedModelRoutes = new Map<string, readonly ModelRoute[]>();
   readonly #actionLeases = new LocalLeaseCoordinator(4);
   #queuedTurns: QueuedTurn[] = [];
+  /**
+   * Threads whose Mac task paused on lock or sleep. Their queued follow-ups wait for the
+   * person to press Continue task, send a message, or Stop, instead of skipping the pause.
+   */
+  readonly #heldThreads = new Set<string>();
   #researchSync: Promise<void> | undefined;
   #connectionSetup: { controller: AbortController; task: Promise<void> } | undefined;
   #researchRetryTimer: NodeJS.Timeout | undefined;
@@ -491,6 +517,8 @@ export class DesktopController {
   #browserSessionId: string | undefined;
   #state: PersistedState = structuredClone(INITIAL_STATE);
   #providers: ProviderView[] = [];
+  /** Plan usage windows reported during this session; kept apart so a provider refresh keeps them. */
+  readonly #usageLimits = new Map<ProviderId, ProviderUsageLimitView>();
   #computerState: ComputerPermissionsView = {
     status: 'unavailable',
     accessibility: false,
@@ -528,6 +556,7 @@ export class DesktopController {
     this.#openExternal = options.openExternal;
     this.#trajectory = options.trajectory;
     this.#capabilitySetup = options.capabilitySetup;
+    this.#keepAwake = options.keepAwake;
     this.#runCommand = options.runCommand ?? defaultRunCommand;
     this.#providerProbe = options.providerProbe ?? probeProviders;
     this.#captureMacContext = options.captureMacContext;
@@ -549,6 +578,7 @@ export class DesktopController {
     this.#chooseFiles = options.chooseFiles;
     this.#openPath = options.openPath;
     this.#composeFeedback = options.composeFeedback;
+    this.#setOpenAtLogin = options.setOpenAtLogin;
     this.#appVersion = options.appVersion ?? 'development';
     this.#updateManifestUrl = options.updateManifestUrl;
     this.#updateManifestPublicKey = options.updateManifestPublicKey;
@@ -641,6 +671,65 @@ export class DesktopController {
       this.computerAccessMode() === 'mac',
     );
     this.#pushToTalk.syncAccess();
+  }
+
+  /**
+   * A locked or sleeping Mac blocks both Use my Mac routes. Running Mac tasks pause with a
+   * Continue task banner; new ones wait in the queue until the Mac is available again.
+   */
+  setMacAvailability(state: 'available' | 'locked' | 'asleep'): void {
+    const wasUnavailable = this.#macUnavailable;
+    this.#macUnavailable = state === 'available' ? undefined : state;
+    if (!this.#macUnavailable) {
+      if (wasUnavailable) {
+        this.#drainQueue();
+        this.#commit();
+      }
+      return;
+    }
+    const text =
+      state === 'locked'
+        ? 'Your Mac locked, so Sia paused this task. Unlock your Mac and press Continue task.'
+        : 'Your Mac went to sleep, so Sia paused this task. Wake your Mac and press Continue task.';
+    if (!this.#macTurns.size) return;
+    for (const threadId of [...this.#macTurns.keys()]) this.#pauseMacTurn(threadId, text);
+    this.#commit();
+  }
+
+  #pauseMacTurn(threadId: string, text: string): void {
+    const thread = this.#requireThread(threadId);
+    const running = this.#runningTurns.get(threadId);
+    const turn = this.#macTurns.get(threadId);
+    if (!running || !turn || running.signal.aborted) return;
+    this.#pushToTalk?.cancelTask(threadId);
+    running.abort();
+    this.#revokeApprovalsForTurn(threadId, turn.id);
+    void this.#runtime?.cancel(threadId, turn.id).catch(() => undefined);
+    const question = this.#pendingQuestions.get(threadId);
+    this.#pendingQuestions.delete(threadId);
+    if (question)
+      void this.#runtime
+        ?.respondToRequest(threadId, { requestId: question.requestId })
+        .catch(() => undefined);
+    if (turn.attachments?.length) this.#failedTurnAttachments.set(turn.id, turn.attachments);
+    this.#heldThreads.add(threadId);
+    thread.status = 'failed';
+    delete thread.queueReason;
+    thread.interruptedTurnId = turn.id;
+    this.#appendTimeline(threadId, {
+      id: randomUUID(),
+      turnId: turn.id,
+      kind: 'error',
+      title: 'Task paused',
+      text,
+      status: 'failed',
+      timestamp: new Date().toISOString(),
+    });
+    thread.updatedAt = new Date().toISOString();
+  }
+
+  #isMacTurn(threadId: string): boolean {
+    return this.computerAccessMode() === 'mac' && !this.#assistantLibrary.isReview(threadId);
   }
 
   #assistantSuspended = false;
@@ -1013,8 +1102,9 @@ export class DesktopController {
     return this.#state.preferences.computerAccessMode ?? 'connected';
   }
 
+  /** Use my Mac works in the background unless the person explicitly chose On my screen. */
   macBackgroundControl(): boolean {
-    return this.#state.preferences.macBackgroundControl === true;
+    return this.#state.preferences.macBackgroundControl !== false;
   }
 
   macBackgroundFallback(): 'pause' | 'foreground' {
@@ -1292,6 +1382,7 @@ export class DesktopController {
       const fakeCodex: ProviderView = {
         id: 'codex',
         label: 'Codex',
+        ...(providerPlan('codex') ? { plan: providerPlan('codex')! } : {}),
         status: 'ready',
         model: 'gpt-5.6-sol',
         version: '0.147.0',
@@ -1380,7 +1471,12 @@ export class DesktopController {
         return;
       const periodic = Date.now() >= this.#nextNotchCheck;
       if (periodic) this.#nextNotchCheck = Date.now() + 1800_000;
-      const view = this.#assistantLibrary.view();
+      let view: ReturnType<AssistantLibrary['view']>;
+      try {
+        view = this.#assistantLibrary.view();
+      } catch {
+        return; // Storage closed or unavailable; the next tick checks again.
+      }
       for (const agentId of view.nativeLearningAgents ?? []) {
         if (!view.learningAgents?.includes(agentId) || !view.reviewAgents?.includes(agentId))
           continue;
@@ -1399,7 +1495,63 @@ export class DesktopController {
     void this.#runDueSchedules();
   }
 
+  /** The complete state, including every thread's history, for in-process callers and tests. */
   snapshot(): DesktopSnapshot {
+    return this.#snapshot(false);
+  }
+
+  /**
+   * What the renderer draws: the active thread's history, one preview per thread and the active
+   * thread's approvals. Pushing every thread's history on each streamed token made the app slow
+   * down as history grew.
+   */
+  rendererSnapshot(): DesktopSnapshot {
+    return this.#snapshot(true);
+  }
+
+  /** Task metadata and each thread's latest turn, without cloning every thread's history. */
+  taskSnapshot(): TaskSnapshot {
+    if (this.#releaseAccessLocked())
+      return {
+        revision: this.#revision,
+        agents: [],
+        threads: [],
+        timeline: [],
+        approvals: [],
+        preferences: { completionSound: false },
+      };
+    const lastRequest = new Map<string, TimelineItemView>();
+    for (const item of this.#state.timeline)
+      if (item.kind === 'user') lastRequest.set(item.threadId, item);
+    return {
+      revision: this.#revision,
+      agents: structuredClone(this.#state.agents),
+      threads: structuredClone(this.#state.threads),
+      timeline: structuredClone(
+        this.#state.timeline.filter((item) => {
+          const request = lastRequest.get(item.threadId);
+          return request !== undefined && item.sequence >= request.sequence;
+        }),
+      ),
+      approvals: structuredClone(this.#state.approvals),
+      preferences: structuredClone(this.#state.preferences),
+      ...(this.#state.activeAgentId ? { activeAgentId: this.#state.activeAgentId } : {}),
+    };
+  }
+
+  /** Runs a renderer bridge call so that any snapshot it returns is the renderer's scoped view. */
+  invokeForRenderer<M extends BridgeMethod>(
+    method: M,
+    input: BridgeRequestMap[M],
+  ): Promise<BridgeResultMap[M]> {
+    return this.#rendererCall.run(true, () => this.invoke(method, input));
+  }
+
+  #resultSnapshot(): DesktopSnapshot {
+    return this.#snapshot(this.#rendererCall.getStore() === true);
+  }
+
+  #snapshot(scoped: boolean): DesktopSnapshot {
     const identity = this.#identity.status();
     const cloud: DesktopSnapshot['cloud'] = {
       status:
@@ -1451,10 +1603,31 @@ export class DesktopController {
       revision: this.#revision,
       agents: structuredClone(this.#state.agents),
       threads: structuredClone(this.#state.threads),
-      timeline: structuredClone(this.#state.timeline),
-      approvals: structuredClone(this.#state.approvals),
+      ...(scoped
+        ? {
+            timeline: structuredClone(
+              this.#state.timeline.filter(
+                ({ threadId }) => threadId === this.#state.activeThreadId,
+              ),
+            ),
+            previews: structuredClone(
+              Object.fromEntries(threadPreviews(this.#state.timeline, this.#previewMemo)),
+            ),
+            approvals: structuredClone(
+              this.#state.approvals.filter(
+                ({ threadId }) => threadId === this.#state.activeThreadId,
+              ),
+            ),
+          }
+        : {
+            timeline: structuredClone(this.#state.timeline),
+            approvals: structuredClone(this.#state.approvals),
+          }),
       providers: this.#providers.map((provider) => ({
         ...structuredClone(provider),
+        ...(this.#usageLimits.has(provider.id)
+          ? { limits: { ...this.#usageLimits.get(provider.id)! } }
+          : {}),
         ...(provider.id === 'codex' && this.#codexSetup
           ? { setup: { ...this.#codexSetup } }
           : {}),
@@ -1592,7 +1765,7 @@ export class DesktopController {
     }
     switch (method) {
       case 'bootstrap':
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       case 'scotty.configure':
         if (!this.#scotty) throw new Error('Scotty is unavailable in this build.');
         return (await this.#scotty(
@@ -1944,7 +2117,7 @@ export class DesktopController {
           ...(agent ? { agentId: agent.id } : {}),
         };
         this.#commit();
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       }
       case 'settings.restartForOnboarding': {
         const progress = this.#state.preferences.onboarding;
@@ -1964,7 +2137,7 @@ export class DesktopController {
           throw new Error(
             'Wait for the current task or recording to finish before restarting.',
           );
-        if (progress.restartPending) return this.snapshot() as BridgeResultMap[M];
+        if (progress.restartPending) return this.#resultSnapshot() as BridgeResultMap[M];
         this.#state.preferences.onboarding = {
           ...progress,
           step: 'verify',
@@ -1979,7 +2152,7 @@ export class DesktopController {
           this.#commit();
           throw error;
         }
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       }
       case 'computer.setupMessages':
         if (!this.#openMessagesPermissions)
@@ -1987,19 +2160,34 @@ export class DesktopController {
         await this.#openMessagesPermissions();
         await this.#refreshCapabilityStatuses();
         this.#emit();
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       case 'settings.setAppearance':
         this.#state.preferences.appearance = (
           input as BridgeRequestMap['settings.setAppearance']
         ).appearance;
         this.#commit();
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       case 'settings.setCompletionSound':
         this.#state.preferences.completionSound = (
           input as BridgeRequestMap['settings.setCompletionSound']
         ).enabled;
         this.#commit();
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
+      case 'settings.setOpenAtLogin': {
+        const { enabled } = input as BridgeRequestMap['settings.setOpenAtLogin'];
+        if (!this.#setOpenAtLogin) throw new Error('Opening at login is unavailable here.');
+        this.#setOpenAtLogin(enabled);
+        this.#state.preferences.openAtLogin = enabled;
+        this.#commit();
+        return this.#resultSnapshot() as BridgeResultMap[M];
+      }
+      case 'settings.setDeveloperTools': {
+        const { enabled } = input as BridgeRequestMap['settings.setDeveloperTools'];
+        if (enabled) this.#state.preferences.developerTools = true;
+        else delete this.#state.preferences.developerTools;
+        this.#commit();
+        return this.#resultSnapshot() as BridgeResultMap[M];
+      }
       case 'feedback.compose':
         return (await this.#composeFeedbackMessage(
           input as BridgeRequestMap['feedback.compose'],
@@ -2019,7 +2207,7 @@ export class DesktopController {
           (input as BridgeRequestMap['computer.requestAutomation']).app,
         );
         this.#emit();
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       }
       case 'computer.openMessages':
         return (await this.#openMessagesApp()) as unknown as BridgeResultMap[M];
@@ -2038,25 +2226,25 @@ export class DesktopController {
           this.computerAccessMode() === 'mac',
         );
         this.#commit();
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       }
       case 'computer.setTrust':
         this.#state.preferences.computerTrust = (
           input as BridgeRequestMap['computer.setTrust']
         ).trust;
         this.#commit();
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       case 'computer.setTrajectoryLog':
         this.#state.preferences.trajectoryLog = (
           input as BridgeRequestMap['computer.setTrajectoryLog']
         ).enabled;
         this.#commit();
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       case 'computer.revealTrajectories':
         if (this.#trajectory && this.#revealDirectory) {
           await this.#revealDirectory(this.#trajectory.rootDirectory);
         }
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       case 'browser.connectAndContinue':
         return (await this.#connectBrowserAndContinue(
           input as BridgeRequestMap['browser.connectAndContinue'],
@@ -2084,7 +2272,7 @@ export class DesktopController {
           value.requestAccessibility,
           value.speakReplies,
         );
-        return this.snapshot() as BridgeResultMap[M];
+        return this.#resultSnapshot() as BridgeResultMap[M];
       }
       case 'voice.pushToTalk.cancel':
         this.#pushToTalk?.cancel();
@@ -2299,19 +2487,22 @@ export class DesktopController {
         expiresUnixMs: request.expiresUnixMs.toString(),
       },
     });
+    this.#waitForApproval(context.threadId);
     this.#commit();
     this.#notifyNeedsAttention(context.threadId, 'approval', presentation.title);
 
     return new Promise((resolve) => {
+      // Wait for the person until the driver's own deadline; Sia adds no shorter limit.
       const remaining = Math.max(0, Number(request.expiresUnixMs) - Date.now());
       const timeout = setTimeout(
         () => {
           this.#pendingApprovals.delete(approvalId);
+          this.#resumeAfterRequest(context.threadId);
           this.#setApprovalStatus(approvalId, 'expired');
           this.#stageApprovalDecision(approvalId, context, 'expired');
           resolve('cancel');
         },
-        Math.min(remaining, 120_000),
+        Math.min(remaining, 2_147_483_647),
       );
       this.#pendingApprovals.set(approvalId, {
         resolve,
@@ -2367,7 +2558,7 @@ export class DesktopController {
     if (input.startOnboarding) {
       if (input.id)
         throw new Error('Setup creates a new agent; existing agents are unchanged.');
-      if (starter) return { agentId: starter.id, snapshot: this.snapshot() };
+      if (starter) return { agentId: starter.id, snapshot: this.#resultSnapshot() };
       if (this.#state.agents.length)
         throw new Error('Continue setup with your existing agent.');
     }
@@ -2378,6 +2569,9 @@ export class DesktopController {
     const agentId = existing?.id ?? randomUUID();
     const model = input.model.trim();
     const provider = input.provider ?? existing?.provider ?? this.#providerForModel(model);
+    // An agent already running on a retained compatibility provider keeps its route; nothing
+    // new may choose one.
+    if (provider !== existing?.provider) requireReleaseProvider(provider);
     this.#requireReadyProvider(provider, model);
     let workspace: string;
     if (input.workspace?.trim()) {
@@ -2405,7 +2599,7 @@ export class DesktopController {
       const created = this.#state.agents.find(
         ({ id }) => id === this.#state.preferences.onboarding?.agentId,
       );
-      if (created) return { agentId: created.id, snapshot: this.snapshot() };
+      if (created) return { agentId: created.id, snapshot: this.#resultSnapshot() };
       throw new Error('An agent was created while setup was in progress.');
     }
     const hue = input.hue ?? existing?.hue ?? this.#leastUsedHue();
@@ -2456,7 +2650,7 @@ export class DesktopController {
       return { agentId, snapshot: created.snapshot };
     }
     this.#commit();
-    return { agentId, snapshot: this.snapshot() };
+    return { agentId, snapshot: this.#resultSnapshot() };
   }
 
   #setAgentPinned(input: BridgeRequestMap['agents.setPinned']): DesktopSnapshot {
@@ -2464,7 +2658,7 @@ export class DesktopController {
     agent.pinned = input.pinned;
     agent.updatedAt = new Date().toISOString();
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #setAgentNotifications(input: BridgeRequestMap['agents.setNotifications']): DesktopSnapshot {
@@ -2472,11 +2666,12 @@ export class DesktopController {
     agent.notificationsEnabled = input.enabled;
     agent.updatedAt = new Date().toISOString();
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #duplicateAgent(agentId: string): BridgeResultMap['agents.duplicate'] {
     const source = this.#requireAgent(agentId);
+    requireReleaseProvider(source.provider);
     const now = new Date().toISOString();
     const copy: AgentView = {
       ...structuredClone(source),
@@ -2491,7 +2686,7 @@ export class DesktopController {
     this.#state.activeAgentId = copy.id;
     delete this.#state.activeThreadId;
     this.#commit();
-    return { agentId: copy.id, snapshot: this.snapshot() };
+    return { agentId: copy.id, snapshot: this.#resultSnapshot() };
   }
 
   #deleteAgent(agentId: string): DesktopSnapshot {
@@ -2527,7 +2722,7 @@ export class DesktopController {
     else delete this.#state.activeAgentId;
     delete this.#state.activeThreadId;
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #awaitCompletedTurns(): Promise<void> {
@@ -2611,6 +2806,7 @@ export class DesktopController {
   ): BridgeResultMap['threads.create'] {
     this.#requireSignedInReleaseAccount();
     const agent = this.#requireAgent(input.agentId);
+    requireReleaseProvider(agent.provider);
     const id = randomUUID();
     const now = new Date().toISOString();
     const releaseRoute = legacyModelRoute(agent.provider, agent.model);
@@ -2674,7 +2870,7 @@ export class DesktopController {
       this.#state.activeThreadId = id;
     }
     this.#commit();
-    return { threadId: id, snapshot: this.snapshot() };
+    return { threadId: id, snapshot: this.#resultSnapshot() };
   }
 
   #selectThread(threadId: string): DesktopSnapshot {
@@ -2683,7 +2879,7 @@ export class DesktopController {
     this.#state.activeThreadId = thread.id;
     this.#state.activeAgentId = thread.agentId;
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #renameThread(input: BridgeRequestMap['threads.rename']): DesktopSnapshot {
@@ -2693,15 +2889,17 @@ export class DesktopController {
     thread.title = title;
     thread.updatedAt = new Date().toISOString();
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
-  #setThreadDraft(input: BridgeRequestMap['threads.draft']): DesktopSnapshot {
+  #setThreadDraft(input: BridgeRequestMap['threads.draft']): { saved: true } {
     const thread = this.#requireThread(input.threadId);
     if (input.text) thread.draft = input.text;
     else delete thread.draft;
-    this.#commit();
-    return this.snapshot();
+    // Drafts are saved on each pause in typing. The composer already shows the text, so skip
+    // the push and write the encrypted state with the next save, shortly after, or at shutdown.
+    this.#persistSoon();
+    return { saved: true };
   }
 
   #configureThread(input: BridgeRequestMap['threads.config']): DesktopSnapshot {
@@ -2724,7 +2922,7 @@ export class DesktopController {
     else delete thread.reasoningEffort;
     thread.updatedAt = new Date().toISOString();
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #archiveThread(threadId: string): DesktopSnapshot {
@@ -2733,7 +2931,7 @@ export class DesktopController {
     thread.unread = false;
     if (this.#state.activeThreadId === thread.id) delete this.#state.activeThreadId;
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #unarchiveThread(threadId: string): DesktopSnapshot {
@@ -2741,21 +2939,22 @@ export class DesktopController {
     delete thread.archivedAt;
     thread.updatedAt = new Date().toISOString();
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #setThreadUnread(input: BridgeRequestMap['threads.setUnread']): DesktopSnapshot {
     const thread = this.#requireThread(input.threadId);
     thread.unread = input.unread;
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #forkThread(
     input: BridgeRequestMap['threads.fork'],
     primary = false,
   ): Promise<BridgeResultMap['threads.fork']> {
-    const source = this.#requireThread(input.threadId);
+    // A busy thread's live approval, question and queued follow-ups belong to that run.
+    const source = this.#requireIdleThread(input.threadId, 'fork this thread');
     const id = randomUUID();
     let workspace = primary
       ? normalizeWorkspace(source.worktree?.sourceWorkspace ?? source.workspace)
@@ -2799,7 +2998,14 @@ export class DesktopController {
     this.#state.threads.push(forked);
     this.#state.timeline.push(
       ...this.#state.timeline
-        .filter((item) => item.threadId === source.id)
+        .filter(
+          (item) =>
+            item.threadId === source.id &&
+            !(
+              item.status === 'pending' &&
+              (item.kind === 'user' || item.kind === 'approval' || item.kind === 'question')
+            ),
+        )
         .map((item) => ({ ...structuredClone(item), id: randomUUID(), threadId: id })),
     );
     const agent = this.#requireAgent(source.agentId);
@@ -2808,7 +3014,7 @@ export class DesktopController {
     this.#state.activeAgentId = source.agentId;
     this.#state.activeThreadId = id;
     this.#commit();
-    return { threadId: id, snapshot: this.snapshot() };
+    return { threadId: id, snapshot: this.#resultSnapshot() };
   }
 
   async #handoffThread(
@@ -2929,7 +3135,7 @@ export class DesktopController {
       updatedAt: now,
     };
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #pauseGoal(threadId: string): DesktopSnapshot {
@@ -2938,7 +3144,7 @@ export class DesktopController {
     thread.goal.status = 'paused';
     thread.goal.updatedAt = new Date().toISOString();
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #resumeGoal(threadId: string): DesktopSnapshot {
@@ -2960,7 +3166,7 @@ export class DesktopController {
     const thread = this.#requireIdleThread(threadId, 'clear this goal');
     delete thread.goal;
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #deleteThread(threadId: string): DesktopSnapshot {
@@ -2978,6 +3184,17 @@ export class DesktopController {
     const agent = this.#requireAgent(thread.agentId);
     agent.threadIds = agent.threadIds.filter((id) => id !== thread.id);
     agent.updatedAt = new Date().toISOString();
+    // Release what the deleted thread still holds: its provider session and file grants.
+    for (const item of this.#state.timeline)
+      if (item.threadId === thread.id && item.turnId)
+        this.#failedTurnAttachments.delete(item.turnId);
+    for (const [id, grant] of this.#attachmentGrants)
+      if (grant.threadId === thread.id) this.#attachmentGrants.delete(id);
+    this.#heldThreads.delete(thread.id);
+    const runtime = this.#runtime;
+    void Promise.resolve()
+      .then(() => runtime?.releaseSession(thread.id))
+      .catch(() => undefined);
     this.#state.threads = this.#state.threads.filter((candidate) => candidate.id !== thread.id);
     this.#state.timeline = this.#state.timeline.filter((item) => item.threadId !== thread.id);
     this.#state.approvals = this.#state.approvals.filter(
@@ -2993,7 +3210,7 @@ export class DesktopController {
     );
     if (this.#state.activeThreadId === thread.id) delete this.#state.activeThreadId;
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   /** Host-only Cmd+E capture, before the command panel takes the user's app focus. */
@@ -3111,7 +3328,7 @@ export class DesktopController {
           this.#commit();
         });
       this.#commit();
-      return { turnId: pendingQuestion.turnId, snapshot: this.snapshot() };
+      return { turnId: pendingQuestion.turnId, snapshot: this.#resultSnapshot() };
     }
     // Provider state can change after an agent or immutable thread was created.
     // Revalidate every new turn instead of trusting persisted configuration.
@@ -3170,7 +3387,17 @@ export class DesktopController {
     };
     // Keep short-lived grants available for local preview/open after send. They still expire
     // after one hour and are never persisted, so a relaunch cannot revive file access.
-    if (followUp) {
+    if (followUp && this.#heldThreads.delete(thread.id)) {
+      // Writing again after a pause moves on from it; held follow-ups run in order.
+      this.#queuedTurns.push(queued);
+      if (running?.signal.aborted) {
+        thread.status = 'queued';
+        thread.queueReason = 'Finishing the stopped task.';
+      } else {
+        this.#drainQueue();
+        this.#markWaitingFollowUps(thread);
+      }
+    } else if (followUp) {
       this.#queuedTurns.push(queued);
       if (running?.signal.aborted) {
         thread.status = 'queued';
@@ -3184,12 +3411,25 @@ export class DesktopController {
       thread.status = 'queued';
       thread.queueReason = 'Waiting for another task to release this workspace.';
       this.#queuedTurns.push(queued);
+      // A person's message goes ahead of a memory review that holds the agent's workspace;
+      // the review runs again on a later idle pass.
+      const review = this.#state.threads.find(
+        (candidate) =>
+          candidate.id !== thread.id &&
+          candidate.workspace === thread.workspace &&
+          this.#assistantLibrary.isReview(candidate.id) &&
+          this.#activeTurnId(candidate.id) === this.#workspaceLeases.get(thread.workspace),
+      );
+      if (source === 'manual' && review && !this.#assistantLibrary.isReview(thread.id)) {
+        thread.queueReason = 'Starting after Sia pauses its memory review.';
+        void this.#cancelTurn(review.id).catch(() => undefined);
+      }
     } else {
       this.#startTurn(queued);
     }
     thread.updatedAt = new Date().toISOString();
     this.#commit();
-    return { turnId, snapshot: this.snapshot() };
+    return { turnId, snapshot: this.#resultSnapshot() };
   }
 
   #retryTurn(threadId: string): BridgeResultMap['threads.retry'] {
@@ -3198,9 +3438,11 @@ export class DesktopController {
     const thread = this.#requireThread(threadId);
     if (thread.status !== 'failed') throw new Error('Only a failed turn can be retried.');
     this.#requireReadyProvider(thread.provider, thread.model);
+    // Follow-ups held behind a paused task run after it continues.
+    const held = this.#heldThreads.has(thread.id);
     if (
       this.#runningTurns.has(thread.id) ||
-      this.#queuedTurns.some((turn) => turn.threadId === thread.id)
+      (!held && this.#queuedTurns.some((turn) => turn.threadId === thread.id))
     ) {
       throw new Error('This thread already has an active turn.');
     }
@@ -3246,20 +3488,24 @@ export class DesktopController {
       status: 'complete',
       timestamp: new Date().toISOString(),
     });
+    this.#heldThreads.delete(thread.id);
+    // The continued task goes ahead of any follow-ups that waited behind it.
+    const enqueue = (turn: QueuedTurn) =>
+      held ? this.#queuedTurns.unshift(turn) : this.#queuedTurns.push(turn);
     if (this.#runningTurns.size >= 4) {
       thread.status = 'queued';
       thread.queueReason = 'Four local tasks are already running.';
-      this.#queuedTurns.push(retry);
+      enqueue(retry);
     } else if (this.#workspaceLeases.has(thread.workspace)) {
       thread.status = 'queued';
       thread.queueReason = 'Waiting for another task to release this workspace.';
-      this.#queuedTurns.push(retry);
+      enqueue(retry);
     } else {
       this.#startTurn(retry);
     }
     thread.updatedAt = new Date().toISOString();
     this.#commit();
-    return { turnId: failed.turnId, snapshot: this.snapshot() };
+    return { turnId: failed.turnId, snapshot: this.#resultSnapshot() };
   }
 
   async #cancelTurn(threadId: string): Promise<DesktopSnapshot> {
@@ -3278,6 +3524,7 @@ export class DesktopController {
       .filter((turn) => turn.threadId === threadId)
       .map((turn) => turn.id);
     this.#queuedTurns = this.#queuedTurns.filter((turn) => turn.threadId !== threadId);
+    this.#heldThreads.delete(threadId);
     if (activeTurnId) this.#discardResearchTurn(activeTurnId);
     for (const turnId of queuedTurnIds) this.#discardResearchTurn(turnId);
     // Stop cancels queued follow-ups too; their unsent messages leave the thread.
@@ -3302,7 +3549,7 @@ export class DesktopController {
       timestamp: new Date().toISOString(),
     });
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   /** A finished turn leaves its thread idle, or queued when a follow-up is about to start. */
@@ -3343,7 +3590,7 @@ export class DesktopController {
     }
     thread.updatedAt = new Date().toISOString();
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   /** Drops the pending user messages of queued follow-ups that will no longer run. */
@@ -3372,7 +3619,8 @@ export class DesktopController {
     threadId: string,
     selected: readonly string[],
   ): Promise<BridgeResultMap['attachments.pick']> {
-    const thread = this.#requireIdleThread(threadId, 'attach files');
+    // Files can be attached while the thread works; they travel with a queued follow-up.
+    const thread = this.#requireThread(threadId);
     if (selected.length > 20) throw new Error('Choose at most 20 files at a time.');
     const grants: AttachmentView[] = [];
     let totalBytes = 0;
@@ -3532,7 +3780,14 @@ export class DesktopController {
     return { snapshots: await operations.deleteSnapshot(thread.workspace, input.snapshotId) };
   }
 
+  /** The renderer's Command tool runs unreviewed shell commands, so it is opt-in. */
+  #requireDeveloperTools(): void {
+    if (this.#state.preferences.developerTools === true) return;
+    throw new Error('Turn on Developer tools in Settings to run commands.');
+  }
+
   async #runTerminal(input: BridgeRequestMap['terminal.run']): Promise<TerminalResultView> {
+    this.#requireDeveloperTools();
     this.#requireCodexSetupIdle();
     const thread = this.#requireIdleThread(input.threadId, 'run a terminal command');
     this.#pendingTerminalOperations += 1;
@@ -3549,6 +3804,7 @@ export class DesktopController {
   async #startBackgroundTerminal(
     input: BridgeRequestMap['terminal.start'],
   ): Promise<BackgroundTerminalView> {
+    this.#requireDeveloperTools();
     this.#requireCodexSetupIdle();
     const thread = this.#requireIdleThread(input.threadId, 'start a background process');
     const service = this.#requireWorkspaceOperations();
@@ -3575,6 +3831,7 @@ export class DesktopController {
   async #writeBackgroundTerminal(
     input: BridgeRequestMap['terminal.write'],
   ): Promise<BackgroundTerminalView> {
+    this.#requireDeveloperTools();
     const thread = this.#requireThread(input.threadId);
     const service = this.#requireWorkspaceOperations();
     if (!service.writeBackgroundTerminal) {
@@ -3614,7 +3871,7 @@ export class DesktopController {
 
   #createSchedule(input: BridgeRequestMap['schedules.create']): DesktopSnapshot {
     this.#insertSchedule(input);
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #insertSchedule(input: BridgeRequestMap['schedules.create']): ScheduleView {
@@ -3650,14 +3907,14 @@ export class DesktopController {
     schedule.enabled = input.enabled;
     this.#commit();
     if (input.enabled) void this.#runDueSchedules();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #deleteSchedule(scheduleId: string): DesktopSnapshot {
     this.#requireSchedule(scheduleId);
     this.#state.schedules = this.#state.schedules.filter(({ id }) => id !== scheduleId);
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #runScheduleNow(scheduleId: string): BridgeResultMap['schedules.runNow'] {
@@ -3684,10 +3941,14 @@ export class DesktopController {
           Boolean(schedule.activeRun) ||
           (schedule.enabled && Date.parse(schedule.nextRunAt) <= now.getTime()),
       );
+      // A due run that waits for a busy thread changes nothing. Saving the whole encrypted
+      // state for it every 30 seconds grew costly as history grew.
+      let changed = false;
       for (const schedule of due) {
         const thread = this.#state.threads.find(({ id }) => id === schedule.threadId);
         if (!thread || thread.archivedAt) {
           schedule.enabled = false;
+          changed = true;
           continue;
         }
         if (
@@ -3697,6 +3958,7 @@ export class DesktopController {
         ) {
           continue;
         }
+        changed = true;
         try {
           this.#dispatchSchedule(schedule, now);
         } catch (error) {
@@ -3713,7 +3975,7 @@ export class DesktopController {
           });
         }
       }
-      if (due.length) this.#commit();
+      if (changed) this.#commit();
     } finally {
       this.#scheduleRunInFlight = false;
     }
@@ -3749,7 +4011,7 @@ export class DesktopController {
       (item) => item.scheduleRunId === claim.id && item.kind === 'user' && item.turnId,
     );
     const result = dispatched?.turnId
-      ? { turnId: dispatched.turnId, snapshot: this.snapshot() }
+      ? { turnId: dispatched.turnId, snapshot: this.#resultSnapshot() }
       : this.#sendTurn(
           { threadId: schedule.threadId, text: schedule.prompt },
           'schedule',
@@ -3780,7 +4042,7 @@ export class DesktopController {
     }
     clearTimeout(pending.timeout);
     this.#pendingApprovals.delete(input.approvalId);
-    if (pending.kind === 'provider') this.#resumeAfterProviderRequest(pending.threadId);
+    this.#resumeAfterRequest(pending.threadId);
     this.#setApprovalStatus(
       input.approvalId,
       input.decision === 'approve' ? 'approved' : 'denied',
@@ -3799,7 +4061,7 @@ export class DesktopController {
         .catch(() => undefined);
     }
     pending.resolve(input.decision === 'approve' ? 'allow' : 'deny');
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #probeProviders(providerId?: ProviderId): Promise<DesktopSnapshot> {
@@ -3824,7 +4086,7 @@ export class DesktopController {
     )
       this.#codexSetup = undefined;
     this.#emit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #refreshProviderModels(providerId?: ProviderId): Promise<void> {
@@ -3892,7 +4154,8 @@ export class DesktopController {
     const installation =
       provider.status === 'needs_install' || provider.status === 'incompatible';
     if (providerId === 'codex') {
-      if (provider.status === 'ready') return { opened: false, snapshot: this.snapshot() };
+      if (provider.status === 'ready')
+        return { opened: false, snapshot: this.#resultSnapshot() };
       this.#codexSetupPending = true;
       try {
         if (installation) {
@@ -3916,7 +4179,7 @@ export class DesktopController {
             'Restarting Sia. ChatGPT sign-in will continue automatically.',
           );
           this.#restartApp();
-          return { opened: true, snapshot: this.snapshot() };
+          return { opened: true, snapshot: this.#resultSnapshot() };
         }
         if (!this.#runtime)
           throw new Error(
@@ -3942,7 +4205,7 @@ export class DesktopController {
             'ChatGPT sign-in finished, but Codex could not verify the connected plan. Try setup again.',
           );
         this.#codexSetup = undefined;
-        return { opened: true, snapshot: this.snapshot() };
+        return { opened: true, snapshot: this.#resultSnapshot() };
       } catch (error) {
         this.#repository.remove('setup', 'codex-login');
         this.#setCodexSetup(
@@ -3961,7 +4224,7 @@ export class DesktopController {
     const url = urls[providerId];
     if (!url) throw new Error('This provider has no supported sign-in flow in the alpha.');
     await this.#openExternal(url);
-    return { opened: true, snapshot: this.snapshot() };
+    return { opened: true, snapshot: this.#resultSnapshot() };
   }
 
   #setCodexSetup(phase: NonNullable<ProviderView['setup']>['phase'], message: string): void {
@@ -4009,13 +4272,13 @@ export class DesktopController {
     await this.#voice?.refreshPermissions?.().catch(() => undefined);
     this.#pushToTalk?.refreshPermissions();
     this.#emit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #openMessagesApp(): Promise<DesktopSnapshot> {
     if (!this.#openMessages) throw new Error('Messages is unavailable on this Mac.');
     await this.#openMessages();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #connectBrowserAndContinue(
@@ -4056,7 +4319,7 @@ export class DesktopController {
         );
       }
       validate(); // Window selection may outlive a thread change, sign-out, or cancellation.
-      if (this.#state.browser.status !== 'attached') return this.snapshot();
+      if (this.#state.browser.status !== 'attached') return this.#resultSnapshot();
       if (!this.#state.browser.grantedOrigins.length)
         throw new Error(
           'Chrome is connected. Open the website for this task in that window, then connect again to grant it.',
@@ -4071,7 +4334,7 @@ export class DesktopController {
         thread.draft = draft;
         this.#commit();
       }
-      return this.snapshot();
+      return this.#resultSnapshot();
     } finally {
       this.#browserContinuations.delete(input.threadId);
     }
@@ -4151,7 +4414,7 @@ export class DesktopController {
               : 'That Chrome window changed or closed. Choose one of the current windows.',
         };
         this.#commit();
-        return this.snapshot();
+        return this.#resultSnapshot();
       }
       let lastFailure: unknown;
       let attachedWindow: BrowserWindowView | undefined;
@@ -4232,7 +4495,7 @@ export class DesktopController {
       };
     }
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #openBrowserUrl(urlValue: string): Promise<DesktopSnapshot> {
@@ -4281,7 +4544,7 @@ export class DesktopController {
       grantedOrigins,
     };
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #detachBrowser(): Promise<DesktopSnapshot> {
@@ -4301,31 +4564,31 @@ export class DesktopController {
     this.#browserSessionId = undefined;
     this.#state.browser = { status: 'detached', grantedOrigins: [] };
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #configureVoice(): Promise<DesktopSnapshot> {
     await this.#requireVoice().configure();
     this.#emit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #refreshVoice(): Promise<DesktopSnapshot> {
     await this.#requireVoice().refresh();
     this.#emit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #selectVoice(voiceId: string): Promise<DesktopSnapshot> {
     await this.#requireVoice().select(voiceId);
     this.#emit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #disconnectVoice(): DesktopSnapshot {
     this.#requireVoice().disconnect();
     this.#emit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   #requireVoiceAvailable(): void {
@@ -4365,10 +4628,10 @@ export class DesktopController {
       throw new Error('Connect Google read-only before enabling editing and sending.');
     }
     if (google.every(({ googleAccess }) => googleAccess === 'read_write')) {
-      return { opened: false, snapshot: this.snapshot() };
+      return { opened: false, snapshot: this.#resultSnapshot() };
     }
     if (google.some(({ upgradeConnectionId }) => Boolean(upgradeConnectionId))) {
-      return { opened: false, snapshot: this.snapshot() };
+      return { opened: false, snapshot: this.#resultSnapshot() };
     }
     const owner = this.#currentIdentityKey();
     if (!this.#fakeServices && !owner) {
@@ -4379,7 +4642,7 @@ export class DesktopController {
         this.#updateConnection(id, { googleAccess: 'read_write' });
       }
       this.#commit();
-      return { opened: false, snapshot: this.snapshot() };
+      return { opened: false, snapshot: this.#resultSnapshot() };
     }
 
     const started = await this.#cloud.startConnection('gmail', 'read_write');
@@ -4399,7 +4662,7 @@ export class DesktopController {
       connectionId: started.connectionId,
     });
     void this.#pollGoogleUpgrade(started.connectionId);
-    return { opened: true, snapshot: this.snapshot() };
+    return { opened: true, snapshot: this.#resultSnapshot() };
   }
 
   async #startGoogleConnection(
@@ -4442,7 +4705,7 @@ export class DesktopController {
       enabled ? 'connector.service.enabled' : 'connector.service.disabled',
       { app: connectionId, connectionId: connection.connectionId },
     );
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #removeLegacyGoogleConnections(): Promise<void> {
@@ -4492,7 +4755,7 @@ export class DesktopController {
         (connection) => included.includes(connection.id) && connection.status !== 'connected',
       )
       .map((connection) => connection.id);
-    if (pending.length === 0) return { opened: false, snapshot: this.snapshot() };
+    if (pending.length === 0) return { opened: false, snapshot: this.#resultSnapshot() };
     this.#recordLifecycleEvent('connector.guided_setup.started', { apps: pending });
 
     if (this.#fakeServices) {
@@ -4500,7 +4763,7 @@ export class DesktopController {
         await this.#startConnection(connectionId, { partOfBundle: true });
       }
       this.#recordLifecycleEvent('connector.guided_setup.completed', { apps: pending });
-      return { opened: false, snapshot: this.snapshot() };
+      return { opened: false, snapshot: this.#resultSnapshot() };
     }
 
     const firstId = pending[0]!;
@@ -4518,7 +4781,7 @@ export class DesktopController {
       if (this.#connectionSetup?.task === task) this.#connectionSetup = undefined;
     };
     void task.then(finish, finish);
-    return { opened: started.opened, snapshot: this.snapshot() };
+    return { opened: started.opened, snapshot: this.#resultSnapshot() };
   }
 
   async #continueConnectionSetup(
@@ -4611,7 +4874,7 @@ export class DesktopController {
         account: connectedAccount,
         connectionId: connectedId,
       });
-      return { opened: false, snapshot: this.snapshot() };
+      return { opened: false, snapshot: this.#resultSnapshot() };
     }
     try {
       const started = await this.#cloud.startConnection(connectionId);
@@ -4635,7 +4898,7 @@ export class DesktopController {
         connectionId: started.connectionId,
       });
       if (options.poll !== false) void this.#pollConnection(connectionId, started.connectionId);
-      return { opened: true, snapshot: this.snapshot() };
+      return { opened: true, snapshot: this.#resultSnapshot() };
     } catch (error) {
       for (const id of affected) {
         this.#updateConnection(id, {
@@ -4656,7 +4919,7 @@ export class DesktopController {
     if (this.#cloud.configured) await this.#cloud.registerAccount(email);
     await this.#identity.startEmailSignIn(email);
     this.#emit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #completeSignIn(code: string): Promise<DesktopSnapshot> {
@@ -4680,7 +4943,7 @@ export class DesktopController {
     await this.#voice?.refresh().catch(() => undefined);
     this.#scheduleResearchSync();
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #completeMfaEnrollment(code: string): Promise<DesktopSnapshot> {
@@ -4689,7 +4952,7 @@ export class DesktopController {
     }
     await this.#identity.completeMfaEnrollment(code);
     this.#commit();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #refreshCloudSession(): Promise<void> {
@@ -4750,7 +5013,7 @@ export class DesktopController {
       await this.#refreshMetaProviderState();
       this.#lockConnections('Sign in with the account that created this grant to manage it.');
       this.#commit();
-      return this.snapshot();
+      return this.#resultSnapshot();
     } finally {
       this.#signOutInProgress = false;
       this.#emit();
@@ -4888,6 +5151,9 @@ export class DesktopController {
       this.#workspaceGrants.clear();
       this.#approvedConnectorBindings.clear();
       this.#runningTurns.clear();
+      for (const threadId of this.#awakeTurns) this.#keepAwake?.release(threadId);
+      this.#awakeTurns.clear();
+      this.#macTurns.clear();
       this.#turnTasks.clear();
       this.#workspaceLeases.clear();
       this.#pendingApprovals.clear();
@@ -4898,7 +5164,7 @@ export class DesktopController {
       await this.#refreshMetaProviderState();
       this.#revision += 1;
       this.#emit();
-      return this.snapshot();
+      return this.#resultSnapshot();
     } catch (error) {
       if (cloudCompleted) {
         throw new Error(
@@ -5097,7 +5363,7 @@ export class DesktopController {
       app: connectionId,
       ...(current?.connectionId ? { connectionId: current.connectionId } : {}),
     });
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #pollConnection(
@@ -5360,7 +5626,7 @@ export class DesktopController {
     });
     this.#commit();
     if (input.enabled) this.#scheduleResearchSync();
-    return this.snapshot();
+    return this.#resultSnapshot();
   }
 
   async #exportResearch(): Promise<BridgeResultMap['research.export']> {
@@ -5429,7 +5695,7 @@ export class DesktopController {
         ...(promptReviewedVersion ? { promptReviewedVersion } : {}),
       };
       this.#commit();
-      return this.snapshot();
+      return this.#resultSnapshot();
     } catch (error) {
       this.#state.capture = previousCapture;
       this.#refreshResearchPendingCount();
@@ -6037,6 +6303,18 @@ export class DesktopController {
   #startTurn(turn: QueuedTurn): void {
     if (this.#shuttingDown) return;
     const thread = this.#requireThread(turn.threadId);
+    if (this.#macUnavailable && this.#isMacTurn(thread.id)) {
+      // Screen control cannot work while the Mac is locked or asleep; start once it is back.
+      this.#queuedTurns.unshift(turn);
+      thread.status = 'queued';
+      thread.queueReason =
+        this.#macUnavailable === 'locked'
+          ? 'Waiting for your Mac to unlock.'
+          : 'Waiting for your Mac to wake.';
+      return;
+    }
+    // Any turn starting on a paused thread means the person moved on from the pause.
+    this.#heldThreads.delete(thread.id);
     const followUp = this.#state.timeline.find(
       (item) =>
         item.threadId === thread.id &&
@@ -6073,6 +6351,11 @@ export class DesktopController {
     const controller = new AbortController();
     this.#runningTurns.set(thread.id, controller);
     this.#workspaceLeases.set(thread.workspace, turn.id);
+    if (this.#isMacTurn(thread.id)) {
+      this.#macTurns.set(thread.id, turn);
+      this.#awakeTurns.add(thread.id);
+      this.#keepAwake?.hold(thread.id);
+    }
     if (turn.fromPhone) this.#phoneTurns.add(turn.id);
     thread.status = 'running';
     delete thread.queueReason;
@@ -6185,6 +6468,13 @@ export class DesktopController {
           macTask = { request: turn.text };
           recordVault = new NotchVault(thread.workspace, thread.agentId);
         }
+        if (macTask && this.macBackgroundControl()) {
+          // The background driver ships in the app, but it can fail to load or lack access.
+          // Stop with a plain next step instead of letting the first window action fail.
+          this.#computerState = await this.#computer.permissions();
+          const unavailable = backgroundControlUnavailable(this.#computerState);
+          if (unavailable) throw new Error(unavailable);
+        }
         const notchReview = this.#assistantLibrary.isNotchReview(thread.id);
         let nativeRequest: string | undefined;
         if (macTask) {
@@ -6197,30 +6487,39 @@ export class DesktopController {
               item.turnId !== turn.id &&
               item.kind === 'assistant',
           );
-          const prepared = await nativeVault.engine(
-            this.#notchHelperPath,
-            {
-              operation: 'prepare',
-              background: this.macBackgroundControl(),
-              request: turn.text,
-              context: turn.context ?? '',
-              learning: library.learningAgents?.includes(thread.agentId) === true,
-              nativeLearning: library.nativeLearningAgents?.includes(thread.agentId) === true,
-              activeTasks: this.#state.threads
-                .filter(
-                  (item) =>
-                    item.agentId === thread.agentId &&
-                    item.id !== thread.id &&
-                    ['running', 'waiting', 'queued'].includes(item.status),
-                )
-                .map((item) => `- ${item.title} [${item.status}]`)
-                .join('\n'),
-            },
-            signal,
-          );
-          if (!prepared.prompt)
-            throw new Error('The native engine returned no request context.');
-          nativeRequest = prepared.prompt;
+          // The native memory engine only enriches the request. If it fails or times out,
+          // run the person's request with the ordinary memory prompt instead of failing.
+          try {
+            const prepared = await nativeVault.engine(
+              this.#notchHelperPath,
+              {
+                operation: 'prepare',
+                background: this.macBackgroundControl(),
+                request: turn.text,
+                context: turn.context ?? '',
+                learning: library.learningAgents?.includes(thread.agentId) === true,
+                nativeLearning: library.nativeLearningAgents?.includes(thread.agentId) === true,
+                activeTasks: this.#state.threads
+                  .filter(
+                    (item) =>
+                      item.agentId === thread.agentId &&
+                      item.id !== thread.id &&
+                      ['running', 'waiting', 'queued'].includes(item.status),
+                  )
+                  .map((item) => `- ${item.title} [${item.status}]`)
+                  .join('\n'),
+              },
+              signal,
+            );
+            if (!prepared.prompt)
+              throw new Error('The native engine returned no request context.');
+            nativeRequest = prepared.prompt;
+          } catch (error) {
+            signal.throwIfAborted();
+            console.warn(
+              `[sia:notch] Preparing the request failed; continuing without it. ${error instanceof Error ? error.message : ''}`.trim(),
+            );
+          }
         }
         const runtimeThread = {
           ...(nativeVault ? { notchVault: nativeVault.root } : {}),
@@ -6463,7 +6762,11 @@ export class DesktopController {
       /* Optional memory storage must never turn completed work into a failed task. */
     }
     this.#markScheduleRunFinished(turn, outcome === 'complete' ? 'completed' : 'failed');
+    // Continue task resends the failed turn's files, whatever ended it (start error,
+    // model error or a task that reported it could not finish).
     if (outcome === 'complete') this.#failedTurnAttachments.delete(turn.id);
+    else if (turn.attachments?.length)
+      this.#failedTurnAttachments.set(turn.id, turn.attachments);
     // Streamed items are appended early and mutated as text arrives; the finished turn is
     // written once more so the log always ends with the final transcript for that turn.
     this.#trajectory?.record({
@@ -6482,6 +6785,8 @@ export class DesktopController {
       thread.goal.status = 'paused';
       thread.goal.updatedAt = new Date().toISOString();
     }
+    // A memory review is Sia's own housekeeping, not work the person is waiting for.
+    if (this.#assistantLibrary.isReview(thread.id)) return;
     thread.unread = true;
     const agent = this.#state.agents.find(({ id }) => id === thread.agentId);
     if (agent?.notificationsEnabled !== false) {
@@ -6598,6 +6903,9 @@ export class DesktopController {
       return;
     }
     if (event.type === 'reasoning') {
+      // Only the reasoning summary is shown (as the live status line). Raw reasoning text is
+      // never merged into it.
+      if (event.payload.part === 'text') return;
       const existing = this.#state.timeline.findLast(
         (item) =>
           item.threadId === event.threadId &&
@@ -6822,6 +7130,24 @@ export class DesktopController {
       return;
     }
     if (event.type === 'usage') {
+      if (event.payload.limits) {
+        this.#usageLimits.set(thread.provider, {
+          usedPercent: event.payload.limits.usedPercent,
+          ...(event.payload.limits.resetsAt ? { resetsAt: event.payload.limits.resetsAt } : {}),
+          ...(event.payload.limits.windowMinutes
+            ? { windowMinutes: event.payload.limits.windowMinutes }
+            : {}),
+          updatedAt: event.timestamp,
+        });
+      }
+      // A plan-usage update alone carries no token counts for this turn.
+      if (
+        event.payload.inputTokens === undefined &&
+        event.payload.outputTokens === undefined &&
+        event.payload.cachedInputTokens === undefined &&
+        event.payload.limits
+      )
+        return;
       this.#state.usageByTurn[event.turnId] = {
         threadId: event.threadId,
         provider: thread.provider,
@@ -6860,7 +7186,7 @@ export class DesktopController {
         id: event.id,
         turnId: event.turnId,
         kind: 'error',
-        title: 'Provider error',
+        title: 'Task stopped',
         text: event.payload.message,
         status: 'failed',
         timestamp: event.timestamp,
@@ -6884,7 +7210,7 @@ export class DesktopController {
           turnId: event.turnId,
           kind: 'error',
           title: 'Turn did not complete',
-          text: 'The provider ended this turn without completing it. Check the provider account (sign-in, usage limits) and try again.',
+          text: 'The model stopped before finishing this task. Try again. If it keeps happening, check your plan’s sign-in and usage in Settings → AI.',
           status: 'failed',
           timestamp: event.timestamp,
         });
@@ -7078,6 +7404,7 @@ export class DesktopController {
       toolName: request.tool.name,
       timestamp: new Date().toISOString(),
     });
+    this.#waitForApproval(request.threadId);
     this.#commit();
     this.#notifyNeedsAttention(
       request.threadId,
@@ -7120,6 +7447,7 @@ export class DesktopController {
       };
       const abort = (): void => {
         this.#pendingApprovals.delete(approvalId);
+        this.#resumeAfterRequest(request.threadId);
         this.#setApprovalStatus(approvalId, 'expired');
         finish('cancel');
       };
@@ -7136,18 +7464,23 @@ export class DesktopController {
     });
   }
 
-  /** A provider keeps working after its approval is answered; leave "waiting" once nothing is pending. */
-  #resumeAfterProviderRequest(threadId: string): void {
+  /** A task keeps working after its approval is answered; leave "waiting" once nothing is pending. */
+  #resumeAfterRequest(threadId: string): void {
     const thread = this.#state.threads.find(({ id }) => id === threadId);
     if (
       thread?.status === 'waiting' &&
       this.#runningTurns.has(threadId) &&
       !this.#pendingQuestions.has(threadId) &&
-      ![...this.#pendingApprovals.values()].some(
-        (pending) => pending.kind === 'provider' && pending.threadId === threadId,
-      )
+      ![...this.#pendingApprovals.values()].some((pending) => pending.threadId === threadId)
     )
       thread.status = 'running';
+  }
+
+  /** A running task that asks the person to approve an action is waiting on them. */
+  #waitForApproval(threadId: string): void {
+    const thread = this.#state.threads.find(({ id }) => id === threadId);
+    if (thread?.status === 'running' && this.#runningTurns.has(threadId))
+      thread.status = 'waiting';
   }
 
   #activeTurnId(threadId: string): string | undefined {
@@ -7221,17 +7554,29 @@ export class DesktopController {
     const turnId = this.#activeTurnId(threadId);
     if (turnId) this.#phoneTurns.delete(turnId);
     this.#runningTurns.delete(threadId);
+    this.#macTurns.delete(threadId);
+    if (this.#awakeTurns.delete(threadId)) this.#keepAwake?.release(threadId);
     if (thread) this.#workspaceLeases.delete(thread.workspace);
     this.#drainQueue();
-    // A follow-up can still wait when another thread took the workspace first.
+    // A follow-up can still wait when another thread took the workspace first. A paused
+    // thread keeps its failed state and Continue task until the person acts.
+    if (thread && !this.#heldThreads.has(threadId)) this.#markWaitingFollowUps(thread);
+  }
+
+  /** Shows why a thread's queued follow-up has not started yet. */
+  #markWaitingFollowUps(thread: ThreadView): void {
     if (
-      thread &&
-      !this.#runningTurns.has(threadId) &&
-      this.#queuedTurns.some((turn) => turn.threadId === threadId)
-    ) {
-      thread.status = 'queued';
-      thread.queueReason = 'Waiting for another task to release this workspace.';
-    }
+      this.#runningTurns.has(thread.id) ||
+      !this.#queuedTurns.some((turn) => turn.threadId === thread.id)
+    )
+      return;
+    thread.status = 'queued';
+    thread.queueReason =
+      this.#macUnavailable && this.#isMacTurn(thread.id)
+        ? this.#macUnavailable === 'locked'
+          ? 'Waiting for your Mac to unlock.'
+          : 'Waiting for your Mac to wake.'
+        : 'Waiting for another task to release this workspace.';
   }
 
   #drainQueue(): void {
@@ -7239,7 +7584,12 @@ export class DesktopController {
     if (this.#runningTurns.size >= 4) return;
     const nextIndex = this.#queuedTurns.findIndex((turn) => {
       const thread = this.#state.threads.find(({ id }) => id === turn.threadId);
-      return thread && !this.#workspaceLeases.has(thread.workspace);
+      return (
+        thread &&
+        !this.#heldThreads.has(thread.id) &&
+        !this.#workspaceLeases.has(thread.workspace) &&
+        !(this.#macUnavailable && this.#isMacTurn(thread.id))
+      );
     });
     if (nextIndex < 0) return;
     const [next] = this.#queuedTurns.splice(nextIndex, 1);
@@ -7582,8 +7932,12 @@ export class DesktopController {
     // A CUA browser attachment is process-local. Never revive its UI grant without
     // preparing a fresh native session and rebuilding host-only tab capabilities.
     recovered.browser = { status: 'detached', grantedOrigins: [] };
-    recovered.approvals = recovered.approvals.map((approval) =>
-      approval.status === 'pending' ? { ...approval, status: 'expired' } : approval,
+    recovered.approvals = pruneSettledApprovals(
+      recovered.approvals.map((approval) =>
+        approval.status === 'pending' ? { ...approval, status: 'expired' } : approval,
+      ),
+      recovered.timeline,
+      Date.now(),
     );
     // No turn survives a relaunch, so no activity row may keep spinning.
     for (const item of recovered.timeline)
@@ -7679,8 +8033,25 @@ export class DesktopController {
     return recovered;
   }
 
+  /**
+   * While a Mac task waits on the person (an approval or a question), let the display sleep
+   * as usual; hold it awake again once the task resumes.
+   */
+  #syncKeepAwake(): void {
+    for (const threadId of this.#macTurns.keys()) {
+      const waiting =
+        this.#state.threads.find(({ id }) => id === threadId)?.status === 'waiting';
+      if (waiting && this.#awakeTurns.delete(threadId)) this.#keepAwake?.release(threadId);
+      else if (!waiting && !this.#awakeTurns.has(threadId)) {
+        this.#awakeTurns.add(threadId);
+        this.#keepAwake?.hold(threadId);
+      }
+    }
+  }
+
   #commit(deferStreamDelta = false): void {
     this.#revision += 1;
+    this.#syncKeepAwake();
     if (deferStreamDelta) {
       if (!this.#streamCommitTimer) {
         this.#streamCommitTimer = setTimeout(() => {
@@ -7691,18 +8062,21 @@ export class DesktopController {
       }
       // Keep the visible stream responsive without encrypting the entire history
       // at UI cadence. Completion, actions and shutdown still persist immediately.
-      if (!this.#streamPersistTimer) {
-        this.#streamPersistTimer = setTimeout(() => {
-          this.#streamPersistTimer = undefined;
-          this.#persist();
-        }, 500);
-        this.#streamPersistTimer.unref();
-      }
+      this.#persistSoon();
       return;
     }
     this.#cancelStreamCommit();
     this.#persist();
     this.#emit();
+  }
+
+  #persistSoon(): void {
+    if (this.#streamPersistTimer) return;
+    this.#streamPersistTimer = setTimeout(() => {
+      this.#streamPersistTimer = undefined;
+      this.#persist();
+    }, 500);
+    this.#streamPersistTimer.unref();
   }
 
   #cancelStreamCommit(): void {
@@ -7723,7 +8097,7 @@ export class DesktopController {
   #emit(): void {
     this.#pushToTalk?.syncAccess();
     this.#pushToTalk?.syncTasks();
-    const event: DesktopPushEvent = { type: 'snapshot', snapshot: this.snapshot() };
+    const event: DesktopPushEvent = { type: 'snapshot', snapshot: this.rendererSnapshot() };
     for (const listener of this.#listeners) listener(event);
   }
 }
@@ -7746,6 +8120,31 @@ async function settleBeforeShutdown(
     }),
   ]);
   if (timeout) clearTimeout(timeout);
+}
+
+/** How long a settled approval with no transcript row stays after it expired. */
+const SETTLED_APPROVAL_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Approvals a transcript row refers to are part of that thread's history and stay. The rest,
+ * such as computer-use requests, are shown only beside their turn; drop them a week after
+ * they expired so state does not grow with every answered request.
+ */
+export function pruneSettledApprovals(
+  approvals: readonly ApprovalView[],
+  timeline: readonly TimelineItemView[],
+  now: number,
+): ApprovalView[] {
+  const referenced = new Set(
+    timeline.flatMap((item) =>
+      item.kind === 'approval' && item.approvalId ? [item.approvalId] : [],
+    ),
+  );
+  return approvals.filter((approval) => {
+    if (approval.status === 'pending' || referenced.has(approval.id)) return true;
+    const expiresAt = approval.expiresAt ? Date.parse(approval.expiresAt) : Number.NaN;
+    return !Number.isFinite(expiresAt) || now - expiresAt < SETTLED_APPROVAL_RETENTION_MS;
+  });
 }
 
 function isStreamingDelta(event: ThreadEventEnvelope): boolean {
@@ -7774,6 +8173,16 @@ function workspaceSlug(value: string): string {
 
 function modelRouteKey(provider: ProviderId, model: string): string {
   return `${provider}\u0000${model}`;
+}
+
+/** Providers a new agent or thread may choose in this release. Others stay for pinned threads. */
+const RELEASE_PROVIDERS: ReadonlySet<ProviderId> = new Set<ProviderId>(['codex', 'meta']);
+
+function requireReleaseProvider(provider: ProviderId): void {
+  if (RELEASE_PROVIDERS.has(provider)) return;
+  throw new Error(
+    'This model is not available for new conversations in this version of Sia. Choose Codex or a model included with Sia. Existing conversations keep working.',
+  );
 }
 
 function legacyHarnessForProvider(
@@ -8174,7 +8583,7 @@ function runtimeToolTitle(name: string, presentation?: ActivityPresentationView)
   if (presentation.kind === 'web_search') {
     return presentation.query ? `Searched for ${presentation.query}` : 'Searched the web';
   }
-  if (presentation.kind === 'image') return `Viewed ${basename(presentation.path)}`;
+  if (presentation.kind === 'image') return imageActivityTitle(presentation.path);
   if (presentation.kind === 'review') return presentation.review || 'Code review';
   if (presentation.kind === 'compaction') return 'Compacted context';
   return humanizeToolName(name);
@@ -8201,6 +8610,7 @@ function mapRuntimePresentation(
       files: presentation.files.map((file) => ({
         path: file.path,
         change: file.change,
+        ...(file.movePath ? { movePath: file.movePath } : {}),
         ...(file.diff ? { diff: file.diff } : {}),
       })),
     };
@@ -8610,4 +9020,11 @@ function worktreeLabel(title: string, id: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 80);
   return `${slug || 'thread'}-${id}`;
+}
+
+function backgroundControlUnavailable(access: ComputerPermissionsView): string | undefined {
+  if (access.status === 'ready') return undefined;
+  if (access.status === 'needs_permission')
+    return 'Sia needs Accessibility and Screen Recording to work in the background. Allow them in Settings → Computer, then press Continue task.';
+  return 'Working in the background isn’t available on this Mac right now. Choose On my screen in Settings → Computer, then press Continue task.';
 }

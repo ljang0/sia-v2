@@ -58,7 +58,7 @@ test('saved agents, threads, transcripts, and drafts survive a full app relaunch
     await expect(
       restoredPage
         .getByRole('complementary', { name: 'Agent navigation' })
-        .getByRole('button', { name: 'Room actions for Persistent helper', exact: true }),
+        .getByRole('button', { name: 'Agent actions for Persistent helper', exact: true }),
     ).toBeVisible();
     await expect(restoredPage.getByText(prompt, { exact: true })).toBeVisible();
     await expect(restoredPage.getByText(assistantReply, { exact: true })).toBeVisible();

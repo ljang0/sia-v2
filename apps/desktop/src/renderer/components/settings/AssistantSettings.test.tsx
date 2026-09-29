@@ -82,7 +82,7 @@ it('responds immediately to a context toggle and rolls back if persistence fails
     ),
   };
   render(<AssistantSettings agents={[]} api={api} onRun={() => undefined} />);
-  const toggle = screen.getByRole('checkbox', {
+  const toggle = screen.getByRole('switch', {
     name: /Use context when I hold Fn/,
   }) as HTMLInputElement;
   await waitFor(() => expect(toggle.closest('fieldset')?.disabled).toBe(false));
@@ -115,7 +115,7 @@ it('updates the learning switch immediately and rolls back a failed save', async
     />,
   );
   fireEvent.click(screen.getByRole('button', { name: /^Memory/ }));
-  const toggle = screen.getByRole('checkbox', {
+  const toggle = screen.getByRole('switch', {
     name: /Learn from completed tasks/,
   }) as HTMLInputElement;
   await waitFor(() => expect(toggle.closest('fieldset')?.disabled).toBe(false));

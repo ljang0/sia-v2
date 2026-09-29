@@ -6,7 +6,7 @@ import type { AgentSummary, RendererApi, RendererSnapshot } from './types';
 const BRIDGE_ERROR =
   'Sia could not load its secure desktop bridge. Quit and reopen Sia; if this continues, reinstall the app.';
 type ActivityTarget = 'activity' | 'archived' | 'search';
-/** How long the "Conversation archived" notice keeps its Undo button. */
+/** How long the "Conversation archived" notice keeps its Undo button while not in use. */
 export const ARCHIVE_UNDO_MS = 8000;
 
 interface ActionIssue {
@@ -103,12 +103,6 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
     setAttachments([]);
   }, [snapshot?.selectedThreadId]);
 
-  useEffect(() => {
-    if (!archivedThread) return;
-    const timer = setTimeout(() => setArchivedThread(undefined), ARCHIVE_UNDO_MS);
-    return () => clearTimeout(timer);
-  }, [archivedThread]);
-
   const archiveThread = async (threadId: string) => {
     const reselect = snapshot?.selectedThreadId === threadId;
     await execute(() => api.archiveThread(threadId), true);
@@ -196,7 +190,8 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
   };
 }
 
-function resolveApi(): RendererApi {
+/** The desktop bridge, or an API that reports a missing bridge on every call. */
+export function resolveApi(): RendererApi {
   if (typeof window !== 'undefined' && 'sia' in window && window.sia) {
     return createBridgeRendererApi(window.sia);
   }

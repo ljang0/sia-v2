@@ -1,6 +1,7 @@
 /** Flattens common Markdown to one line of readable text for short previews. */
 export function plainText(markdown: string) {
-  return markdown
+  // Previews read provider output; a missing body previews as empty, not as a crash.
+  return (typeof markdown === 'string' ? markdown : '')
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')

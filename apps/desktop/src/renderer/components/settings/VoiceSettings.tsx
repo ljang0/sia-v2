@@ -3,6 +3,8 @@ import { useState } from 'react';
 import type { VoiceSettingsState } from '../../types';
 import styles from '../../ui.module.css';
 import { errorMessage, InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
+import { Switch } from '../Switch';
+import { voiceOptionLabel } from '../../voiceReadiness';
 
 interface VoiceSettingsProps {
   voice: VoiceSettingsState;
@@ -92,8 +94,7 @@ export function VoiceSettings({
             >
               {voice.voices.map((option) => (
                 <option key={option.id} value={option.id}>
-                  {option.name}
-                  {option.category ? ` · ${option.category}` : ''}
+                  {voiceOptionLabel(option)}
                 </option>
               ))}
             </select>
@@ -165,8 +166,7 @@ export function VoiceSettings({
                   Hold until the screen edges glow, speak, then release to send. Escape cancels.
                 </small>
               </span>
-              <input
-                type="checkbox"
+              <Switch
                 checked={pushToTalk.enabled}
                 disabled={
                   Boolean(pending) ||
@@ -189,8 +189,7 @@ export function VoiceSettings({
                   Hear a brief result without opening Sia. Hold Fn or press Escape to stop it.
                 </small>
               </span>
-              <input
-                type="checkbox"
+              <Switch
                 checked={pushToTalk.speakReplies !== false}
                 disabled={Boolean(pending) || !pushToTalk.enabled}
                 onChange={(event) => {
@@ -240,8 +239,7 @@ export function VoiceSettings({
           <strong>Completion sound</strong>
           <small>Play a quiet local chime when a task finishes.</small>
         </span>
-        <input
-          type="checkbox"
+        <Switch
           checked={completionSound}
           disabled={Boolean(pending)}
           onChange={(event) => {

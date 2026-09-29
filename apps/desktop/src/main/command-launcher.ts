@@ -1,4 +1,4 @@
-import { BrowserWindow, globalShortcut, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, screen } from 'electron';
 import { join } from 'node:path';
 import { z } from 'zod';
 import type { DesktopController } from './controller.js';
@@ -35,7 +35,7 @@ export function createCommandLauncher(
   let suspended = false;
   let activationContext: string | undefined;
   const session = new LauncherSession();
-  const state = () => session.view(controller.snapshot());
+  const state = () => session.view(controller.taskSnapshot());
   const publish = () => {
     if (disposed || !window || window.isDestroyed()) return;
     const next = state();
@@ -47,7 +47,10 @@ export function createCommandLauncher(
     if (window.getSize()[1] !== height) window.setSize(560, height);
     window.webContents.send('sia:launcher:changed', next);
   };
-  const unsubscribe = controller.subscribe(() => publish());
+  // A hidden panel is refreshed by show(); skip rebuilding its state on every streamed token.
+  const unsubscribe = controller.subscribe(() => {
+    if (window && !window.isDestroyed() && window.isVisible()) publish();
+  });
   const channels = ['state', 'send', 'dismiss', 'open', 'cancel', 'new'] as const;
   for (const channel of channels)
     ipcMain.handle(`sia:launcher:${channel}`, async (event, raw) => {
@@ -61,7 +64,7 @@ export function createCommandLauncher(
       if (channel === 'open') {
         if (raw !== undefined)
           await controller.invoke('threads.select', {
-            threadId: session.target(z.string().uuid().parse(raw), controller.snapshot()),
+            threadId: session.target(z.string().uuid().parse(raw), controller.taskSnapshot()),
           });
         await openSia();
         window.hide();
@@ -70,7 +73,10 @@ export function createCommandLauncher(
       if (channel === 'state') return state();
       if (suspended) throw new Error('Unlock your Mac to use Sia.');
       if (channel === 'cancel' || channel === 'new') {
-        const threadId = session.target(z.string().uuid().parse(raw), controller.snapshot());
+        const threadId = session.target(
+          z.string().uuid().parse(raw),
+          controller.taskSnapshot(),
+        );
         if (channel === 'cancel') await controller.invoke('threads.cancel', { threadId });
         else {
           session.clear();
@@ -85,7 +91,7 @@ export function createCommandLauncher(
         // Canonical sign-in, model admission, thread-pinning and authorization routes.
         let threadId: string;
         if (input.kind === 'reply') {
-          threadId = session.target(input.sessionId, controller.snapshot());
+          threadId = session.target(input.sessionId, controller.taskSnapshot());
           const status = state().task?.status;
           if (status === 'running' || status === 'waiting')
             throw new Error('Wait for this request to finish.');
@@ -136,6 +142,7 @@ export function createCommandLauncher(
             contextIsolation: true,
             nodeIntegration: false,
             webviewTag: false,
+            devTools: !app.isPackaged,
           },
         });
         window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });

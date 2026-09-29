@@ -19,9 +19,10 @@ import {
   PushPin,
   Pulse,
 } from '@phosphor-icons/react';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { AgentSummary, ThreadSummary } from '../types';
 import styles from '../ui.module.css';
+import { focusComposer } from '../composerFocus';
 import { AgentForm } from './AgentForm';
 import navigation from './navigation.module.css';
 import { TaskPreviewButton } from './TaskPreviewButton';
@@ -118,14 +119,28 @@ export function Sidebar({
     query,
     closedAgents,
   ]);
+  const { moreAbove, moreBelow } = useScrollEdges(taskList);
 
   const [editingThread, setEditingThread] = useState<ThreadSummary>();
   const [editingTitle, setEditingTitle] = useState('');
   const [deletingThread, setDeletingThread] = useState<ThreadSummary>();
+  // The delete dialog keeps showing its thread while it animates closed.
+  const lastDeletingThread = useRef(deletingThread);
+  if (deletingThread) lastDeletingThread.current = deletingThread;
+  const shownDeletingThread = deletingThread ?? lastDeletingThread.current;
   const [pendingThreadAction, setPendingThreadAction] = useState(false);
   const [forkingThread, setForkingThread] = useState<ThreadSummary>();
   const [forkTitle, setForkTitle] = useState('');
   const [forkIsolated, setForkIsolated] = useState(false);
+  // Thread dialogs open from a menu item that unmounts, so remember the row's menu button.
+  const dialogOpener = useRef<HTMLElement | null>(null);
+  const restoreDialogFocus = (event: Event) => {
+    event.preventDefault();
+    const opener = dialogOpener.current;
+    dialogOpener.current = null;
+    if (opener?.isConnected) opener.focus();
+    else focusComposer();
+  };
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) ?? agents[0];
   const commitRename = (thread: ThreadSummary) => {
     const title = editingTitle.trim();
@@ -302,11 +317,14 @@ export function Sidebar({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Find a conversation"
-            aria-label="Find a thread"
+            aria-label="Find a conversation"
           />
         </label>
       </div>
-      <div className={`${styles.sidebarSectionHeader} ${navigation.sectionHeader}`}>
+      <div
+        className={`${styles.sidebarSectionHeader} ${navigation.sectionHeader}`}
+        data-scrolled={moreAbove || undefined}
+      >
         <span>{agents.length === 1 ? 'Conversations' : 'Your agents'}</span>
         <button
           className={styles.iconButtonSmall}
@@ -321,11 +339,18 @@ export function Sidebar({
       <div
         ref={taskList}
         className={`${styles.sidebarScroll} ${navigation.scroll}`}
+        data-more-below={moreBelow || undefined}
         onTransitionEnd={(event) => {
           if (event.propertyName === 'grid-template-rows') revealSelection();
         }}
       >
         <div className={navigation.groups}>
+          {orderedAgents.length === 0 ? (
+            <p className={navigation.emptyAgents}>
+              <strong>No agents yet</strong>
+              Create one with + to start a conversation.
+            </p>
+          ) : null}
           {orderedAgents.map((agent) => {
             const expanded = Boolean(query.trim()) || !closedAgents.has(agent.id);
             const selected = agent.id === selectedAgentId;
@@ -455,7 +480,8 @@ export function Sidebar({
                             thread={thread}
                             onFork={
                               onForkThread
-                                ? () => {
+                                ? (opener) => {
+                                    dialogOpener.current = opener;
                                     setForkingThread(thread);
                                     setForkTitle(`${thread.title} fork`);
                                     setForkIsolated(false);
@@ -476,7 +502,10 @@ export function Sidebar({
                               setEditingThread(thread);
                               setEditingTitle(thread.title);
                             }}
-                            onDelete={() => setDeletingThread(thread)}
+                            onDelete={(opener) => {
+                              dialogOpener.current = opener;
+                              setDeletingThread(thread);
+                            }}
                           />
                         </div>
                       ),
@@ -539,13 +568,16 @@ export function Sidebar({
       >
         <AlertDialog.Portal>
           <AlertDialog.Overlay className={styles.dialogOverlay} />
-          <AlertDialog.Content className={styles.alertDialogContent}>
-            <AlertDialog.Title>Delete this thread?</AlertDialog.Title>
+          <AlertDialog.Content
+            className={styles.alertDialogContent}
+            onCloseAutoFocus={restoreDialogFocus}
+          >
+            <AlertDialog.Title>Delete this conversation?</AlertDialog.Title>
             <AlertDialog.Description>
-              This permanently removes “{deletingThread?.title}” and its local transcript. It
-              does not change workspace files
-              {deletingThread?.worktree?.kind === 'linked'
-                ? ' or remove its linked worktree.'
+              “{shownDeletingThread?.title}” and its messages will be permanently removed from
+              Sia. Files on your Mac stay as they are
+              {shownDeletingThread?.worktree?.kind === 'linked'
+                ? ', including its separate working copy.'
                 : '.'}
             </AlertDialog.Description>
             <div className={styles.dialogActions}>
@@ -574,7 +606,7 @@ export function Sidebar({
                   );
                 }}
               >
-                {pendingThreadAction ? 'Deleting...' : 'Delete thread'}
+                {pendingThreadAction ? 'Deleting…' : 'Delete conversation'}
               </button>
               {deletingThread?.worktree?.kind === 'linked' && onCleanupWorktree ? (
                 <button
@@ -605,7 +637,10 @@ export function Sidebar({
       >
         <Dialog.Portal>
           <Dialog.Overlay className={styles.dialogOverlay} />
-          <Dialog.Content className={styles.alertDialogContent}>
+          <Dialog.Content
+            className={styles.alertDialogContent}
+            onCloseAutoFocus={restoreDialogFocus}
+          >
             <Dialog.Title>Fork this thread</Dialog.Title>
             <Dialog.Description>
               Copy the local transcript. Use an isolated Git worktree to run in parallel without
@@ -663,6 +698,34 @@ export function Sidebar({
   );
 }
 
+/** Whether a scroll container has content hidden above or below its fold. */
+function useScrollEdges(ref: RefObject<HTMLElement | null>): {
+  moreAbove: boolean;
+  moreBelow: boolean;
+} {
+  const [moreAbove, setMoreAbove] = useState(false);
+  const [moreBelow, setMoreBelow] = useState(false);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return undefined;
+    const update = () => {
+      setMoreAbove(element.scrollTop > 1);
+      setMoreBelow(element.scrollHeight - element.scrollTop - element.clientHeight > 1);
+    };
+    update();
+    element.addEventListener('scroll', update, { passive: true });
+    const observer =
+      typeof ResizeObserver === 'function' ? new ResizeObserver(update) : undefined;
+    observer?.observe(element);
+    if (element.firstElementChild) observer?.observe(element.firstElementChild);
+    return () => {
+      element.removeEventListener('scroll', update);
+      observer?.disconnect();
+    };
+  }, [ref]);
+  return { moreAbove, moreBelow };
+}
+
 function ThreadLabel({ thread }: { thread: ThreadSummary }) {
   const draft = Boolean(thread.draft?.trim());
   const state = threadStateLabel(thread);
@@ -711,15 +774,19 @@ function ThreadMenu({
 }: {
   thread: ThreadSummary;
   onRename(): void;
-  onDelete(): void;
-  onFork?: (() => void) | undefined;
+  onDelete(opener: HTMLElement | null): void;
+  onFork?: ((opener: HTMLElement | null) => void) | undefined;
   onArchive?: (() => void) | undefined;
   onSetUnread?: (() => void) | undefined;
 }) {
+  const trigger = useRef<HTMLButtonElement>(null);
+  const busy =
+    thread.status === 'running' || thread.status === 'queued' || thread.status === 'waiting';
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <button
+          ref={trigger}
           type="button"
           className={styles.threadMenuButton}
           aria-label={`Thread actions for ${thread.title}`}
@@ -737,8 +804,10 @@ function ThreadMenu({
           {onFork ? (
             <DropdownMenu.Item
               className={styles.threadMenuItem}
-              onSelect={onFork}
+              onSelect={() => onFork(trigger.current)}
               data-testid="thread-fork"
+              disabled={busy}
+              title={busy ? 'Stop or finish the current task before forking.' : undefined}
             >
               <GitFork size={14} aria-hidden="true" />
               Fork
@@ -771,20 +840,27 @@ function ThreadMenu({
           ) : null}
           <DropdownMenu.Item
             className={`${styles.threadMenuItem} ${styles.threadMenuDanger}`}
-            disabled={
-              thread.status === 'running' ||
-              thread.status === 'queued' ||
-              thread.status === 'waiting'
-            }
-            onSelect={onDelete}
+            disabled={busy}
+            title={busy ? deleteBlockedReason(thread) : undefined}
+            onSelect={() => onDelete(trigger.current)}
           >
             <Trash size={14} aria-hidden="true" />
-            Delete
+            <span className={styles.threadMenuItemText}>
+              Delete
+              {busy ? <small>{deleteBlockedReason(thread)}</small> : null}
+            </span>
           </DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
   );
+}
+
+/** Why Delete is unavailable, in words that say what to do about it. */
+function deleteBlockedReason(thread: ThreadSummary): string {
+  return thread.status === 'waiting'
+    ? 'Answer or stop the task first'
+    : 'Stop or finish the task first';
 }
 
 function AgentMenu({
@@ -808,7 +884,7 @@ function AgentMenu({
         <button
           type="button"
           className={styles.agentEditButton}
-          aria-label={`Room actions for ${agent.name}`}
+          aria-label={`Agent actions for ${agent.name}`}
         >
           <DotsThree size={15} weight="bold" aria-hidden="true" />
         </button>
@@ -821,12 +897,12 @@ function AgentMenu({
           </DropdownMenu.Item>
           <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onEdit}>
             <NotePencil size={14} aria-hidden="true" />
-            Edit room
+            Edit agent
           </DropdownMenu.Item>
           {onSetPinned ? (
             <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onSetPinned}>
               <PushPin size={14} aria-hidden="true" />
-              {agent.pinned ? 'Unpin room' : 'Pin room'}
+              {agent.pinned ? 'Unpin agent' : 'Pin agent'}
             </DropdownMenu.Item>
           ) : null}
           {onSetNotifications ? (
@@ -842,7 +918,7 @@ function AgentMenu({
           {onDuplicate ? (
             <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onDuplicate}>
               <Copy size={14} aria-hidden="true" />
-              Duplicate room
+              Duplicate agent
             </DropdownMenu.Item>
           ) : null}
         </DropdownMenu.Content>

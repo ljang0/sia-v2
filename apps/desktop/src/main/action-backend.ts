@@ -23,10 +23,12 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, extname, isAbsolute, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import type {
-  ActionBackend,
-  ActionExecutionResult,
-  ValidatedActionInvocation,
+import {
+  isSensitiveComputerApp,
+  isSensitiveLocalPath,
+  type ActionBackend,
+  type ActionExecutionResult,
+  type ValidatedActionInvocation,
 } from '@sia/action-gateway';
 import {
   isConnectionReconnectRequired,
@@ -235,8 +237,6 @@ const BROWSER_UPLOAD_RETENTION_MS = 10 * 60_000;
 // every snapshot/action still revalidates the live process and exact window,
 // and every mutation remains bound to the latest host-minted snapshot ref.
 const COMPUTER_GRANT_TTL_MS = 10 * 60_000;
-const SENSITIVE_COMPUTER_APP =
-  /(?:^|[\s._-])(?:sia|1password|bitwarden|lastpass|dashlane|keeper|enpass|strongbox|keepass|secrets?|authenticator|keychain|password|terminal|iterm|warp|alacritty|system settings|system preferences|script editor|scripteditor2?|automator|shortcuts|chrome|chromium|safari|firefox|arc|brave|edge|opera|vivaldi|orion|dia)(?:$|[\s._-])|(?:ai\.sia\.desktop|com\.apple\.security|com\.google\.chrome)/i;
 const SENSITIVE_BROWSER_HOST =
   /(?:^|\.)(?:accounts\.google\.com|login\.microsoftonline\.com|appleid\.apple\.com|id\.apple\.com|auth0\.com|okta\.com|1password\.com|bitwarden\.com|lastpass\.com|dashlane\.com|keepersecurity\.com)$/i;
 const SENSITIVE_BROWSER_PATH =
@@ -245,8 +245,6 @@ const SENSITIVE_BROWSER_QUERY_KEY =
   /(?:^|[^a-z0-9])(?:api[-_]?key|access[-_]?token|auth|authorization|code|credentials?|jwt|key|password|refresh[-_]?token|secret|session|signature|sig|token)(?:$|[^a-z0-9])/i;
 const BROWSER_VAULT_NAME = /^sia-browser-(?:upload|download)-[A-Za-z0-9]{6,}$/;
 const MAX_CONNECTOR_UPLOAD_BYTES = 5_000_000;
-const SENSITIVE_UPLOAD_PATH =
-  /(?:^|\/)(?:\.ssh|\.aws|\.gnupg|Library\/Keychains)(?:\/|$)|(?:^|\/)(?:id_rsa|id_ed25519|\.env)(?:\.|$)/i;
 const CONNECTOR_UPLOAD_MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
   '.csv': 'text/csv',
   '.doc': 'application/msword',
@@ -642,7 +640,7 @@ export class DesktopActionBackend implements ActionBackend {
     } catch (error) {
       if (isConnectionReconnectRequired(error)) {
         return refused(
-          'This connected app authorization expired. Reconnect it in Settings > Apps, then retry.',
+          'This connected app authorization expired. Reconnect it in Settings > Connections, then retry.',
         );
       }
       return classifyFailure(error);
@@ -777,7 +775,7 @@ export class DesktopActionBackend implements ActionBackend {
   #computerAppBlocked(name: string | undefined, bundleId?: string): boolean {
     if (bundleId && MAC_BROWSER_BUNDLES.has(bundleId.toLowerCase()))
       return !this.#macBrowserAccess() || !this.#inspectBrowserWindow;
-    return computerAppLooksSensitive(name, bundleId);
+    return isSensitiveComputerApp(name, bundleId);
   }
 
   #isNativeBrowser(binding: ComputerWindowBinding): boolean {
@@ -2034,11 +2032,11 @@ export class DesktopActionBackend implements ActionBackend {
     const files: string[] = [];
     try {
       for (const [index, path] of paths.entries()) {
-        if (!isAbsolute(path) || pathLooksSensitive(path)) {
+        if (!isAbsolute(path) || isSensitiveLocalPath(path)) {
           throw new Error('Browser uploads require a non-sensitive absolute file path.');
         }
         const resolved = await realpath(path);
-        if (resolved !== path || pathLooksSensitive(resolved)) {
+        if (resolved !== path || isSensitiveLocalPath(resolved)) {
           throw new Error('Browser uploads do not follow symbolic links or aliases.');
         }
         const source = await open(resolved, constants.O_RDONLY | constants.O_NOFOLLOW);
@@ -2169,7 +2167,7 @@ export class DesktopActionBackend implements ActionBackend {
     const filePath = requiredString(request.arguments.file_path, 'file_path');
     if (!isAbsolute(filePath)) throw new Error('The approved upload path must be absolute.');
     const resolvedPath = await realpath(filePath);
-    if (SENSITIVE_UPLOAD_PATH.test(resolvedPath)) {
+    if (isSensitiveLocalPath(filePath) || isSensitiveLocalPath(resolvedPath)) {
       throw new Error('Security-sensitive files cannot be uploaded through connector tools.');
     }
     const source = await open(resolvedPath, constants.O_RDONLY | constants.O_NOFOLLOW);
@@ -2710,14 +2708,6 @@ function computerAppIdentity(
   return label ? `name:${label}` : undefined;
 }
 
-function computerAppLooksSensitive(...values: Array<string | undefined>): boolean {
-  return values.some((value) => value !== undefined && SENSITIVE_COMPUTER_APP.test(value));
-}
-
-function pathLooksSensitive(value: string): boolean {
-  return SENSITIVE_UPLOAD_PATH.test(value.normalize('NFC'));
-}
-
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
@@ -2866,7 +2856,7 @@ function connectorBrowserFallback(
     slack: ['Slack', 'https://app.slack.com'],
   } as const;
   const [label, url] = destinations[app];
-  return `${label} is not connected. Continue now in signed-in Chrome at ${url} with browser or computer use, handing control to the user if sign-in is required. For reliable API and background access, the user can connect it later in Settings > Apps; after connection use account_id "${app}".`;
+  return `${label} is not connected. Continue now in signed-in Chrome at ${url} with browser or computer use, handing control to the user if sign-in is required. For reliable API and background access, the user can connect it later in Settings > Connections; after connection use account_id "${app}".`;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

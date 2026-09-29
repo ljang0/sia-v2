@@ -10,6 +10,7 @@ import type {
 } from '../types';
 import styles from '../ui.module.css';
 import { modelChoices, firstReadyModel } from '../agentModels';
+import { voiceOptionLabel } from '../voiceReadiness';
 
 interface AgentDialogProps {
   open: boolean;
@@ -229,11 +230,8 @@ export function AgentDialog({
               <summary>
                 <span>Details</span>
                 <small>
-                  {draft.workspace
-                    ? workspaceName(draft.workspace)
-                    : selectedChoice
-                      ? `${selectedChoice.provider === 'codex' ? 'Codex' : 'Included model'} · Private folder`
-                      : 'Automatic model and private folder'}
+                  {/* Engine and folder names are details for people who open this. */}
+                  {draft.workspace ? workspaceName(draft.workspace) : 'Model and folder'}
                 </small>
               </summary>
               <div className={styles.agentAdvancedBody}>
@@ -320,8 +318,7 @@ export function AgentDialog({
                       </option>
                       {voice.voices.map((candidate) => (
                         <option key={candidate.id} value={candidate.id}>
-                          {candidate.name}
-                          {candidate.category ? ` · ${candidate.category}` : ''}
+                          {voiceOptionLabel(candidate)}
                         </option>
                       ))}
                     </select>

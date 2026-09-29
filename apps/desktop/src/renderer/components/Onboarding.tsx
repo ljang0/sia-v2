@@ -2,6 +2,7 @@ import { Check, Sparkle } from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { OnboardingStep } from '../../shared/bridge';
 import { modelChoices } from '../agentModels';
+import { focusComposer } from '../composerFocus';
 import { STARTER_INSTRUCTIONS } from '../welcome';
 import type { RendererApi, RendererSnapshot } from '../types';
 import { SetupConnections } from './OnboardingConnections';
@@ -89,6 +90,13 @@ export function Onboarding({
   useEffect(() => {
     title.current?.focus();
   }, [starting]);
+  // Finishing or leaving setup lands in the first conversation, ready to type.
+  const inSetup = Boolean(step);
+  const wasInSetup = useRef(inSetup);
+  useEffect(() => {
+    if (wasInSetup.current && !inSetup) focusComposer();
+    wasInSetup.current = inSetup;
+  }, [inSetup]);
   // Resuming setup only checks status. The shared checklist handles focus refreshes.
   useEffect(() => {
     if (!step || starting || restarting) return;
@@ -203,7 +211,7 @@ export function Onboarding({
             ) : null}
             <p className={styles.note}>
               {setupRoute === 'mac-bypass'
-                ? 'Sia can use your apps, send messages, and change files without asking each time.'
+                ? 'Sia works in the background while you keep using your Mac. It can send messages and change files without asking each time. You can switch to On my screen in Settings → Computer.'
                 : 'Sia asks before taking actions in connected apps.'}
             </p>
             {setupRoute === 'mac-bypass' && aiReady ? (
@@ -251,7 +259,9 @@ export function Onboarding({
                   />
                   <span>
                     <strong>Use my Mac + full bypass</strong>
-                    <span>Use your signed-in apps. No per-action approvals.</span>
+                    <span>
+                      Works in the background with your signed-in apps. No per-action approvals.
+                    </span>
                   </span>
                 </label>
                 <label className={styles.setupChoice}>

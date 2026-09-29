@@ -462,6 +462,18 @@ button.agentAvatar {
   cursor: default;
 }
 
+.messageAttachments button[data-thumbnail] {
+  padding-left: 4px;
+}
+
+.attachmentThumbnail {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: var(--radius-tight);
+  object-fit: cover;
+}
+
 .forkSourceLabel {
   margin-right: auto;
 }
@@ -725,6 +737,17 @@ button.agentAvatar {
   font-size: var(--text-md);
   outline: 0;
   transition: background-color var(--motion-fast) var(--ease-standard);
+}
+
+.threadMenuItemText {
+  display: grid;
+  gap: 1px;
+}
+
+.threadMenuItemText small {
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
 }
 
 .threadMenuItem[data-highlighted] {
@@ -1092,6 +1115,11 @@ button.agentAvatar {
   transition:
     color var(--motion-fast) var(--ease-standard),
     transform var(--motion-fast) var(--ease-standard);
+}
+
+.jumpToLatest[data-attention='true'] {
+  border-color: color-mix(in srgb, var(--text-warning) 45%, var(--border-subtle));
+  color: var(--text-primary);
 }
 
 .jumpToLatest:hover {
@@ -1537,6 +1565,14 @@ button.agentAvatar {
   gap: 10px;
 }
 
+.activityList .diffAdded {
+  color: var(--text-success);
+}
+
+.activityList .diffRemoved {
+  color: var(--text-danger);
+}
+
 .activityList li span,
 .activitySources a {
   overflow: hidden;
@@ -1566,6 +1602,17 @@ button.agentAvatar {
   color: var(--text-tertiary);
 }
 
+.activityPlan li[data-status='in_progress'] {
+  color: var(--text-primary);
+  font-weight: var(--weight-semibold);
+}
+
+.activityPlan li > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .activity_running {
   color: var(--text-primary);
 }
@@ -1573,6 +1620,11 @@ button.agentAvatar {
 .activity_error {
   border-left-color: var(--border-strong);
   color: var(--text-secondary);
+}
+
+.activityErrorIcon {
+  flex: none;
+  color: var(--text-danger);
 }
 
 .activity_queued {
@@ -1706,6 +1758,42 @@ button.agentAvatar {
 
 .approvalResolved {
   opacity: 0.72;
+}
+
+.approvalCard:focus {
+  outline: none;
+}
+
+.approvalCard:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.approvalCommand {
+  padding: 6px 0 10px;
+}
+
+.approvalCommand > span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+}
+
+.approvalCommand pre {
+  max-height: 180px;
+  margin: 0;
+  overflow: auto;
+  padding: 9px 11px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .approvalHeader {
@@ -1939,6 +2027,19 @@ button.agentAvatar {
   justify-content: center;
   flex-direction: column;
   text-align: center;
+}
+
+.fatalActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.fatalState .fatalActions .primaryButton {
+  margin-top: 0;
 }
 
 .threadEmpty {
@@ -3095,6 +3196,88 @@ button.agentAvatar {
   width: 16px;
   height: 16px;
   accent-color: var(--bg-accent);
+}
+
+/* Settings on/off switch (components/Switch.tsx). */
+input[type='checkbox'].switch {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 20px;
+  flex: none;
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 70%, var(--border-subtle));
+  border-radius: var(--radius-round);
+  appearance: none;
+  background: var(--bg-subtle);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard);
+}
+
+input[type='checkbox'].switch::before {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  content: '';
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+input[type='checkbox'].switch:checked {
+  border-color: var(--bg-accent);
+  background: var(--bg-accent);
+}
+
+input[type='checkbox'].switch:checked::before {
+  background: var(--bg-canvas);
+  transform: translateX(14px);
+}
+
+input[type='checkbox'].switch:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+input[type='checkbox'].switch:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  input[type='checkbox'].switch,
+  input[type='checkbox'].switch::before {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  input[type='checkbox'].switch {
+    border-color: CanvasText;
+    background: Canvas;
+  }
+
+  input[type='checkbox'].switch::before {
+    background: CanvasText;
+  }
+
+  input[type='checkbox'].switch:checked {
+    background: Highlight;
+  }
+}
+
+.openAtLoginSetting .voicePreference {
+  border-top: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.openAtLoginInline .voicePreference {
+  padding: 12px 0;
+  border-top: 0;
 }
 
 .voiceSetup {
@@ -4295,6 +4478,12 @@ button.agentAvatar {
   border-top: 1px solid var(--border-subtle);
 }
 
+.captureSettings + .settingsDisclosure {
+  /* The capture row already draws this divider. */
+  margin-top: 0;
+  border-top: 0;
+}
+
 .settingsDisclosure > summary {
   display: flex;
   min-height: 48px;
@@ -4926,7 +5115,10 @@ button.agentAvatar {
   }
 }
 
-.streamingContent > p:last-of-type::after {
+/* The caret follows the last text written, including the last item of a list or quote. */
+.streamingContent > :is(p, h1, h2, h3, h4, h5, h6):last-child::after,
+.streamingContent > :is(ul, ol):last-child > li:last-child::after,
+.streamingContent > blockquote:last-child > :last-child::after {
   display: inline-block;
   width: 2px;
   height: 13px;
@@ -6575,24 +6767,25 @@ button.agentAvatar {
 
 .threadToolClose {
   position: absolute;
-  top: 10px;
-  right: 12px;
-  min-height: 26px;
-  padding: 0 10px;
-  border: var(--ink-line) solid var(--border-subtle);
-  border-radius: var(--radius-round);
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
   transition:
     background-color var(--motion-fast) var(--ease-standard),
-    border-color var(--motion-fast) var(--ease-standard);
+    color var(--motion-fast) var(--ease-standard);
 }
 
 .threadToolClose:hover {
-  border-color: var(--border-strong);
   background: var(--bg-hover);
   color: var(--text-primary);
 }
@@ -6869,6 +7062,23 @@ button.agentAvatar {
   max-width: 1040px;
   width: 100%;
   margin: 0 auto;
+}
+
+/* The title, the tabs, and each section share one left edge: the section column is 900px wide,
+   centered in the pane, and never closer to the edge than the content padding. */
+.settingsPage {
+  --settings-inset: max(clamp(24px, 4vw, 48px), calc((100% - 900px) / 2));
+}
+
+.settingsTopbar {
+  padding-left: var(--settings-inset);
+}
+
+.settingsNav {
+  flex-wrap: nowrap;
+  padding-right: calc(var(--settings-inset) - 8px);
+  /* Tab buttons have 8px of their own padding, so their icons meet the same edge. */
+  padding-left: calc(var(--settings-inset) - 8px);
 }
 
 /* React to the available pane width, including a collapsed sidebar or zoom. */
@@ -7197,7 +7407,9 @@ button.agentAvatar {
   .offlineBanner,
   .actionError,
   .researchEventRow[open] pre,
-  .streamingContent > p:last-of-type::after {
+  .streamingContent > :is(p, h1, h2, h3, h4, h5, h6):last-child::after,
+  .streamingContent > :is(ul, ol):last-child > li:last-child::after,
+  .streamingContent > blockquote:last-child > :last-child::after {
     animation: none;
   }
 
@@ -7415,4 +7627,46 @@ button.agentAvatar {
 .appShell[data-appearance='calm'] .composer::before,
 .appShell[data-appearance='calm'] .composer::after {
   animation: none;
+}
+
+/* The original error text behind a plain-language failure message. */
+.errorDetails {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.errorDetails summary {
+  width: fit-content;
+  cursor: pointer;
+  font-weight: var(--weight-semibold);
+}
+
+.errorDetails code {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.usageWarning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: min(100%, calc(var(--composer-max) + 64px));
+  margin: 0 auto 6px;
+  padding: 0 34px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.usageWarning svg {
+  flex: none;
+  color: var(--text-danger);
+}
+
+.providerUsage {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
 }

@@ -219,6 +219,8 @@ const inputSchemas = {
     .strict(),
   'settings.setAppearance': z.object({ appearance: z.enum(['calm', 'expressive']) }).strict(),
   'settings.setCompletionSound': z.object({ enabled: z.boolean() }).strict(),
+  'settings.setOpenAtLogin': z.object({ enabled: z.boolean() }).strict(),
+  'settings.setDeveloperTools': z.object({ enabled: z.boolean() }).strict(),
   'feedback.compose': z
     .object({
       message: z.string().trim().min(1).max(10_000),
@@ -343,7 +345,7 @@ export function registerDesktopIpc(
     }
     const envelope = parseEnvelope(rawEnvelope);
     try {
-      return await controller.invoke(envelope.method, envelope.input as never);
+      return await controller.invokeForRenderer(envelope.method, envelope.input as never);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'The request failed.';
       throw new Error(sanitizeErrorMessage(message));
@@ -361,7 +363,7 @@ function parseEnvelope(raw: unknown): BridgeInvokeEnvelope {
     .object({ method: z.string(), input: z.unknown().optional() })
     .strict()
     .parse(raw);
-  if (!(envelope.method in inputSchemas)) throw new Error('Unknown Sia IPC method.');
+  if (!Object.hasOwn(inputSchemas, envelope.method)) throw new Error('Unknown Sia IPC method.');
   const method = envelope.method as BridgeMethod;
   const input = inputSchemas[method].parse(envelope.input) as BridgeRequestMap[typeof method];
   return { method, input };
@@ -369,6 +371,8 @@ function parseEnvelope(raw: unknown): BridgeInvokeEnvelope {
 
 function sanitizeErrorMessage(value: string): string {
   return value
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi, 'Bearer [redacted]')
+    .replace(/\beyJ[A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]*){1,2}/g, '[redacted]')
     .replace(/(?:sk|key|token|secret|bearer)[-_][A-Za-z0-9._-]{8,}/gi, '[redacted]')
     .replace(/\/Users\/[^/\s]+/g, '/Users/[user]')
     .slice(0, 800);

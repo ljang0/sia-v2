@@ -31,10 +31,10 @@ function snapshot(
 }
 function host(state: DesktopSnapshot) {
   return {
-    snapshot: () => state,
+    taskSnapshot: () => state,
     remoteAccessAllowed: () => true,
     invoke: vi.fn(async () => ({})),
-  } as unknown as Pick<DesktopController, 'snapshot' | 'invoke' | 'remoteAccessAllowed'>;
+  } as unknown as Pick<DesktopController, 'taskSnapshot' | 'invoke' | 'remoteAccessAllowed'>;
 }
 it('prioritizes questions, failed unread work, results, then running work without exposing raw tool output', () => {
   const states = [

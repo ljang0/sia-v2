@@ -1,4 +1,4 @@
-import { createElement, Fragment, type ReactNode } from 'react';
+import { createElement, Fragment, memo, type ReactNode } from 'react';
 import styles from '../ui.module.css';
 
 /**
@@ -6,9 +6,11 @@ import styles from '../ui.module.css';
  * raw HTML is never interpreted, remote images are never loaded, and only HTTPS links become
  * interactive.
  */
-export function SafeMarkdown({ content }: { content: string }) {
-  return <>{renderBlocks(content.replaceAll('\r\n', '\n').split('\n'), 'md')}</>;
-}
+export const SafeMarkdown = memo(function SafeMarkdown({ content }: { content: string }) {
+  // Provider output crosses a process boundary; a missing body renders as nothing.
+  const source = typeof content === 'string' ? content : '';
+  return <>{renderBlocks(source.replaceAll('\r\n', '\n').split('\n'), 'md')}</>;
+});
 
 const FENCE = /^( {0,3})(`{3,}|~{3,})\s*([\w.+-]*)[^`]*$/;
 const HEADING = /^ {0,3}(#{1,6})\s+(.+?)(?:\s+#+)?\s*$/;

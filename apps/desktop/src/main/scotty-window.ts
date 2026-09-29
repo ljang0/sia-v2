@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, Menu, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, screen } from 'electron';
 import { join } from 'node:path';
 import { z } from 'zod';
 import type { DesktopController } from './controller.js';
@@ -70,8 +70,9 @@ export function createScottyCompanion(
     motion: config.motion,
   });
   const persist = () => repository.put('scotty', 'settings', config);
+  let publishedAvailable = false;
   const state = () =>
-    tasks.view(controller.snapshot(), settings(), allowed() && config.enabled);
+    tasks.view(controller.taskSnapshot(), settings(), allowed() && config.enabled);
   const placePanel = () => {
     if (!pet || pet.isDestroyed() || !panel || panel.isDestroyed()) return;
     panel.setBounds(
@@ -100,6 +101,7 @@ export function createScottyCompanion(
   const publish = () => {
     if (disposed) return;
     const next = state();
+    publishedAvailable = next.available;
     for (const window of [pet, panel]) {
       if (window && !window.isDestroyed()) window.webContents.send('sia:scotty:changed', next);
     }
@@ -110,8 +112,14 @@ export function createScottyCompanion(
     } else if (petReady && pet && !pet.isDestroyed() && !pet.isVisible()) pet.showInactive();
   };
   const schedulePublish = () => {
-    if (!allowed()) publish();
-    if (queued || disposed) return;
+    // configure('hide') publishes the hidden state itself; a hidden Scotty needs no updates.
+    if (disposed || !config.enabled) return;
+    if (!allowed()) {
+      // Hide tasks at once when Sia locks, then stay quiet until it is available again.
+      if (publishedAvailable) publish();
+      return;
+    }
+    if (queued) return;
     queued = setTimeout(() => {
       queued = undefined;
       publish();
@@ -168,6 +176,7 @@ export function createScottyCompanion(
         nodeIntegration: false,
         webviewTag: false,
         backgroundThrottling: false,
+        devTools: !app.isPackaged,
       },
     });
     // A nonactivating panel can join other apps' full-screen Spaces without

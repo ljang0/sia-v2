@@ -2,6 +2,7 @@ import {
   ArrowSquareOut,
   Bell,
   Circle,
+  Clock,
   Desktop,
   Pause,
   SpinnerGap,
@@ -11,7 +12,7 @@ import { useId, useState } from 'react';
 import styles from '../../ui.module.css';
 
 type DashboardActivityStatus =
-  'running' | 'waiting' | 'unread' | 'background' | 'complete' | 'failed';
+  'running' | 'queued' | 'waiting' | 'unread' | 'background' | 'complete' | 'failed';
 
 interface DashboardActivity {
   id: string;
@@ -31,6 +32,7 @@ interface ActivityDashboardProps {
 // A stopped task needs the person as much as a waiting one, so it stays in the default view.
 const activeStatuses: readonly DashboardActivityStatus[] = [
   'running',
+  'queued',
   'waiting',
   'failed',
   'unread',
@@ -41,6 +43,7 @@ const statusOrder: Record<DashboardActivityStatus, number> = {
   waiting: 0,
   failed: 1,
   running: 2,
+  queued: 2.5,
   unread: 3,
   background: 4,
   complete: 5,
@@ -138,6 +141,7 @@ export function ActivityDashboard({ activities, onOpenThread }: ActivityDashboar
 function ActivityStatusIcon({ status }: { status: DashboardActivityStatus }) {
   const props = { size: 17, 'aria-hidden': true as const };
   if (status === 'running') return <SpinnerGap className={styles.spin} {...props} />;
+  if (status === 'queued') return <Clock {...props} />;
   if (status === 'waiting') return <Pause {...props} />;
   if (status === 'unread') return <Bell weight="fill" {...props} />;
   if (status === 'background') return <Desktop {...props} />;

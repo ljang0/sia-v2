@@ -1,5 +1,6 @@
 import { CheckCircle } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
+import { usageLeftText } from '../../plainErrors';
 import { providerStatusLabel } from '../../providerSetup';
 import type { ProviderId, ProviderSetup } from '../../types';
 import styles from '../../ui.module.css';
@@ -78,6 +79,11 @@ export function ProvidersSettings({
               ) : (
                 <p>{providerDescription(provider)}</p>
               )}
+              {provider.limits && provider.status === 'ready' ? (
+                <p className={styles.providerUsage}>
+                  Plan usage: {usageLeftText(provider.limits)}
+                </p>
+              ) : null}
             </div>
             {provider.id === 'meta' && provider.status === 'needs-login' ? (
               <button

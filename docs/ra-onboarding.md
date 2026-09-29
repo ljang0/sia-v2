@@ -23,7 +23,7 @@ SIA_FAKE_SERVICES=1 pnpm dev
 ```
 
 In this mode, walk through first-run setup, create an agent with a name and a short instruction, send
-a read-only prompt, and open Settings → Apps and Settings → Computer. A local build without cloud
+a read-only prompt, and open Settings → Connections and Settings → Computer. A local build without cloud
 configuration intentionally skips email sign-in and labels cloud features unavailable. Fake services
 are deterministic; they are for UI and lifecycle development, not proof that an external provider is
 healthy.
@@ -210,8 +210,8 @@ apps open hidden where macOS supports it. Uncheck the option to defer those app 
 task needs them. Connected apps setup does not request these Automation grants.
 **Settings → Computer → Grant all permissions** runs the same guided pass later.
 
-The default is **Use my Mac + full bypass**: Sia uses signed-in Mac apps and may send messages or
-change files without per-action approval. **Customize setup** contains the alternative
+The default is **Use my Mac + full bypass**: Sia works in the background with signed-in Mac apps
+and may send messages or change files without per-action approval. **Customize setup** contains the alternative
 **Connected apps + confirmations** mode, agent name, and model choice. The starter uses a ready
 model from the admitted catalog and an automatic private workspace. If no model is ready,
 complete AI sign-in first. No API key is required.
@@ -495,8 +495,15 @@ web search and connected-browser tools remain unavailable. Only one Sia Mac task
 at a time; others queue. Long results can be written to `~/SiaOutbox`, and reusable native scripts live
 in the agent's `.sia-mac/skills/`. Your existing memory and conversation history remain available.
 
-**Settings → Computer → Where Sia works** offers **On my screen** (the default native route)
-and **Work in background** (experimental). The choice applies to the next typed or Fn request.
+**Settings → Computer → Where Sia works** offers **Work in background** (the default) and
+**On my screen** (the native route). Profiles that never chose keep working in the background; an
+explicit On my screen choice is kept. The choice applies to the next typed or Fn request. If the
+background driver cannot load or lacks Accessibility or Screen Recording, the task stops before
+starting with a plain next step and a **Continue task** button.
+
+Sia keeps the display awake while a Use my Mac task runs. If you lock the Mac or it sleeps anyway,
+Sia pauses the task and shows “Your Mac locked, so Sia paused this task.” Unlock and press
+**Continue task**; tasks started while the Mac is locked wait until it is unlocked.
 Background control uses the native Cua Driver SDK with tools tied to individual windows, without
 a VM or a Chrome connection. Accessibility is needed for semantic controls; Screen Recording is
 needed for window images and pixel actions. Check both under **Settings → Computer → Set up**.

@@ -18,6 +18,7 @@ import { WorkspaceNotice } from './components/AppStates';
 import { StartupTransition } from './components/StartupTransition';
 import { Conversation } from './components/Conversation';
 import { FeedbackDialog } from './components/FeedbackDialog';
+import { replyFeedbackDraft } from './components/ReplyFeedback';
 import { Inspector } from './components/Inspector';
 import { RoomHeader } from './components/RoomHeader';
 import { QuickSwitcher, type QuickSwitcherAction } from './components/QuickSwitcher';
@@ -34,8 +35,14 @@ import {
 } from './components/localParity';
 import type { AgentDraft, RendererApi, RendererSnapshot } from './types';
 import { useAppController } from './useAppController';
+import { executionLabel, friendlyModelName } from './agentModels';
+import { cancelComposerFocus, focusComposer } from './composerFocus';
+import { heldAsQueued, OfflineBanner, useOfflineOutbox, useOnline } from './offline';
 import { recentThreads, welcomePrompts } from './welcome';
-import { useViewTransition } from './components/effects/use-view-transition';
+import {
+  useInstantThemeSwitch,
+  useViewTransition,
+} from './components/effects/use-view-transition';
 import './tokens.css';
 import companion from './companion.module.css';
 import styles from './ui.module.css';
@@ -61,11 +68,30 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     : app.activityOpen
       ? 'activity'
       : `thread:${app.snapshot?.selectedThreadId ?? ''}`;
-  useViewTransition(viewSurface, viewKey, app.snapshot?.preferences.appearance === 'calm');
+  useViewTransition(
+    viewSurface,
+    viewKey,
+    app.snapshot?.preferences.appearance === 'calm',
+    workspace,
+  );
+  useInstantThemeSwitch();
   const [reveal, setReveal] = useState(0);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackDraft, setFeedbackDraft] = useState<string>();
   const [conversationFindOpen, setConversationFindOpen] = useState(false);
+  const online = useOnline();
+  // A focus retry must not outlive the app it was aiming at.
+  useEffect(() => cancelComposerFocus, []);
+  const outbox = useOfflineOutbox(online, (message) =>
+    app.attempt(() =>
+      app.api.sendMessage(
+        message.threadId,
+        message.content,
+        message.attachments.map(({ id }) => id),
+      ),
+    ),
+  );
   const signInRequired =
     app.snapshot !== undefined && requiresSiaSignIn(app.snapshot.cloudAuth.state);
 
@@ -74,11 +100,18 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     // macOS text fields use Control+B/F/N/K for cursor movement, so only Command is ours there.
     const mac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform);
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && app.activityOpen && !event.defaultPrevented) {
+      if (
+        event.key === 'Escape' &&
+        (app.activityOpen || app.settingsOpen) &&
+        !event.defaultPrevented
+      ) {
         const target = event.target as HTMLElement | null;
-        const clearingField = target instanceof HTMLInputElement && target.value !== '';
+        const clearingField =
+          (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) &&
+          target.value !== '';
         if (!clearingField && !document.querySelector('[role="dialog"], [role="menu"]')) {
-          app.closeActivity();
+          if (app.activityOpen) app.closeActivity();
+          else app.closeSettings();
           return;
         }
       }
@@ -110,7 +143,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         const agentId = app.snapshot.selectedAgentId;
         app.closeSettings();
         app.closeActivity();
-        void app.run(() => app.api.createThread(agentId));
+        void app.run(() => app.api.createThread(agentId)).then(() => focusComposer());
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -124,6 +157,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         setQuickSwitcherOpen(false);
         setConversationFindOpen(false);
         setReveal((current) => current + 1);
+        focusComposer();
       }),
     [app.api, app.closeSettings, app.closeActivity],
   );
@@ -196,10 +230,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
             detail: `Start in ${selectedAgent.name}`,
             keywords: 'new chat task',
             icon: <ChatCircle size={17} />,
+            opensConversation: true,
             run: () => {
               app.closeSettings();
               app.closeActivity();
-              void run(() => api.createThread(selectedAgent.id));
+              void run(() => api.createThread(selectedAgent.id)).then(() => focusComposer());
             },
           },
         ]
@@ -243,7 +278,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     {
       id: 'archived',
       label: 'Open archived threads',
-      detail: 'Restore or revisit a room',
+      detail: 'Restore or revisit a conversation',
       keywords: 'history old',
       icon: <Archive size={17} />,
       run: () => app.openActivity('archived'),
@@ -285,7 +320,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         onCreateThread={(agentId) => {
           app.closeSettings();
           app.closeActivity();
-          void run(() => api.createThread(agentId));
+          void run(() => api.createThread(agentId)).then(() => focusComposer());
         }}
         onRenameThread={(threadId, title) =>
           app.attempt(() => api.renameThread(threadId, title)) as Promise<void>
@@ -299,7 +334,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         onForkThread={(threadId, isolated, title) =>
           app.attempt(() => api.forkThread(threadId, isolated, title)) as Promise<void>
         }
-        onArchiveThread={app.archiveThread}
+        onArchiveThread={(threadId) => app.archiveThread(threadId).then(() => focusComposer())}
         onCreateAgent={app.openNewAgent}
         onEditAgent={app.openEditAgent}
         onSetAgentPinned={(agentId, pinned) =>
@@ -329,7 +364,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         onSelectAgent={(agentId) => {
           app.closeSettings();
           app.closeActivity();
-          void run(() => api.selectAgent(agentId));
+          void run(() => api.selectAgent(agentId)).then(() => focusComposer());
         }}
         onSelectThread={(threadId, archived) => {
           app.closeSettings();
@@ -337,7 +372,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
           void run(async () => {
             if (archived) await api.unarchiveThread(threadId);
             await api.selectThread(threadId);
-          });
+          }).then(() => focusComposer());
         }}
         searchResources={(query) => api.searchThreads(query)}
       />
@@ -348,7 +383,8 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         data-identity={roomAgent?.hue}
         data-companion-workspace
       >
-        {!app.settingsOpen ? (
+        {/* Settings and Activity are full pages with their own titles. */}
+        {!app.settingsOpen && !app.activityOpen ? (
           <RoomHeader
             agent={roomAgent}
             thread={activeThread}
@@ -356,7 +392,12 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               <div className={styles.topbarActions}>
                 {activeThread ? (
                   <ThreadModelControls
-                    workspace={activeThread.workspace}
+                    // The folder path is a developer detail.
+                    workspace={
+                      snapshot.preferences.developerTools === true
+                        ? activeThread.workspace
+                        : undefined
+                    }
                     modelId={activeThread.model}
                     reasoningId={activeThread.reasoningEffort ?? ''}
                     models={modelOptions(snapshot, activeThread.provider, activeThread.model)}
@@ -395,7 +436,8 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
           />
         ) : null}
 
-        <WorkspaceNotice app={app} />
+        {online ? null : <OfflineBanner />}
+        <WorkspaceNotice app={app} deviceOffline={!online} />
         <div className={styles.workspaceBody} ref={viewSurface} data-workspace-view={viewKey}>
           {app.activityOpen ? (
             <main className={styles.activityPage}>
@@ -508,6 +550,8 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               }
               onSetAppearance={(appearance) => api.setAppearance(appearance)}
               onSetCompletionSound={(enabled) => api.setCompletionSound(enabled)}
+              onSetOpenAtLogin={(enabled) => api.setOpenAtLogin(enabled)}
+              onSetDeveloperTools={(enabled) => api.setDeveloperTools(enabled)}
               onSetCapturePaused={(paused) => api.setCapturePaused(paused)}
               onExport={() => api.exportResearchData()}
               onDelete={() => api.deleteResearchData()}
@@ -528,13 +572,24 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onAccount={() => app.openSettings('apps')}
             >
               <Conversation
-                thread={activeThread}
+                thread={
+                  activeThread && outbox.held.length
+                    ? {
+                        ...activeThread,
+                        queuedMessages: [
+                          ...(activeThread.queuedMessages ?? []),
+                          ...heldAsQueued(outbox.held, activeThread.id),
+                        ],
+                      }
+                    : activeThread
+                }
                 executionLabel={
                   activeThread
-                    ? (providerModels(snapshot, activeThread.provider).find(
-                        (model) => model.id === activeThread.model,
-                      )?.label ??
-                      snapshot.providers.find(({ id }) => id === activeThread.provider)?.name)
+                    ? executionLabel(
+                        snapshot.providers,
+                        activeThread.provider,
+                        activeThread.model,
+                      )
                     : undefined
                 }
                 agentName={roomAgent?.name}
@@ -601,20 +656,40 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 }
                 onSpeak={(text) => api.speakText(text, selectedAgent?.voiceId)}
                 completionSound={snapshot.preferences.completionSound}
-                onSend={(content, attachmentIds) =>
-                  activeThread
-                    ? app
-                        .attempt(() => api.sendMessage(activeThread.id, content, attachmentIds))
-                        .then(app.clearAttachments)
-                    : Promise.resolve()
-                }
+                onSend={(content, attachmentIds) => {
+                  if (!activeThread) return Promise.resolve();
+                  // Offline, or behind messages still waiting to go: hold it and send in order.
+                  if (
+                    !online ||
+                    outbox.held.some(({ threadId }) => threadId === activeThread.id)
+                  ) {
+                    outbox.hold({
+                      threadId: activeThread.id,
+                      content,
+                      attachments: (app.attachments ?? []).filter(({ id }) =>
+                        attachmentIds?.includes(id),
+                      ),
+                    });
+                    app.clearAttachments();
+                    return Promise.resolve();
+                  }
+                  return app
+                    .attempt(() => api.sendMessage(activeThread.id, content, attachmentIds))
+                    .then(app.clearAttachments);
+                }}
                 onStop={() =>
-                  activeThread ? run(() => api.cancelTurn(activeThread.id)) : Promise.resolve()
+                  activeThread
+                    ? run(() => api.cancelTurn(activeThread.id)).then(() => focusComposer())
+                    : Promise.resolve()
                 }
                 onRemoveQueued={(messageId) =>
-                  activeThread
-                    ? run(() => api.removeQueuedMessage(activeThread.id, messageId))
-                    : Promise.resolve()
+                  outbox.isHeld(messageId)
+                    ? Promise.resolve(outbox.remove(messageId)).then(() => focusComposer())
+                    : activeThread
+                      ? run(() => api.removeQueuedMessage(activeThread.id, messageId)).then(
+                          () => focusComposer(),
+                        )
+                      : Promise.resolve()
                 }
                 browserRecovery={
                   snapshot.activeThread ? (
@@ -632,8 +707,12 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 onRetry={() =>
                   activeThread ? run(() => api.retryThread(activeThread.id)) : Promise.resolve()
                 }
+                onRateReply={(rating, reply) => {
+                  setFeedbackDraft(replyFeedbackDraft(rating, reply));
+                  setFeedbackOpen(true);
+                }}
                 onResolveApproval={(id, decision) =>
-                  run(() => api.respondToApproval(id, decision))
+                  run(() => api.respondToApproval(id, decision)).then(() => focusComposer())
                 }
                 onDraftChange={
                   activeThread
@@ -642,7 +721,10 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 }
                 onCreateThread={
                   selectedAgent
-                    ? () => void run(() => api.createThread(selectedAgent.id))
+                    ? () =>
+                        void run(() => api.createThread(selectedAgent.id)).then(() =>
+                          focusComposer(),
+                        )
                     : undefined
                 }
                 onCreateAgent={!selectedAgent ? app.openNewAgent : undefined}
@@ -722,7 +804,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
       <FeedbackDialog
         open={feedbackOpen}
         threadId={activeThread?.id}
-        onOpenChange={setFeedbackOpen}
+        initialMessage={feedbackDraft}
+        onOpenChange={(open) => {
+          setFeedbackOpen(open);
+          if (!open) setFeedbackDraft(undefined);
+        }}
         onSubmit={(message, includeDiagnostics) =>
           app.attempt(() =>
             api.composeFeedback(message, activeThread?.id, includeDiagnostics),
@@ -755,7 +841,12 @@ function modelOptions(
   const models = providerModels(snapshot, provider);
   return models.length
     ? models.map((model) => ({ id: model.id, label: model.label, detail: model.description }))
-    : [{ id: selectedModel, label: selectedModel }];
+    : [
+        {
+          id: selectedModel,
+          label: friendlyModelName(provider as import('./types').ProviderId, selectedModel),
+        },
+      ];
 }
 
 function reasoningOptions(
@@ -795,23 +886,27 @@ function activityItems(snapshot: import('./types').RendererSnapshot) {
           thread.queueReason ??
           (thread.status === 'running'
             ? 'Working in the background'
-            : thread.status === 'waiting'
-              ? 'Waiting for your input'
-              : thread.status === 'error'
-                ? 'Stopped before it finished'
-                : 'New activity is ready to review'),
+            : thread.status === 'queued'
+              ? 'Queued'
+              : thread.status === 'waiting'
+                ? 'Waiting for your input'
+                : thread.status === 'error'
+                  ? 'Stopped before it finished'
+                  : 'New activity is ready to review'),
         agentName: agent.name,
         // Live state outranks the unread flag: a running thread that has unread output is running.
         status:
           thread.status === 'running'
             ? ('running' as const)
-            : thread.status === 'waiting' || thread.status === 'queued'
-              ? ('waiting' as const)
-              : thread.status === 'error'
-                ? ('failed' as const)
-                : thread.unread
-                  ? ('unread' as const)
-                  : ('background' as const),
+            : thread.status === 'queued'
+              ? ('queued' as const)
+              : thread.status === 'waiting'
+                ? ('waiting' as const)
+                : thread.status === 'error'
+                  ? ('failed' as const)
+                  : thread.unread
+                    ? ('unread' as const)
+                    : ('background' as const),
         updatedAt: thread.updatedAt,
       })),
   );

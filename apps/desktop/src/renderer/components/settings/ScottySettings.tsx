@@ -9,6 +9,7 @@ import { SettingsSectionHeader, InlineSettingsError } from './SettingsShared';
 import { ScottySprite } from '../ScottySprite';
 import styles from '../../ui.module.css';
 import pet from './ScottySettings.module.css';
+import { Switch } from '../Switch';
 export function ScottySettings({ api }: { api: ScottySettingsApi }) {
   const [state, setState] = useState<Settings>();
   const [busy, setBusy] = useState(false);
@@ -93,9 +94,7 @@ export function ScottySettings({ api }: { api: ScottySettingsApi }) {
               <strong>Animations</strong>
               <p>Blinks, sniffs, naps, and a happy little hop.</p>
             </div>
-            <input
-              type="checkbox"
-              role="switch"
+            <Switch
               aria-label="Scotty animations"
               checked={state?.motion ?? true}
               disabled={busy || !state}

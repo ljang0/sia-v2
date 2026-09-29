@@ -78,10 +78,34 @@ aside.navigation {
   padding: 2px 2px 12px 12px;
   scrollbar-gutter: stable;
 }
+.navigation .scroll[data-more-below] {
+  /* Tell people the list continues below the fold. */
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
+}
 .navigation .sectionHeader {
+  position: relative;
+  z-index: 1;
+  background: var(--shell-bg);
+  transition: box-shadow 150ms ease;
   padding: 0 12px 0 24px;
   font-size: 10px;
   letter-spacing: 0.06em;
+}
+.navigation .sectionHeader[data-scrolled] {
+  /* The list has moved under the header: draw the edge so rows do not seem to slide into it. */
+  box-shadow: 0 1px 0 var(--shell-line);
+}
+.emptyAgents {
+  display: grid;
+  gap: 4px;
+  margin: 4px 12px 0;
+  color: var(--shell-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.emptyAgents strong {
+  color: var(--shell-text);
+  font-weight: 550;
 }
 .groups {
   display: flex;
@@ -288,6 +312,10 @@ aside.navigation {
 .rail button:focus-visible {
   outline: 2px solid var(--shell-text);
   outline-offset: 2px;
+}
+/* Agent headers sit at the scroll list's edge, so their ring is drawn inside to stay whole. */
+.navigation .groupTrigger:focus-visible {
+  outline-offset: -2px;
 }
 aside.rail {
   align-items: center;

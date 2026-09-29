@@ -9,7 +9,7 @@ import {
   waitFor,
   within,
 } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { createDemoRendererApi, demoSnapshot } from './demo';
 import type { RendererApi, RendererSnapshot } from './types';
@@ -42,7 +42,7 @@ describe('app privacy routing', () => {
     fireEvent.keyDown(window, { key: 'k', metaKey: true });
     expect(await screen.findByRole('dialog', { name: 'Move through Sia' })).toBeTruthy();
 
-    const search = screen.getByRole('combobox', { name: 'Search rooms and actions' });
+    const search = screen.getByRole('combobox', { name: 'Search conversations and actions' });
     fireEvent.change(search, { target: { value: 'archived' } });
     fireEvent.click(screen.getByRole('option', { name: /Open archived threads/ }));
 
@@ -71,6 +71,72 @@ describe('app privacy routing', () => {
       screen.getByRole('button', { name: 'Triage today’s inbox' }).getAttribute('aria-current'),
     ).toBe('page');
     expect(screen.getByRole('button', { name: 'Access' })).toBeTruthy();
+  });
+
+  it('names the conversation model plainly and keeps the folder path for developers', async () => {
+    const snapshot = structuredClone(demoSnapshot);
+    for (const provider of snapshot.providers) provider.models = [];
+    const { unmount } = render(<App api={createDemoRendererApi(snapshot)} />);
+    fireEvent.click(await screen.findByText('Model for this conversation'));
+    const model = screen.getByRole('combobox', { name: 'Model' }) as HTMLSelectElement;
+    expect(model.selectedOptions[0]?.textContent).not.toMatch(/^[a-z0-9.-]+$/);
+    expect(screen.queryByText('Workspace')).toBeNull();
+    unmount();
+
+    const developer = structuredClone(snapshot);
+    developer.preferences.developerTools = true;
+    render(<App api={createDemoRendererApi(developer)} />);
+    fireEvent.click(await screen.findByText('Model for this conversation'));
+    expect(screen.getByText('Workspace')).toBeTruthy();
+  });
+
+  it('keeps Settings tabs on one row in a narrow pane by moving extras into More', async () => {
+    const original = globalThis.ResizeObserver;
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: HTMLElement) {
+        const width = this.getAttribute('aria-label') === 'Settings sections' ? 700 : 0;
+        return {
+          width,
+          height: 0,
+          top: 0,
+          left: 0,
+          right: width,
+          bottom: 0,
+          x: 0,
+          y: 0,
+        } as DOMRect;
+      });
+    globalThis.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+    try {
+      const api = createDemoRendererApi(structuredClone(demoSnapshot));
+      api.phoneRemote = async () => ({ enabled: false, running: false, detail: 'Off.' });
+      render(<App api={api} />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+      const nav = await screen.findByRole('navigation', { name: 'Settings sections' });
+      expect(within(nav).getByRole('button', { name: 'Privacy' })).toBeTruthy();
+      expect(within(nav).queryByRole('button', { name: 'Phone remote' })).toBeNull();
+      fireEvent.pointerDown(within(nav).getByRole('button', { name: 'More settings' }), {
+        button: 0,
+        ctrlKey: false,
+      });
+      expect(await screen.findByRole('menuitem', { name: 'Phone remote' })).toBeTruthy();
+    } finally {
+      rect.mockRestore();
+      globalThis.ResizeObserver = original;
+    }
+  });
+
+  it('closes Settings with Escape', async () => {
+    render(<App api={createDemoRendererApi(structuredClone(demoSnapshot))} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeTruthy();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('heading', { name: 'Settings' })).toBeNull();
   });
 
   it('requires email sign-in before any app access when cloud is configured', async () => {
@@ -135,6 +201,9 @@ describe('app privacy routing', () => {
     const archive = await screen.findByRole('region', { name: 'Archived' });
     expect(archive).toBeTruthy();
     expect(screen.getByText('Previous release notes')).toBeTruthy();
+    // Activity is a full page, like Settings: the conversation header steps aside.
+    expect(screen.queryByText('Model for this conversation')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Access' })).toBeNull();
   });
 
   it('keeps existing local work locked while signed out', async () => {

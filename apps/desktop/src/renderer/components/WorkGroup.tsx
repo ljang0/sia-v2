@@ -11,7 +11,8 @@ interface WorkGroupProps {
   endedAt?: string | undefined;
   open: boolean;
   onToggle(): void;
-  renderStep(event: ActivityEvent): ReactNode;
+  /** `position` is the step's place in this group; groups hold consecutive timeline events. */
+  renderStep(event: ActivityEvent, position: number): ReactNode;
 }
 
 /** Folds a finished run of tool steps into one "Worked for 1m 12s · 8 steps" line. */
@@ -65,22 +66,50 @@ interface WorkingStatusProps {
   since?: string | undefined;
   step?: ActivityEvent | undefined;
   writing: boolean;
+  /** Headline of the latest reasoning summary; replaces the plain "Thinking". */
+  thinking?: string | undefined;
+  /** The running turn's plan, when it has one: "Step 2 of 5". */
+  plan?: PlanProgress | undefined;
+}
+
+export interface PlanProgress {
+  current: number;
+  total: number;
+}
+
+/** Where a plan stands: the step in progress, else the next one not yet done. */
+export function planProgress(
+  steps: ReadonlyArray<{ status: 'pending' | 'in_progress' | 'completed' }>,
+): PlanProgress | undefined {
+  if (!steps.length) return undefined;
+  const active = steps.findIndex((step) => step.status === 'in_progress');
+  const next = steps.findIndex((step) => step.status !== 'completed');
+  const index = active >= 0 ? active : next;
+  return index >= 0 ? { current: index + 1, total: steps.length } : undefined;
+}
+
+/** The one word for a running turn, shared by the live line and the conversation header. */
+export function workingLabel(step: boolean, writing: boolean): string {
+  return step ? 'Working' : writing ? 'Writing the reply' : 'Thinking';
 }
 
 /** The live line under a running turn: what Sia is doing now and for how long. */
-export function WorkingStatus({ since, step, writing }: WorkingStatusProps) {
+export function WorkingStatus({ since, step, writing, thinking, plan }: WorkingStatusProps) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1_000);
     return () => window.clearInterval(interval);
   }, []);
   // The running step already shows as its own row above, so this line stays short.
-  const label = step ? 'Working' : writing ? 'Writing the reply' : 'Thinking';
+  const label = !step && !writing && thinking ? thinking : workingLabel(Boolean(step), writing);
   const duration = since ? elapsed(since, new Date(now).toISOString()) : '';
   return (
     <div className={styles.workingStatus} role="status" data-testid="turn-running">
       <CircleNotch size={15} className={styles.workingSpinner} aria-hidden="true" />
       <span>{label}</span>
+      {plan ? (
+        <span className={styles.workingElapsed}>{`Step ${plan.current} of ${plan.total}`}</span>
+      ) : null}
       {duration ? (
         <span className={styles.workingElapsed} aria-hidden="true">
           {duration}

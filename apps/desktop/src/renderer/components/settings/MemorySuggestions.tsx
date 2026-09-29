@@ -3,6 +3,7 @@ import type {
   AssistantLibraryCommand,
 } from '../../../shared/assistant-library';
 import styles from './AssistantSettings.module.css';
+import { Switch } from '../Switch';
 export function MemorySuggestions({
   library,
   agentId,
@@ -53,8 +54,7 @@ export function MemorySuggestions({
             reviews.
           </small>
         </span>
-        <input
-          type="checkbox"
+        <Switch
           disabled={!learning}
           checked={library.reviewAgents?.includes(agentId) ?? false}
           onChange={(event) =>

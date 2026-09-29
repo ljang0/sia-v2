@@ -34,7 +34,10 @@ for (const reducedMotion of ['no-preference', 'reduce'] as const) {
       const original = Element.prototype.animate;
       Object.assign(window, { viewMotionCalls: [] as string[] });
       Element.prototype.animate = function (...args) {
-        const view = this.getAttribute('data-workspace-view');
+        // Page changes animate the workspace (header and body); others animate the body.
+        const view =
+          this.getAttribute('data-workspace-view') ??
+          this.querySelector('[data-workspace-view]')?.getAttribute('data-workspace-view');
         if (view)
           (window as unknown as { viewMotionCalls: string[] }).viewMotionCalls.push(view);
         return original.apply(this, args);
@@ -261,7 +264,7 @@ test('navigation stays stable, previews do not select, and the compact rail keep
   const renamed = nav.getByRole('button', { name: longTitle, exact: true });
   await expect(renamed).toBeVisible();
   for (const width of [1280, 900]) {
-    await nav.getByRole('searchbox', { name: 'Find a thread' }).hover();
+    await nav.getByRole('searchbox', { name: 'Find a conversation' }).hover();
     await page.setViewportSize({ width, height: 760 });
     await expect(nav).toHaveCSS('flex-basis', width === 900 ? '252px' : '272px');
     const title = renamed.getByText(longTitle, { exact: true });
@@ -281,7 +284,7 @@ test('navigation stays stable, previews do not select, and the compact rail keep
   }
   await nav.getByRole('button', { name: 'Research partner', exact: true }).click();
   await expect(task).toBeHidden();
-  await nav.getByRole('searchbox', { name: 'Find a thread' }).fill('Weekly');
+  await nav.getByRole('searchbox', { name: 'Find a conversation' }).fill('Weekly');
   await expect(task).toBeVisible();
   await expect(nav.getByRole('button', { name: longTitle, exact: true })).toHaveCount(0);
   await nav.getByRole('button', { name: 'Collapse sidebar' }).click();
@@ -412,7 +415,7 @@ test('navigation reveals a distant selected task without scrolling the app windo
     await nav.getByRole('button', { name: 'New conversation', exact: true }).click();
   }
   await page.keyboard.press('ControlOrMeta+k');
-  await page.getByRole('combobox', { name: 'Search rooms and actions' }).fill('Triage');
+  await page.getByRole('combobox', { name: 'Search conversations and actions' }).fill('Triage');
   await page.getByRole('option', { name: /Triage today’s inbox/ }).click();
   const selected = nav.getByRole('button', { name: 'Triage today’s inbox', exact: true });
   await expect(selected).toHaveAttribute('aria-current', 'page');

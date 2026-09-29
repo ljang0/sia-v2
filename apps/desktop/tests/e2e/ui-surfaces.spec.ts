@@ -62,12 +62,15 @@ test('settings and personal-library surfaces remain readable at supported window
     await capture(page, info, 'workspace-empty');
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     const more = page.getByRole('button', { name: 'More settings' });
-    await expect(page.getByRole('button', { name: 'Phone remote', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Scotty', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'About', exact: true })).toHaveCount(0);
     await more.focus();
     await more.press('Enter');
     await expect(page.getByRole('menuitem', { name: 'About', exact: true })).toBeVisible();
+    // At the minimum window the tabs stay on one row; Scotty and Phone remote wait in More.
+    await expect(
+      page.getByRole('menuitem', { name: 'Phone remote', exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Scotty', exact: true })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(more).toBeFocused();
 
@@ -211,6 +214,12 @@ test('conversation tools, access panels and dialogs fit the minimum desktop wind
       await page.getByRole('button', { name: 'Close thread tool' }).click();
       await expect(tools).toBeFocused();
     }
+    // Command runs unreviewed shell commands, so it appears only after Developer tools is on.
+    await tools.click();
+    await expect(page.getByRole('menu', { name: 'Tools', exact: true })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Command', exact: true })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => window.sia.settings.setDeveloperTools(true));
     await tools.click();
     await page.getByRole('menuitem', { name: 'Command', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Terminal' })).toBeInViewport({ ratio: 1 });

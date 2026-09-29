@@ -1,5 +1,13 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { ArrowLeft, CalendarDots, CaretDown, Code, Flag, GitDiff } from '@phosphor-icons/react';
+import {
+  ArrowLeft,
+  CalendarDots,
+  CaretDown,
+  Code,
+  Flag,
+  GitDiff,
+  X,
+} from '@phosphor-icons/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   BackgroundTerminal,
@@ -116,6 +124,11 @@ export function ThreadWorkspaceTools({
   const changedFiles = useMemo(() => mapChangedFiles(changes), [changes]);
   const schedules = snapshot.schedules.filter((schedule) => schedule.threadId === thread.id);
   const schedulesAvailable = snapshot.cloudAuth.features?.schedules !== false;
+  const developerTools = snapshot.preferences.developerTools === true;
+
+  useEffect(() => {
+    if (!developerTools) setTool((current) => (current === 'terminal' ? undefined : current));
+  }, [developerTools]);
 
   return (
     <>
@@ -151,13 +164,15 @@ export function ThreadWorkspaceTools({
               >
                 <GitDiff size={14} aria-hidden="true" /> Changes
               </DropdownMenu.Item>
-              <DropdownMenu.Item
-                className={styles.threadMenuItem}
-                onSelect={() => setTool('terminal')}
-                data-testid="terminal-open"
-              >
-                <Code size={14} aria-hidden="true" /> Command
-              </DropdownMenu.Item>
+              {developerTools ? (
+                <DropdownMenu.Item
+                  className={styles.threadMenuItem}
+                  onSelect={() => setTool('terminal')}
+                  data-testid="terminal-open"
+                >
+                  <Code size={14} aria-hidden="true" /> Command
+                </DropdownMenu.Item>
+              ) : null}
               {schedulesAvailable ? (
                 <DropdownMenu.Item
                   className={styles.threadMenuItem}
@@ -197,8 +212,9 @@ export function ThreadWorkspaceTools({
             className={styles.threadToolClose}
             onClick={closePanel}
             aria-label="Close thread tool"
+            title="Close"
           >
-            Close
+            <X size={15} aria-hidden="true" />
           </button>
           {tool === 'goal' ? (
             <GoalControls
@@ -231,6 +247,8 @@ export function ThreadWorkspaceTools({
               }
               onDelete={(scheduleId) => run(() => api.deleteSchedule(scheduleId))}
               onRunNow={(scheduleId) => run(() => api.runScheduleNow(scheduleId))}
+              openAtLogin={snapshot.preferences.openAtLogin === true}
+              onSetOpenAtLogin={(enabled) => api.setOpenAtLogin(enabled)}
             />
           ) : changesLoading ? (
             <p className={styles.localEmpty} role="status">

@@ -389,7 +389,22 @@ describe('RuntimeCoordinator', () => {
       })) {
         // no-op
       }
-    }).rejects.toThrow('disabled');
+    }).rejects.toThrow(
+      'This model is no longer available in Sia. Choose Codex or a model included with Sia.',
+    );
+    await runtime.dispose();
+  });
+
+  it('lets the host revoke session-bound capabilities when sessions are reset', async () => {
+    const onSessionsReset = vi.fn();
+    const runtime = new RuntimeCoordinator(
+      new ActionGateway({
+        backend: { invoke: async () => ({ outcome: 'refused', summary: 'not used' }) },
+      }),
+      { onSessionsReset },
+    );
+    await runtime.resetSessions();
+    expect(onSessionsReset).toHaveBeenCalledOnce();
     await runtime.dispose();
   });
 
@@ -459,6 +474,7 @@ describe('RuntimeCoordinator', () => {
       },
       cancelTurn: async () => undefined,
       respondToRequest: async () => undefined,
+      closeSession: vi.fn(async () => undefined),
       dispose: async () => undefined,
     };
     const runtime = new RuntimeCoordinator(
@@ -510,6 +526,13 @@ describe('RuntimeCoordinator', () => {
         model: 'example/spark',
       }),
     ]);
+    // Deleting the thread releases its provider session.
+    await runtime.releaseSession('thread-lab');
+    expect(adapter.closeSession).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'thread-lab', nativeId: 'lab-native-session' }),
+    );
+    await runtime.releaseSession('thread-lab');
+    expect(adapter.closeSession).toHaveBeenCalledTimes(1);
     await runtime.dispose();
   });
 });

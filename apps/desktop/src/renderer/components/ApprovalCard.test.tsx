@@ -153,4 +153,101 @@ describe('ApprovalCard', () => {
     expect(screen.getByText('expired')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
   });
+
+  it('drops the preview countdown once the person has answered', () => {
+    const event: ApprovalEvent = {
+      id: 'approval-answered',
+      type: 'approval',
+      status: 'approved',
+      timestamp: '2026-08-13T00:00:00.000Z',
+      request: {
+        id: 'approval-answered',
+        kind: 'connector',
+        title: 'Create a Gmail draft',
+        app: 'Gmail',
+        account: 'lawrence@example.com',
+        action: 'Create draft',
+        destination: 'team@example.com',
+        preview: 'Status update',
+        expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+      },
+    };
+    render(<ApprovalCard event={event} onResolve={vi.fn()} />);
+    expect(screen.getByText('approved')).toBeTruthy();
+    expect(screen.queryByText(/Preview expire/)).toBeNull();
+  });
+
+  it('shows a native shell command in a monospace block', () => {
+    render(
+      <ApprovalCard
+        event={nativeApproval('Run a command: git push --force origin main')}
+        onResolve={vi.fn()}
+      />,
+    );
+    const command = screen.getByText('git push --force origin main');
+    expect(command.tagName).toBe('CODE');
+    expect(command.closest('pre')).toBeTruthy();
+    expect(screen.getByText('Run this command')).toBeTruthy();
+    expect(screen.queryByText(/Run a command:/)).toBeNull();
+  });
+
+  it('takes focus onto the card, not Approve, only when focus has nowhere better to be', () => {
+    const { unmount } = render(
+      <ApprovalCard event={nativeApproval('Change notes.md')} onResolve={vi.fn()} />,
+    );
+    expect(document.activeElement).toBe(
+      screen.getByRole('region', { name: 'Allow Mac action' }),
+    );
+    unmount();
+
+    const other = document.createElement('input');
+    document.body.append(other);
+    other.focus();
+    render(<ApprovalCard event={nativeApproval('Change notes.md')} onResolve={vi.fn()} />);
+    expect(document.activeElement).toBe(other);
+    other.remove();
+  });
+
+  it('leaves focus with someone typing in the composer', () => {
+    const composer = document.createElement('div');
+    composer.setAttribute('data-companion-composer', '');
+    const input = document.createElement('textarea');
+    input.setAttribute('data-composer-input', '');
+    composer.append(input);
+    document.body.append(composer);
+    input.focus();
+    input.value = 'Half a sentence';
+    const { unmount } = render(
+      <ApprovalCard event={nativeApproval('Change notes.md')} onResolve={vi.fn()} />,
+    );
+    expect(document.activeElement).toBe(input);
+    unmount();
+
+    // An empty composer is not someone typing: the new request takes focus.
+    input.value = '';
+    input.focus();
+    render(<ApprovalCard event={nativeApproval('Change notes.md')} onResolve={vi.fn()} />);
+    expect(document.activeElement).toBe(
+      screen.getByRole('region', { name: 'Allow Mac action' }),
+    );
+    composer.remove();
+  });
 });
+
+function nativeApproval(summary: string): ApprovalEvent {
+  return {
+    id: 'approval-native',
+    type: 'approval',
+    status: 'pending',
+    timestamp: '2026-08-13T00:00:00.000Z',
+    request: {
+      id: 'approval-native',
+      kind: 'action',
+      title: 'Allow Mac action',
+      category: 'Tool',
+      summary,
+      target: 'This Mac',
+      reversible: false,
+    },
+  };
+}

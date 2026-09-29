@@ -9,6 +9,7 @@ const electron = vi.hoisted(() => ({
   load: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
 }));
 vi.mock('electron', () => ({
+  app: { isPackaged: true },
   ipcMain: {
     handle: (name: string, handler: (...args: any[]) => Promise<unknown>) =>
       electron.handlers.set(name, handler),
@@ -88,7 +89,13 @@ function setup() {
   let changed!: () => void;
   let allowed = true;
   const controller = {
-    snapshot: () => ({ revision: 1, agents: [], threads: [], timeline: [], approvals: [] }),
+    taskSnapshot: vi.fn(() => ({
+      revision: 1,
+      agents: [],
+      threads: [],
+      timeline: [],
+      approvals: [],
+    })),
     remoteAccessAllowed: () => allowed,
     subscribe: (listener: () => void) => {
       changed = listener;
@@ -108,7 +115,7 @@ function setup() {
   };
 }
 it('creates no windows until enabled, restores position, stays passive on updates, and suspends both surfaces', async () => {
-  const { pet, saved, changed } = setup();
+  const { pet, saved, changed, controller } = setup();
   await pet.initialize();
   expect(electron.windows).toHaveLength(0);
   await pet.configure({ operation: 'show' });
@@ -118,6 +125,7 @@ it('creates no windows until enabled, restores position, stays passive on update
     nodeIntegration: false,
     contextIsolation: true,
     backgroundThrottling: false,
+    devTools: false,
   });
   expect(window.showInactive).toHaveBeenCalledOnce();
   expect(window.focus).not.toHaveBeenCalled();
@@ -155,6 +163,12 @@ it('creates no windows until enabled, restores position, stays passive on update
   expect(panel.visible).toBe(false);
   await pet.configure({ operation: 'hide' });
   expect(window.visible).toBe(false);
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  const reads = vi.mocked(controller.taskSnapshot).mock.calls.length;
+  changed();
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  // A hidden Scotty does not rebuild task state for background updates.
+  expect(controller.taskSnapshot).toHaveBeenCalledTimes(reads);
   pet.dispose();
   expect(electron.handlers.size).toBe(0);
   expect(window.destroyed).toBe(true);

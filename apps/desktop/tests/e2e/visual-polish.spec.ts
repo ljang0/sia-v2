@@ -99,7 +99,7 @@ test('core surfaces retain the visual-system and motion contract', async () => {
     const switcher = sia.page.getByRole('dialog', { name: 'Move through Sia' });
     await expect(switcher).toBeVisible();
     const switcherSearch = switcher.getByRole('combobox', {
-      name: 'Search rooms and actions',
+      name: 'Search conversations and actions',
     });
     await expect(switcherSearch).toBeFocused();
     await stabilizeTranscriptTimes(sia.page);

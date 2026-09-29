@@ -1564,6 +1564,23 @@ describe('DesktopActionBackend browser boundary', () => {
         }),
       );
       expect(uploadBypass.outcome).toBe('refused');
+      for (const secret of [
+        join(directory, '.codex', 'auth.json'),
+        join(directory, 'Google', 'Chrome', 'Default', 'Login Data'),
+      ]) {
+        await mkdir(dirname(secret), { recursive: true });
+        await writeFile(secret, 'secret');
+        const refused = await backend.invoke(
+          request('browser_upload', {
+            tab_id: 'tab-1',
+            snapshot_id: snapshotData.snapshot_id,
+            element_ref: uploadElement.element_ref,
+            file_paths: [secret],
+            origin: 'https://files.example.test',
+          }),
+        );
+        expect(refused.outcome, secret).toBe('refused');
+      }
       expect(cua.call.mock.calls.some(([tool]) => tool === 'browser_set_input_files')).toBe(
         false,
       );
@@ -1642,7 +1659,7 @@ describe('DesktopActionBackend connector boundary', () => {
     expect(result.outcome).toBe('refused');
     expect(result.reason).toContain('Google Drive is not connected');
     expect(result.reason).toContain('https://drive.google.com');
-    expect(result.reason).toContain('connect it later in Settings > Apps');
+    expect(result.reason).toContain('connect it later in Settings > Connections');
   });
 
   it('resolves stable account aliases to trusted cloud ids and strips account_id from input', async () => {

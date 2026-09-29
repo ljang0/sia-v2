@@ -55,21 +55,29 @@ required(
   dependenciesInstalled ? 'installed' : 'run: pnpm install --frozen-lockfile',
 );
 
+// Node 24 type stripping loads these dependency-free runtime sources directly, so this check and
+// the app admit exactly the same Codex builds. Older Node versions are already reported above.
+const codexRules = await Promise.all([
+  import('../packages/runtime/src/discovery.ts'),
+  import('../packages/runtime/src/providers/codex-versions.ts'),
+]).catch(() => undefined);
 const codex = command('codex');
-const codexVersion = codex.output.match(/(\d+)\.(\d+)\.(\d+)/);
-const supportedCodex =
-  codex.ok &&
-  codexVersion !== null &&
-  Number(codexVersion[1]) === 0 &&
-  Number(codexVersion[2]) >= 147 &&
-  Number(codexVersion[2]) < 154;
-optional(
-  'Codex CLI',
-  supportedCodex,
-  !codex.ok
-    ? 'optional for fake-services development; required for Codex-plan testing'
-    : `${codex.output}; release range is >=0.147.0 <0.154.0`,
-);
+if (codexRules) {
+  const [{ isVersionSupported, parseCliVersion }, { CODEX_SUPPORTED_VERSIONS: range }] =
+    codexRules;
+  const codexVersion = parseCliVersion(codex.output);
+  const supportedRange = [
+    `>=${range.minimum} <${range.maximumExclusive}`,
+    ...range.additionalVersions,
+  ].join(', ');
+  optional(
+    'Codex CLI',
+    codex.ok && codexVersion !== undefined && isVersionSupported(codexVersion, range),
+    !codex.ok
+      ? 'optional for fake-services development; required for Codex-plan testing'
+      : `${codex.output}; supported: ${supportedRange}`,
+  );
+}
 
 for (const result of results) {
   const marker = result.ok ? 'PASS' : result.required ? 'FAIL' : 'INFO';

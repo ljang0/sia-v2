@@ -206,7 +206,7 @@ for (const unusedPermission of [
 const microphoneDescription = readPlistRaw('NSMicrophoneUsageDescription');
 if (
   microphoneDescription !==
-  'Sia uses the microphone only while you record a message for transcription.'
+  "Sia uses the microphone only while you're speaking a request to it."
 ) {
   throw new Error('Packaged microphone access is not limited to explicit dictation.');
 }

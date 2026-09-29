@@ -2,6 +2,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { MacSetupApi } from './SetupMacAccess';
 import {
   CaretDown,
+  Code,
   Palette,
   CheckSquareOffset,
   Database,
@@ -15,11 +16,12 @@ import {
   PawPrint,
   X,
 } from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
+import { type RefObject, useEffect, useRef, useState } from 'react';
 import type { AppConnection, ProviderId, RendererApi, RendererSnapshot } from '../types';
 import styles from '../ui.module.css';
 import { AssistantSettings } from './settings/AssistantSettings';
 import { AboutSettings } from './settings/AboutSettings';
+import { AdvancedSettings } from './settings/AdvancedSettings';
 import { AppsSettings } from './settings/AppsSettings';
 import { ComputerSettings } from './settings/ComputerSettings';
 import { PrivacySettings } from './settings/PrivacySettings';
@@ -30,6 +32,7 @@ import { PhoneRemoteSettings } from './settings/PhoneRemoteSettings';
 import { ScottySettings } from './settings/ScottySettings';
 import { AppearanceSettings } from './settings/AppearanceSettings';
 import { VoiceSettings } from './settings/VoiceSettings';
+import { StartupSettings } from './settings/StartupSettings';
 
 export type SettingsSection =
   | 'appearance'
@@ -42,6 +45,7 @@ export type SettingsSection =
   | 'phone'
   | 'privacy'
   | 'about'
+  | 'advanced'
   | 'release'
   | 'research';
 
@@ -91,6 +95,8 @@ interface SettingsProps {
   onStartSetup?: (() => void) | undefined;
   onSetAppearance?: ((appearance: 'calm' | 'expressive') => Promise<void>) | undefined;
   onSetCompletionSound(enabled: boolean): Promise<void>;
+  onSetOpenAtLogin?: ((enabled: boolean) => Promise<void>) | undefined;
+  onSetDeveloperTools?: ((enabled: boolean) => Promise<void>) | undefined;
   onSetCapturePaused(paused: boolean): Promise<void>;
   onExport(): Promise<void>;
   onDelete(): Promise<void>;
@@ -140,6 +146,8 @@ export function Settings({
   onDisconnectVoice,
   onSetAppearance,
   onSetCompletionSound,
+  onSetOpenAtLogin,
+  onSetDeveloperTools,
   onStartSetup,
   onConfigurePushToTalk,
   onSetCapturePaused,
@@ -152,6 +160,9 @@ export function Settings({
   onReadResearchBatch,
 }: SettingsProps) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
+  const nav = useRef<HTMLElement>(null);
+  // In a narrow pane the tabs stay on one row: Scotty and Phone remote move into More.
+  const compactNav = useNarrowerThan(nav, COMPACT_SETTINGS_NAV_WIDTH);
   const usesMac = snapshot.computer.accessMode === 'mac';
   const canReviewRelease = Boolean(snapshot.cloudAuth.admin && snapshot.cloudAuth.adminMfa);
   const canViewResearchArchive = Boolean(
@@ -185,7 +196,7 @@ export function Settings({
       </header>
 
       <div className={styles.settingsLayout}>
-        <nav className={styles.settingsNav} aria-label="Settings sections">
+        <nav ref={nav} className={styles.settingsNav} aria-label="Settings sections">
           <SettingsNavButton
             active={section === 'providers'}
             icon={<Sparkle size={17} aria-hidden="true" />}
@@ -212,7 +223,7 @@ export function Settings({
             label="Voice"
             onClick={() => setSection('voice')}
           />
-          {scottyApi && (
+          {scottyApi && !compactNav && (
             <SettingsNavButton
               active={section === 'scotty'}
               icon={<PawPrint size={17} aria-hidden="true" />}
@@ -220,7 +231,7 @@ export function Settings({
               onClick={() => setSection('scotty')}
             />
           )}
-          {phoneRemoteApi && (
+          {phoneRemoteApi && !compactNav && (
             <SettingsNavButton
               active={section === 'phone'}
               icon={<DeviceMobile size={17} aria-hidden="true" />}
@@ -239,9 +250,15 @@ export function Settings({
               <button
                 type="button"
                 className={
-                  ['appearance', 'about', 'assistant', 'release', 'research'].includes(
-                    section,
-                  ) ||
+                  [
+                    'appearance',
+                    'about',
+                    'advanced',
+                    'assistant',
+                    'release',
+                    'research',
+                  ].includes(section) ||
+                  (compactNav && (section === 'scotty' || section === 'phone')) ||
                   (usesMac && section === 'apps')
                     ? styles.settingsNavActive
                     : undefined
@@ -257,6 +274,20 @@ export function Settings({
                 align="end"
                 sideOffset={6}
               >
+                {compactNav && scottyApi && (
+                  <SettingsMenuItem
+                    icon={<PawPrint size={17} />}
+                    label="Scotty"
+                    onSelect={() => setSection('scotty')}
+                  />
+                )}
+                {compactNav && phoneRemoteApi && (
+                  <SettingsMenuItem
+                    icon={<DeviceMobile size={17} />}
+                    label="Phone remote"
+                    onSelect={() => setSection('phone')}
+                  />
+                )}
                 {onSetAppearance && (
                   <SettingsMenuItem
                     icon={<Palette size={17} />}
@@ -281,6 +312,13 @@ export function Settings({
                     icon={<PlugsConnected size={17} />}
                     label="Connections"
                     onSelect={() => setSection('apps')}
+                  />
+                )}
+                {onSetDeveloperTools && (
+                  <SettingsMenuItem
+                    icon={<Code size={17} />}
+                    label="Advanced"
+                    onSelect={() => setSection('advanced')}
                   />
                 )}
                 {canReviewRelease && (
@@ -364,6 +402,20 @@ export function Settings({
               onSetComputerTrust={onSetComputerTrust}
               onSetTrajectoryLog={onSetTrajectoryLog}
               onRevealTrajectories={onRevealTrajectories}
+              startup={
+                onSetOpenAtLogin ? (
+                  <StartupSettings
+                    openAtLogin={snapshot.preferences.openAtLogin === true}
+                    onSetOpenAtLogin={onSetOpenAtLogin}
+                  />
+                ) : undefined
+              }
+            />
+          ) : null}
+          {section === 'advanced' && onSetDeveloperTools ? (
+            <AdvancedSettings
+              developerTools={snapshot.preferences.developerTools === true}
+              onSetDeveloperTools={onSetDeveloperTools}
             />
           ) : null}
           {section === 'voice' ? (
@@ -443,6 +495,27 @@ function SettingsNavButton({
       <span>{label}</span>
     </button>
   );
+}
+
+/** Below this nav width, the full set of tabs would wrap onto a second row. */
+const COMPACT_SETTINGS_NAV_WIDTH = 760;
+
+/** True while an element is laid out narrower than `width` (false before it has a size). */
+function useNarrowerThan(ref: RefObject<HTMLElement | null>, width: number): boolean {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || typeof ResizeObserver !== 'function') return undefined;
+    const update = () => {
+      const current = element.getBoundingClientRect().width;
+      setNarrow(current > 0 && current < width);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref, width]);
+  return narrow;
 }
 
 function SettingsMenuItem({

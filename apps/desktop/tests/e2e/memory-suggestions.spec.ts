@@ -82,7 +82,7 @@ test('reviews exact memory changes and executable source before accepting', asyn
       .getByRole('button', { name: /^Suggestions/ })
       .click();
     await expect(
-      page.getByRole('checkbox', { name: /Review memory in the background/ }),
+      page.getByRole('switch', { name: /Review memory in the background/ }),
     ).not.toBeChecked();
     await page.getByText('Evidence from 2 completed tasks').first().click();
     await page

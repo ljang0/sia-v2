@@ -8,6 +8,8 @@ test('background skills use gateway execution and native titles survive restart'
     let page = sia.page;
     page = await sia.completeSetup();
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
+    // New profiles work in the background; native skills are created On my screen.
+    await page.evaluate(() => window.sia.computer.setAccessMode('mac', false));
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('button', { name: 'More settings' }).click();
     await page.getByRole('menuitem', { name: 'Assistant', exact: true }).click();
@@ -87,7 +89,7 @@ test('personal library saves memory, edits workflow parameters and runs through 
     await page.getByRole('button', { name: 'More settings' }).click();
     await page.getByRole('menuitem', { name: 'Assistant', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Assistant', exact: true })).toBeVisible();
-    const context = page.getByRole('checkbox', { name: /Use context when I hold Fn/ });
+    const context = page.getByRole('switch', { name: /Use context when I hold Fn/ });
     await expect(context).not.toBeChecked();
     await context.check();
     await page
@@ -169,7 +171,7 @@ test('automatic learning and executable skills persist and dispatch through the 
       .getByRole('navigation', { name: 'Assistant sections' })
       .getByRole('button', { name: /^Memory/ })
       .click();
-    const learning = page.getByRole('checkbox', { name: /Learn from completed tasks/ });
+    const learning = page.getByRole('switch', { name: /Learn from completed tasks/ });
     await expect(learning).not.toBeChecked();
     await learning.check();
     await page

@@ -40,7 +40,7 @@ their selected model and harness. Model discovery uses the official
 access from a static model label.
 
 When Codex is missing or incompatible, **Set up Codex** in onboarding or
-Settings → AI access downloads the Sia-pinned stable `0.153.0` from the official npm registry.
+Settings → AI downloads the Sia-pinned stable `0.153.0` from the official npm registry.
 It checks the embedded SHA-512 before unpacking fixed members into a private installation under
 `<userData>/tools/codex`, verifies the executable version, and atomically selects the completed
 installation. No npm, terminal command, administrator access, or global CLI replacement is needed.

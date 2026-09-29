@@ -8,6 +8,84 @@ import { Sidebar } from './Sidebar';
 afterEach(cleanup);
 
 describe('thread navigation', () => {
+  it('fades the list bottom only while more conversations sit below the fold', () => {
+    const { container } = render(
+      <Sidebar
+        agents={demoSnapshot.agents}
+        selectedAgentId="agent-work"
+        collapsed={false}
+        onToggle={vi.fn()}
+        onSelectAgent={vi.fn()}
+        onSelectThread={vi.fn()}
+        onCreateThread={vi.fn()}
+        onRenameThread={vi.fn()}
+        onDeleteThread={vi.fn()}
+        onCreateAgent={vi.fn()}
+        onEditAgent={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    );
+    const list = container.querySelector<HTMLElement>('[class*="sidebarScroll"]')!;
+    expect(list.hasAttribute('data-more-below')).toBe(false);
+    Object.defineProperty(list, 'scrollHeight', { configurable: true, value: 900 });
+    Object.defineProperty(list, 'clientHeight', { configurable: true, value: 400 });
+    fireEvent.scroll(list);
+    expect(list.hasAttribute('data-more-below')).toBe(true);
+    list.scrollTop = 500;
+    fireEvent.scroll(list);
+    expect(list.hasAttribute('data-more-below')).toBe(false);
+    // Rows now sit under the section header, which draws its edge.
+    expect(screen.getByText('Your agents').parentElement?.hasAttribute('data-scrolled')).toBe(
+      true,
+    );
+  });
+
+  it('explains the empty list before any agent exists', () => {
+    render(
+      <Sidebar
+        agents={[]}
+        collapsed={false}
+        onToggle={vi.fn()}
+        onSelectAgent={vi.fn()}
+        onSelectThread={vi.fn()}
+        onCreateThread={vi.fn()}
+        onRenameThread={vi.fn()}
+        onDeleteThread={vi.fn()}
+        onCreateAgent={vi.fn()}
+        onEditAgent={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('No agents yet')).toBeTruthy();
+  });
+
+  it('names agent actions as agent actions', async () => {
+    render(
+      <Sidebar
+        agents={demoSnapshot.agents}
+        selectedAgentId="agent-work"
+        collapsed={false}
+        onToggle={vi.fn()}
+        onSelectAgent={vi.fn()}
+        onSelectThread={vi.fn()}
+        onCreateThread={vi.fn()}
+        onRenameThread={vi.fn()}
+        onDeleteThread={vi.fn()}
+        onCreateAgent={vi.fn()}
+        onEditAgent={vi.fn()}
+        onDuplicateAgent={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    );
+    const trigger = screen.getByRole('button', {
+      name: `Agent actions for ${demoSnapshot.agents[0]!.name}`,
+    });
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+    expect(await screen.findByRole('menuitem', { name: 'Edit agent' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Duplicate agent' })).toBeTruthy();
+    expect(screen.queryByText(/room/i)).toBeNull();
+  });
+
   it('derives agent presence from real thread state', () => {
     const agents = structuredClone(demoSnapshot.agents);
     agents[0]!.threads[0]!.status = 'running';
@@ -97,6 +175,36 @@ describe('thread navigation', () => {
     );
   });
 
+  it('disables Fork while a thread is working and explains why', async () => {
+    const agents = structuredClone(demoSnapshot.agents);
+    const thread = agents[0]!.threads[0]!;
+    thread.status = 'running';
+    render(
+      <Sidebar
+        agents={agents}
+        selectedAgentId={agents[0]!.id}
+        collapsed={false}
+        onToggle={vi.fn()}
+        onSelectAgent={vi.fn()}
+        onSelectThread={vi.fn()}
+        onCreateThread={vi.fn()}
+        onRenameThread={vi.fn()}
+        onDeleteThread={vi.fn()}
+        onForkThread={vi.fn()}
+        onCreateAgent={vi.fn()}
+        onEditAgent={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    );
+    fireEvent.pointerDown(
+      screen.getByRole('button', { name: `Thread actions for ${thread.title}` }),
+      { button: 0, ctrlKey: false },
+    );
+    const fork = await screen.findByRole('menuitem', { name: 'Fork' });
+    expect(fork.getAttribute('aria-disabled')).toBe('true');
+    expect(fork.getAttribute('title')).toBe('Stop or finish the current task before forking.');
+  });
+
   it('searches, renames, and confirms deletion of an idle thread', async () => {
     const onRenameThread = vi.fn().mockResolvedValue(undefined);
     const onDeleteThread = vi.fn().mockResolvedValue(undefined);
@@ -128,7 +236,7 @@ describe('thread navigation', () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Find a thread' }), {
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find a conversation' }), {
       target: { value: 'inbox' },
     });
 
@@ -160,9 +268,40 @@ describe('thread navigation', () => {
     );
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }));
 
-    expect(screen.getByRole('alertdialog', { name: 'Delete this thread?' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Delete thread' }));
+    const confirm = screen.getByRole('alertdialog', { name: 'Delete this conversation?' });
+    expect(confirm.textContent).toContain('Files on your Mac stay as they are');
+    expect(confirm.textContent).not.toMatch(/transcript|workspace/);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete conversation' }));
     await waitFor(() => expect(onDeleteThread).toHaveBeenCalledWith('thread-inbox'));
+  });
+  it('says why Delete is unavailable while a conversation waits on the person', async () => {
+    const agents = structuredClone(demoSnapshot.agents);
+    const waiting = agents
+      .flatMap(({ threads }) => threads)
+      .find(({ status }) => status === 'waiting')!;
+    render(
+      <Sidebar
+        agents={agents}
+        selectedAgentId={agents[0]!.id}
+        collapsed={false}
+        onToggle={vi.fn()}
+        onSelectAgent={vi.fn()}
+        onSelectThread={vi.fn()}
+        onCreateThread={vi.fn()}
+        onRenameThread={vi.fn()}
+        onDeleteThread={vi.fn()}
+        onCreateAgent={vi.fn()}
+        onEditAgent={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    );
+    fireEvent.pointerDown(
+      screen.getByRole('button', { name: `Thread actions for ${waiting.title}` }),
+      { button: 0, ctrlKey: false },
+    );
+    const remove = await screen.findByRole('menuitem', { name: /^Delete/ });
+    expect(remove.getAttribute('aria-disabled')).toBe('true');
+    expect(remove.textContent).toContain('Answer or stop the task first');
   });
   it('saves a rename on click-away, cancels on Escape, and badges closed groups that need you', async () => {
     const onRenameThread = vi.fn().mockResolvedValue(undefined);

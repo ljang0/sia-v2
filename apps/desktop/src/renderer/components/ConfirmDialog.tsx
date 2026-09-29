@@ -1,5 +1,5 @@
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import styles from '../ui.module.css';
 
 export interface ConfirmRequest {
@@ -21,17 +21,21 @@ export function ConfirmDialog({
   request: ConfirmRequest | undefined;
   onClose(): void;
 }) {
+  // Keep the last request on screen while the dialog animates closed, so its text never blanks.
+  const shown = useRef(request);
+  if (request) shown.current = request;
+  const content = shown.current;
   return (
     <AlertDialog.Root open={Boolean(request)} onOpenChange={(open) => !open && onClose()}>
       <AlertDialog.Portal>
         <AlertDialog.Overlay className={styles.dialogOverlay} />
         <AlertDialog.Content className={styles.alertDialogContent}>
-          <AlertDialog.Title>{request?.title}</AlertDialog.Title>
-          <AlertDialog.Description>{request?.description}</AlertDialog.Description>
+          <AlertDialog.Title>{content?.title}</AlertDialog.Title>
+          <AlertDialog.Description>{content?.description}</AlertDialog.Description>
           <div className={styles.dialogActions}>
             <AlertDialog.Cancel asChild>
               <button type="button" className={styles.secondaryButton}>
-                {request?.cancelLabel ?? 'Cancel'}
+                {content?.cancelLabel ?? 'Cancel'}
               </button>
             </AlertDialog.Cancel>
             <AlertDialog.Action asChild>
@@ -44,7 +48,7 @@ export function ConfirmDialog({
                   void action?.();
                 }}
               >
-                {request?.confirmLabel}
+                {content?.confirmLabel}
               </button>
             </AlertDialog.Action>
           </div>

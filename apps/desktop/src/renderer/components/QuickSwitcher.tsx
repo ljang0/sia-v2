@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { ChatCircle, File, LinkSimple, MagnifyingGlass, X } from '@phosphor-icons/react';
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import companion from '../companion.module.css';
 import type { AgentSummary, TranscriptSearchResult } from '../types';
 import styles from '../ui.module.css';
@@ -12,6 +12,8 @@ export interface QuickSwitcherAction {
   detail: string;
   keywords?: string | undefined;
   icon: ReactNode;
+  /** The action opens a conversation, which then owns focus (its composer). */
+  opensConversation?: boolean | undefined;
   run(): void;
 }
 
@@ -28,7 +30,15 @@ interface QuickSwitcherProps {
 }
 
 type SwitcherEntry =
-  | { kind: 'action'; id: string; label: string; detail: string; icon: ReactNode; run(): void }
+  | {
+      kind: 'action';
+      id: string;
+      label: string;
+      detail: string;
+      icon: ReactNode;
+      opensConversation?: boolean | undefined;
+      run(): void;
+    }
   | { kind: 'agent'; id: string; label: string; detail: string; hue: number; run(): void }
   | {
       kind: 'thread';
@@ -63,6 +73,8 @@ export function QuickSwitcher({
   const [query, setQuery] = useState('');
   const [highlighted, setHighlighted] = useState(0);
   const [resourceResults, setResourceResults] = useState<TranscriptSearchResult[]>([]);
+  // Opening a conversation hands focus to its composer instead of the element behind ⌘K.
+  const handedOffFocus = useRef(false);
 
   useEffect(() => {
     const normalized = query.trim();
@@ -91,13 +103,14 @@ export function QuickSwitcher({
       label: action.label,
       detail: action.detail,
       icon: action.icon,
+      opensConversation: action.opensConversation,
       run: action.run,
     }));
     const agentEntries: SwitcherEntry[] = agents.map((agent) => ({
       kind: 'agent',
       id: `agent-${agent.id}`,
       label: agent.name,
-      detail: agent.id === selectedAgentId ? 'Current agent' : 'Agent room',
+      detail: agent.id === selectedAgentId ? 'Current agent' : 'Agent',
       hue: agent.hue,
       run: () => onSelectAgent(agent.id),
     }));
@@ -175,6 +188,7 @@ export function QuickSwitcher({
 
   const activate = (entry: SwitcherEntry | undefined) => {
     if (!entry) return;
+    handedOffFocus.current = entry.kind !== 'action' || Boolean(entry.opensConversation);
     onOpenChange(false);
     entry.run();
   };
@@ -183,10 +197,16 @@ export function QuickSwitcher({
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className={styles.dialogOverlay} />
-        <Dialog.Content className={companion.quickSwitcher}>
+        <Dialog.Content
+          className={companion.quickSwitcher}
+          onCloseAutoFocus={(event) => {
+            if (handedOffFocus.current) event.preventDefault();
+            handedOffFocus.current = false;
+          }}
+        >
           <Dialog.Title>Move through Sia</Dialog.Title>
           <Dialog.Description className={styles.visuallyHidden}>
-            Search agent rooms, threads, and common actions.
+            Search conversations, agents, and common actions.
           </Dialog.Description>
           <Dialog.Close asChild>
             <button
@@ -202,7 +222,7 @@ export function QuickSwitcher({
             <input
               autoFocus
               role="combobox"
-              aria-label="Search rooms and actions"
+              aria-label="Search conversations and actions"
               aria-controls="quick-switcher-results"
               aria-expanded="true"
               aria-activedescendant={entries[highlighted]?.id}
@@ -227,7 +247,7 @@ export function QuickSwitcher({
                   activate(entries[highlighted]);
                 }
               }}
-              placeholder="Search rooms and actions"
+              placeholder="Search conversations and actions"
               spellCheck={false}
             />
             <kbd>⌘K</kbd>

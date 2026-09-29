@@ -101,3 +101,23 @@ export function completedActivityLabel(label: string): string {
   const past = first ? PAST_TENSE[first] : undefined;
   return past ? [past, ...rest].join(' ') : label;
 }
+
+/** The last part of a path: what a person calls the file. */
+export function fileBaseName(path: string): string {
+  return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
+}
+
+/**
+ * Screen captures are saved under throwaway names (sia-screen.png, screenshot-3.png). A person
+ * reads them as "looking at the screen", not as a file.
+ */
+export function isScreenCapture(path: string): boolean {
+  return /(^|[-_. ])(screen|screenshot|screencapture|screen-capture|capture|snapshot)/i.test(
+    fileBaseName(path),
+  );
+}
+
+/** Plain wording for a viewed image step. */
+export function imageActivityTitle(path: string): string {
+  return isScreenCapture(path) ? 'Looked at the screen' : `Viewed ${fileBaseName(path)}`;
+}

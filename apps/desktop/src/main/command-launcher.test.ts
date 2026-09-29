@@ -10,6 +10,7 @@ const electron = vi.hoisted(() => {
   return { handlers, windows, register, unregister };
 });
 vi.mock('electron', () => ({
+  app: { isPackaged: true },
   globalShortcut: { register: electron.register, unregister: electron.unregister },
   ipcMain: {
     handle: (name: string, handler: (...args: any[]) => Promise<unknown>) =>
@@ -31,7 +32,7 @@ vi.mock('electron', () => ({
     hide = vi.fn(() => {
       this.visible = false;
     });
-    constructor() {
+    constructor(public options: any) {
       electron.windows.push(this);
     }
     isDestroyed() {
@@ -68,7 +69,7 @@ it('opens only on explicit Cmd+E, never from background snapshots, and unregiste
       expect(electron.windows.every((window) => !window.visible)).toBe(true);
       return 'Source app: TextEdit';
     }),
-    snapshot: () => snapshot,
+    taskSnapshot: vi.fn(() => snapshot),
     subscribe: (listener: () => void) => {
       changed = listener;
       return vi.fn();
@@ -89,10 +90,14 @@ it('opens only on explicit Cmd+E, never from background snapshots, and unregiste
   shortcut();
   await vi.waitFor(() => expect(electron.windows[0]?.show).toHaveBeenCalledOnce());
   expect(controller.captureLauncherContext).toHaveBeenCalledOnce();
+  expect(electron.windows[0].options.webPreferences.devTools).toBe(false);
   shortcut();
   expect(electron.windows[0].visible).toBe(false);
+  const reads = vi.mocked(controller.taskSnapshot).mock.calls.length;
   changed();
   expect(electron.windows[0].visible).toBe(false);
+  // A hidden panel does not rebuild its state for background updates.
+  expect(controller.taskSnapshot).toHaveBeenCalledTimes(reads);
   expect(electron.windows[0].show).toHaveBeenCalledOnce();
   expect(openSia).not.toHaveBeenCalled();
   launcher.dispose();
@@ -110,7 +115,7 @@ it('hands the pre-focus context to the host send route once without exposing it 
   } as unknown as DesktopSnapshot;
   const send = vi.fn();
   const controller = {
-    snapshot: () => snapshot,
+    taskSnapshot: vi.fn(() => snapshot),
     subscribe: () => vi.fn(),
     captureLauncherContext: async () => context,
     sendLauncherTurn: send,
@@ -137,7 +142,7 @@ it('hands the pre-focus context to the host send route once without exposing it 
 it('keeps the panel recoverable until the main window opens successfully', async () => {
   const snapshot = { agents: [], threads: [], timeline: [] } as unknown as DesktopSnapshot;
   const controller = {
-    snapshot: () => snapshot,
+    taskSnapshot: vi.fn(() => snapshot),
     subscribe: () => vi.fn(),
     captureLauncherContext: async () => undefined,
   } as unknown as DesktopController;

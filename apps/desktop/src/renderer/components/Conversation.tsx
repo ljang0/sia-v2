@@ -9,6 +9,7 @@ import {
   Clock,
   Copy,
   FolderSimple,
+  ImageSquare,
   MagnifyingGlass,
   SpeakerHigh,
   SpinnerGap,
@@ -17,7 +18,15 @@ import {
   WarningCircle,
   X,
 } from '@phosphor-icons/react';
-import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  memo,
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type {
   ActivityEvent,
   ApprovalDecision,
@@ -31,16 +40,20 @@ import type {
 import { timeGreeting } from '../welcome';
 import { completedReplyId } from '../task-result';
 import { WelcomeRecents } from './WelcomeRecents';
-import { ResultCard } from './ResultCard';
+import { ReplyReadyMark, ReplySurface } from './ResultCard';
 import styles from '../ui.module.css';
 import { ActivityRow } from './ActivityRow';
-import { WorkGroup, WorkingStatus } from './WorkGroup';
+import { planProgress, WorkGroup, WorkingStatus } from './WorkGroup';
 import { AgentForm } from './AgentForm';
 import { ApprovalCard } from './ApprovalCard';
 import { Composer } from './Composer';
 import { QueuedMessages } from './QueuedMessages';
 import { ConversationOutline, hasConversationOutline } from './ConversationOutline';
 import { SafeMarkdown } from './SafeMarkdown';
+import { RowErrorBoundary } from './ErrorBoundary';
+import { NoticeText, ThreadErrorText } from './PlainErrorText';
+import { usageWarningText } from '../plainErrors';
+import { ReplyFeedbackButtons, type ReplyRating } from './ReplyFeedback';
 import { DitherAurora as Aurora } from './effects/DitherAurora';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
 
@@ -85,6 +98,8 @@ interface ConversationProps {
   onRemoveQueued?: ((messageId: string) => Promise<void>) | undefined;
   onRetry(): Promise<void>;
   onResolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
+  /** Thumbs up or down on a reply opens a feedback draft about it. */
+  onRateReply?: ((rating: ReplyRating, reply: string) => void) | undefined;
   onCreateThread?: (() => void) | undefined;
   onCreateAgent?: (() => void) | undefined;
   onOpenApps?: (() => void) | undefined;
@@ -129,6 +144,7 @@ export function Conversation({
   onRemoveQueued,
   onRetry,
   onResolveApproval,
+  onRateReply,
   onCreateThread,
   onCreateAgent,
   onOpenApps,
@@ -139,6 +155,8 @@ export function Conversation({
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedToLatestRef = useRef(true);
   const previousThreadIdRef = useRef<string | undefined>(undefined);
+  const lastSentMessageRef = useRef<string | undefined>(undefined);
+  const attentionRef = useRef<string | undefined>(undefined);
   const speechGeneration = useRef(0);
   const speechSource = useRef<AudioBufferSourceNode | undefined>(undefined);
   const speechContext = useRef<AudioContext | undefined>(undefined);
@@ -175,7 +193,19 @@ export function Conversation({
     (event) => event.type === 'message' && event.role === 'assistant',
   );
   const errorAlreadyExplained =
-    lastAssistant?.type === 'message' && lastAssistant.content.trim() === thread?.error?.trim();
+    lastAssistant?.type === 'message' &&
+    (lastAssistant.content ?? '').trim() === thread?.error?.trim();
+  // The Task needs attention banner explains the current failure next to Continue task,
+  // so the conversation notice that reported it keeps only its title.
+  const bannerNoticeId =
+    thread?.error && !errorAlreadyExplained
+      ? thread.events.findLast(
+          (event) =>
+            event.type === 'notice' &&
+            event.tone === 'error' &&
+            (event.detail ?? '').trim() === thread.error?.trim(),
+        )?.id
+      : undefined;
 
   const findNeedle = findQuery.trim().toLocaleLowerCase();
   const matchingEventIds = findNeedle
@@ -325,6 +355,19 @@ export function Conversation({
 
     const switchedThreads = previousThreadIdRef.current !== thread.id;
     previousThreadIdRef.current = thread.id;
+    // A new approval, question, or failure needs the person: bring it into view once when it
+    // arrives, then leave scrolling to them.
+    const attention = waitingOnPerson(thread)?.key;
+    const newAttention = Boolean(attention) && attention !== attentionRef.current;
+    attentionRef.current = attention;
+    if (newAttention && !switchedThreads) pinnedToLatestRef.current = true;
+    // Sending a message always brings the reader to it, as it does in Codex and Claude.
+    const lastSent = thread.events.findLast(
+      (event) => event.type === 'message' && event.role === 'user',
+    )?.id;
+    if (lastSent !== lastSentMessageRef.current && !switchedThreads)
+      pinnedToLatestRef.current = true;
+    lastSentMessageRef.current = lastSent;
     if (thread.events.length === 0) {
       if (switchedThreads) {
         pinnedToLatestRef.current = true;
@@ -336,11 +379,11 @@ export function Conversation({
     if (switchedThreads) {
       pinnedToLatestRef.current = true;
       setShowJumpToLatest(false);
-      scrollToLatest(scroller, 'auto');
+      scrollToLatest(scroller, 'instant');
       return;
     }
 
-    if (pinnedToLatestRef.current) scrollToLatest(scroller, 'auto');
+    if (pinnedToLatestRef.current) scrollToLatest(scroller, 'instant');
     else setShowJumpToLatest(true);
   }, [thread, thread?.events, thread?.id, thread?.status]);
 
@@ -360,6 +403,65 @@ export function Conversation({
     scrollToLatest(scroller, 'smooth');
   };
 
+  // Rows call the latest handlers through one stable object, so a memoized row re-renders only
+  // when its own event or state changes, not on every streamed token.
+  const latestRowActions = useRef<RowActions | undefined>(undefined);
+  useLayoutEffect(() => {
+    latestRowActions.current = {
+      registerRow: () => undefined,
+      toggleSpeech: (eventId, text) => toggleSpeech(eventId, text),
+      previewAttachment: (attachment) => {
+        if (!onPreviewAttachment) return;
+        setPreview({ attachment });
+        void onPreviewAttachment(attachment.id).then(
+          (result) => setPreview({ attachment, result }),
+          (cause: unknown) =>
+            setPreview({
+              attachment,
+              result: attachmentPreviewFailure(cause),
+            }),
+        );
+      },
+      loadThumbnail: async (attachment) => {
+        if (!onPreviewAttachment || attachment.kind !== 'image') return undefined;
+        const result = await onPreviewAttachment(attachment.id);
+        return result.kind === 'image' ? result.dataUrl : undefined;
+      },
+      rateReply: (rating, reply) => onRateReply?.(rating, reply),
+      resolveApproval: async (approvalId, decision) => {
+        setBusyApprovalId(approvalId);
+        try {
+          await onResolveApproval(approvalId, decision);
+        } finally {
+          setBusyApprovalId(undefined);
+        }
+      },
+    };
+  });
+  const rowActions = useMemo<RowActions>(
+    () => ({
+      registerRow: (eventId, node) => {
+        if (node) eventRefs.current.set(eventId, node);
+        else eventRefs.current.delete(eventId);
+      },
+      toggleSpeech: (eventId, text) =>
+        latestRowActions.current?.toggleSpeech(eventId, text) ?? Promise.resolve(),
+      previewAttachment: (attachment) =>
+        latestRowActions.current?.previewAttachment(attachment),
+      loadThumbnail: (attachment) =>
+        latestRowActions.current?.loadThumbnail(attachment) ?? Promise.resolve(undefined),
+      rateReply: (rating, reply) => latestRowActions.current?.rateReply(rating, reply),
+      resolveApproval: (approvalId, decision) =>
+        latestRowActions.current?.resolveApproval(approvalId, decision) ?? Promise.resolve(),
+    }),
+    [],
+  );
+  const events = thread?.events ?? [];
+  const blocks = useMemo(() => conversationBlocks(events), [events]);
+  const matchingEventIdSet = useMemo(
+    () => new Set(matchingEventIds),
+    [matchingEventIds.join(':')],
+  );
   if (loading) return <ConversationSkeleton />;
 
   if (!thread) {
@@ -433,64 +535,53 @@ export function Conversation({
             event.type === 'activity' && event.status === 'running',
         )
     : undefined;
-  const renderEvent = (event: ThreadEvent, index: number) => (
-    <div
-      key={event.id}
-      ref={(node) => {
-        if (node) eventRefs.current.set(event.id, node);
-        else eventRefs.current.delete(event.id);
-      }}
-      className={styles.eventSearchAnchor}
-      tabIndex={-1}
-      data-find-match={matchingEventIds.includes(event.id) ? 'true' : undefined}
-      data-find-current={matchingEventIds[findIndex] === event.id ? 'true' : undefined}
-    >
-      <EventView
+  const usageWarning = usageWarningText(thread?.usageLimit);
+  const currentPlan = running
+    ? thread.events
+        .slice(lastUserEventIndex + 1)
+        .findLast(
+          (event): event is ActivityEvent =>
+            event.type === 'activity' && event.presentation?.kind === 'plan',
+        )?.presentation
+    : undefined;
+  const currentPlanProgress =
+    currentPlan?.kind === 'plan' ? planProgress(currentPlan.steps) : undefined;
+  const renderEvent = (event: ThreadEvent, index: number) => {
+    const previous = events[index - 1];
+    return (
+      <ConversationRow
+        key={event.id}
         event={event}
+        actions={rowActions}
+        findMatch={matchingEventIdSet.has(event.id)}
+        findCurrent={matchingEventIds[findIndex] === event.id}
         agentName={agentName}
+        usageResetsAt={
+          event.type === 'notice' && event.tone === 'error'
+            ? thread?.usageLimit?.resetsAt
+            : undefined
+        }
         noticeExplained={
-          event.type === 'notice' &&
-          event.tone === 'error' &&
-          thread.events[index - 1]?.type === 'message' &&
-          (thread.events[index - 1] as MessageEvent).role === 'assistant' &&
-          (thread.events[index - 1] as MessageEvent).content.trim() === event.detail.trim()
+          event.id === bannerNoticeId ||
+          (event.type === 'notice' &&
+            event.tone === 'error' &&
+            previous?.type === 'message' &&
+            previous.role === 'assistant' &&
+            (previous.content ?? '').trim() === (event.detail ?? '').trim())
         }
         agentHue={agentHue}
-        busyApprovalId={busyApprovalId}
+        busyApprovalId={event.type === 'approval' ? busyApprovalId : undefined}
         speechPhase={speech.eventId === event.id ? speech.phase : 'idle'}
         speechError={speech.eventId === event.id ? speech.error : undefined}
         streaming={running && event.id === currentAssistantEventId}
         justCompleted={justCompleted && event.id === currentAssistantEventId}
         completed={event.id === resultId}
-        onToggleSpeech={
-          voiceEnabled && onSpeak ? (text) => toggleSpeech(event.id, text) : undefined
-        }
-        onPreviewAttachment={
-          onPreviewAttachment
-            ? (attachment) => {
-                setPreview({ attachment });
-                void onPreviewAttachment(attachment.id).then(
-                  (result) => setPreview({ attachment, result }),
-                  (cause: unknown) =>
-                    setPreview({
-                      attachment,
-                      result: attachmentPreviewFailure(cause),
-                    }),
-                );
-              }
-            : undefined
-        }
-        onResolveApproval={async (approvalId, decision) => {
-          setBusyApprovalId(approvalId);
-          try {
-            await onResolveApproval(approvalId, decision);
-          } finally {
-            setBusyApprovalId(undefined);
-          }
-        }}
+        speakable={Boolean(voiceEnabled && onSpeak)}
+        previewable={Boolean(onPreviewAttachment)}
+        rateable={Boolean(onRateReply)}
       />
-    </div>
-  );
+    );
+  };
 
   return (
     <main
@@ -632,7 +723,7 @@ export function Conversation({
             </div>
           ) : (
             <div className={styles.eventList}>
-              {conversationBlocks(thread.events).map((block) =>
+              {blocks.map((block) =>
                 block.kind === 'event' ? (
                   renderEvent(block.event, block.index)
                 ) : (
@@ -650,7 +741,7 @@ export function Conversation({
                         return next;
                       })
                     }
-                    renderStep={(event) => renderEvent(event, thread.events.indexOf(event))}
+                    renderStep={(event, position) => renderEvent(event, block.start + position)}
                   />
                 ),
               )}
@@ -659,6 +750,8 @@ export function Conversation({
                   since={eventTime(thread.events[lastUserEventIndex])}
                   step={currentStep}
                   writing={Boolean(currentAssistantEventId)}
+                  thinking={thread.thinking}
+                  plan={currentPlanProgress}
                 />
               ) : null}
               {browserRecovery}
@@ -673,7 +766,11 @@ export function Conversation({
               <WarningCircle size={18} aria-hidden="true" />
               <div>
                 <strong>Task needs attention</strong>
-                {!errorAlreadyExplained ? <span>{thread.error}</span> : null}
+                <ThreadErrorText
+                  error={thread.error}
+                  explained={errorAlreadyExplained}
+                  usageResetsAt={thread.usageLimit?.resetsAt}
+                />
               </div>
               <button
                 type="button"
@@ -692,9 +789,14 @@ export function Conversation({
       {showJumpToLatest || workspaceTools || outlineAvailable ? (
         <div className={styles.threadWorkspaceBar}>
           {showJumpToLatest ? (
-            <button type="button" className={styles.jumpToLatest} onClick={jumpToLatest}>
+            <button
+              type="button"
+              className={styles.jumpToLatest}
+              onClick={jumpToLatest}
+              data-attention={waitingOnPerson(thread) ? 'true' : undefined}
+            >
               <ArrowDown size={14} aria-hidden="true" />
-              Jump to latest
+              {waitingOnPerson(thread)?.label ?? 'Jump to latest'}
             </button>
           ) : null}
           {workspaceTools}
@@ -725,6 +827,12 @@ export function Conversation({
         </div>
       ) : null}
 
+      {usageWarning ? (
+        <p className={styles.usageWarning} role="status" data-testid="usage-warning">
+          <WarningCircle size={14} aria-hidden="true" />
+          {usageWarning}
+        </p>
+      ) : null}
       <QueuedMessages
         messages={thread.queuedMessages ?? []}
         agentName={agentName}
@@ -733,7 +841,6 @@ export function Conversation({
       <Composer
         key={thread.id}
         initialValue={thread.draft ?? ''}
-        disabled={waitingForApproval}
         running={running || queued || waitingForApproval}
         stoppable={running || queued || waiting}
         executionLabel={executionLabel}
@@ -772,6 +879,7 @@ export function Conversation({
         voiceCanListen={Boolean(
           voiceEnabled && dictationEnabled && speech.phase === 'idle' && !globalVoiceActive,
         )}
+        queued={queued}
         presence={
           speech.phase === 'playing'
             ? 'speaking'
@@ -796,7 +904,7 @@ export function Conversation({
           pendingQuestion
             ? `Reply to ${agentName ?? 'Sia'}’s question`
             : waitingForApproval
-              ? 'Review the pending approval or stop this turn'
+              ? `Add a follow-up — ${agentName ?? 'Sia'} will pick it up after the approval`
               : running || queued
                 ? `Add a follow-up — ${agentName ?? 'Sia'} will pick it up next`
                 : thread.events.length === 0
@@ -816,6 +924,30 @@ export function Conversation({
   );
 }
 
+/** What in this thread is waiting on the person, if anything, and how to say so briefly. */
+export function waitingOnPerson(
+  thread: ThreadDetail,
+): { key: string; label: string } | undefined {
+  const approvals = thread.events.filter(
+    (event) => event.type === 'approval' && event.status === 'pending',
+  );
+  if (approvals.length)
+    return {
+      key: `approval:${approvals.map(({ id }) => id).join(',')}`,
+      label:
+        approvals.length === 1 ? '1 approval waiting' : `${approvals.length} approvals waiting`,
+    };
+  const question =
+    thread.status === 'waiting'
+      ? thread.events.findLast(
+          (event) => event.type === 'question' && event.status === 'pending',
+        )
+      : undefined;
+  if (question) return { key: `question:${question.id}`, label: '1 question waiting' };
+  if (thread.error) return { key: `error:${thread.error}`, label: 'Task needs attention' };
+  return undefined;
+}
+
 function isNearLatest(scroller: HTMLDivElement) {
   return scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 72;
 }
@@ -828,6 +960,8 @@ interface EventViewProps {
   agentName?: string | undefined;
   completed?: boolean | undefined;
   noticeExplained?: boolean;
+  /** When the thread's plan usage window resets, for a usage-limit failure. */
+  usageResetsAt?: string | undefined;
   event: ThreadEvent;
   agentHue?: number | undefined;
   busyApprovalId?: string | undefined;
@@ -836,15 +970,84 @@ interface EventViewProps {
   streaming?: boolean | undefined;
   justCompleted?: boolean | undefined;
   onToggleSpeech?: ((text: string) => Promise<void>) | undefined;
+  onRateReply?: ((rating: ReplyRating, reply: string) => void) | undefined;
   onPreviewAttachment?: ((attachment: RendererAttachment) => void) | undefined;
+  onLoadThumbnail?:
+    ((attachment: RendererAttachment) => Promise<string | undefined>) | undefined;
   onResolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
 }
 
-function EventView({
+interface RowActions {
+  registerRow(eventId: string, node: HTMLDivElement | null): void;
+  toggleSpeech(eventId: string, text: string): Promise<void>;
+  previewAttachment(attachment: RendererAttachment): void;
+  loadThumbnail(attachment: RendererAttachment): Promise<string | undefined>;
+  rateReply(rating: ReplyRating, reply: string): void;
+  resolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
+}
+
+interface ConversationRowProps extends Omit<
+  EventViewProps,
+  | 'onToggleSpeech'
+  | 'onPreviewAttachment'
+  | 'onLoadThumbnail'
+  | 'onResolveApproval'
+  | 'onRateReply'
+> {
+  actions: RowActions;
+  findMatch: boolean;
+  findCurrent: boolean;
+  speakable: boolean;
+  previewable: boolean;
+  rateable: boolean;
+}
+
+/** One transcript row. Memoized so streaming into the last reply leaves earlier rows alone. */
+const ConversationRow = memo(function ConversationRow({
+  actions,
+  findMatch,
+  findCurrent,
+  speakable,
+  previewable,
+  rateable,
+  ...view
+}: ConversationRowProps) {
+  const { event } = view;
+  return (
+    <div
+      ref={(node) => actions.registerRow(event.id, node)}
+      className={styles.eventSearchAnchor}
+      tabIndex={-1}
+      data-find-match={findMatch ? 'true' : undefined}
+      data-find-current={findCurrent ? 'true' : undefined}
+    >
+      <EventView
+        {...view}
+        onToggleSpeech={speakable ? (text) => actions.toggleSpeech(event.id, text) : undefined}
+        onPreviewAttachment={previewable ? actions.previewAttachment : undefined}
+        onLoadThumbnail={previewable ? actions.loadThumbnail : undefined}
+        onRateReply={rateable ? actions.rateReply : undefined}
+        onResolveApproval={actions.resolveApproval}
+      />
+    </div>
+  );
+});
+
+/** One conversation row; a rendering failure stays inside the row. */
+function EventView(props: EventViewProps) {
+  return (
+    <RowErrorBoundary resetKey={props.event}>
+      <EventViewContent {...props} />
+    </RowErrorBoundary>
+  );
+}
+
+function EventViewContent({
   agentName = 'Sia',
   completed,
   event,
   noticeExplained,
+  usageResetsAt,
   agentHue,
   busyApprovalId,
   speechPhase,
@@ -852,7 +1055,9 @@ function EventView({
   streaming,
   justCompleted,
   onToggleSpeech,
+  onRateReply,
   onPreviewAttachment,
+  onLoadThumbnail,
   onResolveApproval,
 }: EventViewProps) {
   if (event.type === 'activity') return <ActivityRow event={event} />;
@@ -870,8 +1075,13 @@ function EventView({
       <div className={`${styles.notice} ${styles[`notice_${event.tone}`]}`} role="status">
         <WarningCircle size={17} aria-hidden="true" />
         <div>
-          <strong>{event.title}</strong>
-          {!noticeExplained ? <p>{event.detail}</p> : null}
+          <NoticeText
+            title={event.title}
+            detail={event.detail}
+            tone={event.tone}
+            explained={noticeExplained}
+            usageResetsAt={usageResetsAt}
+          />
         </div>
       </div>
     );
@@ -905,6 +1115,7 @@ function EventView({
       </span>
       <header>
         <span>{event.role === 'user' ? 'You' : agentName}</span>
+        {event.role === 'assistant' ? <ReplyReadyMark ready={Boolean(completed)} /> : null}
         <time dateTime={event.timestamp}>{formatTime(event.timestamp)}</time>
         <CopyMessageButton content={event.content} />
         {event.role === 'assistant' && onToggleSpeech ? (
@@ -931,6 +1142,9 @@ function EventView({
             )}
           </button>
         ) : null}
+        {event.role === 'assistant' && onRateReply && !streaming ? (
+          <ReplyFeedbackButtons onRate={(rating) => onRateReply(rating, event.content)} />
+        ) : null}
       </header>
       <div
         className={`${styles.messageContent} ${streaming ? styles.streamingContent : ''}`}
@@ -945,15 +1159,12 @@ function EventView({
         {event.attachments?.length ? (
           <div className={styles.messageAttachments} aria-label="Message attachments">
             {event.attachments.map((attachment) => (
-              <button
-                type="button"
+              <AttachmentChip
                 key={attachment.id}
-                onClick={() => onPreviewAttachment?.(attachment)}
-                disabled={!onPreviewAttachment}
-              >
-                <FolderSimple size={13} aria-hidden="true" />
-                {attachment.name}
-              </button>
+                attachment={attachment}
+                onPreview={onPreviewAttachment}
+                onLoadThumbnail={onLoadThumbnail}
+              />
             ))}
           </div>
         ) : null}
@@ -965,7 +1176,65 @@ function EventView({
       </div>
     </article>
   );
-  return completed ? <ResultCard>{message}</ResultCard> : message;
+  // Every reply keeps the same frame, so it never moves when it becomes (or stops being) the
+  // result; only the card's paint changes.
+  return event.role === 'assistant' ? (
+    <ReplySurface ready={Boolean(completed)}>{message}</ReplySurface>
+  ) : (
+    message
+  );
+}
+
+// Thumbnails of sent images, kept for the session so scrolling back does not reload them.
+const thumbnailCache = new Map<string, string>();
+const THUMBNAIL_CACHE_LIMIT = 40;
+
+/** A sent attachment: a small thumbnail for an image, otherwise a file icon and its name. */
+function AttachmentChip({
+  attachment,
+  onPreview,
+  onLoadThumbnail,
+}: {
+  attachment: RendererAttachment;
+  onPreview?: ((attachment: RendererAttachment) => void) | undefined;
+  onLoadThumbnail?:
+    ((attachment: RendererAttachment) => Promise<string | undefined>) | undefined;
+}) {
+  const [thumbnail, setThumbnail] = useState(() => thumbnailCache.get(attachment.id));
+  useEffect(() => {
+    if (thumbnail || attachment.kind !== 'image' || !onLoadThumbnail) return;
+    let current = true;
+    onLoadThumbnail(attachment).then(
+      (dataUrl) => {
+        if (!dataUrl) return;
+        thumbnailCache.set(attachment.id, dataUrl);
+        if (thumbnailCache.size > THUMBNAIL_CACHE_LIMIT)
+          thumbnailCache.delete(thumbnailCache.keys().next().value!);
+        if (current) setThumbnail(dataUrl);
+      },
+      () => undefined,
+    );
+    return () => {
+      current = false;
+    };
+  }, [attachment, onLoadThumbnail, thumbnail]);
+  return (
+    <button
+      type="button"
+      onClick={() => onPreview?.(attachment)}
+      disabled={!onPreview}
+      data-thumbnail={thumbnail ? 'true' : undefined}
+    >
+      {thumbnail ? (
+        <img className={styles.attachmentThumbnail} src={thumbnail} alt="" />
+      ) : attachment.kind === 'image' ? (
+        <ImageSquare size={13} aria-hidden="true" />
+      ) : (
+        <FolderSimple size={13} aria-hidden="true" />
+      )}
+      {attachment.name}
+    </button>
+  );
 }
 
 function CopyMessageButton({ content }: { content: string }) {

@@ -10,7 +10,7 @@ A fresh invited participant, who has never been added to a provider test-user li
 
 1. Sign in to Sia, review the research consent, and use chat, web search, schedules, and computer
    use without connecting a work app.
-2. Open **Settings → Apps** and press **Connect Google** once. One Google-owned read-only consent
+2. Open **Settings → Connections** and press **Connect Google** once. One Google-owned read-only consent
    connects Gmail, Drive, Docs, Sheets, and Slides; the participant can turn each service on or off
    without another OAuth round trip.
 3. Press **Connect Slack** separately and select any workspace in which the participant is allowed

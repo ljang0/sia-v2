@@ -35,7 +35,7 @@ describe('local parity renderer contracts', () => {
       />,
     );
 
-    fireEvent.click(screen.getByText('Agent settings'));
+    fireEvent.click(screen.getByText('Model for this conversation'));
     fireEvent.change(screen.getByRole('combobox', { name: 'Model' }), {
       target: { value: 'gpt-5.4' },
     });
@@ -153,6 +153,24 @@ describe('local parity renderer contracts', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear goal' }));
     expect(lifecycle.onPauseGoal).toHaveBeenCalledWith();
     expect(lifecycle.onClearGoal).toHaveBeenCalledWith();
+  });
+
+  it('offers Open Sia at login right where schedules are managed', async () => {
+    const onSetOpenAtLogin = vi.fn(async () => undefined);
+    render(
+      <ScheduleControls
+        schedules={[]}
+        onCreate={vi.fn()}
+        onSetEnabled={vi.fn()}
+        onDelete={vi.fn()}
+        openAtLogin={false}
+        onSetOpenAtLogin={onSetOpenAtLogin}
+      />,
+    );
+    const toggle = screen.getByRole('switch', { name: /Open Sia at login/ });
+    expect((toggle as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(toggle);
+    await waitFor(() => expect(onSetOpenAtLogin).toHaveBeenCalledWith(true));
   });
 
   it('creates, pauses, and deletes a schedule through explicit callbacks', async () => {
@@ -468,6 +486,39 @@ describe('changed file summaries', () => {
     );
   });
 
+  it('offers Command only when Developer tools is on', async () => {
+    const openTools = () =>
+      fireEvent.pointerDown(screen.getByRole('button', { name: 'Tools' }), {
+        button: 0,
+        ctrlKey: false,
+      });
+    const snapshot = structuredClone(demoSnapshot);
+    delete snapshot.preferences.developerTools;
+    const props = {
+      thread: structuredClone(demoSnapshot.activeThread!),
+      api: createDemoRendererApi(structuredClone(demoSnapshot)),
+      run: async (action: () => Promise<unknown>) => void (await action()),
+    };
+    const { rerender } = render(<ThreadWorkspaceTools {...props} snapshot={snapshot} />);
+    openTools();
+    expect(await screen.findByRole('menuitem', { name: 'Changes' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Command' })).toBeNull();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+
+    rerender(
+      <ThreadWorkspaceTools
+        {...props}
+        snapshot={{
+          ...snapshot,
+          preferences: { ...snapshot.preferences, developerTools: true },
+        }}
+      />,
+    );
+    openTools();
+    expect(await screen.findByRole('menuitem', { name: 'Command' })).toBeTruthy();
+  });
+
   it('explains an unreadable folder instead of claiming there are no changes', async () => {
     const api = createDemoRendererApi(structuredClone(demoSnapshot));
     api.readChanges = vi.fn(async () => {
@@ -490,5 +541,9 @@ describe('changed file summaries', () => {
       'not a Git repository',
     );
     expect(screen.queryByText('The workspace has no uncommitted changes.')).toBeNull();
+    // Tool panels close with the same × as the rest of the app.
+    const close = screen.getByRole('button', { name: 'Close thread tool' });
+    expect(close.textContent).toBe('');
+    expect(close.querySelector('svg')).toBeTruthy();
   });
 });

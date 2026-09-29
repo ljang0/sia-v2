@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
-import type { TimelineItemView } from '../shared/bridge';
-import { threadPreviews } from './threadPreviews';
+import type { TimelineItemView } from './bridge';
+import { threadPreviews } from './thread-previews';
 const item = (
   sequence: number,
   overrides: Partial<TimelineItemView> = {},

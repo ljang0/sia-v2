@@ -154,12 +154,17 @@ it('prefers an available Astra model for Use my Mac while honoring a model the u
   );
   const selector = screen.getByRole('combobox', { name: 'AI access' }) as HTMLSelectElement;
   expect(selector.value).toBe('codex:gpt-6-astra');
+  expect(
+    screen.getByText(/Sia works in the background while you keep using your Mac/),
+  ).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Set up Sia' }));
   await waitFor(() =>
     expect(api.createAgent).toHaveBeenCalledWith(
       expect.objectContaining({ provider: 'codex', model: 'gpt-6-astra' }),
     ),
   );
+  // Setup keeps the stored background preference: new profiles work in the background.
+  expect(api.setComputerAccessMode).toHaveBeenCalledWith('mac');
 
   view.unmount();
   const another = setup();
@@ -480,4 +485,23 @@ it('does not auto-finish a resumed guide just because access is already ready', 
   );
   await waitFor(() => expect(api.refreshComputerPermissions).toHaveBeenCalled());
   expect(api.setOnboarding).not.toHaveBeenCalledWith('complete');
+});
+
+it('lands in the conversation composer when setup finishes', async () => {
+  const { snapshot, props } = setup('practice');
+  const view = render(
+    <Onboarding {...props}>
+      <textarea aria-label="Message" data-composer-input />
+    </Onboarding>,
+  );
+  const done = structuredClone(snapshot);
+  done.preferences.onboarding = { step: 'complete' };
+  view.rerender(
+    <Onboarding {...props} snapshot={done}>
+      <textarea aria-label="Message" data-composer-input />
+    </Onboarding>,
+  );
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' })),
+  );
 });

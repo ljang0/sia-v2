@@ -110,7 +110,7 @@ describe('Conversation waiting controls', () => {
     expect(screen.getByRole('button', { name: 'Message copied' })).toBeTruthy();
   });
 
-  it('keeps a pending approval cancellable and prevents an invalid text reply', () => {
+  it('keeps a pending approval cancellable and treats text as a follow-up', () => {
     const { onStop } = renderConversation(
       baseThread({
         events: [
@@ -135,8 +135,9 @@ describe('Conversation waiting controls', () => {
 
     expect(
       (screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement).disabled,
-    ).toBe(true);
+    ).toBe(false);
     expect(screen.queryByRole('button', { name: 'Send message' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Queue follow-up message' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Stop current turn' }));
     expect(onStop).toHaveBeenCalledOnce();
   });
@@ -263,8 +264,37 @@ describe('Conversation waiting controls', () => {
     );
 
     const input = screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement;
-    expect(input.disabled).toBe(true);
-    expect(input.placeholder).toBe('Review the pending approval or stop this turn');
+    expect(input.disabled).toBe(false);
+    expect(input.placeholder).toBe('Add a follow-up — Sia will pick it up after the approval');
+  });
+
+  it('keeps the composer open while an approval waits, and queues what is sent', async () => {
+    const { onSend } = renderConversation(
+      baseThread({
+        status: 'waiting',
+        events: [
+          {
+            id: 'approval-1',
+            type: 'approval',
+            status: 'pending',
+            timestamp: '2026-08-13T00:01:00.000Z',
+            request: {
+              id: 'approval-1',
+              kind: 'action',
+              title: 'Click Send',
+              category: 'Browser',
+              summary: 'Click the reviewed control',
+              target: 'Send button',
+              reversible: false,
+            },
+          },
+        ],
+      }),
+    );
+    const input = screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: 'Also check the calendar' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Queue follow-up message' }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('Also check the calendar', []));
   });
 
   it('keeps a typed message when sending fails', async () => {
@@ -380,7 +410,94 @@ describe('Conversation waiting controls', () => {
         {...props}
       />,
     );
-    expect(scrollTo).toHaveBeenCalledWith({ top: 1_000, behavior: 'auto' });
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1_000, behavior: 'instant' });
+  });
+
+  it('brings a new question into view once and names it on Jump to latest', () => {
+    const reply: MessageEvent = {
+      id: 'reply',
+      type: 'message',
+      role: 'assistant',
+      content: 'Checking your calendars.',
+      timestamp: '2026-08-13T00:00:00.000Z',
+    };
+    const running = baseThread({ status: 'running', events: [reply] });
+    const props = {
+      onSend: async () => undefined,
+      onStop: async () => undefined,
+      onRetry: async () => undefined,
+      onResolveApproval: async () => undefined,
+    };
+    const view = render(<Conversation thread={running} {...props} />);
+    const scroller = screen.getByLabelText('Conversation') as HTMLDivElement;
+    const scrollTo = vi.fn();
+    Object.defineProperties(scroller, {
+      scrollHeight: { configurable: true, value: 1_000 },
+      clientHeight: { configurable: true, value: 400 },
+      scrollTop: { configurable: true, value: 100, writable: true },
+      scrollTo: { configurable: true, value: scrollTo },
+    });
+    // The reader scrolled up to read; a question then arrives below.
+    fireEvent.scroll(scroller);
+    const question = {
+      id: 'question',
+      type: 'question' as const,
+      prompt: 'Which calendar should I use?',
+      status: 'pending' as const,
+      timestamp: '2026-08-13T00:01:00.000Z',
+    };
+    const waiting = { ...running, status: 'waiting' as const, events: [reply, question] };
+    view.rerender(<Conversation thread={waiting} {...props} />);
+    expect(scrollTo).toHaveBeenCalledOnce();
+
+    // Scrolling back up to read is respected: the same question does not pull again.
+    fireEvent.scroll(scroller);
+    view.rerender(<Conversation thread={{ ...waiting, title: 'Renamed' }} {...props} />);
+    expect(scrollTo).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', { name: '1 question waiting' })).toBeTruthy();
+  });
+
+  it('follows the new turn after a send, even if the welcome screen was scrolled', () => {
+    const props = {
+      onSend: async () => undefined,
+      onStop: async () => undefined,
+      onRetry: async () => undefined,
+      onResolveApproval: async () => undefined,
+    };
+    const empty = baseThread({ status: 'idle', events: [] });
+    const view = render(<Conversation thread={empty} {...props} />);
+    const scroller = screen.getByLabelText('Conversation') as HTMLDivElement;
+    const scrollTo = vi.fn();
+    Object.defineProperties(scroller, {
+      scrollHeight: { configurable: true, value: 700 },
+      clientHeight: { configurable: true, value: 500 },
+      scrollTop: { configurable: true, value: 0, writable: true },
+      scrollTo: { configurable: true, value: scrollTo },
+    });
+    // The tall welcome screen was scrolled away from its bottom before the first send.
+    fireEvent.scroll(scroller);
+    scrollTo.mockClear();
+
+    view.rerender(
+      <Conversation
+        thread={{
+          ...empty,
+          status: 'running',
+          events: [
+            {
+              id: 'first-request',
+              type: 'message',
+              role: 'user',
+              content: 'Plan a trip',
+              timestamp: '2026-08-13T00:00:00.000Z',
+            },
+          ],
+        }}
+        {...props}
+      />,
+    );
+    expect(scrollTo).toHaveBeenCalledWith({ top: 700, behavior: 'instant' });
+    expect(screen.queryByRole('button', { name: 'Jump to latest' })).toBeNull();
   });
 
   it('does not mark an earlier reply as streaming before the new reply begins', () => {
@@ -413,6 +530,68 @@ describe('Conversation waiting controls', () => {
     );
 
     expect(container.querySelector('[data-streaming="true"]')).toBeNull();
+  });
+
+  it('keeps a reply in one frame while it streams, finishes, and is followed up', () => {
+    const reply: MessageEvent = {
+      id: 'reply-1',
+      type: 'message',
+      role: 'assistant',
+      content: 'Here is the first part',
+      timestamp: '2026-08-13T00:00:00.000Z',
+    };
+    const request: MessageEvent = {
+      id: 'request-1',
+      type: 'message',
+      role: 'user',
+      content: 'Find my urgent emails.',
+      timestamp: '2026-08-13T00:00:00.000Z',
+    };
+    const props = {
+      onSend: async () => undefined,
+      onStop: async () => undefined,
+      onRetry: async () => undefined,
+      onResolveApproval: async () => undefined,
+    };
+    const streaming = baseThread({ status: 'running', events: [request, reply] });
+    const view = render(<Conversation thread={streaming} {...props} />);
+    const article = view.container.querySelector('[data-message-role="assistant"]');
+    const frame = article?.parentElement;
+    expect(screen.queryByRole('region', { name: 'Task result' })).toBeNull();
+
+    view.rerender(
+      <Conversation
+        thread={{
+          ...streaming,
+          status: 'idle',
+          events: [request, { ...reply, content: 'Done.' }],
+        }}
+        {...props}
+      />,
+    );
+    const result = screen.getByRole('region', { name: 'Task result' });
+    // The same nodes stay mounted: the reply is not re-wrapped, so it cannot jump.
+    expect(result).toBe(frame);
+    expect(view.container.querySelector('[data-message-role="assistant"]')).toBe(article);
+    expect(result.textContent).toContain('Reply ready');
+
+    view.rerender(
+      <Conversation
+        thread={{
+          ...streaming,
+          status: 'running',
+          events: [
+            request,
+            { ...reply, content: 'Done.' },
+            { ...request, id: 'request-2', content: 'Thanks, now archive them.' },
+          ],
+        }}
+        {...props}
+      />,
+    );
+    expect(screen.queryByRole('region', { name: 'Task result' })).toBeNull();
+    expect(view.container.querySelector('[data-message-role="assistant"]')).toBe(article);
+    expect(article?.parentElement).toBe(frame);
   });
 
   it('moves the compact presence from working to a brief completed state', async () => {

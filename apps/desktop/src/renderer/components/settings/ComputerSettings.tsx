@@ -2,7 +2,7 @@ import { ComputerAccessMode } from '../ComputerAccessMode';
 import { useConfirmDialog } from '../ConfirmDialog';
 import { SetupMacAccess, type MacSetupApi } from '../SetupMacAccess';
 import { Notebook, ShieldCheck } from '@phosphor-icons/react';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import type { RendererSnapshot } from '../../types';
 import styles from '../../ui.module.css';
 import { errorMessage, InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
@@ -15,6 +15,7 @@ export function ComputerSettings({
   onSetComputerTrust,
   onSetTrajectoryLog,
   onRevealTrajectories,
+  startup,
 }: {
   snapshot: RendererSnapshot;
   onReviewConnections(): void;
@@ -27,6 +28,8 @@ export function ComputerSettings({
   onSetComputerTrust(trust: 'auto' | 'ask'): Promise<void>;
   onSetTrajectoryLog(enabled: boolean): Promise<void>;
   onRevealTrajectories(): Promise<void>;
+  /** Open at login, shown near the top because schedules depend on it. */
+  startup?: ReactNode;
 }) {
   const [pending, setPending] = useState<'computer' | 'trust' | 'log'>();
   const trusted = snapshot.computer.trust === 'auto';
@@ -109,6 +112,7 @@ export function ComputerSettings({
           </button>
         </div>
       </div>
+      {startup}
       {confirmDialog}
       <SetupMacAccess
         snapshot={snapshot}
@@ -133,7 +137,7 @@ export function ComputerSettings({
       )}
       <details className={styles.settingsDisclosure}>
         <summary>
-          <span>Diagnostics</span> · Local log {snapshot.computer.trajectoryLog ? 'on' : 'off'}
+          <span>Diagnostics</span>
         </summary>
         <div className={styles.accessGroup}>
           <div className={styles.accessRow}>

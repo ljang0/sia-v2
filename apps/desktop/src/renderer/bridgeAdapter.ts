@@ -1,4 +1,5 @@
-import { threadPreviews } from './threadPreviews';
+import { threadPreviews } from '../shared/thread-previews';
+import { clipText } from '../shared/plain-text';
 import { agentIdentity } from './agentIdentity';
 import type {
   ApprovalView,
@@ -28,7 +29,13 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
   const listeners = new Set<(snapshot: RendererSnapshot) => void>();
 
   const publish = (desktop: DesktopSnapshot) => {
+    const previous = latest?.activeThread;
     latest = mapDesktopSnapshot(desktop);
+    if (latest.activeThread && previous?.id === latest.activeThread.id)
+      latest.activeThread.events = reuseUnchangedEvents(
+        previous.events,
+        latest.activeThread.events,
+      );
     if (
       selectedAgentOverride &&
       latest.agents.some((agent) => agent.id === selectedAgentOverride)
@@ -41,14 +48,19 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     } else {
       selectedAgentOverride = undefined;
     }
-    listeners.forEach((listener) => listener(structuredClone(latest!)));
-    return latest;
+    // Each mapped snapshot is fresh and never mutated afterwards, so listeners share it.
+    // Copying it per listener cost more than the mapping itself on long histories.
+    const snapshot = latest;
+    listeners.forEach((listener) => listener(snapshot));
+    return snapshot;
   };
 
   const publishLocal = (update: (snapshot: RendererSnapshot) => void) => {
     if (!latest) return;
-    update(latest);
-    listeners.forEach((listener) => listener(structuredClone(latest!)));
+    const snapshot = { ...latest };
+    update(snapshot);
+    latest = snapshot;
+    listeners.forEach((listener) => listener(snapshot));
   };
 
   return {
@@ -60,7 +72,7 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     scotty: (input) => bridge.scotty(input),
     phoneRemote: (input) => bridge.phoneRemote(input),
     async getSnapshot() {
-      return structuredClone(publish(await bridge.bootstrap()));
+      return publish(await bridge.bootstrap());
     },
     subscribe(listener, onError) {
       listeners.add(listener);
@@ -101,7 +113,24 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       publish(await bridge.threads.rename(threadId, title));
     },
     async saveDraft(threadId, content) {
-      publish(await bridge.threads.setDraft(threadId, content));
+      // Saving a draft sends no snapshot back, so the Draft marker and preview update here;
+      // the next snapshot from the main process carries the same draft.
+      await bridge.threads.setDraft(threadId, content);
+      const draft = content || undefined;
+      publishLocal((snapshot) => {
+        snapshot.agents = snapshot.agents.map((agent) =>
+          agent.threads.some((thread) => thread.id === threadId)
+            ? {
+                ...agent,
+                threads: agent.threads.map((thread) =>
+                  thread.id === threadId ? { ...thread, draft } : thread,
+                ),
+              }
+            : agent,
+        );
+        if (snapshot.activeThread?.id === threadId)
+          snapshot.activeThread = { ...snapshot.activeThread, draft };
+      });
     },
     async deleteThread(threadId) {
       publish(await bridge.threads.delete(threadId));
@@ -437,6 +466,12 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async setCompletionSound(enabled) {
       publish(await bridge.settings.setCompletionSound(enabled));
     },
+    async setOpenAtLogin(enabled) {
+      publish(await bridge.settings.setOpenAtLogin(enabled));
+    },
+    async setDeveloperTools(enabled) {
+      publish(await bridge.settings.setDeveloperTools(enabled));
+    },
     async composeFeedback(message, threadId, includeDiagnostics) {
       await bridge.feedback.compose(message, threadId, includeDiagnostics);
     },
@@ -486,8 +521,43 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
   };
 }
 
+/**
+ * Keeps the previous object for every event whose content is unchanged, and the previous array
+ * when nothing changed, so memoized transcript rows skip work while one reply streams.
+ */
+export function reuseUnchangedEvents(
+  previous: readonly ThreadEvent[],
+  next: ThreadEvent[],
+): ThreadEvent[] {
+  const byId = new Map(previous.map((event) => [event.id, event]));
+  const events = next.map((event) => {
+    const earlier = byId.get(event.id);
+    return earlier && sameData(earlier, event) ? earlier : event;
+  });
+  return events.length === previous.length &&
+    events.every((event, index) => event === previous[index])
+    ? (previous as ThreadEvent[])
+    : events;
+}
+
+function sameData(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (typeof left !== 'object' || typeof right !== 'object' || !left || !right) return false;
+  if (Array.isArray(left) !== Array.isArray(right)) return false;
+  const leftKeys = Object.keys(left);
+  if (leftKeys.length !== Object.keys(right).length) return false;
+  return leftKeys.every(
+    (key) =>
+      Object.hasOwn(right, key) &&
+      sameData((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key]),
+  );
+}
+
 export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
-  const previews = threadPreviews(source.timeline);
+  // Pushed snapshots carry previews because their timeline holds only the active thread.
+  const previews = source.previews
+    ? new Map(Object.entries(source.previews))
+    : threadPreviews(source.timeline);
   const threadMap = new Map(source.threads.map((thread) => [thread.id, thread]));
   const agents: AgentSummary[] = source.agents.map((agent) => ({
     id: agent.id,
@@ -535,10 +605,20 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         .sort((a, b) => a.sequence - b.sequence)
         .map((item) => mapTimelineItem(item) as MessageEvent)
     : [];
-  const timeline = currentThread
+  const threadItems = currentThread
     ? source.timeline
         .filter((item) => item.threadId === currentThread.id && !isQueuedMessage(item))
         .sort((a, b) => a.sequence - b.sequence)
+    : [];
+  // Reasoning is not a step: its latest summary headline labels the live status line instead.
+  const lastUserItem = threadItems.findLastIndex((item) => item.kind === 'user');
+  const thinking = reasoningHeadline(
+    threadItems.slice(lastUserItem + 1).findLast((item) => item.kind === 'reasoning')?.text ??
+      '',
+  );
+  const timeline = currentThread
+    ? threadItems
+        .filter((item) => item.kind !== 'reasoning')
         .map((item) => {
           const approval =
             item.kind === 'approval'
@@ -559,6 +639,9 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         .map((approval) => mapApproval(approval))
     : [];
 
+  const threadLimits = currentThread
+    ? source.providers.find(({ id }) => id === currentThread.provider)?.limits
+    : undefined;
   const activeThread: ThreadDetail | undefined = currentThread
     ? {
         id: currentThread.id,
@@ -578,6 +661,15 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         draft: currentThread.draft,
         worktree: currentThread.worktree ? structuredClone(currentThread.worktree) : undefined,
         events: [...timeline, ...pendingApprovals],
+        ...(thinking && currentThread.status === 'running' ? { thinking } : {}),
+        ...(threadLimits
+          ? {
+              usageLimit: {
+                usedPercent: threadLimits.usedPercent,
+                ...(threadLimits.resetsAt ? { resetsAt: threadLimits.resetsAt } : {}),
+              },
+            }
+          : {}),
         ...(queuedMessages.length ? { queuedMessages } : {}),
         error:
           currentThread.status === 'failed'
@@ -618,6 +710,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
       return {
         id: provider.id,
         name: provider.label,
+        plan: provider.plan,
         model: provider.model,
         description: provider.detail,
         status: mapProviderStatus(provider.status),
@@ -626,6 +719,14 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         version: provider.version,
         billedBy: provider.billing,
         restriction: provider.restriction,
+        ...(provider.limits
+          ? {
+              limits: {
+                usedPercent: provider.limits.usedPercent,
+                ...(provider.limits.resetsAt ? { resetsAt: provider.limits.resetsAt } : {}),
+              },
+            }
+          : {}),
         ...(usage
           ? {
               usage: {
@@ -952,6 +1053,18 @@ function inferConnector(
   return 'Gmail';
 }
 
+/**
+ * The latest heading of a reasoning summary ("**Checking the calendar**"), or the first line of
+ * a finished summary paragraph when the provider sends no headings.
+ */
+export function reasoningHeadline(summary: string): string | undefined {
+  const headings = [...summary.matchAll(/\*\*([^*\n]+?)\*\*/g)];
+  const heading = headings.at(-1)?.[1]?.trim();
+  if (heading) return clipText(heading, 80);
+  const firstLine = summary.split(/\n/)[0]?.trim();
+  return firstLine && summary.includes('\n') ? clipText(firstLine, 80) : undefined;
+}
+
 function inferActivityKind(value?: string): ActivityEvent['kind'] {
   const normalized = value?.toLowerCase() ?? '';
   if (normalized.includes('browser')) return 'browser';
@@ -967,7 +1080,14 @@ function inferActivityKind(value?: string): ActivityEvent['kind'] {
     return 'connector';
   }
   if (normalized.includes('plan')) return 'plan';
-  return 'command';
+  if (
+    normalized.includes('command') ||
+    normalized.includes('shell') ||
+    normalized.includes('exec')
+  )
+    return 'command';
+  // An unknown step is not a shell command; its presentation (if any) picks the label.
+  return 'other';
 }
 
 function inferApprovalCategory(value?: string): 'Tool' | 'Browser' | 'File' {

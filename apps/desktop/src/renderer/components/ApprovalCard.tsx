@@ -7,7 +7,8 @@ import {
   ShieldCheck,
   XCircle,
 } from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { COMPOSER_INPUT_ATTRIBUTE, focusIsAdrift } from '../composerFocus';
 import type { ApprovalEvent, ApprovalDecision } from '../types';
 import styles from '../ui.module.css';
 
@@ -26,6 +27,23 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
   );
   const displayStatus = expiredByClock ? 'expired' : status;
   const resolved = displayStatus !== 'pending';
+  const card = useRef<HTMLElement>(null);
+  const command = request.kind === 'action' ? nativeCommand(request.summary) : undefined;
+
+  // Move focus to the card itself, not to Approve, so a stray Enter cannot approve and the
+  // next Tab reaches the choices. Someone mid-sentence in the composer keeps typing: their
+  // message queues as a follow-up and the card waits for them.
+  useEffect(() => {
+    if (status !== 'pending') return;
+    const active = document.activeElement;
+    const typing =
+      active instanceof HTMLTextAreaElement &&
+      active.hasAttribute(COMPOSER_INPUT_ATTRIBUTE) &&
+      active.value.trim() !== '';
+    if (focusIsAdrift(active) || (active?.closest('[data-companion-composer]') && !typing)) {
+      card.current?.focus({ preventScroll: true });
+    }
+  }, [status]);
 
   useEffect(() => {
     if (!expiresAt || status !== 'pending') return;
@@ -41,8 +59,11 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
 
   return (
     <section
+      ref={card}
+      tabIndex={-1}
       className={`${styles.approvalCard} ${resolved ? styles.approvalResolved : ''}`}
       aria-label={request.title}
+      data-testid="approval-card"
     >
       <header className={styles.approvalHeader}>
         <span className={styles.approvalIcon}>
@@ -100,7 +121,7 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
             <span>{request.destination}</span>
           </div>
           <pre className={styles.connectorPreview}>{request.preview}</pre>
-          {request.expiresAt ? (
+          {request.expiresAt && status === 'pending' ? (
             <div className={styles.expiryNote}>
               <Clock size={14} aria-hidden="true" />
               <span>{formatExpiry(request.expiresAt, now)}</span>
@@ -109,10 +130,19 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
         </div>
       ) : (
         <div className={styles.approvalDetails}>
-          <div className={styles.detailPair}>
-            <span>Action</span>
-            <strong>{request.summary}</strong>
-          </div>
+          {command ? (
+            <div className={styles.approvalCommand}>
+              <span>Run this command</span>
+              <pre>
+                <code>{command}</code>
+              </pre>
+            </div>
+          ) : (
+            <div className={styles.detailPair}>
+              <span>Action</span>
+              <strong>{request.summary}</strong>
+            </div>
+          )}
           <div className={styles.detailPair}>
             <span>Target</span>
             <strong>{request.target}</strong>
@@ -163,6 +193,14 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
       ) : null}
     </section>
   );
+}
+
+const COMMAND_PREFIX = 'Run a command: ';
+
+/** A native shell approval arrives as "Run a command: <command>"; show the command itself. */
+export function nativeCommand(summary: string): string | undefined {
+  if (!summary.startsWith(COMMAND_PREFIX)) return undefined;
+  return summary.slice(COMMAND_PREFIX.length).trim() || undefined;
 }
 
 function formatExpiry(value: string, now: number, action = 'Preview expires') {
