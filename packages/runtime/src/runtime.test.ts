@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 import type { ProviderSessionOptions, ThreadEventEnvelope } from '@sia/protocol';
@@ -1679,7 +1682,7 @@ describe('Notch-style native Mac sessions', () => {
       await adapter.dispose();
     }
   });
-  it('gives id-less provider questions distinct request ids', async () => {
+  it('answers Codex request_user_input questions by id with distinct request ids', async () => {
     const peers = linkedPeers();
     const answers: unknown[] = [];
     peers.server.onRequest(async (method, params) => {
@@ -1700,16 +1703,35 @@ describe('Notch-style native Mac sessions', () => {
       if (method === 'turn/start') {
         setImmediate(() => {
           void (async () => {
+            const question = (id: string, text: string, options: string[] | null = null) => ({
+              id,
+              header: `About ${id}`,
+              question: text,
+              isOther: false,
+              isSecret: false,
+              options: options?.map((label) => ({ label, description: '' })) ?? null,
+            });
             answers.push(
-              ...(await Promise.all(
-                ['first', 'second'].map((question) =>
-                  peers.server.request('item/tool/requestUserInput', {
-                    threadId: 'native-questions',
-                    turnId: 'native-turn',
-                    question,
-                  }),
-                ),
-              )),
+              ...(await Promise.all([
+                peers.server.request('item/tool/requestUserInput', {
+                  threadId: 'native-questions',
+                  turnId: 'native-turn',
+                  itemId: 'ask-1',
+                  isBlocking: true,
+                  autoResolutionMs: null,
+                  questions: [
+                    question('size', 'Which size?', ['Small', 'Large']),
+                    question('color', 'Which color?'),
+                  ],
+                }),
+                peers.server.request('item/tool/requestUserInput', {
+                  threadId: 'native-questions',
+                  turnId: 'native-turn',
+                  isBlocking: true,
+                  autoResolutionMs: null,
+                  questions: [question('size', 'Which size again?')],
+                }),
+              ])),
             );
             await peers.server.notify('turn/completed', {
               threadId: 'native-questions',
@@ -1743,19 +1765,26 @@ describe('Notch-style native Mac sessions', () => {
         baseInstructions: 'You are Sia.',
       });
       const requestIds: string[] = [];
+      const prompts: string[] = [];
       for await (const event of adapter.sendTurn(session, { turnId: 'turn', text: 'Ask me' })) {
         if (event.type !== 'question' || event.payload.phase !== 'requested') continue;
         requestIds.push(event.payload.requestId);
+        prompts.push(event.payload.prompt);
         await adapter.respondToRequest(session, {
           requestId: event.payload.requestId,
-          text: `answer ${requestIds.length}`,
+          text: event.payload.prompt.includes('again')
+            ? 'Medium'
+            : event.payload.prompt.includes('size')
+              ? 'Large'
+              : 'Blue',
         });
       }
-      expect(requestIds).toHaveLength(2);
-      expect(new Set(requestIds).size).toBe(2);
+      expect(requestIds).toHaveLength(3);
+      expect(new Set(requestIds).size).toBe(3);
+      expect(prompts).toContain('About size\nWhich size?\nOptions: Small, Large');
       expect(answers).toEqual([
-        { answers: { answer: 'answer 1' } },
-        { answers: { answer: 'answer 2' } },
+        { answers: { size: { answers: ['Large'] }, color: { answers: ['Blue'] } } },
+        { answers: { size: { answers: ['Medium'] } } },
       ]);
     } finally {
       clock.mockRestore();
@@ -2008,15 +2037,20 @@ describe('Notch-style native Mac sessions', () => {
 });
 
 describe('Codex turn resilience', () => {
-  function codexServer(onTurn: (peers: ReturnType<typeof linkedPeers>) => Promise<unknown>) {
+  function codexServer(
+    onTurn: (peers: ReturnType<typeof linkedPeers>, params: unknown) => Promise<unknown>,
+    onInterrupt: (params: unknown) => unknown = () => ({}),
+    onMethod: (method: string, params: unknown) => void = () => undefined,
+  ) {
     const peers = linkedPeers();
     peers.server.onRequest(async (method, params) => {
+      onMethod(method, params);
       if (method === 'initialize') return {};
       if (method === 'account/read') return { account: { type: 'chatgpt', email: 'a@b.c' } };
       if (method === 'thread/start')
         return { thread: { id: 'native-thread' }, sandbox: { type: 'workspaceWrite' } };
-      if (method === 'turn/start') return await onTurn(peers);
-      if (method === 'turn/interrupt') return {};
+      if (method === 'turn/start') return await onTurn(peers, params);
+      if (method === 'turn/interrupt') return await onInterrupt(params);
       const isolationResponse = codexIsolationResponse(method, params);
       if (isolationResponse !== undefined) return isolationResponse;
       throw new Error(`unexpected ${method}`);
@@ -2181,6 +2215,145 @@ describe('Codex turn resilience', () => {
       types.push(event.type);
     expect(types).toEqual(['completion']);
     await adapter.dispose();
+  });
+
+  it('names attached files in the text and inlines small text files', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sia-attach-'));
+    await writeFile(join(dir, 'notes.txt'), 'quarterly numbers');
+    await writeFile(join(dir, 'report.pdf'), Buffer.from([0x25, 0x50, 0x44, 0x46, 0, 1]));
+    let turnParams: any;
+    const peers = codexServer(async (p, params) => {
+      turnParams = params;
+      setTimeout(() => {
+        void p.server.notify('turn/completed', {
+          threadId: 'native-thread',
+          turn: { id: 'native-turn', status: 'completed' },
+        });
+      }, 5);
+      return { turn: { id: 'native-turn' } };
+    });
+    const adapter = new CodexAppServerAdapter({
+      sessionEphemeral: true,
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    try {
+      const session = await adapter.createSession(sessionOptions);
+      for await (const _event of adapter.sendTurn(session, {
+        turnId: 't1',
+        text: 'Review these.',
+        attachments: [
+          { kind: 'file', name: 'notes.txt', path: join(dir, 'notes.txt') },
+          { kind: 'file', name: 'report.pdf', path: join(dir, 'report.pdf') },
+          { kind: 'image', name: 'shot.png', path: join(dir, 'shot.png') },
+        ],
+      }));
+      expect(JSON.stringify(turnParams.input)).not.toContain('mention');
+      expect(turnParams.input.slice(1)).toEqual([
+        { type: 'localImage', path: join(dir, 'shot.png') },
+      ]);
+      const text: string = turnParams.input[0].text;
+      expect(text.startsWith('Review these.\n\nAttached files')).toBe(true);
+      expect(text).toContain(`- notes.txt: ${join(dir, 'notes.txt')}`);
+      expect(text).toContain(`- report.pdf: ${join(dir, 'report.pdf')}`);
+      expect(text).toContain('quarterly numbers');
+      expect(text).not.toContain('PDF');
+    } finally {
+      await adapter.dispose();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('sends a Stop that arrives before turn/start returns once the turn id is known', async () => {
+    const startReply = Promise.withResolvers<unknown>();
+    const started = Promise.withResolvers<void>();
+    const interrupts: unknown[] = [];
+    let server!: ReturnType<typeof linkedPeers>;
+    const peers = codexServer(
+      async (p) => {
+        server = p;
+        started.resolve();
+        return await startReply.promise;
+      },
+      async (params) => {
+        interrupts.push(params);
+        setTimeout(() => {
+          void server.server.notify('turn/completed', {
+            threadId: 'native-thread',
+            turn: { id: 'native-turn', status: 'interrupted' },
+          });
+        }, 1);
+        return {};
+      },
+    );
+    const adapter = new CodexAppServerAdapter({
+      sessionEphemeral: true,
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    try {
+      const session = await adapter.createSession(sessionOptions);
+      const controller = new AbortController();
+      const events: ThreadEventEnvelope[] = [];
+      const finished = (async () => {
+        for await (const event of adapter.sendTurn(
+          session,
+          { turnId: 't1', text: 'hi' },
+          controller.signal,
+        ))
+          events.push(event);
+      })();
+      await started.promise;
+      controller.abort();
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(interrupts).toEqual([]);
+      startReply.resolve({ turn: { id: 'native-turn' } });
+      await finished;
+      expect(interrupts).toEqual([{ threadId: 'native-thread', turnId: 'native-turn' }]);
+      expect(events.at(-1)).toMatchObject({ type: 'completion' });
+      expect(events.some((event) => event.type === 'error')).toBe(false);
+    } finally {
+      await adapter.dispose();
+    }
+  });
+
+  it('unsubscribes and forgets a closed session', async () => {
+    const unsubscribed: unknown[] = [];
+    const peers = codexServer(
+      async () => ({ turn: { id: 'native-turn' } }),
+      undefined,
+      (method, params) => {
+        if (method === 'thread/unsubscribe') unsubscribed.push(params);
+      },
+    );
+    const adapter = new CodexAppServerAdapter({
+      sessionEphemeral: true,
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    try {
+      const session = await adapter.createSession(sessionOptions);
+      await adapter.closeSession(session);
+      expect(adapter.hasSession(session)).toBe(false);
+      expect(unsubscribed).toEqual([{ threadId: 'native-thread' }]);
+    } finally {
+      await adapter.dispose();
+    }
   });
 
   it('ends the active turn and forgets sessions when the app-server exits', async () => {

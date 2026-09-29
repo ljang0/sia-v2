@@ -253,6 +253,38 @@ describe('CuaService call boundaries', () => {
     expect(stale.shutdown).toHaveBeenCalledOnce();
     expect(await service.call('list_apps', {}, directContext)).toEqual({ healthy: true });
   });
+  it('does not count time waiting on the person to approve toward the call timeout', async () => {
+    vi.useFakeTimers();
+    const decision = Promise.withResolvers<'allow'>();
+    const service = new CuaService(
+      { authorize: async () => await decision.promise },
+      {
+        callTimeoutMs: 25,
+        driverFactory: (authorize) => ({
+          callTool: vi.fn(async () => {
+            const allowed = await authorize({
+              adapterId: 'window',
+              riskClass: 'input',
+              permissionMode: 'standard',
+              publicSession: 's',
+              requestDigest: 'd',
+              humanSummary: 'Click Send',
+              resourceJson: '{}',
+              expiresUnixMs: 0n,
+            });
+            return { rawJson: JSON.stringify({ allowed }) };
+          }),
+          shutdown: vi.fn(async () => undefined),
+        }),
+      },
+    );
+    const context = { kind: 'turn' as const, threadId: 't', turnId: 'u' };
+    const result = service.call('click', {}, context);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    decision.resolve('allow');
+    expect(await result).toEqual({ allowed: 'allow' });
+  });
+
   it('forwards the exact-value primitive used by background form replacement', async () => {
     const driver = successfulDriver({ effect: 'confirmed' });
     const service = new CuaService(authorization(), {

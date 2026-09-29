@@ -125,6 +125,36 @@ describe('thread navigation', () => {
     );
   });
 
+  it('disables Fork while a thread is working and explains why', async () => {
+    const agents = structuredClone(demoSnapshot.agents);
+    const thread = agents[0]!.threads[0]!;
+    thread.status = 'running';
+    render(
+      <Sidebar
+        agents={agents}
+        selectedAgentId={agents[0]!.id}
+        collapsed={false}
+        onToggle={vi.fn()}
+        onSelectAgent={vi.fn()}
+        onSelectThread={vi.fn()}
+        onCreateThread={vi.fn()}
+        onRenameThread={vi.fn()}
+        onDeleteThread={vi.fn()}
+        onForkThread={vi.fn()}
+        onCreateAgent={vi.fn()}
+        onEditAgent={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    );
+    fireEvent.pointerDown(
+      screen.getByRole('button', { name: `Thread actions for ${thread.title}` }),
+      { button: 0, ctrlKey: false },
+    );
+    const fork = await screen.findByRole('menuitem', { name: 'Fork' });
+    expect(fork.getAttribute('aria-disabled')).toBe('true');
+    expect(fork.getAttribute('title')).toBe('Stop or finish the current task before forking.');
+  });
+
   it('searches, renames, and confirms deletion of an idle thread', async () => {
     const onRenameThread = vi.fn().mockResolvedValue(undefined);
     const onDeleteThread = vi.fn().mockResolvedValue(undefined);

@@ -2193,6 +2193,62 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('refuses to fork a busy thread so its live approval and follow-ups stay with it', async () => {
+    let runtimeThreadId = '';
+    const release = Promise.withResolvers<void>();
+    const runtime = {
+      async *runTurn(input: { turnId: string }) {
+        const base = {
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 1,
+          type: 'approval' as const,
+          payload: { phase: 'requested', requestId: 'r1', title: 'Run', description: 'ls' },
+        } as never;
+        await release.promise;
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
+    runtimeThreadId = threadId;
+    await controller.invoke('threads.send', { threadId, text: 'List files' });
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+        'waiting',
+      ),
+    );
+    await controller.invoke('threads.send', { threadId, text: 'Then summarize' });
+    await expect(
+      controller.invoke('threads.fork', { threadId, isolated: false }),
+    ).rejects.toThrow('Stop the active task before you fork this thread.');
+    expect(controller.snapshot().threads).toHaveLength(1);
+    release.resolve();
+    await controller.shutdown();
+  });
+
   it('notifies once when a task pauses for an approval or a question', async () => {
     let runtimeThreadId = '';
     // Each turn waits on its own gate so cancelling the first can't finish the second.
@@ -2318,10 +2374,15 @@ describe('DesktopController', () => {
       title: 'Juniper needs your OK',
       body: 'Mail Send',
     });
+    const status = () =>
+      controller.snapshot().threads.find(({ id }) => id === threadId)?.status;
+    // The thread shows it needs the person, not "Working", until they answer.
+    expect(status()).toBe('waiting');
     await controller.invoke('approvals.resolve', {
       approvalId: controller.snapshot().approvals.at(-1)!.id,
       decision: 'deny',
     });
+    expect(status()).toBe('running');
     await expect(pending).resolves.toEqual({ approved: false });
     await controller.shutdown();
   });
@@ -2444,6 +2505,181 @@ describe('DesktopController', () => {
     expect(requests[1]).toContain('verify any uncertain write');
     expect(requests[1]).toContain('Retry this once');
     await controller.shutdown();
+  });
+
+  it('resends attachments when continuing a turn that failed with a model error', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sia-retry-attachment-'));
+    const path = join(directory, 'budget.csv');
+    await writeFile(path, 'month,total\n', 'utf8');
+    const inputs: RuntimeTurnInput[] = [];
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        inputs.push(input);
+        const base = {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+        };
+        if (inputs.length === 1)
+          yield {
+            ...base,
+            type: 'error' as const,
+            payload: { code: 'model_error', message: 'The model failed', recoverable: true },
+          };
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: {
+            status: inputs.length === 1 ? ('failed' as const) : ('completed' as const),
+          },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({
+      fakeServices: false,
+      runtime,
+      chooseFiles: async () => [path],
+    });
+    try {
+      const agent = await controller.invoke('agents.save', {
+        name: 'Personal',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: agent.agentId,
+      });
+      await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+      const picked = await controller.invoke('attachments.pick', { threadId });
+      await controller.invoke('threads.send', {
+        threadId,
+        text: 'Check this budget',
+        attachmentIds: picked.attachments.map(({ id }) => id),
+      });
+      const status = () =>
+        controller.snapshot().threads.find(({ id }) => id === threadId)?.status;
+      await vi.waitFor(() => expect(status()).toBe('failed'));
+      await controller.invoke('threads.retry', { threadId });
+      await vi.waitFor(() => expect(status()).toBe('idle'));
+      expect(inputs).toHaveLength(2);
+      expect(inputs[1]!.attachments).toEqual([{ kind: 'file', path, name: 'budget.csv' }]);
+    } finally {
+      await controller.shutdown();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('lets a queued follow-up carry files attached while the thread works', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sia-followup-attachment-'));
+    const path = join(directory, 'notes.txt');
+    await writeFile(path, 'notes', 'utf8');
+    const inputs: RuntimeTurnInput[] = [];
+    const release = Promise.withResolvers<void>();
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        inputs.push(input);
+        if (inputs.length === 1) await release.promise;
+        yield {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({
+      fakeServices: false,
+      runtime,
+      chooseFiles: async () => [path],
+    });
+    try {
+      const agent = await controller.invoke('agents.save', {
+        name: 'Personal',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: agent.agentId,
+      });
+      await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+      await controller.invoke('threads.send', { threadId, text: 'Start' });
+      await vi.waitFor(() => expect(inputs).toHaveLength(1));
+      const picked = await controller.invoke('attachments.pick', { threadId });
+      await controller.invoke('threads.send', {
+        threadId,
+        text: 'Use these notes next',
+        attachmentIds: picked.attachments.map(({ id }) => id),
+      });
+      release.resolve();
+      await vi.waitFor(() => expect(inputs).toHaveLength(2));
+      expect(inputs[1]!.attachments).toEqual([{ kind: 'file', path, name: 'notes.txt' }]);
+    } finally {
+      await controller.shutdown();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('releases the provider session when a thread is deleted', async () => {
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        yield {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+      releaseSession: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    try {
+      const agent = await controller.invoke('agents.save', {
+        name: 'Personal',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: agent.agentId,
+      });
+      await controller.invoke('threads.send', { threadId, text: 'Hello' });
+      await vi.waitFor(() =>
+        expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+          'idle',
+        ),
+      );
+      await controller.invoke('threads.delete', { threadId });
+      await vi.waitFor(() => expect(runtime.releaseSession).toHaveBeenCalledWith(threadId));
+    } finally {
+      await controller.shutdown();
+    }
   });
 
   it('restores partial progress for Continue task after an app restart', async () => {
@@ -3840,6 +4076,58 @@ describe('DesktopController', () => {
     });
     await expect(decision).resolves.toBe('allow');
     await controller.shutdown();
+  });
+
+  it('keeps a computer approval open until the driver deadline instead of two minutes', async () => {
+    const gate = Promise.withResolvers<void>();
+    const runtime = {
+      async *runTurn() {
+        await gate.promise;
+      },
+      dispose: vi.fn(async () => gate.resolve()),
+      cancel: vi.fn(async () => gate.resolve()),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
+    const started = await controller.invoke('threads.send', { threadId, text: 'Use Notes' });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const decision = controller.authorizeComputer(
+        {
+          adapterId: 'desktop_input',
+          riskClass: 'r2',
+          permissionMode: 'standard',
+          publicSession: started.turnId,
+          requestDigest: 'digest-wait',
+          humanSummary: 'Control the selected Notes window',
+          resourceJson: JSON.stringify({ app_name: 'Notes', window_title: 'Draft' }),
+          expiresUnixMs: BigInt(Date.now() + 30 * 60_000),
+        },
+        { kind: 'turn', threadId, turnId: started.turnId },
+      );
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+      const approval = controller.snapshot().approvals.at(-1)!;
+      expect(approval.status).toBe('pending');
+      await controller.invoke('approvals.resolve', {
+        approvalId: approval.id,
+        decision: 'approve',
+      });
+      await expect(decision).resolves.toBe('allow');
+    } finally {
+      vi.useRealTimers();
+      gate.resolve();
+      await controller.shutdown();
+    }
   });
 
   it('shows exact connector recipients and content in the approval preview', async () => {
@@ -6506,9 +6794,11 @@ it('does not start queued work when an active turn releases its lease during shu
 });
 
 it('memory reviews pin the owning agent and restrict host actions, including trusted mode', async () => {
+  const notify = vi.fn();
   const { controller } = await createHarness({
     defaultWorkspaceRoot: '/tmp/Sia/Agents',
     createDirectory: async () => undefined,
+    notify,
   });
   try {
     await controller.invoke('computer.setAccessMode', { mode: 'connected' });
@@ -6559,6 +6849,11 @@ it('memory reviews pin the owning agent and restrict host actions, including tru
         controller.snapshot().threads.find((thread) => thread.id === threadId)?.status,
       ).toBe('idle'),
     );
+    // Sia's own housekeeping neither marks the review unread nor notifies.
+    expect(controller.snapshot().threads.find((thread) => thread.id === threadId)?.unread).toBe(
+      false,
+    );
+    expect(notify).not.toHaveBeenCalled();
     expect(
       (await controller.invoke('assistant.library', { operation: 'list' })).journal,
     ).toEqual([]);
@@ -6568,6 +6863,82 @@ it('memory reviews pin the owning agent and restrict host actions, including tru
       enabled: false,
     });
     expect(controller.allowsReviewAction(threadId, 'memory_suggest')).toBe(false);
+  } finally {
+    await controller.shutdown();
+  }
+});
+
+it('lets a person’s message preempt a memory review, which stays quiet', async () => {
+  const reviewTurns: string[] = [];
+  const userTurns: string[] = [];
+  let reviewThreadId = '';
+  const runtime = {
+    async *runTurn(input: RuntimeTurnInput, signal: AbortSignal) {
+      const base = {
+        id: randomUUID(),
+        threadId: input.thread.id,
+        turnId: input.turnId,
+        provider: 'codex' as const,
+        sequence: 1,
+        timestamp: new Date().toISOString(),
+      };
+      if ((input.thread as { nativeTools?: string }).nativeTools === 'disabled') {
+        reviewTurns.push(input.turnId);
+        await new Promise((_, reject) =>
+          signal.addEventListener('abort', () => reject(new Error('stopped')), { once: true }),
+        );
+      }
+      userTurns.push(input.text);
+      yield { ...base, type: 'completion' as const, payload: { status: 'completed' as const } };
+    },
+    dispose: vi.fn(async () => undefined),
+    cancel: vi.fn(async () => undefined),
+    respondToRequest: vi.fn(async () => undefined),
+  };
+  const notify = vi.fn();
+  const { controller } = await createHarness({ fakeServices: false, runtime, notify });
+  try {
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'Reviewer',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId });
+    await controller.invoke('assistant.library', {
+      operation: 'learning',
+      agentId,
+      enabled: true,
+    });
+    const originalSelect = controller.snapshot().activeThreadId;
+    const review = controller.invoke('assistant.library', { operation: 'review', agentId });
+    await vi.waitFor(() => {
+      reviewThreadId =
+        controller.snapshot().threads.find(({ title }) => title === 'Memory and skill review')
+          ?.id ?? '';
+      expect(reviewThreadId).not.toBe('');
+    });
+    await review;
+    await vi.waitFor(() => expect(reviewTurns).toHaveLength(1));
+    expect(originalSelect).toBeDefined();
+
+    await controller.invoke('threads.send', { threadId, text: 'Book my flight' });
+    await vi.waitFor(() =>
+      expect(userTurns.some((text) => text.includes('Book my flight'))).toBe(true),
+    );
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+        'idle',
+      ),
+    );
+    const reviewThread = controller.snapshot().threads.find(({ id }) => id === reviewThreadId)!;
+    expect(reviewThread.status).toBe('idle');
+    expect(reviewThread.unread).toBe(false);
+    expect(notify).not.toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: reviewThreadId }),
+    );
   } finally {
     await controller.shutdown();
   }
@@ -7289,6 +7660,98 @@ describe('Use my Mac power and lock handling', () => {
     await failing.controller.shutdown();
   });
 
+  it('lets the display sleep while a Mac task waits on an approval', async () => {
+    const gate = Promise.withResolvers<void>();
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        const base = {
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 1,
+          type: 'approval' as const,
+          payload: { phase: 'requested', requestId: 'r1', title: 'Run', description: 'ls' },
+        } as never;
+        await gate.promise;
+        yield {
+          ...base,
+          id: randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => gate.resolve()),
+      cancel: vi.fn(async () => gate.resolve()),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller, keepAwake, threadId, status } = await macThread({ runtime });
+    await controller.invoke('threads.send', { threadId, text: 'Tidy my desktop' });
+    await vi.waitFor(() => expect(status()).toBe('waiting'));
+    expect(keepAwake.hold).toHaveBeenCalledTimes(1);
+    expect(keepAwake.release).toHaveBeenCalledWith(threadId);
+    const approval = controller
+      .snapshot()
+      .approvals.find((item) => item.threadId === threadId)!;
+    await controller.invoke('approvals.resolve', {
+      approvalId: approval.id,
+      decision: 'approve',
+    });
+    expect(status()).toBe('running');
+    expect(keepAwake.hold).toHaveBeenCalledTimes(2);
+    gate.resolve();
+    await vi.waitFor(() => expect(status()).toBe('idle'));
+    expect(keepAwake.release).toHaveBeenCalledTimes(2);
+    await controller.shutdown();
+  });
+
+  it('runs the plain request when the native memory engine fails', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sia-broken-helper-'));
+    const helper = join(directory, 'notch-helper');
+    await writeFile(helper, `#!${process.execPath}\nprocess.exit(3);\n`, { mode: 0o755 });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const inputs: RuntimeTurnInput[] = [];
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        inputs.push(input);
+        yield {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller, threadId } = await macThread({ runtime, notchHelperPath: helper });
+    try {
+      await controller.invoke('threads.send', { threadId, text: 'Tidy my desktop' });
+      await vi.waitFor(() => expect(inputs).toHaveLength(1));
+      expect(inputs[0]!.text).toContain('Tidy my desktop');
+      expect(
+        controller
+          .snapshot()
+          .timeline.some((item) => item.threadId === threadId && item.kind === 'error'),
+      ).toBe(false);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('[sia:notch]'));
+    } finally {
+      warn.mockRestore();
+      await controller.shutdown();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it('does not hold the Mac awake for connected-app tasks', async () => {
     const { runtime } = holdingRuntime();
     const { controller, keepAwake, threadId, status } = await macThread({ runtime });
@@ -7328,6 +7791,60 @@ describe('Use my Mac power and lock handling', () => {
     await vi.waitFor(() => expect(status()).toBe('idle'));
     expect(requests).toHaveLength(2);
     expect(requests[1]).toContain('File my receipts');
+    await controller.shutdown();
+  });
+
+  it('holds a queued follow-up behind a paused Mac task until the person continues it', async () => {
+    const { runtime, requests } = holdingRuntime();
+    const { controller, keepAwake, threadId, status } = await macThread({ runtime });
+    const thread = () => controller.snapshot().threads.find(({ id }) => id === threadId)!;
+    await controller.invoke('threads.send', { threadId, text: 'File my receipts' });
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    await controller.invoke('threads.send', { threadId, text: 'Then email Sam' });
+    controller.setMacAvailability('locked');
+    await vi.waitFor(() => expect(keepAwake.release).toHaveBeenCalledWith(threadId));
+    // The pause keeps its Continue task instead of turning into a workspace wait.
+    expect(thread().status).toBe('failed');
+    expect(thread().queueReason).toBeUndefined();
+
+    controller.setMacAvailability('available');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(requests).toHaveLength(1);
+    expect(status()).toBe('failed');
+
+    controller.setMacAvailability('locked');
+    await controller.invoke('threads.retry', { threadId });
+    expect(thread()).toMatchObject({
+      status: 'queued',
+      queueReason: 'Waiting for your Mac to unlock.',
+    });
+    controller.setMacAvailability('available');
+    await vi.waitFor(() => expect(requests).toHaveLength(3));
+    expect(requests[1]).toContain('File my receipts');
+    expect(requests[2]).toContain('Then email Sam');
+    await vi.waitFor(() => expect(status()).toBe('idle'));
+    await controller.shutdown();
+  });
+
+  it('forgets a pause hold once the person removes its follow-ups and writes again', async () => {
+    const { runtime, requests } = holdingRuntime();
+    const { controller, threadId, status } = await macThread({ runtime });
+    await controller.invoke('threads.send', { threadId, text: 'File my receipts' });
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    await controller.invoke('threads.send', { threadId, text: 'Then email Sam' });
+    controller.setMacAvailability('locked');
+    await vi.waitFor(() => expect(controller.snapshot().threads[0]?.status).toBe('failed'));
+    const queued = controller
+      .snapshot()
+      .timeline.find((item) => item.kind === 'user' && item.status === 'pending')!;
+    await controller.invoke('threads.unqueue', { threadId, messageId: queued.id });
+    controller.setMacAvailability('available');
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    await controller.invoke('threads.send', { threadId, text: 'Just tidy the desktop' });
+    await controller.invoke('threads.send', { threadId, text: 'And empty the trash' });
+    await vi.waitFor(() => expect(requests).toHaveLength(3));
+    expect(requests[2]).toContain('And empty the trash');
+    await vi.waitFor(() => expect(status()).toBe('idle'));
     await controller.shutdown();
   });
 
