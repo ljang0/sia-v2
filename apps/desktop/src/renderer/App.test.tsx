@@ -73,6 +73,14 @@ describe('app privacy routing', () => {
     expect(screen.getByRole('button', { name: 'Access' })).toBeTruthy();
   });
 
+  it('closes Settings with Escape', async () => {
+    render(<App api={createDemoRendererApi(structuredClone(demoSnapshot))} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeTruthy();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('heading', { name: 'Settings' })).toBeNull();
+  });
+
   it('requires email sign-in before any app access when cloud is configured', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),

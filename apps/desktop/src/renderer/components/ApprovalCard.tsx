@@ -100,7 +100,7 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
             <span>{request.destination}</span>
           </div>
           <pre className={styles.connectorPreview}>{request.preview}</pre>
-          {request.expiresAt ? (
+          {request.expiresAt && status === 'pending' ? (
             <div className={styles.expiryNote}>
               <Clock size={14} aria-hidden="true" />
               <span>{formatExpiry(request.expiresAt, now)}</span>

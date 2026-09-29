@@ -122,6 +122,10 @@ export function Sidebar({
   const [editingThread, setEditingThread] = useState<ThreadSummary>();
   const [editingTitle, setEditingTitle] = useState('');
   const [deletingThread, setDeletingThread] = useState<ThreadSummary>();
+  // The delete dialog keeps showing its thread while it animates closed.
+  const lastDeletingThread = useRef(deletingThread);
+  if (deletingThread) lastDeletingThread.current = deletingThread;
+  const shownDeletingThread = deletingThread ?? lastDeletingThread.current;
   const [pendingThreadAction, setPendingThreadAction] = useState(false);
   const [forkingThread, setForkingThread] = useState<ThreadSummary>();
   const [forkTitle, setForkTitle] = useState('');
@@ -542,9 +546,9 @@ export function Sidebar({
           <AlertDialog.Content className={styles.alertDialogContent}>
             <AlertDialog.Title>Delete this thread?</AlertDialog.Title>
             <AlertDialog.Description>
-              This permanently removes “{deletingThread?.title}” and its local transcript. It
-              does not change workspace files
-              {deletingThread?.worktree?.kind === 'linked'
+              This permanently removes “{shownDeletingThread?.title}” and its local transcript.
+              It does not change workspace files
+              {shownDeletingThread?.worktree?.kind === 'linked'
                 ? ' or remove its linked worktree.'
                 : '.'}
             </AlertDialog.Description>

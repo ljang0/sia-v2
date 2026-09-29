@@ -153,4 +153,27 @@ describe('ApprovalCard', () => {
     expect(screen.getByText('expired')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
   });
+
+  it('drops the preview countdown once the person has answered', () => {
+    const event: ApprovalEvent = {
+      id: 'approval-answered',
+      type: 'approval',
+      status: 'approved',
+      timestamp: '2026-08-13T00:00:00.000Z',
+      request: {
+        id: 'approval-answered',
+        kind: 'connector',
+        title: 'Create a Gmail draft',
+        app: 'Gmail',
+        account: 'lawrence@example.com',
+        action: 'Create draft',
+        destination: 'team@example.com',
+        preview: 'Status update',
+        expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+      },
+    };
+    render(<ApprovalCard event={event} onResolve={vi.fn()} />);
+    expect(screen.getByText('approved')).toBeTruthy();
+    expect(screen.queryByText(/Preview expire/)).toBeNull();
+  });
 });

@@ -42,8 +42,11 @@ export function ActivityRow({ event }: ActivityRowProps) {
   const statusClass = event.status === 'complete' ? '' : styles[`activity_${event.status}`];
   const hasDetail = Boolean(event.title || event.detail || event.presentation);
   const runningLabel = activityLabel(event.toolName, event.presentation?.kind ?? event.kind);
+  // A failed step has finished too; only running and queued steps read in the present tense.
   const label =
-    event.status === 'complete' ? completedActivityLabel(runningLabel) : runningLabel;
+    event.status === 'complete' || event.status === 'error'
+      ? completedActivityLabel(runningLabel)
+      : runningLabel;
   const summary = activitySummary(event, [runningLabel, label]);
 
   return (
@@ -71,7 +74,11 @@ export function ActivityRow({ event }: ActivityRowProps) {
           ) : null}
         </span>
         <span className={styles.visuallyHidden}>Status: {event.status}</span>
-        <StatusIcon size={15} aria-hidden="true" />
+        <StatusIcon
+          size={15}
+          className={event.status === 'error' ? styles.activityErrorIcon : undefined}
+          aria-hidden="true"
+        />
         {hasDetail ? (
           <CaretDown
             size={13}

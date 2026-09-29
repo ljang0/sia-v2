@@ -97,4 +97,10 @@ describe('work groups', () => {
     expect(elapsed('2026-09-28T10:00:00Z', '2026-09-28T11:05:00Z')).toBe('1h 5m');
     expect(elapsed('2026-09-28T10:00:09Z', '2026-09-28T10:00:00Z')).toBe('');
   });
+
+  it('reads a failed step as finished, not still running', () => {
+    render(<ActivityRow event={step('failed', { status: 'error' })} />);
+    expect(screen.getByText('Ran a command')).toBeTruthy();
+    expect(screen.queryByText('Running a command')).toBeNull();
+  });
 });

@@ -74,11 +74,18 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     // macOS text fields use Control+B/F/N/K for cursor movement, so only Command is ours there.
     const mac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform);
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && app.activityOpen && !event.defaultPrevented) {
+      if (
+        event.key === 'Escape' &&
+        (app.activityOpen || app.settingsOpen) &&
+        !event.defaultPrevented
+      ) {
         const target = event.target as HTMLElement | null;
-        const clearingField = target instanceof HTMLInputElement && target.value !== '';
+        const clearingField =
+          (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) &&
+          target.value !== '';
         if (!clearingField && !document.querySelector('[role="dialog"], [role="menu"]')) {
-          app.closeActivity();
+          if (app.activityOpen) app.closeActivity();
+          else app.closeSettings();
           return;
         }
       }

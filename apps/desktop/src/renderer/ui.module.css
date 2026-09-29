@@ -1575,6 +1575,11 @@ button.agentAvatar {
   color: var(--text-secondary);
 }
 
+.activityErrorIcon {
+  flex: none;
+  color: var(--text-danger);
+}
+
 .activity_queued {
   color: var(--text-tertiary);
 }

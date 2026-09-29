@@ -380,7 +380,50 @@ describe('Conversation waiting controls', () => {
         {...props}
       />,
     );
-    expect(scrollTo).toHaveBeenCalledWith({ top: 1_000, behavior: 'auto' });
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1_000, behavior: 'instant' });
+  });
+
+  it('follows the new turn after a send, even if the welcome screen was scrolled', () => {
+    const props = {
+      onSend: async () => undefined,
+      onStop: async () => undefined,
+      onRetry: async () => undefined,
+      onResolveApproval: async () => undefined,
+    };
+    const empty = baseThread({ status: 'idle', events: [] });
+    const view = render(<Conversation thread={empty} {...props} />);
+    const scroller = screen.getByLabelText('Conversation') as HTMLDivElement;
+    const scrollTo = vi.fn();
+    Object.defineProperties(scroller, {
+      scrollHeight: { configurable: true, value: 700 },
+      clientHeight: { configurable: true, value: 500 },
+      scrollTop: { configurable: true, value: 0, writable: true },
+      scrollTo: { configurable: true, value: scrollTo },
+    });
+    // The tall welcome screen was scrolled away from its bottom before the first send.
+    fireEvent.scroll(scroller);
+    scrollTo.mockClear();
+
+    view.rerender(
+      <Conversation
+        thread={{
+          ...empty,
+          status: 'running',
+          events: [
+            {
+              id: 'first-request',
+              type: 'message',
+              role: 'user',
+              content: 'Plan a trip',
+              timestamp: '2026-08-13T00:00:00.000Z',
+            },
+          ],
+        }}
+        {...props}
+      />,
+    );
+    expect(scrollTo).toHaveBeenCalledWith({ top: 700, behavior: 'instant' });
+    expect(screen.queryByRole('button', { name: 'Jump to latest' })).toBeNull();
   });
 
   it('does not mark an earlier reply as streaming before the new reply begins', () => {

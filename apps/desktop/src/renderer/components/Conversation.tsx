@@ -139,6 +139,7 @@ export function Conversation({
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedToLatestRef = useRef(true);
   const previousThreadIdRef = useRef<string | undefined>(undefined);
+  const lastSentMessageRef = useRef<string | undefined>(undefined);
   const speechGeneration = useRef(0);
   const speechSource = useRef<AudioBufferSourceNode | undefined>(undefined);
   const speechContext = useRef<AudioContext | undefined>(undefined);
@@ -325,6 +326,13 @@ export function Conversation({
 
     const switchedThreads = previousThreadIdRef.current !== thread.id;
     previousThreadIdRef.current = thread.id;
+    // Sending a message always brings the reader to it, as it does in Codex and Claude.
+    const lastSent = thread.events.findLast(
+      (event) => event.type === 'message' && event.role === 'user',
+    )?.id;
+    if (lastSent !== lastSentMessageRef.current && !switchedThreads)
+      pinnedToLatestRef.current = true;
+    lastSentMessageRef.current = lastSent;
     if (thread.events.length === 0) {
       if (switchedThreads) {
         pinnedToLatestRef.current = true;
@@ -336,11 +344,11 @@ export function Conversation({
     if (switchedThreads) {
       pinnedToLatestRef.current = true;
       setShowJumpToLatest(false);
-      scrollToLatest(scroller, 'auto');
+      scrollToLatest(scroller, 'instant');
       return;
     }
 
-    if (pinnedToLatestRef.current) scrollToLatest(scroller, 'auto');
+    if (pinnedToLatestRef.current) scrollToLatest(scroller, 'instant');
     else setShowJumpToLatest(true);
   }, [thread, thread?.events, thread?.id, thread?.status]);
 
