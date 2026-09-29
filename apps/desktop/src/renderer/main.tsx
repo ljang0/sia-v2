@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import { AppErrorBoundary } from './components/ErrorBoundary';
+import { resolveApi } from './useAppController';
 import { ScottyPet, ScottyPanel } from './components/Scotty';
 import { CommandLauncher } from './components/CommandLauncher';
 
@@ -38,17 +39,27 @@ if (location.hash === '#scotty' || location.hash === '#scotty-panel') {
     }
     reactRoot.render(
       <StrictMode>
-        <AppErrorBoundary>
+        <AppErrorBoundary
+          onSendFeedback={(message, diagnostics) =>
+            api.composeFeedback(message, undefined, diagnostics)
+          }
+        >
           <App api={api} />
         </AppErrorBoundary>
       </StrictMode>,
     );
   });
 } else {
+  // One bridge instance serves the app and its crash screen's feedback draft.
+  const api = resolveApi();
   reactRoot.render(
     <StrictMode>
-      <AppErrorBoundary>
-        <App />
+      <AppErrorBoundary
+        onSendFeedback={(message, diagnostics) =>
+          api.composeFeedback(message, undefined, diagnostics)
+        }
+      >
+        <App api={api} />
       </AppErrorBoundary>
     </StrictMode>,
   );

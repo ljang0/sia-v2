@@ -190,7 +190,8 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
   };
 }
 
-function resolveApi(): RendererApi {
+/** The desktop bridge, or an API that reports a missing bridge on every call. */
+export function resolveApi(): RendererApi {
   if (typeof window !== 'undefined' && 'sia' in window && window.sia) {
     return createBridgeRendererApi(window.sia);
   }

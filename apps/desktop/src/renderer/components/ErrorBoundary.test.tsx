@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ThreadDetail } from '../types';
 import { Conversation } from './Conversation';
@@ -28,6 +28,27 @@ describe('error boundaries', () => {
     expect(screen.getByRole('heading', { name: 'Something went wrong' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Reload' }));
     expect(reload).toHaveBeenCalledOnce();
+  });
+
+  it('lets a person copy the details and send feedback from the crash screen', async () => {
+    const writeText = vi.fn(async (_text: string) => undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    const sendFeedback = vi.fn(async () => undefined);
+    render(
+      <AppErrorBoundary onSendFeedback={sendFeedback}>
+        <Broken />
+      </AppErrorBoundary>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Copy details' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    expect(writeText.mock.calls[0]![0]).toContain('Error: render failed');
+    expect(await screen.findByRole('button', { name: 'Details copied' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send feedback' }));
+    const message = await screen.findByRole('textbox', { name: 'What should we improve?' });
+    expect((message as HTMLTextAreaElement).value).toContain('Error: render failed');
+    fireEvent.click(screen.getByRole('button', { name: 'Review in mail' }));
+    await waitFor(() => expect(sendFeedback).toHaveBeenCalledOnce());
   });
 
   it('keeps one broken row from taking the others with it, and retries when it changes', () => {

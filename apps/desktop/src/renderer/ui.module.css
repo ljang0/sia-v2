@@ -2018,6 +2018,19 @@ button.agentAvatar {
   text-align: center;
 }
 
+.fatalActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.fatalState .fatalActions .primaryButton {
+  margin-top: 0;
+}
+
 .threadEmpty {
   min-height: 46vh;
   padding-top: 4vh;

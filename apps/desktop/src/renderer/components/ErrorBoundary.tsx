@@ -1,9 +1,24 @@
 import { WarningCircle } from '@phosphor-icons/react';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import styles from '../ui.module.css';
+import { FeedbackDialog } from './FeedbackDialog';
 
 interface BoundaryState {
   failed: boolean;
+}
+
+interface AppBoundaryState extends BoundaryState {
+  details?: string | undefined;
+  copied?: boolean | undefined;
+  feedbackOpen?: boolean | undefined;
+}
+
+interface AppBoundaryProps {
+  children: ReactNode;
+  onReload?: (() => void) | undefined;
+  /** Opens the same feedback draft as Help → Send feedback. */
+  onSendFeedback?:
+    ((message: string, includeDiagnostics: boolean) => Promise<void>) | undefined;
 }
 
 /**
@@ -11,37 +26,90 @@ interface BoundaryState {
  * Reload button instead of an empty window. Saved conversations live in the main process,
  * so reloading loses nothing.
  */
-export class AppErrorBoundary extends Component<
-  { children: ReactNode; onReload?: (() => void) | undefined },
-  BoundaryState
-> {
-  override state: BoundaryState = { failed: false };
+export class AppErrorBoundary extends Component<AppBoundaryProps, AppBoundaryState> {
+  override state: AppBoundaryState = { failed: false };
 
-  static getDerivedStateFromError(): BoundaryState {
+  static getDerivedStateFromError(): Partial<AppBoundaryState> {
     return { failed: true };
   }
 
   override componentDidCatch(error: unknown, info: ErrorInfo) {
     console.error('Sia could not show this window', error, info.componentStack);
+    this.setState({ details: errorDetails(error, info.componentStack) });
   }
+
+  #copy = async () => {
+    try {
+      await navigator.clipboard.writeText(this.state.details ?? 'No details were recorded.');
+      this.setState({ copied: true });
+    } catch {
+      this.setState({ copied: false });
+    }
+  };
 
   override render() {
     if (!this.state.failed) return this.props.children;
+    const { onSendFeedback } = this.props;
     return (
       <div className={styles.fatalState} role="alert" data-testid="app-error-boundary">
         <WarningCircle size={26} aria-hidden="true" />
         <h1>Something went wrong</h1>
         <p>Sia hit a problem showing this window. Your conversations are saved.</p>
-        <button
-          type="button"
-          className={styles.primaryButton}
-          onClick={() => (this.props.onReload ?? (() => window.location.reload()))()}
-        >
-          Reload
-        </button>
+        <div className={styles.fatalActions}>
+          <button
+            type="button"
+            className={styles.primaryButton}
+            onClick={() => (this.props.onReload ?? (() => window.location.reload()))()}
+          >
+            Reload
+          </button>
+          <button
+            type="button"
+            className={styles.secondaryButton}
+            onClick={() => void this.#copy()}
+          >
+            {this.state.copied ? 'Details copied' : 'Copy details'}
+          </button>
+          {onSendFeedback ? (
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              onClick={() => this.setState({ feedbackOpen: true })}
+            >
+              Send feedback
+            </button>
+          ) : null}
+        </div>
+        {onSendFeedback ? (
+          <FeedbackDialog
+            open={Boolean(this.state.feedbackOpen)}
+            initialMessage={`Sia showed “Something went wrong” while I was:\n\n\nDetails:\n${firstLine(this.state.details)}`}
+            onOpenChange={(open) => this.setState({ feedbackOpen: open })}
+            onSubmit={onSendFeedback}
+          />
+        ) : null}
       </div>
     );
   }
+}
+
+/** What a person can paste into a report: the error and where it happened, nothing else. */
+function errorDetails(error: unknown, componentStack: string | null | undefined): string {
+  const summary =
+    error instanceof Error ? `${error.name}: ${error.message}` : `Error: ${String(error)}`;
+  const stack = error instanceof Error ? (error.stack ?? '') : '';
+  return [
+    summary,
+    `Page: ${typeof location === 'undefined' ? 'unknown' : location.hash || '/'}`,
+    stack && `Stack:\n${stack}`,
+    componentStack && `Components:${componentStack}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function firstLine(details: string | undefined): string {
+  return details?.split('\n', 1)[0] ?? 'No details were recorded.';
 }
 
 /**
