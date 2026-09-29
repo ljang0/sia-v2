@@ -92,7 +92,11 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
             ) : (
               <XCircle size={16} aria-hidden="true" />
             )}
-            {displayStatus}
+            {displayStatus === 'approved' && event.scope === 'task' ? (
+              <span className={styles.approvalStatusPlain}>Allowed for this task</span>
+            ) : (
+              displayStatus
+            )}
           </span>
         ) : null}
       </header>
@@ -181,6 +185,17 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
           >
             Don&apos;t allow
           </button>
+          {request.allowForTask ? (
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              onClick={() => onResolve(request.id, 'approve_task')}
+              disabled={busy}
+              title="Sia won't ask again for this same kind of action on this target until this task ends."
+            >
+              Allow for this task
+            </button>
+          ) : null}
           <button
             type="button"
             className={styles.primaryButton}
