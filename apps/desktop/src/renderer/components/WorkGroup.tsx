@@ -1,4 +1,4 @@
-import { CaretDown, CircleNotch, WarningCircle } from '@phosphor-icons/react';
+import { CaretDown, CheckCircle, CircleNotch, WarningCircle } from '@phosphor-icons/react';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { ActivityEvent } from '../types';
 import styles from '../ui.module.css';
@@ -41,13 +41,17 @@ export function WorkGroup({
         onClick={onToggle}
         aria-expanded={open}
       >
+        {problems ? (
+          <WarningCircle size={15} className={styles.workGroupProblemIcon} aria-hidden="true" />
+        ) : (
+          <CheckCircle size={15} className={styles.workGroupDoneIcon} aria-hidden="true" />
+        )}
         <span>
           {duration ? `Worked for ${duration}` : 'Worked on this'}
           {` · ${events.length} steps`}
         </span>
         {problems ? (
           <span className={styles.workGroupProblem}>
-            <WarningCircle size={14} aria-hidden="true" />
             {problems === 1 ? '1 step had a problem' : `${problems} steps had problems`}
           </span>
         ) : null}
@@ -106,7 +110,10 @@ export function WorkingStatus({ since, step, writing, thinking, plan }: WorkingS
   return (
     <div className={styles.workingStatus} role="status" data-testid="turn-running">
       <CircleNotch size={15} className={styles.workingSpinner} aria-hidden="true" />
-      <span>{label}</span>
+      {/* Keyed by its words so a new phase fades in instead of snapping. */}
+      <span key={label} className={styles.workingLabel}>
+        {label}
+      </span>
       {plan ? (
         <span className={styles.workingElapsed}>{`Step ${plan.current} of ${plan.total}`}</span>
       ) : null}
