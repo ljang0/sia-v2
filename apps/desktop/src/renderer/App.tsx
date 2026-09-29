@@ -691,6 +691,14 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                         )
                       : Promise.resolve()
                 }
+                onSendQueuedNow={
+                  activeThread &&
+                  online &&
+                  !outbox.held.some(({ threadId }) => threadId === activeThread.id)
+                    ? (messageId) =>
+                        run(() => api.steerQueuedMessage(activeThread.id, messageId))
+                    : undefined
+                }
                 browserRecovery={
                   snapshot.activeThread ? (
                     <BrowserTaskRecovery

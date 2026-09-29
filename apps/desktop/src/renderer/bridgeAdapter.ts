@@ -309,6 +309,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async removeQueuedMessage(threadId, messageId) {
       publish(await bridge.threads.unqueue(threadId, messageId));
     },
+    async steerQueuedMessage(threadId, messageId) {
+      publish(await bridge.threads.steer(threadId, messageId));
+    },
     async respondToApproval(approvalId, decision) {
       publish(
         await bridge.approvals.resolve({

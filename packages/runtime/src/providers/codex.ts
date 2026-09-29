@@ -9,6 +9,7 @@ import type {
   ProviderReviewInput,
   ProviderSession,
   ProviderSessionOptions,
+  ProviderSteerInput,
   ProviderTurnInput,
   ThreadEventEnvelope,
   ToolEvent,
@@ -168,6 +169,8 @@ interface ActiveTurn {
   nativeTurnId?: string;
   /** Stop arrived before Codex reported the native turn id. */
   interruptPending?: boolean;
+  /** Steers waiting for the native turn id, which turn/steer requires. */
+  nativeTurnIdWaiters?: Array<(nativeTurnId: string | undefined) => void>;
 }
 
 interface DeferredRequest {
@@ -448,23 +451,9 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     input: ProviderTurnInput,
     signal?: AbortSignal,
   ): AsyncIterable<ThreadEventEnvelope> {
-    // Codex drops `mention` inputs for ordinary files, so name them in the text instead.
-    const files = (input.attachments ?? []).filter(({ kind }) => kind === 'file');
-    const text = files.length
-      ? `${input.text}\n\n${await attachedFilesText(files)}`
-      : input.text;
     const params = {
       threadId: session.nativeId,
-      input: [
-        { type: 'text', text, text_elements: [] },
-        ...(input.attachments ?? []).flatMap((attachment) =>
-          attachment.kind === 'image'
-            ? [{ type: 'localImage', path: attachment.path }]
-            : attachment.kind === 'audio'
-              ? [{ type: 'localAudio', path: attachment.path }]
-              : [],
-        ),
-      ],
+      input: await codexUserInput(input),
       ...(input.model ? { model: input.model } : {}),
       ...(input.reasoningEffort ? { effort: input.reasoningEffort } : {}),
       ...(input.outputSchema ? { outputSchema: input.outputSchema } : {}),
@@ -603,6 +592,40 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     await this.#interrupt(active, active.nativeTurnId);
   }
 
+  async steerTurn(
+    session: ProviderSession,
+    turnId: string,
+    input: ProviderSteerInput,
+  ): Promise<void> {
+    const active = this.#activeByThread.get(session.nativeId);
+    if (!active || active.input.turnId !== turnId)
+      throw new Error('This task already finished.');
+    // turn/steer names the running native turn; wait briefly for Codex to report it.
+    const nativeTurnId =
+      active.nativeTurnId ??
+      (await new Promise<string | undefined>((resolve) => {
+        const timer = setTimeout(() => resolve(undefined), this.#timeout);
+        timer.unref?.();
+        (active.nativeTurnIdWaiters ??= []).push((id) => {
+          clearTimeout(timer);
+          resolve(id);
+        });
+      }));
+    if (!nativeTurnId || this.#activeByThread.get(session.nativeId) !== active)
+      throw new Error('This task already finished.');
+    const peer = await this.#peer();
+    await peer.request(
+      'turn/steer',
+      {
+        threadId: session.nativeId,
+        input: await codexUserInput(input),
+        expectedTurnId: nativeTurnId,
+      },
+      { timeoutMs: this.#timeout },
+    );
+    active.lastActivity = Date.now();
+  }
+
   async #interrupt(active: ActiveTurn, nativeTurnId: string): Promise<void> {
     const peer = await this.#peer();
     await peer.request(
@@ -615,6 +638,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   #learnNativeTurnId(active: ActiveTurn, nativeTurnId: string): void {
     active.nativeTurnId = nativeTurnId;
     this.#activeByNativeTurn.set(nativeTurnId, active);
+    for (const waiter of active.nativeTurnIdWaiters?.splice(0) ?? []) waiter(nativeTurnId);
     if (!active.interruptPending) return;
     active.interruptPending = false;
     void this.#interrupt(active, nativeTurnId).catch((error: unknown) =>
@@ -1449,11 +1473,29 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         pending.resolve({ requestId: id, choiceId: 'deny' });
       }
     }
+    for (const waiter of active.nativeTurnIdWaiters?.splice(0) ?? []) waiter(undefined);
     if (this.#activeByThread.get(active.session.nativeId) === active)
       this.#activeByThread.delete(active.session.nativeId);
     if (active.nativeTurnId && this.#activeByNativeTurn.get(active.nativeTurnId) === active)
       this.#activeByNativeTurn.delete(active.nativeTurnId);
   }
+}
+
+/** Codex user input for a new or steered turn: text plus local images and audio. */
+async function codexUserInput(input: ProviderSteerInput): Promise<Record<string, unknown>[]> {
+  // Codex drops `mention` inputs for ordinary files, so name them in the text instead.
+  const files = (input.attachments ?? []).filter(({ kind }) => kind === 'file');
+  const text = files.length ? `${input.text}\n\n${await attachedFilesText(files)}` : input.text;
+  return [
+    { type: 'text', text, text_elements: [] },
+    ...(input.attachments ?? []).flatMap((attachment) =>
+      attachment.kind === 'image'
+        ? [{ type: 'localImage', path: attachment.path }]
+        : attachment.kind === 'audio'
+          ? [{ type: 'localAudio', path: attachment.path }]
+          : [],
+    ),
+  ];
 }
 
 const ATTACHED_TEXT_FILE_BYTES = 128 * 1024;

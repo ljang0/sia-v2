@@ -475,6 +475,7 @@ describe('RuntimeCoordinator', () => {
       cancelTurn: async () => undefined,
       respondToRequest: async () => undefined,
       closeSession: vi.fn(async () => undefined),
+      steerTurn: vi.fn(async () => undefined),
       dispose: async () => undefined,
     };
     const runtime = new RuntimeCoordinator(
@@ -526,6 +527,16 @@ describe('RuntimeCoordinator', () => {
         model: 'example/spark',
       }),
     ]);
+    // A message sent while the turn works reaches the same provider session.
+    await runtime.steer('thread-lab', 'turn-1', { text: 'Also this' });
+    expect(adapter.steerTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ nativeId: 'lab-native-session' }),
+      'turn-1',
+      { text: 'Also this' },
+    );
+    await expect(runtime.steer('unknown-thread', 'turn-1', { text: 'x' })).rejects.toThrow(
+      'cannot take new messages',
+    );
     // Deleting the thread releases its provider session.
     await runtime.releaseSession('thread-lab');
     expect(adapter.closeSession).toHaveBeenCalledWith(

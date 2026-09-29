@@ -115,6 +115,7 @@ const inputSchemas = {
   'threads.retry': z.object({ threadId: identifier }).strict(),
   'threads.cancel': z.object({ threadId: identifier }).strict(),
   'threads.unqueue': z.object({ threadId: identifier, messageId: identifier }).strict(),
+  'threads.steer': z.object({ threadId: identifier, messageId: identifier }).strict(),
   'attachments.pick': z.object({ threadId: identifier }).strict(),
   'attachments.drop': z
     .object({

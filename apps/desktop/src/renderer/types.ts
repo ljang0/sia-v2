@@ -606,6 +606,8 @@ export interface RendererApi {
   runScheduleNow(scheduleId: string): Promise<void>;
   cancelTurn(threadId: string): Promise<void>;
   removeQueuedMessage(threadId: string, messageId: string): Promise<void>;
+  /** Adds a queued message to the running task ("Send now"). */
+  steerQueuedMessage(threadId: string, messageId: string): Promise<void>;
   respondToApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
   retryThread(threadId: string): Promise<void>;
   setCapturePaused(paused: boolean): Promise<void>;

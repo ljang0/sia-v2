@@ -7536,6 +7536,62 @@ describe('follow-up messages while a turn runs', () => {
     }
   });
 
+  it('sends a queued follow-up into the running turn, and keeps it queued when that fails', async () => {
+    const { runtime, turns, release } = followUpRuntime();
+    const steer = vi.fn(async () => undefined);
+    const { controller, threadId, thread, users } = await startThread({ ...runtime, steer });
+    try {
+      const first = await controller.invoke('threads.send', { threadId, text: 'Plan a trip' });
+      await vi.waitFor(() => expect(release.has(first.turnId)).toBe(true));
+      await controller.invoke('threads.send', { threadId, text: 'Make it Portugal' });
+      await controller.invoke('threads.send', { threadId, text: 'Under $2k' });
+      const portugal = users().find(({ text }) => text === 'Make it Portugal')!;
+
+      await controller.invoke('threads.steer', { threadId, messageId: portugal.id });
+      expect(steer).toHaveBeenCalledWith(threadId, first.turnId, { text: 'Make it Portugal' });
+      // It joins the running turn after what the agent already said; the other stays queued.
+      const ordered = controller
+        .snapshot()
+        .timeline.filter(
+          (item) =>
+            item.threadId === threadId && (item.kind === 'user' || item.kind === 'assistant'),
+        )
+        .sort((left, right) => left.sequence - right.sequence)
+        .map(({ text, status, turnId }) => ({ text, status, turnId }));
+      expect(ordered.filter(({ status }) => status !== 'pending')).toEqual([
+        { text: 'Plan a trip', status: 'complete', turnId: first.turnId },
+        { text: 'Reply 1', status: 'complete', turnId: first.turnId },
+        { text: 'Make it Portugal', status: 'complete', turnId: first.turnId },
+      ]);
+      expect(ordered.filter(({ status }) => status === 'pending')).toMatchObject([
+        { text: 'Under $2k' },
+      ]);
+      await expect(
+        controller.invoke('threads.steer', { threadId, messageId: portugal.id }),
+      ).rejects.toThrow('already started or was removed');
+
+      steer.mockRejectedValueOnce(new Error('Turn mismatch.'));
+      const budget = users().find(({ text }) => text === 'Under $2k')!;
+      await expect(
+        controller.invoke('threads.steer', { threadId, messageId: budget.id }),
+      ).rejects.toThrow('it will be sent next');
+      expect(users().find(({ id }) => id === budget.id)).toMatchObject({ status: 'pending' });
+
+      release.get(first.turnId)!();
+      await vi.waitFor(() => expect(turns).toHaveLength(2));
+      // The steered message never starts a turn of its own.
+      expect(turns[1]!.text).toContain('Under $2k');
+      await vi.waitFor(() => expect(release.has(turns[1]!.turnId)).toBe(true));
+      await expect(
+        controller.invoke('threads.steer', { threadId, messageId: budget.id }),
+      ).rejects.toThrow('already started or was removed');
+      release.get(turns[1]!.turnId)!();
+      await vi.waitFor(() => expect(thread().status).toBe('idle'));
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
   it('returns unsent follow-ups to the composer after a relaunch', async () => {
     const { runtime, release } = followUpRuntime();
     const { controller, repository: initial, threadId } = await startThread(runtime);

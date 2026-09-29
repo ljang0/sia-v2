@@ -96,6 +96,8 @@ interface ConversationProps {
   onSend(content: string, attachmentIds?: readonly string[]): Promise<void>;
   onStop(): Promise<void>;
   onRemoveQueued?: ((messageId: string) => Promise<void>) | undefined;
+  /** "Send now" on a queued message while the thread runs. */
+  onSendQueuedNow?: ((messageId: string) => Promise<void>) | undefined;
   onRetry(): Promise<void>;
   onResolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
   /** Thumbs up or down on a reply opens a feedback draft about it. */
@@ -142,6 +144,7 @@ export function Conversation({
   onSend,
   onStop,
   onRemoveQueued,
+  onSendQueuedNow,
   onRetry,
   onResolveApproval,
   onRateReply,
@@ -837,6 +840,7 @@ export function Conversation({
         messages={thread.queuedMessages ?? []}
         agentName={agentName}
         onRemove={onRemoveQueued}
+        onSendNow={running ? onSendQueuedNow : undefined}
       />
       <Composer
         key={thread.id}

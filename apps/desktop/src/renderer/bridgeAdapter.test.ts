@@ -330,14 +330,17 @@ describe('bridge renderer queued follow-ups', () => {
     });
 
     const unqueue = vi.fn(async () => structuredClone(source));
+    const steer = vi.fn(async () => structuredClone(source));
     const api = createBridgeRendererApi({
       bootstrap: async () => source,
-      threads: { unqueue },
+      threads: { unqueue, steer },
       subscribe: () => () => undefined,
     } as unknown as DesktopBridgeApi);
     await api.getSnapshot();
     await api.removeQueuedMessage('thread-1', 'user-2');
     expect(unqueue).toHaveBeenCalledWith('thread-1', 'user-2');
+    await api.steerQueuedMessage('thread-1', 'user-2');
+    expect(steer).toHaveBeenCalledWith('thread-1', 'user-2');
   });
 });
 

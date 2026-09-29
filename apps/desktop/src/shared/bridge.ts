@@ -651,6 +651,7 @@ export interface BridgeRequestMap {
   'threads.cancel': { threadId: string };
   /** Removes a queued follow-up (a pending user message) before it starts. */
   'threads.unqueue': { threadId: string; messageId: string };
+  'threads.steer': { threadId: string; messageId: string };
   'attachments.pick': { threadId: string };
   'attachments.drop': { threadId: string; paths: string[] };
   'attachments.preview': { threadId: string; attachmentId: string };
@@ -781,6 +782,7 @@ export interface BridgeResultMap {
   'threads.retry': { turnId: string; snapshot: DesktopSnapshot };
   'threads.cancel': DesktopSnapshot;
   'threads.unqueue': DesktopSnapshot;
+  'threads.steer': DesktopSnapshot;
   'attachments.pick': { attachments: AttachmentView[] };
   'attachments.drop': { attachments: AttachmentView[] };
   'attachments.preview': AttachmentPreviewView;
@@ -928,6 +930,7 @@ export interface DesktopBridgeApi {
     retry(threadId: string): Promise<BridgeResultMap['threads.retry']>;
     cancel(threadId: string): Promise<DesktopSnapshot>;
     unqueue(threadId: string, messageId: string): Promise<DesktopSnapshot>;
+    steer(threadId: string, messageId: string): Promise<DesktopSnapshot>;
   };
   worktrees: {
     cleanup(threadId: string): Promise<DesktopSnapshot>;

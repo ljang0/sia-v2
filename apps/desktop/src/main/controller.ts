@@ -1996,6 +1996,11 @@ export class DesktopController {
         return (await this.#cancelTurn(
           (input as BridgeRequestMap['threads.cancel']).threadId,
         )) as BridgeResultMap[M];
+      case 'threads.steer':
+        return (await this.#steerQueuedMessage(
+          (input as BridgeRequestMap['threads.steer']).threadId,
+          (input as BridgeRequestMap['threads.steer']).messageId,
+        )) as BridgeResultMap[M];
       case 'attachments.pick':
         return (await this.#pickAttachments(
           (input as BridgeRequestMap['attachments.pick']).threadId,
@@ -3588,6 +3593,73 @@ export class DesktopController {
       thread.status = 'idle';
       delete thread.queueReason;
     }
+    thread.updatedAt = new Date().toISOString();
+    this.#commit();
+    return this.#resultSnapshot();
+  }
+
+  /**
+   * "Send now": a queued follow-up joins the running turn instead of waiting for it to end.
+   * The message stays queued when the provider cannot take it.
+   */
+  async #steerQueuedMessage(threadId: string, messageId: string): Promise<DesktopSnapshot> {
+    const thread = this.#requireThread(threadId);
+    const item = this.#state.timeline.find(
+      (candidate) =>
+        candidate.id === messageId &&
+        candidate.threadId === threadId &&
+        candidate.kind === 'user' &&
+        candidate.status === 'pending',
+    );
+    const index = this.#queuedTurns.findIndex((turn) => turn.id === item?.turnId);
+    const queued = this.#queuedTurns[index];
+    if (!item || !queued) throw new Error('This message has already started or was removed.');
+    const activeTurnId = this.#activeTurnId(threadId);
+    if (
+      !activeTurnId ||
+      thread.status !== 'running' ||
+      this.#runningTurns.get(threadId)?.signal.aborted
+    ) {
+      throw new Error('Sia is not working on this right now. Your message will be sent next.');
+    }
+    // Take it out of the queue first so the turn ending meanwhile cannot also start it.
+    this.#queuedTurns.splice(index, 1);
+    try {
+      if (!this.#fakeServices) {
+        const runtime = this.#runtime;
+        if (!runtime) throw new Error('The provider runtime did not initialize.');
+        await runtime.steer(threadId, activeTurnId, {
+          text: queued.text,
+          ...(queued.attachments?.length ? { attachments: queued.attachments } : {}),
+        });
+      }
+    } catch (error) {
+      this.#queuedTurns.splice(Math.min(index, this.#queuedTurns.length), 0, queued);
+      // The turn may have ended while the provider refused; the message then runs next.
+      if (!this.#runningTurns.has(threadId)) this.#drainQueue();
+      this.#commit();
+      throw new Error(
+        `Sia could not add this to the current task, so it will be sent next. ${error instanceof Error ? error.message : ''}`.trim(),
+      );
+    }
+    // The message now belongs to the running turn and appears where it joined.
+    item.status = 'complete';
+    item.turnId = activeTurnId;
+    item.sequence =
+      this.#state.timeline.reduce(
+        (highest, candidate) =>
+          candidate.threadId === threadId ? Math.max(highest, candidate.sequence) : highest,
+        0,
+      ) + 1;
+    this.#discardResearchTurn(queued.id);
+    this.#stageResearchText({
+      turnId: activeTurnId,
+      eventId: item.id,
+      occurredAt: item.timestamp,
+      role: 'user',
+      text: queued.text,
+      provider: thread.provider,
+    });
     thread.updatedAt = new Date().toISOString();
     this.#commit();
     return this.#resultSnapshot();

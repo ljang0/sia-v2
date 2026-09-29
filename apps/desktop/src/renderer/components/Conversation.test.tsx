@@ -839,4 +839,23 @@ describe('Conversation follow-ups while running', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove queued message' }));
     await waitFor(() => expect(onRemoveQueued).toHaveBeenCalledWith('queued-1'));
   });
+
+  it('offers Send now on a queued message only while the task runs', async () => {
+    const onSendQueuedNow = vi.fn(async () => undefined);
+    const view = (status: 'running' | 'queued') => (
+      <Conversation
+        thread={baseThread({ status, queuedMessages: [queuedMessage] })}
+        onSend={vi.fn(async () => undefined)}
+        onStop={vi.fn(async () => undefined)}
+        onSendQueuedNow={onSendQueuedNow}
+        onRetry={async () => undefined}
+        onResolveApproval={async () => undefined}
+      />
+    );
+    const { rerender } = render(view('running'));
+    fireEvent.click(screen.getByRole('button', { name: 'Send now' }));
+    await waitFor(() => expect(onSendQueuedNow).toHaveBeenCalledWith('queued-1'));
+    rerender(view('queued'));
+    expect(screen.queryByRole('button', { name: 'Send now' })).toBeNull();
+  });
 });
