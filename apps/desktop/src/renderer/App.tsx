@@ -374,7 +374,8 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         data-identity={roomAgent?.hue}
         data-companion-workspace
       >
-        {!app.settingsOpen ? (
+        {/* Settings and Activity are full pages with their own titles. */}
+        {!app.settingsOpen && !app.activityOpen ? (
           <RoomHeader
             agent={roomAgent}
             thread={activeThread}

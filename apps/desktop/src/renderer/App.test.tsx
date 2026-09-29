@@ -160,6 +160,9 @@ describe('app privacy routing', () => {
     const archive = await screen.findByRole('region', { name: 'Archived' });
     expect(archive).toBeTruthy();
     expect(screen.getByText('Previous release notes')).toBeTruthy();
+    // Activity is a full page, like Settings: the conversation header steps aside.
+    expect(screen.queryByText('Model for this conversation')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Access' })).toBeNull();
   });
 
   it('keeps existing local work locked while signed out', async () => {
