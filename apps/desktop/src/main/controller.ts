@@ -3391,6 +3391,19 @@ export class DesktopController {
       thread.status = 'queued';
       thread.queueReason = 'Waiting for another task to release this workspace.';
       this.#queuedTurns.push(queued);
+      // A person's message goes ahead of a memory review that holds the agent's workspace;
+      // the review runs again on a later idle pass.
+      const review = this.#state.threads.find(
+        (candidate) =>
+          candidate.id !== thread.id &&
+          candidate.workspace === thread.workspace &&
+          this.#assistantLibrary.isReview(candidate.id) &&
+          this.#activeTurnId(candidate.id) === this.#workspaceLeases.get(thread.workspace),
+      );
+      if (source === 'manual' && review && !this.#assistantLibrary.isReview(thread.id)) {
+        thread.queueReason = 'Starting after Sia pauses its memory review.';
+        void this.#cancelTurn(review.id).catch(() => undefined);
+      }
     } else {
       this.#startTurn(queued);
     }
@@ -6750,6 +6763,8 @@ export class DesktopController {
       thread.goal.status = 'paused';
       thread.goal.updatedAt = new Date().toISOString();
     }
+    // A memory review is Sia's own housekeeping, not work the person is waiting for.
+    if (this.#assistantLibrary.isReview(thread.id)) return;
     thread.unread = true;
     const agent = this.#state.agents.find(({ id }) => id === thread.agentId);
     if (agent?.notificationsEnabled !== false) {

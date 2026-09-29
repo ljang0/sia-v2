@@ -6607,9 +6607,11 @@ it('does not start queued work when an active turn releases its lease during shu
 });
 
 it('memory reviews pin the owning agent and restrict host actions, including trusted mode', async () => {
+  const notify = vi.fn();
   const { controller } = await createHarness({
     defaultWorkspaceRoot: '/tmp/Sia/Agents',
     createDirectory: async () => undefined,
+    notify,
   });
   try {
     await controller.invoke('computer.setAccessMode', { mode: 'connected' });
@@ -6660,6 +6662,11 @@ it('memory reviews pin the owning agent and restrict host actions, including tru
         controller.snapshot().threads.find((thread) => thread.id === threadId)?.status,
       ).toBe('idle'),
     );
+    // Sia's own housekeeping neither marks the review unread nor notifies.
+    expect(controller.snapshot().threads.find((thread) => thread.id === threadId)?.unread).toBe(
+      false,
+    );
+    expect(notify).not.toHaveBeenCalled();
     expect(
       (await controller.invoke('assistant.library', { operation: 'list' })).journal,
     ).toEqual([]);
@@ -6669,6 +6676,82 @@ it('memory reviews pin the owning agent and restrict host actions, including tru
       enabled: false,
     });
     expect(controller.allowsReviewAction(threadId, 'memory_suggest')).toBe(false);
+  } finally {
+    await controller.shutdown();
+  }
+});
+
+it('lets a person’s message preempt a memory review, which stays quiet', async () => {
+  const reviewTurns: string[] = [];
+  const userTurns: string[] = [];
+  let reviewThreadId = '';
+  const runtime = {
+    async *runTurn(input: RuntimeTurnInput, signal: AbortSignal) {
+      const base = {
+        id: randomUUID(),
+        threadId: input.thread.id,
+        turnId: input.turnId,
+        provider: 'codex' as const,
+        sequence: 1,
+        timestamp: new Date().toISOString(),
+      };
+      if ((input.thread as { nativeTools?: string }).nativeTools === 'disabled') {
+        reviewTurns.push(input.turnId);
+        await new Promise((_, reject) =>
+          signal.addEventListener('abort', () => reject(new Error('stopped')), { once: true }),
+        );
+      }
+      userTurns.push(input.text);
+      yield { ...base, type: 'completion' as const, payload: { status: 'completed' as const } };
+    },
+    dispose: vi.fn(async () => undefined),
+    cancel: vi.fn(async () => undefined),
+    respondToRequest: vi.fn(async () => undefined),
+  };
+  const notify = vi.fn();
+  const { controller } = await createHarness({ fakeServices: false, runtime, notify });
+  try {
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'Reviewer',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId });
+    await controller.invoke('assistant.library', {
+      operation: 'learning',
+      agentId,
+      enabled: true,
+    });
+    const originalSelect = controller.snapshot().activeThreadId;
+    const review = controller.invoke('assistant.library', { operation: 'review', agentId });
+    await vi.waitFor(() => {
+      reviewThreadId =
+        controller.snapshot().threads.find(({ title }) => title === 'Memory and skill review')
+          ?.id ?? '';
+      expect(reviewThreadId).not.toBe('');
+    });
+    await review;
+    await vi.waitFor(() => expect(reviewTurns).toHaveLength(1));
+    expect(originalSelect).toBeDefined();
+
+    await controller.invoke('threads.send', { threadId, text: 'Book my flight' });
+    await vi.waitFor(() =>
+      expect(userTurns.some((text) => text.includes('Book my flight'))).toBe(true),
+    );
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+        'idle',
+      ),
+    );
+    const reviewThread = controller.snapshot().threads.find(({ id }) => id === reviewThreadId)!;
+    expect(reviewThread.status).toBe('idle');
+    expect(reviewThread.unread).toBe(false);
+    expect(notify).not.toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: reviewThreadId }),
+    );
   } finally {
     await controller.shutdown();
   }
