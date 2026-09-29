@@ -1094,6 +1094,11 @@ button.agentAvatar {
     transform var(--motion-fast) var(--ease-standard);
 }
 
+.jumpToLatest[data-attention='true'] {
+  border-color: color-mix(in srgb, var(--text-warning) 45%, var(--border-subtle));
+  color: var(--text-primary);
+}
+
 .jumpToLatest:hover {
   color: var(--text-primary);
   transform: translate(-50%, calc(-50% - 1px));

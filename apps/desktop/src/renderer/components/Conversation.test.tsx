@@ -413,6 +413,50 @@ describe('Conversation waiting controls', () => {
     expect(scrollTo).toHaveBeenCalledWith({ top: 1_000, behavior: 'instant' });
   });
 
+  it('brings a new question into view once and names it on Jump to latest', () => {
+    const reply: MessageEvent = {
+      id: 'reply',
+      type: 'message',
+      role: 'assistant',
+      content: 'Checking your calendars.',
+      timestamp: '2026-08-13T00:00:00.000Z',
+    };
+    const running = baseThread({ status: 'running', events: [reply] });
+    const props = {
+      onSend: async () => undefined,
+      onStop: async () => undefined,
+      onRetry: async () => undefined,
+      onResolveApproval: async () => undefined,
+    };
+    const view = render(<Conversation thread={running} {...props} />);
+    const scroller = screen.getByLabelText('Conversation') as HTMLDivElement;
+    const scrollTo = vi.fn();
+    Object.defineProperties(scroller, {
+      scrollHeight: { configurable: true, value: 1_000 },
+      clientHeight: { configurable: true, value: 400 },
+      scrollTop: { configurable: true, value: 100, writable: true },
+      scrollTo: { configurable: true, value: scrollTo },
+    });
+    // The reader scrolled up to read; a question then arrives below.
+    fireEvent.scroll(scroller);
+    const question = {
+      id: 'question',
+      type: 'question' as const,
+      prompt: 'Which calendar should I use?',
+      status: 'pending' as const,
+      timestamp: '2026-08-13T00:01:00.000Z',
+    };
+    const waiting = { ...running, status: 'waiting' as const, events: [reply, question] };
+    view.rerender(<Conversation thread={waiting} {...props} />);
+    expect(scrollTo).toHaveBeenCalledOnce();
+
+    // Scrolling back up to read is respected: the same question does not pull again.
+    fireEvent.scroll(scroller);
+    view.rerender(<Conversation thread={{ ...waiting, title: 'Renamed' }} {...props} />);
+    expect(scrollTo).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', { name: '1 question waiting' })).toBeTruthy();
+  });
+
   it('follows the new turn after a send, even if the welcome screen was scrolled', () => {
     const props = {
       onSend: async () => undefined,

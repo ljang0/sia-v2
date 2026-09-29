@@ -154,6 +154,7 @@ export function Conversation({
   const pinnedToLatestRef = useRef(true);
   const previousThreadIdRef = useRef<string | undefined>(undefined);
   const lastSentMessageRef = useRef<string | undefined>(undefined);
+  const attentionRef = useRef<string | undefined>(undefined);
   const speechGeneration = useRef(0);
   const speechSource = useRef<AudioBufferSourceNode | undefined>(undefined);
   const speechContext = useRef<AudioContext | undefined>(undefined);
@@ -352,6 +353,12 @@ export function Conversation({
 
     const switchedThreads = previousThreadIdRef.current !== thread.id;
     previousThreadIdRef.current = thread.id;
+    // A new approval, question, or failure needs the person: bring it into view once when it
+    // arrives, then leave scrolling to them.
+    const attention = waitingOnPerson(thread)?.key;
+    const newAttention = Boolean(attention) && attention !== attentionRef.current;
+    attentionRef.current = attention;
+    if (newAttention && !switchedThreads) pinnedToLatestRef.current = true;
     // Sending a message always brings the reader to it, as it does in Codex and Claude.
     const lastSent = thread.events.findLast(
       (event) => event.type === 'message' && event.role === 'user',
@@ -751,9 +758,14 @@ export function Conversation({
       {showJumpToLatest || workspaceTools || outlineAvailable ? (
         <div className={styles.threadWorkspaceBar}>
           {showJumpToLatest ? (
-            <button type="button" className={styles.jumpToLatest} onClick={jumpToLatest}>
+            <button
+              type="button"
+              className={styles.jumpToLatest}
+              onClick={jumpToLatest}
+              data-attention={waitingOnPerson(thread) ? 'true' : undefined}
+            >
               <ArrowDown size={14} aria-hidden="true" />
-              Jump to latest
+              {waitingOnPerson(thread)?.label ?? 'Jump to latest'}
             </button>
           ) : null}
           {workspaceTools}
@@ -872,6 +884,30 @@ export function Conversation({
       />
     </main>
   );
+}
+
+/** What in this thread is waiting on the person, if anything, and how to say so briefly. */
+export function waitingOnPerson(
+  thread: ThreadDetail,
+): { key: string; label: string } | undefined {
+  const approvals = thread.events.filter(
+    (event) => event.type === 'approval' && event.status === 'pending',
+  );
+  if (approvals.length)
+    return {
+      key: `approval:${approvals.map(({ id }) => id).join(',')}`,
+      label:
+        approvals.length === 1 ? '1 approval waiting' : `${approvals.length} approvals waiting`,
+    };
+  const question =
+    thread.status === 'waiting'
+      ? thread.events.findLast(
+          (event) => event.type === 'question' && event.status === 'pending',
+        )
+      : undefined;
+  if (question) return { key: `question:${question.id}`, label: '1 question waiting' };
+  if (thread.error) return { key: `error:${thread.error}`, label: 'Task needs attention' };
+  return undefined;
 }
 
 function isNearLatest(scroller: HTMLDivElement) {
