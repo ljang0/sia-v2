@@ -489,6 +489,11 @@ export class DesktopController {
   readonly #allowedModelRoutes = new Map<string, readonly ModelRoute[]>();
   readonly #actionLeases = new LocalLeaseCoordinator(4);
   #queuedTurns: QueuedTurn[] = [];
+  /**
+   * Threads whose Mac task paused on lock or sleep. Their queued follow-ups wait for the
+   * person to press Continue task, send a message, or Stop, instead of skipping the pause.
+   */
+  readonly #heldThreads = new Set<string>();
   #researchSync: Promise<void> | undefined;
   #connectionSetup: { controller: AbortController; task: Promise<void> } | undefined;
   #researchRetryTimer: NodeJS.Timeout | undefined;
@@ -701,6 +706,7 @@ export class DesktopController {
         ?.respondToRequest(threadId, { requestId: question.requestId })
         .catch(() => undefined);
     if (turn.attachments?.length) this.#failedTurnAttachments.set(turn.id, turn.attachments);
+    this.#heldThreads.add(threadId);
     thread.status = 'failed';
     delete thread.queueReason;
     thread.interruptedTurnId = turn.id;
@@ -3358,7 +3364,17 @@ export class DesktopController {
     };
     // Keep short-lived grants available for local preview/open after send. They still expire
     // after one hour and are never persisted, so a relaunch cannot revive file access.
-    if (followUp) {
+    if (followUp && this.#heldThreads.delete(thread.id)) {
+      // Writing again after a pause moves on from it; held follow-ups run in order.
+      this.#queuedTurns.push(queued);
+      if (running?.signal.aborted) {
+        thread.status = 'queued';
+        thread.queueReason = 'Finishing the stopped task.';
+      } else {
+        this.#drainQueue();
+        this.#markWaitingFollowUps(thread);
+      }
+    } else if (followUp) {
       this.#queuedTurns.push(queued);
       if (running?.signal.aborted) {
         thread.status = 'queued';
@@ -3386,9 +3402,11 @@ export class DesktopController {
     const thread = this.#requireThread(threadId);
     if (thread.status !== 'failed') throw new Error('Only a failed turn can be retried.');
     this.#requireReadyProvider(thread.provider, thread.model);
+    // Follow-ups held behind a paused task run after it continues.
+    const held = this.#heldThreads.has(thread.id);
     if (
       this.#runningTurns.has(thread.id) ||
-      this.#queuedTurns.some((turn) => turn.threadId === thread.id)
+      (!held && this.#queuedTurns.some((turn) => turn.threadId === thread.id))
     ) {
       throw new Error('This thread already has an active turn.');
     }
@@ -3434,14 +3452,18 @@ export class DesktopController {
       status: 'complete',
       timestamp: new Date().toISOString(),
     });
+    this.#heldThreads.delete(thread.id);
+    // The continued task goes ahead of any follow-ups that waited behind it.
+    const enqueue = (turn: QueuedTurn) =>
+      held ? this.#queuedTurns.unshift(turn) : this.#queuedTurns.push(turn);
     if (this.#runningTurns.size >= 4) {
       thread.status = 'queued';
       thread.queueReason = 'Four local tasks are already running.';
-      this.#queuedTurns.push(retry);
+      enqueue(retry);
     } else if (this.#workspaceLeases.has(thread.workspace)) {
       thread.status = 'queued';
       thread.queueReason = 'Waiting for another task to release this workspace.';
-      this.#queuedTurns.push(retry);
+      enqueue(retry);
     } else {
       this.#startTurn(retry);
     }
@@ -3466,6 +3488,7 @@ export class DesktopController {
       .filter((turn) => turn.threadId === threadId)
       .map((turn) => turn.id);
     this.#queuedTurns = this.#queuedTurns.filter((turn) => turn.threadId !== threadId);
+    this.#heldThreads.delete(threadId);
     if (activeTurnId) this.#discardResearchTurn(activeTurnId);
     for (const turnId of queuedTurnIds) this.#discardResearchTurn(turnId);
     // Stop cancels queued follow-ups too; their unsent messages leave the thread.
@@ -7450,15 +7473,25 @@ export class DesktopController {
     if (this.#macTurns.delete(threadId)) this.#keepAwake?.release(threadId);
     if (thread) this.#workspaceLeases.delete(thread.workspace);
     this.#drainQueue();
-    // A follow-up can still wait when another thread took the workspace first.
+    // A follow-up can still wait when another thread took the workspace first. A paused
+    // thread keeps its failed state and Continue task until the person acts.
+    if (thread && !this.#heldThreads.has(threadId)) this.#markWaitingFollowUps(thread);
+  }
+
+  /** Shows why a thread's queued follow-up has not started yet. */
+  #markWaitingFollowUps(thread: ThreadView): void {
     if (
-      thread &&
-      !this.#runningTurns.has(threadId) &&
-      this.#queuedTurns.some((turn) => turn.threadId === threadId)
-    ) {
-      thread.status = 'queued';
-      thread.queueReason = 'Waiting for another task to release this workspace.';
-    }
+      this.#runningTurns.has(thread.id) ||
+      !this.#queuedTurns.some((turn) => turn.threadId === thread.id)
+    )
+      return;
+    thread.status = 'queued';
+    thread.queueReason =
+      this.#macUnavailable && this.#isMacTurn(thread.id)
+        ? this.#macUnavailable === 'locked'
+          ? 'Waiting for your Mac to unlock.'
+          : 'Waiting for your Mac to wake.'
+        : 'Waiting for another task to release this workspace.';
   }
 
   #drainQueue(): void {
@@ -7468,6 +7501,7 @@ export class DesktopController {
       const thread = this.#state.threads.find(({ id }) => id === turn.threadId);
       return (
         thread &&
+        !this.#heldThreads.has(thread.id) &&
         !this.#workspaceLeases.has(thread.workspace) &&
         !(this.#macUnavailable && this.#isMacTurn(thread.id))
       );

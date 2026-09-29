@@ -7249,6 +7249,38 @@ describe('Use my Mac power and lock handling', () => {
     await controller.shutdown();
   });
 
+  it('holds a queued follow-up behind a paused Mac task until the person continues it', async () => {
+    const { runtime, requests } = holdingRuntime();
+    const { controller, keepAwake, threadId, status } = await macThread({ runtime });
+    const thread = () => controller.snapshot().threads.find(({ id }) => id === threadId)!;
+    await controller.invoke('threads.send', { threadId, text: 'File my receipts' });
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    await controller.invoke('threads.send', { threadId, text: 'Then email Sam' });
+    controller.setMacAvailability('locked');
+    await vi.waitFor(() => expect(keepAwake.release).toHaveBeenCalledWith(threadId));
+    // The pause keeps its Continue task instead of turning into a workspace wait.
+    expect(thread().status).toBe('failed');
+    expect(thread().queueReason).toBeUndefined();
+
+    controller.setMacAvailability('available');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(requests).toHaveLength(1);
+    expect(status()).toBe('failed');
+
+    controller.setMacAvailability('locked');
+    await controller.invoke('threads.retry', { threadId });
+    expect(thread()).toMatchObject({
+      status: 'queued',
+      queueReason: 'Waiting for your Mac to unlock.',
+    });
+    controller.setMacAvailability('available');
+    await vi.waitFor(() => expect(requests).toHaveLength(3));
+    expect(requests[1]).toContain('File my receipts');
+    expect(requests[2]).toContain('Then email Sam');
+    await vi.waitFor(() => expect(status()).toBe('idle'));
+    await controller.shutdown();
+  });
+
   it('pauses with a plain message when the Mac goes to sleep', async () => {
     const { runtime } = holdingRuntime();
     const { controller, threadId, status } = await macThread({ runtime });
