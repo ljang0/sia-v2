@@ -40,6 +40,33 @@ describe('thread navigation', () => {
     );
   });
 
+  it('shows an untitled conversation as a new conversation, in plain words', () => {
+    const agents = structuredClone(demoSnapshot.agents);
+    agents[0]!.threads[0]!.title = 'New thread';
+    render(
+      <Sidebar
+        agents={agents}
+        selectedAgentId={agents[0]!.id}
+        collapsed={false}
+        onToggle={vi.fn()}
+        onSelectAgent={vi.fn()}
+        onSelectThread={vi.fn()}
+        onCreateThread={vi.fn()}
+        onRenameThread={vi.fn()}
+        onDeleteThread={vi.fn()}
+        onCreateAgent={vi.fn()}
+        onEditAgent={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    );
+    // The primary New conversation button, and the untitled conversation's row.
+    expect(screen.getAllByRole('button', { name: 'New conversation' })).toHaveLength(2);
+    expect(screen.queryByText('New thread')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: `Start a conversation with ${agents[0]!.name}` }),
+    ).toBeTruthy();
+  });
+
   it('explains the empty list before any agent exists', () => {
     render(
       <Sidebar
@@ -175,7 +202,7 @@ describe('thread navigation', () => {
     );
   });
 
-  it('disables Fork while a thread is working and explains why', async () => {
+  it('disables Duplicate while a conversation is working and explains why', async () => {
     const agents = structuredClone(demoSnapshot.agents);
     const thread = agents[0]!.threads[0]!;
     thread.status = 'running';
@@ -197,12 +224,14 @@ describe('thread navigation', () => {
       />,
     );
     fireEvent.pointerDown(
-      screen.getByRole('button', { name: `Thread actions for ${thread.title}` }),
+      screen.getByRole('button', { name: `Conversation actions for ${thread.title}` }),
       { button: 0, ctrlKey: false },
     );
-    const fork = await screen.findByRole('menuitem', { name: 'Fork' });
+    const fork = await screen.findByRole('menuitem', { name: 'Duplicate' });
     expect(fork.getAttribute('aria-disabled')).toBe('true');
-    expect(fork.getAttribute('title')).toBe('Stop or finish the current task before forking.');
+    expect(fork.getAttribute('title')).toBe(
+      'Stop or finish the current task before duplicating.',
+    );
   });
 
   it('searches, renames, and confirms deletion of an idle thread', async () => {
@@ -244,7 +273,7 @@ describe('thread navigation', () => {
     expect(screen.queryByRole('button', { name: 'Weekly research update' })).toBeNull();
 
     const menu = screen.getByRole('button', {
-      name: 'Thread actions for Triage today’s inbox',
+      name: 'Conversation actions for Triage today’s inbox',
     });
     fireEvent.pointerDown(menu, { button: 0, ctrlKey: false });
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));
@@ -258,12 +287,12 @@ describe('thread navigation', () => {
     );
     await waitFor(() =>
       expect(
-        screen.getByRole('button', { name: 'Thread actions for Triage today’s inbox' }),
+        screen.getByRole('button', { name: 'Conversation actions for Triage today’s inbox' }),
       ).toBeTruthy(),
     );
 
     fireEvent.pointerDown(
-      screen.getByRole('button', { name: 'Thread actions for Triage today’s inbox' }),
+      screen.getByRole('button', { name: 'Conversation actions for Triage today’s inbox' }),
       { button: 0, ctrlKey: false },
     );
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }));
@@ -296,7 +325,7 @@ describe('thread navigation', () => {
       />,
     );
     fireEvent.pointerDown(
-      screen.getByRole('button', { name: `Thread actions for ${waiting.title}` }),
+      screen.getByRole('button', { name: `Conversation actions for ${waiting.title}` }),
       { button: 0, ctrlKey: false },
     );
     const remove = await screen.findByRole('menuitem', { name: /^Delete/ });
@@ -324,7 +353,7 @@ describe('thread navigation', () => {
     );
     const openRename = async () => {
       fireEvent.pointerDown(
-        screen.getByRole('button', { name: 'Thread actions for Triage today’s inbox' }),
+        screen.getByRole('button', { name: 'Conversation actions for Triage today’s inbox' }),
         { button: 0, ctrlKey: false },
       );
       fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));

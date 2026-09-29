@@ -474,7 +474,7 @@ export function Conversation({
             {agentName ? `${timeGreeting()} · ${agentName} is ready` : 'Start here'}
           </span>
           <h1 className={styles.gradientHeading}>
-            {agentName ? `Start a thread with ${agentName}.` : 'Create your first agent.'}
+            {agentName ? `Start a conversation with ${agentName}.` : 'Create your first agent.'}
           </h1>
           <p>
             {agentName
@@ -485,7 +485,7 @@ export function Conversation({
           </p>
           {onCreateThread ? (
             <LiquidMetalButton tone="sage" onClick={onCreateThread}>
-              New thread
+              New conversation
             </LiquidMetalButton>
           ) : onCreateAgent ? (
             <LiquidMetalButton tone="sage" onClick={onCreateAgent}>

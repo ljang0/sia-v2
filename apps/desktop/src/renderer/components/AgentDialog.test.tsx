@@ -192,7 +192,7 @@ describe('agent dialog', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete agent' }));
     expect(onDelete).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Delete agent and threads' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete agent and conversations' }));
     await waitFor(() => expect(onDelete).toHaveBeenCalledOnce());
   });
 

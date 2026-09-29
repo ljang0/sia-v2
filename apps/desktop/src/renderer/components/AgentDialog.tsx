@@ -359,7 +359,7 @@ export function AgentDialog({
                       }
                     }}
                   >
-                    Delete agent and threads
+                    Delete agent and conversations
                   </button>
                 ) : (
                   <button

@@ -9,7 +9,7 @@ test('personal welcome opens existing work and finished replies retain their con
   page,
 }, info) => {
   await page.goto('/#demo');
-  await page.getByTitle('New thread', { exact: true }).first().click();
+  await page.getByTitle('New conversation', { exact: true }).first().click();
   await expect(
     page.getByText(/Good (morning|afternoon|evening) · Research partner is ready/),
   ).toBeVisible();
@@ -44,7 +44,7 @@ for (const reducedMotion of ['no-preference', 'reduce'] as const) {
       };
     });
     await page.goto('/#demo');
-    await page.getByTitle('New thread', { exact: true }).first().click();
+    await page.getByTitle('New conversation', { exact: true }).first().click();
     const field = page.getByRole('textbox', { name: 'Message', exact: true });
     await field.fill('Keep my unfinished thought');
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -98,7 +98,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     page.on('pageerror', (error) => errors.push(error.message));
     await page.emulateMedia({ colorScheme });
     await page.goto('/#demo');
-    await page.getByTitle('New thread', { exact: true }).first().click();
+    await page.getByTitle('New conversation', { exact: true }).first().click();
     const heading = page.getByRole('heading', { name: 'What would you like to do?' });
     const field = page.getByRole('textbox', { name: 'Message', exact: true });
     const send = page.getByRole('button', { name: 'Send message', exact: true });
@@ -143,7 +143,7 @@ test('compact desktop keeps content reachable with reduced motion and no graphic
   await page.setViewportSize({ width: 900, height: 680 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/#demo');
-  await page.getByTitle('New thread', { exact: true }).first().click();
+  await page.getByTitle('New conversation', { exact: true }).first().click();
   const heading = page.getByRole('heading', { name: 'What would you like to do?' });
   await expect(page.locator('.sia-aurora')).toHaveAttribute('data-renderer', 'still');
   await expect(heading).toHaveCSS('animation-name', 'none');
@@ -157,7 +157,7 @@ test('compact desktop keeps content reachable with reduced motion and no graphic
   await expect(page.getByRole('button', { name: 'Stop current turn' })).toBeVisible();
 
   await page.emulateMedia({ forcedColors: 'active' });
-  await page.getByTitle('New thread', { exact: true }).first().click();
+  await page.getByTitle('New conversation', { exact: true }).first().click();
   await expect(heading).not.toHaveCSS('-webkit-text-fill-color', 'rgba(0, 0, 0, 0)');
   await expect(heading).toHaveCSS('background-image', 'none');
 });
@@ -252,7 +252,9 @@ test('navigation stays stable, previews do not select, and the compact rail keep
   // The same actions remain reachable by keyboard when hidden at rest.
   await inbox.focus();
   await inbox.press('Tab');
-  const actions = nav.getByRole('button', { name: 'Thread actions for Triage today’s inbox' });
+  const actions = nav.getByRole('button', {
+    name: 'Conversation actions for Triage today’s inbox',
+  });
   await expect(actions).toBeFocused();
   await expect(actions).toHaveCSS('opacity', '1');
   await actions.press('Enter');

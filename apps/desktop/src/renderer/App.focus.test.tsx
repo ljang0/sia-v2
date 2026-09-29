@@ -116,7 +116,7 @@ describe('focus after actions that remove the focused control', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
     await waitFor(() => expect(composer().hasAttribute('disabled')).toBe(false));
     fireEvent.pointerDown(
-      screen.getByRole('button', { name: 'Thread actions for Triage today’s inbox' }),
+      screen.getByRole('button', { name: 'Conversation actions for Triage today’s inbox' }),
       { button: 0, ctrlKey: false },
     );
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Archive' }));
@@ -127,7 +127,7 @@ describe('focus after actions that remove the focused control', () => {
   it('returns Escape out of the delete dialog to the thread menu button', async () => {
     await renderApp();
     const trigger = screen.getByRole('button', {
-      name: 'Thread actions for Triage today’s inbox',
+      name: 'Conversation actions for Triage today’s inbox',
     });
     fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }));

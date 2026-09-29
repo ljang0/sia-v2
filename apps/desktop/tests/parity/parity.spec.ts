@@ -156,7 +156,7 @@ test('archive, transcript search, and fork preserve source context', async ({}, 
 
     await harness.page.getByTestId(parityContract.threadLibrary.testIds[0]).click();
     await harness.page.getByTestId(parityContract.threadLibrary.testIds[6]).click();
-    await harness.page.getByRole('button', { name: 'Create fork' }).click();
+    await harness.page.getByRole('button', { name: 'Duplicate' }).click();
     await expect(
       harness.page.getByTestId(parityContract.threadLibrary.testIds[7]),
     ).toContainText(threadId);
@@ -425,12 +425,12 @@ test('two worktrees can run independent deterministic tasks concurrently', async
         await harness.page.evaluate((id) => window.sia.threads.select(id), sourceThreadId);
       }
       await harness.page
-        .getByRole('button', { name: 'Thread actions for New thread', exact: true })
+        .getByRole('button', { name: 'Conversation actions for New conversation', exact: true })
         .click();
       await harness.page.getByTestId(parityContract.worktreeParallelism.testIds[0]).click();
       await harness.page.getByTestId(parityContract.worktreeParallelism.testIds[1]).check();
-      await harness.page.getByLabel('Fork title').fill(name);
-      await harness.page.getByRole('button', { name: 'Create fork' }).click();
+      await harness.page.getByLabel('Name of the copy').fill(name);
+      await harness.page.getByRole('button', { name: 'Duplicate' }).click();
       await harness.page
         .getByRole('textbox', { name: 'Message' })
         .fill(`PARITY_WORKTREE: ${name}`);
