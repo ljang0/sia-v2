@@ -34,6 +34,17 @@ export interface ProviderView {
   restriction?: string;
   models?: ProviderModelView[];
   setup?: ProviderSetupProgress;
+  /** Latest plan usage window the provider reported this session. */
+  limits?: ProviderUsageLimitView;
+}
+
+export interface ProviderUsageLimitView {
+  /** 0–100. */
+  usedPercent: number;
+  /** ISO time the window resets. */
+  resetsAt?: string;
+  windowMinutes?: number;
+  updatedAt: string;
 }
 
 export interface ProviderModelView {
@@ -153,7 +164,12 @@ export type ActivityPresentationView =
     }
   | {
       kind: 'file_change';
-      files: Array<{ path: string; change: string; diff?: string | undefined }>;
+      files: Array<{
+        path: string;
+        change: string;
+        movePath?: string | undefined;
+        diff?: string | undefined;
+      }>;
     }
   | {
       kind: 'web_search';

@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DesktopBridgeApi, DesktopSnapshot } from '../shared/bridge';
-import { createBridgeRendererApi, mapDesktopSnapshot } from './bridgeAdapter';
+import {
+  createBridgeRendererApi,
+  mapDesktopSnapshot,
+  reasoningHeadline,
+} from './bridgeAdapter';
 import type { RendererSnapshot } from './types';
 
 function snapshot(timeline: DesktopSnapshot['timeline']): DesktopSnapshot {
@@ -381,6 +385,85 @@ describe('bridge renderer scoped snapshots', () => {
     expect(mapDesktopSnapshot(source).agents[0]?.threads[0]?.preview).toEqual({
       label: 'Request',
       text: 'Plan the trip',
+    });
+  });
+});
+
+describe('bridge renderer reasoning', () => {
+  const item = (
+    id: string,
+    sequence: number,
+    overrides: Partial<DesktopSnapshot['timeline'][number]>,
+  ): DesktopSnapshot['timeline'][number] => ({
+    id,
+    threadId: 'thread-1',
+    turnId: 'turn-1',
+    sequence,
+    kind: 'user',
+    status: 'complete',
+    timestamp: '2026-01-01T00:00:00.000Z',
+    ...overrides,
+  });
+
+  it('keeps reasoning out of the steps and labels the live line with its headline', () => {
+    const source = snapshot([
+      item('user-1', 1, { text: 'Plan my week' }),
+      item('rs-row', 2, {
+        kind: 'reasoning',
+        title: 'Reasoning',
+        detail: 'rs_0123456789abcdef',
+        text: '**Reading your calendar**\n\nI will look.\n\n**Checking free slots**',
+        status: 'running',
+      }),
+      item('tool-1', 3, { kind: 'activity', toolName: 'memory_learn', status: 'complete' }),
+    ]);
+    source.threads[0]!.status = 'running';
+    const mapped = mapDesktopSnapshot(source);
+    expect(mapped.activeThread?.events.map(({ id }) => id)).toEqual(['user-1', 'tool-1']);
+    expect(JSON.stringify(mapped.activeThread?.events)).not.toContain('rs_');
+    expect(mapped.activeThread?.thinking).toBe('Checking free slots');
+    // An unknown step is not labelled as a shell command.
+    const step = mapped.activeThread?.events[1];
+    expect(step?.type === 'activity' && step.kind).toBe('other');
+
+    source.threads[0]!.status = 'idle';
+    expect(mapDesktopSnapshot(source).activeThread?.thinking).toBeUndefined();
+  });
+
+  it('reads a headline only from finished summary text', () => {
+    expect(reasoningHeadline('**Checking the calendar**')).toBe('Checking the calendar');
+    expect(reasoningHeadline('**Checking the cal')).toBeUndefined();
+    expect(reasoningHeadline('Looking at the inbox\nmore')).toBe('Looking at the inbox');
+    expect(reasoningHeadline('')).toBeUndefined();
+  });
+});
+
+describe('bridge renderer plan usage', () => {
+  it('passes the provider usage window to settings and to threads on that provider', () => {
+    const source = snapshot([]);
+    source.providers = [
+      {
+        id: 'codex',
+        label: 'Codex',
+        status: 'ready',
+        model: 'gpt-5.6-sol',
+        detail: '',
+        billing: 'subscription',
+        limits: {
+          usedPercent: 91,
+          resetsAt: '2026-09-29T15:00:00.000Z',
+          updatedAt: '2026-09-29T12:00:00.000Z',
+        },
+      },
+    ];
+    const mapped = mapDesktopSnapshot(source);
+    expect(mapped.providers[0]?.limits).toEqual({
+      usedPercent: 91,
+      resetsAt: '2026-09-29T15:00:00.000Z',
+    });
+    expect(mapped.activeThread?.usageLimit).toEqual({
+      usedPercent: 91,
+      resetsAt: '2026-09-29T15:00:00.000Z',
     });
   });
 });

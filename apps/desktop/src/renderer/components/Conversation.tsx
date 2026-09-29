@@ -9,6 +9,7 @@ import {
   Clock,
   Copy,
   FolderSimple,
+  ImageSquare,
   MagnifyingGlass,
   SpeakerHigh,
   SpinnerGap,
@@ -42,7 +43,7 @@ import { WelcomeRecents } from './WelcomeRecents';
 import { ReplyReadyMark, ReplySurface } from './ResultCard';
 import styles from '../ui.module.css';
 import { ActivityRow } from './ActivityRow';
-import { WorkGroup, WorkingStatus } from './WorkGroup';
+import { planProgress, WorkGroup, WorkingStatus } from './WorkGroup';
 import { AgentForm } from './AgentForm';
 import { ApprovalCard } from './ApprovalCard';
 import { Composer } from './Composer';
@@ -51,6 +52,7 @@ import { ConversationOutline, hasConversationOutline } from './ConversationOutli
 import { SafeMarkdown } from './SafeMarkdown';
 import { RowErrorBoundary } from './ErrorBoundary';
 import { NoticeText, ThreadErrorText } from './PlainErrorText';
+import { usageWarningText } from '../plainErrors';
 import { ReplyFeedbackButtons, type ReplyRating } from './ReplyFeedback';
 import { DitherAurora as Aurora } from './effects/DitherAurora';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
@@ -420,6 +422,11 @@ export function Conversation({
             }),
         );
       },
+      loadThumbnail: async (attachment) => {
+        if (!onPreviewAttachment || attachment.kind !== 'image') return undefined;
+        const result = await onPreviewAttachment(attachment.id);
+        return result.kind === 'image' ? result.dataUrl : undefined;
+      },
       rateReply: (rating, reply) => onRateReply?.(rating, reply),
       resolveApproval: async (approvalId, decision) => {
         setBusyApprovalId(approvalId);
@@ -441,6 +448,8 @@ export function Conversation({
         latestRowActions.current?.toggleSpeech(eventId, text) ?? Promise.resolve(),
       previewAttachment: (attachment) =>
         latestRowActions.current?.previewAttachment(attachment),
+      loadThumbnail: (attachment) =>
+        latestRowActions.current?.loadThumbnail(attachment) ?? Promise.resolve(undefined),
       rateReply: (rating, reply) => latestRowActions.current?.rateReply(rating, reply),
       resolveApproval: (approvalId, decision) =>
         latestRowActions.current?.resolveApproval(approvalId, decision) ?? Promise.resolve(),
@@ -526,6 +535,17 @@ export function Conversation({
             event.type === 'activity' && event.status === 'running',
         )
     : undefined;
+  const usageWarning = usageWarningText(thread?.usageLimit);
+  const currentPlan = running
+    ? thread.events
+        .slice(lastUserEventIndex + 1)
+        .findLast(
+          (event): event is ActivityEvent =>
+            event.type === 'activity' && event.presentation?.kind === 'plan',
+        )?.presentation
+    : undefined;
+  const currentPlanProgress =
+    currentPlan?.kind === 'plan' ? planProgress(currentPlan.steps) : undefined;
   const renderEvent = (event: ThreadEvent, index: number) => {
     const previous = events[index - 1];
     return (
@@ -536,6 +556,11 @@ export function Conversation({
         findMatch={matchingEventIdSet.has(event.id)}
         findCurrent={matchingEventIds[findIndex] === event.id}
         agentName={agentName}
+        usageResetsAt={
+          event.type === 'notice' && event.tone === 'error'
+            ? thread?.usageLimit?.resetsAt
+            : undefined
+        }
         noticeExplained={
           event.id === bannerNoticeId ||
           (event.type === 'notice' &&
@@ -725,6 +750,8 @@ export function Conversation({
                   since={eventTime(thread.events[lastUserEventIndex])}
                   step={currentStep}
                   writing={Boolean(currentAssistantEventId)}
+                  thinking={thread.thinking}
+                  plan={currentPlanProgress}
                 />
               ) : null}
               {browserRecovery}
@@ -739,7 +766,11 @@ export function Conversation({
               <WarningCircle size={18} aria-hidden="true" />
               <div>
                 <strong>Task needs attention</strong>
-                <ThreadErrorText error={thread.error} explained={errorAlreadyExplained} />
+                <ThreadErrorText
+                  error={thread.error}
+                  explained={errorAlreadyExplained}
+                  usageResetsAt={thread.usageLimit?.resetsAt}
+                />
               </div>
               <button
                 type="button"
@@ -796,6 +827,12 @@ export function Conversation({
         </div>
       ) : null}
 
+      {usageWarning ? (
+        <p className={styles.usageWarning} role="status" data-testid="usage-warning">
+          <WarningCircle size={14} aria-hidden="true" />
+          {usageWarning}
+        </p>
+      ) : null}
       <QueuedMessages
         messages={thread.queuedMessages ?? []}
         agentName={agentName}
@@ -923,6 +960,8 @@ interface EventViewProps {
   agentName?: string | undefined;
   completed?: boolean | undefined;
   noticeExplained?: boolean;
+  /** When the thread's plan usage window resets, for a usage-limit failure. */
+  usageResetsAt?: string | undefined;
   event: ThreadEvent;
   agentHue?: number | undefined;
   busyApprovalId?: string | undefined;
@@ -933,6 +972,8 @@ interface EventViewProps {
   onToggleSpeech?: ((text: string) => Promise<void>) | undefined;
   onRateReply?: ((rating: ReplyRating, reply: string) => void) | undefined;
   onPreviewAttachment?: ((attachment: RendererAttachment) => void) | undefined;
+  onLoadThumbnail?:
+    ((attachment: RendererAttachment) => Promise<string | undefined>) | undefined;
   onResolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
 }
 
@@ -940,13 +981,18 @@ interface RowActions {
   registerRow(eventId: string, node: HTMLDivElement | null): void;
   toggleSpeech(eventId: string, text: string): Promise<void>;
   previewAttachment(attachment: RendererAttachment): void;
+  loadThumbnail(attachment: RendererAttachment): Promise<string | undefined>;
   rateReply(rating: ReplyRating, reply: string): void;
   resolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
 }
 
 interface ConversationRowProps extends Omit<
   EventViewProps,
-  'onToggleSpeech' | 'onPreviewAttachment' | 'onResolveApproval' | 'onRateReply'
+  | 'onToggleSpeech'
+  | 'onPreviewAttachment'
+  | 'onLoadThumbnail'
+  | 'onResolveApproval'
+  | 'onRateReply'
 > {
   actions: RowActions;
   findMatch: boolean;
@@ -979,6 +1025,7 @@ const ConversationRow = memo(function ConversationRow({
         {...view}
         onToggleSpeech={speakable ? (text) => actions.toggleSpeech(event.id, text) : undefined}
         onPreviewAttachment={previewable ? actions.previewAttachment : undefined}
+        onLoadThumbnail={previewable ? actions.loadThumbnail : undefined}
         onRateReply={rateable ? actions.rateReply : undefined}
         onResolveApproval={actions.resolveApproval}
       />
@@ -1000,6 +1047,7 @@ function EventViewContent({
   completed,
   event,
   noticeExplained,
+  usageResetsAt,
   agentHue,
   busyApprovalId,
   speechPhase,
@@ -1009,6 +1057,7 @@ function EventViewContent({
   onToggleSpeech,
   onRateReply,
   onPreviewAttachment,
+  onLoadThumbnail,
   onResolveApproval,
 }: EventViewProps) {
   if (event.type === 'activity') return <ActivityRow event={event} />;
@@ -1031,6 +1080,7 @@ function EventViewContent({
             detail={event.detail}
             tone={event.tone}
             explained={noticeExplained}
+            usageResetsAt={usageResetsAt}
           />
         </div>
       </div>
@@ -1109,15 +1159,12 @@ function EventViewContent({
         {event.attachments?.length ? (
           <div className={styles.messageAttachments} aria-label="Message attachments">
             {event.attachments.map((attachment) => (
-              <button
-                type="button"
+              <AttachmentChip
                 key={attachment.id}
-                onClick={() => onPreviewAttachment?.(attachment)}
-                disabled={!onPreviewAttachment}
-              >
-                <FolderSimple size={13} aria-hidden="true" />
-                {attachment.name}
-              </button>
+                attachment={attachment}
+                onPreview={onPreviewAttachment}
+                onLoadThumbnail={onLoadThumbnail}
+              />
             ))}
           </div>
         ) : null}
@@ -1135,6 +1182,58 @@ function EventViewContent({
     <ReplySurface ready={Boolean(completed)}>{message}</ReplySurface>
   ) : (
     message
+  );
+}
+
+// Thumbnails of sent images, kept for the session so scrolling back does not reload them.
+const thumbnailCache = new Map<string, string>();
+const THUMBNAIL_CACHE_LIMIT = 40;
+
+/** A sent attachment: a small thumbnail for an image, otherwise a file icon and its name. */
+function AttachmentChip({
+  attachment,
+  onPreview,
+  onLoadThumbnail,
+}: {
+  attachment: RendererAttachment;
+  onPreview?: ((attachment: RendererAttachment) => void) | undefined;
+  onLoadThumbnail?:
+    ((attachment: RendererAttachment) => Promise<string | undefined>) | undefined;
+}) {
+  const [thumbnail, setThumbnail] = useState(() => thumbnailCache.get(attachment.id));
+  useEffect(() => {
+    if (thumbnail || attachment.kind !== 'image' || !onLoadThumbnail) return;
+    let current = true;
+    onLoadThumbnail(attachment).then(
+      (dataUrl) => {
+        if (!dataUrl) return;
+        thumbnailCache.set(attachment.id, dataUrl);
+        if (thumbnailCache.size > THUMBNAIL_CACHE_LIMIT)
+          thumbnailCache.delete(thumbnailCache.keys().next().value!);
+        if (current) setThumbnail(dataUrl);
+      },
+      () => undefined,
+    );
+    return () => {
+      current = false;
+    };
+  }, [attachment, onLoadThumbnail, thumbnail]);
+  return (
+    <button
+      type="button"
+      onClick={() => onPreview?.(attachment)}
+      disabled={!onPreview}
+      data-thumbnail={thumbnail ? 'true' : undefined}
+    >
+      {thumbnail ? (
+        <img className={styles.attachmentThumbnail} src={thumbnail} alt="" />
+      ) : attachment.kind === 'image' ? (
+        <ImageSquare size={13} aria-hidden="true" />
+      ) : (
+        <FolderSimple size={13} aria-hidden="true" />
+      )}
+      {attachment.name}
+    </button>
   );
 }
 

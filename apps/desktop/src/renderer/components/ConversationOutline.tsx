@@ -294,6 +294,7 @@ function activityKindLabel(kind: ActivityEvent['kind']): string {
   if (kind === 'computer') return 'Computer work';
   if (kind === 'connector') return 'Connected app';
   if (kind === 'plan') return 'Plan';
+  if (kind === 'other') return 'Work step';
   return 'Command';
 }
 

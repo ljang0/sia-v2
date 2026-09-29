@@ -474,6 +474,7 @@ describe('RuntimeCoordinator', () => {
       },
       cancelTurn: async () => undefined,
       respondToRequest: async () => undefined,
+      closeSession: vi.fn(async () => undefined),
       dispose: async () => undefined,
     };
     const runtime = new RuntimeCoordinator(
@@ -525,6 +526,13 @@ describe('RuntimeCoordinator', () => {
         model: 'example/spark',
       }),
     ]);
+    // Deleting the thread releases its provider session.
+    await runtime.releaseSession('thread-lab');
+    expect(adapter.closeSession).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'thread-lab', nativeId: 'lab-native-session' }),
+    );
+    await runtime.releaseSession('thread-lab');
+    expect(adapter.closeSession).toHaveBeenCalledTimes(1);
     await runtime.dispose();
   });
 });

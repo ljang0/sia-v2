@@ -66,7 +66,10 @@ interface DriverLike {
 interface CuaServiceOptions {
   readonly fakePermissions?: boolean;
   readonly callTimeoutMs?: number;
-  readonly driverFactory?: () => DriverLike | Promise<DriverLike>;
+  /** Test seam; receives the same authorization callback the native driver would use. */
+  readonly driverFactory?: (
+    authorize: (request: AuthorizationRequest) => Promise<'allow' | 'deny' | 'cancel'>,
+  ) => DriverLike | Promise<DriverLike>;
 }
 
 const DEFAULT_CALL_TIMEOUT_MS = 60_000;
@@ -95,12 +98,14 @@ export class CuaService {
   readonly #authorization: AuthorizationBroker;
   readonly #fakePermissions: boolean;
   readonly #callTimeoutMs: number;
-  readonly #driverFactory: (() => DriverLike | Promise<DriverLike>) | undefined;
+  readonly #driverFactory: CuaServiceOptions['driverFactory'];
   #driver: DriverLike | undefined;
   #driverGeneration = 0;
   #permissionRequest: Promise<ComputerView> | undefined;
   #callTail: Promise<void> = Promise.resolve();
   #authorizationContext: CuaAuthorizationContext | undefined;
+  /** The running call's timeout, paused while an approval waits on the person. */
+  #callClock: { pause(): void; resume(): void } | undefined;
 
   constructor(authorization: AuthorizationBroker, options: CuaServiceOptions = {}) {
     this.#authorization = authorization;
@@ -214,16 +219,34 @@ export class CuaService {
     };
     if (signal?.aborted) abortFromCaller();
     else signal?.addEventListener('abort', abortFromCaller, { once: true });
-    const timer = setTimeout(() => {
-      operation.abort(timeoutError);
-    }, this.#callTimeoutMs);
-    timer.unref();
+    // Time spent waiting on the person to approve an action is not driver time.
+    let remainingMs = this.#callTimeoutMs;
+    let startedAt = Date.now();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const startTimer = (): void => {
+      startedAt = Date.now();
+      timer = setTimeout(() => operation.abort(timeoutError), Math.max(0, remainingMs));
+      timer.unref();
+    };
+    startTimer();
+    const clock = {
+      pause: (): void => {
+        if (!timer) return;
+        clearTimeout(timer);
+        timer = undefined;
+        remainingMs -= Date.now() - startedAt;
+      },
+      resume: (): void => {
+        if (!timer && !operation.signal.aborted) startTimer();
+      },
+    };
     try {
       // Waiting for another call must be cancellable too. A cancelled waiter
       // retains its place until that call ends, so subsequent calls cannot race it.
       await waitForAbort(previous, operation.signal);
       ownsQueue = true;
       this.#authorizationContext = context;
+      this.#callClock = clock;
       driver = await waitForAbort(this.#getDriver(), operation.signal);
       for (let attempt = 0; ; attempt++) {
         try {
@@ -270,7 +293,7 @@ export class CuaService {
         }
       }
     } finally {
-      clearTimeout(timer);
+      clock.pause();
       signal?.removeEventListener('abort', abortFromCaller);
       if (ownsQueue) {
         if (operation.signal.aborted) {
@@ -279,6 +302,7 @@ export class CuaService {
           else this.#driverGeneration++;
         }
         this.#authorizationContext = undefined;
+        if (this.#callClock === clock) this.#callClock = undefined;
         next.resolve();
       } else {
         void previous.then(() => next.resolve());
@@ -298,7 +322,8 @@ export class CuaService {
   async #getDriver(): Promise<DriverLike> {
     if (this.#driver) return this.#driver;
     const generation = this.#driverGeneration;
-    const driver = await (this.#driverFactory?.() ?? this.#createDriver());
+    const driver = await (this.#driverFactory?.((request) => this.#authorize(request)) ??
+      this.#createDriver());
     if (generation !== this.#driverGeneration) {
       this.#disposeDriver(driver);
       throw new Error('CUA driver initialization was cancelled.');
@@ -322,22 +347,7 @@ export class CuaService {
     });
     const host = {
       authorize: async (request: AuthorizationRequest) => {
-        let decision: 'allow' | 'deny' | 'cancel' = 'cancel';
-        try {
-          const context = this.#authorizationContext;
-          decision =
-            context?.kind === 'direct_user'
-              ? 'allow'
-              : context
-                ? await this.#authorization.authorize(request, context)
-                : 'cancel';
-        } catch (error) {
-          // Never let an application-side approval failure cross the native FFI callback.
-          // The driver must fail closed with a normal cancellation that the UI can explain.
-          console.error(
-            `[sia:cua-authorization] ${error instanceof Error ? error.message : 'Approval callback failed.'}`,
-          );
-        }
+        const decision = await this.#authorize(request);
         const action =
           decision === 'allow'
             ? cua.DriverAuthorizationAction.Allow
@@ -351,6 +361,28 @@ export class CuaService {
       },
     };
     return cua.CuaDriver.createConfiguredWithAuthorizationHost(options, host) as DriverLike;
+  }
+
+  async #authorize(request: AuthorizationRequest): Promise<'allow' | 'deny' | 'cancel'> {
+    const clock = this.#callClock;
+    clock?.pause();
+    try {
+      const context = this.#authorizationContext;
+      return context?.kind === 'direct_user'
+        ? 'allow'
+        : context
+          ? await this.#authorization.authorize(request, context)
+          : 'cancel';
+    } catch (error) {
+      // Never let an application-side approval failure cross the native FFI callback.
+      // The driver must fail closed with a normal cancellation that the UI can explain.
+      console.error(
+        `[sia:cua-authorization] ${error instanceof Error ? error.message : 'Approval callback failed.'}`,
+      );
+      return 'cancel';
+    } finally {
+      clock?.resume();
+    }
   }
 
   #retireDriver(driver: DriverLike): void {

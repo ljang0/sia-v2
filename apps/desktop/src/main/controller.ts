@@ -7,6 +7,7 @@ import {
   NATIVE_MEMORY_REVIEW_PROMPT,
 } from './memory-suggestions.js';
 import { NativeSkills } from './native-skills.js';
+import { imageActivityTitle } from '../shared/activity-label.js';
 import { conversationTitle } from '../shared/plain-text.js';
 import { threadPreviews, type ThreadPreviewMemo } from '../shared/thread-previews.js';
 import { skillExecutionMode, skillUnavailableReason } from '../shared/skill-execution.js';
@@ -57,6 +58,7 @@ import type {
   DesktopSnapshot,
   ProviderId,
   ProviderUsageView,
+  ProviderUsageLimitView,
   ProviderView,
   ScheduleView,
   ThreadView,
@@ -467,6 +469,8 @@ export class DesktopController {
   /** Running Use my Mac turns by thread; they hold the keep-awake assertion. */
   readonly #macTurns = new Map<string, QueuedTurn>();
   readonly #keepAwake: ControllerOptions['keepAwake'];
+  /** Mac turns currently keeping the display awake; a turn waiting on the person does not. */
+  readonly #awakeTurns = new Set<string>();
   #macUnavailable: 'locked' | 'asleep' | undefined;
   readonly #phoneTurns = new Set<string>();
   readonly #turnTasks = new Map<string, Promise<void>>();
@@ -489,6 +493,11 @@ export class DesktopController {
   readonly #allowedModelRoutes = new Map<string, readonly ModelRoute[]>();
   readonly #actionLeases = new LocalLeaseCoordinator(4);
   #queuedTurns: QueuedTurn[] = [];
+  /**
+   * Threads whose Mac task paused on lock or sleep. Their queued follow-ups wait for the
+   * person to press Continue task, send a message, or Stop, instead of skipping the pause.
+   */
+  readonly #heldThreads = new Set<string>();
   #researchSync: Promise<void> | undefined;
   #connectionSetup: { controller: AbortController; task: Promise<void> } | undefined;
   #researchRetryTimer: NodeJS.Timeout | undefined;
@@ -508,6 +517,8 @@ export class DesktopController {
   #browserSessionId: string | undefined;
   #state: PersistedState = structuredClone(INITIAL_STATE);
   #providers: ProviderView[] = [];
+  /** Plan usage windows reported during this session; kept apart so a provider refresh keeps them. */
+  readonly #usageLimits = new Map<ProviderId, ProviderUsageLimitView>();
   #computerState: ComputerPermissionsView = {
     status: 'unavailable',
     accessibility: false,
@@ -701,6 +712,7 @@ export class DesktopController {
         ?.respondToRequest(threadId, { requestId: question.requestId })
         .catch(() => undefined);
     if (turn.attachments?.length) this.#failedTurnAttachments.set(turn.id, turn.attachments);
+    this.#heldThreads.add(threadId);
     thread.status = 'failed';
     delete thread.queueReason;
     thread.interruptedTurnId = turn.id;
@@ -1613,6 +1625,9 @@ export class DesktopController {
           }),
       providers: this.#providers.map((provider) => ({
         ...structuredClone(provider),
+        ...(this.#usageLimits.has(provider.id)
+          ? { limits: { ...this.#usageLimits.get(provider.id)! } }
+          : {}),
         ...(provider.id === 'codex' && this.#codexSetup
           ? { setup: { ...this.#codexSetup } }
           : {}),
@@ -2472,19 +2487,22 @@ export class DesktopController {
         expiresUnixMs: request.expiresUnixMs.toString(),
       },
     });
+    this.#waitForApproval(context.threadId);
     this.#commit();
     this.#notifyNeedsAttention(context.threadId, 'approval', presentation.title);
 
     return new Promise((resolve) => {
+      // Wait for the person until the driver's own deadline; Sia adds no shorter limit.
       const remaining = Math.max(0, Number(request.expiresUnixMs) - Date.now());
       const timeout = setTimeout(
         () => {
           this.#pendingApprovals.delete(approvalId);
+          this.#resumeAfterRequest(context.threadId);
           this.#setApprovalStatus(approvalId, 'expired');
           this.#stageApprovalDecision(approvalId, context, 'expired');
           resolve('cancel');
         },
-        Math.min(remaining, 120_000),
+        Math.min(remaining, 2_147_483_647),
       );
       this.#pendingApprovals.set(approvalId, {
         resolve,
@@ -2935,7 +2953,8 @@ export class DesktopController {
     input: BridgeRequestMap['threads.fork'],
     primary = false,
   ): Promise<BridgeResultMap['threads.fork']> {
-    const source = this.#requireThread(input.threadId);
+    // A busy thread's live approval, question and queued follow-ups belong to that run.
+    const source = this.#requireIdleThread(input.threadId, 'fork this thread');
     const id = randomUUID();
     let workspace = primary
       ? normalizeWorkspace(source.worktree?.sourceWorkspace ?? source.workspace)
@@ -2979,7 +2998,14 @@ export class DesktopController {
     this.#state.threads.push(forked);
     this.#state.timeline.push(
       ...this.#state.timeline
-        .filter((item) => item.threadId === source.id)
+        .filter(
+          (item) =>
+            item.threadId === source.id &&
+            !(
+              item.status === 'pending' &&
+              (item.kind === 'user' || item.kind === 'approval' || item.kind === 'question')
+            ),
+        )
         .map((item) => ({ ...structuredClone(item), id: randomUUID(), threadId: id })),
     );
     const agent = this.#requireAgent(source.agentId);
@@ -3158,6 +3184,17 @@ export class DesktopController {
     const agent = this.#requireAgent(thread.agentId);
     agent.threadIds = agent.threadIds.filter((id) => id !== thread.id);
     agent.updatedAt = new Date().toISOString();
+    // Release what the deleted thread still holds: its provider session and file grants.
+    for (const item of this.#state.timeline)
+      if (item.threadId === thread.id && item.turnId)
+        this.#failedTurnAttachments.delete(item.turnId);
+    for (const [id, grant] of this.#attachmentGrants)
+      if (grant.threadId === thread.id) this.#attachmentGrants.delete(id);
+    this.#heldThreads.delete(thread.id);
+    const runtime = this.#runtime;
+    void Promise.resolve()
+      .then(() => runtime?.releaseSession(thread.id))
+      .catch(() => undefined);
     this.#state.threads = this.#state.threads.filter((candidate) => candidate.id !== thread.id);
     this.#state.timeline = this.#state.timeline.filter((item) => item.threadId !== thread.id);
     this.#state.approvals = this.#state.approvals.filter(
@@ -3350,7 +3387,17 @@ export class DesktopController {
     };
     // Keep short-lived grants available for local preview/open after send. They still expire
     // after one hour and are never persisted, so a relaunch cannot revive file access.
-    if (followUp) {
+    if (followUp && this.#heldThreads.delete(thread.id)) {
+      // Writing again after a pause moves on from it; held follow-ups run in order.
+      this.#queuedTurns.push(queued);
+      if (running?.signal.aborted) {
+        thread.status = 'queued';
+        thread.queueReason = 'Finishing the stopped task.';
+      } else {
+        this.#drainQueue();
+        this.#markWaitingFollowUps(thread);
+      }
+    } else if (followUp) {
       this.#queuedTurns.push(queued);
       if (running?.signal.aborted) {
         thread.status = 'queued';
@@ -3364,6 +3411,19 @@ export class DesktopController {
       thread.status = 'queued';
       thread.queueReason = 'Waiting for another task to release this workspace.';
       this.#queuedTurns.push(queued);
+      // A person's message goes ahead of a memory review that holds the agent's workspace;
+      // the review runs again on a later idle pass.
+      const review = this.#state.threads.find(
+        (candidate) =>
+          candidate.id !== thread.id &&
+          candidate.workspace === thread.workspace &&
+          this.#assistantLibrary.isReview(candidate.id) &&
+          this.#activeTurnId(candidate.id) === this.#workspaceLeases.get(thread.workspace),
+      );
+      if (source === 'manual' && review && !this.#assistantLibrary.isReview(thread.id)) {
+        thread.queueReason = 'Starting after Sia pauses its memory review.';
+        void this.#cancelTurn(review.id).catch(() => undefined);
+      }
     } else {
       this.#startTurn(queued);
     }
@@ -3378,9 +3438,11 @@ export class DesktopController {
     const thread = this.#requireThread(threadId);
     if (thread.status !== 'failed') throw new Error('Only a failed turn can be retried.');
     this.#requireReadyProvider(thread.provider, thread.model);
+    // Follow-ups held behind a paused task run after it continues.
+    const held = this.#heldThreads.has(thread.id);
     if (
       this.#runningTurns.has(thread.id) ||
-      this.#queuedTurns.some((turn) => turn.threadId === thread.id)
+      (!held && this.#queuedTurns.some((turn) => turn.threadId === thread.id))
     ) {
       throw new Error('This thread already has an active turn.');
     }
@@ -3426,14 +3488,18 @@ export class DesktopController {
       status: 'complete',
       timestamp: new Date().toISOString(),
     });
+    this.#heldThreads.delete(thread.id);
+    // The continued task goes ahead of any follow-ups that waited behind it.
+    const enqueue = (turn: QueuedTurn) =>
+      held ? this.#queuedTurns.unshift(turn) : this.#queuedTurns.push(turn);
     if (this.#runningTurns.size >= 4) {
       thread.status = 'queued';
       thread.queueReason = 'Four local tasks are already running.';
-      this.#queuedTurns.push(retry);
+      enqueue(retry);
     } else if (this.#workspaceLeases.has(thread.workspace)) {
       thread.status = 'queued';
       thread.queueReason = 'Waiting for another task to release this workspace.';
-      this.#queuedTurns.push(retry);
+      enqueue(retry);
     } else {
       this.#startTurn(retry);
     }
@@ -3458,6 +3524,7 @@ export class DesktopController {
       .filter((turn) => turn.threadId === threadId)
       .map((turn) => turn.id);
     this.#queuedTurns = this.#queuedTurns.filter((turn) => turn.threadId !== threadId);
+    this.#heldThreads.delete(threadId);
     if (activeTurnId) this.#discardResearchTurn(activeTurnId);
     for (const turnId of queuedTurnIds) this.#discardResearchTurn(turnId);
     // Stop cancels queued follow-ups too; their unsent messages leave the thread.
@@ -3552,7 +3619,8 @@ export class DesktopController {
     threadId: string,
     selected: readonly string[],
   ): Promise<BridgeResultMap['attachments.pick']> {
-    const thread = this.#requireIdleThread(threadId, 'attach files');
+    // Files can be attached while the thread works; they travel with a queued follow-up.
+    const thread = this.#requireThread(threadId);
     if (selected.length > 20) throw new Error('Choose at most 20 files at a time.');
     const grants: AttachmentView[] = [];
     let totalBytes = 0;
@@ -3974,7 +4042,7 @@ export class DesktopController {
     }
     clearTimeout(pending.timeout);
     this.#pendingApprovals.delete(input.approvalId);
-    if (pending.kind === 'provider') this.#resumeAfterProviderRequest(pending.threadId);
+    this.#resumeAfterRequest(pending.threadId);
     this.#setApprovalStatus(
       input.approvalId,
       input.decision === 'approve' ? 'approved' : 'denied',
@@ -5083,7 +5151,8 @@ export class DesktopController {
       this.#workspaceGrants.clear();
       this.#approvedConnectorBindings.clear();
       this.#runningTurns.clear();
-      for (const threadId of this.#macTurns.keys()) this.#keepAwake?.release(threadId);
+      for (const threadId of this.#awakeTurns) this.#keepAwake?.release(threadId);
+      this.#awakeTurns.clear();
       this.#macTurns.clear();
       this.#turnTasks.clear();
       this.#workspaceLeases.clear();
@@ -6244,6 +6313,8 @@ export class DesktopController {
           : 'Waiting for your Mac to wake.';
       return;
     }
+    // Any turn starting on a paused thread means the person moved on from the pause.
+    this.#heldThreads.delete(thread.id);
     const followUp = this.#state.timeline.find(
       (item) =>
         item.threadId === thread.id &&
@@ -6282,6 +6353,7 @@ export class DesktopController {
     this.#workspaceLeases.set(thread.workspace, turn.id);
     if (this.#isMacTurn(thread.id)) {
       this.#macTurns.set(thread.id, turn);
+      this.#awakeTurns.add(thread.id);
       this.#keepAwake?.hold(thread.id);
     }
     if (turn.fromPhone) this.#phoneTurns.add(turn.id);
@@ -6415,30 +6487,39 @@ export class DesktopController {
               item.turnId !== turn.id &&
               item.kind === 'assistant',
           );
-          const prepared = await nativeVault.engine(
-            this.#notchHelperPath,
-            {
-              operation: 'prepare',
-              background: this.macBackgroundControl(),
-              request: turn.text,
-              context: turn.context ?? '',
-              learning: library.learningAgents?.includes(thread.agentId) === true,
-              nativeLearning: library.nativeLearningAgents?.includes(thread.agentId) === true,
-              activeTasks: this.#state.threads
-                .filter(
-                  (item) =>
-                    item.agentId === thread.agentId &&
-                    item.id !== thread.id &&
-                    ['running', 'waiting', 'queued'].includes(item.status),
-                )
-                .map((item) => `- ${item.title} [${item.status}]`)
-                .join('\n'),
-            },
-            signal,
-          );
-          if (!prepared.prompt)
-            throw new Error('The native engine returned no request context.');
-          nativeRequest = prepared.prompt;
+          // The native memory engine only enriches the request. If it fails or times out,
+          // run the person's request with the ordinary memory prompt instead of failing.
+          try {
+            const prepared = await nativeVault.engine(
+              this.#notchHelperPath,
+              {
+                operation: 'prepare',
+                background: this.macBackgroundControl(),
+                request: turn.text,
+                context: turn.context ?? '',
+                learning: library.learningAgents?.includes(thread.agentId) === true,
+                nativeLearning: library.nativeLearningAgents?.includes(thread.agentId) === true,
+                activeTasks: this.#state.threads
+                  .filter(
+                    (item) =>
+                      item.agentId === thread.agentId &&
+                      item.id !== thread.id &&
+                      ['running', 'waiting', 'queued'].includes(item.status),
+                  )
+                  .map((item) => `- ${item.title} [${item.status}]`)
+                  .join('\n'),
+              },
+              signal,
+            );
+            if (!prepared.prompt)
+              throw new Error('The native engine returned no request context.');
+            nativeRequest = prepared.prompt;
+          } catch (error) {
+            signal.throwIfAborted();
+            console.warn(
+              `[sia:notch] Preparing the request failed; continuing without it. ${error instanceof Error ? error.message : ''}`.trim(),
+            );
+          }
         }
         const runtimeThread = {
           ...(nativeVault ? { notchVault: nativeVault.root } : {}),
@@ -6681,7 +6762,11 @@ export class DesktopController {
       /* Optional memory storage must never turn completed work into a failed task. */
     }
     this.#markScheduleRunFinished(turn, outcome === 'complete' ? 'completed' : 'failed');
+    // Continue task resends the failed turn's files, whatever ended it (start error,
+    // model error or a task that reported it could not finish).
     if (outcome === 'complete') this.#failedTurnAttachments.delete(turn.id);
+    else if (turn.attachments?.length)
+      this.#failedTurnAttachments.set(turn.id, turn.attachments);
     // Streamed items are appended early and mutated as text arrives; the finished turn is
     // written once more so the log always ends with the final transcript for that turn.
     this.#trajectory?.record({
@@ -6700,6 +6785,8 @@ export class DesktopController {
       thread.goal.status = 'paused';
       thread.goal.updatedAt = new Date().toISOString();
     }
+    // A memory review is Sia's own housekeeping, not work the person is waiting for.
+    if (this.#assistantLibrary.isReview(thread.id)) return;
     thread.unread = true;
     const agent = this.#state.agents.find(({ id }) => id === thread.agentId);
     if (agent?.notificationsEnabled !== false) {
@@ -6816,6 +6903,9 @@ export class DesktopController {
       return;
     }
     if (event.type === 'reasoning') {
+      // Only the reasoning summary is shown (as the live status line). Raw reasoning text is
+      // never merged into it.
+      if (event.payload.part === 'text') return;
       const existing = this.#state.timeline.findLast(
         (item) =>
           item.threadId === event.threadId &&
@@ -7040,6 +7130,24 @@ export class DesktopController {
       return;
     }
     if (event.type === 'usage') {
+      if (event.payload.limits) {
+        this.#usageLimits.set(thread.provider, {
+          usedPercent: event.payload.limits.usedPercent,
+          ...(event.payload.limits.resetsAt ? { resetsAt: event.payload.limits.resetsAt } : {}),
+          ...(event.payload.limits.windowMinutes
+            ? { windowMinutes: event.payload.limits.windowMinutes }
+            : {}),
+          updatedAt: event.timestamp,
+        });
+      }
+      // A plan-usage update alone carries no token counts for this turn.
+      if (
+        event.payload.inputTokens === undefined &&
+        event.payload.outputTokens === undefined &&
+        event.payload.cachedInputTokens === undefined &&
+        event.payload.limits
+      )
+        return;
       this.#state.usageByTurn[event.turnId] = {
         threadId: event.threadId,
         provider: thread.provider,
@@ -7296,6 +7404,7 @@ export class DesktopController {
       toolName: request.tool.name,
       timestamp: new Date().toISOString(),
     });
+    this.#waitForApproval(request.threadId);
     this.#commit();
     this.#notifyNeedsAttention(
       request.threadId,
@@ -7338,6 +7447,7 @@ export class DesktopController {
       };
       const abort = (): void => {
         this.#pendingApprovals.delete(approvalId);
+        this.#resumeAfterRequest(request.threadId);
         this.#setApprovalStatus(approvalId, 'expired');
         finish('cancel');
       };
@@ -7354,18 +7464,23 @@ export class DesktopController {
     });
   }
 
-  /** A provider keeps working after its approval is answered; leave "waiting" once nothing is pending. */
-  #resumeAfterProviderRequest(threadId: string): void {
+  /** A task keeps working after its approval is answered; leave "waiting" once nothing is pending. */
+  #resumeAfterRequest(threadId: string): void {
     const thread = this.#state.threads.find(({ id }) => id === threadId);
     if (
       thread?.status === 'waiting' &&
       this.#runningTurns.has(threadId) &&
       !this.#pendingQuestions.has(threadId) &&
-      ![...this.#pendingApprovals.values()].some(
-        (pending) => pending.kind === 'provider' && pending.threadId === threadId,
-      )
+      ![...this.#pendingApprovals.values()].some((pending) => pending.threadId === threadId)
     )
       thread.status = 'running';
+  }
+
+  /** A running task that asks the person to approve an action is waiting on them. */
+  #waitForApproval(threadId: string): void {
+    const thread = this.#state.threads.find(({ id }) => id === threadId);
+    if (thread?.status === 'running' && this.#runningTurns.has(threadId))
+      thread.status = 'waiting';
   }
 
   #activeTurnId(threadId: string): string | undefined {
@@ -7439,18 +7554,29 @@ export class DesktopController {
     const turnId = this.#activeTurnId(threadId);
     if (turnId) this.#phoneTurns.delete(turnId);
     this.#runningTurns.delete(threadId);
-    if (this.#macTurns.delete(threadId)) this.#keepAwake?.release(threadId);
+    this.#macTurns.delete(threadId);
+    if (this.#awakeTurns.delete(threadId)) this.#keepAwake?.release(threadId);
     if (thread) this.#workspaceLeases.delete(thread.workspace);
     this.#drainQueue();
-    // A follow-up can still wait when another thread took the workspace first.
+    // A follow-up can still wait when another thread took the workspace first. A paused
+    // thread keeps its failed state and Continue task until the person acts.
+    if (thread && !this.#heldThreads.has(threadId)) this.#markWaitingFollowUps(thread);
+  }
+
+  /** Shows why a thread's queued follow-up has not started yet. */
+  #markWaitingFollowUps(thread: ThreadView): void {
     if (
-      thread &&
-      !this.#runningTurns.has(threadId) &&
-      this.#queuedTurns.some((turn) => turn.threadId === threadId)
-    ) {
-      thread.status = 'queued';
-      thread.queueReason = 'Waiting for another task to release this workspace.';
-    }
+      this.#runningTurns.has(thread.id) ||
+      !this.#queuedTurns.some((turn) => turn.threadId === thread.id)
+    )
+      return;
+    thread.status = 'queued';
+    thread.queueReason =
+      this.#macUnavailable && this.#isMacTurn(thread.id)
+        ? this.#macUnavailable === 'locked'
+          ? 'Waiting for your Mac to unlock.'
+          : 'Waiting for your Mac to wake.'
+        : 'Waiting for another task to release this workspace.';
   }
 
   #drainQueue(): void {
@@ -7460,6 +7586,7 @@ export class DesktopController {
       const thread = this.#state.threads.find(({ id }) => id === turn.threadId);
       return (
         thread &&
+        !this.#heldThreads.has(thread.id) &&
         !this.#workspaceLeases.has(thread.workspace) &&
         !(this.#macUnavailable && this.#isMacTurn(thread.id))
       );
@@ -7906,8 +8033,25 @@ export class DesktopController {
     return recovered;
   }
 
+  /**
+   * While a Mac task waits on the person (an approval or a question), let the display sleep
+   * as usual; hold it awake again once the task resumes.
+   */
+  #syncKeepAwake(): void {
+    for (const threadId of this.#macTurns.keys()) {
+      const waiting =
+        this.#state.threads.find(({ id }) => id === threadId)?.status === 'waiting';
+      if (waiting && this.#awakeTurns.delete(threadId)) this.#keepAwake?.release(threadId);
+      else if (!waiting && !this.#awakeTurns.has(threadId)) {
+        this.#awakeTurns.add(threadId);
+        this.#keepAwake?.hold(threadId);
+      }
+    }
+  }
+
   #commit(deferStreamDelta = false): void {
     this.#revision += 1;
+    this.#syncKeepAwake();
     if (deferStreamDelta) {
       if (!this.#streamCommitTimer) {
         this.#streamCommitTimer = setTimeout(() => {
@@ -8439,7 +8583,7 @@ function runtimeToolTitle(name: string, presentation?: ActivityPresentationView)
   if (presentation.kind === 'web_search') {
     return presentation.query ? `Searched for ${presentation.query}` : 'Searched the web';
   }
-  if (presentation.kind === 'image') return `Viewed ${basename(presentation.path)}`;
+  if (presentation.kind === 'image') return imageActivityTitle(presentation.path);
   if (presentation.kind === 'review') return presentation.review || 'Code review';
   if (presentation.kind === 'compaction') return 'Compacted context';
   return humanizeToolName(name);
@@ -8466,6 +8610,7 @@ function mapRuntimePresentation(
       files: presentation.files.map((file) => ({
         path: file.path,
         change: file.change,
+        ...(file.movePath ? { movePath: file.movePath } : {}),
         ...(file.diff ? { diff: file.diff } : {}),
       })),
     };

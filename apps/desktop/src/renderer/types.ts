@@ -62,7 +62,7 @@ export interface ActivityEvent {
   toolName?: string;
   id: string;
   type: 'activity';
-  kind: 'command' | 'browser' | 'computer' | 'connector' | 'plan';
+  kind: 'command' | 'browser' | 'computer' | 'connector' | 'plan' | 'other';
   title: string;
   detail?: string | undefined;
   status: 'running' | 'complete' | 'error' | 'queued';
@@ -82,7 +82,12 @@ type ActivityPresentation =
     }
   | {
       kind: 'file_change';
-      files: Array<{ path: string; change: string; diff?: string | undefined }>;
+      files: Array<{
+        path: string;
+        change: string;
+        movePath?: string | undefined;
+        diff?: string | undefined;
+      }>;
     }
   | {
       kind: 'web_search';
@@ -184,6 +189,10 @@ export interface ThreadDetail extends ThreadSummary {
   workspace: string;
   goal?: ThreadGoal | undefined;
   events: ThreadEvent[];
+  /** The thread's provider plan usage window, when reported. */
+  usageLimit?: { usedPercent: number; resetsAt?: string | undefined } | undefined;
+  /** Headline of the running turn's latest reasoning summary, for the live status line. */
+  thinking?: string | undefined;
   /** Follow-ups sent while the thread works; they start in order after the current task. */
   queuedMessages?: MessageEvent[] | undefined;
   error?: string | undefined;
@@ -362,6 +371,8 @@ export interface ProviderSetup {
   version?: string | undefined;
   billedBy: string;
   restriction?: string | undefined;
+  /** Latest plan usage window the provider reported. */
+  limits?: { usedPercent: number; resetsAt?: string | undefined } | undefined;
   usage?: {
     requests: number;
     inputTokens: number;

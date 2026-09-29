@@ -1,16 +1,24 @@
-import { activityLabel, completedActivityLabel } from '../../shared/activity-label';
+import {
+  activityLabel,
+  completedActivityLabel,
+  fileBaseName,
+  isScreenCapture,
+} from '../../shared/activity-label';
 import { clipText } from '../../shared/plain-text';
 import {
   Browser,
   CaretDown,
   CheckCircle,
+  CircleNotch,
   Clock,
   Desktop,
   GitDiff,
   Globe,
+  Image as ImageIcon,
   ListChecks,
   PlugsConnected,
   Robot,
+  Sparkle,
   TerminalWindow,
   WarningCircle,
 } from '@phosphor-icons/react';
@@ -28,6 +36,7 @@ const icons = {
   computer: Desktop,
   connector: PlugsConnected,
   plan: ListChecks,
+  other: Sparkle,
 };
 
 export function ActivityRow({ event }: ActivityRowProps) {
@@ -41,10 +50,18 @@ export function ActivityRow({ event }: ActivityRowProps) {
         : Clock;
   const statusClass = event.status === 'complete' ? '' : styles[`activity_${event.status}`];
   const hasDetail = Boolean(event.title || event.detail || event.presentation);
-  const runningLabel = activityLabel(event.toolName, event.presentation?.kind ?? event.kind);
+  const screen =
+    event.presentation?.kind === 'image' && isScreenCapture(event.presentation.path);
+  const runningLabel = screen
+    ? 'Looking at the screen'
+    : activityLabel(event.toolName, event.presentation?.kind ?? event.kind);
   const label =
     event.status === 'complete' ? completedActivityLabel(runningLabel) : runningLabel;
   const summary = activitySummary(event, [runningLabel, label]);
+  // The plain title only when the rich detail below does not already say it. Never the raw
+  // tool name (computer_action, mail_send): the label above already names the step.
+  const detailTitle =
+    !event.presentation && summary && event.title !== event.detail ? event.title : '';
 
   return (
     <div className={`${styles.activityRow} ${statusClass}`}>
@@ -86,8 +103,7 @@ export function ActivityRow({ event }: ActivityRowProps) {
       </button>
       {expanded && hasDetail ? (
         <div className={styles.activityDetail}>
-          <small>{event.toolName ?? event.title}</small>
-          {event.toolName && event.title !== event.toolName && <p>{event.title}</p>}
+          {detailTitle ? <p>{detailTitle}</p> : null}
           <RichActivityDetail event={event} />
         </div>
       ) : null}
@@ -106,6 +122,10 @@ export function activitySummary(event: ActivityEvent, labels: readonly string[])
   }
   if (presentation?.kind === 'web_search' && presentation.query)
     return clipText(singleLine(presentation.query), 90);
+  if (presentation?.kind === 'image')
+    return isScreenCapture(presentation.path)
+      ? ''
+      : clipText(fileBaseName(presentation.path), 90);
   const title = singleLine(event.title ?? '');
   const key = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
   if (
@@ -128,6 +148,7 @@ function baseName(path: string): string {
 function presentationIcon(event: ActivityEvent) {
   if (event.presentation?.kind === 'file_change') return GitDiff;
   if (event.presentation?.kind === 'web_search') return Globe;
+  if (event.presentation?.kind === 'image') return ImageIcon;
   if (event.presentation?.kind === 'subagent') return Robot;
   return undefined;
 }
@@ -159,17 +180,35 @@ function RichActivityDetail({ event }: { event: ActivityEvent }) {
     );
   }
   if (presentation.kind === 'file_change') {
-    return presentation.files.length ? (
+    if (!presentation.files.length) {
+      return (
+        <span>
+          {event.status === 'running'
+            ? 'Preparing file changes…'
+            : 'No file details were shared.'}
+        </span>
+      );
+    }
+    return (
       <ul className={styles.activityList}>
-        {presentation.files.map((file) => (
-          <li key={`${file.path}:${file.change}`}>
-            <span>{file.path}</span>
-            <small>{file.change}</small>
-          </li>
-        ))}
+        {presentation.files.map((file) => {
+          const stats = fileChangeStats(file);
+          return (
+            <li key={`${file.path}:${file.change}`}>
+              <span>{file.movePath ? `${file.path} → ${file.movePath}` : file.path}</span>
+              <small>
+                {fileChangeWord(file.change)}
+                {stats.added ? (
+                  <span className={styles.diffAdded}>{` +${stats.added}`}</span>
+                ) : null}
+                {stats.removed ? (
+                  <span className={styles.diffRemoved}>{` −${stats.removed}`}</span>
+                ) : null}
+              </small>
+            </li>
+          );
+        })}
       </ul>
-    ) : (
-      <span>Preparing file changes…</span>
     );
   }
   if (presentation.kind === 'web_search') {
@@ -191,8 +230,20 @@ function RichActivityDetail({ event }: { event: ActivityEvent }) {
     return (
       <ol className={styles.activityPlan}>
         {presentation.steps.map((step) => (
-          <li key={step.id} data-status={step.status}>
-            <span aria-hidden="true">{step.status === 'completed' ? '✓' : '·'}</span>
+          <li
+            key={step.id}
+            data-status={step.status}
+            aria-current={step.status === 'in_progress' ? 'step' : undefined}
+          >
+            <span aria-hidden="true">
+              {step.status === 'completed' ? (
+                '✓'
+              ) : step.status === 'in_progress' ? (
+                <CircleNotch size={11} className={styles.workingSpinner} />
+              ) : (
+                '·'
+              )}
+            </span>
             {step.text}
           </li>
         ))}
@@ -211,12 +262,54 @@ function RichActivityDetail({ event }: { event: ActivityEvent }) {
       </div>
     );
   }
-  if (presentation.kind === 'image') return <span>{presentation.path}</span>;
+  if (presentation.kind === 'image') {
+    return (
+      <span>
+        {isScreenCapture(presentation.path)
+          ? 'Sia looked at the screen to check its work.'
+          : fileBaseName(presentation.path)}
+      </span>
+    );
+  }
   if (presentation.kind === 'review') return <span>{presentation.review}</span>;
   if (presentation.kind === 'compaction') {
     return <span>Sia reduced older context while keeping the current task active.</span>;
   }
   return event.detail;
+}
+
+/** Plain word for a Codex patch kind; unknown kinds are shown as sent. */
+export function fileChangeWord(change: string): string {
+  const words: Record<string, string> = {
+    add: 'Added',
+    delete: 'Deleted',
+    update: 'Edited',
+    rename: 'Renamed',
+  };
+  return words[change] ?? change;
+}
+
+/**
+ * Line counts for one changed file. Codex sends the whole file as `diff` for an add or a
+ * delete and a unified diff for an update.
+ */
+export function fileChangeStats(file: { change: string; diff?: string | undefined }): {
+  added: number;
+  removed: number;
+} {
+  const diff = file.diff ?? '';
+  if (!diff) return { added: 0, removed: 0 };
+  const lines = diff.replace(/\n$/, '').split('\n');
+  if (file.change === 'add') return { added: lines.length, removed: 0 };
+  if (file.change === 'delete') return { added: 0, removed: lines.length };
+  let added = 0;
+  let removed = 0;
+  for (const line of lines) {
+    if (line.startsWith('+++') || line.startsWith('---')) continue;
+    if (line.startsWith('+')) added += 1;
+    else if (line.startsWith('-')) removed += 1;
+  }
+  return { added, removed };
 }
 
 function formatDuration(milliseconds: number): string {

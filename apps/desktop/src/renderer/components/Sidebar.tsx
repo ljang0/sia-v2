@@ -765,6 +765,8 @@ function ThreadMenu({
   onSetUnread?: (() => void) | undefined;
 }) {
   const trigger = useRef<HTMLButtonElement>(null);
+  const busy =
+    thread.status === 'running' || thread.status === 'queued' || thread.status === 'waiting';
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
@@ -789,6 +791,8 @@ function ThreadMenu({
               className={styles.threadMenuItem}
               onSelect={() => onFork(trigger.current)}
               data-testid="thread-fork"
+              disabled={busy}
+              title={busy ? 'Stop or finish the current task before forking.' : undefined}
             >
               <GitFork size={14} aria-hidden="true" />
               Fork

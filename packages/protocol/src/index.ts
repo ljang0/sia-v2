@@ -377,6 +377,8 @@ export const reasoningEventSchema = z.object({
     reasoningId: idSchema,
     text: z.string(),
     delta: z.boolean().default(false),
+    /** `summary` is the user-facing summary; `text` is raw reasoning, kept apart from it. */
+    part: z.enum(['summary', 'text']).optional(),
   }),
 });
 export type ReasoningEvent = z.infer<typeof reasoningEventSchema>;
@@ -409,6 +411,7 @@ export const toolEventSchema = z.object({
             z.object({
               path: z.string().min(1),
               change: z.string().min(1),
+              movePath: z.string().min(1).optional(),
               diff: z.string().optional(),
             }),
           ),
@@ -505,6 +508,15 @@ export const subagentEventSchema = z.object({
 });
 export type SubagentEvent = z.infer<typeof subagentEventSchema>;
 
+/** The account's most constrained plan usage window, as the provider reports it. */
+export const usageLimitSchema = z.object({
+  usedPercent: z.number().min(0).max(100),
+  /** ISO time the window resets. */
+  resetsAt: z.string().datetime().optional(),
+  windowMinutes: z.number().int().positive().optional(),
+});
+export type UsageLimit = z.infer<typeof usageLimitSchema>;
+
 export const usageEventSchema = z.object({
   ...envelopeBase,
   type: z.literal('usage'),
@@ -512,6 +524,7 @@ export const usageEventSchema = z.object({
     inputTokens: z.number().int().nonnegative().optional(),
     outputTokens: z.number().int().nonnegative().optional(),
     cachedInputTokens: z.number().int().nonnegative().optional(),
+    limits: usageLimitSchema.optional(),
     providerReported: z.boolean().default(true),
   }),
 });
@@ -673,6 +686,8 @@ export interface ProviderAdapter {
   ): AsyncIterable<ThreadEventEnvelope>;
   /** False once the provider no longer knows this session, for example after a crash. */
   hasSession?(session: ProviderSession): boolean;
+  /** Releases an idle session whose thread was deleted. */
+  closeSession?(session: ProviderSession): Promise<void>;
   cancelTurn(session: ProviderSession, turnId: string): Promise<void>;
   respondToRequest(session: ProviderSession, response: ProviderRequestResponse): Promise<void>;
   dispose(): Promise<void>;
