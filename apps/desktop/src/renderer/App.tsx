@@ -445,7 +445,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               <header className={styles.activityPageHeader}>
                 <div>
                   <h1>Activity</h1>
-                  <p>Running work and threads that need your attention.</p>
+                  <p>What your agents are doing, and anything waiting for you.</p>
                 </div>
                 <button
                   type="button"
@@ -457,6 +457,13 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 </button>
               </header>
               <div className={styles.activityPageContent}>
+                <ActivityDashboard
+                  activities={activityItems(snapshot)}
+                  onOpenThread={(threadId) => {
+                    app.closeActivity();
+                    void run(() => api.selectThread(threadId));
+                  }}
+                />
                 <TranscriptSearch
                   focusOnMount={app.activityTarget === 'search'}
                   search={(query) => api.searchThreads(query)}
@@ -466,13 +473,6 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                       if (archived) await api.unarchiveThread(threadId);
                       await api.selectThread(threadId);
                     });
-                  }}
-                />
-                <ActivityDashboard
-                  activities={activityItems(snapshot)}
-                  onOpenThread={(threadId) => {
-                    app.closeActivity();
-                    void run(() => api.selectThread(threadId));
                   }}
                 />
                 <ArchivedThreadsSection

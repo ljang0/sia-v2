@@ -83,11 +83,17 @@ describe('local parity renderer contracts', () => {
     expect(screen.getByText('Finished notes')).toBeTruthy();
   });
 
+  it('says all clear when nothing needs the person', () => {
+    render(<ActivityDashboard activities={[]} onOpenThread={vi.fn()} />);
+
+    expect(screen.getByText('All clear — nothing needs you right now.')).toBeTruthy();
+  });
+
   it('gives an empty transcript search a useful starting state', () => {
     render(<TranscriptSearch search={vi.fn()} onOpen={vi.fn()} />);
 
     expect(
-      screen.getByText('Searches every local thread, including archived ones.'),
+      screen.getByText('Finds words in any conversation, including archived ones.'),
     ).toBeTruthy();
   });
 
@@ -276,6 +282,57 @@ describe('local parity renderer contracts', () => {
         .getByRole('button', { name: 'Hide run history for Morning summary' })
         .getAttribute('aria-expanded'),
     ).toBe('true');
+  });
+
+  it('offers starter ideas when there are no schedules, and fills the form from one', async () => {
+    const onCreate = vi.fn(async () => undefined);
+    render(
+      <ScheduleControls
+        schedules={[]}
+        onCreate={onCreate}
+        onSetEnabled={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('No schedules yet.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Every morning, summarize my inbox' }));
+    expect((screen.getByRole('textbox', { name: 'Task' }) as HTMLInputElement).value).toContain(
+      'Summarize my inbox',
+    );
+    expect((screen.getByLabelText('Repeat') as HTMLSelectElement).value).toBe('daily');
+    expect(screen.getByText(/^Runs every day, starting .+ 30 times in all\.$/)).toBeTruthy();
+    // The empty state steps aside while the form is open.
+    expect(screen.queryByText('No schedules yet.')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Create schedule' }));
+    await waitFor(() =>
+      expect(onCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cadence: 'daily',
+          runAt: expect.stringMatching(/T08:00$/),
+          maxRuns: 30,
+        }),
+      ),
+    );
+  });
+
+  it('asks for a run limit only when a schedule repeats', () => {
+    render(
+      <ScheduleControls
+        schedules={[]}
+        onCreate={vi.fn()}
+        onSetEnabled={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'New schedule' }));
+    expect(screen.queryByRole('spinbutton', { name: 'Stop after how many runs' })).toBeNull();
+    fireEvent.change(screen.getByLabelText('Repeat'), { target: { value: 'weekly' } });
+    expect(
+      (screen.getByRole('spinbutton', { name: 'Stop after how many runs' }) as HTMLInputElement)
+        .value,
+    ).toBe('10');
   });
 
   it('infers the first run when a recurring schedule omits it', async () => {
@@ -540,7 +597,7 @@ describe('changed file summaries', () => {
     expect((await screen.findByTestId('changes-error')).textContent).toContain(
       'not a Git repository',
     );
-    expect(screen.queryByText('The workspace has no uncommitted changes.')).toBeNull();
+    expect(screen.queryByText(/No file changes yet/)).toBeNull();
     // Tool panels close with the same × as the rest of the app.
     const close = screen.getByRole('button', { name: 'Close thread tool' });
     expect(close.textContent).toBe('');

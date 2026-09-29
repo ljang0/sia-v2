@@ -724,6 +724,33 @@ describe('computer access settings', () => {
   });
 });
 
+it('drops the connection checklist once both work apps are connected', () => {
+  const snapshot = withCloud('signed-in', 'lawrence@example.com');
+  snapshot.apps = snapshot.apps.map((app) => ({
+    ...app,
+    status: 'connected',
+    connectionId: app.id === 'slack' ? 'slack-grant' : 'google-grant',
+  }));
+  render(
+    <AppsSettings
+      snapshot={snapshot}
+      onConnectSelected={vi.fn()}
+      onConnectGoogle={vi.fn()}
+      onConnect={vi.fn()}
+      onDisconnect={vi.fn()}
+      onStartCloudSignIn={vi.fn()}
+      onCompleteCloudSignIn={vi.fn()}
+      onSignOutCloud={vi.fn()}
+      onDeleteCloudAccount={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByText('All connected')).toBeTruthy();
+  expect(screen.queryByRole('group', { name: 'Choose your connections' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Disconnect Google Workspace' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Disconnect Slack' })).toBeTruthy();
+});
+
 function withCloud(
   state: RendererSnapshot['cloudAuth']['state'],
   email?: string,

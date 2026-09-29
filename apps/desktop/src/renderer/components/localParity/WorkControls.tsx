@@ -4,9 +4,11 @@ import {
   CheckCircle,
   Clock,
   Flag,
+  Lightbulb,
   Pause,
   Play,
   Plus,
+  Repeat,
   Trash,
   X,
 } from '@phosphor-icons/react';
@@ -15,6 +17,14 @@ import type { ScheduleRun, ThreadGoal } from '../../types';
 import styles from '../../ui.module.css';
 import { useConfirmDialog } from '../ConfirmDialog';
 import { StartupSettings } from '../settings/StartupSettings';
+import {
+  CADENCE_LABELS,
+  describeScheduleDraft,
+  friendlyScheduleTime,
+  nextAt,
+  toLocalInput,
+  type ScheduleCadence,
+} from './scheduleText';
 
 interface SelectOption {
   id: string;
@@ -153,7 +163,7 @@ export function GoalControls({
       <section className={styles.goalControl} aria-labelledby={`${inputId}-title`}>
         <div className={styles.localSurfaceHeader}>
           <div>
-            <span className={styles.sectionLabel}>Thread goal</span>
+            <span className={styles.sectionLabel}>Goal for this conversation</span>
             <h2 id={`${inputId}-title`}>{goal.text}</h2>
           </div>
           <span className={styles.goalStatus} data-status={goal.status}>
@@ -211,8 +221,11 @@ export function GoalControls({
     <form className={styles.goalControl} onSubmit={submit} aria-labelledby={`${inputId}-title`}>
       <div className={styles.localSurfaceHeader}>
         <div>
-          <span className={styles.sectionLabel}>Thread goal</span>
+          <span className={styles.sectionLabel}>Goal for this conversation</span>
           <h2 id={`${inputId}-title`}>Keep a long task on course</h2>
+          <p className={styles.goalIntro}>
+            Name the finish line and Sia keeps it in view while it works.
+          </p>
         </div>
         <Flag size={18} aria-hidden="true" />
       </div>
@@ -223,7 +236,7 @@ export function GoalControls({
           id={inputId}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder="Ship the release checklist"
+          placeholder="Plan a 3-day trip to Lisbon with a daily itinerary"
           disabled={busy}
         />
       </label>
@@ -243,7 +256,7 @@ interface ThreadSchedule {
   id: string;
   label: string;
   prompt: string;
-  cadence: 'once' | 'hourly' | 'daily' | 'weekly';
+  cadence: ScheduleCadence;
   nextRunAt: string;
   enabled: boolean;
   runCount?: number | undefined;
@@ -289,6 +302,16 @@ export function ScheduleControls({
   const [expandedHistoryId, setExpandedHistoryId] = useState<string>();
   const [confirm, confirmDialog] = useConfirmDialog();
   const titleId = useId();
+  const summaryId = useId();
+
+  const startFromIdea = (idea: ScheduleIdea) => {
+    const draft = idea.draft(new Date());
+    setPrompt(draft.prompt);
+    setCadence(draft.cadence);
+    setRunAt(draft.runAt);
+    setMaxRuns(String(draft.maxRuns ?? (draft.cadence === 'once' ? 1 : 10)));
+    setExpanded(true);
+  };
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -353,11 +376,12 @@ export function ScheduleControls({
               data-testid="schedule-prompt-input"
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Summarize new project updates"
+              placeholder="Summarize my inbox"
+              aria-describedby={summaryId}
               disabled={busy}
             />
           </label>
-          <div className={styles.scheduleFields}>
+          <div className={styles.scheduleFields} data-once={cadence === 'once'}>
             <label className={styles.localField}>
               <span>Repeat</span>
               <select
@@ -370,25 +394,31 @@ export function ScheduleControls({
                 }}
                 disabled={busy}
               >
-                <option value="once">Once</option>
-                <option value="hourly">Hourly</option>
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
+                <option value="once">Just once</option>
+                <option value="hourly">Every hour</option>
+                <option value="daily">Every day</option>
+                <option value="weekly">Every week</option>
               </select>
             </label>
-            <label className={styles.localField}>
-              <span>Stops after</span>
-              <input
-                type="number"
-                min="1"
-                max="10000"
-                step="1"
-                inputMode="numeric"
-                value={maxRuns}
-                onChange={(event) => setMaxRuns(event.target.value)}
-                disabled={busy}
-              />
-            </label>
+            {cadence === 'once' ? null : (
+              <label className={styles.localField}>
+                <span>Stop after</span>
+                <span className={styles.scheduleRunsInput}>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10000"
+                    step="1"
+                    inputMode="numeric"
+                    aria-label="Stop after how many runs"
+                    value={maxRuns}
+                    onChange={(event) => setMaxRuns(event.target.value)}
+                    disabled={busy}
+                  />
+                  <span aria-hidden="true">runs</span>
+                </span>
+              </label>
+            )}
             <label className={styles.localField}>
               <span>
                 First run <small aria-hidden="true">optional</small>
@@ -401,21 +431,22 @@ export function ScheduleControls({
                 onChange={(event) => setRunAt(event.target.value)}
                 disabled={busy}
               />
-              <small className={styles.scheduleTimingHint}>
-                {cadence === 'once'
-                  ? 'Defaults to as soon as this thread is idle.'
-                  : `Defaults to one ${cadence === 'hourly' ? 'hour' : cadence === 'daily' ? 'day' : 'week'} from now.`}
-              </small>
             </label>
           </div>
-          <button
-            type="submit"
-            className={styles.primaryButton}
-            disabled={busy || !prompt.trim()}
-            data-testid="schedule-save"
-          >
-            Create schedule
-          </button>
+          <div className={styles.scheduleFormFooter}>
+            <p className={styles.scheduleSummaryLine} id={summaryId} aria-live="polite">
+              <Repeat size={14} aria-hidden="true" />
+              {describeScheduleDraft(cadence, runAt, Number(maxRuns) || undefined)}
+            </p>
+            <button
+              type="submit"
+              className={styles.primaryButton}
+              disabled={busy || !prompt.trim()}
+              data-testid="schedule-save"
+            >
+              Create schedule
+            </button>
+          </div>
         </form>
       ) : null}
 
@@ -434,6 +465,7 @@ export function ScheduleControls({
                       <Clock size={12} aria-hidden="true" />
                       {scheduleNextLabel(schedule)}
                     </span>
+                    <span>{CADENCE_LABELS[schedule.cadence]}</span>
                     <span>
                       {(schedule.runCount ?? 0).toLocaleString()} run
                       {schedule.runCount === 1 ? '' : 's'}
@@ -529,13 +561,67 @@ export function ScheduleControls({
               </article>
             );
           })
-        ) : (
-          <p className={styles.localEmpty}>No scheduled work for this thread.</p>
+        ) : expanded ? null : (
+          <div className={styles.scheduleEmpty}>
+            <p>
+              <strong>No schedules yet.</strong> Sia can do something here on its own — once
+              later, or on repeat.
+            </p>
+            <div className={styles.scheduleIdeas} aria-label="Schedule ideas" role="group">
+              {SCHEDULE_IDEAS.map((idea) => (
+                <button
+                  type="button"
+                  key={idea.label}
+                  disabled={busy}
+                  onClick={() => startFromIdea(idea)}
+                >
+                  <Lightbulb size={14} aria-hidden="true" />
+                  {idea.label}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </section>
   );
 }
+
+interface ScheduleIdea {
+  label: string;
+  draft(now: Date): ScheduleDraft;
+}
+
+/** Starting points for an empty schedule list; each fills the form for the person to adjust. */
+const SCHEDULE_IDEAS: readonly ScheduleIdea[] = [
+  {
+    label: 'Every morning, summarize my inbox',
+    draft: (now) => ({
+      prompt: 'Summarize my inbox and tell me what needs a reply',
+      cadence: 'daily',
+      runAt: toLocalInput(nextAt(now, 8)),
+      maxRuns: 30,
+    }),
+  },
+  {
+    label: 'Every Friday, recap my week',
+    draft: (now) => ({
+      prompt: 'Recap what I worked on this week and what is still open',
+      cadence: 'weekly',
+      runAt: toLocalInput(nextAt(now, 16, 5)),
+      maxRuns: 10,
+    }),
+  },
+  {
+    label: 'In an hour, check back on this',
+    draft: (now) => ({
+      prompt: 'Check back on this conversation and tell me what changed',
+      cadence: 'once',
+      runAt: toLocalInput(new Date(now.getTime() + 60 * 60_000)),
+      maxRuns: 1,
+    }),
+  },
+];
 
 function formatScheduleTime(value: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -560,7 +646,7 @@ function scheduleFinished(schedule: ThreadSchedule): boolean {
 }
 
 function scheduleNextLabel(schedule: ThreadSchedule): string {
-  if (schedule.enabled) return `Next ${formatScheduleTime(schedule.nextRunAt)}`;
+  if (schedule.enabled) return `Next run ${friendlyScheduleTime(schedule.nextRunAt)}`;
   if (schedule.cadence === 'once' && (schedule.runCount ?? 0) > 0) return 'Finished';
   if (scheduleFinished(schedule)) return 'Run limit reached';
   return 'Paused';
