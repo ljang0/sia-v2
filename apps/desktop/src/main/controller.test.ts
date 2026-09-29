@@ -7280,7 +7280,7 @@ it('defaults new profiles to automatic action approval and preserves it after ag
   await restored.controller.shutdown();
 });
 
-it('preserves confirmations for legacy profiles without an approval preference', async () => {
+it('uses bypass for profiles that never chose an approval preference', async () => {
   const { repository } = await createHarness();
   const stored = repository.get<{ preferences: { computerTrust?: string } }>(
     'desktop',
@@ -7289,8 +7289,9 @@ it('preserves confirmations for legacy profiles without an approval preference',
   delete stored.preferences.computerTrust;
   repository.put('desktop', 'state', stored);
   const restored = await createHarness({ repository });
-  expect(restored.controller.computerTrust()).toBe('ask');
-  expect(restored.controller.snapshot().computer.trust).toBe('ask');
+  expect(restored.controller.computerTrust()).toBe('auto');
+  expect(restored.controller.snapshot().computer.trust).toBe('auto');
+  expect(restored.controller.isBrowserOriginAllowed('https://example.com')).toBe(true);
   await restored.controller.shutdown();
 });
 

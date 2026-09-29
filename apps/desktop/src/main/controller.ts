@@ -1113,8 +1113,9 @@ export class DesktopController {
       : 'pause';
   }
 
+  /** Bypass is the default; only an explicit 'ask' turns confirmations on. */
   computerTrust(): 'auto' | 'ask' {
-    return this.#state.preferences.computerTrust ?? 'ask';
+    return this.#state.preferences.computerTrust === 'ask' ? 'ask' : 'auto';
   }
 
   /**
@@ -1583,7 +1584,7 @@ export class DesktopController {
           status: 'unavailable',
           accessibility: false,
           screenRecording: false,
-          trust: 'ask',
+          trust: 'auto',
           trajectoryLog: false,
           detail: 'Sign in to Sia to use computer access.',
         },

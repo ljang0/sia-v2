@@ -28,9 +28,12 @@ quality, type, unit, and deterministic desktop E2E gates. See
   the Codex App Server harness. Users never paste model API keys into Sia.
 - Google Workspace, Slack, signed-in Chrome, Apple Messages, and computer use are optional. They do
   not block first-run setup.
-- Onboarding offers confirmation and full-bypass modes; its initial selection is Use my Mac + full
-  bypass. Use my Mac works in the background by default (window control through the bundled Cua
-  driver); On my screen is the explicit alternative. Use confirmations for supervised pilot testing. Sia-hosted tools block secure fields,
+- Bypass (no per-action approvals) is the default for every route, including profiles that never
+  chose; confirmations are an explicit opt-in (onboarding's Customize setup → Ask before each
+  action, or Settings → Computer). Onboarding's initial selection is Use my Mac with bypass. Use my
+  Mac works in the background by default (window control through the bundled Cua driver); On my
+  screen is the explicit alternative. Use confirmations for supervised pilot testing. Phone-remote
+  turns always ask on the Mac. Hard safety blocks apply in every mode: Sia-hosted tools block secure fields,
   authentication surfaces, Keychain, and password managers. Native shell execution follows the
   provider's approval boundary; the same restrictions in its prompt are not shell enforcement.
 - Local turns and schedules require the Sia process to remain open and the Mac to stay awake. Sia

@@ -210,9 +210,10 @@ apps open hidden where macOS supports it. Uncheck the option to defer those app 
 task needs them. Connected apps setup does not request these Automation grants.
 **Settings → Computer → Grant all permissions** runs the same guided pass later.
 
-The default is **Use my Mac + full bypass**: Sia works in the background with signed-in Mac apps
-and may send messages or change files without per-action approval. **Customize setup** contains the alternative
-**Connected apps + confirmations** mode, agent name, and model choice. The starter uses a ready
+The default is **Use my Mac** with bypass: Sia works in the background with signed-in Mac apps
+and may send messages or change files without per-action approval. **Customize setup** contains the
+alternative **Connected apps only** route, an **Ask before each action** checkbox (off by default)
+for confirmations, agent name, and model choice. The starter uses a ready
 model from the admitted catalog and an automatic private workspace. If no model is ready,
 complete AI sign-in first. No API key is required.
 
