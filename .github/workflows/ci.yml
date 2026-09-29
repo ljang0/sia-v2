@@ -42,6 +42,13 @@ jobs:
       - name: Run Electron E2E
         run: pnpm test:e2e
 
+      - name: 'Temporary: print refreshed visual baselines'
+        if: failure()
+        working-directory: apps/desktop
+        run: |
+          pnpm exec playwright test tests/e2e/visual-polish.spec.ts --update-snapshots=changed || true
+          for f in $(git ls-files -m tests/e2e); do echo "BEGIN-BASELINE $f"; base64 -i "$f" | fold -w 180 | sed 's/^/B64 /'; echo "END-BASELINE $f"; done
+
       - name: Upload Electron E2E failure evidence
         if: failure()
         uses: actions/upload-artifact@v4
