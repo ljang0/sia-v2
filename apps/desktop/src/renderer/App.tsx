@@ -18,6 +18,7 @@ import { WorkspaceNotice } from './components/AppStates';
 import { StartupTransition } from './components/StartupTransition';
 import { Conversation } from './components/Conversation';
 import { FeedbackDialog } from './components/FeedbackDialog';
+import { replyFeedbackDraft } from './components/ReplyFeedback';
 import { Inspector } from './components/Inspector';
 import { RoomHeader } from './components/RoomHeader';
 import { QuickSwitcher, type QuickSwitcherAction } from './components/QuickSwitcher';
@@ -67,6 +68,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   const [reveal, setReveal] = useState(0);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackDraft, setFeedbackDraft] = useState<string>();
   const [conversationFindOpen, setConversationFindOpen] = useState(false);
   const online = useOnline();
   const outbox = useOfflineOutbox(online, (message) =>
@@ -685,6 +687,10 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 onRetry={() =>
                   activeThread ? run(() => api.retryThread(activeThread.id)) : Promise.resolve()
                 }
+                onRateReply={(rating, reply) => {
+                  setFeedbackDraft(replyFeedbackDraft(rating, reply));
+                  setFeedbackOpen(true);
+                }}
                 onResolveApproval={(id, decision) =>
                   run(() => api.respondToApproval(id, decision)).then(() => focusComposer())
                 }
@@ -778,7 +784,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
       <FeedbackDialog
         open={feedbackOpen}
         threadId={activeThread?.id}
-        onOpenChange={setFeedbackOpen}
+        initialMessage={feedbackDraft}
+        onOpenChange={(open) => {
+          setFeedbackOpen(open);
+          if (!open) setFeedbackDraft(undefined);
+        }}
         onSubmit={(message, includeDiagnostics) =>
           app.attempt(() =>
             api.composeFeedback(message, activeThread?.id, includeDiagnostics),

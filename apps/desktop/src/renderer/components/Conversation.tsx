@@ -43,6 +43,7 @@ import { ConversationOutline, hasConversationOutline } from './ConversationOutli
 import { SafeMarkdown } from './SafeMarkdown';
 import { RowErrorBoundary } from './ErrorBoundary';
 import { NoticeText, ThreadErrorText } from './PlainErrorText';
+import { ReplyFeedbackButtons, type ReplyRating } from './ReplyFeedback';
 import { DitherAurora as Aurora } from './effects/DitherAurora';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
 
@@ -87,6 +88,8 @@ interface ConversationProps {
   onRemoveQueued?: ((messageId: string) => Promise<void>) | undefined;
   onRetry(): Promise<void>;
   onResolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
+  /** Thumbs up or down on a reply opens a feedback draft about it. */
+  onRateReply?: ((rating: ReplyRating, reply: string) => void) | undefined;
   onCreateThread?: (() => void) | undefined;
   onCreateAgent?: (() => void) | undefined;
   onOpenApps?: (() => void) | undefined;
@@ -131,6 +134,7 @@ export function Conversation({
   onRemoveQueued,
   onRetry,
   onResolveApproval,
+  onRateReply,
   onCreateThread,
   onCreateAgent,
   onOpenApps,
@@ -486,6 +490,7 @@ export function Conversation({
         onToggleSpeech={
           voiceEnabled && onSpeak ? (text) => toggleSpeech(event.id, text) : undefined
         }
+        onRateReply={onRateReply}
         onPreviewAttachment={
           onPreviewAttachment
             ? (attachment) => {
@@ -856,6 +861,7 @@ interface EventViewProps {
   streaming?: boolean | undefined;
   justCompleted?: boolean | undefined;
   onToggleSpeech?: ((text: string) => Promise<void>) | undefined;
+  onRateReply?: ((rating: ReplyRating, reply: string) => void) | undefined;
   onPreviewAttachment?: ((attachment: RendererAttachment) => void) | undefined;
   onResolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
 }
@@ -881,6 +887,7 @@ function EventViewContent({
   streaming,
   justCompleted,
   onToggleSpeech,
+  onRateReply,
   onPreviewAttachment,
   onResolveApproval,
 }: EventViewProps) {
@@ -963,6 +970,9 @@ function EventViewContent({
               <SpeakerHigh size={14} aria-hidden="true" />
             )}
           </button>
+        ) : null}
+        {event.role === 'assistant' && onRateReply && !streaming ? (
+          <ReplyFeedbackButtons onRate={(rating) => onRateReply(rating, event.content)} />
         ) : null}
       </header>
       <div
