@@ -35,8 +35,12 @@ export function NoticeText({
   return (
     <>
       <strong>{plain.title}</strong>
-      <p>{plain.message}</p>
-      <ErrorDetails detail={detail} />
+      {!explained ? (
+        <>
+          <p>{plain.message}</p>
+          <ErrorDetails detail={detail} />
+        </>
+      ) : null}
     </>
   );
 }
@@ -49,7 +53,7 @@ export function ThreadErrorText({
   error: string;
   explained?: boolean | undefined;
 }) {
-  // The same failure already reads in the conversation; the banner keeps only its action.
+  // The assistant's last reply already says exactly this; the banner keeps only its action.
   if (explained) return null;
   const plain = plainError(error);
   if (!plain) return <span>{error}</span>;
