@@ -14,7 +14,12 @@ import { showStorageStartup } from './storage-startup.js';
 import { requestMicrophonePermission } from './microphone-permission.js';
 import { contextMenuTemplate } from './context-menu.js';
 import { quitConfirmation, RendererRecovery } from './app-lifecycle.js';
-import { readWindowState, restoredBounds, WindowStateSaver } from './window-state.js';
+import {
+  readWindowState,
+  restoredBounds,
+  windowBackgroundColor,
+  WindowStateSaver,
+} from './window-state.js';
 
 import {
   app,
@@ -23,6 +28,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  nativeTheme,
   Notification,
   powerMonitor,
   screen,
@@ -226,7 +232,7 @@ async function performApplicationCreation(): Promise<void> {
     ...WINDOW_SIZE,
     ...(savedBounds ?? {}),
     show: false,
-    backgroundColor: '#0d1915',
+    backgroundColor: windowBackgroundColor(nativeTheme.shouldUseDarkColors),
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {
@@ -241,6 +247,12 @@ async function performApplicationCreation(): Promise<void> {
     },
   });
   mainWindow = window;
+  const matchSystemAppearance = () => {
+    if (!window.isDestroyed())
+      window.setBackgroundColor(windowBackgroundColor(nativeTheme.shouldUseDarkColors));
+  };
+  nativeTheme.on('updated', matchSystemAppearance);
+  window.once('closed', () => nativeTheme.off('updated', matchSystemAppearance));
   if (savedBounds && savedWindow?.maximized) window.maximize();
   const saveWindowState = () => {
     if (window.isDestroyed() || window.isMinimized() || window.isFullScreen()) return;

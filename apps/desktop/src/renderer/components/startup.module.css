@@ -132,6 +132,22 @@
     inset: 0;
   }
 }
+/* Light Macs: the curtain matches the light workspace (and the window's first paint), and only
+   the sidebar-colored blob stays dark. */
+@media (prefers-color-scheme: light) {
+  .startup {
+    background: #f4f6f2;
+  }
+  .loading {
+    color: #52625b;
+  }
+  .wordmark {
+    color: #173a34;
+  }
+  .pulse {
+    background: #2f7a58;
+  }
+}
 @media (forced-colors: active) {
   .startup {
     background: Canvas;

@@ -21,6 +21,14 @@ export interface WindowSize {
   minHeight: number;
 }
 
+/**
+ * The color the main window paints before the renderer's first frame. It matches the startup
+ * curtain for the system appearance, so a light-mode Mac does not flash dark at launch.
+ */
+export function windowBackgroundColor(dark: boolean): string {
+  return dark ? '#0d1915' : '#f4f6f2';
+}
+
 /** Visible pixels a restored window must keep on screen so it can still be dragged back. */
 const MINIMUM_VISIBLE = 120;
 

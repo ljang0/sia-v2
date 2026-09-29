@@ -50,6 +50,12 @@ describe('renderer accessibility CSS policy', () => {
     expect(css).toMatch(/prefers-reduced-motion:[^)]+\)[\s\S]+animation: none/);
   });
 
+  it('gives the startup curtain a light variant that matches the first window paint', () => {
+    expect(startup).toMatch(
+      /prefers-color-scheme: light\)[\s\S]*\.startup \{\s*background: #f4f6f2;/,
+    );
+  });
+
   it('keeps the supported 960px window usable at 200% browser text scaling', () => {
     expect(tokens).toMatch(/body\s*{[\s\S]*?min-width:\s*0/);
     expect(tokens).not.toMatch(/min-width:\s*640px/);

@@ -6,6 +6,7 @@ import {
   parseWindowState,
   readWindowState,
   restoredBounds,
+  windowBackgroundColor,
   WindowStateSaver,
 } from './window-state.js';
 
@@ -61,5 +62,12 @@ describe('window placement', () => {
     saver.schedule({ bounds: { x: 9, y: 9, width: 1000, height: 700 }, maximized: false });
     saver.flushNow();
     expect(JSON.parse(readFileSync(path, 'utf8')).bounds.x).toBe(9);
+  });
+});
+
+describe('launch background', () => {
+  it('matches the system appearance so light mode does not flash dark', () => {
+    expect(windowBackgroundColor(false)).toBe('#f4f6f2');
+    expect(windowBackgroundColor(true)).toBe('#0d1915');
   });
 });
