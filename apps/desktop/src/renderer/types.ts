@@ -437,6 +437,8 @@ export interface RendererSnapshot {
   voice: VoiceSettingsState;
   preferences: {
     completionSound: boolean;
+    /** Sia opens when the person logs in to their Mac. Off unless they turn it on. */
+    openAtLogin?: boolean;
     appearance?: 'calm' | 'expressive';
     onboarding?: OnboardingProgress;
   };
@@ -649,6 +651,7 @@ export interface RendererApi {
   setupMessages(): Promise<void>;
   setAppearance(appearance: 'calm' | 'expressive'): Promise<void>;
   setCompletionSound(enabled: boolean): Promise<void>;
+  setOpenAtLogin(enabled: boolean): Promise<void>;
   composeFeedback(
     message: string,
     threadId: string | undefined,

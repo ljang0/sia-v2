@@ -144,6 +144,8 @@ interface ControllerOptions {
   chooseFiles?(): Promise<string[]>;
   openPath?(path: string): Promise<void>;
   composeFeedback?(subject: string, body: string): Promise<void>;
+  /** Registers or removes Sia as a macOS login item. */
+  setOpenAtLogin?(enabled: boolean): void;
   appVersion?: string;
   updateManifestUrl?: string;
   updateManifestPublicKey?: string;
@@ -202,6 +204,7 @@ interface PersistedState {
   cloudFeatures: CloudFeatureFlags;
   preferences: {
     completionSound: boolean;
+    openAtLogin?: boolean;
     appearance?: 'calm' | 'expressive';
     onboarding?: NonNullable<DesktopSnapshot['preferences']['onboarding']>;
     /** All eligible actions run without in-app approval only when explicitly set to 'auto'. */
@@ -439,6 +442,7 @@ export class DesktopController {
   readonly #chooseFiles: (() => Promise<string[]>) | undefined;
   readonly #openPath: ((path: string) => Promise<void>) | undefined;
   readonly #composeFeedback: ((subject: string, body: string) => Promise<void>) | undefined;
+  readonly #setOpenAtLogin: ((enabled: boolean) => void) | undefined;
   readonly #appVersion: string;
   readonly #updateManifestUrl: string | undefined;
   readonly #updateManifestPublicKey: string | undefined;
@@ -549,6 +553,7 @@ export class DesktopController {
     this.#chooseFiles = options.chooseFiles;
     this.#openPath = options.openPath;
     this.#composeFeedback = options.composeFeedback;
+    this.#setOpenAtLogin = options.setOpenAtLogin;
     this.#appVersion = options.appVersion ?? 'development';
     this.#updateManifestUrl = options.updateManifestUrl;
     this.#updateManifestPublicKey = options.updateManifestPublicKey;
@@ -2000,6 +2005,14 @@ export class DesktopController {
         ).enabled;
         this.#commit();
         return this.snapshot() as BridgeResultMap[M];
+      case 'settings.setOpenAtLogin': {
+        const { enabled } = input as BridgeRequestMap['settings.setOpenAtLogin'];
+        if (!this.#setOpenAtLogin) throw new Error('Opening at login is unavailable here.');
+        this.#setOpenAtLogin(enabled);
+        this.#state.preferences.openAtLogin = enabled;
+        this.#commit();
+        return this.snapshot() as BridgeResultMap[M];
+      }
       case 'feedback.compose':
         return (await this.#composeFeedbackMessage(
           input as BridgeRequestMap['feedback.compose'],

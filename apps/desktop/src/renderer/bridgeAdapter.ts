@@ -437,6 +437,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async setCompletionSound(enabled) {
       publish(await bridge.settings.setCompletionSound(enabled));
     },
+    async setOpenAtLogin(enabled) {
+      publish(await bridge.settings.setOpenAtLogin(enabled));
+    },
     async composeFeedback(message, threadId, includeDiagnostics) {
       await bridge.feedback.compose(message, threadId, includeDiagnostics);
     },

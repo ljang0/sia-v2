@@ -80,6 +80,7 @@ async function createHarness(
     openPath?: (path: string) => Promise<void>;
     revealDirectory?: (path: string) => Promise<void>;
     composeFeedback?: (subject: string, body: string) => Promise<void>;
+    setOpenAtLogin?: (enabled: boolean) => void;
     appVersion?: string;
     updateManifestUrl?: string;
     updateManifestPublicKey?: string;
@@ -129,6 +130,7 @@ async function createHarness(
     ...(options.openPath ? { openPath: options.openPath } : {}),
     ...(options.revealDirectory ? { revealDirectory: options.revealDirectory } : {}),
     ...(options.composeFeedback ? { composeFeedback: options.composeFeedback } : {}),
+    ...(options.setOpenAtLogin ? { setOpenAtLogin: options.setOpenAtLogin } : {}),
     ...(options.appVersion ? { appVersion: options.appVersion } : {}),
     ...(options.updateManifestUrl ? { updateManifestUrl: options.updateManifestUrl } : {}),
     ...(options.updateManifestPublicKey
@@ -796,6 +798,29 @@ describe('DesktopController', () => {
       repository.get<{ preferences: { completionSound: boolean } }>('desktop', 'state')
         ?.preferences.completionSound,
     ).toBe(true);
+    await controller.shutdown();
+  });
+
+  it('registers Sia as a login item only when the person turns it on', async () => {
+    const setOpenAtLogin = vi.fn();
+    const { controller, repository } = await createHarness({ setOpenAtLogin });
+    expect(controller.snapshot().preferences.openAtLogin).toBeUndefined();
+
+    const updated = await controller.invoke('settings.setOpenAtLogin', { enabled: true });
+    expect(setOpenAtLogin).toHaveBeenCalledWith(true);
+    expect(updated.preferences.openAtLogin).toBe(true);
+    expect(
+      repository.get<{ preferences: { openAtLogin?: boolean } }>('desktop', 'state')
+        ?.preferences.openAtLogin,
+    ).toBe(true);
+
+    setOpenAtLogin.mockImplementationOnce(() => {
+      throw new Error('Opening at login is available in the installed Sia app.');
+    });
+    await expect(
+      controller.invoke('settings.setOpenAtLogin', { enabled: false }),
+    ).rejects.toThrow('installed Sia app');
+    expect(controller.snapshot().preferences.openAtLogin).toBe(true);
     await controller.shutdown();
   });
 

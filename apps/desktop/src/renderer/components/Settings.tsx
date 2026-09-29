@@ -30,6 +30,7 @@ import { PhoneRemoteSettings } from './settings/PhoneRemoteSettings';
 import { ScottySettings } from './settings/ScottySettings';
 import { AppearanceSettings } from './settings/AppearanceSettings';
 import { VoiceSettings } from './settings/VoiceSettings';
+import { StartupSettings } from './settings/StartupSettings';
 
 export type SettingsSection =
   | 'appearance'
@@ -91,6 +92,7 @@ interface SettingsProps {
   onStartSetup?: (() => void) | undefined;
   onSetAppearance?: ((appearance: 'calm' | 'expressive') => Promise<void>) | undefined;
   onSetCompletionSound(enabled: boolean): Promise<void>;
+  onSetOpenAtLogin?: ((enabled: boolean) => Promise<void>) | undefined;
   onSetCapturePaused(paused: boolean): Promise<void>;
   onExport(): Promise<void>;
   onDelete(): Promise<void>;
@@ -140,6 +142,7 @@ export function Settings({
   onDisconnectVoice,
   onSetAppearance,
   onSetCompletionSound,
+  onSetOpenAtLogin,
   onStartSetup,
   onConfigurePushToTalk,
   onSetCapturePaused,
@@ -364,6 +367,12 @@ export function Settings({
               onSetComputerTrust={onSetComputerTrust}
               onSetTrajectoryLog={onSetTrajectoryLog}
               onRevealTrajectories={onRevealTrajectories}
+            />
+          ) : null}
+          {section === 'computer' && onSetOpenAtLogin ? (
+            <StartupSettings
+              openAtLogin={snapshot.preferences.openAtLogin === true}
+              onSetOpenAtLogin={onSetOpenAtLogin}
             />
           ) : null}
           {section === 'voice' ? (

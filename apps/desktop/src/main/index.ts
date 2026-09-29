@@ -12,6 +12,9 @@ import { join } from 'node:path';
 import { openApplicationRepository } from './application-repository.js';
 import { showStorageStartup } from './storage-startup.js';
 import { requestMicrophonePermission } from './microphone-permission.js';
+import { contextMenuTemplate } from './context-menu.js';
+import { quitConfirmation, RendererRecovery } from './app-lifecycle.js';
+import { readWindowState, restoredBounds, WindowStateSaver } from './window-state.js';
 
 import {
   app,
@@ -22,6 +25,7 @@ import {
   Menu,
   Notification,
   powerMonitor,
+  screen,
   session,
   shell,
 } from 'electron';
@@ -64,6 +68,7 @@ import {
 import { nativeVoiceHelperFactory } from './push-to-talk.js';
 
 const APP_ORIGIN = 'app://sia';
+const WINDOW_SIZE = { width: 1220, height: 780, minWidth: 960, minHeight: 640 };
 const PRODUCTION_CSP =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'; font-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'";
 const DEVELOPMENT_CSP =
@@ -84,9 +89,14 @@ let controller: DesktopController | undefined;
 let unregisterIpc: (() => void) | undefined;
 let sessionSecurityConfigured = false;
 let shutdownStarted = false;
+/** Set once quitting needs no further confirmation (confirmed, relaunching, or Mac shutdown). */
+let quitConfirmed = false;
+let quitPrompt: Promise<void> | undefined;
 let creationInFlight: Promise<void> | undefined;
 let startupFailureReported = false;
 let unsubscribeDockBadge: (() => void) | undefined;
+let windowStateSaver: WindowStateSaver | undefined;
+const rendererRecovery = new RendererRecovery();
 const notificationTimes = new Map<string, number>();
 const liveNotifications = new Set<Notification>();
 
@@ -108,6 +118,18 @@ if (!gotLock) {
   app.on('activate', () => showOrCreateApplicationWindow());
 
   app.on('before-quit', (event) => {
+    const confirmation =
+      !quitConfirmed && !shutdownStarted && controller
+        ? quitConfirmation(controller.snapshot())
+        : undefined;
+    if (confirmation) {
+      event.preventDefault();
+      quitPrompt ??= confirmQuit(confirmation).finally(() => {
+        quitPrompt = undefined;
+      });
+      return;
+    }
+    windowStateSaver?.flushNow();
     phoneRemote?.dispose();
     phoneRemote = undefined;
     scotty?.dispose();
@@ -130,7 +152,16 @@ if (!gotLock) {
     unregisterIpc = undefined;
   });
 
-  void app.whenReady().then(createApplication).catch(reportStartupFailure);
+  void app
+    .whenReady()
+    .then(() => {
+      // macOS is logging out or shutting down: never hold that up with a quit question.
+      powerMonitor.on('shutdown', () => {
+        quitConfirmed = true;
+      });
+      return createApplication();
+    })
+    .catch(reportStartupFailure);
 }
 
 async function completeShutdown(closingController: DesktopController): Promise<void> {
@@ -183,12 +214,20 @@ async function performApplicationCreation(): Promise<void> {
   const developmentMode = !app.isPackaged;
   const fakeServices = developmentMode && process.env.SIA_FAKE_SERVICES === '1';
   const rendererDevUrl = developmentMode ? process.env.ELECTRON_RENDERER_URL : undefined;
+  const windowStatePath = join(app.getPath('userData'), 'window-state.json');
+  const savedWindow = readWindowState(windowStatePath);
+  const savedBounds = savedWindow
+    ? restoredBounds(
+        savedWindow.bounds,
+        screen.getDisplayMatching(savedWindow.bounds).workArea,
+        WINDOW_SIZE,
+      )
+    : undefined;
+  windowStateSaver ??= new WindowStateSaver(windowStatePath);
   const window = new BrowserWindow({
     title: 'Sia',
-    width: 1220,
-    height: 780,
-    minWidth: 960,
-    minHeight: 640,
+    ...WINDOW_SIZE,
+    ...(savedBounds ?? {}),
     show: false,
     backgroundColor: '#0d1915',
     titleBarStyle: 'hiddenInset',
@@ -205,6 +244,35 @@ async function performApplicationCreation(): Promise<void> {
     },
   });
   mainWindow = window;
+  if (savedBounds && savedWindow?.maximized) window.maximize();
+  const saveWindowState = () => {
+    if (window.isDestroyed() || window.isMinimized() || window.isFullScreen()) return;
+    windowStateSaver?.schedule({
+      bounds: window.getNormalBounds(),
+      maximized: window.isMaximized(),
+    });
+  };
+  window.on('resize', saveWindowState);
+  window.on('move', saveWindowState);
+  window.on('maximize', saveWindowState);
+  window.on('unmaximize', saveWindowState);
+  window.on('close', () => {
+    saveWindowState();
+    windowStateSaver?.flushNow();
+  });
+  window.webContents.on('context-menu', (_event, params) => {
+    const template = contextMenuTemplate(params, {
+      replaceMisspelling: (word) => window.webContents.replaceMisspelling(word),
+      addToDictionary: (word) => {
+        window.webContents.session.addWordToSpellCheckerDictionary(word);
+      },
+      copyLink: (url) => clipboard.writeText(url),
+      ...(process.platform === 'darwin'
+        ? { lookUp: () => window.webContents.showDefinitionForSelection() }
+        : {}),
+    });
+    if (template.length) Menu.buildFromTemplate(template).popup({ window });
+  });
 
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (isSafeExternal(url)) void shell.openExternal(url);
@@ -216,6 +284,26 @@ async function performApplicationCreation(): Promise<void> {
   window.webContents.on('render-process-gone', (_event, details) => {
     controller?.releaseRendererVoiceCapture();
     console.error('Renderer exited', { reason: details.reason, exitCode: details.exitCode });
+    if (window.isDestroyed() || shutdownStarted) return;
+    if (rendererRecovery.shouldReload(details.reason)) {
+      window.webContents.reload();
+      return;
+    }
+    void dialog
+      .showMessageBox(window, {
+        type: 'error',
+        title: 'Sia’s window keeps closing',
+        message: 'Sia’s window stopped working several times in a row.',
+        detail: 'Your conversations are saved. Try reloading, or quit and reopen Sia.',
+        buttons: ['Reload', 'Quit Sia'],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true,
+      })
+      .then(({ response }) => {
+        if (response === 0 && !window.isDestroyed()) window.webContents.reload();
+        else if (response === 1) app.quit();
+      });
   });
   window.once('ready-to-show', () => window.show());
   window.on('closed', () => {
@@ -350,6 +438,11 @@ async function performApplicationCreation(): Promise<void> {
       openPath: async (path) => {
         const error = await shell.openPath(path);
         if (error) throw new Error(error);
+      },
+      setOpenAtLogin: (enabled) => {
+        if (process.platform !== 'darwin' || !app.isPackaged)
+          throw new Error('Opening at login is available in the installed Sia app.');
+        app.setLoginItemSettings({ openAtLogin: enabled });
       },
       composeFeedback: async (subject, body) => {
         const mailto = new URL('mailto:support@superintelligentagents.ai');
@@ -632,7 +725,30 @@ async function performApplicationCreation(): Promise<void> {
   void activeController.resumeCodexSetup().catch(() => undefined);
 }
 
+async function confirmQuit(
+  confirmation: NonNullable<ReturnType<typeof quitConfirmation>>,
+): Promise<void> {
+  const options = {
+    type: 'warning' as const,
+    title: 'Quit Sia?',
+    message: confirmation.message,
+    detail: confirmation.detail,
+    buttons: ['Quit', 'Cancel'],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  };
+  const parent = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+  const { response } = parent
+    ? await dialog.showMessageBox(parent, options)
+    : await dialog.showMessageBox(options);
+  if (response !== 0) return;
+  quitConfirmed = true;
+  app.quit();
+}
+
 function relaunchApplication(): void {
+  quitConfirmed = true;
   if (process.platform === 'darwin' && !app.isPackaged) {
     app.relaunch({
       execPath: '/usr/bin/open',

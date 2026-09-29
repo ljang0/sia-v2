@@ -1122,6 +1122,11 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         current.preferences.completionSound = enabled;
       });
     },
+    async setOpenAtLogin(enabled) {
+      mutate((current) => {
+        current.preferences.openAtLogin = enabled;
+      });
+    },
     async composeFeedback() {},
     async checkForUpdates() {
       mutate((current) => {
