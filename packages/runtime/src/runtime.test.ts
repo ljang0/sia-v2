@@ -1653,7 +1653,7 @@ describe('Notch-style native Mac sessions', () => {
       await adapter.dispose();
     }
   });
-  it('gives id-less provider questions distinct request ids', async () => {
+  it('answers Codex request_user_input questions by id with distinct request ids', async () => {
     const peers = linkedPeers();
     const answers: unknown[] = [];
     peers.server.onRequest(async (method, params) => {
@@ -1674,16 +1674,35 @@ describe('Notch-style native Mac sessions', () => {
       if (method === 'turn/start') {
         setImmediate(() => {
           void (async () => {
+            const question = (id: string, text: string, options: string[] | null = null) => ({
+              id,
+              header: `About ${id}`,
+              question: text,
+              isOther: false,
+              isSecret: false,
+              options: options?.map((label) => ({ label, description: '' })) ?? null,
+            });
             answers.push(
-              ...(await Promise.all(
-                ['first', 'second'].map((question) =>
-                  peers.server.request('item/tool/requestUserInput', {
-                    threadId: 'native-questions',
-                    turnId: 'native-turn',
-                    question,
-                  }),
-                ),
-              )),
+              ...(await Promise.all([
+                peers.server.request('item/tool/requestUserInput', {
+                  threadId: 'native-questions',
+                  turnId: 'native-turn',
+                  itemId: 'ask-1',
+                  isBlocking: true,
+                  autoResolutionMs: null,
+                  questions: [
+                    question('size', 'Which size?', ['Small', 'Large']),
+                    question('color', 'Which color?'),
+                  ],
+                }),
+                peers.server.request('item/tool/requestUserInput', {
+                  threadId: 'native-questions',
+                  turnId: 'native-turn',
+                  isBlocking: true,
+                  autoResolutionMs: null,
+                  questions: [question('size', 'Which size again?')],
+                }),
+              ])),
             );
             await peers.server.notify('turn/completed', {
               threadId: 'native-questions',
@@ -1717,19 +1736,26 @@ describe('Notch-style native Mac sessions', () => {
         baseInstructions: 'You are Sia.',
       });
       const requestIds: string[] = [];
+      const prompts: string[] = [];
       for await (const event of adapter.sendTurn(session, { turnId: 'turn', text: 'Ask me' })) {
         if (event.type !== 'question' || event.payload.phase !== 'requested') continue;
         requestIds.push(event.payload.requestId);
+        prompts.push(event.payload.prompt);
         await adapter.respondToRequest(session, {
           requestId: event.payload.requestId,
-          text: `answer ${requestIds.length}`,
+          text: event.payload.prompt.includes('again')
+            ? 'Medium'
+            : event.payload.prompt.includes('size')
+              ? 'Large'
+              : 'Blue',
         });
       }
-      expect(requestIds).toHaveLength(2);
-      expect(new Set(requestIds).size).toBe(2);
+      expect(requestIds).toHaveLength(3);
+      expect(new Set(requestIds).size).toBe(3);
+      expect(prompts).toContain('About size\nWhich size?\nOptions: Small, Large');
       expect(answers).toEqual([
-        { answers: { answer: 'answer 1' } },
-        { answers: { answer: 'answer 2' } },
+        { answers: { size: { answers: ['Large'] }, color: { answers: ['Blue'] } } },
+        { answers: { size: { answers: ['Medium'] } } },
       ]);
     } finally {
       clock.mockRestore();

@@ -1316,25 +1316,46 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       }
     }
     if (method.includes('requestUserInput')) {
-      const requestId =
-        stringAt(params, ['requestId'], ['itemId'], ['id']) ?? `${method}:${randomUUID()}`;
       const active = this.#findActive(params);
       if (!active) throw new Error('Approval does not belong to an active turn');
-      active.queue.push(
-        active.events.create('question', {
-          requestId,
-          phase: 'requested',
-          prompt: stringAt(params, ['question'], ['prompt']) ?? 'Codex needs input',
-        }),
-      );
-      const response = await new Promise<ProviderRequestResponse>((resolve, reject) => {
-        this.#pendingRequests.set(requestId, {
-          resolve,
-          reject,
-          nativeThreadId: active.session.nativeId,
+      // Codex asks one or more questions and expects answers keyed by question id,
+      // each as { answers: [...] }. Ask them one at a time in the conversation.
+      const itemId = stringAt(params, ['itemId']) ?? randomUUID();
+      const questions = Array.isArray(record(params).questions)
+        ? (record(params).questions as unknown[]).map(record)
+        : [];
+      const answers: Record<string, { answers: string[] }> = {};
+      for (const [index, question] of questions.entries()) {
+        const questionId = stringAt(question, ['id']) ?? `question-${index + 1}`;
+        const requestId = `${method}:${itemId}:${questionId}`;
+        const options = Array.isArray(question.options)
+          ? question.options
+              .map((option) => stringAt(record(option), ['label']))
+              .filter((label): label is string => Boolean(label))
+          : [];
+        const prompt =
+          [stringAt(question, ['header']), stringAt(question, ['question'])]
+            .filter(Boolean)
+            .join('\n') || 'Codex needs input';
+        active.queue.push(
+          active.events.create('question', {
+            requestId,
+            phase: 'requested',
+            prompt: options.length ? `${prompt}\nOptions: ${options.join(', ')}` : prompt,
+          }),
+        );
+        const response = await new Promise<ProviderRequestResponse>((resolve, reject) => {
+          this.#pendingRequests.set(requestId, {
+            resolve,
+            reject,
+            nativeThreadId: active.session.nativeId,
+          });
         });
-      });
-      return { answers: response.text ? { answer: response.text } : {} };
+        // A turn that ended (or a denial) resolves without text: stop asking.
+        if (response.text === undefined) break;
+        answers[questionId] = { answers: [response.text] };
+      }
+      return { answers };
     }
     throw Object.assign(new Error(`Unsupported Codex request ${method}`), { code: -32601 });
   }
