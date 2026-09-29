@@ -7544,6 +7544,54 @@ describe('follow-up messages while a turn runs', () => {
     }
   });
 
+  it('Try again and Edit replace the last exchange and start from the conversation before it', async () => {
+    const { runtime, turns, release } = followUpRuntime();
+    const releaseSession = vi.fn(async () => undefined);
+    const { controller, threadId, thread } = await startThread({ ...runtime, releaseSession });
+    const transcript = () =>
+      controller
+        .snapshot()
+        .timeline.filter(
+          (item) =>
+            item.threadId === threadId && (item.kind === 'user' || item.kind === 'assistant'),
+        )
+        .sort((left, right) => left.sequence - right.sequence)
+        .map(({ text }) => text);
+    const finish = async (count: number) => {
+      await vi.waitFor(() => expect(turns).toHaveLength(count));
+      await vi.waitFor(() => expect(release.has(turns.at(-1)!.turnId)).toBe(true));
+      release.get(turns.at(-1)!.turnId)!();
+      await vi.waitFor(() => expect(thread().status).toBe('idle'));
+    };
+    try {
+      await controller.invoke('threads.send', { threadId, text: 'Plan a trip' });
+      await expect(controller.invoke('threads.redo', { threadId })).rejects.toThrow(
+        'Wait for Sia to finish',
+      );
+      await finish(1);
+      await controller.invoke('threads.send', { threadId, text: 'Somewhere warm' });
+      await finish(2);
+      expect(transcript()).toEqual(['Plan a trip', 'Reply 1', 'Somewhere warm', 'Reply 2']);
+
+      await controller.invoke('threads.redo', { threadId });
+      expect(releaseSession).toHaveBeenCalledWith(threadId);
+      await finish(3);
+      expect(transcript()).toEqual(['Plan a trip', 'Reply 1', 'Somewhere warm', 'Reply 3']);
+      // The replaced reply is not part of what the provider sees.
+      expect(turns[2]!.text).toContain('Somewhere warm');
+      expect(turns[2]!.thread.priorMessages?.map(({ text }) => text)).toEqual([
+        'Plan a trip',
+        'Reply 1',
+      ]);
+
+      await controller.invoke('threads.redo', { threadId, text: 'Somewhere cold' });
+      await finish(4);
+      expect(transcript()).toEqual(['Plan a trip', 'Reply 1', 'Somewhere cold', 'Reply 4']);
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
   it('attaches a pasted screenshot to a follow-up sent while the turn runs', async () => {
     const root = await mkdtemp(join(tmpdir(), 'sia-pasted-'));
     const { runtime, turns, release } = followUpRuntime();

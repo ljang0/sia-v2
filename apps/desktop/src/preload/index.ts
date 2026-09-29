@@ -68,6 +68,12 @@ const api: DesktopBridgeApi = {
     delete: (threadId) => invoke('threads.delete', { threadId }),
     send: (input) => invoke('threads.send', input),
     retry: (threadId) => invoke('threads.retry', { threadId }),
+    redo: (threadId, text, attachmentIds) =>
+      invoke('threads.redo', {
+        threadId,
+        ...(text ? { text } : {}),
+        ...(attachmentIds?.length ? { attachmentIds: [...attachmentIds] } : {}),
+      }),
     cancel: (threadId) => invoke('threads.cancel', { threadId }),
     unqueue: (threadId, messageId) => invoke('threads.unqueue', { threadId, messageId }),
     steer: (threadId, messageId) => invoke('threads.steer', { threadId, messageId }),

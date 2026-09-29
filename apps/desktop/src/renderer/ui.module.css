@@ -7670,3 +7670,25 @@ button.agentAvatar {
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
 }
+
+.messageEditor {
+  display: grid;
+  gap: 8px;
+}
+
+.messageEditor textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  font: inherit;
+  resize: vertical;
+}
+
+.messageEditor > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

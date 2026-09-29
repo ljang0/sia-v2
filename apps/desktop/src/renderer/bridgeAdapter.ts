@@ -328,6 +328,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       const result = await bridge.threads.retry(threadId);
       publish(result.snapshot);
     },
+    async redoLastMessage(threadId, text) {
+      publish((await bridge.threads.redo(threadId, text)).snapshot);
+    },
     async setCapturePaused(paused) {
       publish(
         await bridge.research.setCapture(

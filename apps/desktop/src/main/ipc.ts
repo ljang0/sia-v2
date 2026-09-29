@@ -113,6 +113,13 @@ const inputSchemas = {
       message: 'Enter a message or attach a file.',
     }),
   'threads.retry': z.object({ threadId: identifier }).strict(),
+  'threads.redo': z
+    .object({
+      threadId: identifier,
+      text: z.string().trim().max(200_000).optional(),
+      attachmentIds: z.array(identifier).max(20).optional(),
+    })
+    .strict(),
   'threads.cancel': z.object({ threadId: identifier }).strict(),
   'threads.unqueue': z.object({ threadId: identifier, messageId: identifier }).strict(),
   'threads.steer': z.object({ threadId: identifier, messageId: identifier }).strict(),

@@ -11,6 +11,7 @@ import {
   FolderSimple,
   ImageSquare,
   MagnifyingGlass,
+  PencilSimple,
   SpeakerHigh,
   SpinnerGap,
   StopCircle,
@@ -100,6 +101,8 @@ interface ConversationProps {
   /** "Send now" on a queued message while the thread runs. */
   onSendQueuedNow?: ((messageId: string) => Promise<void>) | undefined;
   onRetry(): Promise<void>;
+  /** Edit (new text) or Try again (no text) on the last exchange once the task has ended. */
+  onRedo?: ((text?: string) => Promise<void>) | undefined;
   onResolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
   /** Thumbs up or down on a reply opens a feedback draft about it. */
   onRateReply?: ((rating: ReplyRating, reply: string) => void) | undefined;
@@ -148,6 +151,7 @@ export function Conversation({
   onRemoveQueued,
   onSendQueuedNow,
   onRetry,
+  onRedo,
   onResolveApproval,
   onRateReply,
   onCreateThread,
@@ -433,6 +437,7 @@ export function Conversation({
         return result.kind === 'image' ? result.dataUrl : undefined;
       },
       rateReply: (rating, reply) => onRateReply?.(rating, reply),
+      redo: (text) => onRedo?.(text) ?? Promise.resolve(),
       resolveApproval: async (approvalId, decision) => {
         setBusyApprovalId(approvalId);
         try {
@@ -456,6 +461,7 @@ export function Conversation({
       loadThumbnail: (attachment) =>
         latestRowActions.current?.loadThumbnail(attachment) ?? Promise.resolve(undefined),
       rateReply: (rating, reply) => latestRowActions.current?.rateReply(rating, reply),
+      redo: (text) => latestRowActions.current?.redo(text) ?? Promise.resolve(),
       resolveApproval: (approvalId, decision) =>
         latestRowActions.current?.resolveApproval(approvalId, decision) ?? Promise.resolve(),
     }),
@@ -531,6 +537,14 @@ export function Conversation({
       : undefined;
   const outlineAvailable = hasConversationOutline(thread.events);
   const resultId = completedReplyId(thread);
+  // Edit and Try again change only the last exchange, and only once nothing is in flight.
+  const redoable =
+    Boolean(onRedo) &&
+    (thread.status === 'idle' || thread.status === 'error') &&
+    !thread.queuedMessages?.length &&
+    lastUserEventIndex >= 0;
+  const editableEventId = redoable ? thread.events[lastUserEventIndex]?.id : undefined;
+  const tryAgainEventId = redoable ? currentAssistantEventId : undefined;
   const turnActive = running || waiting;
   const currentStep = running
     ? thread.events
@@ -584,6 +598,8 @@ export function Conversation({
         speakable={Boolean(voiceEnabled && onSpeak)}
         previewable={Boolean(onPreviewAttachment)}
         rateable={Boolean(onRateReply)}
+        editable={event.id === editableEventId}
+        retryable={event.id === tryAgainEventId}
       />
     );
   };
@@ -978,6 +994,10 @@ interface EventViewProps {
   justCompleted?: boolean | undefined;
   onToggleSpeech?: ((text: string) => Promise<void>) | undefined;
   onRateReply?: ((rating: ReplyRating, reply: string) => void) | undefined;
+  /** Replaces the last message with new text and asks again. */
+  onEditMessage?: ((text: string) => Promise<void>) | undefined;
+  /** Asks the last message again for a new reply. */
+  onTryAgain?: (() => Promise<void>) | undefined;
   onPreviewAttachment?: ((attachment: RendererAttachment) => void) | undefined;
   onLoadThumbnail?:
     ((attachment: RendererAttachment) => Promise<string | undefined>) | undefined;
@@ -990,6 +1010,7 @@ interface RowActions {
   previewAttachment(attachment: RendererAttachment): void;
   loadThumbnail(attachment: RendererAttachment): Promise<string | undefined>;
   rateReply(rating: ReplyRating, reply: string): void;
+  redo(text?: string): Promise<void>;
   resolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
 }
 
@@ -1000,6 +1021,8 @@ interface ConversationRowProps extends Omit<
   | 'onLoadThumbnail'
   | 'onResolveApproval'
   | 'onRateReply'
+  | 'onEditMessage'
+  | 'onTryAgain'
 > {
   actions: RowActions;
   findMatch: boolean;
@@ -1007,6 +1030,8 @@ interface ConversationRowProps extends Omit<
   speakable: boolean;
   previewable: boolean;
   rateable: boolean;
+  editable: boolean;
+  retryable: boolean;
 }
 
 /** One transcript row. Memoized so streaming into the last reply leaves earlier rows alone. */
@@ -1017,6 +1042,8 @@ const ConversationRow = memo(function ConversationRow({
   speakable,
   previewable,
   rateable,
+  editable,
+  retryable,
   ...view
 }: ConversationRowProps) {
   const { event } = view;
@@ -1034,6 +1061,8 @@ const ConversationRow = memo(function ConversationRow({
         onPreviewAttachment={previewable ? actions.previewAttachment : undefined}
         onLoadThumbnail={previewable ? actions.loadThumbnail : undefined}
         onRateReply={rateable ? actions.rateReply : undefined}
+        onEditMessage={editable ? (text) => actions.redo(text) : undefined}
+        onTryAgain={retryable ? () => actions.redo() : undefined}
         onResolveApproval={actions.resolveApproval}
       />
     </div>
@@ -1063,10 +1092,24 @@ function EventViewContent({
   justCompleted,
   onToggleSpeech,
   onRateReply,
+  onEditMessage,
+  onTryAgain,
   onPreviewAttachment,
   onLoadThumbnail,
   onResolveApproval,
 }: EventViewProps) {
+  const [editDraft, setEditDraft] = useState<string>();
+  const [redoing, setRedoing] = useState(false);
+  const editing = editDraft !== undefined && Boolean(onEditMessage);
+  const redo = (action: () => Promise<void>) => {
+    setRedoing(true);
+    void action()
+      .then(
+        () => setEditDraft(undefined),
+        () => undefined,
+      )
+      .finally(() => setRedoing(false));
+  };
   if (event.type === 'activity') return <ActivityRow event={event} />;
   if (event.type === 'approval') {
     return (
@@ -1125,6 +1168,31 @@ function EventViewContent({
         {event.role === 'assistant' ? <ReplyReadyMark ready={Boolean(completed)} /> : null}
         <time dateTime={event.timestamp}>{formatTime(event.timestamp)}</time>
         <CopyMessageButton content={event.content} />
+        {event.role === 'user' && onEditMessage && !editing ? (
+          <button
+            type="button"
+            className={styles.messageActionButton}
+            onClick={() => setEditDraft(event.content)}
+            aria-label="Edit message"
+            title="Edit message"
+            data-testid="message-edit"
+          >
+            <PencilSimple size={14} aria-hidden="true" />
+          </button>
+        ) : null}
+        {event.role === 'assistant' && onTryAgain && !streaming ? (
+          <button
+            type="button"
+            className={styles.messageActionButton}
+            onClick={() => redo(onTryAgain)}
+            disabled={redoing}
+            aria-label="Try again"
+            title="Ask again for a new reply"
+            data-testid="message-try-again"
+          >
+            <ArrowClockwise size={14} aria-hidden="true" />
+          </button>
+        ) : null}
         {event.role === 'assistant' && onToggleSpeech ? (
           <button
             type="button"
@@ -1157,7 +1225,54 @@ function EventViewContent({
         className={`${styles.messageContent} ${streaming ? styles.streamingContent : ''}`}
         data-streaming={streaming ? 'true' : undefined}
       >
-        {event.role === 'user' ? (
+        {editing ? (
+          <form
+            className={styles.messageEditor}
+            onSubmit={(submit) => {
+              submit.preventDefault();
+              const text = editDraft.trim();
+              if (text) redo(() => onEditMessage!(text));
+            }}
+          >
+            <textarea
+              aria-label="Edit message"
+              value={editDraft}
+              autoFocus
+              rows={Math.min(8, Math.max(2, editDraft.split('\n').length))}
+              onChange={(change) => setEditDraft(change.target.value)}
+              onKeyDown={(key) => {
+                if (key.key === 'Escape') {
+                  key.preventDefault();
+                  key.stopPropagation();
+                  setEditDraft(undefined);
+                } else if (
+                  key.key === 'Enter' &&
+                  !key.shiftKey &&
+                  !key.nativeEvent.isComposing
+                ) {
+                  key.preventDefault();
+                  key.currentTarget.form?.requestSubmit();
+                }
+              }}
+            />
+            <div>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => setEditDraft(undefined)}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className={styles.primaryButton}
+                disabled={redoing || !editDraft.trim()}
+              >
+                {redoing ? 'Sending…' : 'Send'}
+              </button>
+            </div>
+          </form>
+        ) : event.role === 'user' ? (
           // What the person typed is shown verbatim; snake_case must not become italics.
           <p>{event.content}</p>
         ) : (

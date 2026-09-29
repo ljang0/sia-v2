@@ -612,6 +612,8 @@ export interface RendererApi {
   steerQueuedMessage(threadId: string, messageId: string): Promise<void>;
   respondToApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
   retryThread(threadId: string): Promise<void>;
+  /** Replaces the last exchange: new text edits the last message, none asks it again. */
+  redoLastMessage(threadId: string, text?: string): Promise<void>;
   setCapturePaused(paused: boolean): Promise<void>;
   declineResearchConsent(): Promise<void>;
   openProviderSetup(provider: ProviderId): Promise<void>;

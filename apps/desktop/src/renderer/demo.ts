@@ -892,6 +892,29 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         }
       });
     },
+    async redoLastMessage(threadId, text) {
+      mutate((current) => {
+        const thread = current.activeThread;
+        if (thread?.id !== threadId) return;
+        const index = thread.events.findLastIndex(
+          (event) => event.type === 'message' && event.role === 'user',
+        );
+        const last = thread.events[index];
+        if (last?.type !== 'message') return;
+        thread.error = undefined;
+        thread.events = [
+          ...thread.events.slice(0, index),
+          { ...last, content: text?.trim() || last.content },
+          {
+            id: `demo-redo-${Date.now()}`,
+            type: 'message',
+            role: 'assistant',
+            content: 'Here is another take on that.',
+            timestamp: new Date().toISOString(),
+          },
+        ];
+      });
+    },
     async setCapturePaused(paused) {
       mutate((current) => {
         if (!paused) {

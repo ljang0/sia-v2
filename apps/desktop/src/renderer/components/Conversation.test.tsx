@@ -859,3 +859,70 @@ describe('Conversation follow-ups while running', () => {
     expect(screen.queryByRole('button', { name: 'Send now' })).toBeNull();
   });
 });
+
+describe('Conversation edit and try again', () => {
+  const exchange: ThreadDetail['events'] = [
+    {
+      id: 'user-1',
+      type: 'message',
+      role: 'user',
+      content: 'Plan a trip',
+      timestamp: '2026-09-28T00:00:00.000Z',
+    },
+    {
+      id: 'reply-1',
+      type: 'message',
+      role: 'assistant',
+      content: 'Where to?',
+      timestamp: '2026-09-28T00:00:01.000Z',
+    },
+    {
+      id: 'user-2',
+      type: 'message',
+      role: 'user',
+      content: 'Somewhere warm',
+      timestamp: '2026-09-28T00:00:02.000Z',
+    },
+    {
+      id: 'reply-2',
+      type: 'message',
+      role: 'assistant',
+      content: 'Try Lisbon.',
+      timestamp: '2026-09-28T00:00:03.000Z',
+    },
+  ];
+  const view = (status: ThreadDetail['status'], onRedo: (text?: string) => Promise<void>) => (
+    <Conversation
+      thread={baseThread({ status, events: exchange })}
+      onSend={vi.fn(async () => undefined)}
+      onStop={vi.fn(async () => undefined)}
+      onRedo={onRedo}
+      onRetry={async () => undefined}
+      onResolveApproval={async () => undefined}
+    />
+  );
+
+  it('offers Edit on the last message and Try again on the last reply once the task ends', async () => {
+    const onRedo = vi.fn(async (_text?: string) => undefined);
+    const { rerender } = render(view('idle', onRedo));
+    expect(screen.getAllByRole('button', { name: 'Edit message' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(onRedo).toHaveBeenCalledWith(undefined));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit message' }));
+    const editor = screen.getByRole('textbox', { name: 'Edit message' }) as HTMLTextAreaElement;
+    expect(editor.value).toBe('Somewhere warm');
+    fireEvent.change(editor, { target: { value: 'Somewhere cold' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(onRedo).toHaveBeenLastCalledWith('Somewhere cold'));
+    await waitFor(() =>
+      expect(screen.queryByRole('textbox', { name: 'Edit message' })).toBeNull(),
+    );
+
+    rerender(view('running', onRedo));
+    expect(screen.queryByRole('button', { name: 'Edit message' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+  });
+});

@@ -720,6 +720,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 onRetry={() =>
                   activeThread ? run(() => api.retryThread(activeThread.id)) : Promise.resolve()
                 }
+                onRedo={
+                  activeThread && online
+                    ? (text) => run(() => api.redoLastMessage(activeThread.id, text))
+                    : undefined
+                }
                 onRateReply={(rating, reply) => {
                   setFeedbackDraft(replyFeedbackDraft(rating, reply));
                   setFeedbackOpen(true);

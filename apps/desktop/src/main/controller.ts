@@ -1992,6 +1992,10 @@ export class DesktopController {
         return this.#retryTurn(
           (input as BridgeRequestMap['threads.retry']).threadId,
         ) as BridgeResultMap[M];
+      case 'threads.redo':
+        return (await this.#redoLastTurn(
+          input as BridgeRequestMap['threads.redo'],
+        )) as BridgeResultMap[M];
       case 'threads.unqueue':
         return this.#unqueueMessage(
           (input as BridgeRequestMap['threads.unqueue']).threadId,
@@ -3444,6 +3448,65 @@ export class DesktopController {
     thread.updatedAt = new Date().toISOString();
     this.#commit();
     return { turnId, snapshot: this.#resultSnapshot() };
+  }
+
+  /**
+   * Edit or Try again: replaces the thread's last exchange with a new turn. The last message
+   * and everything after it leave the transcript, and the provider starts a fresh session
+   * seeded with the conversation before it, so the old reply is not part of the context.
+   * Actions the agent already took stay done.
+   */
+  async #redoLastTurn(
+    input: BridgeRequestMap['threads.redo'],
+  ): Promise<BridgeResultMap['threads.redo']> {
+    const thread = this.#requireThread(input.threadId);
+    if (
+      !['idle', 'failed'].includes(thread.status) ||
+      this.#runningTurns.has(thread.id) ||
+      this.#queuedTurns.some((turn) => turn.threadId === thread.id) ||
+      this.#pendingQuestions.has(thread.id)
+    ) {
+      throw new Error('Wait for Sia to finish before changing the last message.');
+    }
+    const items = this.#state.timeline
+      .filter((item) => item.threadId === thread.id)
+      .sort((left, right) => left.sequence - right.sequence);
+    const last = items.findLast((item) => item.kind === 'user' && item.status === 'complete');
+    if (!last?.text) throw new Error('There is no message to change in this conversation.');
+    const text = input.text?.trim() || last.text;
+    // The original files go with the message again while their one-hour access lasts.
+    const attachmentIds = [
+      ...new Set([
+        ...(last.attachments ?? []).map(({ id }) => id),
+        ...(input.attachmentIds ?? []),
+      ]),
+    ];
+    for (const id of attachmentIds) {
+      const grant = this.#attachmentGrants.get(id);
+      if (!grant || grant.threadId !== thread.id || grant.expiresAt <= Date.now()) {
+        throw new Error(
+          'A file on this message is no longer available. Attach it again and send.',
+        );
+      }
+    }
+    const removed = new Set(items.filter((item) => item.sequence >= last.sequence));
+    const timeline = this.#state.timeline;
+    this.#state.timeline = timeline.filter((item) => !removed.has(item));
+    const previousStatus = thread.status;
+    thread.status = 'idle';
+    try {
+      // The next turn starts a fresh provider session from the remaining conversation.
+      void this.#runtime?.releaseSession(thread.id).catch(() => undefined);
+      return this.#sendTurn({
+        threadId: thread.id,
+        text,
+        ...(attachmentIds.length ? { attachmentIds } : {}),
+      });
+    } catch (error) {
+      this.#state.timeline = timeline;
+      thread.status = previousStatus;
+      throw error;
+    }
   }
 
   #retryTurn(threadId: string): BridgeResultMap['threads.retry'] {

@@ -648,6 +648,8 @@ export interface BridgeRequestMap {
   'threads.delete': { threadId: string };
   'threads.send': SendTurnInput;
   'threads.retry': { threadId: string };
+  /** Replaces the last exchange: Try again resends it, Edit sends new text in its place. */
+  'threads.redo': { threadId: string; text?: string; attachmentIds?: string[] };
   'threads.cancel': { threadId: string };
   /** Removes a queued follow-up (a pending user message) before it starts. */
   'threads.unqueue': { threadId: string; messageId: string };
@@ -781,6 +783,7 @@ export interface BridgeResultMap {
   'threads.delete': DesktopSnapshot;
   'threads.send': { turnId: string; snapshot: DesktopSnapshot };
   'threads.retry': { turnId: string; snapshot: DesktopSnapshot };
+  'threads.redo': { turnId: string; snapshot: DesktopSnapshot };
   'threads.cancel': DesktopSnapshot;
   'threads.unqueue': DesktopSnapshot;
   'threads.steer': DesktopSnapshot;
@@ -930,6 +933,11 @@ export interface DesktopBridgeApi {
     delete(threadId: string): Promise<DesktopSnapshot>;
     send(input: SendTurnInput): Promise<BridgeResultMap['threads.send']>;
     retry(threadId: string): Promise<BridgeResultMap['threads.retry']>;
+    redo(
+      threadId: string,
+      text?: string,
+      attachmentIds?: readonly string[],
+    ): Promise<BridgeResultMap['threads.redo']>;
     cancel(threadId: string): Promise<DesktopSnapshot>;
     unqueue(threadId: string, messageId: string): Promise<DesktopSnapshot>;
     steer(threadId: string, messageId: string): Promise<DesktopSnapshot>;

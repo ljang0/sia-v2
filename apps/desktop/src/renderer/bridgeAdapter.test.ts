@@ -132,6 +132,26 @@ describe('bridge renderer retry', () => {
   });
 });
 
+describe('bridge renderer edit and try again', () => {
+  it('sends Edit text and Try again through the redo method', async () => {
+    const initial = snapshot([]);
+    const redo = vi.fn(async () => ({
+      turnId: 'redo-turn',
+      snapshot: structuredClone(initial),
+    }));
+    const api = createBridgeRendererApi({
+      bootstrap: async () => initial,
+      threads: { redo },
+      subscribe: () => () => undefined,
+    } as unknown as DesktopBridgeApi);
+    await api.getSnapshot();
+    await api.redoLastMessage('thread-1');
+    expect(redo).toHaveBeenLastCalledWith('thread-1', undefined);
+    await api.redoLastMessage('thread-1', 'Somewhere cold');
+    expect(redo).toHaveBeenLastCalledWith('thread-1', 'Somewhere cold');
+  });
+});
+
 describe('bridge renderer selection', () => {
   it('preserves a local agent selection across background snapshots', async () => {
     const initial = snapshot([]);
