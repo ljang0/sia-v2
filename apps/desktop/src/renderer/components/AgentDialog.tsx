@@ -230,11 +230,8 @@ export function AgentDialog({
               <summary>
                 <span>Details</span>
                 <small>
-                  {draft.workspace
-                    ? workspaceName(draft.workspace)
-                    : selectedChoice
-                      ? `${selectedChoice.provider === 'codex' ? 'Codex' : 'Included model'} · Private folder`
-                      : 'Automatic model and private folder'}
+                  {/* Engine and folder names are details for people who open this. */}
+                  {draft.workspace ? workspaceName(draft.workspace) : 'Model and folder'}
                 </small>
               </summary>
               <div className={styles.agentAdvancedBody}>

@@ -131,7 +131,9 @@ describe('focus after actions that remove the focused control', () => {
     });
     fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }));
-    const dialog = await screen.findByRole('alertdialog', { name: 'Delete this thread?' });
+    const dialog = await screen.findByRole('alertdialog', {
+      name: 'Delete this conversation?',
+    });
     fireEvent.keyDown(dialog, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(trigger));

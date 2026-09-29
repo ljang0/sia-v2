@@ -739,6 +739,17 @@ button.agentAvatar {
   transition: background-color var(--motion-fast) var(--ease-standard);
 }
 
+.threadMenuItemText {
+  display: grid;
+  gap: 1px;
+}
+
+.threadMenuItemText small {
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+}
+
 .threadMenuItem[data-highlighted] {
   background: var(--bg-hover);
 }

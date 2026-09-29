@@ -572,12 +572,12 @@ export function Sidebar({
             className={styles.alertDialogContent}
             onCloseAutoFocus={restoreDialogFocus}
           >
-            <AlertDialog.Title>Delete this thread?</AlertDialog.Title>
+            <AlertDialog.Title>Delete this conversation?</AlertDialog.Title>
             <AlertDialog.Description>
-              This permanently removes “{shownDeletingThread?.title}” and its local transcript.
-              It does not change workspace files
+              “{shownDeletingThread?.title}” and its messages will be permanently removed from
+              Sia. Files on your Mac stay as they are
               {shownDeletingThread?.worktree?.kind === 'linked'
-                ? ' or remove its linked worktree.'
+                ? ', including its separate working copy.'
                 : '.'}
             </AlertDialog.Description>
             <div className={styles.dialogActions}>
@@ -606,7 +606,7 @@ export function Sidebar({
                   );
                 }}
               >
-                {pendingThreadAction ? 'Deleting...' : 'Delete thread'}
+                {pendingThreadAction ? 'Deleting…' : 'Delete conversation'}
               </button>
               {deletingThread?.worktree?.kind === 'linked' && onCleanupWorktree ? (
                 <button
@@ -840,20 +840,27 @@ function ThreadMenu({
           ) : null}
           <DropdownMenu.Item
             className={`${styles.threadMenuItem} ${styles.threadMenuDanger}`}
-            disabled={
-              thread.status === 'running' ||
-              thread.status === 'queued' ||
-              thread.status === 'waiting'
-            }
+            disabled={busy}
+            title={busy ? deleteBlockedReason(thread) : undefined}
             onSelect={() => onDelete(trigger.current)}
           >
             <Trash size={14} aria-hidden="true" />
-            Delete
+            <span className={styles.threadMenuItemText}>
+              Delete
+              {busy ? <small>{deleteBlockedReason(thread)}</small> : null}
+            </span>
           </DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
   );
+}
+
+/** Why Delete is unavailable, in words that say what to do about it. */
+function deleteBlockedReason(thread: ThreadSummary): string {
+  return thread.status === 'waiting'
+    ? 'Answer or stop the task first'
+    : 'Stop or finish the task first';
 }
 
 function AgentMenu({

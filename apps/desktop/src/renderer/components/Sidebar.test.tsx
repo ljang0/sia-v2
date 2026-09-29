@@ -268,9 +268,40 @@ describe('thread navigation', () => {
     );
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }));
 
-    expect(screen.getByRole('alertdialog', { name: 'Delete this thread?' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Delete thread' }));
+    const confirm = screen.getByRole('alertdialog', { name: 'Delete this conversation?' });
+    expect(confirm.textContent).toContain('Files on your Mac stay as they are');
+    expect(confirm.textContent).not.toMatch(/transcript|workspace/);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete conversation' }));
     await waitFor(() => expect(onDeleteThread).toHaveBeenCalledWith('thread-inbox'));
+  });
+  it('says why Delete is unavailable while a conversation waits on the person', async () => {
+    const agents = structuredClone(demoSnapshot.agents);
+    const waiting = agents
+      .flatMap(({ threads }) => threads)
+      .find(({ status }) => status === 'waiting')!;
+    render(
+      <Sidebar
+        agents={agents}
+        selectedAgentId={agents[0]!.id}
+        collapsed={false}
+        onToggle={vi.fn()}
+        onSelectAgent={vi.fn()}
+        onSelectThread={vi.fn()}
+        onCreateThread={vi.fn()}
+        onRenameThread={vi.fn()}
+        onDeleteThread={vi.fn()}
+        onCreateAgent={vi.fn()}
+        onEditAgent={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    );
+    fireEvent.pointerDown(
+      screen.getByRole('button', { name: `Thread actions for ${waiting.title}` }),
+      { button: 0, ctrlKey: false },
+    );
+    const remove = await screen.findByRole('menuitem', { name: /^Delete/ });
+    expect(remove.getAttribute('aria-disabled')).toBe('true');
+    expect(remove.textContent).toContain('Answer or stop the task first');
   });
   it('saves a rename on click-away, cancels on Escape, and badges closed groups that need you', async () => {
     const onRenameThread = vi.fn().mockResolvedValue(undefined);
