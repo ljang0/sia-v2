@@ -166,6 +166,35 @@ describe('bridge renderer selection', () => {
   });
 });
 
+describe('bridge renderer drafts', () => {
+  it('shows a saved draft without waiting for a snapshot from the main process', async () => {
+    const setDraft = vi.fn(async () => ({ saved: true as const }));
+    const initial = snapshot([]);
+    const bridge = {
+      bootstrap: async () => initial,
+      threads: { setDraft },
+      subscribe: () => () => undefined,
+    } as unknown as DesktopBridgeApi;
+    const api = createBridgeRendererApi(bridge);
+    await api.getSnapshot();
+    let latest: RendererSnapshot | undefined;
+    api.subscribe((value) => {
+      latest = value;
+    });
+
+    await api.saveDraft('thread-1', 'Finish the checklist');
+
+    expect(setDraft).toHaveBeenCalledWith('thread-1', 'Finish the checklist');
+    expect(latest?.agents[0]?.threads[0]?.draft).toBe('Finish the checklist');
+    expect(latest?.activeThread?.draft).toBe('Finish the checklist');
+
+    await api.saveDraft('thread-1', '');
+
+    expect(latest?.agents[0]?.threads[0]?.draft).toBeUndefined();
+    expect(latest?.activeThread?.draft).toBeUndefined();
+  });
+});
+
 describe('bridge renderer truthfulness', () => {
   it('passes the exact account-deletion confirmation through the typed bridge', async () => {
     const initial = snapshot([]);

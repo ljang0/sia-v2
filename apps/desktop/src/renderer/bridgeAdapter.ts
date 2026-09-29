@@ -112,8 +112,24 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       publish(await bridge.threads.rename(threadId, title));
     },
     async saveDraft(threadId, content) {
-      // The composer already shows the text; saving a draft sends no snapshot back.
+      // Saving a draft sends no snapshot back, so the Draft marker and preview update here;
+      // the next snapshot from the main process carries the same draft.
       await bridge.threads.setDraft(threadId, content);
+      const draft = content || undefined;
+      publishLocal((snapshot) => {
+        snapshot.agents = snapshot.agents.map((agent) =>
+          agent.threads.some((thread) => thread.id === threadId)
+            ? {
+                ...agent,
+                threads: agent.threads.map((thread) =>
+                  thread.id === threadId ? { ...thread, draft } : thread,
+                ),
+              }
+            : agent,
+        );
+        if (snapshot.activeThread?.id === threadId)
+          snapshot.activeThread = { ...snapshot.activeThread, draft };
+      });
     },
     async deleteThread(threadId) {
       publish(await bridge.threads.delete(threadId));
