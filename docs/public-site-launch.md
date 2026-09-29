@@ -3,12 +3,12 @@
 ## Live AWS surface
 
 - Stack: `sia-public-site`
-- AWS account: `677513020767`
+- AWS account: `<AWS account ID>`
 - Private origin bucket: `sia-public-site-sitebucket-pwwaws3jkmxb`
 - CloudFront distribution: `E3MFZH4OWO2B9C`
-- Staging URL: `https://dua821t8fcsc9.cloudfront.net/`
+- Staging URL: `https://<distribution>.cloudfront.net/`
 - Production URL: `https://superintelligentagents.ai/`
-- ACM certificate: `arn:aws:acm:us-east-1:677513020767:certificate/c49d6024-56b4-4d0c-99b0-f4643cedf266`
+- ACM certificate: `<ACM certificate ARN>`
 - Certificate state: `ISSUED`
 
 The origin blocks public access and accepts signed reads only from the named CloudFront distribution.
@@ -38,10 +38,10 @@ public resolvers. ACM reports `ISSUED`.
 
 ### Web traffic
 
-| Type  | Namecheap host | Value                          | TTL       |
-| ----- | -------------- | ------------------------------ | --------- |
-| ALIAS | `@`            | `dua821t8fcsc9.cloudfront.net` | Automatic |
-| CNAME | `www`          | `dua821t8fcsc9.cloudfront.net` | Automatic |
+| Type  | Namecheap host | Value                           | TTL       |
+| ----- | -------------- | ------------------------------- | --------- |
+| ALIAS | `@`            | `<distribution>.cloudfront.net` | Automatic |
+| CNAME | `www`          | `<distribution>.cloudfront.net` | Automatic |
 
 CloudFront has both apex and `www` aliases plus the issued certificate. Direct SNI/TLS checks against
 the distribution returned HTTP 200 for both names with certificate verification result 0 and the
@@ -53,7 +53,7 @@ Google Auth Platform.
 ## Domain email forwarding
 
 The existing Namecheap email-forwarding MX and SPF records were preserved. These aliases now forward
-to the operator mailbox `superintelligentagents@gmail.com`; delivery still needs testing from an
+to the operator Google account mailbox; delivery still needs testing from an
 unrelated sender:
 
 - `hello@superintelligentagents.ai`

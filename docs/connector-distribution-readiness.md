@@ -53,7 +53,7 @@ public-distribution checkbox below.
       the unverified-app bypass or the 100-test-user allowance as a release path.
 - [x] Deploy the KMS-encrypted Google token vault, one-time OAuth-state table records, fixed Google
       API origin allowlist, and matching control Lambda contract.
-- [x] Create the dedicated Web OAuth client under `superintelligentagents@gmail.com`, add the exact
+- [x] Create the dedicated Web OAuth client under the operator Google account, add the exact
       deployed callback URI, and install its client ID/secret in the AWS Google secret.
 - [ ] Test from two fresh non-tester Google accounts on different domains. Verify all five grants,
       cancellation after each step, restart/resume, transient-network recovery, revocation, and
