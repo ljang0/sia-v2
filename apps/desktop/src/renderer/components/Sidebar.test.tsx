@@ -34,6 +34,56 @@ describe('thread navigation', () => {
     list.scrollTop = 500;
     fireEvent.scroll(list);
     expect(list.hasAttribute('data-more-below')).toBe(false);
+    // Rows now sit under the section header, which draws its edge.
+    expect(screen.getByText('Your agents').parentElement?.hasAttribute('data-scrolled')).toBe(
+      true,
+    );
+  });
+
+  it('explains the empty list before any agent exists', () => {
+    render(
+      <Sidebar
+        agents={[]}
+        collapsed={false}
+        onToggle={vi.fn()}
+        onSelectAgent={vi.fn()}
+        onSelectThread={vi.fn()}
+        onCreateThread={vi.fn()}
+        onRenameThread={vi.fn()}
+        onDeleteThread={vi.fn()}
+        onCreateAgent={vi.fn()}
+        onEditAgent={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('No agents yet')).toBeTruthy();
+  });
+
+  it('names agent actions as agent actions', async () => {
+    render(
+      <Sidebar
+        agents={demoSnapshot.agents}
+        selectedAgentId="agent-work"
+        collapsed={false}
+        onToggle={vi.fn()}
+        onSelectAgent={vi.fn()}
+        onSelectThread={vi.fn()}
+        onCreateThread={vi.fn()}
+        onRenameThread={vi.fn()}
+        onDeleteThread={vi.fn()}
+        onCreateAgent={vi.fn()}
+        onEditAgent={vi.fn()}
+        onDuplicateAgent={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    );
+    const trigger = screen.getByRole('button', {
+      name: `Agent actions for ${demoSnapshot.agents[0]!.name}`,
+    });
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+    expect(await screen.findByRole('menuitem', { name: 'Edit agent' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Duplicate agent' })).toBeTruthy();
+    expect(screen.queryByText(/room/i)).toBeNull();
   });
 
   it('derives agent presence from real thread state', () => {
@@ -186,7 +236,7 @@ describe('thread navigation', () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Find a thread' }), {
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find a conversation' }), {
       target: { value: 'inbox' },
     });
 

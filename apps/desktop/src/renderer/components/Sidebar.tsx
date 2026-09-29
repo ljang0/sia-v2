@@ -119,7 +119,7 @@ export function Sidebar({
     query,
     closedAgents,
   ]);
-  const moreBelow = useMoreBelow(taskList);
+  const { moreAbove, moreBelow } = useScrollEdges(taskList);
 
   const [editingThread, setEditingThread] = useState<ThreadSummary>();
   const [editingTitle, setEditingTitle] = useState('');
@@ -317,11 +317,14 @@ export function Sidebar({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Find a conversation"
-            aria-label="Find a thread"
+            aria-label="Find a conversation"
           />
         </label>
       </div>
-      <div className={`${styles.sidebarSectionHeader} ${navigation.sectionHeader}`}>
+      <div
+        className={`${styles.sidebarSectionHeader} ${navigation.sectionHeader}`}
+        data-scrolled={moreAbove || undefined}
+      >
         <span>{agents.length === 1 ? 'Conversations' : 'Your agents'}</span>
         <button
           className={styles.iconButtonSmall}
@@ -342,6 +345,12 @@ export function Sidebar({
         }}
       >
         <div className={navigation.groups}>
+          {orderedAgents.length === 0 ? (
+            <p className={navigation.emptyAgents}>
+              <strong>No agents yet</strong>
+              Create one with + to start a conversation.
+            </p>
+          ) : null}
           {orderedAgents.map((agent) => {
             const expanded = Boolean(query.trim()) || !closedAgents.has(agent.id);
             const selected = agent.id === selectedAgentId;
@@ -689,14 +698,20 @@ export function Sidebar({
   );
 }
 
-/** True while a scroll container has content hidden below its fold. */
-function useMoreBelow(ref: RefObject<HTMLElement | null>): boolean {
+/** Whether a scroll container has content hidden above or below its fold. */
+function useScrollEdges(ref: RefObject<HTMLElement | null>): {
+  moreAbove: boolean;
+  moreBelow: boolean;
+} {
+  const [moreAbove, setMoreAbove] = useState(false);
   const [moreBelow, setMoreBelow] = useState(false);
   useLayoutEffect(() => {
     const element = ref.current;
     if (!element) return undefined;
-    const update = () =>
+    const update = () => {
+      setMoreAbove(element.scrollTop > 1);
       setMoreBelow(element.scrollHeight - element.scrollTop - element.clientHeight > 1);
+    };
     update();
     element.addEventListener('scroll', update, { passive: true });
     const observer =
@@ -708,7 +723,7 @@ function useMoreBelow(ref: RefObject<HTMLElement | null>): boolean {
       observer?.disconnect();
     };
   }, [ref]);
-  return moreBelow;
+  return { moreAbove, moreBelow };
 }
 
 function ThreadLabel({ thread }: { thread: ThreadSummary }) {
@@ -862,7 +877,7 @@ function AgentMenu({
         <button
           type="button"
           className={styles.agentEditButton}
-          aria-label={`Room actions for ${agent.name}`}
+          aria-label={`Agent actions for ${agent.name}`}
         >
           <DotsThree size={15} weight="bold" aria-hidden="true" />
         </button>
@@ -875,7 +890,7 @@ function AgentMenu({
           </DropdownMenu.Item>
           <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onEdit}>
             <NotePencil size={14} aria-hidden="true" />
-            Edit room
+            Edit agent
           </DropdownMenu.Item>
           {onSetPinned ? (
             <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onSetPinned}>
@@ -896,7 +911,7 @@ function AgentMenu({
           {onDuplicate ? (
             <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onDuplicate}>
               <Copy size={14} aria-hidden="true" />
-              Duplicate room
+              Duplicate agent
             </DropdownMenu.Item>
           ) : null}
         </DropdownMenu.Content>

@@ -52,7 +52,7 @@ test('a signed-out relaunch locks persisted agents and every app surface', async
       });
     });
     await expect(
-      signedIn.page.getByRole('button', { name: 'Room actions for Persisted private agent' }),
+      signedIn.page.getByRole('button', { name: 'Agent actions for Persisted private agent' }),
     ).toBeVisible();
     await signedIn.close({ removeTestRoot: false });
     signedInClosed = true;
@@ -65,7 +65,7 @@ test('a signed-out relaunch locks persisted agents and every app surface', async
     await expect(signedOut.page.getByRole('dialog', { name: 'Sign in to Sia' })).toBeVisible();
     await expect(signedOut.page.getByRole('button', { name: 'Access' })).toHaveCount(0);
     await expect(
-      signedOut.page.getByRole('button', { name: 'Room actions for Persisted private agent' }),
+      signedOut.page.getByRole('button', { name: 'Agent actions for Persisted private agent' }),
     ).toHaveCount(0);
     const locked = await signedOut.page.evaluate(async () => await window.sia.bootstrap());
     expect(locked).toMatchObject({

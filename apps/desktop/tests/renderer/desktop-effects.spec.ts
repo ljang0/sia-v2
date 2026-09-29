@@ -261,7 +261,7 @@ test('navigation stays stable, previews do not select, and the compact rail keep
   const renamed = nav.getByRole('button', { name: longTitle, exact: true });
   await expect(renamed).toBeVisible();
   for (const width of [1280, 900]) {
-    await nav.getByRole('searchbox', { name: 'Find a thread' }).hover();
+    await nav.getByRole('searchbox', { name: 'Find a conversation' }).hover();
     await page.setViewportSize({ width, height: 760 });
     await expect(nav).toHaveCSS('flex-basis', width === 900 ? '252px' : '272px');
     const title = renamed.getByText(longTitle, { exact: true });
@@ -281,7 +281,7 @@ test('navigation stays stable, previews do not select, and the compact rail keep
   }
   await nav.getByRole('button', { name: 'Research partner', exact: true }).click();
   await expect(task).toBeHidden();
-  await nav.getByRole('searchbox', { name: 'Find a thread' }).fill('Weekly');
+  await nav.getByRole('searchbox', { name: 'Find a conversation' }).fill('Weekly');
   await expect(task).toBeVisible();
   await expect(nav.getByRole('button', { name: longTitle, exact: true })).toHaveCount(0);
   await nav.getByRole('button', { name: 'Collapse sidebar' }).click();
