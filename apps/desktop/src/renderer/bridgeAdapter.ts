@@ -1,4 +1,4 @@
-import { threadPreviews } from './threadPreviews';
+import { threadPreviews } from '../shared/thread-previews';
 import { agentIdentity } from './agentIdentity';
 import type {
   ApprovalView,
@@ -28,7 +28,13 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
   const listeners = new Set<(snapshot: RendererSnapshot) => void>();
 
   const publish = (desktop: DesktopSnapshot) => {
+    const previous = latest?.activeThread;
     latest = mapDesktopSnapshot(desktop);
+    if (latest.activeThread && previous?.id === latest.activeThread.id)
+      latest.activeThread.events = reuseUnchangedEvents(
+        previous.events,
+        latest.activeThread.events,
+      );
     if (
       selectedAgentOverride &&
       latest.agents.some((agent) => agent.id === selectedAgentOverride)
@@ -41,14 +47,19 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     } else {
       selectedAgentOverride = undefined;
     }
-    listeners.forEach((listener) => listener(structuredClone(latest!)));
-    return latest;
+    // Each mapped snapshot is fresh and never mutated afterwards, so listeners share it.
+    // Copying it per listener cost more than the mapping itself on long histories.
+    const snapshot = latest;
+    listeners.forEach((listener) => listener(snapshot));
+    return snapshot;
   };
 
   const publishLocal = (update: (snapshot: RendererSnapshot) => void) => {
     if (!latest) return;
-    update(latest);
-    listeners.forEach((listener) => listener(structuredClone(latest!)));
+    const snapshot = { ...latest };
+    update(snapshot);
+    latest = snapshot;
+    listeners.forEach((listener) => listener(snapshot));
   };
 
   return {
@@ -60,7 +71,7 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     scotty: (input) => bridge.scotty(input),
     phoneRemote: (input) => bridge.phoneRemote(input),
     async getSnapshot() {
-      return structuredClone(publish(await bridge.bootstrap()));
+      return publish(await bridge.bootstrap());
     },
     subscribe(listener, onError) {
       listeners.add(listener);
@@ -101,7 +112,8 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       publish(await bridge.threads.rename(threadId, title));
     },
     async saveDraft(threadId, content) {
-      publish(await bridge.threads.setDraft(threadId, content));
+      // The composer already shows the text; saving a draft sends no snapshot back.
+      await bridge.threads.setDraft(threadId, content);
     },
     async deleteThread(threadId) {
       publish(await bridge.threads.delete(threadId));
@@ -486,8 +498,43 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
   };
 }
 
+/**
+ * Keeps the previous object for every event whose content is unchanged, and the previous array
+ * when nothing changed, so memoized transcript rows skip work while one reply streams.
+ */
+export function reuseUnchangedEvents(
+  previous: readonly ThreadEvent[],
+  next: ThreadEvent[],
+): ThreadEvent[] {
+  const byId = new Map(previous.map((event) => [event.id, event]));
+  const events = next.map((event) => {
+    const earlier = byId.get(event.id);
+    return earlier && sameData(earlier, event) ? earlier : event;
+  });
+  return events.length === previous.length &&
+    events.every((event, index) => event === previous[index])
+    ? (previous as ThreadEvent[])
+    : events;
+}
+
+function sameData(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (typeof left !== 'object' || typeof right !== 'object' || !left || !right) return false;
+  if (Array.isArray(left) !== Array.isArray(right)) return false;
+  const leftKeys = Object.keys(left);
+  if (leftKeys.length !== Object.keys(right).length) return false;
+  return leftKeys.every(
+    (key) =>
+      Object.hasOwn(right, key) &&
+      sameData((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key]),
+  );
+}
+
 export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
-  const previews = threadPreviews(source.timeline);
+  // Pushed snapshots carry previews because their timeline holds only the active thread.
+  const previews = source.previews
+    ? new Map(Object.entries(source.previews))
+    : threadPreviews(source.timeline);
   const threadMap = new Map(source.threads.map((thread) => [thread.id, thread]));
   const agents: AgentSummary[] = source.agents.map((agent) => ({
     id: agent.id,

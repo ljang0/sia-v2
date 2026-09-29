@@ -1,4 +1,13 @@
-import type { TimelineItemView } from '../shared/bridge.js';
+import type { DesktopSnapshot, TimelineItemView } from '../shared/bridge.js';
+
+/**
+ * What Scotty and the command launcher read: task metadata plus each thread's latest turn.
+ * Their timeline holds only items from each thread's last request onward.
+ */
+export type TaskSnapshot = Pick<
+  DesktopSnapshot,
+  'revision' | 'agents' | 'threads' | 'timeline' | 'approvals' | 'activeAgentId' | 'preferences'
+>;
 
 /** Items must belong to one thread and retain timeline order. */
 export function latestTaskTurn(items: readonly TimelineItemView[]) {

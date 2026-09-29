@@ -42,8 +42,14 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
 
 - SQLite stores agents, immutable thread snapshots, normalized events, approval history, connection identifiers, Sia tokens, and capture/sync records as payloads encrypted by macOS Keychain-backed `safeStorage`.
 - Streaming text publishes UI snapshots at 50ms while encrypted desktop-state checkpoints run
-  at 500ms. Non-streaming changes, completion and graceful shutdown persist immediately. An
-  abrupt termination may lose the last checkpoint interval of an unfinished response.
+  at 500ms. Composer drafts use the same 500ms checkpoint and push no snapshot. Other
+  non-streaming changes, completion and graceful shutdown persist immediately. An abrupt
+  termination may lose the last checkpoint interval of an unfinished response or draft.
+- Settled approvals that no transcript row refers to (such as computer-use requests) are dropped
+  at launch a week after they expired.
+- UI snapshots pushed to the renderer, and snapshots returned by its bridge calls, carry only the
+  open thread's history and approvals plus a one-line preview per thread. In-process callers
+  (Scotty, the launcher, phone remote, tests) read the full state from the controller.
 
 - Browser/tab capabilities, one-shot action grants, and turn/resource leases are process-local and are never restored after Sia restarts.
 - Chrome and Messages reuse accounts already configured by their owning Mac applications. Chrome

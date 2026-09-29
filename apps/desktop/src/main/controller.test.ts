@@ -17,6 +17,7 @@ import { MacVoiceService } from './mac-voice-service.js';
 import { probeProviders } from './provider-probe.js';
 import type { RuntimeTurnInput } from './runtime-coordinator.js';
 import { canonicalJson } from './update-manifest.js';
+import type { DesktopSnapshot } from '../shared/bridge.js';
 import {
   EphemeralPayloadCipher,
   PlaintextTestCipher,
@@ -870,18 +871,27 @@ describe('DesktopController', () => {
     });
     const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
 
+    let pushes = 0;
+    controller.subscribe(() => {
+      pushes += 1;
+    });
     const drafted = await controller.invoke('threads.draft', {
       threadId,
       text: 'Keep this thought across a restart.',
     });
-    expect(drafted.threads.find(({ id }) => id === threadId)?.draft).toBe(
+    // Typing pauses save drafts often: no snapshot comes back and no push goes out.
+    expect(drafted).toEqual({ saved: true });
+    expect(pushes).toBe(0);
+    expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.draft).toBe(
       'Keep this thought across a restart.',
     );
-    expect(
-      repository
-        .get<{ threads: Array<{ id: string; draft?: string }> }>('desktop', 'state')
-        ?.threads.find(({ id }) => id === threadId)?.draft,
-    ).toBe('Keep this thought across a restart.');
+    await vi.waitFor(() =>
+      expect(
+        repository
+          .get<{ threads: Array<{ id: string; draft?: string }> }>('desktop', 'state')
+          ?.threads.find(({ id }) => id === threadId)?.draft,
+      ).toBe('Keep this thought across a restart.'),
+    );
 
     const sent = await controller.invoke('threads.send', {
       threadId,
@@ -1070,6 +1080,118 @@ describe('DesktopController', () => {
       runHistory: [{ id: claimId, outcome: 'started' }],
     });
     await recovered.controller.shutdown();
+  });
+
+  it('does not rewrite state while a due schedule waits for its busy thread', async () => {
+    const initial = await createHarness({ fakeServices: false });
+    await initial.controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    const agent = await initial.controller.invoke('agents.save', {
+      name: 'Busy scheduler',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await initial.controller.invoke('threads.create', {
+      agentId: agent.agentId,
+    });
+    initial.controller.createScheduleFromAction(threadId, {
+      task: 'Check the web.',
+      cadence: 'hourly',
+      firstRunAt: '2030-08-21T03:00:00.000Z',
+    });
+    const persisted = structuredClone(
+      initial.repository.get<{ schedules: Array<{ id: string; nextRunAt: string }> }>(
+        'desktop',
+        'state',
+      )!,
+    );
+    await initial.controller.shutdown();
+    // Several runs are overdue on one thread: once one holds the thread, the rest must wait.
+    const first = persisted.schedules[0]!;
+    first.nextRunAt = '2026-01-01T00:00:00.000Z';
+    for (let copy = 0; copy < 3; copy += 1)
+      persisted.schedules.push({ ...structuredClone(first), id: randomUUID() });
+    const repository = new CountingRepository();
+    repository.put('desktop', 'state', persisted);
+
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const runtime = {
+      async *runTurn() {
+        await held;
+      },
+      dispose: vi.fn(async () => release()),
+      cancel: vi.fn(async () => release()),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    vi.useFakeTimers({ toFake: ['setInterval'] });
+    try {
+      const { controller } = await createHarness({ fakeServices: false, runtime, repository });
+      // The startup pass runs before the runtime attaches; the next pass starts a held turn.
+      await vi.advanceTimersByTimeAsync(30_000);
+      await vi.waitFor(() =>
+        expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+          'running',
+        ),
+      );
+      const writes = repository.desktopStateWrites;
+      await vi.advanceTimersByTimeAsync(90_000);
+      expect(repository.desktopStateWrites).toBe(writes);
+      release();
+      await controller.shutdown();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('drops settled approvals without a transcript row a week after they expired', async () => {
+    const initial = await createHarness();
+    const persisted = structuredClone(
+      initial.repository.get<{
+        approvals: Array<Record<string, unknown>>;
+        timeline: Array<Record<string, unknown>>;
+      }>('desktop', 'state')!,
+    );
+    await initial.controller.shutdown();
+    const approval = (id: string, expiresAt: string, status = 'approved') => ({
+      id,
+      threadId: 'thread-1',
+      callId: `call-${id}`,
+      kind: 'computer_action',
+      title: 'Use the Mac',
+      summary: 'Click Save',
+      target: 'TextEdit',
+      reversible: false,
+      expiresAt,
+      status,
+    });
+    const old = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+    const recent = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    persisted.approvals.push(
+      approval('old-settled', old),
+      approval('old-in-transcript', old, 'denied'),
+      approval('recent-settled', recent, 'expired'),
+    );
+    persisted.timeline.push({
+      id: 'approval-row',
+      threadId: 'thread-1',
+      sequence: 1,
+      kind: 'approval',
+      approvalId: 'old-in-transcript',
+      status: 'denied',
+      timestamp: old,
+    });
+    const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+    repository.put('desktop', 'state', persisted);
+    const { controller } = await createHarness({ repository });
+    expect(controller.snapshot().approvals.map(({ id }) => id)).toEqual([
+      'old-in-transcript',
+      'recent-settled',
+    ]);
+    await controller.shutdown();
   });
 
   it('requires an active turn to stop before its thread can be deleted', async () => {
@@ -1373,6 +1495,96 @@ describe('DesktopController', () => {
     expect(
       controller.snapshot().timeline.find(({ detail }) => detail === 'streamed-answer')?.text,
     ).toHaveLength(30);
+    await controller.shutdown();
+  });
+
+  it('pushes only the active thread history to the renderer and previews the rest', async () => {
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        const base = {
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+        };
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'message' as const,
+          payload: {
+            messageId: `reply-${input.turnId}`,
+            role: 'assistant' as const,
+            parts: [{ kind: 'text' as const, text: `Reply for turn ${input.turnId}` }],
+          },
+        };
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 2,
+          timestamp: new Date().toISOString(),
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'History helper',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const threadIds: string[] = [];
+    for (const text of ['Plan the trip', 'Draft the budget']) {
+      const { threadId } = await controller.invoke('threads.create', { agentId });
+      await controller.invoke('threads.send', { threadId, text });
+      await vi.waitFor(() =>
+        expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+          'idle',
+        ),
+      );
+      threadIds.push(threadId);
+    }
+    const [first, second] = threadIds as [string, string];
+    await controller.invoke('threads.send', { threadId: first, text: 'Add a hotel' });
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find(({ id }) => id === first)?.status).toBe('idle'),
+    );
+    const pushed: DesktopSnapshot[] = [];
+    controller.subscribe((event) => {
+      if (event.type === 'snapshot') pushed.push(event.snapshot);
+    });
+
+    const returned = await controller.invokeForRenderer('threads.select', { threadId: first });
+
+    expect(pushed.length).toBeGreaterThan(0);
+    for (const snapshot of [...pushed, returned]) {
+      expect(snapshot.activeThreadId).toBe(first);
+      expect(snapshot.timeline.length).toBeGreaterThan(0);
+      expect(snapshot.timeline.every(({ threadId }) => threadId === first)).toBe(true);
+      expect(snapshot.previews?.[second]).toEqual({
+        label: 'Latest reply',
+        text: expect.stringContaining('Reply for turn'),
+      });
+      expect(snapshot.previews?.[first]?.label).toBe('Latest reply');
+    }
+    // In-process callers and ordinary invokes still see every thread.
+    const full = await controller.invoke('threads.select', { threadId: first });
+    expect(new Set(full.timeline.map(({ threadId }) => threadId))).toEqual(new Set(threadIds));
+    expect(full.previews).toBeUndefined();
+    // Scotty and the launcher read only each thread's latest turn and see the same tasks.
+    const narrow = controller.taskSnapshot();
+    expect(narrow.timeline.length).toBeLessThan(full.timeline.length);
+    expect(narrow.timeline.some(({ text }) => text === 'Plan the trip')).toBe(false);
+    const tasks = new ScottyTasks();
+    const settings = { enabled: true, size: 'medium', motion: true } as const;
+    expect(tasks.view(narrow, settings, true)).toEqual(tasks.view(full, settings, true));
     await controller.shutdown();
   });
 
