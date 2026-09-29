@@ -39,7 +39,7 @@ import type {
 import { timeGreeting } from '../welcome';
 import { completedReplyId } from '../task-result';
 import { WelcomeRecents } from './WelcomeRecents';
-import { ResultCard } from './ResultCard';
+import { ReplyReadyMark, ReplySurface } from './ResultCard';
 import styles from '../ui.module.css';
 import { ActivityRow } from './ActivityRow';
 import { WorkGroup, WorkingStatus } from './WorkGroup';
@@ -1028,6 +1028,7 @@ function EventViewContent({
       </span>
       <header>
         <span>{event.role === 'user' ? 'You' : agentName}</span>
+        {event.role === 'assistant' ? <ReplyReadyMark ready={Boolean(completed)} /> : null}
         <time dateTime={event.timestamp}>{formatTime(event.timestamp)}</time>
         <CopyMessageButton content={event.content} />
         {event.role === 'assistant' && onToggleSpeech ? (
@@ -1091,7 +1092,13 @@ function EventViewContent({
       </div>
     </article>
   );
-  return completed ? <ResultCard>{message}</ResultCard> : message;
+  // Every reply keeps the same frame, so it never moves when it becomes (or stops being) the
+  // result; only the card's paint changes.
+  return event.role === 'assistant' ? (
+    <ReplySurface ready={Boolean(completed)}>{message}</ReplySurface>
+  ) : (
+    message
+  );
 }
 
 function CopyMessageButton({ content }: { content: string }) {

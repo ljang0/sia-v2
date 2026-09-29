@@ -56,3 +56,71 @@
     color: CanvasText;
   }
 }
+
+/* Desktop reply frame: the card paint sits behind the reply, outside its box, so showing or
+   hiding it never moves text. */
+.surface {
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+}
+.surface::before {
+  position: absolute;
+  z-index: -1;
+  inset: -12px 0 -14px -18px;
+  border: 1px solid color-mix(in srgb, var(--text-success) 24%, var(--border-subtle));
+  border-radius: 20px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--text-success) 6%, var(--bg-raised)),
+    var(--bg-raised) 65%
+  );
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--text-primary) 4%, transparent);
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease-out;
+}
+.surface[data-ready='true']::before {
+  opacity: 1;
+}
+.readyMark {
+  display: inline-flex;
+  height: 20px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-success) 10%, transparent);
+  color: var(--text-success);
+  font-size: 11.5px;
+  font-weight: 600;
+  transition:
+    opacity 200ms ease-out,
+    visibility 200ms;
+  white-space: nowrap;
+}
+.surface:not([data-ready='true']) .readyMark {
+  opacity: 0;
+  visibility: hidden;
+}
+[data-appearance='calm'] .surface::before,
+[data-appearance='calm'] .readyMark {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .surface::before,
+  .readyMark {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  .surface[data-ready='true']::before {
+    background: Canvas;
+    border-color: CanvasText;
+    box-shadow: none;
+  }
+  .readyMark {
+    color: CanvasText;
+  }
+}

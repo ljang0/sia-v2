@@ -488,6 +488,68 @@ describe('Conversation waiting controls', () => {
     expect(container.querySelector('[data-streaming="true"]')).toBeNull();
   });
 
+  it('keeps a reply in one frame while it streams, finishes, and is followed up', () => {
+    const reply: MessageEvent = {
+      id: 'reply-1',
+      type: 'message',
+      role: 'assistant',
+      content: 'Here is the first part',
+      timestamp: '2026-08-13T00:00:00.000Z',
+    };
+    const request: MessageEvent = {
+      id: 'request-1',
+      type: 'message',
+      role: 'user',
+      content: 'Find my urgent emails.',
+      timestamp: '2026-08-13T00:00:00.000Z',
+    };
+    const props = {
+      onSend: async () => undefined,
+      onStop: async () => undefined,
+      onRetry: async () => undefined,
+      onResolveApproval: async () => undefined,
+    };
+    const streaming = baseThread({ status: 'running', events: [request, reply] });
+    const view = render(<Conversation thread={streaming} {...props} />);
+    const article = view.container.querySelector('[data-message-role="assistant"]');
+    const frame = article?.parentElement;
+    expect(screen.queryByRole('region', { name: 'Task result' })).toBeNull();
+
+    view.rerender(
+      <Conversation
+        thread={{
+          ...streaming,
+          status: 'idle',
+          events: [request, { ...reply, content: 'Done.' }],
+        }}
+        {...props}
+      />,
+    );
+    const result = screen.getByRole('region', { name: 'Task result' });
+    // The same nodes stay mounted: the reply is not re-wrapped, so it cannot jump.
+    expect(result).toBe(frame);
+    expect(view.container.querySelector('[data-message-role="assistant"]')).toBe(article);
+    expect(result.textContent).toContain('Reply ready');
+
+    view.rerender(
+      <Conversation
+        thread={{
+          ...streaming,
+          status: 'running',
+          events: [
+            request,
+            { ...reply, content: 'Done.' },
+            { ...request, id: 'request-2', content: 'Thanks, now archive them.' },
+          ],
+        }}
+        {...props}
+      />,
+    );
+    expect(screen.queryByRole('region', { name: 'Task result' })).toBeNull();
+    expect(view.container.querySelector('[data-message-role="assistant"]')).toBe(article);
+    expect(article?.parentElement).toBe(frame);
+  });
+
   it('moves the compact presence from working to a brief completed state', async () => {
     const thread = baseThread({
       status: 'running',
