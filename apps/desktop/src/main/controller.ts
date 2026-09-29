@@ -1459,7 +1459,12 @@ export class DesktopController {
         return;
       const periodic = Date.now() >= this.#nextNotchCheck;
       if (periodic) this.#nextNotchCheck = Date.now() + 1800_000;
-      const view = this.#assistantLibrary.view();
+      let view: ReturnType<AssistantLibrary['view']>;
+      try {
+        view = this.#assistantLibrary.view();
+      } catch {
+        return; // Storage closed or unavailable; the next tick checks again.
+      }
       for (const agentId of view.nativeLearningAgents ?? []) {
         if (!view.learningAgents?.includes(agentId) || !view.reviewAgents?.includes(agentId))
           continue;
