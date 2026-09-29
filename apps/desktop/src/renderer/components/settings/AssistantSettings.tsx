@@ -12,6 +12,7 @@ import type {
   AssistantWorkflow,
 } from '../../../shared/assistant-library';
 import styles from './AssistantSettings.module.css';
+import { Switch } from '../Switch';
 
 const empty: AssistantLibraryView = {
   memories: [],
@@ -120,7 +121,7 @@ export function AssistantSettings({
         </p>
       )}
       <p className={styles.note}>
-        Press Cmd + E anywhere to ask Sia.{' '}
+        Press ⌘E anywhere to ask Sia.{' '}
         {library.launcherRegistered === false
           ? 'The shortcut is unavailable, possibly because another app uses it. Open Ask Sia from the Sia menu.'
           : 'Choose an agent, type your request, and press Enter.'}
@@ -181,8 +182,7 @@ export function AssistantSettings({
                   : 'Share the active app, window outline, title, and selected text with your agent. Browser content still needs a Chrome connection. Protected fields are excluded.'}
               </small>
             </span>
-            <input
-              type="checkbox"
+            <Switch
               checked={accessMode === 'mac' || library.context}
               disabled={accessMode === 'mac'}
               onChange={(e) =>
@@ -219,8 +219,7 @@ export function AssistantSettings({
                 local file vault. You can edit or delete its contents below.
               </small>
             </span>
-            <input
-              type="checkbox"
+            <Switch
               disabled={!agentId}
               checked={library.learningAgents?.includes(agentId) ?? false}
               onChange={(e) =>
@@ -239,8 +238,7 @@ export function AssistantSettings({
                   apps. Turning this off pauses learning and idle reviews.
                 </small>
               </span>
-              <input
-                type="checkbox"
+              <Switch
                 disabled={!agentId}
                 checked={library.nativeLearningAgents?.includes(agentId) ?? false}
                 onChange={(e) =>

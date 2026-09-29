@@ -16,7 +16,7 @@ import {
   PawPrint,
   X,
 } from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
+import { type RefObject, useEffect, useRef, useState } from 'react';
 import type { AppConnection, ProviderId, RendererApi, RendererSnapshot } from '../types';
 import styles from '../ui.module.css';
 import { AssistantSettings } from './settings/AssistantSettings';
@@ -160,6 +160,9 @@ export function Settings({
   onReadResearchBatch,
 }: SettingsProps) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
+  const nav = useRef<HTMLElement>(null);
+  // In a narrow pane the tabs stay on one row: Scotty and Phone remote move into More.
+  const compactNav = useNarrowerThan(nav, COMPACT_SETTINGS_NAV_WIDTH);
   const usesMac = snapshot.computer.accessMode === 'mac';
   const canReviewRelease = Boolean(snapshot.cloudAuth.admin && snapshot.cloudAuth.adminMfa);
   const canViewResearchArchive = Boolean(
@@ -193,7 +196,7 @@ export function Settings({
       </header>
 
       <div className={styles.settingsLayout}>
-        <nav className={styles.settingsNav} aria-label="Settings sections">
+        <nav ref={nav} className={styles.settingsNav} aria-label="Settings sections">
           <SettingsNavButton
             active={section === 'providers'}
             icon={<Sparkle size={17} aria-hidden="true" />}
@@ -220,7 +223,7 @@ export function Settings({
             label="Voice"
             onClick={() => setSection('voice')}
           />
-          {scottyApi && (
+          {scottyApi && !compactNav && (
             <SettingsNavButton
               active={section === 'scotty'}
               icon={<PawPrint size={17} aria-hidden="true" />}
@@ -228,7 +231,7 @@ export function Settings({
               onClick={() => setSection('scotty')}
             />
           )}
-          {phoneRemoteApi && (
+          {phoneRemoteApi && !compactNav && (
             <SettingsNavButton
               active={section === 'phone'}
               icon={<DeviceMobile size={17} aria-hidden="true" />}
@@ -255,6 +258,7 @@ export function Settings({
                     'release',
                     'research',
                   ].includes(section) ||
+                  (compactNav && (section === 'scotty' || section === 'phone')) ||
                   (usesMac && section === 'apps')
                     ? styles.settingsNavActive
                     : undefined
@@ -270,6 +274,20 @@ export function Settings({
                 align="end"
                 sideOffset={6}
               >
+                {compactNav && scottyApi && (
+                  <SettingsMenuItem
+                    icon={<PawPrint size={17} />}
+                    label="Scotty"
+                    onSelect={() => setSection('scotty')}
+                  />
+                )}
+                {compactNav && phoneRemoteApi && (
+                  <SettingsMenuItem
+                    icon={<DeviceMobile size={17} />}
+                    label="Phone remote"
+                    onSelect={() => setSection('phone')}
+                  />
+                )}
                 {onSetAppearance && (
                   <SettingsMenuItem
                     icon={<Palette size={17} />}
@@ -477,6 +495,27 @@ function SettingsNavButton({
       <span>{label}</span>
     </button>
   );
+}
+
+/** Below this nav width, the full set of tabs would wrap onto a second row. */
+const COMPACT_SETTINGS_NAV_WIDTH = 760;
+
+/** True while an element is laid out narrower than `width` (false before it has a size). */
+function useNarrowerThan(ref: RefObject<HTMLElement | null>, width: number): boolean {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || typeof ResizeObserver !== 'function') return undefined;
+    const update = () => {
+      const current = element.getBoundingClientRect().width;
+      setNarrow(current > 0 && current < width);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref, width]);
+  return narrow;
 }
 
 function SettingsMenuItem({

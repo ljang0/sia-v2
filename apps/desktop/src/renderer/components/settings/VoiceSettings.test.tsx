@@ -70,7 +70,7 @@ describe('voice settings', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('checkbox', { name: /Completion sound/ }));
+    fireEvent.click(screen.getByRole('switch', { name: /Completion sound/ }));
     await waitFor(() => expect(setCompletionSound).toHaveBeenCalledWith(true));
   });
 });
@@ -105,7 +105,7 @@ it('enables Fn for the chosen background agent with clear recording instructions
   fireEvent.change(screen.getByLabelText('Voice agent when Sia is in the background'), {
     target: { value: 'writing' },
   });
-  fireEvent.click(screen.getByRole('checkbox', { name: /Hold Fn to talk to Sia/ }));
+  fireEvent.click(screen.getByRole('switch', { name: /Hold Fn to talk to Sia/ }));
   await waitFor(() => expect(configure).toHaveBeenCalledWith(true, 'writing'));
   expect(screen.getByText(/Escape cancels/)).toBeTruthy();
 });
@@ -149,7 +149,7 @@ it('offers native read aloud without cloud setup and explains unavailable local 
   );
   expect(screen.getByText('Read aloud ready')).toBeTruthy();
   expect(
-    (screen.getByRole('checkbox', { name: /Hold Fn to talk to Sia/ }) as HTMLInputElement)
+    (screen.getByRole('switch', { name: /Hold Fn to talk to Sia/ }) as HTMLInputElement)
       .disabled,
   ).toBe(true);
   expect(screen.getByText(/Read aloud works;/)).toBeTruthy();

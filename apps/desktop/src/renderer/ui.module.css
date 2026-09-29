@@ -4454,6 +4454,12 @@ input[type='checkbox'].switch:disabled {
   border-top: 1px solid var(--border-subtle);
 }
 
+.captureSettings + .settingsDisclosure {
+  /* The capture row already draws this divider. */
+  margin-top: 0;
+  border-top: 0;
+}
+
 .settingsDisclosure > summary {
   display: flex;
   min-height: 48px;
@@ -7031,6 +7037,23 @@ button.agentAvatar {
   max-width: 1040px;
   width: 100%;
   margin: 0 auto;
+}
+
+/* The title, the tabs, and each section share one left edge: the section column is 900px wide,
+   centered in the pane, and never closer to the edge than the content padding. */
+.settingsPage {
+  --settings-inset: max(clamp(24px, 4vw, 48px), calc((100% - 900px) / 2));
+}
+
+.settingsTopbar {
+  padding-left: var(--settings-inset);
+}
+
+.settingsNav {
+  flex-wrap: nowrap;
+  padding-right: calc(var(--settings-inset) - 8px);
+  /* Tab buttons have 8px of their own padding, so their icons meet the same edge. */
+  padding-left: calc(var(--settings-inset) - 8px);
 }
 
 /* React to the available pane width, including a collapsed sidebar or zoom. */

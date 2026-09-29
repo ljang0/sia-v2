@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import styles from '../../ui.module.css';
 import { errorMessage, InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
+import { Switch } from '../Switch';
 
 /** Developer-only surfaces stay out of the main path until someone opts in here. */
 export function AdvancedSettings({
@@ -27,8 +28,7 @@ export function AdvancedSettings({
             right away, without asking first.
           </small>
         </span>
-        <input
-          type="checkbox"
+        <Switch
           checked={developerTools}
           disabled={pending}
           onChange={(event) => {

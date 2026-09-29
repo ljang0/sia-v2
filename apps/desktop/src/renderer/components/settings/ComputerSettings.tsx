@@ -137,7 +137,7 @@ export function ComputerSettings({
       )}
       <details className={styles.settingsDisclosure}>
         <summary>
-          <span>Diagnostics</span> · Local log {snapshot.computer.trajectoryLog ? 'on' : 'off'}
+          <span>Diagnostics</span>
         </summary>
         <div className={styles.accessGroup}>
           <div className={styles.accessRow}>

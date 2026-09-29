@@ -126,7 +126,7 @@ test('Voice settings hides unavailable Fn controls and can replay setup with the
       await expect(
         sia.page.getByLabel('Voice agent when Sia is in the background'),
       ).toHaveCount(0);
-      await expect(sia.page.getByRole('checkbox', { name: /Completion sound/ })).toBeVisible();
+      await expect(sia.page.getByRole('switch', { name: /Completion sound/ })).toBeVisible();
       await sia.page.screenshot({
         path: `test-results/voice-settings-${width}.png`,
         animations: 'disabled',
@@ -136,7 +136,7 @@ test('Voice settings hides unavailable Fn controls and can replay setup with the
     await sia.application.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0]!.webContents.setZoomFactor(1.25);
     });
-    await expect(sia.page.getByRole('checkbox', { name: /Completion sound/ })).toBeVisible();
+    await expect(sia.page.getByRole('switch', { name: /Completion sound/ })).toBeVisible();
     await sia.page.screenshot({
       path: 'test-results/voice-settings-zoom.png',
       animations: 'disabled',

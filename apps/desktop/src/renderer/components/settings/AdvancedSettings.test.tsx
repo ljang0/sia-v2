@@ -12,7 +12,7 @@ describe('advanced settings', () => {
     render(
       <AdvancedSettings developerTools={false} onSetDeveloperTools={onSetDeveloperTools} />,
     );
-    const toggle = screen.getByRole('checkbox', {
+    const toggle = screen.getByRole('switch', {
       name: /Developer tools/,
     }) as HTMLInputElement;
     expect(toggle.checked).toBe(false);

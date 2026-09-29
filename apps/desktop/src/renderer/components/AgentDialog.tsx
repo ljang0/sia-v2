@@ -10,6 +10,7 @@ import type {
 } from '../types';
 import styles from '../ui.module.css';
 import { modelChoices, firstReadyModel } from '../agentModels';
+import { voiceOptionLabel } from '../voiceReadiness';
 
 interface AgentDialogProps {
   open: boolean;
@@ -320,8 +321,7 @@ export function AgentDialog({
                       </option>
                       {voice.voices.map((candidate) => (
                         <option key={candidate.id} value={candidate.id}>
-                          {candidate.name}
-                          {candidate.category ? ` · ${candidate.category}` : ''}
+                          {voiceOptionLabel(candidate)}
                         </option>
                       ))}
                     </select>

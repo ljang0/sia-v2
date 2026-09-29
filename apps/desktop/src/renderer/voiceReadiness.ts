@@ -9,3 +9,17 @@ export function dictationReady(voice: VoiceSettingsState): boolean {
     Boolean(ptt?.enabled && ptt.accessibility && ptt.microphone)
   );
 }
+
+/**
+ * A voice's name for a picker. Stock voices show just their name; the provider's catalog words
+ * (such as “premade”) are not something a person chose, so only a meaningful kind is added.
+ */
+export function voiceOptionLabel(voice: {
+  name: string;
+  category?: string | undefined;
+}): string {
+  const kind = voice.category?.trim().toLowerCase();
+  if (!kind || kind === 'premade') return voice.name;
+  if (kind === 'cloned' || kind === 'professional') return `${voice.name} · Your voice`;
+  return voice.name;
+}

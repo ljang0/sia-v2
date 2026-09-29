@@ -9,7 +9,7 @@ import {
   waitFor,
   within,
 } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { createDemoRendererApi, demoSnapshot } from './demo';
 import type { RendererApi, RendererSnapshot } from './types';
@@ -88,6 +88,47 @@ describe('app privacy routing', () => {
     render(<App api={createDemoRendererApi(developer)} />);
     fireEvent.click(await screen.findByText('Model for this conversation'));
     expect(screen.getByText('Workspace')).toBeTruthy();
+  });
+
+  it('keeps Settings tabs on one row in a narrow pane by moving extras into More', async () => {
+    const original = globalThis.ResizeObserver;
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: HTMLElement) {
+        const width = this.getAttribute('aria-label') === 'Settings sections' ? 700 : 0;
+        return {
+          width,
+          height: 0,
+          top: 0,
+          left: 0,
+          right: width,
+          bottom: 0,
+          x: 0,
+          y: 0,
+        } as DOMRect;
+      });
+    globalThis.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+    try {
+      const api = createDemoRendererApi(structuredClone(demoSnapshot));
+      api.phoneRemote = async () => ({ enabled: false, running: false, detail: 'Off.' });
+      render(<App api={api} />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+      const nav = await screen.findByRole('navigation', { name: 'Settings sections' });
+      expect(within(nav).getByRole('button', { name: 'Privacy' })).toBeTruthy();
+      expect(within(nav).queryByRole('button', { name: 'Phone remote' })).toBeNull();
+      fireEvent.pointerDown(within(nav).getByRole('button', { name: 'More settings' }), {
+        button: 0,
+        ctrlKey: false,
+      });
+      expect(await screen.findByRole('menuitem', { name: 'Phone remote' })).toBeTruthy();
+    } finally {
+      rect.mockRestore();
+      globalThis.ResizeObserver = original;
+    }
   });
 
   it('closes Settings with Escape', async () => {
