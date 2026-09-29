@@ -1,4 +1,5 @@
 import { isAbsolute, normalize, sep } from 'node:path';
+import { isSensitiveLocalPath } from './sensitive-paths.js';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { ProviderId, ToolDescriptor } from '@sia/protocol';
@@ -132,11 +133,8 @@ export interface ApprovalBroker {
 const SENSITIVE_APP =
   /(?:1password|bitwarden|lastpass|dashlane|keychain|password|terminal|iterm|warp|alacritty|system settings|system preferences|com\.apple\.security|com\.google\.chrome|chrome|safari|firefox|arc)/i;
 const SENSITIVE_ROLE = /(?:secure|password)/i;
-const SENSITIVE_PATH =
-  /(?:^|\/)(?:\.ssh|\.aws|\.gnupg|Library\/Keychains)(?:\/|$)|(?:^|\/)(?:id_rsa|id_ed25519|\.env)(?:\.|$)/i;
-
 function pathLooksSensitive(value: unknown): boolean {
-  return typeof value === 'string' && SENSITIVE_PATH.test(normalize(value));
+  return typeof value === 'string' && isSensitiveLocalPath(value);
 }
 
 function defaultSafetyDecision(

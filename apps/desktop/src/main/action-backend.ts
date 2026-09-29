@@ -23,10 +23,11 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, extname, isAbsolute, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import type {
-  ActionBackend,
-  ActionExecutionResult,
-  ValidatedActionInvocation,
+import {
+  isSensitiveLocalPath,
+  type ActionBackend,
+  type ActionExecutionResult,
+  type ValidatedActionInvocation,
 } from '@sia/action-gateway';
 import {
   isConnectionReconnectRequired,
@@ -245,8 +246,6 @@ const SENSITIVE_BROWSER_QUERY_KEY =
   /(?:^|[^a-z0-9])(?:api[-_]?key|access[-_]?token|auth|authorization|code|credentials?|jwt|key|password|refresh[-_]?token|secret|session|signature|sig|token)(?:$|[^a-z0-9])/i;
 const BROWSER_VAULT_NAME = /^sia-browser-(?:upload|download)-[A-Za-z0-9]{6,}$/;
 const MAX_CONNECTOR_UPLOAD_BYTES = 5_000_000;
-const SENSITIVE_UPLOAD_PATH =
-  /(?:^|\/)(?:\.ssh|\.aws|\.gnupg|Library\/Keychains)(?:\/|$)|(?:^|\/)(?:id_rsa|id_ed25519|\.env)(?:\.|$)/i;
 const CONNECTOR_UPLOAD_MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
   '.csv': 'text/csv',
   '.doc': 'application/msword',
@@ -2034,11 +2033,11 @@ export class DesktopActionBackend implements ActionBackend {
     const files: string[] = [];
     try {
       for (const [index, path] of paths.entries()) {
-        if (!isAbsolute(path) || pathLooksSensitive(path)) {
+        if (!isAbsolute(path) || isSensitiveLocalPath(path)) {
           throw new Error('Browser uploads require a non-sensitive absolute file path.');
         }
         const resolved = await realpath(path);
-        if (resolved !== path || pathLooksSensitive(resolved)) {
+        if (resolved !== path || isSensitiveLocalPath(resolved)) {
           throw new Error('Browser uploads do not follow symbolic links or aliases.');
         }
         const source = await open(resolved, constants.O_RDONLY | constants.O_NOFOLLOW);
@@ -2169,7 +2168,7 @@ export class DesktopActionBackend implements ActionBackend {
     const filePath = requiredString(request.arguments.file_path, 'file_path');
     if (!isAbsolute(filePath)) throw new Error('The approved upload path must be absolute.');
     const resolvedPath = await realpath(filePath);
-    if (SENSITIVE_UPLOAD_PATH.test(resolvedPath)) {
+    if (isSensitiveLocalPath(filePath) || isSensitiveLocalPath(resolvedPath)) {
       throw new Error('Security-sensitive files cannot be uploaded through connector tools.');
     }
     const source = await open(resolvedPath, constants.O_RDONLY | constants.O_NOFOLLOW);
@@ -2712,10 +2711,6 @@ function computerAppIdentity(
 
 function computerAppLooksSensitive(...values: Array<string | undefined>): boolean {
   return values.some((value) => value !== undefined && SENSITIVE_COMPUTER_APP.test(value));
-}
-
-function pathLooksSensitive(value: string): boolean {
-  return SENSITIVE_UPLOAD_PATH.test(value.normalize('NFC'));
 }
 
 function stringValue(value: unknown): string | undefined {
