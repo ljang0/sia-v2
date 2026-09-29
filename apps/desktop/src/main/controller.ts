@@ -6873,7 +6873,7 @@ export class DesktopController {
         id: event.id,
         turnId: event.turnId,
         kind: 'error',
-        title: 'Provider error',
+        title: 'Task stopped',
         text: event.payload.message,
         status: 'failed',
         timestamp: event.timestamp,
@@ -6897,7 +6897,7 @@ export class DesktopController {
           turnId: event.turnId,
           kind: 'error',
           title: 'Turn did not complete',
-          text: 'The provider ended this turn without completing it. Check the provider account (sign-in, usage limits) and try again.',
+          text: 'The model stopped before finishing this task. Try again. If it keeps happening, check your plan’s sign-in and usage in Settings → AI.',
           status: 'failed',
           timestamp: event.timestamp,
         });

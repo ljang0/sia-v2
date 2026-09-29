@@ -35,6 +35,7 @@ import {
 import type { AgentDraft, RendererApi, RendererSnapshot } from './types';
 import { useAppController } from './useAppController';
 import { focusComposer } from './composerFocus';
+import { heldAsQueued, OfflineBanner, useOfflineOutbox, useOnline } from './offline';
 import { recentThreads, welcomePrompts } from './welcome';
 import { useViewTransition } from './components/effects/use-view-transition';
 import './tokens.css';
@@ -67,6 +68,16 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [conversationFindOpen, setConversationFindOpen] = useState(false);
+  const online = useOnline();
+  const outbox = useOfflineOutbox(online, (message) =>
+    app.attempt(() =>
+      app.api.sendMessage(
+        message.threadId,
+        message.content,
+        message.attachments.map(({ id }) => id),
+      ),
+    ),
+  );
   const signInRequired =
     app.snapshot !== undefined && requiresSiaSignIn(app.snapshot.cloudAuth.state);
 
@@ -405,7 +416,8 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
           />
         ) : null}
 
-        <WorkspaceNotice app={app} />
+        {online ? null : <OfflineBanner />}
+        <WorkspaceNotice app={app} deviceOffline={!online} />
         <div className={styles.workspaceBody} ref={viewSurface} data-workspace-view={viewKey}>
           {app.activityOpen ? (
             <main className={styles.activityPage}>
@@ -539,7 +551,17 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onAccount={() => app.openSettings('apps')}
             >
               <Conversation
-                thread={activeThread}
+                thread={
+                  activeThread && outbox.held.length
+                    ? {
+                        ...activeThread,
+                        queuedMessages: [
+                          ...(activeThread.queuedMessages ?? []),
+                          ...heldAsQueued(outbox.held, activeThread.id),
+                        ],
+                      }
+                    : activeThread
+                }
                 executionLabel={
                   activeThread
                     ? (providerModels(snapshot, activeThread.provider).find(
@@ -612,24 +634,40 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 }
                 onSpeak={(text) => api.speakText(text, selectedAgent?.voiceId)}
                 completionSound={snapshot.preferences.completionSound}
-                onSend={(content, attachmentIds) =>
-                  activeThread
-                    ? app
-                        .attempt(() => api.sendMessage(activeThread.id, content, attachmentIds))
-                        .then(app.clearAttachments)
-                    : Promise.resolve()
-                }
+                onSend={(content, attachmentIds) => {
+                  if (!activeThread) return Promise.resolve();
+                  // Offline, or behind messages still waiting to go: hold it and send in order.
+                  if (
+                    !online ||
+                    outbox.held.some(({ threadId }) => threadId === activeThread.id)
+                  ) {
+                    outbox.hold({
+                      threadId: activeThread.id,
+                      content,
+                      attachments: (app.attachments ?? []).filter(({ id }) =>
+                        attachmentIds?.includes(id),
+                      ),
+                    });
+                    app.clearAttachments();
+                    return Promise.resolve();
+                  }
+                  return app
+                    .attempt(() => api.sendMessage(activeThread.id, content, attachmentIds))
+                    .then(app.clearAttachments);
+                }}
                 onStop={() =>
                   activeThread
                     ? run(() => api.cancelTurn(activeThread.id)).then(() => focusComposer())
                     : Promise.resolve()
                 }
                 onRemoveQueued={(messageId) =>
-                  activeThread
-                    ? run(() => api.removeQueuedMessage(activeThread.id, messageId)).then(() =>
-                        focusComposer(),
-                      )
-                    : Promise.resolve()
+                  outbox.isHeld(messageId)
+                    ? Promise.resolve(outbox.remove(messageId)).then(() => focusComposer())
+                    : activeThread
+                      ? run(() => api.removeQueuedMessage(activeThread.id, messageId)).then(
+                          () => focusComposer(),
+                        )
+                      : Promise.resolve()
                 }
                 browserRecovery={
                   snapshot.activeThread ? (

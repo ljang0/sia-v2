@@ -42,6 +42,7 @@ import { QueuedMessages } from './QueuedMessages';
 import { ConversationOutline, hasConversationOutline } from './ConversationOutline';
 import { SafeMarkdown } from './SafeMarkdown';
 import { RowErrorBoundary } from './ErrorBoundary';
+import { NoticeText, ThreadErrorText } from './PlainErrorText';
 import { DitherAurora as Aurora } from './effects/DitherAurora';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
 
@@ -177,8 +178,17 @@ export function Conversation({
     (event) => event.type === 'message' && event.role === 'assistant',
   );
   const errorAlreadyExplained =
-    lastAssistant?.type === 'message' &&
-    (lastAssistant.content ?? '').trim() === thread?.error?.trim();
+    (lastAssistant?.type === 'message' &&
+      (lastAssistant.content ?? '').trim() === thread?.error?.trim()) ||
+    Boolean(
+      thread?.error &&
+      thread.events.some(
+        (event) =>
+          event.type === 'notice' &&
+          event.tone === 'error' &&
+          (event.detail ?? '').trim() === thread.error?.trim(),
+      ),
+    );
 
   const findNeedle = findQuery.trim().toLocaleLowerCase();
   const matchingEventIds = findNeedle
@@ -684,7 +694,7 @@ export function Conversation({
               <WarningCircle size={18} aria-hidden="true" />
               <div>
                 <strong>Task needs attention</strong>
-                {!errorAlreadyExplained ? <span>{thread.error}</span> : null}
+                <ThreadErrorText error={thread.error} explained={errorAlreadyExplained} />
               </div>
               <button
                 type="button"
@@ -889,8 +899,12 @@ function EventViewContent({
       <div className={`${styles.notice} ${styles[`notice_${event.tone}`]}`} role="status">
         <WarningCircle size={17} aria-hidden="true" />
         <div>
-          <strong>{event.title}</strong>
-          {!noticeExplained ? <p>{event.detail}</p> : null}
+          <NoticeText
+            title={event.title}
+            detail={event.detail}
+            tone={event.tone}
+            explained={noticeExplained}
+          />
         </div>
       </div>
     );
