@@ -6306,6 +6306,8 @@ export class DesktopController {
           : 'Waiting for your Mac to wake.';
       return;
     }
+    // Any turn starting on a paused thread means the person moved on from the pause.
+    this.#heldThreads.delete(thread.id);
     const followUp = this.#state.timeline.find(
       (item) =>
         item.threadId === thread.id &&

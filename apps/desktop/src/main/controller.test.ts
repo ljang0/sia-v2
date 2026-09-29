@@ -7688,6 +7688,28 @@ describe('Use my Mac power and lock handling', () => {
     await controller.shutdown();
   });
 
+  it('forgets a pause hold once the person removes its follow-ups and writes again', async () => {
+    const { runtime, requests } = holdingRuntime();
+    const { controller, threadId, status } = await macThread({ runtime });
+    await controller.invoke('threads.send', { threadId, text: 'File my receipts' });
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    await controller.invoke('threads.send', { threadId, text: 'Then email Sam' });
+    controller.setMacAvailability('locked');
+    await vi.waitFor(() => expect(controller.snapshot().threads[0]?.status).toBe('failed'));
+    const queued = controller
+      .snapshot()
+      .timeline.find((item) => item.kind === 'user' && item.status === 'pending')!;
+    await controller.invoke('threads.unqueue', { threadId, messageId: queued.id });
+    controller.setMacAvailability('available');
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    await controller.invoke('threads.send', { threadId, text: 'Just tidy the desktop' });
+    await controller.invoke('threads.send', { threadId, text: 'And empty the trash' });
+    await vi.waitFor(() => expect(requests).toHaveLength(3));
+    expect(requests[2]).toContain('And empty the trash');
+    await vi.waitFor(() => expect(status()).toBe('idle'));
+    await controller.shutdown();
+  });
+
   it('pauses with a plain message when the Mac goes to sleep', async () => {
     const { runtime } = holdingRuntime();
     const { controller, threadId, status } = await macThread({ runtime });
