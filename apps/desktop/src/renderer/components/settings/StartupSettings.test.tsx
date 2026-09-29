@@ -15,6 +15,8 @@ describe('open at login', () => {
     expect((toggle as HTMLInputElement).checked).toBe(false);
     fireEvent.click(toggle);
     await waitFor(() => expect(setOpenAtLogin).toHaveBeenCalledWith(true));
+    // A quiet inline confirmation follows the change.
+    expect(await screen.findByText('Saved')).toBeTruthy();
   });
 
   it('shows why the setting could not change', async () => {
