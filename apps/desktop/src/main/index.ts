@@ -68,7 +68,6 @@ import {
 } from './personal-voice.js';
 import { nativeVoiceHelperFactory } from './push-to-talk.js';
 
-const APP_ORIGIN = 'app://sia';
 const WINDOW_SIZE = { width: 1220, height: 780, minWidth: 960, minHeight: 640 };
 const PRODUCTION_CSP =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'; font-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'";
@@ -280,7 +279,7 @@ async function performApplicationCreation(): Promise<void> {
     return { action: 'deny' };
   });
   window.webContents.on('will-navigate', (event, url) => {
-    if (url !== rendererDevUrl && !url.startsWith(APP_ORIGIN)) event.preventDefault();
+    if (url !== rendererDevUrl) event.preventDefault();
   });
   window.webContents.on('render-process-gone', (_event, details) => {
     controller?.releaseRendererVoiceCapture();

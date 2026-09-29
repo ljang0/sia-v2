@@ -9,6 +9,7 @@ const electron = vi.hoisted(() => ({
   load: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
 }));
 vi.mock('electron', () => ({
+  app: { isPackaged: true },
   ipcMain: {
     handle: (name: string, handler: (...args: any[]) => Promise<unknown>) =>
       electron.handlers.set(name, handler),
@@ -124,6 +125,7 @@ it('creates no windows until enabled, restores position, stays passive on update
     nodeIntegration: false,
     contextIsolation: true,
     backgroundThrottling: false,
+    devTools: false,
   });
   expect(window.showInactive).toHaveBeenCalledOnce();
   expect(window.focus).not.toHaveBeenCalled();

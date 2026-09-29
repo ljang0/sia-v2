@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, Menu, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, screen } from 'electron';
 import { join } from 'node:path';
 import { z } from 'zod';
 import type { DesktopController } from './controller.js';
@@ -176,6 +176,7 @@ export function createScottyCompanion(
         nodeIntegration: false,
         webviewTag: false,
         backgroundThrottling: false,
+        devTools: !app.isPackaged,
       },
     });
     // A nonactivating panel can join other apps' full-screen Spaces without

@@ -1,4 +1,4 @@
-import { BrowserWindow, globalShortcut, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, screen } from 'electron';
 import { join } from 'node:path';
 import { z } from 'zod';
 import type { DesktopController } from './controller.js';
@@ -142,6 +142,7 @@ export function createCommandLauncher(
             contextIsolation: true,
             nodeIntegration: false,
             webviewTag: false,
+            devTools: !app.isPackaged,
           },
         });
         window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
