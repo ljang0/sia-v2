@@ -29,5 +29,5 @@ anything else or paste an API key.
 - Sia won't type into password fields, sign-in screens, Keychain, or password managers.
 - Research sharing is off unless you separately agree to it in Privacy.
 
-Read `PRIVACY.md` before connecting an app or joining research. Report problems through the private
-alpha support channel described in `SUPPORT.md`.
+Read [`PRIVACY.md`](../PRIVACY.md) before connecting an app or joining research. Report problems
+through the private alpha support channel described in [`SUPPORT.md`](../SUPPORT.md).

@@ -6,7 +6,7 @@ and real accounts. Use disposable, non-sensitive fixtures and keep research shar
 
 Record the result in the private pilot log with the exact Sia version and artifact hash under
 test. The source is `0.1.0-alpha.25`; the latest signed artifact (`0.1.0-alpha.24`) and its hashes
-are in [`release-evidence-2026-08-28-alpha.24.md`](./release-evidence-2026-08-28-alpha.24.md).
+are in [`release-evidence.md`](./release-evidence.md).
 
 ## Automated gate
 
@@ -199,12 +199,14 @@ The source gate is `pnpm check`; the desktop GUI suite is separate and must not 
       state remain intact.
 - [ ] If Included Meta is shown, run one short read-only prompt and one tool-capability smoke. If it
       is unavailable, confirm the UI explains the state and Codex remains usable.
-- [ ] Open **Settings → Computer**. Grant only the requested macOS permission and confirm host-side
-      changes ask before running. Secure fields, authentication windows, password managers,
-      Keychain, terminals, and Sia itself must remain unavailable as generic computer targets.
-- [ ] Create one bounded schedule. Confirm a one-time schedule stops after one run and a recurring
-      schedule has a finite default. Quit Sia across a due time and confirm the UI does not claim it
-      ran while the app was closed.
+- [ ] Open **Settings → Computer**. Grant only the requested macOS permission, turn on confirmations
+      (turn off **Bypass action approvals**), and confirm host-side changes ask before running.
+      Secure fields, authentication windows, password managers, Keychain, terminals, and Sia itself
+      must remain unavailable as generic computer targets.
+- [ ] Create one schedule of each kind. Confirm a one-time schedule stops after one run and a
+      recurring schedule keeps repeating until it is paused or deleted (no run limit unless one is
+      set). Quit Sia across a due time and confirm the UI does not claim it ran while the app was
+      closed.
 - [ ] Create a **Weekdays** schedule and one **On certain days** schedule. Open **Scheduled** in the
       sidebar: both appear with their agent, conversation, plain cadence and next run. Edit one's
       task and time, confirm the next run moves, and select its name to open the conversation.

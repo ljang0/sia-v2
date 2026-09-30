@@ -148,7 +148,7 @@ approved synthetic send, revocation, and reconnect remain.
 
 ## Release evidence
 
-Attach the following to `docs/release-evidence-YYYY-MM-DD.md`:
+Attach the following to [`release-evidence.md`](./release-evidence.md):
 
 - Google publishing and verification state, approved scope list, and test date (no credentials).
 - Slack distribution state, manifest hash, approved scope list, and test date (no credentials).
