@@ -46,6 +46,7 @@ import { AppSettings } from './settings.js';
 import { AppSupport } from './support.js';
 import { ActionHost } from './action-host.js';
 import { Snapshots } from './snapshots.js';
+import { BridgeRouter } from './bridge-router.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -79,6 +80,7 @@ export class DesktopController {
       support: new AppSupport(ctx),
       actions: new ActionHost(ctx),
       snapshots: new Snapshots(ctx),
+      router: new BridgeRouter(ctx),
     }));
   }
 
@@ -285,7 +287,7 @@ export class DesktopController {
     method: M,
     input: BridgeRequestMap[M],
   ): Promise<BridgeResultMap[M]> {
-    return this.#ctx.invokeForRenderer(method, input);
+    return this.#ctx.router.invokeForRenderer(method, input);
   }
 
   subscribe(listener: (event: DesktopPushEvent) => void): () => void {
@@ -309,7 +311,7 @@ export class DesktopController {
     method: M,
     input: BridgeRequestMap[M],
   ): Promise<BridgeResultMap[M]> {
-    return this.#ctx.invoke(method, input);
+    return this.#ctx.router.invoke(method, input);
   }
 
   authorizeComputer(

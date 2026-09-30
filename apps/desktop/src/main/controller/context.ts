@@ -5,9 +5,6 @@ import { isAbsolute } from 'node:path';
 
 import type {
   AgentView,
-  BridgeMethod,
-  BridgeRequestMap,
-  BridgeResultMap,
   DesktopPushEvent,
   DesktopSnapshot,
   ProviderView,
@@ -48,18 +45,7 @@ import type { AppSettings } from './settings.js';
 import type { AppSupport } from './support.js';
 import type { ActionHost } from './action-host.js';
 import type { Snapshots } from './snapshots.js';
-
-const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
-  'bootstrap',
-  'auth.start',
-  'auth.complete',
-  'auth.signOut',
-]);
-
-type BridgeHandler<M extends BridgeMethod> = (
-  input: BridgeRequestMap[M],
-) => BridgeResultMap[M] | Promise<BridgeResultMap[M]>;
-type BridgeHandlers = { [M in BridgeMethod]?: BridgeHandler<M> };
+import type { BridgeRouter } from './bridge-router.js';
 
 /** The domain collaborators a context is wired with. */
 export type ControllerServices = Pick<ControllerContext, ServiceName>;
@@ -86,7 +72,8 @@ type ServiceName =
   | 'settings'
   | 'support'
   | 'actions'
-  | 'snapshots';
+  | 'snapshots'
+  | 'router';
 
 /**
  * Everything the desktop controller knows and does. DesktopController is the public facade;
@@ -118,6 +105,7 @@ export class ControllerContext {
   declare readonly support: AppSupport;
   declare readonly actions: ActionHost;
   declare readonly snapshots: Snapshots;
+  declare readonly router: BridgeRouter;
   readonly listeners = new Set<(event: DesktopPushEvent) => void>();
   readonly rendererCall = new AsyncLocalStorage<true>();
   readonly workspaceGrants = new Set<string>();
@@ -238,14 +226,6 @@ export class ControllerContext {
     void this.schedules.runDueSchedules();
   }
 
-  /** Runs a renderer bridge call so that any snapshot it returns is the renderer's scoped view. */
-  invokeForRenderer<M extends BridgeMethod>(
-    method: M,
-    input: BridgeRequestMap[M],
-  ): Promise<BridgeResultMap[M]> {
-    return this.rendererCall.run(true, () => this.invoke(method, input));
-  }
-
   resultSnapshot(): DesktopSnapshot {
     return this.snapshots.build(this.rendererCall.getStore() === true);
   }
@@ -253,179 +233,6 @@ export class ControllerContext {
   subscribe(listener: (event: DesktopPushEvent) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
-  }
-
-  async invoke<M extends BridgeMethod>(
-    method: M,
-    input: BridgeRequestMap[M],
-  ): Promise<BridgeResultMap[M]> {
-    if (
-      method !== 'bootstrap' &&
-      method !== 'voice.capture.release' &&
-      method !== 'providers.cancelLogin'
-    )
-      this.providers.requireCodexSetupIdle();
-    if (this.account.accountDeletionInProgress && method !== 'bootstrap') {
-      throw new Error('Sia account deletion is in progress. Wait for it to finish.');
-    }
-    if (this.account.signOutInProgress && method !== 'bootstrap') {
-      throw new Error('Sia sign-out is in progress. Wait for it to finish.');
-    }
-    if (this.releaseAccessLocked() && !SIGN_IN_BRIDGE_METHODS.has(method)) {
-      throw new Error('Sign in to Sia to continue.');
-    }
-    const handler = this.bridgeHandlers[method] as BridgeHandler<M> | undefined;
-    if (!handler) throw new Error(`Unknown desktop method: ${String(method)}`);
-    return await handler(input);
-  }
-
-  /** One canonical route per renderer bridge method. */
-  readonly bridgeHandlers: BridgeHandlers = {
-    bootstrap: () => this.resultSnapshot(),
-    'scotty.configure': (input) => this.configureScotty(input),
-    'phone.remote': (input) => this.phoneRemoteCommand(input),
-    'agents.save': (input) => this.agents.saveAgent(input),
-    'assistant.library': (input) => this.assistant.assistantLibraryCommand(input),
-    'agents.delete': ({ agentId }) => this.agents.deleteAgent(agentId),
-    'agents.setPinned': (input) => this.agents.setAgentPinned(input),
-    'agents.setNotifications': (input) => this.agents.setAgentNotifications(input),
-    'agents.duplicate': ({ agentId }) => this.agents.duplicateAgent(agentId),
-    'threads.create': (input) => this.threads.openNewThread(input),
-    'threads.select': ({ threadId }) => this.threads.selectThread(threadId),
-    'threads.rename': (input) => this.threads.renameThread(input),
-    'threads.draft': (input) => this.threads.setThreadDraft(input),
-    'threads.config': (input) => this.threads.configureThread(input),
-    'threads.archive': ({ threadId }) => this.threads.archiveThread(threadId),
-    'threads.unarchive': ({ threadId }) => this.threads.unarchiveThread(threadId),
-    'threads.setUnread': (input) => this.threads.setThreadUnread(input),
-    'threads.setPinned': (input) => this.threads.setThreadPinned(input),
-    'threads.fork': (input) => this.threads.forkThread(input),
-    'threads.handoff': (input) => this.threads.handoffThread(input),
-    'worktrees.cleanup': (input) => this.threads.cleanupWorktree(input),
-    'threads.search': ({ query }) => this.threads.searchThreads(query),
-    'threads.goal.set': (input) => this.threads.setGoal(input),
-    'threads.goal.pause': ({ threadId }) => this.threads.pauseGoal(threadId),
-    'threads.goal.resume': ({ threadId }) => this.threads.resumeGoal(threadId),
-    'threads.goal.clear': ({ threadId }) => this.threads.clearGoal(threadId),
-    'threads.delete': ({ threadId }) => this.threads.deleteThread(threadId),
-    'threads.send': (input) => this.turns.sendTurn(input),
-    'threads.retry': ({ threadId }) => this.turns.retryTurn(threadId),
-    'threads.redo': (input) => this.turns.redoLastTurn(input),
-    'threads.unqueue': ({ threadId, messageId }) =>
-      this.turns.unqueueMessage(threadId, messageId),
-    'threads.cancel': ({ threadId }) => this.turns.cancelTurn(threadId),
-    'threads.steer': ({ threadId, messageId }) =>
-      this.turns.steerQueuedMessage(threadId, messageId),
-    'attachments.pick': ({ threadId }) => this.attachments.pickAttachments(threadId),
-    'attachments.drop': ({ threadId, paths }) =>
-      this.attachments.grantAttachments(threadId, paths),
-    'attachments.paste': (input) => this.attachments.pasteAttachment(input),
-    'attachments.preview': (input) => this.attachments.previewAttachment(input),
-    'attachments.open': (input) => this.attachments.openAttachment(input),
-    'attachments.reveal': (input) => this.attachments.revealAttachment(input),
-    'changes.read': ({ threadId }) => this.workspace.readChanges(threadId),
-    'changes.stage': (input) => this.workspace.stageChanges(input),
-    'changes.restore': (input) => this.workspace.restoreChanges(input),
-    'changes.snapshots.list': ({ threadId }) => this.workspace.listWorkspaceSnapshots(threadId),
-    'changes.snapshots.create': ({ threadId }) =>
-      this.workspace.createWorkspaceSnapshot(threadId),
-    'changes.snapshots.restore': (input) => this.workspace.restoreWorkspaceSnapshot(input),
-    'changes.snapshots.delete': (input) => this.workspace.deleteWorkspaceSnapshot(input),
-    'changes.turn.read': (input) => this.workspace.readTurnChanges(input),
-    'changes.turn.apply': (input) => this.workspace.applyTurnChanges(input),
-    'terminal.run': (input) => this.workspace.runTerminal(input),
-    'terminal.start': (input) => this.workspace.startBackgroundTerminal(input),
-    'terminal.list': ({ threadId }) => this.workspace.listBackgroundTerminals(threadId),
-    'terminal.write': (input) => this.workspace.writeBackgroundTerminal(input),
-    'terminal.stop': (input) => this.workspace.stopBackgroundTerminal(input),
-    'reviews.start': (input) => this.workspace.startReview(input),
-    'schedules.create': (input) => this.schedules.createSchedule(input),
-    'schedules.update': (input) => this.schedules.updateSchedule(input),
-    'schedules.setEnabled': (input) => this.schedules.setScheduleEnabled(input),
-    'schedules.delete': ({ scheduleId }) => this.schedules.deleteSchedule(scheduleId),
-    'schedules.runNow': ({ scheduleId }) => this.schedules.runScheduleNow(scheduleId),
-    'approvals.resolve': (input) => this.approvals.resolveApproval(input),
-    'providers.probe': ({ providerId }) => this.providers.probeProviders(providerId),
-    'providers.login': ({ providerId }) => this.providers.providerLogin(providerId),
-    'providers.cancelLogin': () => this.providers.cancelProviderLogin(),
-    'settings.openDirectory': async () => ({
-      path: await this.workspace.grantChosenDirectory(),
-    }),
-    'settings.setOnboarding': (input) => this.settings.setOnboarding(input),
-    'settings.restartForOnboarding': () => this.settings.restartForOnboarding(),
-    'computer.setupMessages': () => this.computerAccess.setupMessages(),
-    'settings.setAppearance': ({ appearance }) => this.settings.setAppearance(appearance),
-    'settings.setTheme': ({ theme }) => this.settings.setTheme(theme),
-    'settings.setTextSize': ({ textSize }) => this.settings.setTextSize(textSize),
-    'settings.setCompletionSound': ({ enabled }) => this.settings.setCompletionSound(enabled),
-    'settings.setOpenAtLogin': ({ enabled }) => this.settings.setOpenAtLogin(enabled),
-    'settings.setDeveloperTools': ({ enabled }) => this.settings.setDeveloperTools(enabled),
-    'feedback.compose': (input) => this.support.composeFeedbackMessage(input),
-    'updates.check': () => this.support.checkForUpdates(),
-    'updates.openDownload': () => this.support.openUpdateDownload(),
-    'computer.permissions': () => this.computerAccess.refreshComputer(false),
-    'computer.requestPermissions': (input) =>
-      this.computerAccess.refreshComputer(true, input?.permission),
-    'computer.requestAutomation': ({ app }) => this.computerAccess.requestAutomation(app),
-    'computer.openMessages': () => this.computerAccess.openMessagesApp(),
-    'computer.setAccessMode': (input) => this.computerAccess.setAccessMode(input),
-    'computer.setTrust': ({ trust }) => this.computerAccess.setComputerTrust(trust),
-    'computer.setTrajectoryLog': ({ enabled }) => this.computerAccess.setTrajectoryLog(enabled),
-    'computer.revealTrajectories': () => this.computerAccess.revealTrajectories(),
-    'browser.connectAndContinue': (input) => this.browser.connectBrowserAndContinue(input),
-    'browser.attach': (input) => this.browser.attachBrowser(input),
-    'browser.open': ({ url }) => this.browser.openBrowserUrl(url),
-    'browser.detach': () => this.browser.detachBrowser(),
-    'voice.pushToTalk.configure': (input) => this.speech.configurePushToTalk(input),
-    'voice.pushToTalk.cancel': () => this.speech.cancelPushToTalk(),
-    'voice.capture.acquire': () => this.speech.acquireRendererCapture(),
-    'voice.capture.release': ({ leaseId }) => this.speech.releaseRendererCapture(leaseId),
-    'voice.configure': () => this.speech.configureVoice(),
-    'voice.refresh': () => this.speech.refreshVoice(),
-    'voice.select': ({ voiceId }) => this.speech.selectVoice(voiceId),
-    'voice.disconnect': () => this.speech.disconnectVoice(),
-    'voice.transcribe': (input) => this.speech.transcribe(input),
-    'voice.realtime.start': () => this.speech.startRealtime(),
-    'voice.realtime.append': (input) => this.speech.appendRealtime(input),
-    'voice.realtime.stop': (input) => this.speech.stopRealtime(input),
-    'voice.speak': (input) => this.speech.speak(input),
-    'connections.startGoogle': () => this.connections.startGoogleConnections(),
-    'connections.startSelected': ({ apps }) => this.connections.startSelectedConnections(apps),
-    'connections.upgradeGoogle': () => this.connections.upgradeGoogleConnections(),
-    'connections.start': ({ connectionId }) =>
-      this.connections.startAppConnection(connectionId),
-    'connections.setEnabled': (input) => this.connections.setConnectionEnabled(input),
-    'connections.disconnect': (input) => this.connections.disconnectConnection(input),
-    'auth.start': ({ email }) => this.account.startSignIn(email),
-    'auth.complete': ({ code }) => this.account.completeSignIn(code),
-    'auth.mfaBegin': () => this.account.beginMfaEnrollment(),
-    'auth.mfaComplete': ({ code }) => this.account.completeMfaEnrollment(code),
-    'auth.signOut': () => this.account.signOut(),
-    'auth.deleteAccount': ({ confirmation }) => this.account.deleteCloudAccount(confirmation),
-    'research.setCapture': (input) => this.researchOutbox.setCapture(input),
-    'research.export': () => this.researchOutbox.exportResearch(),
-    'research.delete': ({ confirmation }) => this.researchOutbox.deleteResearch(confirmation),
-    'research.admin.invites': () => this.deps.cloud.listAdminInvites(),
-    'research.admin.invite': ({ email }) => this.deps.cloud.createAdminInvite(email),
-    'research.admin.participants': () => this.deps.cloud.listAdminResearchParticipants(),
-    'research.admin.batches': ({ subject }) =>
-      this.deps.cloud.listAdminResearchBatches(subject),
-    'research.admin.readBatch': ({ subject, batchId }) =>
-      this.deps.cloud.readAdminResearchBatch(subject, batchId),
-  };
-
-  async configureScotty(
-    input: BridgeRequestMap['scotty.configure'],
-  ): Promise<BridgeResultMap['scotty.configure']> {
-    if (!this.scotty) throw new Error('Scotty is unavailable in this build.');
-    return await this.scotty(input);
-  }
-
-  async phoneRemoteCommand(
-    input: BridgeRequestMap['phone.remote'],
-  ): Promise<BridgeResultMap['phone.remote']> {
-    if (!this.phoneRemote) throw new Error('Phone remote is unavailable in this build.');
-    return await this.phoneRemote(input);
   }
 
   async shutdown(): Promise<void> {
