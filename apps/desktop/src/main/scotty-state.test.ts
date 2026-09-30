@@ -254,3 +254,30 @@ it('does not dispatch a new turn when the Mac locks while creating its thread', 
   await expect(sending).rejects.toThrow('sign in');
   expect(controller.invoke).toHaveBeenCalledTimes(1);
 });
+
+it('says whether a working Mac task is on the screen or in the background', () => {
+  const running = snapshot('running');
+  const idle = snapshot('idle');
+  const id = running.threads[0]!.id;
+  const tasks = new ScottyTasks();
+  const view = (screenControl: Record<string, 'foreground' | 'background'>) =>
+    tasks.view(
+      {
+        ...running,
+        threads: [...running.threads, ...idle.threads],
+        timeline: [...running.timeline, ...idle.timeline],
+        screenControl: { ...screenControl, [idle.threads[0]!.id]: 'foreground' },
+      },
+      settings,
+      true,
+    ).tasks;
+  expect(view({ [id]: 'background' }).find((task) => task.id === id)?.screen).toBe(
+    'background',
+  );
+  expect(view({ [id]: 'foreground' }).find((task) => task.id === id)?.screen).toBe(
+    'foreground',
+  );
+  expect(view({}).find((task) => task.id === id)).not.toHaveProperty('screen');
+  // A finished task never shows a screen status, even with a stale entry.
+  expect(view({}).find((task) => task.id === idle.threads[0]!.id)).not.toHaveProperty('screen');
+});

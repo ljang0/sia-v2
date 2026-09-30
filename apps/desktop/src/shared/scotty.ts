@@ -33,6 +33,8 @@ export interface ScottyTask {
   canReply: boolean;
   canStop: boolean;
   unread: boolean;
+  /** A working Use my Mac task: on the person's screen or quietly in the background. */
+  screen?: 'foreground' | 'background';
 }
 export interface ScottyState {
   revision: number;

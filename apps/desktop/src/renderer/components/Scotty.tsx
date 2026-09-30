@@ -355,6 +355,13 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
                   <span className={styles.dot} />
                   {task.progress}
                 </p>
+                {task.screen && (
+                  <small className={styles.screen}>
+                    {task.screen === 'foreground'
+                      ? 'Using your screen · Press Esc to stop'
+                      : 'Working quietly in the background'}
+                  </small>
+                )}
                 {task.response && (
                   <div className={styles.response}>
                     {task.truncated && (

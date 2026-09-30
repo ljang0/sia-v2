@@ -160,6 +160,8 @@ export class ScottyTasks {
           unread: Boolean(thread.unread),
           updatedAt: thread.updatedAt,
         };
+        const screen = snapshot.screenControl?.[thread.id];
+        if (screen && thread.status === 'running') result.screen = screen;
         if (question)
           result.question = (question.text ?? 'Sia needs your answer.').slice(0, 24000);
         if (approval) {
