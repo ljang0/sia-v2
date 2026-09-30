@@ -89,16 +89,27 @@ test('one checklist action connects the selected accounts and keeps connected ac
     await expect(google).toBeChecked();
     await expect(slack).toBeChecked();
     await slack.uncheck();
-    await sia.page.getByRole('button', { name: 'Connect selected apps' }).click();
+    const connectSelected = sia.page.getByRole('button', { name: 'Connect selected apps' });
+    await connectSelected.click();
+    // The whole checklist is disabled while the request is in flight, so wait for the settled
+    // row label rather than a disabled checkbox before reading the saved grant.
+    const googleRow = sia.page.locator('label').filter({ has: google });
+    await expect(googleRow).toContainText('Connected');
+    await expect(google).toBeChecked();
     await expect(google).toBeDisabled();
     await expect(slack).not.toBeChecked();
+    await expect(slack).toBeEnabled();
     const partial = await sia.page.evaluate(() => window.sia.bootstrap());
     expect(partial.connections.find((app) => app.id === 'slack')?.status).toBe('disconnected');
+    expect(partial.connections.find((app) => app.id === 'gmail')?.connectionId).toBeTruthy();
     await slack.check();
-    await sia.page.getByRole('button', { name: 'Connect selected apps' }).click();
+    await connectSelected.click();
+    // Once both apps are connected, the checklist steps aside for the per-app rows.
     await expect(
-      sia.page.getByRole('button', { name: 'Connect selected apps' }),
-    ).toBeDisabled();
+      sia.page.getByRole('status').filter({ hasText: 'All connected' }),
+    ).toBeVisible();
+    await expect(connectSelected).toHaveCount(0);
+    await expect(sia.page.getByRole('button', { name: 'Disconnect Slack' })).toBeVisible();
     const connected = await sia.page.evaluate(() => window.sia.bootstrap());
     expect(connected.connections.every((app) => app.status === 'connected')).toBe(true);
     expect(connected.connections.find((app) => app.id === 'gmail')?.connectionId).toBe(
