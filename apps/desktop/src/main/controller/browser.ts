@@ -30,7 +30,9 @@ export class BrowserSession {
   /** Any HTTP(S) origin is allowed while trusted; otherwise only origins granted at attach. */
   isBrowserOriginAllowed(origin: string): boolean {
     if (this.ctx.state.browser.grantedOrigins.includes(origin)) return true;
-    return this.ctx.computerTrust() === 'auto' && /^https?:$/.test(new URL(origin).protocol);
+    return (
+      this.ctx.computerAccess.trust() === 'auto' && /^https?:$/.test(new URL(origin).protocol)
+    );
   }
 
   /**
@@ -42,9 +44,9 @@ export class BrowserSession {
   }
 
   async ensureBrowserAttachedForActions(): Promise<string | undefined> {
-    if (this.ctx.computerAccessMode() === 'mac')
+    if (this.ctx.computerAccess.accessMode() === 'mac')
       return 'Use my Mac is enabled. Use native shell, AppleScript and screenshots with the existing Safari or browser window. Chrome attachment is optional.';
-    if (this.ctx.computerTrust() !== 'auto')
+    if (this.ctx.computerAccess.trust() !== 'auto')
       return 'No Chrome window is connected. Sia shows a Connect Chrome & continue control below this response. Ask the user to choose their window there; they do not need to repeat the request.';
     if (this.ctx.state.browser.status === 'attached' && this.sessionId) return undefined;
     if (!this.autoAttach) {

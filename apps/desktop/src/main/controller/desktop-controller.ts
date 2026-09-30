@@ -32,6 +32,7 @@ import { Schedules } from './schedules.js';
 import { Attachments } from './attachments.js';
 import { WorkspaceTools } from './workspace.js';
 import { BrowserSession } from './browser.js';
+import { ComputerAccess } from './computer-access.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -51,6 +52,7 @@ export class DesktopController {
       attachments: new Attachments(ctx),
       workspace: new WorkspaceTools(ctx),
       browser: new BrowserSession(ctx),
+      computerAccess: new ComputerAccess(ctx),
     }));
   }
 
@@ -135,7 +137,7 @@ export class DesktopController {
 
   /** Use my Mac, or connected apps only. */
   computerAccessMode(): 'mac' | 'connected' {
-    return this.#ctx.computerAccessMode();
+    return this.#ctx.computerAccess.accessMode();
   }
 
   /**
@@ -153,16 +155,16 @@ export class DesktopController {
 
   /** Use my Mac works in the background unless the person explicitly chose On my screen. */
   macBackgroundControl(): boolean {
-    return this.#ctx.macBackgroundControl();
+    return this.#ctx.computerAccess.backgroundControl();
   }
 
   macBackgroundFallback(): 'pause' | 'foreground' {
-    return this.#ctx.macBackgroundFallback();
+    return this.#ctx.computerAccess.backgroundFallback();
   }
 
   /** Bypass is the default; only an explicit 'ask' turns confirmations on. */
   computerTrust(): 'auto' | 'ask' {
-    return this.#ctx.computerTrust();
+    return this.#ctx.computerAccess.trust();
   }
 
   /** Action-gateway trust for one turn; phone turns always confirm on the Mac. */
@@ -171,7 +173,7 @@ export class DesktopController {
   }
 
   trajectoryLogEnabled(): boolean {
-    return this.#ctx.trajectoryLogEnabled();
+    return this.#ctx.computerAccess.trajectoryLogEnabled();
   }
 
   createScheduleFromAction(

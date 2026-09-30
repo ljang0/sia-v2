@@ -2,7 +2,6 @@ import { taskRecoveryContext } from '../task-recovery.js';
 import type { TaskSnapshot } from '../latest-task-turn.js';
 import type { PhoneRemoteApi } from '../../shared/phone-remote.js';
 import type { ScottySettingsApi } from '../../shared/scotty.js';
-import type { AutomationPermissions } from '../../shared/mac-permissions.js';
 import {
   completedJournal,
   MEMORY_REVIEW_PROMPT,
@@ -46,7 +45,6 @@ import type {
   BridgeMethod,
   BridgeRequestMap,
   BridgeResultMap,
-  ComputerPermissionsView,
   DesktopPushEvent,
   DesktopSnapshot,
   ProviderView,
@@ -116,6 +114,7 @@ import type { Schedules } from './schedules.js';
 import type { Attachments } from './attachments.js';
 import type { WorkspaceTools } from './workspace.js';
 import type { BrowserSession } from './browser.js';
+import type { ComputerAccess } from './computer-access.js';
 
 const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
   'bootstrap',
@@ -140,7 +139,8 @@ type ServiceName =
   | 'schedules'
   | 'attachments'
   | 'workspace'
-  | 'browser';
+  | 'browser'
+  | 'computerAccess';
 
 /**
  * Everything the desktop controller knows and does. DesktopController is the public facade;
@@ -158,6 +158,7 @@ export class ControllerContext {
   declare readonly attachments: Attachments;
   declare readonly workspace: WorkspaceTools;
   declare readonly browser: BrowserSession;
+  declare readonly computerAccess: ComputerAccess;
   readonly assistantLibrary: AssistantLibrary;
   pushToTalk: PushToTalkService | undefined;
   readonly listeners = new Set<(event: DesktopPushEvent) => void>();
@@ -196,14 +197,6 @@ export class ControllerContext {
   runtime: RuntimeCoordinator | undefined;
   browserCapabilitySink: BrowserCapabilitySink | undefined;
   state: PersistedState = structuredClone(INITIAL_STATE);
-  computerState: ComputerPermissionsView = {
-    status: 'unavailable',
-    accessibility: false,
-    screenRecording: false,
-  };
-  automationPermissions: AutomationPermissions | undefined;
-  messagesAccess: 'ready' | 'needs_full_disk_access' | 'unavailable' | undefined;
-  chromeConnection: 'enabled' | 'off' | 'unavailable' | undefined;
   revision = 0;
   shuttingDown = false;
   updates: UpdateView;
@@ -295,8 +288,8 @@ export class ControllerContext {
       changed: () => this.emit(),
     });
     this.pushToTalk.setContextEnabled(
-      this.assistantLibrary.view().context || this.computerAccessMode() === 'mac',
-      this.computerAccessMode() === 'mac',
+      this.assistantLibrary.view().context || this.computerAccess.accessMode() === 'mac',
+      this.computerAccess.accessMode() === 'mac',
     );
     this.pushToTalk.syncAccess();
   }
@@ -357,7 +350,9 @@ export class ControllerContext {
   }
 
   isMacTurn(threadId: string): boolean {
-    return this.computerAccessMode() === 'mac' && !this.assistantLibrary.isReview(threadId);
+    return (
+      this.computerAccess.accessMode() === 'mac' && !this.assistantLibrary.isReview(threadId)
+    );
   }
 
   assistantSuspended = false;
@@ -496,7 +491,7 @@ export class ControllerContext {
   }
   libraryView() {
     const view = this.assistantLibrary.view();
-    if (this.computerAccessMode() !== 'mac') return view;
+    if (this.computerAccess.accessMode() !== 'mac') return view;
     if (!this.deps.fakeServices) {
       for (const agent of this.state.agents) this.notchVault(agent.id).initialize(view);
     }
@@ -552,12 +547,12 @@ export class ControllerContext {
     const reviewWorkspace = this.assistantLibrary.reviewWorkspace(request.context.threadId);
     const nativeWorkspace =
       reviewWorkspace ??
-      (this.computerAccessMode() === 'mac' && !this.macBackgroundControl()
+      (this.computerAccess.accessMode() === 'mac' && !this.computerAccess.backgroundControl()
         ? this.requireAgent(agentId).workspace
         : undefined);
     const autoApply =
       !!reviewWorkspace &&
-      this.computerAccessMode() === 'mac' &&
+      this.computerAccess.accessMode() === 'mac' &&
       view.nativeLearningAgents?.includes(agentId) === true &&
       view.learningAgents?.includes(agentId) === true &&
       view.reviewAgents?.includes(agentId) === true;
@@ -569,13 +564,13 @@ export class ControllerContext {
           view.nativeLearningAgents?.includes(agentId) &&
           view.learningAgents?.includes(agentId);
         if (
-          this.computerAccessMode() !== 'mac' ||
+          this.computerAccess.accessMode() !== 'mac' ||
           (review
             ? !this.assistantLibrary.isNotchReview(request.context.threadId) ||
               reviewWorkspace !== this.requireAgent(agentId).workspace ||
               !learning ||
               !view.reviewAgents?.includes(agentId)
-            : !this.macBackgroundControl())
+            : !this.computerAccess.backgroundControl())
         )
           throw new Error('This memory vault action is no longer authorized.');
         if (!['list', 'read'].includes(args.operation) && !learning)
@@ -666,7 +661,7 @@ export class ControllerContext {
           )
         )
           throw new Error('Credentials cannot be stored as memory.');
-        if (this.computerAccessMode() === 'mac' && !reviewWorkspace) {
+        if (this.computerAccess.accessMode() === 'mac' && !reviewWorkspace) {
           const vault = this.notchVault(agentId);
           const lessons = vault.read('lessons.md');
           vault.write(
@@ -728,11 +723,6 @@ export class ControllerContext {
     }
   }
 
-  /** Use my Mac, or connected apps only. */
-  computerAccessMode(): 'mac' | 'connected' {
-    return this.state.preferences.computerAccessMode ?? 'connected';
-  }
-
   /**
    * Theme and text size. They hold nothing private, so they apply before sign-in too and main
    * mirrors them for the next launch's first frame.
@@ -747,32 +737,12 @@ export class ControllerContext {
     return this.state.preferences.developerTools === true;
   }
 
-  /** Use my Mac works in the background unless the person explicitly chose On my screen. */
-  macBackgroundControl(): boolean {
-    return this.state.preferences.macBackgroundControl !== false;
-  }
-
-  macBackgroundFallback(): 'pause' | 'foreground' {
-    return this.state.preferences.macBackgroundFallback === 'foreground'
-      ? 'foreground'
-      : 'pause';
-  }
-
-  /** Bypass is the default; only an explicit 'ask' turns confirmations on. */
-  computerTrust(): 'auto' | 'ask' {
-    return this.state.preferences.computerTrust === 'ask' ? 'ask' : 'auto';
-  }
-
   /**
    * Full bypass never extends to phone turns: the phone link is plain HTTP on the local network,
    * so anyone who observes it could otherwise run unattended actions on this Mac.
    */
   trustForTurn(turnId: string | undefined): 'auto' | 'ask' {
-    return turnId && this.phoneTurns.has(turnId) ? 'ask' : this.computerTrust();
-  }
-
-  trajectoryLogEnabled(): boolean {
-    return this.state.preferences.trajectoryLog ?? true;
+    return turnId && this.phoneTurns.has(turnId) ? 'ask' : this.computerAccess.trust();
   }
 
   recordActionResult(notice: Parameters<ActionResultObserver>[0]): void {
@@ -908,7 +878,7 @@ export class ControllerContext {
       this.deps.identity.initialize(),
     ]);
     this.providers.views = providers;
-    await this.refreshCapabilityStatuses().catch(() => undefined);
+    await this.computerAccess.refreshCapabilityStatuses().catch(() => undefined);
     if (this.deps.fakeServices) {
       const codexIndex = this.providers.views.findIndex(({ id }) => id === 'codex');
       const fakeCodex: ProviderView = {
@@ -948,7 +918,7 @@ export class ControllerContext {
     if (this.deps.identity.status().state === 'signed_in') {
       await this.deps.voice?.refresh().catch(() => undefined);
     }
-    this.computerState = computer;
+    this.computerAccess.state = computer;
     this.researchOutbox.refreshPendingCount();
     this.persist();
     this.researchOutbox.scheduleSync();
@@ -965,11 +935,11 @@ export class ControllerContext {
       )
         return;
       try {
-        const native = this.computerAccessMode() === 'mac';
+        const native = this.computerAccess.accessMode() === 'mac';
         for (const agentId of this.assistantLibrary.view().learningAgents ?? [])
           if (
             !native ||
-            (this.macBackgroundControl() &&
+            (this.computerAccess.backgroundControl() &&
               !this.assistantLibrary.view().nativeLearningAgents?.includes(agentId))
           )
             this.assistantLibrary.consolidate(agentId);
@@ -995,7 +965,7 @@ export class ControllerContext {
         this.shuttingDown ||
         this.assistantSuspended ||
         this.releaseAccessLocked() ||
-        this.computerAccessMode() !== 'mac' ||
+        this.computerAccess.accessMode() !== 'mac' ||
         this.runningTurns.size ||
         this.queuedTurns.length ||
         this.pushToTalk?.busy
@@ -1186,15 +1156,21 @@ export class ControllerContext {
       connections: structuredClone(this.state.connections),
       capture: structuredClone(this.state.capture),
       computer: {
-        ...structuredClone(this.computerState),
-        ...(this.automationPermissions ? { automation: this.automationPermissions } : {}),
-        ...(this.messagesAccess ? { messagesAccess: this.messagesAccess } : {}),
-        ...(this.chromeConnection ? { chromeConnection: this.chromeConnection } : {}),
-        accessMode: this.computerAccessMode(),
-        backgroundControl: this.macBackgroundControl(),
-        backgroundFallback: this.macBackgroundFallback(),
-        trust: this.computerTrust(),
-        trajectoryLog: this.trajectoryLogEnabled(),
+        ...structuredClone(this.computerAccess.state),
+        ...(this.computerAccess.automationPermissions
+          ? { automation: this.computerAccess.automationPermissions }
+          : {}),
+        ...(this.computerAccess.messagesAccess
+          ? { messagesAccess: this.computerAccess.messagesAccess }
+          : {}),
+        ...(this.computerAccess.chromeConnection
+          ? { chromeConnection: this.computerAccess.chromeConnection }
+          : {}),
+        accessMode: this.computerAccess.accessMode(),
+        backgroundControl: this.computerAccess.backgroundControl(),
+        backgroundFallback: this.computerAccess.backgroundFallback(),
+        trust: this.computerAccess.trust(),
+        trajectoryLog: this.computerAccess.trajectoryLogEnabled(),
         ...(this.deps.trajectory
           ? { trajectoryDirectory: this.deps.trajectory.rootDirectory }
           : {}),
@@ -1321,7 +1297,7 @@ export class ControllerContext {
     }),
     'settings.setOnboarding': (input) => this.setOnboarding(input),
     'settings.restartForOnboarding': () => this.restartForOnboarding(),
-    'computer.setupMessages': () => this.setupMessages(),
+    'computer.setupMessages': () => this.computerAccess.setupMessages(),
     'settings.setAppearance': ({ appearance }) => this.setAppearance(appearance),
     'settings.setTheme': ({ theme }) => this.setTheme(theme),
     'settings.setTextSize': ({ textSize }) => this.setTextSize(textSize),
@@ -1331,14 +1307,15 @@ export class ControllerContext {
     'feedback.compose': (input) => this.composeFeedbackMessage(input),
     'updates.check': () => this.checkForUpdates(),
     'updates.openDownload': () => this.openUpdateDownload(),
-    'computer.permissions': () => this.refreshComputer(false),
-    'computer.requestPermissions': (input) => this.refreshComputer(true, input?.permission),
-    'computer.requestAutomation': ({ app }) => this.requestAutomation(app),
-    'computer.openMessages': () => this.openMessagesApp(),
-    'computer.setAccessMode': (input) => this.setAccessMode(input),
-    'computer.setTrust': ({ trust }) => this.setComputerTrust(trust),
-    'computer.setTrajectoryLog': ({ enabled }) => this.setTrajectoryLog(enabled),
-    'computer.revealTrajectories': () => this.revealTrajectories(),
+    'computer.permissions': () => this.computerAccess.refreshComputer(false),
+    'computer.requestPermissions': (input) =>
+      this.computerAccess.refreshComputer(true, input?.permission),
+    'computer.requestAutomation': ({ app }) => this.computerAccess.requestAutomation(app),
+    'computer.openMessages': () => this.computerAccess.openMessagesApp(),
+    'computer.setAccessMode': (input) => this.computerAccess.setAccessMode(input),
+    'computer.setTrust': ({ trust }) => this.computerAccess.setComputerTrust(trust),
+    'computer.setTrajectoryLog': ({ enabled }) => this.computerAccess.setTrajectoryLog(enabled),
+    'computer.revealTrajectories': () => this.computerAccess.revealTrajectories(),
     'browser.connectAndContinue': (input) => this.browser.connectBrowserAndContinue(input),
     'browser.attach': (input) => this.browser.attachBrowser(input),
     'browser.open': ({ url }) => this.browser.openBrowserUrl(url),
@@ -1400,7 +1377,7 @@ export class ControllerContext {
   ): Promise<BridgeResultMap['assistant.library']> {
     this.requireSignedInReleaseAccount();
     if (command.operation === 'saveVaultNote' || command.operation === 'deleteVaultNote') {
-      if (this.computerAccessMode() !== 'mac')
+      if (this.computerAccess.accessMode() !== 'mac')
         throw new Error('Native vault edits require Use my Mac.');
       if (
         [...this.runningTurns.keys()].some(
@@ -1414,10 +1391,10 @@ export class ControllerContext {
       else vault.remove(command.name, command.revision);
       return this.libraryView() as BridgeResultMap['assistant.library'];
     }
-    if (command.operation === 'nativeLearning' && this.computerAccessMode() !== 'mac')
+    if (command.operation === 'nativeLearning' && this.computerAccess.accessMode() !== 'mac')
       throw new Error('Enable Use my Mac before turning on native learning.');
     if (command.operation === 'saveSkill' && command.entry.execution === 'native') {
-      if (this.computerAccessMode() !== 'mac')
+      if (this.computerAccess.accessMode() !== 'mac')
         throw new Error('Native skills require Use my Mac.');
       this.nativeSkills(command.entry.agentId).save(command.entry);
       return this.libraryView() as BridgeResultMap['assistant.library'];
@@ -1443,22 +1420,22 @@ export class ControllerContext {
     }
     if (
       command.operation === 'consolidate' &&
-      this.computerAccessMode() === 'mac' &&
+      this.computerAccess.accessMode() === 'mac' &&
       this.assistantLibrary.view().nativeLearningAgents?.includes(command.agentId)
     ) {
       await this.awaitCompletedTurns();
       const threadId = this.startMemoryReview(command.agentId, true);
       return { ...this.libraryView(), threadId } as BridgeResultMap['assistant.library'];
     }
-    if (command.operation === 'clearJournal' && this.computerAccessMode() === 'mac')
+    if (command.operation === 'clearJournal' && this.computerAccess.accessMode() === 'mac')
       this.notchVault(command.agentId).clearJournal();
     if (command.operation === 'runSkill') {
       const skill = this.libraryView().skills?.find((entry) => entry.id === command.id);
       if (!skill) throw new Error('This skill was deleted.');
       const unavailable = skillUnavailableReason(
         skillExecutionMode({
-          accessMode: this.computerAccessMode(),
-          backgroundControl: this.macBackgroundControl(),
+          accessMode: this.computerAccess.accessMode(),
+          backgroundControl: this.computerAccess.backgroundControl(),
         }),
         skill.execution,
       );
@@ -1507,8 +1484,8 @@ export class ControllerContext {
       }
     }
     this.pushToTalk?.setContextEnabled(
-      result.context || this.computerAccessMode() === 'mac',
-      this.computerAccessMode() === 'mac',
+      result.context || this.computerAccess.accessMode() === 'mac',
+      this.computerAccess.accessMode() === 'mac',
     );
     this.commit();
     return {
@@ -1571,15 +1548,6 @@ export class ControllerContext {
     return this.resultSnapshot();
   }
 
-  async setupMessages(): Promise<DesktopSnapshot> {
-    if (!this.deps.openMessagesPermissions)
-      throw new Error('Messages setup is unavailable on this Mac.');
-    await this.deps.openMessagesPermissions();
-    await this.refreshCapabilityStatuses();
-    this.emit();
-    return this.resultSnapshot();
-  }
-
   setAppearance(
     appearance: BridgeRequestMap['settings.setAppearance']['appearance'],
   ): DesktopSnapshot {
@@ -1622,50 +1590,6 @@ export class ControllerContext {
     if (enabled) this.state.preferences.developerTools = true;
     else delete this.state.preferences.developerTools;
     this.commit();
-    return this.resultSnapshot();
-  }
-
-  async requestAutomation(
-    app: BridgeRequestMap['computer.requestAutomation']['app'],
-  ): Promise<DesktopSnapshot> {
-    if (!this.deps.capabilitySetup?.automationPermissions)
-      throw new Error('Mac app permission setup is unavailable in this build.');
-    this.automationPermissions = await this.deps.capabilitySetup.automationPermissions(app);
-    this.emit();
-    return this.resultSnapshot();
-  }
-
-  setAccessMode(input: BridgeRequestMap['computer.setAccessMode']): DesktopSnapshot {
-    this.requireSignedInReleaseAccount();
-    this.state.preferences.computerAccessMode = input.mode;
-    const background = input.background;
-    if (background !== undefined) this.state.preferences.macBackgroundControl = background;
-    const fallback = input.backgroundFallback;
-    if (fallback !== undefined) this.state.preferences.macBackgroundFallback = fallback;
-    this.pushToTalk?.setContextEnabled(
-      this.assistantLibrary.view().context || this.computerAccessMode() === 'mac',
-      this.computerAccessMode() === 'mac',
-    );
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  setComputerTrust(trust: BridgeRequestMap['computer.setTrust']['trust']): DesktopSnapshot {
-    this.state.preferences.computerTrust = trust;
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  setTrajectoryLog(enabled: boolean): DesktopSnapshot {
-    this.state.preferences.trajectoryLog = enabled;
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  async revealTrajectories(): Promise<DesktopSnapshot> {
-    if (this.deps.trajectory && this.deps.revealDirectory) {
-      await this.deps.revealDirectory(this.deps.trajectory.rootDirectory);
-    }
     return this.resultSnapshot();
   }
 
@@ -1973,7 +1897,7 @@ export class ControllerContext {
     else this.state.agents.push(agent);
     this.state.activeAgentId = agentId;
     if (!existing) {
-      if (this.computerAccessMode() === 'mac') {
+      if (this.computerAccess.accessMode() === 'mac') {
         this.assistantLibrary.change(
           { operation: 'nativeLearning', agentId, enabled: true },
           (id) => this.requireAgent(id),
@@ -2088,7 +2012,8 @@ export class ControllerContext {
     const nativeLearning =
       this.assistantLibrary.view().nativeLearningAgents?.includes(agentId) === true;
     const workspace =
-      this.computerAccessMode() === 'mac' && (!this.macBackgroundControl() || nativeLearning)
+      this.computerAccess.accessMode() === 'mac' &&
+      (!this.computerAccess.backgroundControl() || nativeLearning)
         ? agent.workspace
         : undefined;
     const notch = !!workspace && nativeLearning;
@@ -2565,8 +2490,8 @@ export class ControllerContext {
       !this.deps.fakeServices &&
       !this.assistantSuspended &&
       !this.releaseAccessLocked() &&
-      this.computerAccessMode() === 'mac' &&
-      !this.macBackgroundControl();
+      this.computerAccess.accessMode() === 'mac' &&
+      !this.computerAccess.backgroundControl();
     if (!allowed()) return undefined;
     const context = await this.deps.captureMacContext?.().catch(() => undefined);
     return allowed() ? context : undefined;
@@ -2581,7 +2506,9 @@ export class ControllerContext {
       'manual',
       undefined,
       undefined,
-      this.computerAccessMode() === 'mac' && !this.macBackgroundControl() ? context : undefined,
+      this.computerAccess.accessMode() === 'mac' && !this.computerAccess.backgroundControl()
+        ? context
+        : undefined,
     );
   }
 
@@ -3123,33 +3050,6 @@ export class ControllerContext {
     return this.resultSnapshot();
   }
 
-  async refreshCapabilityStatuses(): Promise<void> {
-    if (!this.deps.capabilitySetup) return;
-    this.automationPermissions = await this.deps.capabilitySetup.automationPermissions?.();
-    this.messagesAccess = this.deps.capabilitySetup.messagesStatus();
-    this.chromeConnection = await this.deps.capabilitySetup.chromeDebugStatus();
-  }
-
-  async refreshComputer(
-    request: boolean,
-    permission?: 'accessibility' | 'screenRecording',
-  ): Promise<DesktopSnapshot> {
-    this.computerState = request
-      ? await this.deps.computer.requestPermissions(permission)
-      : await this.deps.computer.permissions();
-    await this.refreshCapabilityStatuses();
-    await this.deps.voice?.refreshPermissions?.().catch(() => undefined);
-    this.pushToTalk?.refreshPermissions();
-    this.emit();
-    return this.resultSnapshot();
-  }
-
-  async openMessagesApp(): Promise<DesktopSnapshot> {
-    if (!this.deps.openMessages) throw new Error('Messages is unavailable on this Mac.');
-    await this.deps.openMessages();
-    return this.resultSnapshot();
-  }
-
   async configureVoice(): Promise<DesktopSnapshot> {
     await this.requireVoice().configure();
     this.emit();
@@ -3237,7 +3137,7 @@ export class ControllerContext {
     this.workspaceLeases.set(thread.workspace, turn.id);
     if (this.isMacTurn(thread.id)) {
       this.macTurns.set(thread.id, turn);
-      if (!this.macBackgroundControl()) this.foregroundTurns.add(thread.id);
+      if (!this.computerAccess.backgroundControl()) this.foregroundTurns.add(thread.id);
       this.awakeTurns.add(thread.id);
       this.deps.keepAwake?.hold(thread.id);
     }
@@ -3344,17 +3244,23 @@ export class ControllerContext {
         const thread = this.requireThread(turn.threadId);
         // Native Mac commands may observe private apps without a connector event.
         // Keep those turns out of optional research capture just like private gateway actions.
-        if (this.computerAccessMode() === 'mac' && !this.assistantLibrary.isReview(thread.id))
+        if (
+          this.computerAccess.accessMode() === 'mac' &&
+          !this.assistantLibrary.isReview(thread.id)
+        )
           this.researchCapture.taintResearchTurn(turn.id);
-        if (this.computerAccessMode() === 'mac' && !this.assistantLibrary.isReview(thread.id)) {
+        if (
+          this.computerAccess.accessMode() === 'mac' &&
+          !this.assistantLibrary.isReview(thread.id)
+        ) {
           macTask = { request: turn.text };
           recordVault = new NotchVault(thread.workspace, thread.agentId);
         }
-        if (macTask && this.macBackgroundControl()) {
+        if (macTask && this.computerAccess.backgroundControl()) {
           // The background driver ships in the app, but it can fail to load or lack access.
           // Stop with a plain next step instead of letting the first window action fail.
-          this.computerState = await this.deps.computer.permissions();
-          const unavailable = backgroundControlUnavailable(this.computerState);
+          this.computerAccess.state = await this.deps.computer.permissions();
+          const unavailable = backgroundControlUnavailable(this.computerAccess.state);
           if (unavailable) throw new Error(unavailable);
         }
         const notchReview = this.assistantLibrary.isNotchReview(thread.id);
@@ -3376,7 +3282,7 @@ export class ControllerContext {
               this.deps.notchHelperPath,
               {
                 operation: 'prepare',
-                background: this.macBackgroundControl(),
+                background: this.computerAccess.backgroundControl(),
                 request: turn.text,
                 context: turn.context ?? '',
                 learning: library.learningAgents?.includes(thread.agentId) === true,
@@ -3408,9 +3314,9 @@ export class ControllerContext {
           ...(notchReview
             ? { notchReview: true, notchVault: this.notchVault(thread.agentId).root }
             : {}),
-          computerAccessMode: this.computerAccessMode(),
-          macBackgroundControl: this.macBackgroundControl(),
-          macBackgroundFallback: this.macBackgroundFallback(),
+          computerAccessMode: this.computerAccess.accessMode(),
+          macBackgroundControl: this.computerAccess.backgroundControl(),
+          macBackgroundFallback: this.computerAccess.backgroundFallback(),
           computerTrust: this.trustForTurn(turn.id),
           ...(this.assistantLibrary.isReview(thread.id)
             ? { nativeTools: 'disabled' as const }
@@ -3428,7 +3334,7 @@ export class ControllerContext {
               : this.assistantLibrary.reviewWorkspace(thread.id)
                 ? NATIVE_MEMORY_REVIEW_PROMPT
                 : MEMORY_REVIEW_PROMPT
-            : `${thread.instructionsSnapshot}\n\n${this.computerAccessMode() === 'mac' ? (this.macBackgroundControl() ? 'Use my Mac background control is active. Follow the window-control instructions and use this turn’s provided tools.' : 'Use my Mac is active. Follow the native Mac operating instructions.') : DESKTOP_EXECUTION_GUIDANCE}\nAccess mode: ${this.computerAccessMode() === 'mac' ? `Use my Mac. Action approvals: ${this.trustForTurn(turn.id) === 'auto' ? 'bypass enabled; perform permitted task actions without asking for each step' : 'confirm changes through the provided tools'}.` : 'Connected apps. Browser tools require a connected Chrome window; Use my Mac can be enabled in Settings → Computer for native browser access.'}`,
+            : `${thread.instructionsSnapshot}\n\n${this.computerAccess.accessMode() === 'mac' ? (this.computerAccess.backgroundControl() ? 'Use my Mac background control is active. Follow the window-control instructions and use this turn’s provided tools.' : 'Use my Mac is active. Follow the native Mac operating instructions.') : DESKTOP_EXECUTION_GUIDANCE}\nAccess mode: ${this.computerAccess.accessMode() === 'mac' ? `Use my Mac. Action approvals: ${this.trustForTurn(turn.id) === 'auto' ? 'bypass enabled; perform permitted task actions without asking for each step' : 'confirm changes through the provided tools'}.` : 'Connected apps. Browser tools require a connected Chrome window; Use my Mac can be enabled in Settings → Computer for native browser access.'}`,
           priorMessages: this.state.timeline
             .filter(
               (item) =>
