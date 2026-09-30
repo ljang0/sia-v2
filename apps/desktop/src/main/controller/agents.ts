@@ -113,7 +113,7 @@ export class Agents {
         !this.ctx.state.preferences.onboarding.agentId
       )
         this.ctx.state.preferences.onboarding = { step: 'complete' };
-      const created = this.ctx.createThread({ agentId });
+      const created = this.ctx.threads.createThread({ agentId });
       return { agentId, snapshot: created.snapshot };
     }
     this.ctx.commit();

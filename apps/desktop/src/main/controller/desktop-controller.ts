@@ -36,6 +36,7 @@ import { ComputerAccess } from './computer-access.js';
 import { VoiceControls } from './voice.js';
 import { AssistantFeatures } from './assistant.js';
 import { Agents } from './agents.js';
+import { Threads } from './threads.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -59,6 +60,7 @@ export class DesktopController {
       speech: new VoiceControls(ctx),
       assistant: new AssistantFeatures(ctx),
       agents: new Agents(ctx),
+      threads: new Threads(ctx),
     }));
   }
 

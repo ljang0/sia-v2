@@ -12,7 +12,7 @@ import { notchConsolidationInstructions } from '../notch/foreground.js';
 import type { MacTaskResult } from '../mac-execution.js';
 import { DESKTOP_EXECUTION_GUIDANCE } from '../assistant-library.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { isAbsolute } from 'node:path';
 
 import {
@@ -27,7 +27,6 @@ import type {
   ApprovalRequest as GatewayApprovalRequest,
 } from '@sia/action-gateway';
 import type { ProviderAttachment, ThreadEventEnvelope } from '@sia/protocol';
-import { legacyModelRoute, resolveExecutionTarget } from '@sia/runtime';
 
 import type {
   ActivityPresentationView,
@@ -75,7 +74,6 @@ import {
   GOOGLE_WORKSPACE_ACTION,
   isConnectorActionTool,
 } from './connection-ids.js';
-import { modelRouteKey, requireReleaseProvider } from './execution-routes.js';
 import {
   INITIAL_STATE,
   type PersistedState,
@@ -83,7 +81,6 @@ import {
 } from './persisted-state.js';
 import { SAFE_RESEARCH_ACTIONS } from './research-records.js';
 import { isStreamingDelta } from './runtime-events.js';
-import { extractHttpUrls, safeUrlHost, searchExcerpt } from './thread-search.js';
 import type {
   ApprovedConnectorBinding,
   BrowserCapabilitySink,
@@ -93,7 +90,7 @@ import type {
 } from './types.js';
 import { type ControllerDeps, resolveControllerDeps } from './deps.js';
 import { compareVersions, isCleanHttpsUrl } from './update-feed.js';
-import { normalizeWorkspace, worktreeLabel } from './workspace-paths.js';
+import { normalizeWorkspace } from './workspace-paths.js';
 import type { ResearchOutbox } from './research-outbox.js';
 import type { ResearchCapture } from './research-capture.js';
 import type { ConnectorConnections } from './connections.js';
@@ -107,6 +104,7 @@ import type { ComputerAccess } from './computer-access.js';
 import type { VoiceControls } from './voice.js';
 import type { AssistantFeatures } from './assistant.js';
 import type { Agents } from './agents.js';
+import type { Threads } from './threads.js';
 
 const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
   'bootstrap',
@@ -135,7 +133,8 @@ type ServiceName =
   | 'computerAccess'
   | 'speech'
   | 'assistant'
-  | 'agents';
+  | 'agents'
+  | 'threads';
 
 /**
  * Everything the desktop controller knows and does. DesktopController is the public facade;
@@ -157,6 +156,7 @@ export class ControllerContext {
   declare readonly speech: VoiceControls;
   declare readonly assistant: AssistantFeatures;
   declare readonly agents: Agents;
+  declare readonly threads: Threads;
   readonly listeners = new Set<(event: DesktopPushEvent) => void>();
   readonly rendererCall = new AsyncLocalStorage<true>();
   readonly previewMemo: ThreadPreviewMemo = new WeakMap();
@@ -817,24 +817,24 @@ export class ControllerContext {
     'agents.setPinned': (input) => this.agents.setAgentPinned(input),
     'agents.setNotifications': (input) => this.agents.setAgentNotifications(input),
     'agents.duplicate': ({ agentId }) => this.agents.duplicateAgent(agentId),
-    'threads.create': (input) => this.openNewThread(input),
-    'threads.select': ({ threadId }) => this.selectThread(threadId),
-    'threads.rename': (input) => this.renameThread(input),
-    'threads.draft': (input) => this.setThreadDraft(input),
-    'threads.config': (input) => this.configureThread(input),
-    'threads.archive': ({ threadId }) => this.archiveThread(threadId),
-    'threads.unarchive': ({ threadId }) => this.unarchiveThread(threadId),
-    'threads.setUnread': (input) => this.setThreadUnread(input),
-    'threads.setPinned': (input) => this.setThreadPinned(input),
-    'threads.fork': (input) => this.forkThread(input),
-    'threads.handoff': (input) => this.handoffThread(input),
-    'worktrees.cleanup': (input) => this.cleanupWorktree(input),
-    'threads.search': ({ query }) => this.searchThreads(query),
-    'threads.goal.set': (input) => this.setGoal(input),
-    'threads.goal.pause': ({ threadId }) => this.pauseGoal(threadId),
-    'threads.goal.resume': ({ threadId }) => this.resumeGoal(threadId),
-    'threads.goal.clear': ({ threadId }) => this.clearGoal(threadId),
-    'threads.delete': ({ threadId }) => this.deleteThread(threadId),
+    'threads.create': (input) => this.threads.openNewThread(input),
+    'threads.select': ({ threadId }) => this.threads.selectThread(threadId),
+    'threads.rename': (input) => this.threads.renameThread(input),
+    'threads.draft': (input) => this.threads.setThreadDraft(input),
+    'threads.config': (input) => this.threads.configureThread(input),
+    'threads.archive': ({ threadId }) => this.threads.archiveThread(threadId),
+    'threads.unarchive': ({ threadId }) => this.threads.unarchiveThread(threadId),
+    'threads.setUnread': (input) => this.threads.setThreadUnread(input),
+    'threads.setPinned': (input) => this.threads.setThreadPinned(input),
+    'threads.fork': (input) => this.threads.forkThread(input),
+    'threads.handoff': (input) => this.threads.handoffThread(input),
+    'worktrees.cleanup': (input) => this.threads.cleanupWorktree(input),
+    'threads.search': ({ query }) => this.threads.searchThreads(query),
+    'threads.goal.set': (input) => this.threads.setGoal(input),
+    'threads.goal.pause': ({ threadId }) => this.threads.pauseGoal(threadId),
+    'threads.goal.resume': ({ threadId }) => this.threads.resumeGoal(threadId),
+    'threads.goal.clear': ({ threadId }) => this.threads.clearGoal(threadId),
+    'threads.delete': ({ threadId }) => this.threads.deleteThread(threadId),
     'threads.send': (input) => this.sendTurn(input),
     'threads.retry': ({ threadId }) => this.retryTurn(threadId),
     'threads.redo': (input) => this.redoLastTurn(input),
@@ -1207,457 +1207,6 @@ export class ControllerContext {
     this.cancelStreamCommit();
     this.persist();
     this.deps.repository.close();
-  }
-
-  /**
-   * The user-facing "New conversation" route. Like a single draft tab, it reopens the agent's
-   * untouched thread instead of saving another empty "New thread" row.
-   */
-  openNewThread(input: BridgeRequestMap['threads.create']): BridgeResultMap['threads.create'] {
-    this.requireSignedInReleaseAccount();
-    const agent = this.requireAgent(input.agentId);
-    const unused = input.title?.trim()
-      ? undefined
-      : this.state.threads.findLast(
-          (thread) =>
-            thread.agentId === agent.id &&
-            !thread.archivedAt &&
-            thread.status === 'idle' &&
-            thread.provider === agent.provider &&
-            thread.model === agent.model &&
-            thread.workspace === agent.workspace &&
-            thread.instructionsSnapshot === agent.instructions &&
-            thread.worktree?.kind !== 'linked' &&
-            !this.runningTurns.has(thread.id) &&
-            !this.queuedTurns.some((turn) => turn.threadId === thread.id) &&
-            !this.state.schedules.some((schedule) => schedule.threadId === thread.id) &&
-            !this.state.timeline.some((item) => item.threadId === thread.id),
-        );
-    if (!unused) return this.createThread(input);
-    return { threadId: unused.id, snapshot: this.selectThread(unused.id) };
-  }
-
-  createThread(
-    input: BridgeRequestMap['threads.create'],
-    activate = true,
-  ): BridgeResultMap['threads.create'] {
-    this.requireSignedInReleaseAccount();
-    const agent = this.requireAgent(input.agentId);
-    requireReleaseProvider(agent.provider);
-    const id = randomUUID();
-    const now = new Date().toISOString();
-    const releaseRoute = legacyModelRoute(agent.provider, agent.model);
-    const backendDefault = this.providers.backendModelRoutes.get(
-      modelRouteKey(agent.provider, agent.model),
-    );
-    const allowedRoutes = this.providers.allowedModelRoutes.get(
-      modelRouteKey(agent.provider, agent.model),
-    ) ?? [releaseRoute];
-    const resolution = resolveExecutionTarget({
-      provider: agent.provider,
-      model: agent.model,
-      ...(agent.harnessPreference ? { preference: agent.harnessPreference } : {}),
-      ...(backendDefault ? { backendDefault } : {}),
-      allowedRoutes,
-    });
-    if (!resolution.ok) {
-      throw new Error(
-        resolution.harnessId === 'opencode_acp' || resolution.harnessId === 'pi_rpc'
-          ? 'That beta harness has not passed this release’s conformance and security checks.'
-          : resolution.message,
-      );
-    }
-    const resolvedExecutionTarget = resolution.target;
-    const revision = createHash('sha256')
-      .update(
-        JSON.stringify({
-          instructions: agent.instructions,
-          provider: agent.provider,
-          model: agent.model,
-          harnessPreference: agent.harnessPreference ?? { mode: 'automatic' },
-          resolvedExecutionTarget,
-          workspace: agent.workspace,
-          updatedAt: agent.updatedAt,
-        }),
-      )
-      .digest('hex');
-    const reasoningEffort = this.providers.defaultReasoningEffort(agent.provider, agent.model);
-    this.state.threads.push({
-      id,
-      agentId: agent.id,
-      title: input.title?.trim() || UNTITLED_THREAD_TITLE,
-      provider: agent.provider,
-      model: agent.model,
-      ...(reasoningEffort ? { reasoningEffort } : {}),
-      workspace: agent.workspace,
-      harnessId: resolvedExecutionTarget.harnessId,
-      resolvedExecutionTarget,
-      agentRevision: revision,
-      instructionsSnapshot: agent.instructions,
-      agentNameSnapshot: agent.name,
-      status: 'idle',
-      unread: false,
-      pinned: false,
-      worktree: { kind: 'primary', sourceWorkspace: agent.workspace },
-      createdAt: now,
-      updatedAt: now,
-    });
-    agent.threadIds.push(id);
-    if (activate) {
-      this.state.activeAgentId = agent.id;
-      this.state.activeThreadId = id;
-    }
-    this.commit();
-    return { threadId: id, snapshot: this.resultSnapshot() };
-  }
-
-  selectThread(threadId: string): DesktopSnapshot {
-    const thread = this.requireThread(threadId);
-    thread.unread = false;
-    this.state.activeThreadId = thread.id;
-    this.state.activeAgentId = thread.agentId;
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  renameThread(input: BridgeRequestMap['threads.rename']): DesktopSnapshot {
-    const thread = this.requireThread(input.threadId);
-    const title = input.title.trim();
-    if (!title) throw new Error('Enter a thread name.');
-    thread.title = title;
-    thread.updatedAt = new Date().toISOString();
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  setThreadDraft(input: BridgeRequestMap['threads.draft']): { saved: true } {
-    const thread = this.requireThread(input.threadId);
-    if (input.text) thread.draft = input.text;
-    else delete thread.draft;
-    // Drafts are saved on each pause in typing. The composer already shows the text, so skip
-    // the push and write the encrypted state with the next save, shortly after, or at shutdown.
-    this.persistSoon();
-    return { saved: true };
-  }
-
-  configureThread(input: BridgeRequestMap['threads.config']): DesktopSnapshot {
-    const thread = this.requireIdleThread(input.threadId, 'change model settings');
-    const provider = this.providers.requireReadyProvider(thread.provider, input.model.trim());
-    const model = provider.models?.find((candidate) => candidate.id === input.model.trim());
-    if (provider.models?.length && !model) {
-      throw new Error(`${provider.label} does not currently offer that model.`);
-    }
-    const reasoningEffort = input.reasoningEffort?.trim();
-    if (
-      reasoningEffort &&
-      model?.reasoningEfforts.length &&
-      !model.reasoningEfforts.includes(reasoningEffort)
-    ) {
-      throw new Error(`${model.label} does not support that reasoning level.`);
-    }
-    thread.model = input.model.trim();
-    if (reasoningEffort) thread.reasoningEffort = reasoningEffort;
-    else delete thread.reasoningEffort;
-    thread.updatedAt = new Date().toISOString();
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  archiveThread(threadId: string): DesktopSnapshot {
-    const thread = this.requireIdleThread(threadId, 'archive this thread');
-    thread.archivedAt = new Date().toISOString();
-    thread.unread = false;
-    if (this.state.activeThreadId === thread.id) delete this.state.activeThreadId;
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  unarchiveThread(threadId: string): DesktopSnapshot {
-    const thread = this.requireThread(threadId);
-    delete thread.archivedAt;
-    thread.updatedAt = new Date().toISOString();
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  setThreadUnread(input: BridgeRequestMap['threads.setUnread']): DesktopSnapshot {
-    const thread = this.requireThread(input.threadId);
-    thread.unread = input.unread;
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  setThreadPinned(input: BridgeRequestMap['threads.setPinned']): DesktopSnapshot {
-    const thread = this.requireThread(input.threadId);
-    // Pinning only reorders the sidebar; it is not activity, so updatedAt stays.
-    thread.pinned = input.pinned;
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  async forkThread(
-    input: BridgeRequestMap['threads.fork'],
-    primary = false,
-  ): Promise<BridgeResultMap['threads.fork']> {
-    // A busy thread's live approval, question and queued follow-ups belong to that run.
-    const source = this.requireIdleThread(input.threadId, 'fork this thread');
-    const id = randomUUID();
-    let workspace = primary
-      ? normalizeWorkspace(source.worktree?.sourceWorkspace ?? source.workspace)
-      : source.workspace;
-    let worktree = primary
-      ? { kind: 'primary' as const, sourceWorkspace: workspace }
-      : structuredClone(
-          source.worktree ?? { kind: 'primary' as const, sourceWorkspace: source.workspace },
-        );
-    if (input.isolated) {
-      const service = this.workspace.requireWorkspaceOperations();
-      const created = await service.createWorktree(
-        source.workspace,
-        worktreeLabel(input.title?.trim() || `${source.title}-fork`, id),
-      );
-      workspace = normalizeWorkspace(created.path);
-      this.workspaceGrants.add(workspace);
-      worktree = {
-        kind: 'linked',
-        sourceWorkspace: source.worktree?.sourceWorkspace ?? source.workspace,
-        ...(created.branch ? { branch: created.branch } : {}),
-      };
-    }
-    const now = new Date().toISOString();
-    const forked: ThreadView = {
-      ...structuredClone(source),
-      id,
-      title: input.title?.trim() || `${source.title} (fork)`,
-      workspace,
-      worktree,
-      status: 'idle',
-      sourceThreadId: source.id,
-      unread: false,
-      pinned: false,
-      createdAt: now,
-      updatedAt: now,
-    };
-    delete forked.archivedAt;
-    delete forked.draft;
-    delete forked.queueReason;
-    delete forked.interruptedTurnId;
-    this.state.threads.push(forked);
-    this.state.timeline.push(
-      ...this.state.timeline
-        .filter(
-          (item) =>
-            item.threadId === source.id &&
-            !(
-              item.status === 'pending' &&
-              (item.kind === 'user' || item.kind === 'approval' || item.kind === 'question')
-            ),
-        )
-        .map((item) => ({ ...structuredClone(item), id: randomUUID(), threadId: id })),
-    );
-    const agent = this.requireAgent(source.agentId);
-    agent.threadIds.push(id);
-    agent.updatedAt = now;
-    this.state.activeAgentId = source.agentId;
-    this.state.activeThreadId = id;
-    this.commit();
-    return { threadId: id, snapshot: this.resultSnapshot() };
-  }
-
-  async handoffThread(
-    input: BridgeRequestMap['threads.handoff'],
-  ): Promise<BridgeResultMap['threads.handoff']> {
-    const source = this.requireIdleThread(input.threadId, 'handoff this thread');
-    if (input.destination === 'primary' && source.worktree?.kind !== 'linked') {
-      throw new Error('This thread is already using the primary workspace.');
-    }
-    return await this.forkThread(
-      {
-        threadId: source.id,
-        isolated: input.destination === 'new_worktree',
-        title:
-          input.title?.trim() ||
-          `${source.title}${input.destination === 'primary' ? ' (main)' : ' (worktree)'}`,
-      },
-      input.destination === 'primary',
-    );
-  }
-
-  async cleanupWorktree(
-    input: BridgeRequestMap['worktrees.cleanup'],
-  ): Promise<DesktopSnapshot> {
-    if (input.confirmation !== 'REMOVE WORKTREE') {
-      throw new Error('Worktree removal confirmation is required.');
-    }
-    const thread = this.requireIdleThread(input.threadId, 'remove this worktree');
-    if (thread.worktree?.kind !== 'linked') {
-      throw new Error('This thread does not own a linked worktree.');
-    }
-    if (
-      this.state.threads.some(
-        (candidate) => candidate.id !== thread.id && candidate.workspace === thread.workspace,
-      )
-    ) {
-      throw new Error('Another thread still uses this worktree.');
-    }
-    const service = this.workspace.requireWorkspaceOperations();
-    if (!service.removeWorktree)
-      throw new Error('Worktree cleanup is unavailable in this build.');
-    await service.removeWorktree(thread.workspace);
-    this.workspaceGrants.delete(thread.workspace);
-    return this.deleteThread(thread.id);
-  }
-
-  searchThreads(query: string): BridgeResultMap['threads.search'] {
-    const needle = query.trim().toLocaleLowerCase();
-    if (!needle) return { results: [] };
-    // One pass over the timeline instead of one full scan per thread.
-    const timelineByThread = Map.groupBy(this.state.timeline, ({ threadId }) => threadId);
-    const results = this.state.threads
-      .map((thread) => {
-        const matches: BridgeResultMap['threads.search']['results'][number]['matches'] = [];
-        for (const item of timelineByThread.get(thread.id) ?? []) {
-          const copy = [item.title, item.text, item.detail].filter(Boolean).join(' ');
-          if (copy.toLocaleLowerCase().includes(needle)) {
-            matches.push({
-              itemId: item.id,
-              excerpt: searchExcerpt(copy, needle),
-              timestamp: item.timestamp,
-              kind: 'message',
-            });
-          }
-          for (const attachment of item.attachments ?? []) {
-            if (!attachment.name.toLocaleLowerCase().includes(needle)) continue;
-            matches.push({
-              itemId: `${item.id}:file:${attachment.id}`,
-              excerpt: attachment.name,
-              label: attachment.name,
-              timestamp: item.timestamp,
-              kind: 'file',
-            });
-          }
-          for (const [index, url] of extractHttpUrls(copy).entries()) {
-            if (!url.toLocaleLowerCase().includes(needle)) continue;
-            matches.push({
-              itemId: `${item.id}:link:${index}`,
-              excerpt: url,
-              label: safeUrlHost(url),
-              url,
-              timestamp: item.timestamp,
-              kind: 'link',
-            });
-          }
-        }
-        if (thread.title.toLocaleLowerCase().includes(needle) && matches.length === 0) {
-          matches.push({
-            itemId: thread.id,
-            excerpt: thread.title,
-            timestamp: thread.updatedAt,
-            kind: 'thread',
-          });
-        }
-        return {
-          threadId: thread.id,
-          threadTitle: thread.title,
-          archived: Boolean(thread.archivedAt),
-          matches: matches
-            .sort((left, right) => right.timestamp.localeCompare(left.timestamp))
-            .slice(0, 12),
-        };
-      })
-      .filter((result) => result.matches.length > 0)
-      .sort((left, right) =>
-        right.matches[0]!.timestamp.localeCompare(left.matches[0]!.timestamp),
-      );
-    return { results };
-  }
-
-  setGoal(input: BridgeRequestMap['threads.goal.set']): DesktopSnapshot {
-    const thread = this.requireIdleThread(input.threadId, 'set a goal');
-    const now = new Date().toISOString();
-    thread.goal = {
-      text: input.text.trim(),
-      status: 'paused',
-      createdAt: thread.goal?.createdAt ?? now,
-      updatedAt: now,
-    };
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  pauseGoal(threadId: string): DesktopSnapshot {
-    const thread = this.requireThread(threadId);
-    if (!thread.goal) throw new Error('This thread does not have a goal.');
-    thread.goal.status = 'paused';
-    thread.goal.updatedAt = new Date().toISOString();
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  resumeGoal(threadId: string): DesktopSnapshot {
-    const thread = this.requireIdleThread(threadId, 'resume this goal');
-    if (!thread.goal) throw new Error('This thread does not have a goal.');
-    thread.goal.status = 'running';
-    thread.goal.updatedAt = new Date().toISOString();
-    const result = this.sendTurn(
-      {
-        threadId,
-        text: `Continue working toward this long-running goal:\n\n${thread.goal.text}`,
-      },
-      'goal',
-    );
-    return result.snapshot;
-  }
-
-  clearGoal(threadId: string): DesktopSnapshot {
-    const thread = this.requireIdleThread(threadId, 'clear this goal');
-    delete thread.goal;
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  deleteThread(threadId: string): DesktopSnapshot {
-    const thread = this.requireThread(threadId);
-    if (
-      this.runningTurns.has(thread.id) ||
-      this.queuedTurns.some((turn) => turn.threadId === thread.id) ||
-      this.pendingQuestions.has(thread.id) ||
-      thread.status === 'running' ||
-      thread.status === 'queued' ||
-      thread.status === 'waiting'
-    ) {
-      throw new Error('Stop the active turn before deleting this thread.');
-    }
-    const agent = this.requireAgent(thread.agentId);
-    agent.threadIds = agent.threadIds.filter((id) => id !== thread.id);
-    agent.updatedAt = new Date().toISOString();
-    // Release what the deleted thread still holds: its provider session and file grants.
-    for (const item of this.state.timeline)
-      if (item.threadId === thread.id && item.turnId)
-        this.failedTurnAttachments.delete(item.turnId);
-    for (const [id, grant] of this.attachments.grants)
-      if (grant.threadId === thread.id) this.attachments.grants.delete(id);
-    this.heldThreads.delete(thread.id);
-    const runtime = this.runtime;
-    void Promise.resolve()
-      .then(() => runtime?.releaseSession(thread.id))
-      .catch(() => undefined);
-    this.state.threads = this.state.threads.filter((candidate) => candidate.id !== thread.id);
-    this.state.timeline = this.state.timeline.filter((item) => item.threadId !== thread.id);
-    this.state.approvals = this.state.approvals.filter(
-      (approval) => approval.threadId !== thread.id,
-    );
-    this.state.schedules = this.state.schedules.filter(
-      (schedule) => schedule.threadId !== thread.id,
-    );
-    this.state.usageByTurn = Object.fromEntries(
-      Object.entries(this.state.usageByTurn).filter(
-        ([, usage]) => usage.threadId !== thread.id,
-      ),
-    );
-    if (this.state.activeThreadId === thread.id) delete this.state.activeThreadId;
-    this.commit();
-    return this.resultSnapshot();
   }
 
   /** Host-only Cmd+E capture, before the command panel takes the user's app focus. */

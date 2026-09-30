@@ -434,7 +434,7 @@ export class AssistantFeatures {
         skill.execution,
       );
       if (unavailable) throw new Error(unavailable);
-      const { threadId } = this.ctx.createThread({
+      const { threadId } = this.ctx.threads.createThread({
         agentId: skill.agentId,
         title: skill.title,
       });
@@ -450,7 +450,7 @@ export class AssistantFeatures {
     if (command.operation === 'run') {
       const workflow = this.library.workflow(command.id, command.values);
       this.ctx.requireAgent(workflow.agentId);
-      const { threadId } = this.ctx.createThread({
+      const { threadId } = this.ctx.threads.createThread({
         agentId: workflow.agentId,
         title: workflow.title,
       });
@@ -509,7 +509,7 @@ export class AssistantFeatures {
     if (this.ctx.runningTurns.size || this.ctx.queuedTurns.length)
       throw new Error('Wait for current tasks to finish before reviewing memory.');
     this.ctx.providers.requireReadyProvider(agent.provider, agent.model);
-    const { threadId } = this.ctx.createThread(
+    const { threadId } = this.ctx.threads.createThread(
       { agentId, title: 'Memory and skill review' },
       activate,
     );

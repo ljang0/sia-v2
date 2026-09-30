@@ -55,7 +55,8 @@ export class VoiceControls {
         this.ctx.requireSignedInReleaseAccount();
         this.ctx.requireAgent(target.agentId);
         const threadId =
-          target.threadId ?? this.ctx.createThread({ agentId: target.agentId }).threadId;
+          target.threadId ??
+          this.ctx.threads.createThread({ agentId: target.agentId }).threadId;
         const { turnId } = this.ctx.sendTurn(
           { threadId, text },
           'manual',
