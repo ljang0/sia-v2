@@ -89,7 +89,7 @@ export class VoiceControls {
       changed: () => this.ctx.emit(),
     });
     this.pushToTalk.setContextEnabled(
-      this.ctx.assistantLibrary.view().context ||
+      this.ctx.assistant.library.view().context ||
         this.ctx.computerAccess.accessMode() === 'mac',
       this.ctx.computerAccess.accessMode() === 'mac',
     );

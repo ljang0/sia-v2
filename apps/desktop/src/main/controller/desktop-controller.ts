@@ -34,6 +34,7 @@ import { WorkspaceTools } from './workspace.js';
 import { BrowserSession } from './browser.js';
 import { ComputerAccess } from './computer-access.js';
 import { VoiceControls } from './voice.js';
+import { AssistantFeatures } from './assistant.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -55,6 +56,7 @@ export class DesktopController {
       browser: new BrowserSession(ctx),
       computerAccess: new ComputerAccess(ctx),
       speech: new VoiceControls(ctx),
+      assistant: new AssistantFeatures(ctx),
     }));
   }
 
@@ -119,11 +121,11 @@ export class DesktopController {
   }
 
   setLauncherRegistered(registered: boolean): void {
-    this.#ctx.setLauncherRegistered(registered);
+    this.#ctx.assistant.setLauncherRegistered(registered);
   }
 
   allowsReviewAction(threadId: string, name: string): boolean {
-    return this.#ctx.allowsReviewAction(threadId, name);
+    return this.#ctx.assistant.allowsReviewAction(threadId, name);
   }
 
   assistantAction(
@@ -134,7 +136,7 @@ export class DesktopController {
       signal: AbortSignal,
     ) => Promise<ActionExecutionResult>,
   ): Promise<ActionExecutionResult> {
-    return this.#ctx.assistantAction(request, invoke);
+    return this.#ctx.assistant.assistantAction(request, invoke);
   }
 
   /** Use my Mac, or connected apps only. */
