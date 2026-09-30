@@ -781,6 +781,15 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 onResolveApproval={(id, decision) =>
                   run(() => api.respondToApproval(id, decision)).then(() => focusComposer())
                 }
+                turnChanges={
+                  activeThread
+                    ? {
+                        read: (eventId) => api.readTurnChanges(activeThread.id, eventId),
+                        apply: (eventId, direction) =>
+                          api.applyTurnChanges(activeThread.id, eventId, direction),
+                      }
+                    : undefined
+                }
                 onDraftChange={
                   activeThread
                     ? (content) => api.saveDraft(activeThread.id, content)

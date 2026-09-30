@@ -69,6 +69,59 @@ const planningEvents: ThreadEvent[] = [
   },
 ];
 
+/** A finished reply that edited files, so the demo can show Undo changes. */
+const tripEvents: ThreadEvent[] = [
+  {
+    id: 'trip-request',
+    type: 'message',
+    role: 'user',
+    content: 'Clean up my Lisbon trip notes and start a packing list.',
+    timestamp: iso(300),
+  },
+  {
+    id: 'trip-read',
+    type: 'activity',
+    kind: 'command',
+    title: 'Read Lisbon trip.md',
+    status: 'complete',
+    timestamp: iso(299),
+  },
+  {
+    id: 'trip-edit',
+    type: 'activity',
+    kind: 'other',
+    toolName: 'fileChange',
+    title: 'Changed 2 files',
+    status: 'complete',
+    timestamp: iso(298),
+    presentation: {
+      kind: 'file_change',
+      files: [
+        {
+          path: '/Users/lawrencejang/Documents/Lisbon trip.md',
+          change: 'update',
+          diff: '@@ -1,3 +1,4 @@\n # Lisbon\n-flight fri 9am??\n+## Flights\n+- Friday, 9:00 AM\n hotel: Alfama\n',
+        },
+        {
+          path: '/Users/lawrencejang/Documents/Packing list.md',
+          change: 'add',
+          diff: '# Packing list\n- Passport\n- Walking shoes\n',
+        },
+      ],
+    },
+  },
+  {
+    id: 'trip-reply',
+    type: 'message',
+    role: 'assistant',
+    provider: 'codex',
+    content:
+      'I tidied **Lisbon trip.md** into sections and started **Packing list.md** with the basics.',
+    timestamp: iso(297),
+  },
+];
+const demoTurnChanges = new Map<string, 'ready' | 'undone'>();
+
 const threads: Record<string, ThreadDetail> = {
   'thread-research': {
     id: 'thread-research',
@@ -130,6 +183,17 @@ const threads: Record<string, ThreadDetail> = {
       },
     ],
   },
+  'thread-trip': {
+    id: 'thread-trip',
+    agentId: 'agent-personal',
+    title: 'Lisbon trip notes',
+    updatedAt: iso(297),
+    status: 'idle',
+    provider: 'codex',
+    model: 'gpt-5.6-sol',
+    workspace: '/Users/lawrencejang/Documents',
+    events: tripEvents,
+  },
 };
 
 const agents: AgentSummary[] = [
@@ -177,23 +241,25 @@ const agents: AgentSummary[] = [
     provider: 'meta',
     model: 'Sia Meta',
     workspace: '/Users/lawrencejang/Documents',
-    threads: [threads['thread-inbox']!].map(({ events, ...thread }) => {
-      const message = events.findLast((event) => event.type === 'message');
-      return {
-        ...thread,
-        ...(message?.type === 'message'
-          ? {
-              preview: {
-                label:
-                  message.role === 'assistant'
-                    ? ('Latest reply' as const)
-                    : ('Request' as const),
-                text: message.content.slice(0, 420),
-              },
-            }
-          : {}),
-      };
-    }),
+    threads: [threads['thread-trip']!, threads['thread-inbox']!].map(
+      ({ events, ...thread }) => {
+        const message = events.findLast((event) => event.type === 'message');
+        return {
+          ...thread,
+          ...(message?.type === 'message'
+            ? {
+                preview: {
+                  label:
+                    message.role === 'assistant'
+                      ? ('Latest reply' as const)
+                      : ('Request' as const),
+                  text: message.content.slice(0, 420),
+                },
+              }
+            : {}),
+        };
+      },
+    ),
   },
 ];
 
@@ -796,6 +862,14 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
     async deleteWorkspaceSnapshot() {
       return [];
     },
+    async readTurnChanges(threadId, eventId) {
+      return demoTurnChangesView(demoTurnChanges.get(`${threadId}:${eventId}`) ?? 'ready');
+    },
+    async applyTurnChanges(threadId, eventId, direction) {
+      const state = direction === 'undo' ? 'undone' : 'ready';
+      demoTurnChanges.set(`${threadId}:${eventId}`, state);
+      return demoTurnChangesView(state);
+    },
     async runTerminal(_threadId, command) {
       return {
         command,
@@ -1269,5 +1343,16 @@ export function agentToDraft(agent: AgentSummary): AgentDraft {
     model: agent.model,
     workspace: agent.workspace,
     ...(agent.voiceId ? { voiceId: agent.voiceId } : {}),
+  };
+}
+
+function demoTurnChangesView(state: 'ready' | 'undone') {
+  return {
+    state,
+    files: [
+      { path: 'Lisbon trip.md', change: 'edited' as const },
+      { path: 'Packing list.md', change: 'added' as const },
+    ],
+    blocked: [],
   };
 }
