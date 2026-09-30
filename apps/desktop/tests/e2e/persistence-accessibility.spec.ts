@@ -114,7 +114,9 @@ test('first-run actions and the Access surface remain usable by keyboard at 200%
     await page.getByRole('button', { name: 'Settings' }).click();
     await expect(page.getByRole('button', { name: 'Privacy' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Computer' })).toBeVisible();
-    await page.getByRole('button', { name: 'Voice' }).click();
+    // At 200% the tab row is narrow, so Voice waits in More with the other extras.
+    await page.getByRole('button', { name: 'More settings' }).click();
+    await page.getByRole('menuitem', { name: 'Voice', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Voice' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Enable voice' })).toBeVisible();
     await expect(page.getByLabel('API key')).toHaveCount(0);

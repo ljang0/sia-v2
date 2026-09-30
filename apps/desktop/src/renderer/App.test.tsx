@@ -90,12 +90,15 @@ describe('app privacy routing', () => {
     expect(screen.getByText('Workspace')).toBeTruthy();
   });
 
-  it('keeps Settings tabs on one row in a narrow pane by moving extras into More', async () => {
+  async function openSettingsInNavWidth(
+    navWidth: number,
+    check: (nav: HTMLElement) => Promise<void>,
+  ) {
     const original = globalThis.ResizeObserver;
     const rect = vi
       .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
       .mockImplementation(function (this: HTMLElement) {
-        const width = this.getAttribute('aria-label') === 'Settings sections' ? 700 : 0;
+        const width = this.getAttribute('aria-label') === 'Settings sections' ? navWidth : 0;
         return {
           width,
           height: 0,
@@ -117,18 +120,38 @@ describe('app privacy routing', () => {
       api.phoneRemote = async () => ({ enabled: false, running: false, detail: 'Off.' });
       render(<App api={api} />);
       fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
-      const nav = await screen.findByRole('navigation', { name: 'Settings sections' });
+      await check(await screen.findByRole('navigation', { name: 'Settings sections' }));
+    } finally {
+      rect.mockRestore();
+      globalThis.ResizeObserver = original;
+    }
+  }
+
+  it('keeps Settings tabs on one row in a narrow pane by moving extras into More', async () => {
+    await openSettingsInNavWidth(700, async (nav) => {
       expect(within(nav).getByRole('button', { name: 'Privacy' })).toBeTruthy();
+      expect(within(nav).getByRole('button', { name: 'Voice' })).toBeTruthy();
       expect(within(nav).queryByRole('button', { name: 'Phone remote' })).toBeNull();
       fireEvent.pointerDown(within(nav).getByRole('button', { name: 'More settings' }), {
         button: 0,
         ctrlKey: false,
       });
       expect(await screen.findByRole('menuitem', { name: 'Phone remote' })).toBeTruthy();
-    } finally {
-      rect.mockRestore();
-      globalThis.ResizeObserver = original;
-    }
+      expect(screen.queryByRole('menuitem', { name: 'Voice' })).toBeNull();
+    });
+  });
+
+  it('moves Voice into More too when a zoomed window narrows the Settings tabs further', async () => {
+    await openSettingsInNavWidth(520, async (nav) => {
+      expect(within(nav).getByRole('button', { name: 'Privacy' })).toBeTruthy();
+      expect(within(nav).queryByRole('button', { name: 'Voice' })).toBeNull();
+      fireEvent.pointerDown(within(nav).getByRole('button', { name: 'More settings' }), {
+        button: 0,
+        ctrlKey: false,
+      });
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Voice' }));
+      expect(await screen.findByRole('heading', { level: 2, name: /voice/i })).toBeTruthy();
+    });
   });
 
   it('closes Settings with Escape', async () => {
