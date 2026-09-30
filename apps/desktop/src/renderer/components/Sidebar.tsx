@@ -31,7 +31,8 @@ import {
 import type { AgentSummary, ThreadSummary } from '../types';
 import buttons from '../styles/buttons.module.css';
 import dialogs from '../styles/dialogs.module.css';
-import styles from '../ui.module.css';
+import ui from '../ui.module.css';
+import styles from './Sidebar.module.css';
 import { focusComposer } from '../composerFocus';
 import { sidebarAgentOrder, sidebarThreadOrder } from '../shortcuts';
 import { AgentForm } from './AgentForm';
@@ -897,10 +898,10 @@ function ThreadMenu({
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
-        <DropdownMenu.Content className={styles.threadMenuContent} sideOffset={4} align="start">
+        <DropdownMenu.Content className={ui.threadMenuContent} sideOffset={4} align="start">
           {onSetPinned ? (
             <DropdownMenu.Item
-              className={styles.threadMenuItem}
+              className={ui.threadMenuItem}
               onSelect={onSetPinned}
               data-testid="thread-pin"
             >
@@ -908,13 +909,13 @@ function ThreadMenu({
               {thread.pinned ? 'Unpin' : 'Pin'}
             </DropdownMenu.Item>
           ) : null}
-          <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onRename}>
+          <DropdownMenu.Item className={ui.threadMenuItem} onSelect={onRename}>
             <PencilSimple size={14} aria-hidden="true" />
             Rename
           </DropdownMenu.Item>
           {onFork ? (
             <DropdownMenu.Item
-              className={styles.threadMenuItem}
+              className={ui.threadMenuItem}
               onSelect={() => onFork(trigger.current)}
               data-testid="thread-fork"
               disabled={busy}
@@ -926,7 +927,7 @@ function ThreadMenu({
           ) : null}
           {onArchive ? (
             <DropdownMenu.Item
-              className={styles.threadMenuItem}
+              className={ui.threadMenuItem}
               onSelect={onArchive}
               data-testid="thread-archive"
               disabled={
@@ -940,7 +941,7 @@ function ThreadMenu({
             </DropdownMenu.Item>
           ) : null}
           {onSetUnread ? (
-            <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onSetUnread}>
+            <DropdownMenu.Item className={ui.threadMenuItem} onSelect={onSetUnread}>
               {thread.unread ? (
                 <BellSlash size={14} aria-hidden="true" />
               ) : (
@@ -950,7 +951,7 @@ function ThreadMenu({
             </DropdownMenu.Item>
           ) : null}
           <DropdownMenu.Item
-            className={`${styles.threadMenuItem} ${styles.threadMenuDanger}`}
+            className={`${ui.threadMenuItem} ${styles.threadMenuDanger}`}
             disabled={busy}
             title={busy ? deleteBlockedReason(thread) : undefined}
             onSelect={() => onDelete(trigger.current)}
@@ -1001,23 +1002,23 @@ function AgentMenu({
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
-        <DropdownMenu.Content className={styles.threadMenuContent} sideOffset={4} align="end">
-          <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onOpen}>
+        <DropdownMenu.Content className={ui.threadMenuContent} sideOffset={4} align="end">
+          <DropdownMenu.Item className={ui.threadMenuItem} onSelect={onOpen}>
             <ChatCircle size={14} aria-hidden="true" />
             Open agent
           </DropdownMenu.Item>
-          <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onEdit}>
+          <DropdownMenu.Item className={ui.threadMenuItem} onSelect={onEdit}>
             <NotePencil size={14} aria-hidden="true" />
             Edit agent
           </DropdownMenu.Item>
           {onSetPinned ? (
-            <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onSetPinned}>
+            <DropdownMenu.Item className={ui.threadMenuItem} onSelect={onSetPinned}>
               <PushPin size={14} aria-hidden="true" />
               {agent.pinned ? 'Unpin agent' : 'Pin agent'}
             </DropdownMenu.Item>
           ) : null}
           {onSetNotifications ? (
-            <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onSetNotifications}>
+            <DropdownMenu.Item className={ui.threadMenuItem} onSelect={onSetNotifications}>
               {agent.notificationsEnabled ? (
                 <BellSlash size={14} aria-hidden="true" />
               ) : (
@@ -1027,7 +1028,7 @@ function AgentMenu({
             </DropdownMenu.Item>
           ) : null}
           {onDuplicate ? (
-            <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onDuplicate}>
+            <DropdownMenu.Item className={ui.threadMenuItem} onSelect={onDuplicate}>
               <Copy size={14} aria-hidden="true" />
               Duplicate agent
             </DropdownMenu.Item>

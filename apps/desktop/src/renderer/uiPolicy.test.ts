@@ -31,7 +31,7 @@ describe('text size', () => {
     // calc(Npx * var(--text-scale)), so a bare px font size would ignore the person's choice.
     const allowed = new Set([
       'components/navigation.module.css:font-size: 38px',
-      'ui.module.css:font-size: 20px',
+      'components/Sidebar.module.css:font-size: 20px',
       'components/startup.module.css:font-size: 17px',
       'components/startup.module.css:font: 650 42px/1 var(--font-brand)',
     ]);
