@@ -383,6 +383,11 @@ aside.navigation {
   line-height: 18px;
   font-size: 12px;
 }
+.taskPin {
+  margin: 0 4px 1px 0;
+  vertical-align: middle;
+  color: var(--shell-muted);
+}
 [data-thread-unread='true'] .taskTitle {
   color: var(--shell-text);
   font-weight: 600;

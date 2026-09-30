@@ -77,6 +77,7 @@ const inputSchemas = {
   'threads.archive': z.object({ threadId: identifier }).strict(),
   'threads.unarchive': z.object({ threadId: identifier }).strict(),
   'threads.setUnread': z.object({ threadId: identifier, unread: z.boolean() }).strict(),
+  'threads.setPinned': z.object({ threadId: identifier, pinned: z.boolean() }).strict(),
   'threads.fork': z
     .object({
       threadId: identifier,

@@ -544,6 +544,11 @@ export function Conversation({
       ? thread.events[lastAssistantEventIndex]?.id
       : undefined;
   const outlineAvailable = hasConversationOutline(thread.events);
+  const sentMessages = thread.events.flatMap((event) =>
+    event.type === 'message' && event.role === 'user' && event.content.trim()
+      ? [event.content]
+      : [],
+  );
   const resultId = completedReplyId(thread);
   // Edit and Try again change only the last exchange, and only once nothing is in flight.
   const redoable =
@@ -922,6 +927,7 @@ export function Conversation({
           setVoiceConversation(active);
         }}
         onDraftChange={onDraftChange}
+        history={sentMessages}
         placeholder={
           pendingQuestion
             ? `Reply to ${agentName ?? 'Sia'}’s question`

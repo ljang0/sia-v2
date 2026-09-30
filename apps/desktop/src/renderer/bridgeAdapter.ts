@@ -153,6 +153,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async setThreadUnread(threadId, unread) {
       publish(await bridge.threads.setUnread(threadId, unread));
     },
+    async setThreadPinned(threadId, pinned) {
+      publish(await bridge.threads.setPinned(threadId, pinned));
+    },
     async forkThread(threadId, isolated, title) {
       const result = await bridge.threads.fork(threadId, isolated, title);
       selectedAgentOverride = undefined;
@@ -601,6 +604,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         archivedAt: thread.archivedAt,
         sourceThreadId: thread.sourceThreadId,
         unread: thread.unread,
+        pinned: thread.pinned,
         draft: thread.draft,
         worktree: thread.worktree ? structuredClone(thread.worktree) : undefined,
       })),

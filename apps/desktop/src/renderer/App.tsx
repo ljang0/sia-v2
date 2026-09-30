@@ -396,6 +396,9 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         onSetThreadUnread={(threadId, unread) =>
           app.attempt(() => api.setThreadUnread(threadId, unread)) as Promise<void>
         }
+        onSetThreadPinned={(threadId, pinned) =>
+          app.attempt(() => api.setThreadPinned(threadId, pinned)) as Promise<void>
+        }
         onOpenActivity={() => app.openActivity('activity')}
         onOpenSettings={() => app.openSettings()}
         onOpenQuickSwitcher={() => setQuickSwitcherOpen(true)}

@@ -58,7 +58,10 @@ does not erase the whole effect. Chat, Tasks, Memory, and keyboard transitions k
 mounted; Reduce Motion keeps a still gradient.
 
 The desktop sidebar keeps New conversation and filtering above the scrolling task list. Pinned
-agents come first, followed by names; changing selection never reorders groups. Conversation titles
+agents come first, followed by names; changing selection never reorders groups. Within a group,
+conversations pinned from the row menu (Pin / Unpin) come first with a small pin, then the rest by
+recency; ⌘1–9 and the ⌘K Pinned section follow the same order. Conversations saved before pinning
+existed start unpinned, and a duplicate starts unpinned. Conversation titles
 stay on one line with ellipsis, in evenly sized rows. Working, waiting, unread, and draft cues remain
 visible; the full title, draft or latest reply, and update time live in the hover or keyboard-focus
 preview. Previewing does not select the conversation or mark it read. Escape, scrolling, and leaving
@@ -74,6 +77,11 @@ separate buttons. Expanding a group keeps the current conversation; its menu als
 Collapsed conversations leave the focus order, search reveals matching groups,
 and selecting a conversation elsewhere reopens its group. Calm and Reduce Motion skip the fold
 animation. Existing task previews, drafts, statuses, and conversation actions remain available.
+
+In an empty message box, ↑ brings back the messages already sent in that conversation, newest
+first, and ↓ moves forward again; Esc or clearing the box returns to the empty draft. Inside a
+recalled message, ↑ and ↓ move between its lines until the caret reaches the first or last line, and
+editing it makes it an ordinary draft. A typed draft is never replaced.
 
 Opening a launcher result selects its exact existing conversation, closes Settings or Activity, and
 uses a short exit/arrival transition. Calm and Reduce Motion skip this transition. Failed handoffs

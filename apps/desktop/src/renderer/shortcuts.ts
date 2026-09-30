@@ -1,4 +1,4 @@
-import type { AgentSummary } from './types';
+import type { AgentSummary, ThreadSummary } from './types';
 
 /** Sidebar order: pinned agents first, then by name. */
 export function sidebarAgentOrder<T extends Pick<AgentSummary, 'name' | 'pinned'>>(
@@ -10,12 +10,26 @@ export function sidebarAgentOrder<T extends Pick<AgentSummary, 'name' | 'pinned'
   });
 }
 
+/**
+ * An agent's conversations as the sidebar lists them: pinned first, each part keeping the
+ * incoming (most recent first) order. Returns the same array when nothing moves.
+ */
+export function sidebarThreadOrder<T extends Pick<ThreadSummary, 'pinned'>>(
+  threads: readonly T[],
+): readonly T[] {
+  const pinned = threads.filter((thread) => thread.pinned);
+  if (pinned.length === 0 || pinned.length === threads.length) return threads;
+  return [...pinned, ...threads.filter((thread) => !thread.pinned)];
+}
+
 /** The conversation ⌘1–⌘9 opens: the nth one listed in the sidebar. */
 export function conversationForShortcut(
   agents: readonly AgentSummary[],
   digit: number,
 ): string | undefined {
-  return sidebarAgentOrder(agents).flatMap(({ threads }) => threads)[digit - 1]?.id;
+  return sidebarAgentOrder(agents).flatMap(({ threads }) => sidebarThreadOrder(threads))[
+    digit - 1
+  ]?.id;
 }
 
 export const KEYBOARD_SHORTCUTS: readonly { keys: string; label: string }[] = [
@@ -26,6 +40,7 @@ export const KEYBOARD_SHORTCUTS: readonly { keys: string; label: string }[] = [
   { keys: 'Esc', label: 'Stop the running task' },
   { keys: '↩', label: 'Send' },
   { keys: '⇧↩', label: 'New line' },
+  { keys: '↑', label: 'Bring back a message you sent (in an empty message box)' },
   { keys: '⌘B', label: 'Show or hide the sidebar' },
   { keys: '⌘,', label: 'Settings' },
   { keys: '⌘E', label: 'Ask Sia from any app' },

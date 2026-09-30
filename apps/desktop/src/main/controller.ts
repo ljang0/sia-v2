@@ -1980,6 +1980,10 @@ export class DesktopController {
         return this.#setThreadUnread(
           input as BridgeRequestMap['threads.setUnread'],
         ) as BridgeResultMap[M];
+      case 'threads.setPinned':
+        return this.#setThreadPinned(
+          input as BridgeRequestMap['threads.setPinned'],
+        ) as BridgeResultMap[M];
       case 'threads.fork':
         return (await this.#forkThread(
           input as BridgeRequestMap['threads.fork'],
@@ -2925,6 +2929,7 @@ export class DesktopController {
       agentNameSnapshot: agent.name,
       status: 'idle',
       unread: false,
+      pinned: false,
       worktree: { kind: 'primary', sourceWorkspace: agent.workspace },
       createdAt: now,
       updatedAt: now,
@@ -3014,6 +3019,14 @@ export class DesktopController {
     return this.#resultSnapshot();
   }
 
+  #setThreadPinned(input: BridgeRequestMap['threads.setPinned']): DesktopSnapshot {
+    const thread = this.#requireThread(input.threadId);
+    // Pinning only reorders the sidebar; it is not activity, so updatedAt stays.
+    thread.pinned = input.pinned;
+    this.#commit();
+    return this.#resultSnapshot();
+  }
+
   async #forkThread(
     input: BridgeRequestMap['threads.fork'],
     primary = false,
@@ -3053,6 +3066,7 @@ export class DesktopController {
       status: 'idle',
       sourceThreadId: source.id,
       unread: false,
+      pinned: false,
       createdAt: now,
       updatedAt: now,
     };
@@ -8228,6 +8242,7 @@ export class DesktopController {
         instructionsSnapshot: thread.instructionsSnapshot ?? agent?.instructions ?? '',
         agentNameSnapshot: thread.agentNameSnapshot ?? agent?.name ?? 'Agent',
         unread: thread.unread ?? false,
+        pinned: thread.pinned ?? false,
         worktree:
           thread.worktree ?? ({ kind: 'primary', sourceWorkspace: thread.workspace } as const),
       };
