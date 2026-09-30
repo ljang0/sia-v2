@@ -25,6 +25,7 @@ import { ControllerContext } from './context.js';
 import type { BrowserCapabilitySink, ControllerOptions } from './types.js';
 import { ResearchOutbox } from './research-outbox.js';
 import { ResearchCapture } from './research-capture.js';
+import { ConnectorConnections } from './connections.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -37,6 +38,7 @@ export class DesktopController {
     this.#ctx = new ControllerContext(options, (ctx) => ({
       researchOutbox: new ResearchOutbox(ctx),
       researchCapture: new ResearchCapture(ctx),
+      connections: new ConnectorConnections(ctx),
     }));
   }
 
@@ -256,11 +258,11 @@ export class DesktopController {
     selector: string,
     approvalId?: string,
   ): string | undefined {
-    return this.#ctx.connectionIdForAction(app, selector, approvalId);
+    return this.#ctx.connections.connectionIdForAction(app, selector, approvalId);
   }
 
   markConnectionReconnectRequired(app: ConnectionView['id'], connectionId: string): void {
-    this.#ctx.markConnectionReconnectRequired(app, connectionId);
+    this.#ctx.connections.markConnectionReconnectRequired(app, connectionId);
   }
 
   invoke<M extends BridgeMethod>(
