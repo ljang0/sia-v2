@@ -4,7 +4,6 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AutomationApp, AutomationPermissions } from '../../src/shared/mac-permissions';
 
 const desktopRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -81,51 +80,14 @@ export async function launchIsolatedSia(
     async completeSetup(this: IsolatedSia) {
       if (options.fakeServices === false)
         throw new Error('Automatic setup is restricted to deterministic permission fixtures.');
-      const viewport = this.page.viewportSize();
-      let grantedApps: AutomationApp[] = [];
-      await this.page.exposeFunction(
-        'recordFixturePermissions',
-        (permissions: AutomationPermissions | undefined) => {
-          grantedApps = Object.entries(permissions ?? {})
-            .filter(([, status]) => status === 'ready')
-            .map(([app]) => app as AutomationApp);
-        },
-      );
-      await this.page.evaluate(() => {
-        const record = (
-          window as unknown as {
-            recordFixturePermissions(value: AutomationPermissions | undefined): Promise<void>;
-          }
-        ).recordFixturePermissions;
-        window.sia.subscribe((event) => {
-          if (event.type === 'snapshot') void record(event.snapshot.computer.automation);
-        });
-      });
-      // Playwright cannot follow Electron's detached relaunch. Let the real app
-      // persist progress and quit, then reconnect a fresh process to the same profile.
-      // Only the OS spawn is replaced; setup, shutdown, storage and resume stay real.
-      await this.application.evaluate(({ app }) => {
-        app.relaunch = () => {};
-      });
-      const closed = this.application.waitForEvent('close');
+      // Setup finishes in place: the fixtures grant access immediately, so no relaunch is offered.
       await this.page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
-      await closed;
-      const previousErrors = this.rendererErrors;
-      const next = await launchIsolatedSia({ ...options, testRoot });
-      next.rendererErrors.unshift(...previousErrors);
-      Object.assign(this, next);
-      if (viewport) await this.page.setViewportSize(viewport);
-      // The in-memory fake OS resets on process exit. Restore only the grants
-      // actually observed before shutdown, as real macOS retains TCC decisions.
-      await this.page.evaluate(async (apps) => {
-        for (const app of apps) await window.sia.computer.requestAutomation(app);
-      }, grantedApps);
       await expect(
         this.page.getByRole('textbox', { name: 'Message', exact: true }),
       ).toBeVisible();
-      const resumed = await this.page.evaluate(() => window.sia.bootstrap());
-      expect(resumed.preferences.onboarding?.restarted).toBe(true);
-      expect(resumed.preferences.onboarding?.step).toBe('complete');
+      const finished = await this.page.evaluate(() => window.sia.bootstrap());
+      expect(finished.preferences.onboarding?.restarted).not.toBe(true);
+      expect(finished.preferences.onboarding?.step).toBe('complete');
       return this.page;
     },
     async close(this: IsolatedSia, closeOptions: { removeTestRoot?: boolean } = {}) {

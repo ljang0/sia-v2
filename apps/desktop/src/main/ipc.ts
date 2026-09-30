@@ -222,7 +222,14 @@ const inputSchemas = {
   'settings.setOnboarding': z
     .object({
       permissionSetup: z
-        .object({ includeApps: z.boolean(), active: z.boolean() })
+        .object({
+          includeApps: z.boolean(),
+          active: z.boolean(),
+          skipped: z
+            .array(z.string().regex(/^[a-z_]{1,40}$/))
+            .max(20)
+            .optional(),
+        })
         .strict()
         .optional(),
       step: z.enum([

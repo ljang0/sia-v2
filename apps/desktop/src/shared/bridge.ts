@@ -558,7 +558,8 @@ export interface OnboardingProgress {
   agentId?: string;
   restartPending?: boolean;
   restarted?: boolean;
-  permissionSetup?: { includeApps: boolean; active: boolean };
+  /** `skipped` lists optional checklist rows the person skipped, so a relaunch does not re-ask. */
+  permissionSetup?: { includeApps: boolean; active: boolean; skipped?: string[] };
 }
 
 export interface SaveAgentInput {

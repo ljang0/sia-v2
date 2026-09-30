@@ -558,3 +558,23 @@
     transition: none;
   }
 }
+.permissionEnd {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+}
+.permissionEnd button {
+  min-height: 30px;
+  padding: 5px 12px;
+}
+.groupLabel {
+  margin: 8px 0 0;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+.grantAll {
+  margin: 4px 0 16px;
+}

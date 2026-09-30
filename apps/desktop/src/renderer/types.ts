@@ -674,7 +674,7 @@ export interface RendererApi {
   disconnectVoice(): Promise<void>;
   setOnboarding(
     step: OnboardingStep,
-    permissionSetup?: { includeApps: boolean; active: boolean },
+    permissionSetup?: { includeApps: boolean; active: boolean; skipped?: string[] },
   ): Promise<void>;
   restartForOnboarding(): Promise<void>;
   setupMessages(): Promise<void>;
