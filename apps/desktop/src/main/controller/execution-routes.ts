@@ -1,7 +1,7 @@
 /** Which provider routes a new or restored thread may pin. */
 
 import { legacyModelRoute } from '@sia/runtime';
-import type { ProviderId, ThreadView } from '../../shared/bridge.js';
+import type { HarnessId, ProviderId, ThreadView } from '../../shared/bridge.js';
 
 export function modelRouteKey(provider: ProviderId, model: string): string {
   return `${provider}\u0000${model}`;
@@ -20,9 +20,7 @@ export function requireReleaseProvider(provider: ProviderId): void {
   );
 }
 
-export function legacyHarnessForProvider(
-  provider: ProviderId,
-): import('../../shared/bridge.js').HarnessId {
+export function legacyHarnessForProvider(provider: ProviderId): HarnessId {
   if (provider === 'codex') return 'codex_app_server';
   if (provider === 'claude') return 'claude_code';
   if (provider === 'meta') return 'sia_direct';
