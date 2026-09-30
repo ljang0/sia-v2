@@ -132,21 +132,15 @@ import {
 import {
   containsSecretShapedText,
   expandRawResearchEvents,
-  isResearchBatchRecord,
   jsonSafeValue,
   LOCAL_RESEARCH_IDENTITY,
-  LOCAL_RESEARCH_RETENTION_MS,
   MAX_LOCAL_RESEARCH_BATCH_BYTES,
   MAX_RESEARCH_SCREENSHOT_BASE64_BYTES,
   partitionRawResearchEvents,
   type ResearchBatchRecord,
   type ResearchEventRecord,
-  researchSyncErrorMessage,
-  type ResearchSyncRecord,
   SAFE_RESEARCH_ACTIONS,
   type StagedResearchTurn,
-  TARGET_LOCAL_RESEARCH_BATCHES,
-  TARGET_LOCAL_RESEARCH_BYTES,
 } from './research-records.js';
 import { isStreamingDelta } from './runtime-events.js';
 import {
@@ -168,6 +162,7 @@ import type {
 import { type ControllerDeps, resolveControllerDeps } from './deps.js';
 import { compareVersions, isCleanHttpsUrl } from './update-feed.js';
 import { normalizeWorkspace, workspaceSlug, worktreeLabel } from './workspace-paths.js';
+import type { ResearchOutbox } from './research-outbox.js';
 
 const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
   'bootstrap',
@@ -181,12 +176,18 @@ type BridgeHandler<M extends BridgeMethod> = (
 ) => BridgeResultMap[M] | Promise<BridgeResultMap[M]>;
 type BridgeHandlers = { [M in BridgeMethod]?: BridgeHandler<M> };
 
+/** The domain collaborators a context is wired with. */
+export type ControllerServices = Pick<ControllerContext, ServiceName>;
+type ServiceName = 'researchOutbox';
+
 /**
  * Everything the desktop controller knows and does. DesktopController is the public facade;
  * this context holds the shared state and wires the domain collaborators.
  */
 export class ControllerContext {
   readonly deps: ControllerDeps;
+  // Domain collaborators, created by DesktopController right after this context.
+  declare readonly researchOutbox: ResearchOutbox;
   readonly assistantLibrary: AssistantLibrary;
   codexSetupPending = false;
   /** Aborts a ChatGPT browser sign-in that is still waiting on the person. */
@@ -233,9 +234,7 @@ export class ControllerContext {
    * person to press Continue task, send a message, or Stop, instead of skipping the pause.
    */
   readonly heldThreads = new Set<string>();
-  researchSync: Promise<void> | undefined;
   connectionSetup: { controller: AbortController; task: Promise<void> } | undefined;
-  researchRetryTimer: NodeJS.Timeout | undefined;
   streamCommitTimer: NodeJS.Timeout | undefined;
   streamPersistTimer: NodeJS.Timeout | undefined;
   scheduleTimer: NodeJS.Timeout | undefined;
@@ -243,8 +242,6 @@ export class ControllerContext {
   notchTimer: NodeJS.Timeout | undefined;
   nextNotchCheck = 0;
   scheduleRunInFlight = false;
-  researchRetryDelayMs = 15_000;
-  researchGeneration = 0;
   runtime: RuntimeCoordinator | undefined;
   browserCapabilitySink: BrowserCapabilitySink | undefined;
   browserTarget: { targetId: string; tabId: string } | undefined;
@@ -270,7 +267,10 @@ export class ControllerContext {
   cloudParticipant = false;
   updates: UpdateView;
 
-  constructor(options: ControllerOptions) {
+  constructor(
+    options: ControllerOptions,
+    wire: (ctx: ControllerContext) => ControllerServices,
+  ) {
     this.deps = resolveControllerDeps(options);
     this.assistantLibrary = new AssistantLibrary(this.deps.repository);
     this.updates = {
@@ -280,6 +280,7 @@ export class ControllerContext {
         ? 'Ready to check the configured release feed.'
         : 'This build does not have a persistent signed update feed configured.',
     };
+    Object.assign(this, wire(this));
   }
 
   attachPushToTalk(options: {
@@ -1058,7 +1059,7 @@ export class ControllerContext {
   async initialize(): Promise<void> {
     const stored = this.deps.repository.get<PersistedState>('desktop', 'state');
     this.state = stored ? recoverPersistedState(stored) : structuredClone(INITIAL_STATE);
-    this.pruneExpiredResearchBatches();
+    this.researchOutbox.pruneExpiredBatches();
     for (const workspace of [
       ...this.state.agents.map((agent) => agent.workspace),
       ...this.state.threads.map((thread) => thread.workspace),
@@ -1117,9 +1118,9 @@ export class ControllerContext {
       await this.deps.voice?.refresh().catch(() => undefined);
     }
     this.computerState = computer;
-    this.refreshResearchPendingCount();
+    this.researchOutbox.refreshPendingCount();
     this.persist();
-    this.scheduleResearchSync();
+    this.researchOutbox.scheduleSync();
     this.scheduleTimer = setInterval(() => void this.runDueSchedules(), 30_000);
     this.scheduleTimer.unref();
     this.memoryTimer = setInterval(() => {
@@ -1609,9 +1610,9 @@ export class ControllerContext {
     'auth.mfaComplete': ({ code }) => this.completeMfaEnrollment(code),
     'auth.signOut': () => this.signOut(),
     'auth.deleteAccount': ({ confirmation }) => this.deleteCloudAccount(confirmation),
-    'research.setCapture': (input) => this.setCapture(input),
-    'research.export': () => this.exportResearch(),
-    'research.delete': ({ confirmation }) => this.deleteResearch(confirmation),
+    'research.setCapture': (input) => this.researchOutbox.setCapture(input),
+    'research.export': () => this.researchOutbox.exportResearch(),
+    'research.delete': ({ confirmation }) => this.researchOutbox.deleteResearch(confirmation),
     'research.admin.invites': () => this.deps.cloud.listAdminInvites(),
     'research.admin.invite': ({ email }) => this.deps.cloud.createAdminInvite(email),
     'research.admin.participants': () => this.deps.cloud.listAdminResearchParticipants(),
@@ -2125,7 +2126,7 @@ export class ControllerContext {
     // Quit must remain bounded even when an OS integration or provider subprocess
     // stops responding. The app has already stopped accepting work at this point.
     const shutdownDeadline = Date.now() + 8_000;
-    if (this.researchRetryTimer) clearTimeout(this.researchRetryTimer);
+    if (this.researchOutbox.retryTimer) clearTimeout(this.researchOutbox.retryTimer);
     if (this.scheduleTimer) clearInterval(this.scheduleTimer);
     if (this.memoryTimer) clearInterval(this.memoryTimer);
     if (this.notchTimer) clearInterval(this.notchTimer);
@@ -2144,7 +2145,7 @@ export class ControllerContext {
       shutdownDeadline,
     );
     await settleBeforeShutdown(this.connectionSetup?.task, shutdownDeadline);
-    await settleBeforeShutdown(this.researchSync, shutdownDeadline);
+    await settleBeforeShutdown(this.researchOutbox.inFlightSync, shutdownDeadline);
     await settleBeforeShutdown(this.runtime?.dispose(), shutdownDeadline);
     this.deps.workspaceOperations?.dispose?.();
     this.deps.voice?.dispose?.();
@@ -2866,7 +2867,7 @@ export class ControllerContext {
       );
     }
     if (
-      this.researchRequiredForCurrentAccount() &&
+      this.researchOutbox.requiredForCurrentAccount() &&
       (this.state.capture.consentVersion !== RESEARCH_CONSENT_VERSION ||
         !this.researchCaptureActive())
     ) {
@@ -4813,7 +4814,7 @@ export class ControllerContext {
     await this.refreshCloudSession();
     await this.refreshMetaProviderState();
     await this.deps.voice?.refresh().catch(() => undefined);
-    this.scheduleResearchSync();
+    this.researchOutbox.scheduleSync();
     this.commit();
     return this.resultSnapshot();
   }
@@ -4839,7 +4840,8 @@ export class ControllerContext {
       const session = await this.deps.cloud.sessionStatus();
       this.cloudParticipant = session.participant;
       this.state.cloudFeatures = structuredClone(session.features);
-      if (!session.features.researchUploads) this.disableResearchForCurrentAccessPolicy();
+      if (!session.features.researchUploads)
+        this.researchOutbox.disableForCurrentAccessPolicy();
       if (previousToolAvailability !== this.toolAvailabilitySignature()) {
         await this.runtime?.resetSessions();
       }
@@ -4865,11 +4867,11 @@ export class ControllerContext {
       this.connectionSetup?.controller.abort();
       await this.stopAllWorkForAuthenticationBoundary();
       if (this.deps.cloud.configured) {
-        await this.researchSync?.catch(() => undefined);
-        this.refreshResearchPendingCount();
+        await this.researchOutbox.inFlightSync?.catch(() => undefined);
+        this.researchOutbox.refreshPendingCount();
         if (this.state.capture.pendingCount > 0) {
-          await this.syncResearchBatches(this.researchGeneration);
-          this.refreshResearchPendingCount();
+          await this.researchOutbox.syncBatches(this.researchOutbox.generation);
+          this.researchOutbox.refreshPendingCount();
         }
         if (this.state.capture.pendingCount > 0) {
           throw new Error(
@@ -4877,7 +4879,7 @@ export class ControllerContext {
           );
         }
       }
-      await this.clearResearchForIdentityBoundary();
+      await this.researchOutbox.clearForIdentityBoundary();
       await this.deps.identity.signOut();
       this.cloudParticipant = false;
       this.state.cloudFeatures = structuredClone(INITIAL_STATE.cloudFeatures);
@@ -4942,7 +4944,7 @@ export class ControllerContext {
 
     const previousCapture = structuredClone(this.state.capture);
     this.connectionSetup?.controller.abort();
-    const inFlightResearchSync = this.researchSync;
+    const inFlightResearchSync = this.researchOutbox.inFlightSync;
     let cloudCompleted = false;
     this.accountDeletionInProgress = true;
     this.deps.voice?.disconnect();
@@ -4950,10 +4952,10 @@ export class ControllerContext {
     this.commit();
 
     try {
-      this.researchGeneration += 1;
-      if (this.researchRetryTimer) {
-        clearTimeout(this.researchRetryTimer);
-        this.researchRetryTimer = undefined;
+      this.researchOutbox.generation += 1;
+      if (this.researchOutbox.retryTimer) {
+        clearTimeout(this.researchOutbox.retryTimer);
+        this.researchOutbox.retryTimer = undefined;
       }
 
       const queuedTurnIds = this.queuedTurns.map(({ id }) => id);
@@ -5032,8 +5034,8 @@ export class ControllerContext {
       this.pendingApprovals.clear();
       this.deps.repository.clearAll();
       this.state = structuredClone(INITIAL_STATE);
-      this.researchSync = undefined;
-      this.researchRetryDelayMs = 15_000;
+      this.researchOutbox.inFlightSync = undefined;
+      this.researchOutbox.retryDelayMs = 15_000;
       await this.refreshMetaProviderState();
       this.revision += 1;
       this.emit();
@@ -5046,7 +5048,7 @@ export class ControllerContext {
       }
       this.state.capture = previousCapture;
       this.commit();
-      this.scheduleResearchSync();
+      this.researchOutbox.scheduleSync();
       throw error;
     } finally {
       this.accountDeletionInProgress = false;
@@ -5416,168 +5418,6 @@ export class ControllerContext {
     clearPending();
   }
 
-  setCapture(input: BridgeRequestMap['research.setCapture']): DesktopSnapshot {
-    if (input.enabled && this.state.capture.status === 'deleting') {
-      throw new Error('Finish or retry research deletion before enabling capture.');
-    }
-    if (
-      input.enabled &&
-      this.deps.cloud.configured &&
-      this.deps.identity.status().state === 'signed_in' &&
-      this.state.cloudFeatures.researchUploads === false
-    ) {
-      throw new Error('Research capture is not enabled for this Sia account.');
-    }
-    if (!input.enabled && !input.consentVersion && this.researchRequiredForCurrentAccount()) {
-      throw new Error(
-        'Research capture is required while signed in. Sign out to stop capture.',
-      );
-    }
-    const consentVersion = input.consentVersion ?? this.state.capture.consentVersion;
-    if (
-      input.enabled &&
-      (!consentVersion || (!this.state.capture.consentAcceptedAt && !input.consentVersion))
-    ) {
-      throw new Error('Review and accept the research consent before enabling capture.');
-    }
-    if (input.enabled) {
-      const identity = this.currentIdentityKey();
-      if (
-        identity &&
-        this.state.researchIdentity &&
-        this.state.researchIdentity !== LOCAL_RESEARCH_IDENTITY &&
-        this.state.researchIdentity !== identity &&
-        this.researchBatches().some(({ batchId }) => !this.researchBatchSynced(batchId))
-      ) {
-        throw new Error(
-          'This Mac has unsynced research for another Sia account. Sign in with that account or delete its local research before continuing.',
-        );
-      }
-      this.state.researchIdentity = identity ?? LOCAL_RESEARCH_IDENTITY;
-      const acceptedAt =
-        input.consentVersion &&
-        (input.consentVersion !== this.state.capture.consentVersion ||
-          !this.state.capture.consentAcceptedAt)
-          ? new Date().toISOString()
-          : this.state.capture.consentAcceptedAt;
-      this.state.capture = {
-        status: 'recording',
-        pendingCount: this.state.capture.pendingCount,
-        consentVersion: consentVersion!,
-        promptReviewedVersion: consentVersion!,
-        ...(acceptedAt ? { consentAcceptedAt: acceptedAt } : {}),
-      };
-      this.refreshResearchPendingCount();
-    } else if (input.consentVersion) {
-      this.state.capture = {
-        status: 'not_consented',
-        pendingCount: this.state.capture.pendingCount,
-        promptReviewedVersion: input.consentVersion,
-      };
-      for (const staged of this.researchStaging.values()) {
-        staged.tainted = true;
-        staged.events = [];
-        staged.eventByMessageId.clear();
-      }
-    } else {
-      this.state.capture.status = 'paused';
-      for (const staged of this.researchStaging.values()) {
-        staged.tainted = true;
-        staged.events = [];
-        staged.eventByMessageId.clear();
-      }
-    }
-    this.deps.trajectory?.record({
-      type: input.enabled
-        ? 'research_consent_accepted'
-        : input.consentVersion
-          ? 'research_consent_declined'
-          : 'research_capture_paused',
-      threadId: 'app-lifecycle',
-      consentVersion,
-      signedIn: this.deps.identity.status().state === 'signed_in',
-    });
-    this.commit();
-    if (input.enabled) this.scheduleResearchSync();
-    return this.resultSnapshot();
-  }
-
-  async exportResearch(): Promise<BridgeResultMap['research.export']> {
-    if (!this.deps.fakeServices && this.researchRequiredForCurrentAccount()) {
-      const { downloadUrl } = await this.deps.cloud.requestResearchExport();
-      await this.deps.openExternal(downloadUrl);
-      return { path: null };
-    }
-    const payload = {
-      exportedAt: new Date().toISOString(),
-      consentVersion: this.state.capture.consentVersion,
-      batches: this.researchBatches(),
-    };
-    return { path: await this.deps.exportJson(payload) };
-  }
-
-  async deleteResearch(confirmation: 'DELETE'): Promise<DesktopSnapshot> {
-    if (confirmation !== 'DELETE') throw new Error('Deletion confirmation was not supplied.');
-    const previousCapture = structuredClone(this.state.capture);
-    this.state.capture.status = 'deleting';
-    this.commit();
-    try {
-      const inFlightResearchSync = this.researchSync;
-      for (const staged of this.researchStaging.values()) {
-        staged.tainted = true;
-        staged.events = [];
-        staged.eventByMessageId.clear();
-      }
-      this.researchGeneration += 1;
-      if (this.researchRetryTimer) {
-        clearTimeout(this.researchRetryTimer);
-        this.researchRetryTimer = undefined;
-      }
-      await inFlightResearchSync?.catch(() => undefined);
-      if (!this.deps.fakeServices && this.researchRequiredForCurrentAccount()) {
-        try {
-          await this.deps.cloud.deleteResearchData();
-        } catch {
-          throw new Error(
-            'Sia could not confirm cloud deletion. Local research batches remain available so you can retry safely.',
-          );
-        }
-      } else if (!this.deps.fakeServices && this.deps.cloud.configured) {
-        throw new Error(
-          'Sign in to Sia cloud to delete local research batches and any previously synced copy.',
-        );
-      }
-      this.researchStaging.clear();
-      for (const record of this.deps.repository.list<Record<string, unknown>>('research')) {
-        const id =
-          typeof record.batchId === 'string'
-            ? record.batchId
-            : typeof record.id === 'string'
-              ? record.id
-              : undefined;
-        if (id) this.deps.repository.remove('research', id);
-      }
-      for (const record of this.deps.repository.list<ResearchSyncRecord>('research_sync')) {
-        if (record.batchId) this.deps.repository.remove('research_sync', record.batchId);
-      }
-      const promptReviewedVersion =
-        this.state.capture.consentVersion ?? this.state.capture.promptReviewedVersion;
-      this.state.capture = {
-        status: 'not_consented',
-        pendingCount: 0,
-        ...(promptReviewedVersion ? { promptReviewedVersion } : {}),
-      };
-      this.commit();
-      return this.resultSnapshot();
-    } catch (error) {
-      this.state.capture = previousCapture;
-      this.refreshResearchPendingCount();
-      this.commit();
-      this.scheduleResearchSync();
-      throw error;
-    }
-  }
-
   stageResearchText(input: {
     turnId: string;
     eventId: string;
@@ -5858,15 +5698,15 @@ export class ControllerContext {
     };
     const batchBytes = Buffer.byteLength(JSON.stringify(batch), 'utf8');
     if (batchBytes > MAX_LOCAL_RESEARCH_BATCH_BYTES) {
-      this.blockResearchCapture(
+      this.researchOutbox.blockCapture(
         "A research bundle exceeded Sia's durable batch limit. Sign out and contact the alpha team before continuing.",
       );
       return;
     }
-    this.prepareLocalResearchStorage(batchBytes);
-    if (!this.storeResearchBatch(batch)) return;
-    this.refreshResearchPendingCount();
-    this.scheduleResearchSync();
+    this.researchOutbox.prepareLocalStorage(batchBytes);
+    if (!this.researchOutbox.storeBatch(batch)) return;
+    this.researchOutbox.refreshPendingCount();
+    this.researchOutbox.scheduleSync();
   }
 
   persistRawResearchTurn(turnId: string, outcome: 'completed' | 'discarded'): void {
@@ -5923,17 +5763,17 @@ export class ControllerContext {
       };
       const batchBytes = Buffer.byteLength(JSON.stringify(batch), 'utf8');
       if (batchBytes > MAX_LOCAL_RESEARCH_BATCH_BYTES) {
-        this.blockResearchCapture(
+        this.researchOutbox.blockCapture(
           "A raw research bundle exceeded Sia's durable batch limit. Sign out and contact the alpha team before continuing.",
         );
         return;
       }
-      this.prepareLocalResearchStorage(batchBytes);
-      if (!this.storeResearchBatch(batch)) return;
+      this.researchOutbox.prepareLocalStorage(batchBytes);
+      if (!this.researchOutbox.storeBatch(batch)) return;
     }
     this.researchStaging.delete(turnId);
-    this.refreshResearchPendingCount();
-    this.scheduleResearchSync();
+    this.researchOutbox.refreshPendingCount();
+    this.researchOutbox.scheduleSync();
   }
 
   researchCaptureActive(): boolean {
@@ -5946,234 +5786,6 @@ export class ControllerContext {
     }
     return (
       this.state.capture.status === 'recording' || this.state.capture.status === 'sync_pending'
-    );
-  }
-
-  researchBatches(): ResearchBatchRecord[] {
-    return this.deps.repository
-      .list<unknown>('research')
-      .filter((value): value is ResearchBatchRecord => isResearchBatchRecord(value));
-  }
-
-  pruneExpiredResearchBatches(): void {
-    const cutoff = Date.now() - LOCAL_RESEARCH_RETENTION_MS;
-    for (const batch of this.researchBatches()) {
-      const occurredAt = Date.parse(batch.events[0]?.occurredAt ?? '');
-      if (
-        Number.isFinite(occurredAt) &&
-        occurredAt < cutoff &&
-        this.researchBatchSynced(batch.batchId)
-      ) {
-        this.deps.repository.remove('research', batch.batchId);
-        this.deps.repository.remove('research_sync', batch.batchId);
-      }
-    }
-  }
-
-  prepareLocalResearchStorage(incomingBytes: number): void {
-    const batches = this.researchBatches();
-    let storedBytes = batches.reduce(
-      (total, batch) => total + Buffer.byteLength(JSON.stringify(batch), 'utf8'),
-      0,
-    );
-    let storedBatches = batches.length;
-    const removable = batches
-      .filter(({ batchId }) => this.researchBatchSynced(batchId))
-      .sort(
-        (left, right) =>
-          Date.parse(left.events[0]?.occurredAt ?? '') -
-          Date.parse(right.events[0]?.occurredAt ?? ''),
-      );
-    while (
-      storedBytes + incomingBytes > TARGET_LOCAL_RESEARCH_BYTES ||
-      storedBatches >= TARGET_LOCAL_RESEARCH_BATCHES
-    ) {
-      const oldest = removable.shift();
-      if (!oldest) break;
-      storedBytes -= Buffer.byteLength(JSON.stringify(oldest), 'utf8');
-      storedBatches -= 1;
-      this.deps.repository.remove('research', oldest.batchId);
-      this.deps.repository.remove('research_sync', oldest.batchId);
-    }
-  }
-
-  storeResearchBatch(batch: ResearchBatchRecord): boolean {
-    try {
-      this.deps.repository.put('research', batch.batchId, batch);
-      this.deps.repository.put<ResearchSyncRecord>('research_sync', batch.batchId, {
-        batchId: batch.batchId,
-        synced: false,
-      });
-      return true;
-    } catch {
-      // Do not continue taking research-required turns after the encrypted outbox fails. If the
-      // batch write succeeded but its sync marker did not, the absent marker already means
-      // "unsynced", so the raw batch remains eligible for a later upload.
-      this.blockResearchCapture(
-        'Sia could not durably queue the raw research record. Free disk space or sign out, then reopen Sia before continuing.',
-      );
-      return false;
-    }
-  }
-
-  blockResearchCapture(reason: string): void {
-    this.state.capture.status = 'blocked';
-    this.state.capture.blockedReason = reason;
-    this.state.capture.lastSyncError = reason;
-    this.refreshResearchPendingCount();
-    try {
-      this.commit();
-    } catch {
-      // A storage failure may prevent even the status update from reaching disk. The in-memory
-      // status still makes the running process fail closed.
-    }
-  }
-
-  refreshResearchPendingCount(): void {
-    const pending = this.researchBatches().filter(
-      (batch) => batch.syncEligible !== false && !this.researchBatchSynced(batch.batchId),
-    );
-    this.state.capture.pendingCount = pending.reduce(
-      (count, batch) => count + batch.events.length,
-      0,
-    );
-    if (pending.length) {
-      this.state.capture.pendingBytes = pending.reduce(
-        (bytes, batch) => bytes + Buffer.byteLength(JSON.stringify(batch), 'utf8'),
-        0,
-      );
-    } else {
-      delete this.state.capture.pendingBytes;
-    }
-    const oldest = pending
-      .map((batch) => batch.events[0]?.occurredAt)
-      .filter((value): value is string => Boolean(value))
-      .sort()[0];
-    if (oldest) this.state.capture.oldestPendingAt = oldest;
-    else delete this.state.capture.oldestPendingAt;
-  }
-
-  scheduleResearchSync(): void {
-    if (
-      this.state.capture.status === 'deleting' ||
-      this.state.capture.pendingCount === 0 ||
-      this.researchSync ||
-      this.state.cloudFeatures.researchUploads === false
-    )
-      return;
-    if (
-      this.deps.fakeServices ||
-      !this.deps.cloud.configured ||
-      this.deps.identity.status().state !== 'signed_in' ||
-      this.state.researchIdentity !== this.currentIdentityKey()
-    ) {
-      if (this.state.capture.status === 'recording') {
-        this.state.capture.status = 'sync_pending';
-        this.commit();
-      }
-      return;
-    }
-    const generation = this.researchGeneration;
-    this.researchSync = this.syncResearchBatches(generation).finally(() => {
-      this.researchSync = undefined;
-      if (this.state.capture.pendingCount > 0 && !this.researchRetryTimer) {
-        this.scheduleResearchSync();
-      }
-    });
-  }
-
-  async syncResearchBatches(generation: number): Promise<void> {
-    try {
-      for (const batch of this.researchBatches().filter(
-        ({ batchId, syncEligible }) =>
-          syncEligible !== false && !this.researchBatchSynced(batchId),
-      )) {
-        await this.deps.cloud.uploadResearchBatch(batch);
-        if (generation !== this.researchGeneration) return;
-        const current = this.deps.repository.get<ResearchBatchRecord>(
-          'research',
-          batch.batchId,
-        );
-        if (!current) continue;
-        this.deps.repository.put<ResearchSyncRecord>('research_sync', batch.batchId, {
-          batchId: batch.batchId,
-          synced: true,
-        });
-      }
-      if (generation !== this.researchGeneration) return;
-      this.researchRetryDelayMs = 15_000;
-      delete this.state.capture.lastSyncError;
-      this.refreshResearchPendingCount();
-      if (
-        this.state.capture.pendingCount === 0 &&
-        (this.state.capture.status === 'sync_pending' ||
-          this.state.capture.status === 'blocked')
-      ) {
-        this.state.capture.status = 'recording';
-        delete this.state.capture.blockedReason;
-      }
-      this.commit();
-    } catch (error) {
-      if (generation !== this.researchGeneration) return;
-      this.refreshResearchPendingCount();
-      this.state.capture.lastSyncError = researchSyncErrorMessage(error);
-      if (this.state.capture.status === 'recording') {
-        this.state.capture.status = 'sync_pending';
-      }
-      this.commit();
-      this.scheduleResearchRetry();
-    }
-  }
-
-  scheduleResearchRetry(): void {
-    if (
-      this.state.capture.status === 'deleting' ||
-      this.researchRetryTimer ||
-      this.state.capture.pendingCount === 0 ||
-      this.state.cloudFeatures.researchUploads === false
-    )
-      return;
-    const delay = this.researchRetryDelayMs;
-    this.researchRetryDelayMs = Math.min(this.researchRetryDelayMs * 2, 5 * 60_000);
-    this.researchRetryTimer = setTimeout(() => {
-      this.researchRetryTimer = undefined;
-      this.scheduleResearchSync();
-    }, delay);
-    this.researchRetryTimer.unref();
-  }
-
-  researchRequiredForCurrentAccount(): boolean {
-    return (
-      this.deps.cloud.configured &&
-      this.deps.identity.status().state === 'signed_in' &&
-      this.state.cloudFeatures.researchUploads !== false
-    );
-  }
-
-  disableResearchForCurrentAccessPolicy(): void {
-    this.researchGeneration += 1;
-    if (this.researchRetryTimer) {
-      clearTimeout(this.researchRetryTimer);
-      this.researchRetryTimer = undefined;
-    }
-    for (const staged of this.researchStaging.values()) {
-      staged.tainted = true;
-      staged.events = [];
-      staged.rawEvents = [];
-      staged.eventByMessageId.clear();
-    }
-    this.researchStaging.clear();
-    for (const batch of this.researchBatches()) {
-      if (batch.syncEligible === false || this.researchBatchSynced(batch.batchId)) continue;
-      this.deps.repository.put('research', batch.batchId, { ...batch, syncEligible: false });
-    }
-    this.state.capture = { status: 'not_consented', pendingCount: 0 };
-    this.refreshResearchPendingCount();
-  }
-
-  researchBatchSynced(batchId: string): boolean {
-    return (
-      this.deps.repository.get<ResearchSyncRecord>('research_sync', batchId)?.synced ?? false
     );
   }
 
@@ -7562,30 +7174,6 @@ export class ControllerContext {
       : undefined;
   }
 
-  async clearResearchForIdentityBoundary(): Promise<void> {
-    const inFlight = this.researchSync;
-    this.researchGeneration += 1;
-    if (this.researchRetryTimer) {
-      clearTimeout(this.researchRetryTimer);
-      this.researchRetryTimer = undefined;
-    }
-    for (const staged of this.researchStaging.values()) {
-      staged.tainted = true;
-      staged.events = [];
-      staged.eventByMessageId.clear();
-    }
-    await inFlight?.catch(() => undefined);
-    this.researchStaging.clear();
-    for (const batch of this.deps.repository.list<ResearchBatchRecord>('research')) {
-      if (batch.batchId) this.deps.repository.remove('research', batch.batchId);
-    }
-    for (const sync of this.deps.repository.list<ResearchSyncRecord>('research_sync')) {
-      if (sync.batchId) this.deps.repository.remove('research_sync', sync.batchId);
-    }
-    delete this.state.researchIdentity;
-    this.state.capture = { status: 'not_consented', pendingCount: 0 };
-  }
-
   lockConnections(detail: string): void {
     for (const connection of this.state.connections) {
       if (!connection.connectionId) continue;
@@ -7597,7 +7185,7 @@ export class ControllerContext {
 
   async reconcileIdentityBoundState(): Promise<void> {
     if (this.deps.fakeServices) return;
-    const storedBatches = this.researchBatches();
+    const storedBatches = this.researchOutbox.batches();
     if (!this.state.researchIdentity && storedBatches.length > 0) {
       // Old local-only builds predate the ownership marker. Fail private: retain those
       // batches locally and mark them ineligible for any future cloud sync.
@@ -7630,14 +7218,14 @@ export class ControllerContext {
       // explicitly signed-in identity covered by the same reviewed consent.
       this.state.researchIdentity = identity;
     } else if (this.state.researchIdentity && this.state.researchIdentity !== identity) {
-      if (storedBatches.some(({ batchId }) => !this.researchBatchSynced(batchId))) {
-        this.blockResearchCapture(
+      if (storedBatches.some(({ batchId }) => !this.researchOutbox.batchSynced(batchId))) {
+        this.researchOutbox.blockCapture(
           'This Mac has unsynced research for another Sia account. Sign in with that account or delete its local research before continuing.',
         );
         this.lockConnections('This grant belongs to another Sia cloud account.');
         return;
       }
-      await this.clearResearchForIdentityBoundary();
+      await this.researchOutbox.clearForIdentityBoundary();
     }
     const pendingGoogleUpgrades = new Set<string>();
     for (const connection of this.state.connections) {

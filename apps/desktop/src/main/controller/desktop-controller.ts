@@ -23,6 +23,7 @@ import type { VoiceHelperFactory } from '../push-to-talk.js';
 import type { RuntimeCoordinator } from '../runtime-coordinator.js';
 import { ControllerContext } from './context.js';
 import type { BrowserCapabilitySink, ControllerOptions } from './types.js';
+import { ResearchOutbox } from './research-outbox.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -32,7 +33,9 @@ export class DesktopController {
   readonly #ctx: ControllerContext;
 
   constructor(options: ControllerOptions) {
-    this.#ctx = new ControllerContext(options);
+    this.#ctx = new ControllerContext(options, (ctx) => ({
+      researchOutbox: new ResearchOutbox(ctx),
+    }));
   }
 
   attachPushToTalk(options: {
