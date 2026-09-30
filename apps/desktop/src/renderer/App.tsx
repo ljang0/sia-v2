@@ -47,7 +47,7 @@ import {
   TranscriptSearch,
   ThreadWorkspaceTools,
 } from './components/localParity';
-import type { AgentDraft, RendererApi, RendererSnapshot } from './types';
+import type { AgentDraft, ProviderId, RendererApi, RendererSnapshot } from './types';
 import { useAppController } from './useAppController';
 import { executionLabel, friendlyModelName } from './agentModels';
 import { cancelComposerFocus, focusComposer } from './composerFocus';
@@ -974,28 +974,24 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
 function requiresSiaSignIn(state: RendererSnapshot['cloudAuth']['state']): boolean {
   return state !== 'signed-in' && state !== 'unconfigured';
 }
-function providerModels(snapshot: import('./types').RendererSnapshot, provider: string) {
+function providerModels(snapshot: RendererSnapshot, provider: string) {
   return snapshot.providers.find((candidate) => candidate.id === provider)?.models ?? [];
 }
 
-function modelOptions(
-  snapshot: import('./types').RendererSnapshot,
-  provider: string,
-  selectedModel: string,
-) {
+function modelOptions(snapshot: RendererSnapshot, provider: string, selectedModel: string) {
   const models = providerModels(snapshot, provider);
   return models.length
     ? models.map((model) => ({ id: model.id, label: model.label, detail: model.description }))
     : [
         {
           id: selectedModel,
-          label: friendlyModelName(provider as import('./types').ProviderId, selectedModel),
+          label: friendlyModelName(provider as ProviderId, selectedModel),
         },
       ];
 }
 
 function reasoningOptions(
-  snapshot: import('./types').RendererSnapshot,
+  snapshot: RendererSnapshot,
   provider: string,
   modelId: string,
   selected?: string,
@@ -1010,16 +1006,12 @@ function reasoningOptions(
   }));
 }
 
-function defaultReasoning(
-  snapshot: import('./types').RendererSnapshot,
-  provider: string,
-  modelId: string,
-) {
+function defaultReasoning(snapshot: RendererSnapshot, provider: string, modelId: string) {
   return providerModels(snapshot, provider).find((model) => model.id === modelId)
     ?.defaultReasoningEffort;
 }
 
-function activityItems(snapshot: import('./types').RendererSnapshot) {
+function activityItems(snapshot: RendererSnapshot) {
   return snapshot.agents.flatMap((agent) =>
     agent.threads
       .filter((thread) => thread.status !== 'idle' || thread.unread)

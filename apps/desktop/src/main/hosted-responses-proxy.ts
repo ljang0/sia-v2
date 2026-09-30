@@ -5,6 +5,7 @@ import {
   type Server,
   type ServerResponse,
 } from 'node:http';
+import { isRecord } from './records.js';
 
 const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
 const MAX_SCOPES = 256;
@@ -208,10 +209,6 @@ function bearerToken(value: string | undefined): string | undefined {
 
 function isLoopback(address: string | undefined): boolean {
   return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1';
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function jsonError(

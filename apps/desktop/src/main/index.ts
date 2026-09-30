@@ -43,11 +43,7 @@ import {
 
 import { ActionGateway, DefaultActionAuthorizationPolicy } from '@sia/action-gateway';
 import { TrajectoryRecorder } from './trajectory-recorder.js';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { chromeRemoteDebuggingStatus } from './chrome-debug-setup.js';
-
-const execFileAsync = promisify(execFile);
 import { MessagesService } from './messages-service.js';
 
 import { CloudClient } from './cloud-client.js';

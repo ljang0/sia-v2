@@ -6,7 +6,7 @@ import { LauncherSession } from './launcher-state.js';
 import { launcherBackgroundColor } from './display-preferences.js';
 import { TEXT_SCALE } from '../shared/display.js';
 
-export const launcherInput = z.discriminatedUnion('kind', [
+const launcherInput = z.discriminatedUnion('kind', [
   z
     .object({
       kind: z.literal('new'),

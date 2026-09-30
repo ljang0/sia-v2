@@ -10,6 +10,7 @@ import { ScottySprite } from '../ScottySprite';
 import styles from '../../ui.module.css';
 import pet from './ScottySettings.module.css';
 import { Switch } from '../Switch';
+import { errorMessage } from '../../plainErrors';
 export function ScottySettings({ api }: { api: ScottySettingsApi }) {
   const [state, setState] = useState<Settings>();
   const [busy, setBusy] = useState(false);
@@ -38,7 +39,7 @@ export function ScottySettings({ api }: { api: ScottySettingsApi }) {
     try {
       setState(await api(command));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Scotty could not be updated.');
+      setError(errorMessage(cause, 'Scotty could not be updated.'));
     } finally {
       setBusy(false);
     }

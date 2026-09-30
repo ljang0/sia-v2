@@ -50,7 +50,7 @@ need release credentials.
 restarts Sia, and continues to ChatGPT sign-in in the browser. Sia verifies the connection and shows
 Connected. No terminal commands or manual downloads are required.
 
-Permission setup uses one checklist in onboarding and **Settings → Computer**. **Set up permissions**
+Permission setup uses one checklist in onboarding and **Settings → Computer**. **Grant all**
 requests missing Mac control, voice, and everyday app access in sequence; macOS still requires its own
 approval clicks. **Check access** only refreshes status. Core permission statuses stay visible during onboarding;
 returning from System Settings refreshes them automatically. The development preview remembers its app and

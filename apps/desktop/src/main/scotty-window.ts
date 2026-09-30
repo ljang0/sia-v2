@@ -13,7 +13,7 @@ const savedSettings = z.object({
   position: z.object({ x: z.number().finite(), y: z.number().finite() }).optional(),
 });
 const defaultSettings: ScottySettings = { enabled: false, size: 'medium', motion: true };
-export const scottyPixels = { small: 112, medium: 144, large: 176 };
+const scottyPixels = { small: 112, medium: 144, large: 176 };
 type Rect = { x: number; y: number; width: number; height: number };
 export function clampScotty(bounds: Rect, area: Rect): Rect {
   return {

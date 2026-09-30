@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import styles from '../../ui.module.css';
 import {
-  errorMessage,
   InlineSettingsError,
   SavedNote,
   SettingsSectionHeader,
   useSavedFlash,
 } from './SettingsShared';
 import { Switch } from '../Switch';
+import { errorMessage } from '../../plainErrors';
 
 /** Developer-only surfaces stay out of the main path until someone opts in here. */
 export function AdvancedSettings({

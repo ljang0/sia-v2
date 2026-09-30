@@ -41,11 +41,3 @@ export const automationApps = [
     detail: 'Send messages you approve. History also needs Full Disk Access.',
   },
 ] as const;
-export const automationStatusLabel: Record<AutomationStatus, string> = {
-  ready: 'Allowed',
-  needs_permission: 'Needs access',
-  denied: 'Allow in System Settings',
-  not_running: 'Open app to check access',
-  unavailable: 'Unavailable on this Mac',
-  error: 'Could not check access',
-};

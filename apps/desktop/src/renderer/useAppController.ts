@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createBridgeRendererApi } from './bridgeAdapter';
 import type { SettingsSection } from './components/Settings';
-import type { AgentSummary, RendererApi, RendererSnapshot } from './types';
+import type { AgentSummary, RendererApi, RendererAttachment, RendererSnapshot } from './types';
+import { errorMessage } from './plainErrors';
 
 const BRIDGE_ERROR =
   'Sia could not load its secure desktop bridge. Quit and reopen Sia; if this continues, reinstall the app.';
@@ -32,7 +33,7 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
   const [agentDialogOpen, setAgentDialogOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<AgentSummary>();
   const [startupNoticeDismissed, setStartupNoticeDismissed] = useState(false);
-  const [attachments, setAttachments] = useState<import('./types').RendererAttachment[]>([]);
+  const [attachments, setAttachments] = useState<RendererAttachment[]>([]);
   const [archivedThread, setArchivedThread] = useState<{ id: string; reselect: boolean }>();
 
   useEffect(() => {
@@ -49,7 +50,7 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
       .getSnapshot()
       .then((next) => mounted && setSnapshot(next))
       .catch((cause: unknown) =>
-        mounted ? setFatalError(messageFor(cause, 'Sia could not start.')) : undefined,
+        mounted ? setFatalError(errorMessage(cause, 'Sia could not start.')) : undefined,
       )
       .finally(() => mounted && setLoading(false));
     return () => {
@@ -63,7 +64,7 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
       await action();
       setActionIssue(undefined);
     } catch (cause) {
-      const message = messageFor(cause, 'That action could not be completed.');
+      const message = errorMessage(cause, 'That action could not be completed.');
       const now = new Date().toISOString();
       setActionIssue((current) =>
         current?.message === message
@@ -88,7 +89,7 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
         setSnapshot(next);
         setFatalError(undefined);
       })
-      .catch((cause: unknown) => setFatalError(messageFor(cause, 'Sia could not start.')))
+      .catch((cause: unknown) => setFatalError(errorMessage(cause, 'Sia could not start.')))
       .finally(() => setLoading(false));
   };
 
@@ -211,10 +212,6 @@ export function resolveApi(): RendererApi {
       };
     },
   });
-}
-
-function messageFor(cause: unknown, fallback: string) {
-  return cause instanceof Error ? cause.message : fallback;
 }
 
 function supportIdFor(message: string) {

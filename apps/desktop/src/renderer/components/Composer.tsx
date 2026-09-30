@@ -21,6 +21,7 @@ import styles from '../ui.module.css';
 import { SiaPresence, type SiaPresenceState } from './SiaPresence';
 import { VoiceWave } from './VoiceWave';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
+import { errorMessage } from '../plainErrors';
 
 interface ComposerAttachment {
   id: string;
@@ -564,9 +565,7 @@ export function Composer({
       if (commit) await acceptTranscript(transcript, generation);
     } catch (cause) {
       if (captureGeneration.current === generation && (commit || realtimeFailure.current)) {
-        setVoiceError(
-          cause instanceof Error ? cause.message : 'Speech could not be transcribed.',
-        );
+        setVoiceError(errorMessage(cause, 'Speech could not be transcribed.'));
         if (recordingPurpose.current === 'conversation') onVoiceConversationChange?.(false);
       }
       await stop(sessionId, false).catch(() => undefined);
@@ -668,9 +667,7 @@ export function Composer({
       await acceptTranscript(transcript, generation);
     } catch (cause) {
       if (captureGeneration.current === generation) {
-        setVoiceError(
-          cause instanceof Error ? cause.message : 'Speech could not be transcribed.',
-        );
+        setVoiceError(errorMessage(cause, 'Speech could not be transcribed.'));
         if (recordingPurpose.current === 'conversation') onVoiceConversationChange?.(false);
       }
     } finally {
@@ -911,7 +908,7 @@ export const LONG_PASTE_CHARACTERS = 4_000;
  * Files on the clipboard that the person meant to attach. Office apps put a picture of the
  * copied cells beside the text; that paste stays text. A Finder copy names its files as text.
  */
-export function pastedFiles(data: DataTransfer): File[] {
+function pastedFiles(data: DataTransfer): File[] {
   const files = [...data.files].slice(0, 20);
   if (!files.length) return [];
   const text = data.getData('text/plain').trim();

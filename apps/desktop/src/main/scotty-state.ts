@@ -18,7 +18,7 @@ export const scottyCommand = z.discriminatedUnion('operation', [
     .strict(),
   z.object({ operation: z.literal('motion'), enabled: z.boolean() }).strict(),
 ]);
-export const scottyAction = z.discriminatedUnion('kind', [
+const scottyAction = z.discriminatedUnion('kind', [
   z
     .object({
       kind: z.literal('new'),

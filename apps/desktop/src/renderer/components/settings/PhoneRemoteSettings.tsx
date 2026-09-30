@@ -10,6 +10,7 @@ import type { ProviderSetup } from '../../types';
 import { SettingsSectionHeader, InlineSettingsError } from './SettingsShared';
 import styles from '../../ui.module.css';
 import phone from './PhoneRemoteSettings.module.css';
+import { errorMessage } from '../../plainErrors';
 
 export function PhoneRemoteSettings({
   api,
@@ -56,7 +57,7 @@ export function PhoneRemoteSettings({
     try {
       setState(await api(operation === 'enable' ? { operation, agentId } : { operation }));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Phone remote could not be updated.');
+      setError(errorMessage(cause, 'Phone remote could not be updated.'));
     } finally {
       setPending(false);
     }

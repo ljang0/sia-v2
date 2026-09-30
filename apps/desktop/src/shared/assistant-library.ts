@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 const id = z.string().uuid();
-export const memorySchema = z
+const memorySchema = z
   .object({
     id: id.optional(),
     agentId: id,
@@ -11,7 +11,7 @@ export const memorySchema = z
     learned: z.boolean().optional(),
   })
   .strict();
-export const workflowSchema = z
+const workflowSchema = z
   .object({
     id: id.optional(),
     agentId: id,
@@ -43,7 +43,7 @@ export const workflowSchema = z
       ),
     'Every referenced parameter needs an input name.',
   );
-export const skillSchema = z
+const skillSchema = z
   .object({
     id: id.optional(),
     agentId: id,

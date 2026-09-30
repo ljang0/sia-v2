@@ -1,4 +1,3 @@
-import * as Dialog from '@radix-ui/react-dialog';
 import {
   ArrowDown,
   ArrowClockwise,
@@ -8,8 +7,6 @@ import {
   Check,
   Clock,
   Copy,
-  FolderSimple,
-  ImageSquare,
   MagnifyingGlass,
   Paperclip,
   PencilSimple,
@@ -34,7 +31,6 @@ import type {
   ApprovalDecision,
   AttachmentPreview,
   RendererAttachment,
-  MessageEvent,
   ThreadDetail,
   ThreadEvent,
   ThreadSummary,
@@ -48,6 +44,11 @@ import styles from '../ui.module.css';
 import { ActivityRow } from './ActivityRow';
 import { planProgress, WorkGroup, WorkingStatus } from './WorkGroup';
 import { AgentForm } from './AgentForm';
+import {
+  AttachmentChip,
+  AttachmentPreviewDialog,
+  attachmentPreviewFailure,
+} from './ConversationAttachments';
 import { ApprovalCard } from './ApprovalCard';
 import { Composer } from './Composer';
 import { QueuedMessages } from './QueuedMessages';
@@ -55,7 +56,7 @@ import { ConversationOutline, hasConversationOutline } from './ConversationOutli
 import { SafeMarkdown } from './SafeMarkdown';
 import { RowErrorBoundary } from './ErrorBoundary';
 import { NoticeText, ThreadErrorText } from './PlainErrorText';
-import { usageWarningText } from '../plainErrors';
+import { errorMessage, usageWarningText } from '../plainErrors';
 import { ReplyFeedbackButtons, type ReplyRating } from './ReplyFeedback';
 import { TurnChangesBar, turnChangeSummaries, type TurnChangeActions } from './TurnChanges';
 import { DitherAurora as Aurora } from './effects/DitherAurora';
@@ -303,7 +304,7 @@ export function Conversation({
       setSpeech({
         eventId,
         phase: 'idle',
-        error: cause instanceof Error ? cause.message : 'Speech could not be played.',
+        error: errorMessage(cause, 'Speech could not be played.'),
       });
     }
   };
@@ -985,9 +986,7 @@ export function Conversation({
 }
 
 /** What in this thread is waiting on the person, if anything, and how to say so briefly. */
-export function waitingOnPerson(
-  thread: ThreadDetail,
-): { key: string; label: string } | undefined {
+function waitingOnPerson(thread: ThreadDetail): { key: string; label: string } | undefined {
   const approvals = thread.events.filter(
     (event) => event.type === 'approval' && event.status === 'pending',
   );
@@ -1349,58 +1348,6 @@ function EventViewContent({
   );
 }
 
-// Thumbnails of sent images, kept for the session so scrolling back does not reload them.
-const thumbnailCache = new Map<string, string>();
-const THUMBNAIL_CACHE_LIMIT = 40;
-
-/** A sent attachment: a small thumbnail for an image, otherwise a file icon and its name. */
-function AttachmentChip({
-  attachment,
-  onPreview,
-  onLoadThumbnail,
-}: {
-  attachment: RendererAttachment;
-  onPreview?: ((attachment: RendererAttachment) => void) | undefined;
-  onLoadThumbnail?:
-    ((attachment: RendererAttachment) => Promise<string | undefined>) | undefined;
-}) {
-  const [thumbnail, setThumbnail] = useState(() => thumbnailCache.get(attachment.id));
-  useEffect(() => {
-    if (thumbnail || attachment.kind !== 'image' || !onLoadThumbnail) return;
-    let current = true;
-    onLoadThumbnail(attachment).then(
-      (dataUrl) => {
-        if (!dataUrl) return;
-        thumbnailCache.set(attachment.id, dataUrl);
-        if (thumbnailCache.size > THUMBNAIL_CACHE_LIMIT)
-          thumbnailCache.delete(thumbnailCache.keys().next().value!);
-        if (current) setThumbnail(dataUrl);
-      },
-      () => undefined,
-    );
-    return () => {
-      current = false;
-    };
-  }, [attachment, onLoadThumbnail, thumbnail]);
-  return (
-    <button
-      type="button"
-      onClick={() => onPreview?.(attachment)}
-      disabled={!onPreview}
-      data-thumbnail={thumbnail ? 'true' : undefined}
-    >
-      {thumbnail ? (
-        <img className={styles.attachmentThumbnail} src={thumbnail} alt="" />
-      ) : attachment.kind === 'image' ? (
-        <ImageSquare size={13} aria-hidden="true" />
-      ) : (
-        <FolderSimple size={13} aria-hidden="true" />
-      )}
-      {attachment.name}
-    </button>
-  );
-}
-
 function CopyMessageButton({ content }: { content: string }) {
   const [copied, setCopied] = useState(false);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -1446,77 +1393,6 @@ function CopyMessageButton({ content }: { content: string }) {
   );
 }
 
-function AttachmentPreviewDialog({
-  preview,
-  onOpenChange,
-  onOpenAttachment,
-  onRevealAttachment,
-}: {
-  preview?: { attachment: RendererAttachment; result?: AttachmentPreview } | undefined;
-  onOpenChange(open: boolean): void;
-  onOpenAttachment?: ((attachmentId: string) => Promise<void>) | undefined;
-  onRevealAttachment?: ((attachmentId: string) => Promise<void>) | undefined;
-}) {
-  return (
-    <Dialog.Root open={Boolean(preview)} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className={styles.dialogOverlay} />
-        <Dialog.Content className={`${styles.alertDialogContent} ${styles.attachmentPreview}`}>
-          <Dialog.Title>{preview?.attachment.name}</Dialog.Title>
-          <Dialog.Description>
-            This local preview uses a short-lived file grant that expires after one hour.
-          </Dialog.Description>
-          <div className={styles.attachmentPreviewBody}>
-            {!preview?.result ? (
-              <SpinnerGap className={styles.spin} size={22} aria-label="Loading preview" />
-            ) : preview.result.kind === 'image' ? (
-              <img src={preview.result.dataUrl} alt={preview.attachment.name} />
-            ) : preview.result.kind === 'text' ? (
-              <div className={styles.attachmentTextPreview} data-format={preview.result.format}>
-                <header>
-                  <span>{preview.result.language ?? 'Plain text'}</span>
-                  <small>
-                    {preview.result.content.split('\n').length.toLocaleString()} lines
-                  </small>
-                </header>
-                <pre>
-                  <code>{preview.result.content}</code>
-                </pre>
-              </div>
-            ) : preview.result.kind === 'pdf' ? (
-              <p>
-                PDFs open in your default reader so Sia does not add an unsafe document frame.
-              </p>
-            ) : (
-              <p>{preview.result.detail}</p>
-            )}
-          </div>
-          <div className={styles.dialogActions}>
-            {onRevealAttachment && preview ? (
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                onClick={() => void onRevealAttachment(preview.attachment.id)}
-              >
-                Reveal in Finder
-              </button>
-            ) : null}
-            {onOpenAttachment && preview ? (
-              <button
-                type="button"
-                className={styles.primaryButton}
-                onClick={() => void onOpenAttachment(preview.attachment.id)}
-              >
-                Open file
-              </button>
-            ) : null}
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  );
-}
-
 /** Where find stands: “2 of 5”, “No matches”, or a prompt before anything is typed. */
 export function findCountLabel(query: string, index: number, total: number): string {
   if (!query.trim()) return 'Type to find';
@@ -1532,16 +1408,6 @@ function eventSearchText(event: ThreadEvent): string {
   if (event.type === 'notice') return `${event.title} ${event.detail}`.toLocaleLowerCase();
   if (event.type === 'question') return event.prompt.toLocaleLowerCase();
   return `${event.request.title} ${'summary' in event.request ? event.request.summary : ''}`.toLocaleLowerCase();
-}
-
-function attachmentPreviewFailure(cause: unknown): AttachmentPreview {
-  return {
-    kind: 'unavailable',
-    detail:
-      cause instanceof Error
-        ? cause.message
-        : 'This file is no longer available in the current Sia session.',
-  };
 }
 
 function hasFiles(dataTransfer: DataTransfer): boolean {

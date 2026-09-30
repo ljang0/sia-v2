@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { ToolDescriptor } from '@sia/protocol';
-import { toolDescriptorSchema } from '@sia/protocol';
+import { toolDescriptorSchema, toolResultImages, withoutToolResultImages } from '@sia/protocol';
 import {
   JsonLinesTransport,
   type JsonRpcId,
@@ -155,26 +155,6 @@ export class SiaMcpServer {
     }
     throw Object.assign(new Error(`Method not found: ${request.method}`), { code: -32601 });
   }
-}
-
-function toolResultImages(value: unknown): Array<{ mimeType: string; dataBase64: string }> {
-  const images = record(value).images;
-  if (!Array.isArray(images)) return [];
-  return images.flatMap((candidate) => {
-    const image = record(candidate);
-    return typeof image.mimeType === 'string' &&
-      /^image\/[a-z0-9.+-]+$/i.test(image.mimeType) &&
-      typeof image.dataBase64 === 'string' &&
-      image.dataBase64.length > 0
-      ? [{ mimeType: image.mimeType, dataBase64: image.dataBase64 }]
-      : [];
-  });
-}
-
-function withoutToolResultImages(value: unknown): unknown {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;
-  const { images: _images, ...rest } = value as Record<string, unknown>;
-  return rest;
 }
 
 export async function serveMcpTransport(options: {

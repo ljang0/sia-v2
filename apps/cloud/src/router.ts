@@ -14,7 +14,6 @@ import type {
 import { VOICE_TOKEN_TYPES } from './contracts.js';
 import {
   CloudError,
-  isRecord,
   parseAppId,
   parseToolName,
   requireRecord,

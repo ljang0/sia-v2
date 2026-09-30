@@ -2,7 +2,8 @@ import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { CheckCircle, ShieldCheck, WarningCircle } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import styles from '../../ui.module.css';
-import { errorMessage } from './SettingsShared';
+import {} from './SettingsShared';
+import { errorMessage } from '../../plainErrors';
 
 interface ResearchConsentDialogProps {
   onAccept(): Promise<void>;

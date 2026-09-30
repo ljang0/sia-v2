@@ -15,7 +15,7 @@ type Updates = RendererSnapshot['updates'];
  * What the update row says, in plain words. Errors keep the main process's detail, which already
  * names the fix (for example, signing in); the other states describe themselves.
  */
-export function updateSummary(updates: Updates): string {
+function updateSummary(updates: Updates): string {
   switch (updates.status) {
     case 'unconfigured':
       return 'This test build doesn’t check for updates on its own. The Sia team sends new builds when they’re ready.';

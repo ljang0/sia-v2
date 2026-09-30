@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  toolResultImages,
+  withoutToolResultImages,
   agentRevisionSnapshotSchema,
   agentSchema,
   harnessPreferenceSchema,
@@ -200,5 +202,23 @@ describe('protocol schemas', () => {
       annotations: { readOnly: false, requiresApproval: false },
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('tool result images', () => {
+  it('keeps well-formed images and strips them from the structured result', () => {
+    const result = {
+      ok: true,
+      images: [
+        { mimeType: 'image/png', dataBase64: 'iVBOR' },
+        { mimeType: 'text/plain', dataBase64: 'aGk=' },
+        { mimeType: 'image/jpeg', dataBase64: '' },
+        'not an image',
+      ],
+    };
+    expect(toolResultImages(result)).toEqual([{ mimeType: 'image/png', dataBase64: 'iVBOR' }]);
+    expect(withoutToolResultImages(result)).toEqual({ ok: true });
+    expect(toolResultImages(['images'])).toEqual([]);
+    expect(withoutToolResultImages('text')).toBe('text');
   });
 });

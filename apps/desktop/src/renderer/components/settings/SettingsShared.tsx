@@ -32,12 +32,8 @@ export function InlineSettingsError({ message }: { message?: string | undefined 
   );
 }
 
-export function errorMessage(cause: unknown, fallback: string) {
-  return cause instanceof Error ? cause.message : fallback;
-}
-
 /** How long the inline "Saved" note stays after a setting changes. */
-export const SAVED_NOTE_MS = 1800;
+const SAVED_NOTE_MS = 1800;
 
 /**
  * A short-lived confirmation for settings that save as soon as they change. `flash()` shows the

@@ -14,7 +14,7 @@ export interface ConfirmRequest {
  * The one confirmation dialog for destructive or risky settings actions. Render it once per
  * component and open it with a request; the action runs only after the person confirms.
  */
-export function ConfirmDialog({
+function ConfirmDialog({
   request,
   onClose,
 }: {

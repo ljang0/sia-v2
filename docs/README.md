@@ -4,10 +4,9 @@
 
 - [`ra-onboarding.md`](./ra-onboarding.md) — fresh-clone setup, first contribution, and safe testing.
 - [`cmu-pilot-runbook.md`](./cmu-pilot-runbook.md) — shortest tester setup and support procedure.
-- [`handoff-2026-08-28-alpha.24.md`](./handoff-2026-08-28-alpha.24.md) — current release state and
-  operator handoff.
+- [`../HANDOFF.md`](../HANDOFF.md) — current release state and remaining release work.
 - [`release-evidence-2026-08-28-alpha.24.md`](./release-evidence-2026-08-28-alpha.24.md) — signed
-  artifact, live-provider, and clean-CI evidence.
+  artifact, live-provider, and clean-CI evidence for the last pilot build.
 - [`manual-acceptance.md`](./manual-acceptance.md) — human checks that automation cannot complete.
 
 ## Product and architecture

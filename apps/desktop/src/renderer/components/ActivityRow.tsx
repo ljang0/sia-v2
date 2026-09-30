@@ -125,7 +125,7 @@ export function ActivityRow({ event }: ActivityRowProps) {
 }
 
 /** One specific, plain line about the step: the command, the files, or the search. */
-export function activitySummary(event: ActivityEvent, labels: readonly string[]): string {
+function activitySummary(event: ActivityEvent, labels: readonly string[]): string {
   const presentation = event.presentation;
   if (presentation?.kind === 'command') return clipText(singleLine(presentation.command), 90);
   if (presentation?.kind === 'file_change' && presentation.files.length) {
@@ -310,7 +310,7 @@ function RichActivityDetail({ event }: { event: ActivityEvent }) {
 }
 
 /** Plain word for a Codex patch kind; unknown kinds are shown as sent. */
-export function fileChangeWord(change: string): string {
+function fileChangeWord(change: string): string {
   const words: Record<string, string> = {
     add: 'Added',
     delete: 'Deleted',
@@ -324,7 +324,7 @@ export function fileChangeWord(change: string): string {
  * Line counts for one changed file. Codex sends the whole file as `diff` for an add or a
  * delete and a unified diff for an update.
  */
-export function fileChangeStats(file: { change: string; diff?: string | undefined }): {
+function fileChangeStats(file: { change: string; diff?: string | undefined }): {
   added: number;
   removed: number;
 } {
@@ -344,7 +344,7 @@ export function fileChangeStats(file: { change: string; diff?: string | undefine
 }
 
 /** How a command ended, in plain words; the code only when it failed. */
-export function commandOutcome(exitCode: number | null | undefined): string {
+function commandOutcome(exitCode: number | null | undefined): string {
   if (exitCode === null || exitCode === undefined) return 'Running';
   return exitCode === 0 ? 'Finished' : `Failed (code ${exitCode})`;
 }

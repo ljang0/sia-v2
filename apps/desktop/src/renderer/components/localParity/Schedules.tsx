@@ -33,8 +33,9 @@ import {
   weekdayName,
   type ScheduleCadence,
 } from './scheduleText';
+import { shortDateTime } from '../../format';
 
-export interface ScheduleItem {
+interface ScheduleItem {
   id: string;
   label: string;
   prompt: string;
@@ -49,7 +50,7 @@ export interface ScheduleItem {
   runHistory?: readonly ScheduleRun[] | undefined;
 }
 
-export interface ScheduleDraft {
+interface ScheduleDraft {
   prompt: string;
   cadence: ScheduleCadence;
   /** A local datetime ("2030-01-01T09:00") or ISO string. */
@@ -362,7 +363,7 @@ interface ScheduleRowProps {
   confirm: ReturnType<typeof useConfirmDialog>[0];
 }
 
-export function ScheduleRow({
+function ScheduleRow({
   schedule,
   busy,
   context,
@@ -467,7 +468,7 @@ export function ScheduleRow({
             <span className={styles.scheduleOutcome} data-outcome={schedule.lastRun.outcome}>
               Last {scheduleOutcomeLabel(schedule.lastRun.outcome)} ·{' '}
               <time dateTime={scheduleRunTimestamp(schedule.lastRun)}>
-                {formatScheduleTime(scheduleRunTimestamp(schedule.lastRun))}
+                {shortDateTime(scheduleRunTimestamp(schedule.lastRun))}
               </time>
             </span>
           ) : (
@@ -549,7 +550,7 @@ export function ScheduleRow({
                 {scheduleOutcomeLabel(run.outcome)}
               </span>
               <time dateTime={scheduleRunTimestamp(run)}>
-                {formatScheduleTime(scheduleRunTimestamp(run))}
+                {shortDateTime(scheduleRunTimestamp(run))}
               </time>
             </li>
           ))}
@@ -680,7 +681,7 @@ export function ScheduleControls({
   );
 }
 
-export interface ScheduledEntry extends ScheduleItem {
+interface ScheduledEntry extends ScheduleItem {
   threadId: string;
   /** "Agent · Conversation". */
   context: string;
@@ -888,15 +889,6 @@ const SCHEDULE_IDEAS: readonly ScheduleIdea[] = [
     }),
   },
 ];
-
-function formatScheduleTime(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(new Date(value));
-}
 
 function scheduleRuns(schedule: ScheduleItem): readonly ScheduleRun[] {
   if (schedule.runHistory?.length) return schedule.runHistory;

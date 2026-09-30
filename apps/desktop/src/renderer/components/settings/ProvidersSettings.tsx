@@ -1,10 +1,10 @@
 import { CheckCircle, Gift, Plug, Sparkle } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
-import { usageLeftText } from '../../plainErrors';
+import { errorMessage, usageLeftText } from '../../plainErrors';
 import { providerStatusLabel } from '../../providerSetup';
 import type { ProviderId, ProviderSetup } from '../../types';
 import styles from '../../ui.module.css';
-import { errorMessage, InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
+import { InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
 
 const RELEASE_PROVIDERS: ProviderId[] = ['codex', 'meta'];
 

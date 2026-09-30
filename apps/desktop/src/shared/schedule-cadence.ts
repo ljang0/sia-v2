@@ -20,7 +20,7 @@ export const SCHEDULE_DAY_NAMES = [
   'friday',
   'saturday',
 ] as const;
-export const WEEKDAYS: readonly ScheduleDay[] = [1, 2, 3, 4, 5];
+const WEEKDAYS: readonly ScheduleDay[] = [1, 2, 3, 4, 5];
 export const MAX_EVERY_HOURS = 24;
 
 export interface ScheduleRule {

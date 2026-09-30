@@ -3,7 +3,6 @@ import { useState } from 'react';
 import type { VoiceSettingsState } from '../../types';
 import styles from '../../ui.module.css';
 import {
-  errorMessage,
   InlineSettingsError,
   SavedNote,
   SettingsSectionHeader,
@@ -11,6 +10,7 @@ import {
 } from './SettingsShared';
 import { Switch } from '../Switch';
 import { voiceOptionLabel } from '../../voiceReadiness';
+import { errorMessage } from '../../plainErrors';
 
 interface VoiceSettingsProps {
   voice: VoiceSettingsState;

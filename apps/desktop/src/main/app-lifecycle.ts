@@ -1,7 +1,7 @@
 import type { DesktopSnapshot } from '../shared/bridge.js';
 
 /** A schedule due within this window makes quitting worth a second thought. */
-export const SCHEDULE_DUE_SOON_MS = 30 * 60_000;
+const SCHEDULE_DUE_SOON_MS = 30 * 60_000;
 
 export interface QuitConfirmation {
   message: string;
