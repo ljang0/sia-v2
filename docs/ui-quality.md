@@ -78,7 +78,8 @@ existed start unpinned, and a duplicate starts unpinned. Conversation titles
 stay on one line with ellipsis, in evenly sized rows. Working, waiting, unread, and draft cues remain
 visible; the full title, draft or latest reply, and update time live in the hover or keyboard-focus
 preview. Previewing does not select the conversation or mark it read. Escape, scrolling, and leaving
-dismiss the preview. The collapsed
+dismiss the preview. Work that finishes in the open conversation while Sia is on screen is read at
+once; if Sia was hidden or minimized, it is read when the window shows again. The collapsed
 rail retains new conversation, search, agents, new agent, Activity, and Settings.
 
 Agent navigation uses flat groups and rotating disclosure chevrons in Sia’s evergreen palette.

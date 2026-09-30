@@ -49,6 +49,10 @@ export function AgentDialog({
   const submission = useRef(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [modelChosen, setModelChosen] = useState(false);
+  // A finished save closes without the exit animation: the view underneath is already
+  // switching to the new conversation, and Radix keeps a closing dialog (and its overlay)
+  // mounted until `animationend`, which never arrives while the window is not drawing.
+  const [closeInstantly, setCloseInstantly] = useState(false);
   const formId = useId();
   const choices = useMemo(
     () =>
@@ -63,6 +67,7 @@ export function AgentDialog({
     if (!open) return;
     submission.current = false;
     setSaving(false);
+    setCloseInstantly(false);
     if (agent) {
       setDraft({
         name: agent.name,
@@ -139,6 +144,7 @@ export function AgentDialog({
       };
       if (!agent) delete payload.hue;
       await onSave(payload);
+      setCloseInstantly(true);
       onOpenChange(false);
     } catch (cause) {
       submission.current = false;
@@ -156,9 +162,13 @@ export function AgentDialog({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className={styles.dialogOverlay} />
+        <Dialog.Overlay
+          className={styles.dialogOverlay}
+          {...(closeInstantly ? { 'data-instant-close': '' } : {})}
+        />
         <Dialog.Content
           className={styles.dialogContent}
+          {...(closeInstantly ? { 'data-instant-close': '' } : {})}
           aria-describedby={`${formId}-description`}
         >
           <div className={styles.dialogHeader}>

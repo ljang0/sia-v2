@@ -316,3 +316,35 @@ test('cloud, admin and account settings fit without hiding categories', async ({
     await sia.close();
   }
 });
+
+test('a saved agent closes its dialog even when animations are not advancing', async () => {
+  const sia = await launchIsolatedSia({ prefix: 'sia-agent-dialog-close-' });
+
+  try {
+    const page = sia.page;
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page
+      .getByRole('complementary', { name: 'Agent navigation' })
+      .getByRole('button', { name: 'Create agent' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'New agent' });
+    await dialog.getByLabel('Name', { exact: true }).fill('Research partner');
+    await dialog.getByLabel('Instructions').fill('Help organize research.');
+    await dialog.evaluate((element) =>
+      Promise.all(element.getAnimations().map((animation) => animation.finished)),
+    );
+    // A macOS window that is not drawing (occluded, busy CI runner) stops CSS animations, so
+    // a closing dialog that waits for `animationend` would stay mounted over the conversation.
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Animation.enable');
+    await cdp.send('Animation.setPlaybackRate', { playbackRate: 0.0001 });
+    await dialog.getByRole('button', { name: 'Create agent' }).click();
+
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole('textbox', { name: 'Message' })).toBeVisible();
+    await cdp.send('Animation.setPlaybackRate', { playbackRate: 1 });
+    expect(sia.rendererErrors).toEqual([]);
+  } finally {
+    await sia.close();
+  }
+});

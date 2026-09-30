@@ -808,7 +808,7 @@ function ThreadLabelContent({ thread }: { thread: ThreadSummary }) {
       data-thread-draft={draft || undefined}
       data-thread-unread={thread.unread || undefined}
     >
-      <span className={`${styles.threadTitle} ${navigation.taskTitle}`}>
+      <span className={`${styles.threadTitle} ${navigation.taskTitle}`} title={thread.title}>
         {thread.pinned ? (
           <PushPin
             className={navigation.taskPin}
