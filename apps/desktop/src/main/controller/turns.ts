@@ -533,12 +533,12 @@ export class Turns {
   startTurn(turn: QueuedTurn): void {
     if (this.ctx.shuttingDown) return;
     const thread = this.ctx.requireThread(turn.threadId);
-    if (this.ctx.macUnavailable && this.ctx.isMacTurn(thread.id)) {
+    if (this.ctx.mac.unavailable && this.ctx.mac.isMacTurn(thread.id)) {
       // Screen control cannot work while the Mac is locked or asleep; start once it is back.
       this.queued.unshift(turn);
       thread.status = 'queued';
       thread.queueReason =
-        this.ctx.macUnavailable === 'locked'
+        this.ctx.mac.unavailable === 'locked'
           ? 'Waiting for your Mac to unlock.'
           : 'Waiting for your Mac to wake.';
       return;
@@ -584,10 +584,11 @@ export class Turns {
     const controller = new AbortController();
     this.running.set(thread.id, controller);
     this.workspaceLeases.set(thread.workspace, turn.id);
-    if (this.ctx.isMacTurn(thread.id)) {
-      this.ctx.macTurns.set(thread.id, turn);
-      if (!this.ctx.computerAccess.backgroundControl()) this.ctx.foregroundTurns.add(thread.id);
-      this.ctx.awakeTurns.add(thread.id);
+    if (this.ctx.mac.isMacTurn(thread.id)) {
+      this.ctx.mac.turns.set(thread.id, turn);
+      if (!this.ctx.computerAccess.backgroundControl())
+        this.ctx.mac.foregroundTurns.add(thread.id);
+      this.ctx.mac.awakeTurns.add(thread.id);
       this.ctx.deps.keepAwake?.hold(thread.id);
     }
     if (turn.fromPhone) this.phoneTurns.add(turn.id);
@@ -632,9 +633,9 @@ export class Turns {
       this.ctx.approvals.taskGrants.delete(turnId);
     }
     this.running.delete(threadId);
-    this.ctx.macTurns.delete(threadId);
-    this.ctx.foregroundTurns.delete(threadId);
-    if (this.ctx.awakeTurns.delete(threadId)) this.ctx.deps.keepAwake?.release(threadId);
+    this.ctx.mac.turns.delete(threadId);
+    this.ctx.mac.foregroundTurns.delete(threadId);
+    if (this.ctx.mac.awakeTurns.delete(threadId)) this.ctx.deps.keepAwake?.release(threadId);
     if (thread) this.workspaceLeases.delete(thread.workspace);
     this.drainQueue();
     // A follow-up can still wait when another thread took the workspace first. A paused
@@ -648,8 +649,8 @@ export class Turns {
       return;
     thread.status = 'queued';
     thread.queueReason =
-      this.ctx.macUnavailable && this.ctx.isMacTurn(thread.id)
-        ? this.ctx.macUnavailable === 'locked'
+      this.ctx.mac.unavailable && this.ctx.mac.isMacTurn(thread.id)
+        ? this.ctx.mac.unavailable === 'locked'
           ? 'Waiting for your Mac to unlock.'
           : 'Waiting for your Mac to wake.'
         : 'Waiting for another task to release this workspace.';
@@ -664,7 +665,7 @@ export class Turns {
         thread &&
         !this.heldThreads.has(thread.id) &&
         !this.workspaceLeases.has(thread.workspace) &&
-        !(this.ctx.macUnavailable && this.ctx.isMacTurn(thread.id))
+        !(this.ctx.mac.unavailable && this.ctx.mac.isMacTurn(thread.id))
       );
     });
     if (nextIndex < 0) return;

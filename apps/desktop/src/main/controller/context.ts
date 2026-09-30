@@ -3,7 +3,6 @@ import type { PhoneRemoteApi } from '../../shared/phone-remote.js';
 import type { ScottySettingsApi } from '../../shared/scotty.js';
 import { threadPreviews, type ThreadPreviewMemo } from '../../shared/thread-previews.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { randomUUID } from 'node:crypto';
 import { isAbsolute } from 'node:path';
 
 import type { ActionInvocationObserver, ActionResultObserver } from '@sia/action-gateway';
@@ -42,7 +41,7 @@ import {
   recoverPersistedState,
 } from './persisted-state.js';
 import { SAFE_RESEARCH_ACTIONS } from './research-records.js';
-import type { BrowserCapabilitySink, ControllerOptions, QueuedTurn } from './types.js';
+import type { BrowserCapabilitySink, ControllerOptions } from './types.js';
 import { type ControllerDeps, resolveControllerDeps } from './deps.js';
 import { compareVersions, isCleanHttpsUrl } from './update-feed.js';
 import { normalizeWorkspace } from './workspace-paths.js';
@@ -64,6 +63,7 @@ import type { Approvals } from './approvals.js';
 import type { Turns } from './turns.js';
 import type { TurnRunner } from './turn-runner.js';
 import type { RuntimeEventApplier } from './runtime-events.js';
+import type { MacSession } from './mac-session.js';
 
 const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
   'bootstrap',
@@ -97,7 +97,8 @@ type ServiceName =
   | 'approvals'
   | 'turns'
   | 'runner'
-  | 'runtimeEvents';
+  | 'runtimeEvents'
+  | 'mac';
 
 /**
  * Everything the desktop controller knows and does. DesktopController is the public facade;
@@ -124,16 +125,10 @@ export class ControllerContext {
   declare readonly turns: Turns;
   declare readonly runner: TurnRunner;
   declare readonly runtimeEvents: RuntimeEventApplier;
+  declare readonly mac: MacSession;
   readonly listeners = new Set<(event: DesktopPushEvent) => void>();
   readonly rendererCall = new AsyncLocalStorage<true>();
   readonly previewMemo: ThreadPreviewMemo = new WeakMap();
-  /** Running Use my Mac turns by thread; they hold the keep-awake assertion. */
-  readonly macTurns = new Map<string, QueuedTurn>();
-  /** Mac turns currently keeping the display awake; a turn waiting on the person does not. */
-  readonly awakeTurns = new Set<string>();
-  /** Mac turns that started with On my screen: they show the on-screen indicator and hold ⌃Esc. */
-  readonly foregroundTurns = new Set<string>();
-  macUnavailable: 'locked' | 'asleep' | undefined;
   readonly workspaceGrants = new Set<string>();
   streamCommitTimer: NodeJS.Timeout | undefined;
   streamPersistTimer: NodeJS.Timeout | undefined;
@@ -157,68 +152,6 @@ export class ControllerContext {
         : 'This build does not have a persistent signed update feed configured.',
     };
     Object.assign(this, wire(this));
-  }
-
-  /**
-   * A locked or sleeping Mac blocks both Use my Mac routes. Running Mac tasks pause with a
-   * Continue task banner; new ones wait in the queue until the Mac is available again.
-   */
-  setMacAvailability(state: 'available' | 'locked' | 'asleep'): void {
-    const wasUnavailable = this.macUnavailable;
-    this.macUnavailable = state === 'available' ? undefined : state;
-    if (!this.macUnavailable) {
-      if (wasUnavailable) {
-        this.turns.drainQueue();
-        this.commit();
-      }
-      return;
-    }
-    const text =
-      state === 'locked'
-        ? 'Your Mac locked, so Sia paused this task. Unlock your Mac and press Continue task.'
-        : 'Your Mac went to sleep, so Sia paused this task. Wake your Mac and press Continue task.';
-    if (!this.macTurns.size) return;
-    for (const threadId of [...this.macTurns.keys()]) this.pauseMacTurn(threadId, text);
-    this.commit();
-  }
-
-  pauseMacTurn(threadId: string, text: string): void {
-    const thread = this.requireThread(threadId);
-    const running = this.turns.running.get(threadId);
-    const turn = this.macTurns.get(threadId);
-    if (!running || !turn || running.signal.aborted) return;
-    this.speech.pushToTalk?.cancelTask(threadId);
-    running.abort();
-    this.approvals.revokeApprovalsForTurn(threadId, turn.id);
-    void this.runtime?.cancel(threadId, turn.id).catch(() => undefined);
-    const question = this.turns.pendingQuestions.get(threadId);
-    this.turns.pendingQuestions.delete(threadId);
-    if (question)
-      void this.runtime
-        ?.respondToRequest(threadId, { requestId: question.requestId })
-        .catch(() => undefined);
-    if (turn.attachments?.length)
-      this.turns.failedTurnAttachments.set(turn.id, turn.attachments);
-    this.turns.heldThreads.add(threadId);
-    thread.status = 'failed';
-    delete thread.queueReason;
-    thread.interruptedTurnId = turn.id;
-    this.appendTimeline(threadId, {
-      id: randomUUID(),
-      turnId: turn.id,
-      kind: 'error',
-      title: 'Task paused',
-      text,
-      status: 'failed',
-      timestamp: new Date().toISOString(),
-    });
-    thread.updatedAt = new Date().toISOString();
-  }
-
-  isMacTurn(threadId: string): boolean {
-    return (
-      this.computerAccess.accessMode() === 'mac' && !this.assistant.library.isReview(threadId)
-    );
   }
 
   attachRuntime(runtime: RuntimeCoordinator): void {
@@ -529,22 +462,6 @@ export class ControllerContext {
     return this.buildSnapshot(true);
   }
 
-  /**
-   * Use my Mac turns that are actively working (not paused or waiting on the person), and
-   * whether each controls the screen or works in the background.
-   */
-  screenControl(): Record<string, 'foreground' | 'background'> {
-    const result: Record<string, 'foreground' | 'background'> = {};
-    if (this.releaseAccessLocked() || this.macUnavailable) return result;
-    for (const threadId of this.macTurns.keys()) {
-      const running = this.turns.running.get(threadId);
-      const thread = this.state.threads.find(({ id }) => id === threadId);
-      if (!running || running.signal.aborted || thread?.status !== 'running') continue;
-      result[threadId] = this.foregroundTurns.has(threadId) ? 'foreground' : 'background';
-    }
-    return result;
-  }
-
   /** Task metadata and each thread's latest turn, without cloning every thread's history. */
   taskSnapshot(): TaskSnapshot {
     if (this.releaseAccessLocked())
@@ -571,7 +488,7 @@ export class ControllerContext {
       ),
       approvals: structuredClone(this.state.approvals),
       preferences: structuredClone(this.state.preferences),
-      screenControl: this.screenControl(),
+      screenControl: this.mac.screenControl(),
       ...(this.state.activeAgentId ? { activeAgentId: this.state.activeAgentId } : {}),
     };
   }
@@ -1026,19 +943,6 @@ export class ControllerContext {
     this.deps.repository.close();
   }
 
-  /** Host-only Cmd+E capture, before the command panel takes the user's app focus. */
-  async captureLauncherContext(): Promise<string | undefined> {
-    const allowed = () =>
-      !this.deps.fakeServices &&
-      !this.speech.assistantSuspended &&
-      !this.releaseAccessLocked() &&
-      this.computerAccess.accessMode() === 'mac' &&
-      !this.computerAccess.backgroundControl();
-    if (!allowed()) return undefined;
-    const context = await this.deps.captureMacContext?.().catch(() => undefined);
-    return allowed() ? context : undefined;
-  }
-
   appendTimeline(
     threadId: string,
     item: Omit<TimelineItemView, 'threadId' | 'sequence'>,
@@ -1093,25 +997,9 @@ export class ControllerContext {
     return thread;
   }
 
-  /**
-   * While a Mac task waits on the person (an approval or a question), let the display sleep
-   * as usual; hold it awake again once the task resumes.
-   */
-  syncKeepAwake(): void {
-    for (const threadId of this.macTurns.keys()) {
-      const waiting =
-        this.state.threads.find(({ id }) => id === threadId)?.status === 'waiting';
-      if (waiting && this.awakeTurns.delete(threadId)) this.deps.keepAwake?.release(threadId);
-      else if (!waiting && !this.awakeTurns.has(threadId)) {
-        this.awakeTurns.add(threadId);
-        this.deps.keepAwake?.hold(threadId);
-      }
-    }
-  }
-
   commit(deferStreamDelta = false): void {
     this.revision += 1;
-    this.syncKeepAwake();
+    this.mac.syncKeepAwake();
     if (deferStreamDelta) {
       if (!this.streamCommitTimer) {
         this.streamCommitTimer = setTimeout(() => {

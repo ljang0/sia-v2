@@ -254,10 +254,11 @@ export class CloudAccount {
       this.ctx.workspaceGrants.clear();
       this.ctx.approvals.approvedConnectorBindings.clear();
       this.ctx.turns.running.clear();
-      for (const threadId of this.ctx.awakeTurns) this.ctx.deps.keepAwake?.release(threadId);
-      this.ctx.awakeTurns.clear();
-      this.ctx.macTurns.clear();
-      this.ctx.foregroundTurns.clear();
+      for (const threadId of this.ctx.mac.awakeTurns)
+        this.ctx.deps.keepAwake?.release(threadId);
+      this.ctx.mac.awakeTurns.clear();
+      this.ctx.mac.turns.clear();
+      this.ctx.mac.foregroundTurns.clear();
       this.ctx.turns.tasks.clear();
       this.ctx.turns.workspaceLeases.clear();
       this.ctx.approvals.pending.clear();

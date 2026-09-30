@@ -41,6 +41,7 @@ import { Approvals } from './approvals.js';
 import { Turns } from './turns.js';
 import { TurnRunner } from './turn-runner.js';
 import { RuntimeEventApplier } from './runtime-events.js';
+import { MacSession } from './mac-session.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -69,6 +70,7 @@ export class DesktopController {
       turns: new Turns(ctx),
       runner: new TurnRunner(ctx),
       runtimeEvents: new RuntimeEventApplier(ctx),
+      mac: new MacSession(ctx),
     }));
   }
 
@@ -85,7 +87,7 @@ export class DesktopController {
    * Continue task banner; new ones wait in the queue until the Mac is available again.
    */
   setMacAvailability(state: 'available' | 'locked' | 'asleep'): void {
-    this.#ctx.setMacAvailability(state);
+    this.#ctx.mac.setMacAvailability(state);
   }
 
   suspendVoice(suspended: boolean): void {
@@ -262,7 +264,7 @@ export class DesktopController {
    * whether each controls the screen or works in the background.
    */
   screenControl(): Record<string, 'foreground' | 'background'> {
-    return this.#ctx.screenControl();
+    return this.#ctx.mac.screenControl();
   }
 
   /** Task metadata and each thread's latest turn, without cloning every thread's history. */
@@ -324,7 +326,7 @@ export class DesktopController {
 
   /** Host-only Cmd+E capture, before the command panel takes the user's app focus. */
   captureLauncherContext(): Promise<string | undefined> {
-    return this.#ctx.captureLauncherContext();
+    return this.#ctx.mac.captureLauncherContext();
   }
 
   sendLauncherTurn(
