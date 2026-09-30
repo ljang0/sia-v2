@@ -93,7 +93,7 @@ export class ProviderAccess {
       this.ctx.runningTurns.size ||
       this.ctx.queuedTurns.length ||
       this.ctx.pushToTalk?.captureBusy ||
-      this.ctx.pendingTerminalOperations ||
+      this.ctx.workspace.pendingTerminalOperations ||
       this.ctx.deps.workspaceOperations?.hasRunningTerminals?.() ||
       this.ctx.connections.setup ||
       this.ctx.state.connections.some((app) => app.status === 'connecting')

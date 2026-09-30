@@ -18,10 +18,8 @@ import { NotchVault } from '../notch/vault.js';
 import { notchConsolidationInstructions } from '../notch/foreground.js';
 import type { MacTaskResult } from '../mac-execution.js';
 import { AssistantLibrary, DESKTOP_EXECUTION_GUIDANCE } from '../assistant-library.js';
-import { applyTurnChanges, readTurnChanges, turnFileChanges } from '../turn-changes.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomUUID } from 'node:crypto';
-import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 
 import {
@@ -44,7 +42,6 @@ import { legacyModelRoute, resolveExecutionTarget } from '@sia/runtime';
 import type {
   ActivityPresentationView,
   AgentView,
-  BackgroundTerminalView,
   ApprovalView,
   BridgeMethod,
   BridgeRequestMap,
@@ -58,8 +55,6 @@ import type {
   TimelineItemView,
   UpdateView,
   VoiceView,
-  WorkspaceDiffView,
-  TerminalResultView,
 } from '../../shared/bridge.js';
 import { probeProviders, providerPlan } from '../provider-probe.js';
 import type { RuntimeCoordinator } from '../runtime-coordinator.js';
@@ -129,6 +124,7 @@ import type { CloudAccount } from './account.js';
 import type { ProviderAccess } from './providers.js';
 import type { Schedules } from './schedules.js';
 import type { Attachments } from './attachments.js';
+import type { WorkspaceTools } from './workspace.js';
 
 const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
   'bootstrap',
@@ -151,7 +147,8 @@ type ServiceName =
   | 'account'
   | 'providers'
   | 'schedules'
-  | 'attachments';
+  | 'attachments'
+  | 'workspace';
 
 /**
  * Everything the desktop controller knows and does. DesktopController is the public facade;
@@ -167,8 +164,8 @@ export class ControllerContext {
   declare readonly providers: ProviderAccess;
   declare readonly schedules: Schedules;
   declare readonly attachments: Attachments;
+  declare readonly workspace: WorkspaceTools;
   readonly assistantLibrary: AssistantLibrary;
-  pendingTerminalOperations = 0;
   pushToTalk: PushToTalkService | undefined;
   readonly listeners = new Set<(event: DesktopPushEvent) => void>();
   readonly rendererCall = new AsyncLocalStorage<true>();
@@ -846,16 +843,6 @@ export class ControllerContext {
     );
   }
 
-  async grantChosenDirectory(): Promise<string | null> {
-    const chosen = await this.deps.chooseDirectory();
-    if (!chosen) return null;
-    if (!isAbsolute(chosen))
-      throw new Error('The native picker returned an invalid workspace.');
-    const workspace = normalizeWorkspace(chosen);
-    this.workspaceGrants.add(workspace);
-    return workspace;
-  }
-
   async composeFeedbackMessage(
     input: BridgeRequestMap['feedback.compose'],
   ): Promise<BridgeResultMap['feedback.compose']> {
@@ -1347,21 +1334,22 @@ export class ControllerContext {
     'attachments.preview': (input) => this.attachments.previewAttachment(input),
     'attachments.open': (input) => this.attachments.openAttachment(input),
     'attachments.reveal': (input) => this.attachments.revealAttachment(input),
-    'changes.read': ({ threadId }) => this.readChanges(threadId),
-    'changes.stage': (input) => this.stageChanges(input),
-    'changes.restore': (input) => this.restoreChanges(input),
-    'changes.snapshots.list': ({ threadId }) => this.listWorkspaceSnapshots(threadId),
-    'changes.snapshots.create': ({ threadId }) => this.createWorkspaceSnapshot(threadId),
-    'changes.snapshots.restore': (input) => this.restoreWorkspaceSnapshot(input),
-    'changes.snapshots.delete': (input) => this.deleteWorkspaceSnapshot(input),
-    'changes.turn.read': (input) => this.readTurnChanges(input),
-    'changes.turn.apply': (input) => this.applyTurnChanges(input),
-    'terminal.run': (input) => this.runTerminal(input),
-    'terminal.start': (input) => this.startBackgroundTerminal(input),
-    'terminal.list': ({ threadId }) => this.listBackgroundTerminals(threadId),
-    'terminal.write': (input) => this.writeBackgroundTerminal(input),
-    'terminal.stop': (input) => this.stopBackgroundTerminal(input),
-    'reviews.start': (input) => this.startReview(input),
+    'changes.read': ({ threadId }) => this.workspace.readChanges(threadId),
+    'changes.stage': (input) => this.workspace.stageChanges(input),
+    'changes.restore': (input) => this.workspace.restoreChanges(input),
+    'changes.snapshots.list': ({ threadId }) => this.workspace.listWorkspaceSnapshots(threadId),
+    'changes.snapshots.create': ({ threadId }) =>
+      this.workspace.createWorkspaceSnapshot(threadId),
+    'changes.snapshots.restore': (input) => this.workspace.restoreWorkspaceSnapshot(input),
+    'changes.snapshots.delete': (input) => this.workspace.deleteWorkspaceSnapshot(input),
+    'changes.turn.read': (input) => this.workspace.readTurnChanges(input),
+    'changes.turn.apply': (input) => this.workspace.applyTurnChanges(input),
+    'terminal.run': (input) => this.workspace.runTerminal(input),
+    'terminal.start': (input) => this.workspace.startBackgroundTerminal(input),
+    'terminal.list': ({ threadId }) => this.workspace.listBackgroundTerminals(threadId),
+    'terminal.write': (input) => this.workspace.writeBackgroundTerminal(input),
+    'terminal.stop': (input) => this.workspace.stopBackgroundTerminal(input),
+    'reviews.start': (input) => this.workspace.startReview(input),
     'schedules.create': (input) => this.schedules.createSchedule(input),
     'schedules.update': (input) => this.schedules.updateSchedule(input),
     'schedules.setEnabled': (input) => this.schedules.setScheduleEnabled(input),
@@ -1371,7 +1359,9 @@ export class ControllerContext {
     'providers.probe': ({ providerId }) => this.providers.probeProviders(providerId),
     'providers.login': ({ providerId }) => this.providers.providerLogin(providerId),
     'providers.cancelLogin': () => this.providers.cancelProviderLogin(),
-    'settings.openDirectory': async () => ({ path: await this.grantChosenDirectory() }),
+    'settings.openDirectory': async () => ({
+      path: await this.workspace.grantChosenDirectory(),
+    }),
     'settings.setOnboarding': (input) => this.setOnboarding(input),
     'settings.restartForOnboarding': () => this.restartForOnboarding(),
     'computer.setupMessages': () => this.setupMessages(),
@@ -2363,7 +2353,7 @@ export class ControllerContext {
           source.worktree ?? { kind: 'primary' as const, sourceWorkspace: source.workspace },
         );
     if (input.isolated) {
-      const service = this.requireWorkspaceOperations();
+      const service = this.workspace.requireWorkspaceOperations();
       const created = await service.createWorktree(
         source.workspace,
         worktreeLabel(input.title?.trim() || `${source.title}-fork`, id),
@@ -2452,7 +2442,7 @@ export class ControllerContext {
     ) {
       throw new Error('Another thread still uses this worktree.');
     }
-    const service = this.requireWorkspaceOperations();
+    const service = this.workspace.requireWorkspaceOperations();
     if (!service.removeWorktree)
       throw new Error('Worktree cleanup is unavailable in this build.');
     await service.removeWorktree(thread.workspace);
@@ -3132,188 +3122,6 @@ export class ControllerContext {
         ),
     );
     return before - this.state.timeline.length;
-  }
-
-  async readChanges(threadId: string): Promise<WorkspaceDiffView> {
-    const thread = this.requireThread(threadId);
-    return await this.requireWorkspaceOperations().readDiff(thread.workspace);
-  }
-
-  async stageChanges(input: BridgeRequestMap['changes.stage']): Promise<WorkspaceDiffView> {
-    const thread = this.requireIdleThread(input.threadId, 'stage changes');
-    return await this.requireWorkspaceOperations().stage(thread.workspace, input.paths);
-  }
-
-  async restoreChanges(input: BridgeRequestMap['changes.restore']): Promise<WorkspaceDiffView> {
-    if (input.confirmation !== 'RESTORE') throw new Error('Restore confirmation is required.');
-    const thread = this.requireIdleThread(input.threadId, 'restore changes');
-    return await this.requireWorkspaceOperations().restore(thread.workspace, input.paths);
-  }
-
-  async listWorkspaceSnapshots(
-    threadId: string,
-  ): Promise<BridgeResultMap['changes.snapshots.list']> {
-    const thread = this.requireThread(threadId);
-    const operations = this.requireWorkspaceOperations();
-    if (!operations.listSnapshots) {
-      throw new Error('Workspace snapshots are unavailable in this build.');
-    }
-    return { snapshots: await operations.listSnapshots(thread.workspace) };
-  }
-
-  async createWorkspaceSnapshot(
-    threadId: string,
-  ): Promise<BridgeResultMap['changes.snapshots.create']> {
-    const thread = this.requireIdleThread(threadId, 'create a workspace snapshot');
-    const operations = this.requireWorkspaceOperations();
-    if (!operations.createSnapshot) {
-      throw new Error('Workspace snapshots are unavailable in this build.');
-    }
-    return { snapshots: await operations.createSnapshot(thread.workspace) };
-  }
-
-  async restoreWorkspaceSnapshot(
-    input: BridgeRequestMap['changes.snapshots.restore'],
-  ): Promise<BridgeResultMap['changes.snapshots.restore']> {
-    const thread = this.requireIdleThread(input.threadId, 'restore a workspace snapshot');
-    const operations = this.requireWorkspaceOperations();
-    if (!operations.restoreSnapshot || !operations.listSnapshots) {
-      throw new Error('Workspace snapshots are unavailable in this build.');
-    }
-    const diff = await operations.restoreSnapshot(thread.workspace, input.snapshotId);
-    return { snapshots: await operations.listSnapshots(thread.workspace), diff };
-  }
-
-  async deleteWorkspaceSnapshot(
-    input: BridgeRequestMap['changes.snapshots.delete'],
-  ): Promise<BridgeResultMap['changes.snapshots.delete']> {
-    if (input.confirmation !== 'DELETE SNAPSHOT') {
-      throw new Error('Snapshot deletion confirmation is required.');
-    }
-    const thread = this.requireIdleThread(input.threadId, 'delete a workspace snapshot');
-    const operations = this.requireWorkspaceOperations();
-    if (!operations.deleteSnapshot) {
-      throw new Error('Workspace snapshots are unavailable in this build.');
-    }
-    return { snapshots: await operations.deleteSnapshot(thread.workspace, input.snapshotId) };
-  }
-
-  /** Where one reply's file changes stand now; see turn-changes.ts. */
-  async readTurnChanges(
-    input: BridgeRequestMap['changes.turn.read'],
-  ): Promise<BridgeResultMap['changes.turn.read']> {
-    const thread = this.requireThread(input.threadId);
-    return await readTurnChanges(this.turnChanges(thread.id, input.eventId), {
-      workspace: thread.workspace,
-      home: homedir(),
-    });
-  }
-
-  /** Undo or redo one reply's file changes; refused while a task runs in this thread. */
-  async applyTurnChanges(
-    input: BridgeRequestMap['changes.turn.apply'],
-  ): Promise<BridgeResultMap['changes.turn.apply']> {
-    const thread = this.requireIdleThread(input.threadId, `${input.direction} changes`);
-    return await applyTurnChanges(
-      this.turnChanges(thread.id, input.eventId),
-      { workspace: thread.workspace, home: homedir() },
-      input.direction,
-    );
-  }
-
-  turnChanges(threadId: string, eventId: string) {
-    const changes = turnFileChanges(this.state.timeline, threadId, eventId);
-    if (!changes) throw new Error('This reply is no longer in the conversation.');
-    return changes;
-  }
-
-  /** The renderer's Command tool runs unreviewed shell commands, so it is opt-in. */
-  requireDeveloperTools(): void {
-    if (this.state.preferences.developerTools === true) return;
-    throw new Error('Turn on Developer tools in Settings to run commands.');
-  }
-
-  async runTerminal(input: BridgeRequestMap['terminal.run']): Promise<TerminalResultView> {
-    this.requireDeveloperTools();
-    this.providers.requireCodexSetupIdle();
-    const thread = this.requireIdleThread(input.threadId, 'run a terminal command');
-    this.pendingTerminalOperations += 1;
-    try {
-      return await this.requireWorkspaceOperations().runTerminal(
-        thread.workspace,
-        input.command.trim(),
-      );
-    } finally {
-      this.pendingTerminalOperations -= 1;
-    }
-  }
-
-  async startBackgroundTerminal(
-    input: BridgeRequestMap['terminal.start'],
-  ): Promise<BackgroundTerminalView> {
-    this.requireDeveloperTools();
-    this.providers.requireCodexSetupIdle();
-    const thread = this.requireIdleThread(input.threadId, 'start a background process');
-    const service = this.requireWorkspaceOperations();
-    if (!service.startBackgroundTerminal) {
-      throw new Error('Background processes are unavailable in this build.');
-    }
-    this.pendingTerminalOperations += 1;
-    try {
-      return await service.startBackgroundTerminal(thread.workspace, input.command.trim());
-    } finally {
-      this.pendingTerminalOperations -= 1;
-    }
-  }
-
-  async listBackgroundTerminals(threadId: string): Promise<BridgeResultMap['terminal.list']> {
-    const thread = this.requireThread(threadId);
-    const service = this.requireWorkspaceOperations();
-    if (!service.listBackgroundTerminals) {
-      throw new Error('Background processes are unavailable in this build.');
-    }
-    return { sessions: await service.listBackgroundTerminals(thread.workspace) };
-  }
-
-  async writeBackgroundTerminal(
-    input: BridgeRequestMap['terminal.write'],
-  ): Promise<BackgroundTerminalView> {
-    this.requireDeveloperTools();
-    const thread = this.requireThread(input.threadId);
-    const service = this.requireWorkspaceOperations();
-    if (!service.writeBackgroundTerminal) {
-      throw new Error('Background processes are unavailable in this build.');
-    }
-    return await service.writeBackgroundTerminal(
-      thread.workspace,
-      input.terminalId,
-      input.input,
-    );
-  }
-
-  async stopBackgroundTerminal(
-    input: BridgeRequestMap['terminal.stop'],
-  ): Promise<BackgroundTerminalView> {
-    const thread = this.requireThread(input.threadId);
-    const service = this.requireWorkspaceOperations();
-    if (!service.stopBackgroundTerminal) {
-      throw new Error('Background processes are unavailable in this build.');
-    }
-    return await service.stopBackgroundTerminal(thread.workspace, input.terminalId);
-  }
-
-  startReview(input: BridgeRequestMap['reviews.start']): BridgeResultMap['reviews.start'] {
-    const thread = this.requireIdleThread(input.threadId, 'start a code review');
-    if (thread.provider !== 'codex') {
-      throw new Error('Dedicated code review currently requires the Codex provider.');
-    }
-    const text =
-      input.target.type === 'uncommitted_changes'
-        ? 'Review uncommitted changes'
-        : input.target.type === 'base_branch'
-          ? `Review changes against ${input.target.branch}`
-          : `Review: ${input.target.instructions}`;
-    return this.sendTurn({ threadId: thread.id, text }, 'review', input.target);
   }
 
   resolveApproval(input: BridgeRequestMap['approvals.resolve']): DesktopSnapshot {
@@ -5102,13 +4910,6 @@ export class ControllerContext {
       throw new Error(`Stop the active task before you ${action}.`);
     }
     return thread;
-  }
-
-  requireWorkspaceOperations(): NonNullable<ControllerOptions['workspaceOperations']> {
-    if (!this.deps.workspaceOperations) {
-      throw new Error('Local workspace operations are unavailable in this build.');
-    }
-    return this.deps.workspaceOperations;
   }
 
   /**

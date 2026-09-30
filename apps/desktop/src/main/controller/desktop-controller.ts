@@ -30,6 +30,7 @@ import { CloudAccount } from './account.js';
 import { ProviderAccess } from './providers.js';
 import { Schedules } from './schedules.js';
 import { Attachments } from './attachments.js';
+import { WorkspaceTools } from './workspace.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -47,6 +48,7 @@ export class DesktopController {
       providers: new ProviderAccess(ctx),
       schedules: new Schedules(ctx),
       attachments: new Attachments(ctx),
+      workspace: new WorkspaceTools(ctx),
     }));
   }
 
