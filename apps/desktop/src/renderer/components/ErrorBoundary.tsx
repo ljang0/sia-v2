@@ -63,7 +63,7 @@ export class AppErrorBoundary extends Component<AppBoundaryProps, AppBoundarySta
         <div className={styles.fatalActions}>
           <button
             type="button"
-            className={styles.primaryButton}
+            className={`${styles.primaryButton} ${styles.fatalAction}`}
             onClick={() => (this.props.onReload ?? (() => window.location.reload()))()}
           >
             Reload

@@ -19,16 +19,14 @@
   transition: flex-basis var(--motion-surface) var(--ease-standard);
 }
 
-.sidebar .iconButton,
-.sidebarCollapsed .iconButton,
-.sidebar .iconButtonSmall,
+.sidebar .shellIconButton,
+.sidebarCollapsed .shellIconButton,
 .sidebar .agentEditButton {
   color: var(--shell-dim);
 }
 
-.sidebar .iconButton:hover,
-.sidebarCollapsed .iconButton:hover,
-.sidebar .iconButtonSmall:hover,
+.sidebar .shellIconButton:hover,
+.sidebarCollapsed .shellIconButton:hover,
 .sidebar .agentEditButton:hover {
   background: var(--shell-hover);
   color: var(--shell-text);
@@ -197,12 +195,6 @@
   color: var(--shell-muted);
 }
 
-.sidebar .threadSearch:focus-within {
-  border-color: var(--shell-muted);
-  box-shadow: none;
-  color: var(--shell-dim);
-}
-
 .threadSearch input {
   width: 100%;
   min-width: 0;
@@ -211,10 +203,6 @@
   background: transparent;
   color: inherit;
   font-size: var(--text-md);
-}
-
-.sidebar .threadSearch input {
-  color: var(--shell-text);
 }
 
 .threadSearch input:focus-visible {
@@ -440,17 +428,6 @@ button.agentAvatar {
 
 .agentEditButton:focus-visible {
   opacity: 1;
-}
-
-@keyframes listEnter {
-  from {
-    opacity: 0;
-    transform: translateY(-2px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 .threadRow,
@@ -933,7 +910,7 @@ button.agentAvatar {
 }
 
 .mainPane:has(.conversationAurora[data-paused='true']) .gradientHeading,
-.mainPane:has(.conversationAurora[data-paused='true']) .composer {
+.mainPane:has(.conversationAurora[data-paused='true']) .auroraSurface {
   animation-play-state: paused;
 }
 
@@ -1847,7 +1824,7 @@ button.agentAvatar {
   color: var(--text-danger);
 }
 
-.errorBanner .secondaryButton {
+.errorBanner .bannerAction {
   margin-left: auto;
 }
 
@@ -2147,7 +2124,7 @@ button.agentAvatar {
   margin-top: 22px;
 }
 
-.fatalState .fatalActions .primaryButton {
+.fatalState .fatalActions .fatalAction {
   margin-top: 0;
 }
 
@@ -2205,17 +2182,16 @@ button.agentAvatar {
   padding: 32px 32px 12vh;
 }
 
-.emptyState .primaryButton,
-.fatalState .primaryButton,
-.inspectorEmpty .primaryButton {
+.fatalState .fatalAction,
+.inspectorEmpty .emptyAction {
   margin-top: 22px;
 }
 
-.emptyState .textButton {
+.emptyState .emptyStateLink {
   margin-top: 13px;
 }
 
-.inspectorEmpty .inlineError {
+.inspectorEmpty .emptyError {
   margin-top: 12px;
   color: var(--text-danger);
 }
@@ -2688,7 +2664,7 @@ button.agentAvatar {
   font-weight: var(--weight-medium);
 }
 
-.permissionList + .secondaryButton {
+.permissionList + .permissionAction {
   margin-top: 10px;
 }
 
@@ -2802,12 +2778,11 @@ button.agentAvatar {
   line-height: 1.5;
 }
 
-.feedbackDialog > .localField,
-.feedbackDialog > .dialogActions {
+.feedbackDialog > .feedbackSection {
   margin-top: 20px;
 }
 
-.feedbackDialog > .forkIsolationOption {
+.feedbackDialog > .feedbackOption {
   margin-top: 16px;
 }
 
@@ -2836,7 +2811,7 @@ button.agentAvatar {
   font-size: var(--text-md);
 }
 
-.alertDialogContent .consentFootnote {
+.consentDialog .consentFootnote {
   padding-top: 13px;
   border-top: 1px solid var(--border-subtle);
   font-size: var(--text-sm);
@@ -2856,7 +2831,7 @@ button.agentAvatar {
   color: var(--text-tertiary);
 }
 
-.alertDialogContent .consentFactsLabel {
+.consentDialog .consentFactsLabel {
   margin: 0;
   color: var(--text-tertiary);
   font-size: var(--text-xs);
@@ -3875,7 +3850,7 @@ input[type='checkbox'].switch:disabled {
   margin-top: 13px;
 }
 
-.cloudIdentityForm .textButton {
+.cloudIdentityForm .formLink {
   align-self: center;
 }
 
@@ -4161,8 +4136,7 @@ input[type='checkbox'].switch:disabled {
   gap: 8px;
 }
 
-.connectionGroupActions .secondaryButton,
-.connectionGroupActions .textButtonDanger {
+.connectionGroupActions .connectionAction {
   min-width: 0;
   white-space: nowrap;
 }
@@ -4908,7 +4882,7 @@ input[type='checkbox'].switch:disabled {
   font-size: var(--text-sm);
 }
 
-.auditAccountCell .cloudIdentity {
+.auditAccountCell > div {
   margin: 0;
 }
 
@@ -4974,7 +4948,7 @@ input[type='checkbox'].switch:disabled {
   align-items: start;
 }
 
-.auditApprovalGrid .approvalCard {
+.auditApprovalGrid > section {
   width: 100%;
 }
 
@@ -4991,12 +4965,10 @@ input[type='checkbox'].switch:disabled {
   font-size: var(--text-sm);
 }
 
-.auditComposerGrid .composerArea {
+.auditComposerGrid [data-companion-composer] {
   width: 100%;
   padding: 8px;
 }
-
-/* Local-parity surfaces use the same quiet, compact workspace language as the core app. */
 .composerAttachments {
   display: flex;
   flex-wrap: wrap;
@@ -5241,15 +5213,6 @@ input[type='checkbox'].switch:disabled {
   }
 }
 
-@keyframes emptyMarkBreathe {
-  from {
-    transform: rotate(-3deg) scale(0.98);
-  }
-  to {
-    transform: rotate(3deg) scale(1.02);
-  }
-}
-
 @keyframes presenceSpeak {
   from {
     transform: scale(0.88, 1.12);
@@ -5416,11 +5379,11 @@ input[type='checkbox'].switch:disabled {
   margin-bottom: 0;
 }
 
-.localSurfaceHeader .segmentedControl {
+.localSurfaceHeader .surfaceSegments {
   padding: 2px;
 }
 
-.localSurfaceHeader .segmentedControl button {
+.localSurfaceHeader .surfaceSegments button {
   min-height: 26px;
   padding: 0 8px;
 }
@@ -6520,8 +6483,7 @@ input[type='checkbox'].switch:disabled {
   gap: 2px;
 }
 
-.workspaceSnapshots .textButton,
-.workspaceSnapshots .textButtonDanger {
+.workspaceSnapshots .snapshotAction {
   min-height: 26px;
 }
 
@@ -7330,7 +7292,7 @@ input[type='checkbox'].switch:disabled {
   background: transparent;
 }
 
-.threadToolPanel .goalControl > .primaryButton {
+.threadToolPanel .goalControl > .goalSubmit {
   align-self: flex-end;
 }
 
@@ -7418,8 +7380,6 @@ input[type='checkbox'].switch:disabled {
 .researchEventColumn > header input:focus-visible {
   outline: none;
 }
-
-/* Alpha.11 companion shell -------------------------------------------------- */
 .sidebarTitlebar {
   border-bottom: 1px solid color-mix(in srgb, var(--shell-line) 62%, transparent);
 }
@@ -7780,8 +7740,8 @@ button.agentAvatar {
     align-items: stretch;
   }
 
-  .cloudIdentityForm .primaryButton,
-  .cloudIdentityForm .textButton {
+  .cloudIdentityForm .formSubmit,
+  .cloudIdentityForm .formLink {
     width: 100%;
   }
 
@@ -8135,9 +8095,9 @@ button.agentAvatar {
 
 /* Calm keeps the color palette without continuous decorative motion. */
 .appShell[data-appearance='calm'] .gradientHeading,
-.appShell[data-appearance='calm'] .composer,
-.appShell[data-appearance='calm'] .composer::before,
-.appShell[data-appearance='calm'] .composer::after {
+.appShell[data-appearance='calm'] .auroraSurface,
+.appShell[data-appearance='calm'] .auroraSurface::before,
+.appShell[data-appearance='calm'] .auroraSurface::after {
   animation: none;
 }
 

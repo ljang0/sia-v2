@@ -115,7 +115,7 @@ export function ChangesReview({
                 <span>
                   <button
                     type="button"
-                    className={styles.textButton}
+                    className={`${styles.textButton} ${styles.snapshotAction}`}
                     disabled={Boolean(snapshotBusy) || files.length > 0}
                     title={files.length ? 'Restore into a clean workspace' : 'Restore snapshot'}
                     onClick={() => void onRestoreSnapshot?.(snapshot.id)}
@@ -125,7 +125,7 @@ export function ChangesReview({
                   </button>
                   <button
                     type="button"
-                    className={styles.textButtonDanger}
+                    className={`${styles.textButtonDanger} ${styles.snapshotAction}`}
                     disabled={Boolean(snapshotBusy)}
                     aria-label={`Delete snapshot from ${shortDateTime(snapshot.createdAt)}`}
                     onClick={() => void onDeleteSnapshot?.(snapshot.id)}
@@ -210,7 +210,7 @@ export function ChangesReview({
         <AlertDialog.Portal>
           <AlertDialog.Overlay className={styles.dialogOverlay} />
           <AlertDialog.Content className={styles.alertDialogContent}>
-            <div className={styles.dialogIconDanger}>
+            <div>
               <ArrowCounterClockwise size={20} aria-hidden="true" />
             </div>
             <AlertDialog.Title>Discard changes to this file?</AlertDialog.Title>

@@ -38,7 +38,7 @@ export function FeedbackDialog({
           <Dialog.Description>
             Sia opens a draft in your mail app. Nothing is uploaded or sent until you review it.
           </Dialog.Description>
-          <label className={styles.localField}>
+          <label className={`${styles.localField} ${styles.feedbackSection}`}>
             <span>What should we improve?</span>
             <textarea
               autoFocus
@@ -49,7 +49,7 @@ export function FeedbackDialog({
               placeholder="Tell us what happened, what you expected, or what felt awkward."
             />
           </label>
-          <label className={styles.forkIsolationOption}>
+          <label className={`${styles.forkIsolationOption} ${styles.feedbackOption}`}>
             <input
               type="checkbox"
               checked={includeDiagnostics}
@@ -63,7 +63,7 @@ export function FeedbackDialog({
               </small>
             </span>
           </label>
-          <div className={styles.dialogActions}>
+          <div className={`${styles.dialogActions} ${styles.feedbackSection}`}>
             <Dialog.Close asChild>
               <button type="button" className={styles.secondaryButton} disabled={sending}>
                 Cancel

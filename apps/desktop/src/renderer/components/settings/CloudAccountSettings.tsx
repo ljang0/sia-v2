@@ -139,7 +139,11 @@ export function CloudAccountSettings({
               required
             />
           </label>
-          <button type="submit" className={styles.primaryButton} disabled={Boolean(pending)}>
+          <button
+            type="submit"
+            className={`${styles.primaryButton} ${styles.formSubmit}`}
+            disabled={Boolean(pending)}
+          >
             {pending === 'auth-start' ? 'Sending...' : 'Email me a sign-in code'}
           </button>
           <p className={styles.accountTerms}>
@@ -222,7 +226,11 @@ export function CloudAccountSettings({
                   : `Sent to ${cloudAuth.email ?? email}. Codes contain 6-10 digits.`}
             </small>
           </div>
-          <button type="submit" className={styles.primaryButton} disabled={Boolean(pending)}>
+          <button
+            type="submit"
+            className={`${styles.primaryButton} ${styles.formSubmit}`}
+            disabled={Boolean(pending)}
+          >
             {pending === 'auth-complete'
               ? 'Checking...'
               : cloudAuth.state === 'password-required'
@@ -234,7 +242,7 @@ export function CloudAccountSettings({
           {cloudAuth.state === 'code-sent' ? (
             <button
               type="button"
-              className={styles.textButton}
+              className={`${styles.textButton} ${styles.formLink}`}
               disabled={Boolean(pending)}
               onClick={() => {
                 setCode('');
@@ -250,7 +258,7 @@ export function CloudAccountSettings({
           ) : null}
           <button
             type="button"
-            className={styles.textButton}
+            className={`${styles.textButton} ${styles.formLink}`}
             disabled={Boolean(pending)}
             onClick={() => void run('sign-out', onSignOutCloud, 'Sia could not reset sign-in.')}
           >

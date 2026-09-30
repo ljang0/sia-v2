@@ -529,7 +529,11 @@ export function Conversation({
             </LiquidMetalButton>
           ) : null}
           {onOpenApps ? (
-            <button className={styles.textButton} type="button" onClick={onOpenApps}>
+            <button
+              className={`${styles.textButton} ${styles.emptyStateLink}`}
+              type="button"
+              onClick={onOpenApps}
+            >
               Connect work apps later
             </button>
           ) : null}
@@ -832,7 +836,7 @@ export function Conversation({
               </div>
               <button
                 type="button"
-                className={styles.secondaryButton}
+                className={`${styles.secondaryButton} ${styles.bannerAction}`}
                 onClick={() => void onRetry()}
                 data-testid="interrupted-turn-retry"
               >

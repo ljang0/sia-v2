@@ -678,7 +678,9 @@ export function Composer({
 
   return (
     <div className={styles.composerArea} data-companion-composer>
-      <div className={`${styles.composer} ${disabled ? styles.composerDisabled : ''}`}>
+      <div
+        className={`${styles.composer} ${styles.auroraSurface} ${disabled ? styles.composerDisabled : ''}`}
+      >
         {attachments.length ? (
           <div
             className={styles.composerAttachments}

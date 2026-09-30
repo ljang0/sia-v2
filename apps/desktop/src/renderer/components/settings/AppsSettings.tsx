@@ -254,7 +254,7 @@ export function AppsSettings({
                     {googleAccess === 'read_only' ? (
                       <button
                         type="button"
-                        className={styles.secondaryButton}
+                        className={`${styles.secondaryButton} ${styles.connectionAction}`}
                         disabled={Boolean(pending) || !cloudReady || googleUpgrading}
                         onClick={() =>
                           run(
@@ -273,7 +273,7 @@ export function AppsSettings({
                     ) : null}
                     <button
                       type="button"
-                      className={styles.textButtonDanger}
+                      className={`${styles.textButtonDanger} ${styles.connectionAction}`}
                       disabled={Boolean(pending) || !accountReady || googleUpgrading}
                       aria-label="Disconnect Google Workspace"
                       onClick={() =>

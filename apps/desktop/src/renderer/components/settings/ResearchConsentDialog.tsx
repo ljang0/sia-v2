@@ -67,7 +67,7 @@ export function ResearchConsentDialog({
       ) : null}
       <AlertDialog.Portal>
         <AlertDialog.Overlay className={styles.dialogOverlay} />
-        <AlertDialog.Content className={styles.alertDialogContent}>
+        <AlertDialog.Content className={`${styles.alertDialogContent} ${styles.consentDialog}`}>
           {researchRequired ? (
             <span className={styles.onboardingStep}>Sia research alpha</span>
           ) : null}

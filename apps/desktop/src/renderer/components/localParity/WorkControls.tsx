@@ -218,7 +218,7 @@ export function GoalControls({
         />
       </label>
       <button
-        className={styles.primaryButton}
+        className={`${styles.primaryButton} ${styles.goalSubmit}`}
         type="submit"
         disabled={busy || !draft.trim()}
         data-testid="goal-save"

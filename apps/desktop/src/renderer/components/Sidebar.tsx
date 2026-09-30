@@ -216,7 +216,7 @@ export function Sidebar({
       >
         <div className={styles.sidebarCollapsedTitlebar} aria-hidden="true" />
         <button
-          className={styles.iconButton}
+          className={`${styles.iconButton} ${styles.shellIconButton}`}
           type="button"
           onClick={onToggle}
           aria-label="Expand sidebar"
@@ -226,7 +226,7 @@ export function Sidebar({
         </button>
         {selectedAgent && (
           <button
-            className={styles.iconButton}
+            className={`${styles.iconButton} ${styles.shellIconButton}`}
             type="button"
             onClick={() => onCreateThread(selectedAgent.id)}
             aria-label="New conversation"
@@ -237,7 +237,7 @@ export function Sidebar({
         )}
         {onOpenQuickSwitcher && (
           <button
-            className={styles.iconButton}
+            className={`${styles.iconButton} ${styles.shellIconButton}`}
             type="button"
             onClick={onOpenQuickSwitcher}
             aria-label="Search conversations"
@@ -265,7 +265,7 @@ export function Sidebar({
           ))}
         </div>
         <button
-          className={styles.iconButton}
+          className={`${styles.iconButton} ${styles.shellIconButton}`}
           type="button"
           onClick={onCreateAgent}
           aria-label="Create agent"
@@ -275,7 +275,7 @@ export function Sidebar({
         </button>
         {onOpenActivity && (
           <button
-            className={styles.iconButton}
+            className={`${styles.iconButton} ${styles.shellIconButton}`}
             type="button"
             onClick={onOpenActivity}
             aria-label="Activity"
@@ -287,7 +287,7 @@ export function Sidebar({
         )}
         {onOpenScheduled && (
           <button
-            className={styles.iconButton}
+            className={`${styles.iconButton} ${styles.shellIconButton}`}
             type="button"
             onClick={onOpenScheduled}
             aria-label="Scheduled"
@@ -298,7 +298,7 @@ export function Sidebar({
           </button>
         )}
         <button
-          className={styles.iconButton}
+          className={`${styles.iconButton} ${styles.shellIconButton}`}
           type="button"
           aria-current={activePage === 'settings' ? 'page' : undefined}
           onClick={onOpenSettings}
@@ -322,7 +322,7 @@ export function Sidebar({
           <SiaLogo />
         </div>
         <button
-          className={styles.iconButton}
+          className={`${styles.iconButton} ${styles.shellIconButton}`}
           type="button"
           onClick={onToggle}
           aria-label="Collapse sidebar"
@@ -363,7 +363,7 @@ export function Sidebar({
       >
         <span>{agents.length === 1 ? 'Conversations' : 'Your agents'}</span>
         <button
-          className={styles.iconButtonSmall}
+          className={`${styles.iconButtonSmall} ${styles.shellIconButton}`}
           type="button"
           onClick={onCreateAgent}
           aria-label="Create agent"

@@ -73,7 +73,10 @@ export function ActivityDashboard({ activities, onOpenThread }: ActivityDashboar
     <section className={styles.activityDashboard} aria-labelledby={titleId}>
       <div className={styles.localSurfaceHeader}>
         <h2 id={titleId}>Your agents’ work</h2>
-        <div className={styles.segmentedControl} aria-label="Activity filter">
+        <div
+          className={`${styles.segmentedControl} ${styles.surfaceSegments}`}
+          aria-label="Activity filter"
+        >
           <button
             type="button"
             className={filter === 'active' ? styles.segmentActive : undefined}

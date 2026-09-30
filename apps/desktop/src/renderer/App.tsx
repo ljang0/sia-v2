@@ -254,7 +254,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         <WarningCircle size={26} aria-hidden="true" />
         <h1>Sia needs to reconnect</h1>
         <p>{app.fatalError}</p>
-        <button type="button" className={styles.primaryButton} onClick={app.retry}>
+        <button
+          type="button"
+          className={`${styles.primaryButton} ${styles.fatalAction}`}
+          onClick={app.retry}
+        >
           Try again
         </button>
       </div>

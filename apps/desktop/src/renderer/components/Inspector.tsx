@@ -282,13 +282,13 @@ function BrowserPanel({
           one.
         </p>
         {browser.status === 'error' && browser.snapshotLabel ? (
-          <p className={styles.inlineError} role="alert">
+          <p className={`${styles.inlineError} ${styles.emptyError}`} role="alert">
             {browser.snapshotLabel}
           </p>
         ) : null}
         <button
           type="button"
-          className={styles.primaryButton}
+          className={`${styles.primaryButton} ${styles.emptyAction}`}
           disabled={pending}
           onClick={() => onAttach()}
         >
@@ -389,7 +389,7 @@ function ComputerPanel({
         {!permitted ? (
           <button
             type="button"
-            className={styles.secondaryButton}
+            className={`${styles.secondaryButton} ${styles.permissionAction}`}
             onClick={onRequestPermissions}
           >
             Open system permissions
