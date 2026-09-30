@@ -44,6 +44,7 @@ import { RuntimeEventApplier } from './runtime-events.js';
 import { MacSession } from './mac-session.js';
 import { AppSettings } from './settings.js';
 import { AppSupport } from './support.js';
+import { ActionHost } from './action-host.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -75,6 +76,7 @@ export class DesktopController {
       mac: new MacSession(ctx),
       settings: new AppSettings(ctx),
       support: new AppSupport(ctx),
+      actions: new ActionHost(ctx),
     }));
   }
 
@@ -115,15 +117,15 @@ export class DesktopController {
   }
 
   actionInvocationObserver(): ActionInvocationObserver {
-    return this.#ctx.actionInvocationObserver();
+    return this.#ctx.actions.invocationObserver();
   }
 
   actionResultObserver(): ActionResultObserver {
-    return this.#ctx.actionResultObserver();
+    return this.#ctx.actions.resultObserver();
   }
 
   actionToolAvailable(name: string): boolean {
-    return this.#ctx.actionToolAvailable(name);
+    return this.#ctx.actions.toolAvailable(name);
   }
 
   attachScotty(handler: ScottySettingsApi): void {

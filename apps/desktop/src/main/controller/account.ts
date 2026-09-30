@@ -386,6 +386,6 @@ export class CloudAccount {
   }
 
   toolAvailabilitySignature(): string {
-    return `${this.ctx.actionToolAvailable('mail_search')}:${this.ctx.actionToolAvailable('schedule_list')}`;
+    return `${this.ctx.actions.toolAvailable('mail_search')}:${this.ctx.actions.toolAvailable('schedule_list')}`;
   }
 }

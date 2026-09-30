@@ -5,8 +5,6 @@ import { threadPreviews, type ThreadPreviewMemo } from '../../shared/thread-prev
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { isAbsolute } from 'node:path';
 
-import type { ActionInvocationObserver, ActionResultObserver } from '@sia/action-gateway';
-
 import type {
   AgentView,
   BridgeMethod,
@@ -22,17 +20,12 @@ import type {
 import { probeProviders, providerPlan } from '../provider-probe.js';
 import type { RuntimeCoordinator } from '../runtime-coordinator.js';
 import { settleBeforeShutdown } from './async-utils.js';
-import {
-  EMPTY_CONNECTIONS,
-  GOOGLE_WORKSPACE_ACTION,
-  isConnectorActionTool,
-} from './connection-ids.js';
+import { EMPTY_CONNECTIONS } from './connection-ids.js';
 import {
   INITIAL_STATE,
   type PersistedState,
   recoverPersistedState,
 } from './persisted-state.js';
-import { SAFE_RESEARCH_ACTIONS } from './research-records.js';
 import type { BrowserCapabilitySink, ControllerOptions } from './types.js';
 import { type ControllerDeps, resolveControllerDeps } from './deps.js';
 import { normalizeWorkspace } from './workspace-paths.js';
@@ -57,6 +50,7 @@ import type { RuntimeEventApplier } from './runtime-events.js';
 import type { MacSession } from './mac-session.js';
 import type { AppSettings } from './settings.js';
 import type { AppSupport } from './support.js';
+import type { ActionHost } from './action-host.js';
 
 const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
   'bootstrap',
@@ -93,7 +87,8 @@ type ServiceName =
   | 'runtimeEvents'
   | 'mac'
   | 'settings'
-  | 'support';
+  | 'support'
+  | 'actions';
 
 /**
  * Everything the desktop controller knows and does. DesktopController is the public facade;
@@ -123,6 +118,7 @@ export class ControllerContext {
   declare readonly mac: MacSession;
   declare readonly settings: AppSettings;
   declare readonly support: AppSupport;
+  declare readonly actions: ActionHost;
   readonly listeners = new Set<(event: DesktopPushEvent) => void>();
   readonly rendererCall = new AsyncLocalStorage<true>();
   readonly previewMemo: ThreadPreviewMemo = new WeakMap();
@@ -154,73 +150,6 @@ export class ControllerContext {
     this.browserCapabilitySink = sink;
   }
 
-  actionInvocationObserver(): ActionInvocationObserver {
-    return (invocation) => {
-      if (GOOGLE_WORKSPACE_ACTION.test(invocation.name)) {
-        this.researchCapture.excludeResearchTurn(invocation.context.turnId);
-        this.deps.trajectory?.excludeTurn(
-          invocation.context.threadId,
-          invocation.context.turnId,
-        );
-        return;
-      }
-      if (SAFE_RESEARCH_ACTIONS.has(invocation.name)) {
-        this.researchCapture.markSafeResearchAction(invocation.context.turnId, invocation.name);
-      } else {
-        this.researchCapture.taintResearchTurn(invocation.context.turnId);
-      }
-    };
-  }
-
-  actionResultObserver(): ActionResultObserver {
-    return (notice) => {
-      const thread = this.state.threads.find((entry) => entry.id === notice.context.threadId);
-      if (
-        thread &&
-        !this.assistant.library.isReview(thread.id) &&
-        !this.releaseAccessLocked() &&
-        !/^(memory_|assistant_)/.test(notice.name)
-      ) {
-        // Operational journal deliberately excludes arguments, message bodies, URLs and screenshots.
-        this.assistant.library.record({
-          agentId: thread.agentId,
-          threadId: thread.id,
-          turnId: notice.context.turnId,
-          kind: 'action',
-          title: notice.name,
-          text: notice.result.outcome,
-        });
-      }
-      this.recordActionResult(notice);
-      if (GOOGLE_WORKSPACE_ACTION.test(notice.name)) return;
-      this.researchCapture.stageRawResearchEvent({
-        threadId: notice.context.threadId,
-        turnId: notice.context.turnId,
-        eventType: 'sia.action_result',
-        data: {
-          name: notice.name,
-          arguments: notice.arguments ?? {},
-          result: notice.result,
-        },
-      });
-      this.researchCapture.stageResearchActionResult(notice);
-    };
-  }
-
-  actionToolAvailable(name: string): boolean {
-    if (this.releaseAccessLocked()) return false;
-    if (isConnectorActionTool(name)) {
-      return (
-        this.deps.fakeServices ||
-        (this.deps.cloud.configured &&
-          this.deps.identity.status().state === 'signed_in' &&
-          this.state.cloudFeatures.connectors)
-      );
-    }
-    if (name.startsWith('schedule_')) return this.schedules.schedulesAvailable();
-    return true;
-  }
-
   scotty: ScottySettingsApi | undefined;
   attachScotty(handler: ScottySettingsApi): void {
     this.scotty = handler;
@@ -237,31 +166,6 @@ export class ControllerContext {
       !this.account.accountDeletionInProgress &&
       !this.account.signOutInProgress &&
       !this.releaseAccessLocked()
-    );
-  }
-
-  recordActionResult(notice: Parameters<ActionResultObserver>[0]): void {
-    if (!this.deps.trajectory) return;
-    if (GOOGLE_WORKSPACE_ACTION.test(notice.name)) {
-      return;
-    }
-    const images = (notice.result.images ?? []).map((image) => ({
-      mimeType: image.mimeType,
-      dataBase64: image.dataBase64,
-    }));
-    this.deps.trajectory.record(
-      {
-        type: 'action_result',
-        threadId: notice.context.threadId,
-        turnId: notice.context.turnId,
-        name: notice.name,
-        arguments: notice.arguments ?? {},
-        outcome: notice.result.outcome,
-        summary: notice.result.summary,
-        ...(notice.result.reason ? { reason: notice.result.reason } : {}),
-        ...(notice.result.data !== undefined ? { data: notice.result.data } : {}),
-      },
-      images,
     );
   }
 
