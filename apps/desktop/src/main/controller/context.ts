@@ -9,7 +9,6 @@ import {
   NATIVE_MEMORY_REVIEW_PROMPT,
 } from '../memory-suggestions.js';
 import { NativeSkills } from '../native-skills.js';
-import { savePastedAttachment } from '../pasted-attachments.js';
 import { activityLabel } from '../../shared/activity-label.js';
 import { conversationTitle, UNTITLED_THREAD_TITLE } from '../../shared/plain-text.js';
 import { turnFinishedNotice } from '../notification-copy.js';
@@ -22,9 +21,8 @@ import { AssistantLibrary, DESKTOP_EXECUTION_GUIDANCE } from '../assistant-libra
 import { applyTurnChanges, readTurnChanges, turnFileChanges } from '../turn-changes.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomUUID } from 'node:crypto';
-import { readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, extname, isAbsolute, join, normalize } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 
 import {
   LocalLeaseCoordinator,
@@ -46,7 +44,6 @@ import { legacyModelRoute, resolveExecutionTarget } from '@sia/runtime';
 import type {
   ActivityPresentationView,
   AgentView,
-  AttachmentView,
   BackgroundTerminalView,
   ApprovalView,
   BridgeMethod,
@@ -99,11 +96,6 @@ import {
 } from '../runtime-activity.js';
 import { gatewayTaskGrant } from './approval-grants.js';
 import { abortableDelay, settleBeforeShutdown } from './async-utils.js';
-import {
-  attachmentKind,
-  previewImageMimeType,
-  textAttachmentPreview,
-} from './attachment-files.js';
 import { backgroundControlUnavailable } from './computer-access.js';
 import {
   connectorAppForTool,
@@ -122,7 +114,6 @@ import { isStreamingDelta } from './runtime-events.js';
 import { extractHttpUrls, safeUrlHost, searchExcerpt } from './thread-search.js';
 import type {
   ApprovedConnectorBinding,
-  AttachmentGrant,
   BrowserCapabilitySink,
   ControllerOptions,
   PendingApproval,
@@ -137,6 +128,7 @@ import type { ConnectorConnections } from './connections.js';
 import type { CloudAccount } from './account.js';
 import type { ProviderAccess } from './providers.js';
 import type { Schedules } from './schedules.js';
+import type { Attachments } from './attachments.js';
 
 const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
   'bootstrap',
@@ -153,7 +145,13 @@ type BridgeHandlers = { [M in BridgeMethod]?: BridgeHandler<M> };
 /** The domain collaborators a context is wired with. */
 export type ControllerServices = Pick<ControllerContext, ServiceName>;
 type ServiceName =
-  'researchOutbox' | 'researchCapture' | 'connections' | 'account' | 'providers' | 'schedules';
+  | 'researchOutbox'
+  | 'researchCapture'
+  | 'connections'
+  | 'account'
+  | 'providers'
+  | 'schedules'
+  | 'attachments';
 
 /**
  * Everything the desktop controller knows and does. DesktopController is the public facade;
@@ -168,6 +166,7 @@ export class ControllerContext {
   declare readonly account: CloudAccount;
   declare readonly providers: ProviderAccess;
   declare readonly schedules: Schedules;
+  declare readonly attachments: Attachments;
   readonly assistantLibrary: AssistantLibrary;
   pendingTerminalOperations = 0;
   pushToTalk: PushToTalkService | undefined;
@@ -191,7 +190,6 @@ export class ControllerContext {
   readonly approvedConnectorBindings = new Map<string, ApprovedConnectorBinding>();
   readonly pendingQuestions = new Map<string, { requestId: string; turnId: string }>();
   readonly workspaceGrants = new Set<string>();
-  readonly attachmentGrants = new Map<string, AttachmentGrant>();
   readonly failedTurnAttachments = new Map<string, readonly ProviderAttachment[]>();
   readonly actionLeases = new LocalLeaseCoordinator(4);
   queuedTurns: QueuedTurn[] = [];
@@ -1342,12 +1340,13 @@ export class ControllerContext {
     'threads.unqueue': ({ threadId, messageId }) => this.unqueueMessage(threadId, messageId),
     'threads.cancel': ({ threadId }) => this.cancelTurn(threadId),
     'threads.steer': ({ threadId, messageId }) => this.steerQueuedMessage(threadId, messageId),
-    'attachments.pick': ({ threadId }) => this.pickAttachments(threadId),
-    'attachments.drop': ({ threadId, paths }) => this.grantAttachments(threadId, paths),
-    'attachments.paste': (input) => this.pasteAttachment(input),
-    'attachments.preview': (input) => this.previewAttachment(input),
-    'attachments.open': (input) => this.openAttachment(input),
-    'attachments.reveal': (input) => this.revealAttachment(input),
+    'attachments.pick': ({ threadId }) => this.attachments.pickAttachments(threadId),
+    'attachments.drop': ({ threadId, paths }) =>
+      this.attachments.grantAttachments(threadId, paths),
+    'attachments.paste': (input) => this.attachments.pasteAttachment(input),
+    'attachments.preview': (input) => this.attachments.previewAttachment(input),
+    'attachments.open': (input) => this.attachments.openAttachment(input),
+    'attachments.reveal': (input) => this.attachments.revealAttachment(input),
     'changes.read': ({ threadId }) => this.readChanges(threadId),
     'changes.stage': (input) => this.stageChanges(input),
     'changes.restore': (input) => this.restoreChanges(input),
@@ -2588,8 +2587,8 @@ export class ControllerContext {
     for (const item of this.state.timeline)
       if (item.threadId === thread.id && item.turnId)
         this.failedTurnAttachments.delete(item.turnId);
-    for (const [id, grant] of this.attachmentGrants)
-      if (grant.threadId === thread.id) this.attachmentGrants.delete(id);
+    for (const [id, grant] of this.attachments.grants)
+      if (grant.threadId === thread.id) this.attachments.grants.delete(id);
     this.heldThreads.delete(thread.id);
     const runtime = this.runtime;
     void Promise.resolve()
@@ -2666,7 +2665,7 @@ export class ControllerContext {
     const thread = this.requireThread(input.threadId);
     if (thread.archivedAt) throw new Error('Unarchive this thread before sending a message.');
     const attachmentGrants = (input.attachmentIds ?? []).map((id) => {
-      const grant = this.attachmentGrants.get(id);
+      const grant = this.attachments.grants.get(id);
       if (!grant || grant.threadId !== thread.id || grant.expiresAt <= Date.now()) {
         throw new Error('An attachment expired. Choose it again before sending.');
       }
@@ -2864,7 +2863,7 @@ export class ControllerContext {
       ]),
     ];
     for (const id of attachmentIds) {
-      const grant = this.attachmentGrants.get(id);
+      const grant = this.attachments.grants.get(id);
       if (!grant || grant.threadId !== thread.id || grant.expiresAt <= Date.now()) {
         throw new Error(
           'A file on this message is no longer available. Attach it again and send.',
@@ -3133,124 +3132,6 @@ export class ControllerContext {
         ),
     );
     return before - this.state.timeline.length;
-  }
-
-  async pickAttachments(threadId: string): Promise<BridgeResultMap['attachments.pick']> {
-    if (!this.deps.chooseFiles)
-      throw new Error('File attachments are unavailable in this build.');
-    const selected = await this.deps.chooseFiles();
-    return await this.grantAttachments(threadId, selected);
-  }
-
-  async pasteAttachment(
-    input: BridgeRequestMap['attachments.paste'],
-  ): Promise<BridgeResultMap['attachments.paste']> {
-    if (!this.deps.pastedAttachmentRoot)
-      throw new Error('Pasting files is unavailable in this build.');
-    this.requireThread(input.threadId);
-    const path = await savePastedAttachment(this.deps.pastedAttachmentRoot, input);
-    return await this.grantAttachments(input.threadId, [path]);
-  }
-
-  async grantAttachments(
-    threadId: string,
-    selected: readonly string[],
-  ): Promise<BridgeResultMap['attachments.pick']> {
-    // Files can be attached while the thread works; they travel with a queued follow-up.
-    const thread = this.requireThread(threadId);
-    if (selected.length > 20) throw new Error('Choose at most 20 files at a time.');
-    const grants: AttachmentView[] = [];
-    let totalBytes = 0;
-    for (const path of selected) {
-      if (!isAbsolute(path)) throw new Error('The native picker returned an invalid file.');
-      const info = await stat(path);
-      if (!info.isFile()) throw new Error('Attachments must be regular files.');
-      if (info.size > 25 * 1024 * 1024) {
-        throw new Error(`${basename(path)} is larger than the 25 MB attachment limit.`);
-      }
-      totalBytes += info.size;
-      if (totalBytes > 100 * 1024 * 1024) {
-        throw new Error('The selected attachments exceed the 100 MB combined limit.');
-      }
-      const kind = attachmentKind(path);
-      const id = randomUUID();
-      const view: AttachmentView = { id, name: basename(path), kind, bytes: info.size };
-      this.attachmentGrants.set(id, {
-        threadId: thread.id,
-        attachment: { kind, path: normalize(path), name: view.name },
-        view,
-        expiresAt: Date.now() + 60 * 60_000,
-      });
-      grants.push(view);
-    }
-    this.pruneAttachmentGrants();
-    return { attachments: grants };
-  }
-
-  async previewAttachment(
-    input: BridgeRequestMap['attachments.preview'],
-  ): Promise<BridgeResultMap['attachments.preview']> {
-    const grant = this.requireAttachmentGrant(input.threadId, input.attachmentId);
-    const path = grant.attachment.path;
-    const extension = extname(path).toLocaleLowerCase();
-    if (extension === '.pdf') return { kind: 'pdf' };
-    const mimeType = previewImageMimeType(path);
-    const info = await stat(path);
-    const textPreview = textAttachmentPreview(extension);
-    if (textPreview) {
-      if (info.size > 512 * 1024) {
-        return {
-          kind: 'unavailable',
-          detail: 'Open this file to view it. Text previews are limited to 512 KB.',
-        };
-      }
-      const content = await readFile(path, 'utf8');
-      if (content.includes('\u0000')) {
-        return { kind: 'unavailable', detail: 'This file does not contain previewable text.' };
-      }
-      return { kind: 'text', content, ...textPreview };
-    }
-    if (!mimeType) {
-      return {
-        kind: 'unavailable',
-        detail: 'Preview is available for images, PDF metadata, and common text files.',
-      };
-    }
-    if (info.size > 8 * 1024 * 1024) {
-      return { kind: 'unavailable', detail: 'Open this image to view the full-size file.' };
-    }
-    const bytes = await readFile(path);
-    return { kind: 'image', dataUrl: `data:${mimeType};base64,${bytes.toString('base64')}` };
-  }
-
-  async openAttachment(
-    input: BridgeRequestMap['attachments.open'],
-  ): Promise<BridgeResultMap['attachments.open']> {
-    if (!this.deps.openPath)
-      throw new Error('Opening local files is unavailable in this build.');
-    const grant = this.requireAttachmentGrant(input.threadId, input.attachmentId);
-    await this.deps.openPath(grant.attachment.path);
-    return { opened: true };
-  }
-
-  async revealAttachment(
-    input: BridgeRequestMap['attachments.reveal'],
-  ): Promise<BridgeResultMap['attachments.reveal']> {
-    if (!this.deps.revealDirectory)
-      throw new Error('Finder reveal is unavailable in this build.');
-    const grant = this.requireAttachmentGrant(input.threadId, input.attachmentId);
-    await this.deps.revealDirectory(grant.attachment.path);
-    return { revealed: true };
-  }
-
-  requireAttachmentGrant(threadId: string, attachmentId: string): AttachmentGrant {
-    this.requireThread(threadId);
-    this.pruneAttachmentGrants();
-    const grant = this.attachmentGrants.get(attachmentId);
-    if (!grant || grant.threadId !== threadId) {
-      throw new Error('This local file grant expired. Attach the file again to reopen it.');
-    }
-    return grant;
   }
 
   async readChanges(threadId: string): Promise<WorkspaceDiffView> {
@@ -5228,13 +5109,6 @@ export class ControllerContext {
       throw new Error('Local workspace operations are unavailable in this build.');
     }
     return this.deps.workspaceOperations;
-  }
-
-  pruneAttachmentGrants(): void {
-    const now = Date.now();
-    for (const [id, grant] of this.attachmentGrants) {
-      if (grant.expiresAt <= now) this.attachmentGrants.delete(id);
-    }
   }
 
   /**
