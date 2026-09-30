@@ -17,9 +17,11 @@ import { NotchVault } from './notch/vault.js';
 import { notchConsolidationInstructions } from './notch/foreground.js';
 import type { MacTaskResult } from './mac-execution.js';
 import { AssistantLibrary, DESKTOP_EXECUTION_GUIDANCE } from './assistant-library.js';
+import { applyTurnChanges, readTurnChanges, turnFileChanges } from './turn-changes.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, stat } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { basename, extname, isAbsolute, join, normalize, resolve } from 'node:path';
 
 import {
@@ -2074,6 +2076,14 @@ export class DesktopController {
         return (await this.#deleteWorkspaceSnapshot(
           input as BridgeRequestMap['changes.snapshots.delete'],
         )) as BridgeResultMap[M];
+      case 'changes.turn.read':
+        return (await this.#readTurnChanges(
+          input as BridgeRequestMap['changes.turn.read'],
+        )) as BridgeResultMap[M];
+      case 'changes.turn.apply':
+        return (await this.#applyTurnChanges(
+          input as BridgeRequestMap['changes.turn.apply'],
+        )) as BridgeResultMap[M];
       case 'terminal.run':
         return (await this.#runTerminal(
           input as BridgeRequestMap['terminal.run'],
@@ -3960,6 +3970,35 @@ export class DesktopController {
       throw new Error('Workspace snapshots are unavailable in this build.');
     }
     return { snapshots: await operations.deleteSnapshot(thread.workspace, input.snapshotId) };
+  }
+
+  /** Where one reply's file changes stand now; see turn-changes.ts. */
+  async #readTurnChanges(
+    input: BridgeRequestMap['changes.turn.read'],
+  ): Promise<BridgeResultMap['changes.turn.read']> {
+    const thread = this.#requireThread(input.threadId);
+    return await readTurnChanges(this.#turnChanges(thread.id, input.eventId), {
+      workspace: thread.workspace,
+      home: homedir(),
+    });
+  }
+
+  /** Undo or redo one reply's file changes; refused while a task runs in this thread. */
+  async #applyTurnChanges(
+    input: BridgeRequestMap['changes.turn.apply'],
+  ): Promise<BridgeResultMap['changes.turn.apply']> {
+    const thread = this.#requireIdleThread(input.threadId, `${input.direction} changes`);
+    return await applyTurnChanges(
+      this.#turnChanges(thread.id, input.eventId),
+      { workspace: thread.workspace, home: homedir() },
+      input.direction,
+    );
+  }
+
+  #turnChanges(threadId: string, eventId: string) {
+    const changes = turnFileChanges(this.#state.timeline, threadId, eventId);
+    if (!changes) throw new Error('This reply is no longer in the conversation.');
+    return changes;
   }
 
   /** The renderer's Command tool runs unreviewed shell commands, so it is opt-in. */

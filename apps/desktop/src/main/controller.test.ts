@@ -3,7 +3,7 @@ import { AssistantLibrary } from './assistant-library.js';
 import { NotchVault } from './notch/vault.js';
 import type { VoiceHelperFactory } from './push-to-talk.js';
 import { generateKeyPairSync, sign, randomUUID } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -3606,6 +3606,97 @@ describe('DesktopController', () => {
     expect(serialized).toContain('raw command output');
     expect(serialized).toContain(threadId);
     await controller.shutdown();
+  });
+
+  it('undoes and redoes the files one reply changed, only once the task ends', async () => {
+    // The harness grants only this folder; a unique file keeps the test independent.
+    const workspace = '/tmp/sia-workspace';
+    await mkdir(workspace, { recursive: true });
+    const name = `undo-${randomUUID()}.md`;
+    const notes = join(workspace, name);
+    await writeFile(notes, 'after\n');
+    let runtimeThreadId = '';
+    const runtime = {
+      async *runTurn(input: { turnId: string }) {
+        const base = {
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        yield {
+          ...base,
+          id: 'edit-notes',
+          sequence: 1,
+          type: 'tool' as const,
+          payload: {
+            callId: 'patch-1',
+            name: 'fileChange',
+            phase: 'completed' as const,
+            native: true,
+            presentation: {
+              kind: 'file_change' as const,
+              files: [
+                { path: notes, change: 'update', diff: '@@ -1 +1 @@\n-before\n+after\n' },
+              ],
+            },
+          },
+        };
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    try {
+      const created = await controller.invoke('agents.save', {
+        name: 'Notes',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace,
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: created.agentId,
+      });
+      runtimeThreadId = threadId;
+      await controller.invoke('threads.send', { threadId, text: 'Tidy my notes' });
+      await vi.waitFor(() =>
+        expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+          'idle',
+        ),
+      );
+
+      const eventId = 'edit-notes';
+      await expect(
+        controller.invoke('changes.turn.read', { threadId, eventId }),
+      ).resolves.toEqual({
+        state: 'ready',
+        files: [{ path: name, change: 'edited' }],
+        blocked: [],
+      });
+      await expect(
+        controller.invoke('changes.turn.apply', { threadId, eventId, direction: 'undo' }),
+      ).resolves.toMatchObject({ state: 'undone' });
+      expect(await readFile(notes, 'utf8')).toBe('before\n');
+      await expect(
+        controller.invoke('changes.turn.apply', { threadId, eventId, direction: 'redo' }),
+      ).resolves.toMatchObject({ state: 'ready' });
+      expect(await readFile(notes, 'utf8')).toBe('after\n');
+      await expect(
+        controller.invoke('changes.turn.read', { threadId, eventId: 'missing' }),
+      ).rejects.toThrow('no longer in the conversation');
+    } finally {
+      await controller.shutdown();
+      await rm(notes, { force: true });
+    }
   });
 
   it('excludes an entire Google Workspace action turn from research capture', async () => {

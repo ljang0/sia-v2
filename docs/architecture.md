@@ -484,6 +484,13 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   environment, deadline, and output cap. Git operations use validated argv/path boundaries and
   disable repository hooks and file-system monitors. Neither surface is model-visible through Sia's
   added gateway.
+- **Undo changes** under a finished reply plays back the `fileChange` items Codex reported for that
+  reply (an added file's content, a deleted file's content, or an edit's line diff), which the
+  thread already stores; no folder copy or Git snapshot is taken. `main/turn-changes.ts` applies the
+  record backwards or forwards only when every file still matches it exactly, writes all files or
+  none, stays inside the thread's folder or the home folder (never through a symlink, into `.git`,
+  `~/.ssh`, `~/.gnupg` or `~/Library/Keychains`), and refuses while a task runs in that thread.
+  Changes made by shell commands, and anything sent or done in other apps, are not undone.
 
 ## Concurrency
 

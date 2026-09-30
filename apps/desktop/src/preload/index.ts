@@ -137,6 +137,9 @@ const api: DesktopBridgeApi = {
         snapshotId,
         confirmation: 'DELETE SNAPSHOT',
       }),
+    readTurn: (threadId, eventId) => invoke('changes.turn.read', { threadId, eventId }),
+    applyTurn: (threadId, eventId, direction) =>
+      invoke('changes.turn.apply', { threadId, eventId, direction }),
   },
   terminal: {
     run: (threadId, command) => invoke('terminal.run', { threadId, command }),

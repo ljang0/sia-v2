@@ -266,6 +266,12 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       const result = await bridge.changes.deleteSnapshot(threadId, snapshotId);
       return structuredClone(result.snapshots);
     },
+    async readTurnChanges(threadId, eventId) {
+      return structuredClone(await bridge.changes.readTurn(threadId, eventId));
+    },
+    async applyTurnChanges(threadId, eventId, direction) {
+      return structuredClone(await bridge.changes.applyTurn(threadId, eventId, direction));
+    },
     async runTerminal(threadId, command) {
       return structuredClone(await bridge.terminal.run(threadId, command));
     },
