@@ -1,6 +1,6 @@
 import { taskRecoveryContext } from '../task-recovery.js';
 import type { TaskSnapshot } from '../latest-task-turn.js';
-import type { AutomationApp, AutomationPermissions } from '../../shared/mac-permissions.js';
+import type { AutomationPermissions } from '../../shared/mac-permissions.js';
 import {
   completedJournal,
   MEMORY_REVIEW_PROMPT,
@@ -51,10 +51,7 @@ import type {
   BridgeMethod,
   BridgeRequestMap,
   BridgeResultMap,
-  BrowserView,
   BrowserWindowView,
-  CaptureView,
-  CloudFeatureFlags,
   ComputerPermissionsView,
   ConnectionView,
   DesktopPushEvent,
@@ -69,25 +66,20 @@ import type {
   UpdateView,
   VoiceView,
   WorkspaceDiffView,
-  WorkspaceSnapshotView,
   TerminalResultView,
 } from '../../shared/bridge.js';
 import type { RecordRepository } from '../persistence.js';
 import { probeProviders, providerPlan } from '../provider-probe.js';
 import type { RuntimeCoordinator } from '../runtime-coordinator.js';
-import type { CloudIdentityStatus } from '../identity.js';
 import type { CuaAuthorizationContext } from '../cua-service.js';
 import type { VoiceOperations } from '../voice-service.js';
 import { PushToTalkService, type VoiceHelperFactory } from '../push-to-talk.js';
 import type { TrajectoryRecorder } from '../trajectory-recorder.js';
-import { RESEARCH_CONSENT_VERSION, SCHEDULE_RUN_HISTORY_LIMIT } from '../../shared/bridge.js';
+import { RESEARCH_CONSENT_VERSION } from '../../shared/bridge.js';
 import {
   alignScheduleStart,
   defaultFirstScheduleRun,
-  everyHoursOf,
   nextScheduleRun,
-  normalizeScheduleDays,
-  type ScheduleRule,
 } from '../../shared/schedule-cadence.js';
 import { verifyUpdateManifestResponse } from '../update-manifest.js';
 import {
@@ -105,7 +97,6 @@ import {
   findChromeCandidates,
   preferredChromeWindows,
 } from '../chrome-discovery.js';
-import { isRecord, stringArray } from '../records.js';
 import {
   computerApprovalPresentation,
   safeResourceLabel,
@@ -117,368 +108,74 @@ import {
   mapRuntimePresentation,
   runtimeToolTitle,
 } from '../runtime-activity.js';
+import { gatewayTaskGrant } from './approval-grants.js';
+import { abortableDelay, defaultRunCommand, settleBeforeShutdown } from './async-utils.js';
+import {
+  attachmentKind,
+  previewImageMimeType,
+  textAttachmentPreview,
+} from './attachment-files.js';
+import { backgroundControlUnavailable } from './computer-access.js';
+import {
+  connectorAppForTool,
+  EMPTY_CONNECTIONS,
+  GOOGLE_CONNECTION_IDS,
+  GOOGLE_WORKSPACE_ACTION,
+  isConnectorActionTool,
+  isGoogleConnection,
+} from './connection-ids.js';
+import { modelRouteKey, requireReleaseProvider } from './execution-routes.js';
+import {
+  INITIAL_STATE,
+  type PersistedState,
+  recoverPersistedState,
+} from './persisted-state.js';
+import {
+  containsSecretShapedText,
+  expandRawResearchEvents,
+  isResearchBatchRecord,
+  jsonSafeValue,
+  LOCAL_RESEARCH_IDENTITY,
+  LOCAL_RESEARCH_RETENTION_MS,
+  MAX_LOCAL_RESEARCH_BATCH_BYTES,
+  MAX_RESEARCH_SCREENSHOT_BASE64_BYTES,
+  partitionRawResearchEvents,
+  type ResearchBatchRecord,
+  type ResearchEventRecord,
+  researchSyncErrorMessage,
+  type ResearchSyncRecord,
+  SAFE_RESEARCH_ACTIONS,
+  type StagedResearchTurn,
+  TARGET_LOCAL_RESEARCH_BATCHES,
+  TARGET_LOCAL_RESEARCH_BYTES,
+} from './research-records.js';
+import { isStreamingDelta } from './runtime-events.js';
+import {
+  defaultScheduleRunLimit,
+  scheduleRuleFields,
+  upsertScheduleRun,
+  validScheduleRunLimit,
+  validScheduleTime,
+} from './schedule-rules.js';
+import { extractHttpUrls, safeUrlHost, searchExcerpt } from './thread-search.js';
+import type {
+  ApprovedConnectorBinding,
+  AttachmentGrant,
+  BrowserCapabilitySink,
+  ComputerAutomation,
+  ControllerOptions,
+  PendingApproval,
+  QueuedTurn,
+} from './types.js';
+import { compareVersions, isCleanHttpsUrl } from './update-feed.js';
+import { normalizeWorkspace, workspaceSlug, worktreeLabel } from './workspace-paths.js';
 
-interface ComputerAutomation {
-  permissions(): Promise<ComputerPermissionsView>;
-  requestPermissions(
-    permission?: 'accessibility' | 'screenRecording',
-  ): Promise<ComputerPermissionsView>;
-  call(
-    tool: string,
-    args: Record<string, unknown>,
-    context: CuaAuthorizationContext,
-    signal?: AbortSignal,
-  ): Promise<unknown>;
-  shutdown(): Promise<void>;
-}
-
-interface BrowserCapabilitySink {
-  acceptBrowserState(value: unknown, sessionId?: string): void;
-  resetBrowserCapabilities(): void;
-  trustedApprovalTarget(
-    toolName: string,
-    argumentsValue: Readonly<Record<string, unknown>>,
-  ): string | undefined;
-}
-
-interface ControllerOptions {
-  notchHelperPath?: string;
-  repository: RecordRepository;
-  cloud: CloudClient;
-  computer: ComputerAutomation;
-  identity: {
-    initialize(): Promise<CloudIdentityStatus>;
-    read?(): Promise<string | undefined>;
-    refreshSession?(): Promise<CloudIdentityStatus>;
-    status(): CloudIdentityStatus;
-    startEmailSignIn(email: string): Promise<CloudIdentityStatus>;
-    completeEmailSignIn(code: string): Promise<CloudIdentityStatus>;
-    completePasswordSignIn?(password: string): Promise<CloudIdentityStatus>;
-    completeMfaSignIn?(code: string): Promise<CloudIdentityStatus>;
-    beginMfaEnrollment?(): Promise<{ secretCode: string }>;
-    completeMfaEnrollment?(code: string): Promise<CloudIdentityStatus>;
-    signOut(): Promise<CloudIdentityStatus>;
-  };
-  fakeServices: boolean;
-  fakeTurnDelayMs?: number;
-  openExternal(url: string): Promise<void>;
-  openMessages?(): Promise<void>;
-  openMessagesPermissions?(): Promise<void>;
-  requestMicrophonePermission?(): Promise<void>;
-  restartApp?(): void;
-  installCodex?(): Promise<void>;
-  /** Always-on local trajectory log; absent in unit tests that do not care about it. */
-  trajectory?: TrajectoryRecorder;
-  /** Runs a read-only shell command (lsof); injectable for tests. */
-  runCommand?: (file: string, args: readonly string[]) => Promise<string>;
-  /** Provider discovery boundary; production uses the real CLI probe. */
-  providerProbe?: typeof probeProviders;
-  captureMacContext?: () => Promise<string>;
-  /** Capability status readers; absent in unit tests that do not use them. */
-  capabilitySetup?: {
-    automationPermissions?(request?: AutomationApp): Promise<AutomationPermissions>;
-    messagesStatus(): 'ready' | 'needs_full_disk_access' | 'unavailable';
-    chromeDebugStatus(): Promise<'enabled' | 'off' | 'unavailable'>;
-  };
-  /** Reveals a directory in Finder; used for the trajectory log. */
-  revealDirectory?(path: string): Promise<void>;
-  /** Keeps the Mac awake while Use my Mac tasks run; absent in tests that do not care. */
-  keepAwake?: { hold(id: string): void; release(id: string): void };
-  chooseDirectory(): Promise<string | null>;
-  /** Visible app-managed root used when a new agent does not choose a custom folder. */
-  defaultWorkspaceRoot?: string;
-  createDirectory?(path: string): Promise<void>;
-  chooseFiles?(): Promise<string[]>;
-  /** Private folder where pasted screenshots, files and long text are saved as attachments. */
-  pastedAttachmentRoot?: string;
-  openPath?(path: string): Promise<void>;
-  composeFeedback?(subject: string, body: string): Promise<void>;
-  /** Registers or removes Sia as a macOS login item. */
-  setOpenAtLogin?(enabled: boolean): void;
-  appVersion?: string;
-  updateManifestUrl?: string;
-  updateManifestPublicKey?: string;
-  exportJson(value: unknown): Promise<string | null>;
-  notify?(notice: { threadId: string; title: string; body: string }): void;
-  workspaceOperations?: {
-    hasRunningTerminals?(): boolean;
-    readDiff(workspace: string): Promise<WorkspaceDiffView>;
-    stage(workspace: string, paths: readonly string[]): Promise<WorkspaceDiffView>;
-    restore(workspace: string, paths: readonly string[]): Promise<WorkspaceDiffView>;
-    listSnapshots?(workspace: string): Promise<WorkspaceSnapshotView[]>;
-    createSnapshot?(workspace: string): Promise<WorkspaceSnapshotView[]>;
-    restoreSnapshot?(workspace: string, snapshotId: string): Promise<WorkspaceDiffView>;
-    deleteSnapshot?(workspace: string, snapshotId: string): Promise<WorkspaceSnapshotView[]>;
-    runTerminal(workspace: string, command: string): Promise<TerminalResultView>;
-    startBackgroundTerminal?(
-      workspace: string,
-      command: string,
-    ): Promise<BackgroundTerminalView>;
-    listBackgroundTerminals?(workspace: string): Promise<BackgroundTerminalView[]>;
-    writeBackgroundTerminal?(
-      workspace: string,
-      id: string,
-      input: string,
-    ): Promise<BackgroundTerminalView>;
-    stopBackgroundTerminal?(workspace: string, id: string): Promise<BackgroundTerminalView>;
-    dispose?(): void;
-    createWorktree(
-      sourceWorkspace: string,
-      threadId: string,
-    ): Promise<{ path: string; branch?: string }>;
-    removeWorktree?(workspace: string): Promise<void>;
-  };
-  voice?: VoiceOperations;
-  startupNotice?: {
-    title: string;
-    detail: string;
-  };
-}
-
-interface PersistedState {
-  agents: AgentView[];
-  threads: ThreadView[];
-  timeline: TimelineItemView[];
-  approvals: ApprovalView[];
-  connections: ConnectionView[];
-  capture: CaptureView;
-  browser: BrowserView;
-  /** Consent and pending batches are valid only for this normalized cloud identity. */
-  researchIdentity?: string;
-  /** Opaque connector grants remain locked to the identity that created them. */
-  connectionOwners: Partial<Record<ConnectionView['id'], string>>;
-  activeAgentId?: string;
-  activeThreadId?: string;
-  schedules: ScheduleView[];
-  /**
-   * Set once recurring schedules saved with the old ten-run default have been made unlimited,
-   * so a limit of ten chosen afterwards is kept.
-   */
-  unlimitedRecurringSchedules?: true;
-  cloudFeatures: CloudFeatureFlags;
-  preferences: {
-    completionSound: boolean;
-    openAtLogin?: boolean;
-    appearance?: 'calm' | 'expressive';
-    theme?: ThemePreference;
-    textSize?: TextSize;
-    /** Workspace Command tool (arbitrary shell in the agent folder). Off unless set to true. */
-    developerTools?: boolean;
-    onboarding?: NonNullable<DesktopSnapshot['preferences']['onboarding']>;
-    /** All eligible actions run without in-app approval only when explicitly set to 'auto'. */
-    computerAccessMode?: 'mac' | 'connected';
-    macBackgroundControl?: boolean;
-    macBackgroundFallback?: 'pause' | 'foreground';
-    computerTrust?: 'auto' | 'ask';
-    /** Eligible local trajectory log; Google Workspace connector turns are excluded. */
-    trajectoryLog?: boolean;
-  };
-  usageByTurn: Record<
-    string,
-    {
-      threadId: string;
-      provider: ProviderId;
-      inputTokens: number;
-      outputTokens: number;
-      cachedInputTokens: number;
-      updatedAt: string;
-    }
-  >;
-}
-
-interface QueuedTurn {
-  recovery?: string;
-  context?: string;
-  id: string;
-  threadId: string;
-  text: string;
-  attachments?: readonly ProviderAttachment[];
-  source?: 'manual' | 'schedule' | 'goal' | 'review';
-  fromPhone?: true;
-  reviewTarget?: BridgeRequestMap['reviews.start']['target'];
-  fakeDelayMs?: number;
-  scheduleRunId?: string;
-}
-
-interface AttachmentGrant {
-  readonly threadId: string;
-  readonly attachment: ProviderAttachment;
-  readonly view: AttachmentView;
-  readonly expiresAt: number;
-}
-
-interface ResearchEventBase {
-  id: string;
-  occurredAt: string;
-  classification: 'research_allowed';
-  taints: [];
-  sourceEventIds: string[];
-}
-
-type ResearchEventRecord = ResearchEventBase &
-  (
-    | {
-        kind: 'conversation.text';
-        payload: { role: 'user' | 'assistant'; text: string; provider: ProviderId };
-      }
-    | {
-        kind: 'trajectory.step';
-        payload: {
-          source: 'provider' | 'sia_action';
-          type: 'tool' | 'plan' | 'subagent' | 'usage' | 'action_result';
-          name?: string;
-          phase?: string;
-          presentation?: string;
-          outcome?: string;
-          counts?: Record<string, number>;
-        };
-      }
-    | {
-        kind: 'trajectory.screenshot';
-        payload: {
-          source: 'sia_action';
-          tool: 'computer_snapshot';
-          mimeType: 'image/png' | 'image/jpeg' | 'image/webp';
-          dataBase64: string;
-        };
-      }
-  );
-
-interface RawResearchEventRecord extends ResearchEventBase {
-  kind: 'raw.event' | 'raw.event_chunk';
-  payload: {
-    schemaVersion: 1;
-    threadId: string;
-    turnId: string;
-    eventType: string;
-    eventId?: string;
-    sequence?: number;
-    data?: unknown;
-    encoding?: 'base64-json';
-    chunkIndex?: number;
-    chunkCount?: number;
-    chunkData?: string;
-  };
-}
-
-interface ResearchBatchRecord {
-  batchId: string;
-  /** False for captures created before cloud was configured; never retroactively upload them. */
-  syncEligible?: boolean;
-  consent: {
-    version: string;
-    acceptedAt: string;
-    purpose: 'research_evaluation_debugging';
-  };
-  format?: 'filtered_v2' | 'raw_v1';
-  scope?: {
-    threadId: string;
-    turnId: string;
-    sequenceStart?: number;
-    sequenceEnd?: number;
-    eventKinds: string[];
-  };
-  events: Array<ResearchEventRecord | RawResearchEventRecord>;
-}
-
-interface ResearchSyncRecord {
-  batchId: string;
-  synced: boolean;
-}
-
-interface StagedResearchTurn {
-  tainted: boolean;
-  events: ResearchEventRecord[];
-  rawEvents: RawResearchEventRecord[];
-  eventByMessageId: Map<string, string>;
-  safeActionNames: string[];
-}
-
-const SAFE_RESEARCH_ACTIONS = new Set(['computer_list', 'computer_snapshot']);
 const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
   'bootstrap',
   'auth.start',
   'auth.complete',
   'auth.signOut',
 ]);
-const GOOGLE_WORKSPACE_ACTION = /^(?:mail|drive|docs|sheets|slides)_/;
-const MAX_LOCAL_RESEARCH_BATCH_BYTES = 3 * 1024 * 1024;
-const MAX_RESEARCH_SCREENSHOT_BASE64_BYTES = 1_500_000;
-const MAX_RAW_EVENT_JSON_BYTES = 768 * 1024;
-// Synced batches are pruned at these soft targets. Unsynced research is never discarded to
-// satisfy an application quota: it remains in the encrypted outbox until AWS acknowledges it.
-const TARGET_LOCAL_RESEARCH_BYTES = 128 * 1024 * 1024;
-const TARGET_LOCAL_RESEARCH_BATCHES = 500;
-const LOCAL_RESEARCH_RETENTION_MS = 90 * 24 * 60 * 60_000;
-const LOCAL_RESEARCH_IDENTITY = '__local__';
-
-interface PendingApproval {
-  resolve(decision: 'allow' | 'deny' | 'cancel'): void;
-  /** Only computer-helper requests carry their own deadline; the rest wait for the person. */
-  timeout?: NodeJS.Timeout | undefined;
-  kind: 'computer' | 'gateway' | 'provider';
-  threadId: string;
-  turnId: string;
-  requestId?: string;
-  /** What "Allow for this task" would cover; absent when it is not offered. */
-  taskGrant?: string;
-}
-
-interface ApprovedConnectorBinding {
-  readonly approvalId: string;
-  readonly threadId: string;
-  readonly turnId: string;
-  readonly app: ConnectionView['id'];
-  readonly selector: string;
-  readonly connectionId: string;
-  readonly generation: number;
-  readonly account?: string;
-}
-
-const EMPTY_CONNECTIONS: ConnectionView[] = [
-  { id: 'gmail', label: 'Gmail', status: 'disconnected' },
-  { id: 'drive', label: 'Google Drive', status: 'disconnected' },
-  { id: 'docs', label: 'Google Docs', status: 'disconnected' },
-  { id: 'sheets', label: 'Google Sheets', status: 'disconnected' },
-  { id: 'slides', label: 'Google Slides', status: 'disconnected' },
-  { id: 'slack', label: 'Slack', status: 'disconnected' },
-];
-const GOOGLE_CONNECTION_IDS: readonly ConnectionView['id'][] = [
-  'gmail',
-  'drive',
-  'docs',
-  'sheets',
-  'slides',
-];
-
-function isGoogleConnection(id: ConnectionView['id']): boolean {
-  return id !== 'slack';
-}
-
-function isConnectorActionTool(name: string): boolean {
-  return /^(?:mail|drive|docs|sheets|slides|slack)_/.test(name);
-}
-
-const INITIAL_STATE: PersistedState = {
-  agents: [],
-  threads: [],
-  timeline: [],
-  approvals: [],
-  connections: EMPTY_CONNECTIONS,
-  capture: { status: 'not_consented', pendingCount: 0 },
-  browser: { status: 'detached', grantedOrigins: [] },
-  connectionOwners: {},
-  schedules: [],
-  unlimitedRecurringSchedules: true,
-  cloudFeatures: {
-    researchUploads: true,
-    researchArchive: false,
-    connectors: true,
-    schedules: true,
-  },
-  preferences: { completionSound: false, computerAccessMode: 'mac', computerTrust: 'auto' },
-  usageByTurn: {},
-};
 
 export class DesktopController {
   readonly #repository: RecordRepository;
@@ -1433,7 +1130,7 @@ export class DesktopController {
 
   async initialize(): Promise<void> {
     const stored = this.#repository.get<PersistedState>('desktop', 'state');
-    this.#state = stored ? this.#recover(stored) : structuredClone(INITIAL_STATE);
+    this.#state = stored ? recoverPersistedState(stored) : structuredClone(INITIAL_STATE);
     this.#pruneExpiredResearchBatches();
     for (const workspace of [
       ...this.#state.agents.map((agent) => agent.workspace),
@@ -8360,160 +8057,6 @@ export class DesktopController {
     }
   }
 
-  #recover(state: PersistedState): PersistedState {
-    const recovered = structuredClone(state);
-    recovered.connectionOwners = recovered.connectionOwners ?? {};
-    recovered.schedules = (recovered.schedules ?? []).map((schedule) => {
-      const runHistory = (schedule.runHistory ?? (schedule.lastRun ? [schedule.lastRun] : []))
-        .filter((run, index, history) => history.findIndex(({ id }) => id === run.id) === index)
-        .slice(0, SCHEDULE_RUN_HISTORY_LIMIT);
-      // Weekly schedules saved before chosen days existed keep running on their next run's day.
-      const { days: _days, everyHours: _everyHours, ...rest } = schedule;
-      return {
-        ...rest,
-        ...scheduleRuleFields(schedule, new Date(schedule.nextRunAt)),
-        runCount: schedule.runCount ?? 0,
-        ...(runHistory.length > 0 ? { runHistory } : {}),
-      };
-    });
-    if (!recovered.unlimitedRecurringSchedules) {
-      // Saved state cannot tell the old form's prefilled ten from a chosen ten, so every recurring
-      // schedule at exactly ten becomes unlimited. One that already ran out stays paused.
-      for (const schedule of recovered.schedules)
-        if (schedule.cadence !== 'once' && schedule.maxRuns === LEGACY_RECURRING_RUN_LIMIT)
-          delete schedule.maxRuns;
-      recovered.unlimitedRecurringSchedules = true;
-    }
-    recovered.cloudFeatures =
-      recovered.cloudFeatures ?? structuredClone(INITIAL_STATE.cloudFeatures);
-    recovered.preferences = recovered.preferences ?? { completionSound: false };
-    if (recovered.preferences.theme !== undefined && !isTheme(recovered.preferences.theme))
-      delete recovered.preferences.theme;
-    if (
-      recovered.preferences.textSize !== undefined &&
-      !isTextSize(recovered.preferences.textSize)
-    )
-      delete recovered.preferences.textSize;
-    if (recovered.preferences.onboarding?.restartPending) {
-      recovered.preferences.onboarding = {
-        ...recovered.preferences.onboarding,
-        step: 'verify',
-        restartPending: false,
-        restarted: true,
-      };
-    }
-    recovered.usageByTurn = recovered.usageByTurn ?? {};
-    recovered.agents = recovered.agents.map((agent) => ({
-      ...agent,
-      harnessPreference: agent.harnessPreference ?? { mode: 'automatic' },
-      pinned: agent.pinned ?? false,
-      notificationsEnabled: agent.notificationsEnabled ?? true,
-    }));
-    // A CUA browser attachment is process-local. Never revive its UI grant without
-    // preparing a fresh native session and rebuilding host-only tab capabilities.
-    recovered.browser = { status: 'detached', grantedOrigins: [] };
-    recovered.approvals = pruneSettledApprovals(
-      recovered.approvals.map((approval) =>
-        approval.status === 'pending' ? { ...approval, status: 'expired' } : approval,
-      ),
-      recovered.timeline,
-      Date.now(),
-    );
-    // No turn survives a relaunch, so no activity row may keep spinning.
-    for (const item of recovered.timeline)
-      if (item.status === 'running') item.status = 'complete';
-    const recoveredConnections = new Map(
-      recovered.connections.map((connection) => [connection.id, connection]),
-    );
-    recovered.connections = EMPTY_CONNECTIONS.map((fallback) => {
-      const connection = recoveredConnections.get(fallback.id) ?? fallback;
-      return connection.status === 'connecting'
-        ? {
-            ...connection,
-            status: 'error',
-            detail: 'Connection setup was interrupted. Verify or disconnect this saved grant.',
-          }
-        : connection;
-    });
-    // Queued follow-ups live in memory. After a relaunch, return unsent text to the composer
-    // instead of starting it unattended or showing it as a message that was sent.
-    const unsentFollowUps = new Map<string, string[]>();
-    recovered.timeline = recovered.timeline.filter((item) => {
-      if (item.kind !== 'user' || item.status !== 'pending') return true;
-      const texts = unsentFollowUps.get(item.threadId) ?? [];
-      if (item.text?.trim()) texts.push(item.text.trim());
-      unsentFollowUps.set(item.threadId, texts);
-      return false;
-    });
-    recovered.threads = recovered.threads.map((thread) => {
-      const unsent = unsentFollowUps.get(thread.id);
-      if (!unsent?.length) return thread;
-      return {
-        ...thread,
-        draft: [thread.draft?.trim(), ...unsent].filter(Boolean).join('\n\n'),
-      };
-    });
-    recovered.threads = recovered.threads.map((thread) => {
-      const agent = recovered.agents.find(({ id }) => id === thread.agentId);
-      const resolvedExecutionTarget =
-        thread.resolvedExecutionTarget ?? legacyResolvedExecutionTarget(thread);
-      const restored: ThreadView = {
-        ...thread,
-        harnessId: resolvedExecutionTarget.harnessId,
-        resolvedExecutionTarget,
-        instructionsSnapshot: thread.instructionsSnapshot ?? agent?.instructions ?? '',
-        agentNameSnapshot: thread.agentNameSnapshot ?? agent?.name ?? 'Agent',
-        unread: thread.unread ?? false,
-        pinned: thread.pinned ?? false,
-        worktree:
-          thread.worktree ?? ({ kind: 'primary', sourceWorkspace: thread.workspace } as const),
-      };
-      if (
-        restored.status !== 'running' &&
-        restored.status !== 'queued' &&
-        restored.status !== 'waiting'
-      )
-        return restored;
-      const lastUser = recovered.timeline.findLast(
-        (item) => item.threadId === restored.id && item.kind === 'user' && Boolean(item.turnId),
-      );
-      if (!lastUser?.turnId) {
-        const value: ThreadView = { ...restored, status: 'idle' };
-        delete value.queueReason;
-        return value;
-      }
-      const sequence = recovered.timeline
-        .filter((item) => item.threadId === restored.id)
-        .reduce((maximum, item) => Math.max(maximum, item.sequence), 0);
-      recovered.timeline.push({
-        id: randomUUID(),
-        threadId: restored.id,
-        turnId: lastUser.turnId,
-        sequence: sequence + 1,
-        kind: 'error',
-        title: 'Task was interrupted',
-        text: 'The task was interrupted when Sia closed. Completed work is preserved, and it is safe to retry.',
-        status: 'failed',
-        timestamp: new Date().toISOString(),
-      });
-      const value: ThreadView = {
-        ...restored,
-        status: 'failed',
-        interruptedTurnId: lastUser.turnId,
-        unread: true,
-      };
-      delete value.queueReason;
-      return value;
-    });
-    if (
-      recovered.activeThreadId &&
-      recovered.threads.find(({ id }) => id === recovered.activeThreadId)?.archivedAt
-    ) {
-      delete recovered.activeThreadId;
-    }
-    return recovered;
-  }
-
   /**
    * While a Mac task waits on the person (an approval or a question), let the display sleep
    * as usual; hold it awake again once the task resumes.
@@ -8581,496 +8124,4 @@ export class DesktopController {
     const event: DesktopPushEvent = { type: 'snapshot', snapshot: this.rendererSnapshot() };
     for (const listener of this.#listeners) listener(event);
   }
-}
-
-async function settleBeforeShutdown(
-  operation: PromiseLike<unknown> | undefined,
-  deadline: number,
-): Promise<void> {
-  if (!operation) return;
-  const remaining = Math.max(0, deadline - Date.now());
-  if (remaining === 0) return;
-  let timeout: NodeJS.Timeout | undefined;
-  await Promise.race([
-    Promise.resolve(operation).then(
-      () => undefined,
-      () => undefined,
-    ),
-    new Promise<void>((resolve) => {
-      timeout = setTimeout(resolve, remaining);
-    }),
-  ]);
-  if (timeout) clearTimeout(timeout);
-}
-
-/** How long a settled approval with no transcript row stays after it expired. */
-const SETTLED_APPROVAL_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
-
-/**
- * Approvals a transcript row refers to are part of that thread's history and stay. The rest,
- * such as computer-use requests, are shown only beside their turn; drop them a week after
- * they expired so state does not grow with every answered request.
- */
-function pruneSettledApprovals(
-  approvals: readonly ApprovalView[],
-  timeline: readonly TimelineItemView[],
-  now: number,
-): ApprovalView[] {
-  const referenced = new Set(
-    timeline.flatMap((item) =>
-      item.kind === 'approval' && item.approvalId ? [item.approvalId] : [],
-    ),
-  );
-  return approvals.filter((approval) => {
-    if (approval.status === 'pending' || referenced.has(approval.id)) return true;
-    const expiresAt = approval.expiresAt ? Date.parse(approval.expiresAt) : Number.NaN;
-    return !Number.isFinite(expiresAt) || now - expiresAt < SETTLED_APPROVAL_RETENTION_MS;
-  });
-}
-
-function isStreamingDelta(event: ThreadEventEnvelope): boolean {
-  return (
-    ((event.type === 'message' || event.type === 'reasoning') &&
-      event.payload.delta === true) ||
-    // Command output and patch progress repeat the running tool; its terminal phase commits.
-    (event.type === 'tool' && event.payload.phase === 'started')
-  );
-}
-
-function normalizeWorkspace(value: string): string {
-  return normalize(resolve(value));
-}
-
-function workspaceSlug(value: string): string {
-  const slug = value
-    .trim()
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 48);
-  return slug || 'agent';
-}
-
-function modelRouteKey(provider: ProviderId, model: string): string {
-  return `${provider}\u0000${model}`;
-}
-
-/** Providers a new agent or thread may choose in this release. Others stay for pinned threads. */
-const RELEASE_PROVIDERS: ReadonlySet<ProviderId> = new Set<ProviderId>(['codex', 'meta']);
-
-function requireReleaseProvider(provider: ProviderId): void {
-  if (RELEASE_PROVIDERS.has(provider)) return;
-  throw new Error(
-    'This model is not available for new conversations in this version of Sia. Choose Codex or a model included with Sia. Existing conversations keep working.',
-  );
-}
-
-function legacyHarnessForProvider(
-  provider: ProviderId,
-): import('../../shared/bridge.js').HarnessId {
-  if (provider === 'codex') return 'codex_app_server';
-  if (provider === 'claude') return 'claude_code';
-  if (provider === 'meta') return 'sia_direct';
-  return 'legacy_acp';
-}
-
-function legacyResolvedExecutionTarget(
-  thread: Pick<ThreadView, 'provider' | 'model' | 'harnessId'>,
-): NonNullable<ThreadView['resolvedExecutionTarget']> {
-  const route = legacyModelRoute(thread.provider, thread.model);
-  const storedHarness = (thread as { harnessId?: string }).harnessId;
-  const harnessId =
-    storedHarness === 'sia_default'
-      ? 'sia_direct'
-      : storedHarness &&
-          [
-            'codex_app_server',
-            'claude_code',
-            'legacy_acp',
-            'opencode_acp',
-            'pi_rpc',
-            'sia_direct',
-          ].includes(storedHarness)
-        ? (storedHarness as NonNullable<ThreadView['harnessId']>)
-        : legacyHarnessForProvider(thread.provider);
-  return { ...route, harnessId, resolutionSource: 'legacy_default' };
-}
-
-function abortableDelay(milliseconds: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new DOMException('Aborted', 'AbortError'));
-      return;
-    }
-    const onAbort = (): void => {
-      clearTimeout(timeout);
-      reject(new DOMException('Aborted', 'AbortError'));
-    };
-    const timeout = setTimeout(() => {
-      signal?.removeEventListener('abort', onAbort);
-      resolve();
-    }, milliseconds);
-    signal?.addEventListener('abort', onAbort, { once: true });
-  });
-}
-
-async function defaultRunCommand(file: string, args: readonly string[]): Promise<string> {
-  const { execFile } = await import('node:child_process');
-  const { promisify } = await import('node:util');
-  const { stdout } = await promisify(execFile)(file, [...args]);
-  return stdout;
-}
-
-function isResearchBatchRecord(value: unknown): value is ResearchBatchRecord {
-  if (!isRecord(value) || typeof value.batchId !== 'string') return false;
-  if (!Array.isArray(value.events) || !isRecord(value.consent)) return false;
-  return (
-    typeof value.consent.version === 'string' &&
-    typeof value.consent.acceptedAt === 'string' &&
-    value.consent.purpose === 'research_evaluation_debugging'
-  );
-}
-
-const SECRET_SHAPED_TEXT = [
-  /\bBearer\s+[A-Za-z0-9._~+/=-]{12,}\b/i,
-  /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
-  /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/,
-  /\b(?:sk|xai|meta|composio)[-_][A-Za-z0-9_-]{16,}\b/i,
-];
-
-function containsSecretShapedText(value: string): boolean {
-  return SECRET_SHAPED_TEXT.some((pattern) => pattern.test(value));
-}
-
-function connectorAppForTool(value: string): ConnectionView['id'] | undefined {
-  if (value.startsWith('mail_')) return 'gmail';
-  if (value.startsWith('drive_')) return 'drive';
-  if (value.startsWith('docs_')) return 'docs';
-  if (value.startsWith('sheets_')) return 'sheets';
-  if (value.startsWith('slides_')) return 'slides';
-  if (value.startsWith('slack_')) return 'slack';
-  return undefined;
-}
-
-function validScheduleTime(value: string): string {
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) throw new Error('Choose a valid schedule time.');
-  return date.toISOString();
-}
-
-function validScheduleRunLimit(value: number): number {
-  if (!Number.isSafeInteger(value) || value < 1 || value > 10_000) {
-    throw new Error('Schedule run limit must be between 1 and 10,000.');
-  }
-  return value;
-}
-
-/** A one-time schedule runs once; recurring ones repeat until paused or deleted. */
-function defaultScheduleRunLimit(cadence: ScheduleView['cadence']): number | undefined {
-  return cadence === 'once' ? 1 : undefined;
-}
-
-/** Recurring schedules used to stop after this many runs unless the person chose otherwise. */
-const LEGACY_RECURRING_RUN_LIMIT = 10;
-
-/** Keeps only the details a cadence uses, so a saved schedule never carries stale ones. */
-function scheduleRuleFields(
-  rule: ScheduleRule,
-  firstRun: Date,
-): Pick<ScheduleView, 'cadence' | 'days' | 'everyHours'> {
-  if (rule.cadence === 'weekly') {
-    const days = normalizeScheduleDays(rule.days);
-    return { cadence: 'weekly', days: days.length ? days : [firstRun.getDay()] };
-  }
-  if (rule.cadence === 'hourly' && rule.everyHours !== undefined) {
-    return { cadence: 'hourly', everyHours: everyHoursOf(rule) };
-  }
-  return { cadence: rule.cadence };
-}
-
-function textAttachmentPreview(
-  extension: string,
-): { format: 'text' | 'code' | 'diff' | 'csv'; language?: string } | undefined {
-  if (extension === '.csv' || extension === '.tsv') {
-    return { format: 'csv', language: extension.slice(1).toUpperCase() };
-  }
-  if (extension === '.diff' || extension === '.patch') {
-    return { format: 'diff', language: 'Diff' };
-  }
-  const languages: Readonly<Record<string, string>> = {
-    '.css': 'CSS',
-    '.go': 'Go',
-    '.html': 'HTML',
-    '.js': 'JavaScript',
-    '.json': 'JSON',
-    '.jsx': 'JSX',
-    '.py': 'Python',
-    '.rb': 'Ruby',
-    '.rs': 'Rust',
-    '.sh': 'Shell',
-    '.sql': 'SQL',
-    '.toml': 'TOML',
-    '.ts': 'TypeScript',
-    '.tsx': 'TSX',
-    '.xml': 'XML',
-    '.yaml': 'YAML',
-    '.yml': 'YAML',
-  };
-  if (languages[extension]) return { format: 'code', language: languages[extension] };
-  if (['.log', '.md', '.txt'].includes(extension)) return { format: 'text' };
-  return undefined;
-}
-
-function upsertScheduleRun(
-  schedule: ScheduleView,
-  run: NonNullable<ScheduleView['lastRun']>,
-): void {
-  schedule.runHistory = [
-    run,
-    ...(schedule.runHistory ?? []).filter(({ id }) => id !== run.id),
-  ].slice(0, SCHEDULE_RUN_HISTORY_LIMIT);
-}
-
-function jsonSafeValue(value: unknown): unknown {
-  try {
-    return JSON.parse(JSON.stringify(value)) as unknown;
-  } catch {
-    return { serializationError: 'The raw event was not JSON-serializable.' };
-  }
-}
-
-function researchSyncErrorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message.trim() : '';
-  if (!message) return 'The encrypted research outbox could not reach AWS.';
-  return message.length > 240 ? `${message.slice(0, 237)}…` : message;
-}
-
-function expandRawResearchEvents(
-  events: readonly RawResearchEventRecord[],
-): RawResearchEventRecord[] {
-  const expanded: RawResearchEventRecord[] = [];
-  for (const event of events) {
-    const body = Buffer.from(JSON.stringify(event.payload.data ?? null), 'utf8');
-    if (body.byteLength <= MAX_RAW_EVENT_JSON_BYTES) {
-      expanded.push(event);
-      continue;
-    }
-    const chunkCount = Math.ceil(body.byteLength / MAX_RAW_EVENT_JSON_BYTES);
-    for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
-      expanded.push({
-        ...event,
-        id: randomUUID(),
-        kind: 'raw.event_chunk',
-        payload: {
-          schemaVersion: 1,
-          threadId: event.payload.threadId,
-          turnId: event.payload.turnId,
-          eventType: event.payload.eventType,
-          eventId: event.id,
-          ...(event.payload.sequence === undefined ? {} : { sequence: event.payload.sequence }),
-          encoding: 'base64-json',
-          chunkIndex,
-          chunkCount,
-          chunkData: body
-            .subarray(
-              chunkIndex * MAX_RAW_EVENT_JSON_BYTES,
-              (chunkIndex + 1) * MAX_RAW_EVENT_JSON_BYTES,
-            )
-            .toString('base64'),
-        },
-      });
-    }
-  }
-  return expanded;
-}
-
-function partitionRawResearchEvents(
-  events: readonly RawResearchEventRecord[],
-): RawResearchEventRecord[][] {
-  const partitions: RawResearchEventRecord[][] = [];
-  let current: RawResearchEventRecord[] = [];
-  let bytes = 0;
-  const targetBytes = MAX_LOCAL_RESEARCH_BATCH_BYTES - 256 * 1024;
-  for (const event of events) {
-    const eventBytes = Buffer.byteLength(JSON.stringify(event), 'utf8');
-    if (current.length && bytes + eventBytes > targetBytes) {
-      partitions.push(current);
-      current = [];
-      bytes = 0;
-    }
-    current.push(event);
-    bytes += eventBytes;
-  }
-  if (current.length) partitions.push(current);
-  return partitions;
-}
-
-/**
- * What "Allow for this task" covers for a Sia-hosted action: the same kind of action on the same
- * app, site, account, recipients or item. Saved skills and uploads always ask, because each run or
- * file is different content. Hard safety denials run before this and are never granted.
- */
-function gatewayTaskGrant(
-  toolName: string,
-  argumentsValue: Readonly<Record<string, unknown>>,
-): string | undefined {
-  if (toolName.startsWith('skill_') || toolName.includes('upload')) return undefined;
-  const parts = [toolName];
-  for (const key of [
-    'operation',
-    'calendar',
-    'list',
-    'application',
-    'app_id',
-    'origin',
-    'account_id',
-    'channel_id',
-    'recipient',
-    'resource_id',
-    'document_id',
-    'spreadsheet_id',
-    'presentation_id',
-    'schedule_id',
-    'name',
-  ]) {
-    const value = argumentsValue[key];
-    if (typeof value === 'string') parts.push(`${key}=${value}`);
-  }
-  if (typeof argumentsValue.url === 'string') {
-    try {
-      parts.push(`url=${new URL(argumentsValue.url).origin}`);
-    } catch {
-      return undefined;
-    }
-  }
-  const recipients = [...stringArray(argumentsValue.to), ...stringArray(argumentsValue.cc)];
-  if (recipients.length)
-    parts.push(
-      `to=${recipients
-        .map((value) => value.trim().toLowerCase())
-        .sort()
-        .join(',')}`,
-    );
-  return parts.join('\u0000');
-}
-
-function attachmentKind(path: string): AttachmentView['kind'] {
-  const extension = extname(path).toLocaleLowerCase();
-  if (
-    ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.heic', '.heif', '.bmp', '.tiff'].includes(
-      extension,
-    )
-  ) {
-    return 'image';
-  }
-  if (['.mp3', '.wav', '.m4a', '.aac', '.flac', '.ogg', '.opus'].includes(extension)) {
-    return 'audio';
-  }
-  return 'file';
-}
-
-function previewImageMimeType(path: string): string | undefined {
-  return {
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.gif': 'image/gif',
-    '.webp': 'image/webp',
-    '.bmp': 'image/bmp',
-  }[extname(path).toLocaleLowerCase()];
-}
-
-function searchExcerpt(value: string, needle: string): string {
-  const compact = value.replace(/\s+/g, ' ').trim();
-  const index = compact.toLocaleLowerCase().indexOf(needle);
-  if (index < 0) return compact.slice(0, 180);
-  const start = Math.max(0, index - 60);
-  const end = Math.min(compact.length, index + needle.length + 100);
-  return `${start > 0 ? '…' : ''}${compact.slice(start, end)}${end < compact.length ? '…' : ''}`;
-}
-
-function extractHttpUrls(value: string): string[] {
-  return [...value.matchAll(/https?:\/\/[^\s<>()]+/gi)].map((match) =>
-    match[0].replace(/[),.;!?]+$/, ''),
-  );
-}
-
-function safeUrlHost(value: string): string {
-  try {
-    return new URL(value).hostname;
-  } catch {
-    return 'Link';
-  }
-}
-
-function isCleanHttpsUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return Boolean(url.protocol === 'https:' && !url.username && !url.password && !url.hash);
-  } catch {
-    return false;
-  }
-}
-
-function compareVersions(left: string, right: string): number {
-  const parse = (value: string) => {
-    const [core = '', prerelease] = value.replace(/^v/, '').split('-', 2);
-    return {
-      core: core.split('.').map((part) => Number.parseInt(part, 10) || 0),
-      prerelease: prerelease?.split('.'),
-    };
-  };
-  const leftVersion = parse(left);
-  const rightVersion = parse(right);
-  const leftParts = leftVersion.core;
-  const rightParts = rightVersion.core;
-  for (let index = 0; index < Math.max(leftParts.length, rightParts.length); index += 1) {
-    const difference = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
-    if (difference !== 0) return difference;
-  }
-  if (!leftVersion.prerelease && rightVersion.prerelease) return 1;
-  if (leftVersion.prerelease && !rightVersion.prerelease) return -1;
-  for (
-    let index = 0;
-    index < Math.max(leftVersion.prerelease?.length ?? 0, rightVersion.prerelease?.length ?? 0);
-    index += 1
-  ) {
-    const leftPart = leftVersion.prerelease?.[index];
-    const rightPart = rightVersion.prerelease?.[index];
-    if (leftPart === rightPart) continue;
-    if (leftPart === undefined) return -1;
-    if (rightPart === undefined) return 1;
-    const leftNumber = /^\d+$/.test(leftPart) ? Number(leftPart) : undefined;
-    const rightNumber = /^\d+$/.test(rightPart) ? Number(rightPart) : undefined;
-    if (leftNumber !== undefined && rightNumber !== undefined) return leftNumber - rightNumber;
-    if (leftNumber !== undefined) return -1;
-    if (rightNumber !== undefined) return 1;
-    return leftPart.localeCompare(rightPart);
-  }
-  return 0;
-}
-
-function worktreeLabel(title: string, id: string): string {
-  const slug = title
-    .normalize('NFKD')
-    .replace(/[^a-zA-Z0-9_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-  return `${slug || 'thread'}-${id}`;
-}
-
-function backgroundControlUnavailable(access: ComputerPermissionsView): string | undefined {
-  if (access.status === 'ready') return undefined;
-  if (access.status === 'needs_permission') {
-    // Only a permission skipped during setup reaches here; name it plainly.
-    if (access.relaunchFor?.length)
-      return 'Mac access is turned on, but Sia needs to reopen before it can use it. Quit and reopen Sia, then press Continue task.';
-    const missing = [
-      access.accessibility ? '' : 'control your Mac (Accessibility)',
-      access.screenRecording ? '' : 'see your screen (Screen Recording)',
-    ].filter(Boolean);
-    return `To work in the background, Sia needs permission to ${missing.join(' and ')}. Allow it in Settings → Computer, then press Continue task.`;
-  }
-  return 'Working in the background isn’t available on this Mac right now. Choose On my screen in Settings → Computer, then press Continue task.';
 }
