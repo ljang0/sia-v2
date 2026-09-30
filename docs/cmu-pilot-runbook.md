@@ -28,8 +28,8 @@ safe, and easy to support. It is not approval for public distribution or a resea
 - Use my Mac works in the background by default; Sia keeps the display awake during a task and
   pauses it if the Mac locks or sleeps (unlock and press **Continue task**). Choose **On my
   screen** in Settings → Computer for native scripts or full file control.
-- New one-time schedules stop after one run. New recurring schedules stop after ten runs unless the
-  tester selects another finite limit. Sia must remain open and the Mac awake for local schedules
+- New one-time schedules stop after one run. New recurring schedules repeat until they are paused or
+  deleted unless the tester sets an optional run limit. Sia must remain open and the Mac awake for local schedules
   to run. **Scheduled** in the sidebar lists, edits, pauses and runs every schedule.
 - Google begins read-only. The initial pilot does not include Gmail send, file editing, sharing, or
   Slack posting.

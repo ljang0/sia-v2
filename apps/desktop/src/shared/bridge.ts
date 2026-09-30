@@ -645,7 +645,8 @@ export interface UpdateScheduleInput {
   days?: number[];
   everyHours?: number;
   nextRunAt?: string;
-  maxRuns?: number;
+  /** null removes the limit, so a recurring schedule repeats until paused or deleted. */
+  maxRuns?: number | null;
   enabled?: boolean;
 }
 

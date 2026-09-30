@@ -38,6 +38,7 @@ export const KEYBOARD_SHORTCUTS: readonly { keys: string; label: string }[] = [
   { keys: '⌘1–9', label: 'Open a conversation from the sidebar' },
   { keys: '⌘F', label: 'Find in this conversation' },
   { keys: 'Esc', label: 'Stop the running task' },
+  { keys: '⌃Esc', label: 'Stop Sia using your screen, from any app' },
   { keys: '↩', label: 'Send' },
   { keys: '⇧↩', label: 'New line' },
   { keys: '↑', label: 'Bring back a message you sent (in an empty message box)' },

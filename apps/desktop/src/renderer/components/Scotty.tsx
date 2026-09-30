@@ -361,7 +361,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
                 {task.screen && (
                   <small className={styles.screen}>
                     {task.screen === 'foreground'
-                      ? 'Using your screen · Press Esc to stop'
+                      ? 'Using your screen · Press ⌃Esc to stop'
                       : 'Working quietly in the background'}
                   </small>
                 )}
