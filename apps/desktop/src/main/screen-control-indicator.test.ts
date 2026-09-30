@@ -95,7 +95,7 @@ function fakes() {
   return { indicator, overlay, registered, shortcuts, stop, status };
 }
 
-it('shows the cue and holds Esc only while an On my screen task works', () => {
+it('shows the cue and holds ⌃Esc only while an On my screen task works', () => {
   const { indicator, overlay, registered, shortcuts, status } = fakes();
   indicator.update({});
   expect(indicator.shown).toBe(false);
@@ -126,7 +126,7 @@ it('shows the cue and holds Esc only while an On my screen task works', () => {
   expect(status).toHaveBeenLastCalledWith(undefined);
 });
 
-it('Esc stops every On my screen task and releases itself at once', () => {
+it('⌃Esc stops every On my screen task and releases itself at once', () => {
   const { indicator, registered, stop } = fakes();
   indicator.update({ a: 'foreground', b: 'background', c: 'foreground' });
   registered.get(STOP_SHORTCUT)!();
@@ -148,7 +148,7 @@ it('hides on lock or sleep and returns when the task resumes', () => {
   expect(registered.size).toBe(1);
 });
 
-it('does not claim Esc when another app already holds it', () => {
+it('does not claim ⌃Esc when another app already holds it', () => {
   const { indicator, shortcuts } = fakes();
   shortcuts.register.mockReturnValue(false);
   indicator.update({ a: 'foreground' });
@@ -158,7 +158,7 @@ it('does not claim Esc when another app already holds it', () => {
   expect(shortcuts.unregister).not.toHaveBeenCalled();
 });
 
-it('releases Esc and the overlay on dispose', () => {
+it('releases ⌃Esc and the overlay on dispose', () => {
   const { indicator, overlay, registered, status } = fakes();
   indicator.update({ a: 'foreground' });
   indicator.dispose();
@@ -210,18 +210,23 @@ it('draws click-through, capture-protected panels on every display', async () =>
   expect(decodeURIComponent(electron.windows[1].loadURL.mock.calls[0][0])).toContain(
     'top:33px',
   );
-  expect(electron.shortcuts.has('Escape')).toBe(true);
+  expect(decodeURIComponent(electron.windows[0].loadURL.mock.calls[0][0])).toContain(
+    'Press <kbd>⌃Esc</kbd> to stop',
+  );
+  // Plain Escape stays with apps, so an Escape the task types never stops it.
+  expect(electron.shortcuts.has('Escape')).toBe(false);
+  expect(electron.shortcuts.has('Control+Escape')).toBe(true);
 
-  electron.shortcuts.get('Escape')!();
+  electron.shortcuts.get('Control+Escape')!();
   expect(invoke).toHaveBeenCalledWith('threads.cancel', { threadId: 't1' });
   expect(electron.windows.every((window) => !window.visible)).toBe(true);
-  expect(electron.shortcuts.has('Escape')).toBe(false);
+  expect(electron.shortcuts.has('Control+Escape')).toBe(false);
 
-  // A crashed overlay renderer is rebuilt on the next update; Esc keeps working.
+  // A crashed overlay renderer is rebuilt on the next update; ⌃Esc keeps working.
   change({ t2: 'foreground' });
   electron.windows[0].crash();
   expect(electron.windows[0].destroyed).toBe(true);
-  expect(electron.shortcuts.has('Escape')).toBe(true);
+  expect(electron.shortcuts.has('Control+Escape')).toBe(true);
   change({ t2: 'foreground' });
   expect(electron.windows).toHaveLength(3);
   expect(electron.windows[2].visible).toBe(true);

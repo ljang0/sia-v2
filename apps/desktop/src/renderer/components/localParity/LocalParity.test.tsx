@@ -302,9 +302,7 @@ describe('local parity renderer contracts', () => {
       'Summarize my inbox',
     );
     expect((screen.getByLabelText('Repeat') as HTMLSelectElement).value).toBe('daily');
-    expect(
-      screen.getByText(/^Runs every day at 8:00.AM, starting .+, 30 times in all\.$/),
-    ).toBeTruthy();
+    expect(screen.getByText(/^Runs every day at 8:00.AM, starting [^,]+\.$/)).toBeTruthy();
     // The empty state steps aside while the form is open.
     expect(screen.queryByText('No schedules yet.')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Create schedule' }));
@@ -313,13 +311,16 @@ describe('local parity renderer contracts', () => {
         expect.objectContaining({
           cadence: 'daily',
           runAt: expect.stringMatching(/T08:00$/),
-          maxRuns: 30,
         }),
       ),
     );
+    // A recurring idea repeats until paused or deleted.
+    expect(onCreate.mock.calls[0]).toEqual([
+      expect.not.objectContaining({ maxRuns: expect.anything() }),
+    ]);
   });
 
-  it('asks for a run limit only when a schedule repeats', () => {
+  it('offers an optional run limit only when a schedule repeats', () => {
     render(
       <ScheduleControls
         schedules={[]}
@@ -332,10 +333,13 @@ describe('local parity renderer contracts', () => {
     fireEvent.click(screen.getByRole('button', { name: 'New schedule' }));
     expect(screen.queryByRole('spinbutton', { name: 'Stop after how many runs' })).toBeNull();
     fireEvent.change(screen.getByLabelText('Repeat'), { target: { value: 'weekly' } });
-    expect(
-      (screen.getByRole('spinbutton', { name: 'Stop after how many runs' }) as HTMLInputElement)
-        .value,
-    ).toBe('10');
+    const limit = screen.getByRole('spinbutton', {
+      name: 'Stop after how many runs',
+    }) as HTMLInputElement;
+    expect(limit.value).toBe('');
+    expect(limit.placeholder).toBe('No limit');
+    fireEvent.change(limit, { target: { value: '5' } });
+    expect(screen.getByText(/, 5 times in all\.$/)).toBeTruthy();
   });
 
   it('infers the first run when a recurring schedule omits it', async () => {
@@ -362,7 +366,6 @@ describe('local parity renderer contracts', () => {
       cadence: 'hourly',
       everyHours: 1,
       runAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
-      maxRuns: 10,
     });
   });
 
@@ -415,7 +418,7 @@ describe('local parity renderer contracts', () => {
     ]);
   });
 
-  it('edits a schedule in place and restarts a finished one with its new plan', async () => {
+  it('edits a schedule in place and restarts a finished one with no limit', async () => {
     const onSave = vi.fn(async () => undefined);
     render(
       <ScheduleControls
@@ -446,7 +449,7 @@ describe('local parity renderer contracts', () => {
     expect(
       (screen.getByRole('spinbutton', { name: 'How many more runs' }) as HTMLInputElement)
         .value,
-    ).toBe('10');
+    ).toBe('');
     fireEvent.change(task, { target: { value: 'Summarize updates and my calendar' } });
     fireEvent.change(screen.getByLabelText('Repeat'), { target: { value: 'hourly' } });
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Hours between runs' }), {
@@ -459,12 +462,64 @@ describe('local parity renderer contracts', () => {
         cadence: 'hourly',
         everyHours: 3,
         nextRunAt: expect.any(String),
-        maxRuns: 20,
+        maxRuns: null,
         enabled: true,
       }),
     );
     await waitFor(() =>
       expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull(),
+    );
+  });
+
+  it('keeps a chosen run limit when editing and clears it when the field is emptied', async () => {
+    const onSave = vi.fn(async () => undefined);
+    const schedule = {
+      id: 'schedule-2',
+      label: 'Weekly recap',
+      prompt: 'Recap my week',
+      cadence: 'daily' as const,
+      nextRunAt: new Date(2030, 7, 26, 9).toISOString(),
+      enabled: true,
+      runCount: 2,
+      maxRuns: 5,
+    };
+    render(
+      <ScheduleControls
+        schedules={[schedule]}
+        onCreate={vi.fn()}
+        onSave={onSave}
+        onSetEnabled={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('2 runs of 5')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Weekly recap' }));
+    const left = screen.getByRole('spinbutton', {
+      name: 'How many more runs',
+    }) as HTMLInputElement;
+    expect(left.value).toBe('3');
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() =>
+      expect(onSave).toHaveBeenLastCalledWith(
+        'schedule-2',
+        expect.objectContaining({ maxRuns: 5 }),
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull(),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Weekly recap' }));
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'How many more runs' }), {
+      target: { value: '' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() =>
+      expect(onSave).toHaveBeenLastCalledWith(
+        'schedule-2',
+        expect.objectContaining({ maxRuns: null }),
+      ),
     );
   });
 

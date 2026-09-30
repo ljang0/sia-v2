@@ -233,7 +233,7 @@ const inputSchemas = {
       days: scheduleDays.optional(),
       everyHours: scheduleEveryHours.optional(),
       nextRunAt: z.string().datetime({ offset: true }).optional(),
-      maxRuns: z.number().int().min(1).max(10_000).optional(),
+      maxRuns: z.number().int().min(1).max(10_000).nullable().optional(),
       enabled: z.boolean().optional(),
     })
     .strict(),
