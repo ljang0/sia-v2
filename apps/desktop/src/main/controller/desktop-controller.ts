@@ -177,6 +177,11 @@ const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
   'auth.signOut',
 ]);
 
+type BridgeHandler<M extends BridgeMethod> = (
+  input: BridgeRequestMap[M],
+) => BridgeResultMap[M] | Promise<BridgeResultMap[M]>;
+type BridgeHandlers = { [M in BridgeMethod]?: BridgeHandler<M> };
+
 export class DesktopController {
   readonly #repository: RecordRepository;
   readonly #assistantLibrary: AssistantLibrary;
@@ -1555,702 +1560,515 @@ export class DesktopController {
     if (this.#releaseAccessLocked() && !SIGN_IN_BRIDGE_METHODS.has(method)) {
       throw new Error('Sign in to Sia to continue.');
     }
-    switch (method) {
-      case 'bootstrap':
-        return this.#resultSnapshot() as BridgeResultMap[M];
-      case 'scotty.configure':
-        if (!this.#scotty) throw new Error('Scotty is unavailable in this build.');
-        return (await this.#scotty(
-          input as BridgeRequestMap['scotty.configure'],
-        )) as BridgeResultMap[M];
-      case 'phone.remote':
-        if (!this.#phoneRemote) throw new Error('Phone remote is unavailable in this build.');
-        return (await this.#phoneRemote(
-          input as BridgeRequestMap['phone.remote'],
-        )) as BridgeResultMap[M];
-      case 'agents.save':
-        return (await this.#saveAgent(
-          input as BridgeRequestMap['agents.save'],
-        )) as BridgeResultMap[M];
-      case 'assistant.library': {
-        this.#requireSignedInReleaseAccount();
-        const command = input as BridgeRequestMap['assistant.library'];
-        if (command.operation === 'saveVaultNote' || command.operation === 'deleteVaultNote') {
-          if (this.computerAccessMode() !== 'mac')
-            throw new Error('Native vault edits require Use my Mac.');
-          if (
-            [...this.#runningTurns.keys()].some(
-              (id) => this.#requireThread(id).agentId === command.agentId,
-            )
-          )
-            throw new Error('Wait for this agent’s task to finish before editing its vault.');
-          const vault = this.#notchVault(command.agentId);
-          if (command.operation === 'saveVaultNote')
-            vault.write(command.name, command.text, command.revision);
-          else vault.remove(command.name, command.revision);
-          return this.#libraryView() as BridgeResultMap[M];
-        }
-        if (command.operation === 'nativeLearning' && this.computerAccessMode() !== 'mac')
-          throw new Error('Enable Use my Mac before turning on native learning.');
-        if (command.operation === 'saveSkill' && command.entry.execution === 'native') {
-          if (this.computerAccessMode() !== 'mac')
-            throw new Error('Native skills require Use my Mac.');
-          this.#nativeSkills(command.entry.agentId).save(command.entry);
-          return this.#libraryView() as BridgeResultMap[M];
-        }
-        if (command.operation === 'deleteSkill') {
-          const native = this.#libraryView().skills?.find(
-            (skill) => skill.id === command.id && skill.execution === 'native',
-          );
-          if (native) {
-            this.#nativeSkills(native.agentId).remove(native.id);
-            return this.#libraryView() as BridgeResultMap[M];
-          }
-        }
-        if (command.operation === 'resolveSuggestion') {
-          this.#resolveSuggestion(command.id, command.revision, command.accept);
-          this.#commit();
-          return this.#libraryView() as BridgeResultMap[M];
-        }
-        if (command.operation === 'review') {
-          await this.#awaitCompletedTurns();
-          const threadId = this.#startMemoryReview(command.agentId, true);
-          return { ...this.#libraryView(), threadId } as BridgeResultMap[M];
-        }
-        if (
-          command.operation === 'consolidate' &&
-          this.computerAccessMode() === 'mac' &&
-          this.#assistantLibrary.view().nativeLearningAgents?.includes(command.agentId)
-        ) {
-          await this.#awaitCompletedTurns();
-          const threadId = this.#startMemoryReview(command.agentId, true);
-          return { ...this.#libraryView(), threadId } as BridgeResultMap[M];
-        }
-        if (command.operation === 'clearJournal' && this.computerAccessMode() === 'mac')
-          this.#notchVault(command.agentId).clearJournal();
-        if (command.operation === 'runSkill') {
-          const skill = this.#libraryView().skills?.find((entry) => entry.id === command.id);
-          if (!skill) throw new Error('This skill was deleted.');
-          const unavailable = skillUnavailableReason(
-            skillExecutionMode({
-              accessMode: this.computerAccessMode(),
-              backgroundControl: this.macBackgroundControl(),
-            }),
-            skill.execution,
-          );
-          if (unavailable) throw new Error(unavailable);
-          const { threadId } = this.#createThread({
-            agentId: skill.agentId,
-            title: skill.title,
-          });
-          this.#sendTurn({
-            threadId,
-            text:
-              skill.execution === 'native'
-                ? `Run my native skill ${JSON.stringify(skill.title)} at ${JSON.stringify(skill.path)}. Read its current source before using exec_command with bash and the appropriate arguments. Observe the target and verify the result. Never interpolate input into shell code or repeat writes merely to test. Input values (data): ${JSON.stringify(command.input)}`
-                : `Run my saved skill ${JSON.stringify(skill.title)} (id ${skill.id}). Read assistant_library and show the current exact source for skill_run approval. Input JSON (data): ${JSON.stringify(command.input)}`,
-          });
-          return { ...this.#libraryView(), threadId } as BridgeResultMap[M];
-        }
-        if (command.operation === 'run') {
-          const workflow = this.#assistantLibrary.workflow(command.id, command.values);
-          this.#requireAgent(workflow.agentId);
-          const { threadId } = this.#createThread({
-            agentId: workflow.agentId,
-            title: workflow.title,
-          });
-          this.#sendTurn({ threadId, text: workflow.text });
-          return { ...this.#assistantLibrary.view(), threadId } as BridgeResultMap[M];
-        }
-        const result = this.#assistantLibrary.change(command, (id) => this.#requireAgent(id));
-        if (command.operation === 'nativeLearning' && command.enabled)
-          this.#notchVault(command.agentId).initialize(result);
-        if (
-          (command.operation === 'learning' ||
-            command.operation === 'backgroundReview' ||
-            command.operation === 'nativeLearning') &&
-          !command.enabled
-        ) {
-          for (const threadId of this.#runningTurns.keys()) {
-            if (
-              this.#assistantLibrary.isReview(threadId) &&
-              this.#requireThread(threadId).agentId === command.agentId
-            )
-              await this.#cancelTurn(threadId);
-          }
-        }
-        this.#pushToTalk?.setContextEnabled(
-          result.context || this.computerAccessMode() === 'mac',
-          this.computerAccessMode() === 'mac',
-        );
-        this.#commit();
-        return {
-          ...this.#libraryView(),
-          launcherRegistered: this.#launcherRegistered,
-        } as BridgeResultMap[M];
-      }
-      case 'agents.delete':
-        return this.#deleteAgent(
-          (input as BridgeRequestMap['agents.delete']).agentId,
-        ) as BridgeResultMap[M];
-      case 'agents.setPinned':
-        return this.#setAgentPinned(
-          input as BridgeRequestMap['agents.setPinned'],
-        ) as BridgeResultMap[M];
-      case 'agents.setNotifications':
-        return this.#setAgentNotifications(
-          input as BridgeRequestMap['agents.setNotifications'],
-        ) as BridgeResultMap[M];
-      case 'agents.duplicate':
-        return this.#duplicateAgent(
-          (input as BridgeRequestMap['agents.duplicate']).agentId,
-        ) as BridgeResultMap[M];
-      case 'threads.create':
-        return this.#openNewThread(
-          input as BridgeRequestMap['threads.create'],
-        ) as BridgeResultMap[M];
-      case 'threads.select':
-        return this.#selectThread(
-          (input as BridgeRequestMap['threads.select']).threadId,
-        ) as BridgeResultMap[M];
-      case 'threads.rename':
-        return this.#renameThread(
-          input as BridgeRequestMap['threads.rename'],
-        ) as BridgeResultMap[M];
-      case 'threads.draft':
-        return this.#setThreadDraft(
-          input as BridgeRequestMap['threads.draft'],
-        ) as BridgeResultMap[M];
-      case 'threads.config':
-        return this.#configureThread(
-          input as BridgeRequestMap['threads.config'],
-        ) as BridgeResultMap[M];
-      case 'threads.archive':
-        return this.#archiveThread(
-          (input as BridgeRequestMap['threads.archive']).threadId,
-        ) as BridgeResultMap[M];
-      case 'threads.unarchive':
-        return this.#unarchiveThread(
-          (input as BridgeRequestMap['threads.unarchive']).threadId,
-        ) as BridgeResultMap[M];
-      case 'threads.setUnread':
-        return this.#setThreadUnread(
-          input as BridgeRequestMap['threads.setUnread'],
-        ) as BridgeResultMap[M];
-      case 'threads.setPinned':
-        return this.#setThreadPinned(
-          input as BridgeRequestMap['threads.setPinned'],
-        ) as BridgeResultMap[M];
-      case 'threads.fork':
-        return (await this.#forkThread(
-          input as BridgeRequestMap['threads.fork'],
-        )) as BridgeResultMap[M];
-      case 'threads.handoff':
-        return (await this.#handoffThread(
-          input as BridgeRequestMap['threads.handoff'],
-        )) as BridgeResultMap[M];
-      case 'worktrees.cleanup':
-        return (await this.#cleanupWorktree(
-          input as BridgeRequestMap['worktrees.cleanup'],
-        )) as BridgeResultMap[M];
-      case 'threads.search':
-        return this.#searchThreads(
-          (input as BridgeRequestMap['threads.search']).query,
-        ) as BridgeResultMap[M];
-      case 'threads.goal.set':
-        return this.#setGoal(
-          input as BridgeRequestMap['threads.goal.set'],
-        ) as BridgeResultMap[M];
-      case 'threads.goal.pause':
-        return this.#pauseGoal(
-          (input as BridgeRequestMap['threads.goal.pause']).threadId,
-        ) as BridgeResultMap[M];
-      case 'threads.goal.resume':
-        return this.#resumeGoal(
-          (input as BridgeRequestMap['threads.goal.resume']).threadId,
-        ) as BridgeResultMap[M];
-      case 'threads.goal.clear':
-        return this.#clearGoal(
-          (input as BridgeRequestMap['threads.goal.clear']).threadId,
-        ) as BridgeResultMap[M];
-      case 'threads.delete':
-        return this.#deleteThread(
-          (input as BridgeRequestMap['threads.delete']).threadId,
-        ) as BridgeResultMap[M];
-      case 'threads.send':
-        return this.#sendTurn(input as BridgeRequestMap['threads.send']) as BridgeResultMap[M];
-      case 'threads.retry':
-        return this.#retryTurn(
-          (input as BridgeRequestMap['threads.retry']).threadId,
-        ) as BridgeResultMap[M];
-      case 'threads.redo':
-        return (await this.#redoLastTurn(
-          input as BridgeRequestMap['threads.redo'],
-        )) as BridgeResultMap[M];
-      case 'threads.unqueue':
-        return this.#unqueueMessage(
-          (input as BridgeRequestMap['threads.unqueue']).threadId,
-          (input as BridgeRequestMap['threads.unqueue']).messageId,
-        ) as BridgeResultMap[M];
-      case 'threads.cancel':
-        return (await this.#cancelTurn(
-          (input as BridgeRequestMap['threads.cancel']).threadId,
-        )) as BridgeResultMap[M];
-      case 'threads.steer':
-        return (await this.#steerQueuedMessage(
-          (input as BridgeRequestMap['threads.steer']).threadId,
-          (input as BridgeRequestMap['threads.steer']).messageId,
-        )) as BridgeResultMap[M];
-      case 'attachments.pick':
-        return (await this.#pickAttachments(
-          (input as BridgeRequestMap['attachments.pick']).threadId,
-        )) as BridgeResultMap[M];
-      case 'attachments.drop':
-        return (await this.#grantAttachments(
-          (input as BridgeRequestMap['attachments.drop']).threadId,
-          (input as BridgeRequestMap['attachments.drop']).paths,
-        )) as BridgeResultMap[M];
-      case 'attachments.paste':
-        return (await this.#pasteAttachment(
-          input as BridgeRequestMap['attachments.paste'],
-        )) as BridgeResultMap[M];
-      case 'attachments.preview':
-        return (await this.#previewAttachment(
-          input as BridgeRequestMap['attachments.preview'],
-        )) as BridgeResultMap[M];
-      case 'attachments.open':
-        return (await this.#openAttachment(
-          input as BridgeRequestMap['attachments.open'],
-        )) as BridgeResultMap[M];
-      case 'attachments.reveal':
-        return (await this.#revealAttachment(
-          input as BridgeRequestMap['attachments.reveal'],
-        )) as BridgeResultMap[M];
-      case 'changes.read':
-        return (await this.#readChanges(
-          (input as BridgeRequestMap['changes.read']).threadId,
-        )) as BridgeResultMap[M];
-      case 'changes.stage':
-        return (await this.#stageChanges(
-          input as BridgeRequestMap['changes.stage'],
-        )) as BridgeResultMap[M];
-      case 'changes.restore':
-        return (await this.#restoreChanges(
-          input as BridgeRequestMap['changes.restore'],
-        )) as BridgeResultMap[M];
-      case 'changes.snapshots.list':
-        return (await this.#listWorkspaceSnapshots(
-          (input as BridgeRequestMap['changes.snapshots.list']).threadId,
-        )) as BridgeResultMap[M];
-      case 'changes.snapshots.create':
-        return (await this.#createWorkspaceSnapshot(
-          (input as BridgeRequestMap['changes.snapshots.create']).threadId,
-        )) as BridgeResultMap[M];
-      case 'changes.snapshots.restore':
-        return (await this.#restoreWorkspaceSnapshot(
-          input as BridgeRequestMap['changes.snapshots.restore'],
-        )) as BridgeResultMap[M];
-      case 'changes.snapshots.delete':
-        return (await this.#deleteWorkspaceSnapshot(
-          input as BridgeRequestMap['changes.snapshots.delete'],
-        )) as BridgeResultMap[M];
-      case 'changes.turn.read':
-        return (await this.#readTurnChanges(
-          input as BridgeRequestMap['changes.turn.read'],
-        )) as BridgeResultMap[M];
-      case 'changes.turn.apply':
-        return (await this.#applyTurnChanges(
-          input as BridgeRequestMap['changes.turn.apply'],
-        )) as BridgeResultMap[M];
-      case 'terminal.run':
-        return (await this.#runTerminal(
-          input as BridgeRequestMap['terminal.run'],
-        )) as BridgeResultMap[M];
-      case 'terminal.start':
-        return (await this.#startBackgroundTerminal(
-          input as BridgeRequestMap['terminal.start'],
-        )) as BridgeResultMap[M];
-      case 'terminal.list':
-        return (await this.#listBackgroundTerminals(
-          (input as BridgeRequestMap['terminal.list']).threadId,
-        )) as BridgeResultMap[M];
-      case 'terminal.write':
-        return (await this.#writeBackgroundTerminal(
-          input as BridgeRequestMap['terminal.write'],
-        )) as BridgeResultMap[M];
-      case 'terminal.stop':
-        return (await this.#stopBackgroundTerminal(
-          input as BridgeRequestMap['terminal.stop'],
-        )) as BridgeResultMap[M];
-      case 'reviews.start':
-        return this.#startReview(
-          input as BridgeRequestMap['reviews.start'],
-        ) as BridgeResultMap[M];
-      case 'schedules.create':
-        return this.#createSchedule(
-          input as BridgeRequestMap['schedules.create'],
-        ) as BridgeResultMap[M];
-      case 'schedules.update':
-        this.#applyScheduleUpdate(
-          this.#requireSchedule((input as BridgeRequestMap['schedules.update']).scheduleId),
-          input as BridgeRequestMap['schedules.update'],
-        );
-        return this.#resultSnapshot() as BridgeResultMap[M];
-      case 'schedules.setEnabled':
-        return this.#setScheduleEnabled(
-          input as BridgeRequestMap['schedules.setEnabled'],
-        ) as BridgeResultMap[M];
-      case 'schedules.delete':
-        return this.#deleteSchedule(
-          (input as BridgeRequestMap['schedules.delete']).scheduleId,
-        ) as BridgeResultMap[M];
-      case 'schedules.runNow':
-        return this.#runScheduleNow(
-          (input as BridgeRequestMap['schedules.runNow']).scheduleId,
-        ) as BridgeResultMap[M];
-      case 'approvals.resolve':
-        return this.#resolveApproval(
-          input as BridgeRequestMap['approvals.resolve'],
-        ) as BridgeResultMap[M];
-      case 'providers.probe':
-        return (await this.#probeProviders(
-          (input as BridgeRequestMap['providers.probe']).providerId,
-        )) as unknown as BridgeResultMap[M];
-      case 'providers.login':
-        return (await this.#providerLogin(
-          (input as BridgeRequestMap['providers.login']).providerId,
-        )) as unknown as BridgeResultMap[M];
-      case 'providers.cancelLogin':
-        this.#codexLoginAbort?.abort(new Error('ChatGPT sign-in was cancelled.'));
-        return this.#resultSnapshot() as BridgeResultMap[M];
-      case 'settings.openDirectory':
-        return { path: await this.#grantChosenDirectory() } as unknown as BridgeResultMap[M];
-      case 'settings.setOnboarding': {
-        const { step, permissionSetup } = input as BridgeRequestMap['settings.setOnboarding'];
-        const previous = this.#state.preferences.onboarding;
-        const candidateId = step === 'welcome' ? this.#state.activeAgentId : previous?.agentId;
-        const agent = this.#state.agents.find(({ id }) => id === candidateId);
-        if (
-          ['voice', 'access', 'apps', 'restart', 'verify', 'practice'].includes(step) &&
-          !agent
-        ) {
-          throw new Error('Create your agent before continuing setup.');
-        }
-        this.#state.preferences.onboarding = {
-          ...(step === 'welcome' ? {} : previous),
-          ...(permissionSetup ? { permissionSetup } : {}),
-          step,
-          ...(agent ? { agentId: agent.id } : {}),
-        };
-        this.#commit();
-        return this.#resultSnapshot() as BridgeResultMap[M];
-      }
-      case 'settings.restartForOnboarding': {
-        const progress = this.#state.preferences.onboarding;
-        if (
-          !progress ||
-          !['restart', 'verify'].includes(progress.step) ||
-          !this.#state.agents.some(({ id }) => id === progress.agentId)
+    const handler = this.#bridgeHandlers[method] as BridgeHandler<M> | undefined;
+    if (!handler) throw new Error(`Unknown desktop method: ${String(method)}`);
+    return await handler(input);
+  }
+
+  /** One canonical route per renderer bridge method. */
+  readonly #bridgeHandlers: BridgeHandlers = {
+    bootstrap: () => this.#resultSnapshot(),
+    'scotty.configure': (input) => this.#configureScotty(input),
+    'phone.remote': (input) => this.#phoneRemoteCommand(input),
+    'agents.save': (input) => this.#saveAgent(input),
+    'assistant.library': (input) => this.#assistantLibraryCommand(input),
+    'agents.delete': ({ agentId }) => this.#deleteAgent(agentId),
+    'agents.setPinned': (input) => this.#setAgentPinned(input),
+    'agents.setNotifications': (input) => this.#setAgentNotifications(input),
+    'agents.duplicate': ({ agentId }) => this.#duplicateAgent(agentId),
+    'threads.create': (input) => this.#openNewThread(input),
+    'threads.select': ({ threadId }) => this.#selectThread(threadId),
+    'threads.rename': (input) => this.#renameThread(input),
+    'threads.draft': (input) => this.#setThreadDraft(input),
+    'threads.config': (input) => this.#configureThread(input),
+    'threads.archive': ({ threadId }) => this.#archiveThread(threadId),
+    'threads.unarchive': ({ threadId }) => this.#unarchiveThread(threadId),
+    'threads.setUnread': (input) => this.#setThreadUnread(input),
+    'threads.setPinned': (input) => this.#setThreadPinned(input),
+    'threads.fork': (input) => this.#forkThread(input),
+    'threads.handoff': (input) => this.#handoffThread(input),
+    'worktrees.cleanup': (input) => this.#cleanupWorktree(input),
+    'threads.search': ({ query }) => this.#searchThreads(query),
+    'threads.goal.set': (input) => this.#setGoal(input),
+    'threads.goal.pause': ({ threadId }) => this.#pauseGoal(threadId),
+    'threads.goal.resume': ({ threadId }) => this.#resumeGoal(threadId),
+    'threads.goal.clear': ({ threadId }) => this.#clearGoal(threadId),
+    'threads.delete': ({ threadId }) => this.#deleteThread(threadId),
+    'threads.send': (input) => this.#sendTurn(input),
+    'threads.retry': ({ threadId }) => this.#retryTurn(threadId),
+    'threads.redo': (input) => this.#redoLastTurn(input),
+    'threads.unqueue': ({ threadId, messageId }) => this.#unqueueMessage(threadId, messageId),
+    'threads.cancel': ({ threadId }) => this.#cancelTurn(threadId),
+    'threads.steer': ({ threadId, messageId }) => this.#steerQueuedMessage(threadId, messageId),
+    'attachments.pick': ({ threadId }) => this.#pickAttachments(threadId),
+    'attachments.drop': ({ threadId, paths }) => this.#grantAttachments(threadId, paths),
+    'attachments.paste': (input) => this.#pasteAttachment(input),
+    'attachments.preview': (input) => this.#previewAttachment(input),
+    'attachments.open': (input) => this.#openAttachment(input),
+    'attachments.reveal': (input) => this.#revealAttachment(input),
+    'changes.read': ({ threadId }) => this.#readChanges(threadId),
+    'changes.stage': (input) => this.#stageChanges(input),
+    'changes.restore': (input) => this.#restoreChanges(input),
+    'changes.snapshots.list': ({ threadId }) => this.#listWorkspaceSnapshots(threadId),
+    'changes.snapshots.create': ({ threadId }) => this.#createWorkspaceSnapshot(threadId),
+    'changes.snapshots.restore': (input) => this.#restoreWorkspaceSnapshot(input),
+    'changes.snapshots.delete': (input) => this.#deleteWorkspaceSnapshot(input),
+    'changes.turn.read': (input) => this.#readTurnChanges(input),
+    'changes.turn.apply': (input) => this.#applyTurnChanges(input),
+    'terminal.run': (input) => this.#runTerminal(input),
+    'terminal.start': (input) => this.#startBackgroundTerminal(input),
+    'terminal.list': ({ threadId }) => this.#listBackgroundTerminals(threadId),
+    'terminal.write': (input) => this.#writeBackgroundTerminal(input),
+    'terminal.stop': (input) => this.#stopBackgroundTerminal(input),
+    'reviews.start': (input) => this.#startReview(input),
+    'schedules.create': (input) => this.#createSchedule(input),
+    'schedules.update': (input) => this.#updateSchedule(input),
+    'schedules.setEnabled': (input) => this.#setScheduleEnabled(input),
+    'schedules.delete': ({ scheduleId }) => this.#deleteSchedule(scheduleId),
+    'schedules.runNow': ({ scheduleId }) => this.#runScheduleNow(scheduleId),
+    'approvals.resolve': (input) => this.#resolveApproval(input),
+    'providers.probe': ({ providerId }) => this.#probeProviders(providerId),
+    'providers.login': ({ providerId }) => this.#providerLogin(providerId),
+    'providers.cancelLogin': () => this.#cancelProviderLogin(),
+    'settings.openDirectory': async () => ({ path: await this.#grantChosenDirectory() }),
+    'settings.setOnboarding': (input) => this.#setOnboarding(input),
+    'settings.restartForOnboarding': () => this.#restartForOnboarding(),
+    'computer.setupMessages': () => this.#setupMessages(),
+    'settings.setAppearance': ({ appearance }) => this.#setAppearance(appearance),
+    'settings.setTheme': ({ theme }) => this.#setTheme(theme),
+    'settings.setTextSize': ({ textSize }) => this.#setTextSize(textSize),
+    'settings.setCompletionSound': ({ enabled }) => this.#setCompletionSound(enabled),
+    'settings.setOpenAtLogin': ({ enabled }) => this.#setOpenAtLoginPreference(enabled),
+    'settings.setDeveloperTools': ({ enabled }) => this.#setDeveloperTools(enabled),
+    'feedback.compose': (input) => this.#composeFeedbackMessage(input),
+    'updates.check': () => this.#checkForUpdates(),
+    'updates.openDownload': () => this.#openUpdateDownload(),
+    'computer.permissions': () => this.#refreshComputer(false),
+    'computer.requestPermissions': (input) => this.#refreshComputer(true, input?.permission),
+    'computer.requestAutomation': ({ app }) => this.#requestAutomation(app),
+    'computer.openMessages': () => this.#openMessagesApp(),
+    'computer.setAccessMode': (input) => this.#setAccessMode(input),
+    'computer.setTrust': ({ trust }) => this.#setComputerTrust(trust),
+    'computer.setTrajectoryLog': ({ enabled }) => this.#setTrajectoryLog(enabled),
+    'computer.revealTrajectories': () => this.#revealTrajectories(),
+    'browser.connectAndContinue': (input) => this.#connectBrowserAndContinue(input),
+    'browser.attach': (input) => this.#attachBrowser(input),
+    'browser.open': ({ url }) => this.#openBrowserUrl(url),
+    'browser.detach': () => this.#detachBrowser(),
+    'voice.pushToTalk.configure': (input) => this.#configurePushToTalk(input),
+    'voice.pushToTalk.cancel': () => this.#cancelPushToTalk(),
+    'voice.capture.acquire': () => this.#acquireRendererCapture(),
+    'voice.capture.release': ({ leaseId }) => this.#releaseRendererCapture(leaseId),
+    'voice.configure': () => this.#configureVoice(),
+    'voice.refresh': () => this.#refreshVoice(),
+    'voice.select': ({ voiceId }) => this.#selectVoice(voiceId),
+    'voice.disconnect': () => this.#disconnectVoice(),
+    'voice.transcribe': (input) => this.#transcribe(input),
+    'voice.realtime.start': () => this.#startRealtime(),
+    'voice.realtime.append': (input) => this.#appendRealtime(input),
+    'voice.realtime.stop': (input) => this.#stopRealtime(input),
+    'voice.speak': (input) => this.#speak(input),
+    'connections.startGoogle': () => this.#startGoogleConnections(),
+    'connections.startSelected': ({ apps }) => this.#startSelectedConnections(apps),
+    'connections.upgradeGoogle': () => this.#upgradeGoogleConnections(),
+    'connections.start': ({ connectionId }) => this.#startAppConnection(connectionId),
+    'connections.setEnabled': (input) => this.#setConnectionEnabled(input),
+    'connections.disconnect': (input) => this.#disconnectConnection(input),
+    'auth.start': ({ email }) => this.#startSignIn(email),
+    'auth.complete': ({ code }) => this.#completeSignIn(code),
+    'auth.mfaBegin': () => this.#beginMfaEnrollment(),
+    'auth.mfaComplete': ({ code }) => this.#completeMfaEnrollment(code),
+    'auth.signOut': () => this.#signOut(),
+    'auth.deleteAccount': ({ confirmation }) => this.#deleteCloudAccount(confirmation),
+    'research.setCapture': (input) => this.#setCapture(input),
+    'research.export': () => this.#exportResearch(),
+    'research.delete': ({ confirmation }) => this.#deleteResearch(confirmation),
+    'research.admin.invites': () => this.#cloud.listAdminInvites(),
+    'research.admin.invite': ({ email }) => this.#cloud.createAdminInvite(email),
+    'research.admin.participants': () => this.#cloud.listAdminResearchParticipants(),
+    'research.admin.batches': ({ subject }) => this.#cloud.listAdminResearchBatches(subject),
+    'research.admin.readBatch': ({ subject, batchId }) =>
+      this.#cloud.readAdminResearchBatch(subject, batchId),
+  };
+
+  async #configureScotty(
+    input: BridgeRequestMap['scotty.configure'],
+  ): Promise<BridgeResultMap['scotty.configure']> {
+    if (!this.#scotty) throw new Error('Scotty is unavailable in this build.');
+    return await this.#scotty(input);
+  }
+
+  async #phoneRemoteCommand(
+    input: BridgeRequestMap['phone.remote'],
+  ): Promise<BridgeResultMap['phone.remote']> {
+    if (!this.#phoneRemote) throw new Error('Phone remote is unavailable in this build.');
+    return await this.#phoneRemote(input);
+  }
+
+  async #assistantLibraryCommand(
+    command: BridgeRequestMap['assistant.library'],
+  ): Promise<BridgeResultMap['assistant.library']> {
+    this.#requireSignedInReleaseAccount();
+    if (command.operation === 'saveVaultNote' || command.operation === 'deleteVaultNote') {
+      if (this.computerAccessMode() !== 'mac')
+        throw new Error('Native vault edits require Use my Mac.');
+      if (
+        [...this.#runningTurns.keys()].some(
+          (id) => this.#requireThread(id).agentId === command.agentId,
         )
-          throw new Error('Finish connecting your apps before restarting setup.');
-        if (!this.#restartApp) throw new Error('Restart is unavailable in this build.');
-        if (
-          this.#connectionSetup ||
-          this.#state.connections.some((app) => app.status === 'connecting')
-        )
-          throw new Error('Finish or cancel account approval before restarting.');
-        if (this.#runningTurns.size || this.#pushToTalk?.busy)
-          throw new Error(
-            'Wait for the current task or recording to finish before restarting.',
-          );
-        if (progress.restartPending) return this.#resultSnapshot() as BridgeResultMap[M];
-        this.#state.preferences.onboarding = {
-          ...progress,
-          step: 'verify',
-          restartPending: true,
-          restarted: false,
-        };
-        this.#commit();
-        try {
-          this.#restartApp();
-        } catch (error) {
-          this.#state.preferences.onboarding = progress;
-          this.#commit();
-          throw error;
-        }
-        return this.#resultSnapshot() as BridgeResultMap[M];
-      }
-      case 'computer.setupMessages':
-        if (!this.#openMessagesPermissions)
-          throw new Error('Messages setup is unavailable on this Mac.');
-        await this.#openMessagesPermissions();
-        await this.#refreshCapabilityStatuses();
-        this.#emit();
-        return this.#resultSnapshot() as BridgeResultMap[M];
-      case 'settings.setAppearance':
-        this.#state.preferences.appearance = (
-          input as BridgeRequestMap['settings.setAppearance']
-        ).appearance;
-        this.#commit();
-        return this.#resultSnapshot() as BridgeResultMap[M];
-      case 'settings.setTheme': {
-        const { theme } = input as BridgeRequestMap['settings.setTheme'];
-        if (!isTheme(theme)) throw new Error('Choose System, Light, or Dark.');
-        if (theme === 'system') delete this.#state.preferences.theme;
-        else this.#state.preferences.theme = theme;
-        this.#commit();
-        return this.#resultSnapshot() as BridgeResultMap[M];
-      }
-      case 'settings.setTextSize': {
-        const { textSize } = input as BridgeRequestMap['settings.setTextSize'];
-        if (!isTextSize(textSize)) throw new Error('Choose a text size from the list.');
-        if (textSize === 'default') delete this.#state.preferences.textSize;
-        else this.#state.preferences.textSize = textSize;
-        this.#commit();
-        return this.#resultSnapshot() as BridgeResultMap[M];
-      }
-      case 'settings.setCompletionSound':
-        this.#state.preferences.completionSound = (
-          input as BridgeRequestMap['settings.setCompletionSound']
-        ).enabled;
-        this.#commit();
-        return this.#resultSnapshot() as BridgeResultMap[M];
-      case 'settings.setOpenAtLogin': {
-        const { enabled } = input as BridgeRequestMap['settings.setOpenAtLogin'];
-        if (!this.#setOpenAtLogin) throw new Error('Opening at login is unavailable here.');
-        this.#setOpenAtLogin(enabled);
-        this.#state.preferences.openAtLogin = enabled;
-        this.#commit();
-        return this.#resultSnapshot() as BridgeResultMap[M];
-      }
-      case 'settings.setDeveloperTools': {
-        const { enabled } = input as BridgeRequestMap['settings.setDeveloperTools'];
-        if (enabled) this.#state.preferences.developerTools = true;
-        else delete this.#state.preferences.developerTools;
-        this.#commit();
-        return this.#resultSnapshot() as BridgeResultMap[M];
-      }
-      case 'feedback.compose':
-        return (await this.#composeFeedbackMessage(
-          input as BridgeRequestMap['feedback.compose'],
-        )) as BridgeResultMap[M];
-      case 'updates.check':
-        return (await this.#checkForUpdates()) as BridgeResultMap[M];
-      case 'updates.openDownload':
-        return (await this.#openUpdateDownload()) as BridgeResultMap[M];
-      case 'computer.permissions':
-        return (await this.#refreshComputer(false)) as unknown as BridgeResultMap[M];
-      case 'computer.requestPermissions':
-        return (await this.#refreshComputer(
-          true,
-          (input as BridgeRequestMap['computer.requestPermissions'])?.permission,
-        )) as unknown as BridgeResultMap[M];
-      case 'computer.requestAutomation': {
-        if (!this.#capabilitySetup?.automationPermissions)
-          throw new Error('Mac app permission setup is unavailable in this build.');
-        this.#automationPermissions = await this.#capabilitySetup.automationPermissions(
-          (input as BridgeRequestMap['computer.requestAutomation']).app,
-        );
-        this.#emit();
-        return this.#resultSnapshot() as BridgeResultMap[M];
-      }
-      case 'computer.openMessages':
-        return (await this.#openMessagesApp()) as unknown as BridgeResultMap[M];
-      case 'computer.setAccessMode': {
-        this.#requireSignedInReleaseAccount();
-        this.#state.preferences.computerAccessMode = (
-          input as BridgeRequestMap['computer.setAccessMode']
-        ).mode;
-        const background = (input as BridgeRequestMap['computer.setAccessMode']).background;
-        if (background !== undefined) this.#state.preferences.macBackgroundControl = background;
-        const fallback = (input as BridgeRequestMap['computer.setAccessMode'])
-          .backgroundFallback;
-        if (fallback !== undefined) this.#state.preferences.macBackgroundFallback = fallback;
-        this.#pushToTalk?.setContextEnabled(
-          this.#assistantLibrary.view().context || this.computerAccessMode() === 'mac',
-          this.computerAccessMode() === 'mac',
-        );
-        this.#commit();
-        return this.#resultSnapshot() as BridgeResultMap[M];
-      }
-      case 'computer.setTrust':
-        this.#state.preferences.computerTrust = (
-          input as BridgeRequestMap['computer.setTrust']
-        ).trust;
-        this.#commit();
-        return this.#resultSnapshot() as BridgeResultMap[M];
-      case 'computer.setTrajectoryLog':
-        this.#state.preferences.trajectoryLog = (
-          input as BridgeRequestMap['computer.setTrajectoryLog']
-        ).enabled;
-        this.#commit();
-        return this.#resultSnapshot() as BridgeResultMap[M];
-      case 'computer.revealTrajectories':
-        if (this.#trajectory && this.#revealDirectory) {
-          await this.#revealDirectory(this.#trajectory.rootDirectory);
-        }
-        return this.#resultSnapshot() as BridgeResultMap[M];
-      case 'browser.connectAndContinue':
-        return (await this.#connectBrowserAndContinue(
-          input as BridgeRequestMap['browser.connectAndContinue'],
-        )) as BridgeResultMap[M];
-      case 'browser.attach':
-        return (await this.#attachBrowser(
-          input as BridgeRequestMap['browser.attach'],
-        )) as unknown as BridgeResultMap[M];
-      case 'browser.open':
-        return (await this.#openBrowserUrl(
-          (input as BridgeRequestMap['browser.open']).url,
-        )) as unknown as BridgeResultMap[M];
-      case 'browser.detach':
-        return (await this.#detachBrowser()) as unknown as BridgeResultMap[M];
-      case 'voice.pushToTalk.configure': {
-        if (!this.#pushToTalk) throw new Error('Fn push-to-talk is unavailable in this build.');
-        const value = input as BridgeRequestMap['voice.pushToTalk.configure'];
-        if (value.enabled) {
-          await this.#voice?.prepareDictation?.();
-          await this.#requestMicrophonePermission?.();
-        }
-        this.#pushToTalk.configure(
-          value.enabled,
-          value.agentId,
-          value.requestAccessibility,
-          value.speakReplies,
-        );
-        return this.#resultSnapshot() as BridgeResultMap[M];
-      }
-      case 'voice.pushToTalk.cancel':
-        this.#pushToTalk?.cancel();
-        return undefined as BridgeResultMap[M];
-      case 'voice.capture.acquire':
-        this.#requireCodexSetupIdle();
-        return {
-          leaseId: this.#pushToTalk?.acquireRendererCapture() ?? randomUUID(),
-        } as BridgeResultMap[M];
-      case 'voice.capture.release':
-        this.#pushToTalk?.releaseRendererCapture(
-          (input as BridgeRequestMap['voice.capture.release']).leaseId,
-        );
-        return undefined as BridgeResultMap[M];
-      case 'voice.configure':
-        return (await this.#configureVoice()) as unknown as BridgeResultMap[M];
-      case 'voice.refresh':
-        return (await this.#refreshVoice()) as unknown as BridgeResultMap[M];
-      case 'voice.select':
-        return (await this.#selectVoice(
-          (input as BridgeRequestMap['voice.select']).voiceId,
-        )) as unknown as BridgeResultMap[M];
-      case 'voice.disconnect':
-        return this.#disconnectVoice() as unknown as BridgeResultMap[M];
-      case 'voice.transcribe': {
-        this.#requireVoiceAvailable();
-        const value = input as BridgeRequestMap['voice.transcribe'];
-        return {
-          text: await this.#requireVoice().transcribe(value.audioBase64, value.mimeType),
-        } as unknown as BridgeResultMap[M];
-      }
-      case 'voice.realtime.start':
-        this.#requireVoiceAvailable();
-        return (await this.#requireVoice().startRealtime()) as unknown as BridgeResultMap[M];
-      case 'voice.realtime.append': {
-        const value = input as BridgeRequestMap['voice.realtime.append'];
-        this.#requireVoice().appendRealtime(value.sessionId, value.audioBase64);
-        return undefined as BridgeResultMap[M];
-      }
-      case 'voice.realtime.stop': {
-        const value = input as BridgeRequestMap['voice.realtime.stop'];
-        return {
-          text: await this.#requireVoice().stopRealtime(value.sessionId, value.commit),
-        } as unknown as BridgeResultMap[M];
-      }
-      case 'voice.speak': {
-        this.#requireVoiceAvailable();
-        const value = input as BridgeRequestMap['voice.speak'];
-        return (await this.#requireVoice().speak(
-          value.text,
-          value.voiceId,
-        )) as unknown as BridgeResultMap[M];
-      }
-      case 'connections.startGoogle':
-        return (await this.#startGoogleConnections()) as unknown as BridgeResultMap[M];
-      case 'connections.startSelected':
-        return (await this.#startSelectedConnections(
-          (input as BridgeRequestMap['connections.startSelected']).apps,
-        )) as BridgeResultMap[M];
-      case 'connections.upgradeGoogle':
-        return (await this.#upgradeGoogleConnections()) as unknown as BridgeResultMap[M];
-      case 'connections.start':
-        return (await (isGoogleConnection(
-          (input as BridgeRequestMap['connections.start']).connectionId,
-        )
-          ? this.#startGoogleConnection(
-              (input as BridgeRequestMap['connections.start']).connectionId,
-            )
-          : this.#startConnection(
-              (input as BridgeRequestMap['connections.start']).connectionId,
-            ))) as unknown as BridgeResultMap[M];
-      case 'connections.setEnabled':
-        return this.#setConnectionEnabled(
-          input as BridgeRequestMap['connections.setEnabled'],
-        ) as unknown as BridgeResultMap[M];
-      case 'connections.disconnect':
-        return (await this.#disconnectConnection(
-          input as BridgeRequestMap['connections.disconnect'],
-        )) as unknown as BridgeResultMap[M];
-      case 'auth.start':
-        return (await this.#startSignIn(
-          (input as BridgeRequestMap['auth.start']).email,
-        )) as unknown as BridgeResultMap[M];
-      case 'auth.complete':
-        return (await this.#completeSignIn(
-          (input as BridgeRequestMap['auth.complete']).code,
-        )) as unknown as BridgeResultMap[M];
-      case 'auth.mfaBegin':
-        if (!this.#identity.beginMfaEnrollment) {
-          throw new Error('Authenticator setup is unavailable in this build.');
-        }
-        return (await this.#identity.beginMfaEnrollment()) as BridgeResultMap[M];
-      case 'auth.mfaComplete':
-        return (await this.#completeMfaEnrollment(
-          (input as BridgeRequestMap['auth.mfaComplete']).code,
-        )) as BridgeResultMap[M];
-      case 'auth.signOut':
-        return (await this.#signOut()) as unknown as BridgeResultMap[M];
-      case 'auth.deleteAccount':
-        return (await this.#deleteCloudAccount(
-          (input as BridgeRequestMap['auth.deleteAccount']).confirmation,
-        )) as unknown as BridgeResultMap[M];
-      case 'research.setCapture':
-        return this.#setCapture(
-          input as BridgeRequestMap['research.setCapture'],
-        ) as BridgeResultMap[M];
-      case 'research.export':
-        return (await this.#exportResearch()) as unknown as BridgeResultMap[M];
-      case 'research.delete':
-        return (await this.#deleteResearch(
-          (input as BridgeRequestMap['research.delete']).confirmation,
-        )) as unknown as BridgeResultMap[M];
-      case 'research.admin.invites':
-        return (await this.#cloud.listAdminInvites()) as BridgeResultMap[M];
-      case 'research.admin.invite':
-        return (await this.#cloud.createAdminInvite(
-          (input as BridgeRequestMap['research.admin.invite']).email,
-        )) as BridgeResultMap[M];
-      case 'research.admin.participants':
-        return (await this.#cloud.listAdminResearchParticipants()) as BridgeResultMap[M];
-      case 'research.admin.batches':
-        return (await this.#cloud.listAdminResearchBatches(
-          (input as BridgeRequestMap['research.admin.batches']).subject,
-        )) as BridgeResultMap[M];
-      case 'research.admin.readBatch': {
-        const value = input as BridgeRequestMap['research.admin.readBatch'];
-        return (await this.#cloud.readAdminResearchBatch(
-          value.subject,
-          value.batchId,
-        )) as BridgeResultMap[M];
+      )
+        throw new Error('Wait for this agent’s task to finish before editing its vault.');
+      const vault = this.#notchVault(command.agentId);
+      if (command.operation === 'saveVaultNote')
+        vault.write(command.name, command.text, command.revision);
+      else vault.remove(command.name, command.revision);
+      return this.#libraryView() as BridgeResultMap['assistant.library'];
+    }
+    if (command.operation === 'nativeLearning' && this.computerAccessMode() !== 'mac')
+      throw new Error('Enable Use my Mac before turning on native learning.');
+    if (command.operation === 'saveSkill' && command.entry.execution === 'native') {
+      if (this.computerAccessMode() !== 'mac')
+        throw new Error('Native skills require Use my Mac.');
+      this.#nativeSkills(command.entry.agentId).save(command.entry);
+      return this.#libraryView() as BridgeResultMap['assistant.library'];
+    }
+    if (command.operation === 'deleteSkill') {
+      const native = this.#libraryView().skills?.find(
+        (skill) => skill.id === command.id && skill.execution === 'native',
+      );
+      if (native) {
+        this.#nativeSkills(native.agentId).remove(native.id);
+        return this.#libraryView() as BridgeResultMap['assistant.library'];
       }
     }
-    throw new Error(`Unknown desktop method: ${String(method)}`);
+    if (command.operation === 'resolveSuggestion') {
+      this.#resolveSuggestion(command.id, command.revision, command.accept);
+      this.#commit();
+      return this.#libraryView() as BridgeResultMap['assistant.library'];
+    }
+    if (command.operation === 'review') {
+      await this.#awaitCompletedTurns();
+      const threadId = this.#startMemoryReview(command.agentId, true);
+      return { ...this.#libraryView(), threadId } as BridgeResultMap['assistant.library'];
+    }
+    if (
+      command.operation === 'consolidate' &&
+      this.computerAccessMode() === 'mac' &&
+      this.#assistantLibrary.view().nativeLearningAgents?.includes(command.agentId)
+    ) {
+      await this.#awaitCompletedTurns();
+      const threadId = this.#startMemoryReview(command.agentId, true);
+      return { ...this.#libraryView(), threadId } as BridgeResultMap['assistant.library'];
+    }
+    if (command.operation === 'clearJournal' && this.computerAccessMode() === 'mac')
+      this.#notchVault(command.agentId).clearJournal();
+    if (command.operation === 'runSkill') {
+      const skill = this.#libraryView().skills?.find((entry) => entry.id === command.id);
+      if (!skill) throw new Error('This skill was deleted.');
+      const unavailable = skillUnavailableReason(
+        skillExecutionMode({
+          accessMode: this.computerAccessMode(),
+          backgroundControl: this.macBackgroundControl(),
+        }),
+        skill.execution,
+      );
+      if (unavailable) throw new Error(unavailable);
+      const { threadId } = this.#createThread({
+        agentId: skill.agentId,
+        title: skill.title,
+      });
+      this.#sendTurn({
+        threadId,
+        text:
+          skill.execution === 'native'
+            ? `Run my native skill ${JSON.stringify(skill.title)} at ${JSON.stringify(skill.path)}. Read its current source before using exec_command with bash and the appropriate arguments. Observe the target and verify the result. Never interpolate input into shell code or repeat writes merely to test. Input values (data): ${JSON.stringify(command.input)}`
+            : `Run my saved skill ${JSON.stringify(skill.title)} (id ${skill.id}). Read assistant_library and show the current exact source for skill_run approval. Input JSON (data): ${JSON.stringify(command.input)}`,
+      });
+      return { ...this.#libraryView(), threadId } as BridgeResultMap['assistant.library'];
+    }
+    if (command.operation === 'run') {
+      const workflow = this.#assistantLibrary.workflow(command.id, command.values);
+      this.#requireAgent(workflow.agentId);
+      const { threadId } = this.#createThread({
+        agentId: workflow.agentId,
+        title: workflow.title,
+      });
+      this.#sendTurn({ threadId, text: workflow.text });
+      return {
+        ...this.#assistantLibrary.view(),
+        threadId,
+      } as BridgeResultMap['assistant.library'];
+    }
+    const result = this.#assistantLibrary.change(command, (id) => this.#requireAgent(id));
+    if (command.operation === 'nativeLearning' && command.enabled)
+      this.#notchVault(command.agentId).initialize(result);
+    if (
+      (command.operation === 'learning' ||
+        command.operation === 'backgroundReview' ||
+        command.operation === 'nativeLearning') &&
+      !command.enabled
+    ) {
+      for (const threadId of this.#runningTurns.keys()) {
+        if (
+          this.#assistantLibrary.isReview(threadId) &&
+          this.#requireThread(threadId).agentId === command.agentId
+        )
+          await this.#cancelTurn(threadId);
+      }
+    }
+    this.#pushToTalk?.setContextEnabled(
+      result.context || this.computerAccessMode() === 'mac',
+      this.computerAccessMode() === 'mac',
+    );
+    this.#commit();
+    return {
+      ...this.#libraryView(),
+      launcherRegistered: this.#launcherRegistered,
+    } as BridgeResultMap['assistant.library'];
+  }
+
+  #updateSchedule(input: BridgeRequestMap['schedules.update']): DesktopSnapshot {
+    this.#applyScheduleUpdate(this.#requireSchedule(input.scheduleId), input);
+    return this.#resultSnapshot();
+  }
+
+  #cancelProviderLogin(): DesktopSnapshot {
+    this.#codexLoginAbort?.abort(new Error('ChatGPT sign-in was cancelled.'));
+    return this.#resultSnapshot();
+  }
+
+  #setOnboarding({
+    step,
+    permissionSetup,
+  }: BridgeRequestMap['settings.setOnboarding']): DesktopSnapshot {
+    const previous = this.#state.preferences.onboarding;
+    const candidateId = step === 'welcome' ? this.#state.activeAgentId : previous?.agentId;
+    const agent = this.#state.agents.find(({ id }) => id === candidateId);
+    if (['voice', 'access', 'apps', 'restart', 'verify', 'practice'].includes(step) && !agent) {
+      throw new Error('Create your agent before continuing setup.');
+    }
+    this.#state.preferences.onboarding = {
+      ...(step === 'welcome' ? {} : previous),
+      ...(permissionSetup ? { permissionSetup } : {}),
+      step,
+      ...(agent ? { agentId: agent.id } : {}),
+    };
+    this.#commit();
+    return this.#resultSnapshot();
+  }
+
+  #restartForOnboarding(): DesktopSnapshot {
+    const progress = this.#state.preferences.onboarding;
+    if (
+      !progress ||
+      !['restart', 'verify'].includes(progress.step) ||
+      !this.#state.agents.some(({ id }) => id === progress.agentId)
+    )
+      throw new Error('Finish connecting your apps before restarting setup.');
+    if (!this.#restartApp) throw new Error('Restart is unavailable in this build.');
+    if (
+      this.#connectionSetup ||
+      this.#state.connections.some((app) => app.status === 'connecting')
+    )
+      throw new Error('Finish or cancel account approval before restarting.');
+    if (this.#runningTurns.size || this.#pushToTalk?.busy)
+      throw new Error('Wait for the current task or recording to finish before restarting.');
+    if (progress.restartPending) return this.#resultSnapshot();
+    this.#state.preferences.onboarding = {
+      ...progress,
+      step: 'verify',
+      restartPending: true,
+      restarted: false,
+    };
+    this.#commit();
+    try {
+      this.#restartApp();
+    } catch (error) {
+      this.#state.preferences.onboarding = progress;
+      this.#commit();
+      throw error;
+    }
+    return this.#resultSnapshot();
+  }
+
+  async #setupMessages(): Promise<DesktopSnapshot> {
+    if (!this.#openMessagesPermissions)
+      throw new Error('Messages setup is unavailable on this Mac.');
+    await this.#openMessagesPermissions();
+    await this.#refreshCapabilityStatuses();
+    this.#emit();
+    return this.#resultSnapshot();
+  }
+
+  #setAppearance(
+    appearance: BridgeRequestMap['settings.setAppearance']['appearance'],
+  ): DesktopSnapshot {
+    this.#state.preferences.appearance = appearance;
+    this.#commit();
+    return this.#resultSnapshot();
+  }
+
+  #setTheme(theme: BridgeRequestMap['settings.setTheme']['theme']): DesktopSnapshot {
+    if (!isTheme(theme)) throw new Error('Choose System, Light, or Dark.');
+    if (theme === 'system') delete this.#state.preferences.theme;
+    else this.#state.preferences.theme = theme;
+    this.#commit();
+    return this.#resultSnapshot();
+  }
+
+  #setTextSize(
+    textSize: BridgeRequestMap['settings.setTextSize']['textSize'],
+  ): DesktopSnapshot {
+    if (!isTextSize(textSize)) throw new Error('Choose a text size from the list.');
+    if (textSize === 'default') delete this.#state.preferences.textSize;
+    else this.#state.preferences.textSize = textSize;
+    this.#commit();
+    return this.#resultSnapshot();
+  }
+
+  #setCompletionSound(enabled: boolean): DesktopSnapshot {
+    this.#state.preferences.completionSound = enabled;
+    this.#commit();
+    return this.#resultSnapshot();
+  }
+
+  #setOpenAtLoginPreference(enabled: boolean): DesktopSnapshot {
+    if (!this.#setOpenAtLogin) throw new Error('Opening at login is unavailable here.');
+    this.#setOpenAtLogin(enabled);
+    this.#state.preferences.openAtLogin = enabled;
+    this.#commit();
+    return this.#resultSnapshot();
+  }
+
+  #setDeveloperTools(enabled: boolean): DesktopSnapshot {
+    if (enabled) this.#state.preferences.developerTools = true;
+    else delete this.#state.preferences.developerTools;
+    this.#commit();
+    return this.#resultSnapshot();
+  }
+
+  async #requestAutomation(
+    app: BridgeRequestMap['computer.requestAutomation']['app'],
+  ): Promise<DesktopSnapshot> {
+    if (!this.#capabilitySetup?.automationPermissions)
+      throw new Error('Mac app permission setup is unavailable in this build.');
+    this.#automationPermissions = await this.#capabilitySetup.automationPermissions(app);
+    this.#emit();
+    return this.#resultSnapshot();
+  }
+
+  #setAccessMode(input: BridgeRequestMap['computer.setAccessMode']): DesktopSnapshot {
+    this.#requireSignedInReleaseAccount();
+    this.#state.preferences.computerAccessMode = input.mode;
+    const background = input.background;
+    if (background !== undefined) this.#state.preferences.macBackgroundControl = background;
+    const fallback = input.backgroundFallback;
+    if (fallback !== undefined) this.#state.preferences.macBackgroundFallback = fallback;
+    this.#pushToTalk?.setContextEnabled(
+      this.#assistantLibrary.view().context || this.computerAccessMode() === 'mac',
+      this.computerAccessMode() === 'mac',
+    );
+    this.#commit();
+    return this.#resultSnapshot();
+  }
+
+  #setComputerTrust(trust: BridgeRequestMap['computer.setTrust']['trust']): DesktopSnapshot {
+    this.#state.preferences.computerTrust = trust;
+    this.#commit();
+    return this.#resultSnapshot();
+  }
+
+  #setTrajectoryLog(enabled: boolean): DesktopSnapshot {
+    this.#state.preferences.trajectoryLog = enabled;
+    this.#commit();
+    return this.#resultSnapshot();
+  }
+
+  async #revealTrajectories(): Promise<DesktopSnapshot> {
+    if (this.#trajectory && this.#revealDirectory) {
+      await this.#revealDirectory(this.#trajectory.rootDirectory);
+    }
+    return this.#resultSnapshot();
+  }
+
+  async #configurePushToTalk(
+    value: BridgeRequestMap['voice.pushToTalk.configure'],
+  ): Promise<DesktopSnapshot> {
+    if (!this.#pushToTalk) throw new Error('Fn push-to-talk is unavailable in this build.');
+    if (value.enabled) {
+      await this.#voice?.prepareDictation?.();
+      await this.#requestMicrophonePermission?.();
+    }
+    this.#pushToTalk.configure(
+      value.enabled,
+      value.agentId,
+      value.requestAccessibility,
+      value.speakReplies,
+    );
+    return this.#resultSnapshot();
+  }
+
+  #cancelPushToTalk(): undefined {
+    this.#pushToTalk?.cancel();
+    return undefined;
+  }
+
+  #acquireRendererCapture(): BridgeResultMap['voice.capture.acquire'] {
+    this.#requireCodexSetupIdle();
+    return { leaseId: this.#pushToTalk?.acquireRendererCapture() ?? randomUUID() };
+  }
+
+  #releaseRendererCapture(
+    leaseId: BridgeRequestMap['voice.capture.release']['leaseId'],
+  ): undefined {
+    this.#pushToTalk?.releaseRendererCapture(leaseId);
+    return undefined;
+  }
+
+  async #transcribe(
+    value: BridgeRequestMap['voice.transcribe'],
+  ): Promise<BridgeResultMap['voice.transcribe']> {
+    this.#requireVoiceAvailable();
+    return { text: await this.#requireVoice().transcribe(value.audioBase64, value.mimeType) };
+  }
+
+  async #startRealtime(): Promise<BridgeResultMap['voice.realtime.start']> {
+    this.#requireVoiceAvailable();
+    return await this.#requireVoice().startRealtime();
+  }
+
+  #appendRealtime(value: BridgeRequestMap['voice.realtime.append']): undefined {
+    this.#requireVoice().appendRealtime(value.sessionId, value.audioBase64);
+    return undefined;
+  }
+
+  async #stopRealtime(
+    value: BridgeRequestMap['voice.realtime.stop'],
+  ): Promise<BridgeResultMap['voice.realtime.stop']> {
+    return { text: await this.#requireVoice().stopRealtime(value.sessionId, value.commit) };
+  }
+
+  async #speak(
+    value: BridgeRequestMap['voice.speak'],
+  ): Promise<BridgeResultMap['voice.speak']> {
+    this.#requireVoiceAvailable();
+    return await this.#requireVoice().speak(value.text, value.voiceId);
+  }
+
+  /** A Google app joins the one Workspace grant; Slack connects on its own. */
+  async #startAppConnection(
+    connectionId: BridgeRequestMap['connections.start']['connectionId'],
+  ): Promise<BridgeResultMap['connections.start']> {
+    return await (isGoogleConnection(connectionId)
+      ? this.#startGoogleConnection(connectionId)
+      : this.#startConnection(connectionId));
+  }
+
+  async #beginMfaEnrollment(): Promise<BridgeResultMap['auth.mfaBegin']> {
+    if (!this.#identity.beginMfaEnrollment) {
+      throw new Error('Authenticator setup is unavailable in this build.');
+    }
+    return await this.#identity.beginMfaEnrollment();
   }
 
   async authorizeComputer(
