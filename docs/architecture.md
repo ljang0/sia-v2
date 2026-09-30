@@ -33,6 +33,14 @@ The provider runtime can propose a Sia action, but only the main-process ActionG
 
 There is no generic renderer IPC, generic connector catalog, raw CUA server, arbitrary CDP/JavaScript route, cookie API, visualization tool, or cross-provider subagent abstraction.
 
+The main-process controller lives in `apps/desktop/src/main/controller/`. `DesktopController` is
+the only public entry point (IPC bridge, launcher, Scotty, phone remote and tests). It delegates to
+a `ControllerContext` that holds the shared state and wires one collaborator per domain: threads,
+turns and the turn runner, approvals, schedules, agents, providers, connections, account,
+workspace, voice, research capture and outbox, snapshots and the typed bridge router. Each
+collaborator declares the context members it uses as a `Pick<ControllerContext, ...>`; pure
+helpers and types sit in their own modules beside them.
+
 The cloud shown above is a control plane only. The alpha has no remote provider runtime, persistent
 cloud filesystem/browser, or offline cloud scheduler. Local schedules are persisted by the desktop
 app and are evaluated only while Sia is running and the Mac is awake. The acceptance boundary for

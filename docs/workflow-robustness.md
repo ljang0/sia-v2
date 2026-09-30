@@ -243,7 +243,7 @@ do not establish transport secrecy or real Wi-Fi reliability.
   after returning from Settings, and restart mid-setup. Verify Codex install/update with no existing
   binary, interrupted network and browser login cancelled/expired. Use the pinned admitted release.
 - **Schedules/goals:** schedules persist a claim before dispatch, keep stable run IDs and finite
-  limits, but require Sia open and the Mac awake (`controller.ts`). Test wake across a due time,
+  limits, but require Sia open and the Mac awake (`controller/schedules.ts`). Test wake across a due time,
   timezone/DST changes, overlapping long tasks and crashes on each side of dispatch. Day-based
   cadences (daily, weekdays, chosen days) step local calendar days, so 8:00 AM stays 8:00 AM across
   DST (`shared/schedule-cadence.ts`). A run missed while the Mac slept runs once on wake, then later
