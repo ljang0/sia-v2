@@ -71,6 +71,7 @@ interface FormValues {
   time: string;
   days: number[];
   everyHours: string;
+  /** Empty means no limit: a recurring schedule repeats until paused or deleted. */
   maxRuns: string;
 }
 
@@ -101,7 +102,8 @@ function valuesFromDraft(draft: ScheduleDraft): FormValues {
         ? [start.getDay()]
         : [new Date().getDay()],
     everyHours: String(draft.everyHours ?? 1),
-    maxRuns: String(draft.maxRuns ?? (draft.cadence === 'once' ? 1 : 10)),
+    maxRuns:
+      draft.cadence === 'once' ? '1' : draft.maxRuns === undefined ? '' : String(draft.maxRuns),
   };
 }
 
@@ -199,7 +201,7 @@ function ScheduleForm({
               const wasRepeating = cadence !== 'once';
               set({
                 cadence: next,
-                ...(next === 'once' ? { maxRuns: '1' } : wasRepeating ? {} : { maxRuns: '10' }),
+                ...(next === 'once' ? { maxRuns: '1' } : wasRepeating ? {} : { maxRuns: '' }),
               });
             }}
             disabled={busy}
@@ -262,7 +264,9 @@ function ScheduleForm({
         )}
         {cadence === 'once' ? null : (
           <label className={styles.localField}>
-            <span>{runsLabel}</span>
+            <span>
+              {runsLabel} <small aria-hidden="true">optional</small>
+            </span>
             <span className={styles.scheduleRunsInput}>
               <input
                 type="number"
@@ -270,6 +274,7 @@ function ScheduleForm({
                 max="10000"
                 step="1"
                 inputMode="numeric"
+                placeholder="No limit"
                 aria-label={
                   runsLabel === 'Stop after' ? 'Stop after how many runs' : 'How many more runs'
                 }
@@ -387,8 +392,13 @@ export function ScheduleRow({
               ...(schedule.days ? { days: [...schedule.days] } : {}),
               ...(schedule.everyHours ? { everyHours: schedule.everyHours } : {}),
             }),
-            // An edit counts the runs still to come, so a finished schedule can start again.
-            maxRuns: String(remaining > 0 ? remaining : schedule.cadence === 'once' ? 1 : 10),
+            // An edit counts the runs still to come; a finished one starts again with no limit.
+            maxRuns:
+              schedule.cadence === 'once'
+                ? '1'
+                : schedule.maxRuns !== undefined && remaining > 0
+                  ? String(remaining)
+                  : '',
           }}
           submitLabel="Save changes"
           runsLabel="Runs left"
@@ -402,7 +412,12 @@ export function ScheduleRow({
               ...(draft.days ? { days: draft.days } : {}),
               ...(draft.everyHours ? { everyHours: draft.everyHours } : {}),
               nextRunAt: new Date(draft.runAt).toISOString(),
-              maxRuns: runCount + (draft.cadence === 'once' ? 1 : (draft.maxRuns ?? 10)),
+              maxRuns:
+                draft.cadence === 'once'
+                  ? runCount + 1
+                  : draft.maxRuns
+                    ? runCount + draft.maxRuns
+                    : null,
               // A finished schedule that gets a new plan should run again; a paused one stays paused.
               ...(finished ? { enabled: true } : {}),
             })
@@ -852,7 +867,6 @@ const SCHEDULE_IDEAS: readonly ScheduleIdea[] = [
       prompt: 'Summarize my inbox and tell me what needs a reply',
       cadence: 'daily',
       runAt: toLocalInput(nextAt(now, 8)),
-      maxRuns: 30,
     }),
   },
   {
@@ -862,7 +876,6 @@ const SCHEDULE_IDEAS: readonly ScheduleIdea[] = [
       cadence: 'weekly',
       runAt: toLocalInput(nextAt(now, 16, 5)),
       days: [5],
-      maxRuns: 10,
     }),
   },
   {

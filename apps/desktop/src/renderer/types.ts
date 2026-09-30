@@ -305,7 +305,8 @@ export interface ScheduleChanges extends ScheduleRuleOptions {
   prompt?: string | undefined;
   cadence?: ScheduleCadence | undefined;
   nextRunAt?: string | undefined;
-  maxRuns?: number | undefined;
+  /** null removes the limit. */
+  maxRuns?: number | null | undefined;
   enabled?: boolean | undefined;
 }
 

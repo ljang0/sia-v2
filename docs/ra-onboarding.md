@@ -460,8 +460,9 @@ changing memory or saving a skill.
 ("Weekdays at 8:00 AM"), next run, last result, Pause/Resume, Run now, Edit and Delete. Select a
 schedule's name to open its conversation. Schedules repeat once, every day, on weekdays, on chosen
 days of the week, or every few hours (1–24). Create one from a conversation's **Tools → Schedules**
-or by asking the agent. Editing counts only the runs still to come; editing a finished schedule
-starts it again. **Run now** is an extra run and leaves the next scheduled time in place. Schedules
+or by asking the agent. Repeating schedules keep going until you pause or delete them; set **Stop
+after** only if you want a limit. Editing counts only the runs still to come (**Runs left**, empty
+for no limit); editing a finished schedule starts it again with no limit. **Run now** is an extra run and leaves the next scheduled time in place. Schedules
 run only while Sia is open and the Mac is awake; after the Mac sleeps through run times, Sia runs
 the schedule once when it wakes and skips the rest.
 
