@@ -26,6 +26,7 @@ export const KEYBOARD_SHORTCUTS: readonly { keys: string; label: string }[] = [
   { keys: 'Esc', label: 'Stop the running task' },
   { keys: '↩', label: 'Send' },
   { keys: '⇧↩', label: 'New line' },
+  { keys: '↑', label: 'Bring back a message you sent (in an empty message box)' },
   { keys: '⌘B', label: 'Show or hide the sidebar' },
   { keys: '⌘,', label: 'Settings' },
   { keys: '⌘E', label: 'Ask Sia from any app' },

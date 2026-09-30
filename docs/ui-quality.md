@@ -75,6 +75,11 @@ Collapsed conversations leave the focus order, search reveals matching groups,
 and selecting a conversation elsewhere reopens its group. Calm and Reduce Motion skip the fold
 animation. Existing task previews, drafts, statuses, and conversation actions remain available.
 
+In an empty message box, ↑ brings back the messages already sent in that conversation, newest
+first, and ↓ moves forward again; Esc or clearing the box returns to the empty draft. Inside a
+recalled message, ↑ and ↓ move between its lines until the caret reaches the first or last line, and
+editing it makes it an ordinary draft. A typed draft is never replaced.
+
 Opening a launcher result selects its exact existing conversation, closes Settings or Activity, and
 uses a short exit/arrival transition. Calm and Reduce Motion skip this transition. Failed handoffs
 restore the launcher; they do not discard the request or start another turn.
