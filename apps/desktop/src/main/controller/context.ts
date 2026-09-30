@@ -13,7 +13,7 @@ import type { MacTaskResult } from '../mac-execution.js';
 import { DESKTOP_EXECUTION_GUIDANCE } from '../assistant-library.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomUUID } from 'node:crypto';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute } from 'node:path';
 
 import {
   LocalLeaseCoordinator,
@@ -93,7 +93,7 @@ import type {
 } from './types.js';
 import { type ControllerDeps, resolveControllerDeps } from './deps.js';
 import { compareVersions, isCleanHttpsUrl } from './update-feed.js';
-import { normalizeWorkspace, workspaceSlug, worktreeLabel } from './workspace-paths.js';
+import { normalizeWorkspace, worktreeLabel } from './workspace-paths.js';
 import type { ResearchOutbox } from './research-outbox.js';
 import type { ResearchCapture } from './research-capture.js';
 import type { ConnectorConnections } from './connections.js';
@@ -106,6 +106,7 @@ import type { BrowserSession } from './browser.js';
 import type { ComputerAccess } from './computer-access.js';
 import type { VoiceControls } from './voice.js';
 import type { AssistantFeatures } from './assistant.js';
+import type { Agents } from './agents.js';
 
 const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
   'bootstrap',
@@ -133,7 +134,8 @@ type ServiceName =
   | 'browser'
   | 'computerAccess'
   | 'speech'
-  | 'assistant';
+  | 'assistant'
+  | 'agents';
 
 /**
  * Everything the desktop controller knows and does. DesktopController is the public facade;
@@ -154,6 +156,7 @@ export class ControllerContext {
   declare readonly computerAccess: ComputerAccess;
   declare readonly speech: VoiceControls;
   declare readonly assistant: AssistantFeatures;
+  declare readonly agents: Agents;
   readonly listeners = new Set<(event: DesktopPushEvent) => void>();
   readonly rendererCall = new AsyncLocalStorage<true>();
   readonly previewMemo: ThreadPreviewMemo = new WeakMap();
@@ -808,12 +811,12 @@ export class ControllerContext {
     bootstrap: () => this.resultSnapshot(),
     'scotty.configure': (input) => this.configureScotty(input),
     'phone.remote': (input) => this.phoneRemoteCommand(input),
-    'agents.save': (input) => this.saveAgent(input),
+    'agents.save': (input) => this.agents.saveAgent(input),
     'assistant.library': (input) => this.assistant.assistantLibraryCommand(input),
-    'agents.delete': ({ agentId }) => this.deleteAgent(agentId),
-    'agents.setPinned': (input) => this.setAgentPinned(input),
-    'agents.setNotifications': (input) => this.setAgentNotifications(input),
-    'agents.duplicate': ({ agentId }) => this.duplicateAgent(agentId),
+    'agents.delete': ({ agentId }) => this.agents.deleteAgent(agentId),
+    'agents.setPinned': (input) => this.agents.setAgentPinned(input),
+    'agents.setNotifications': (input) => this.agents.setAgentNotifications(input),
+    'agents.duplicate': ({ agentId }) => this.agents.duplicateAgent(agentId),
     'threads.create': (input) => this.openNewThread(input),
     'threads.select': ({ threadId }) => this.selectThread(threadId),
     'threads.rename': (input) => this.renameThread(input),
@@ -1204,179 +1207,6 @@ export class ControllerContext {
     this.cancelStreamCommit();
     this.persist();
     this.deps.repository.close();
-  }
-
-  async saveAgent(
-    input: BridgeRequestMap['agents.save'],
-  ): Promise<BridgeResultMap['agents.save']> {
-    this.requireSignedInReleaseAccount();
-    const starter = this.state.agents.find(
-      ({ id }) => id === this.state.preferences.onboarding?.agentId,
-    );
-    if (input.startOnboarding) {
-      if (input.id)
-        throw new Error('Setup creates a new agent; existing agents are unchanged.');
-      if (starter) return { agentId: starter.id, snapshot: this.resultSnapshot() };
-      if (this.state.agents.length) throw new Error('Continue setup with your existing agent.');
-    }
-    const now = new Date().toISOString();
-    const existing = input.id
-      ? this.state.agents.find((candidate) => candidate.id === input.id)
-      : undefined;
-    const agentId = existing?.id ?? randomUUID();
-    const model = input.model.trim();
-    const provider =
-      input.provider ?? existing?.provider ?? this.providers.providerForModel(model);
-    // An agent already running on a retained compatibility provider keeps its route; nothing
-    // new may choose one.
-    if (provider !== existing?.provider) requireReleaseProvider(provider);
-    this.providers.requireReadyProvider(provider, model);
-    let workspace: string;
-    if (input.workspace?.trim()) {
-      if (!isAbsolute(input.workspace))
-        throw new Error('Choose an absolute workspace directory.');
-      workspace = normalizeWorkspace(input.workspace);
-      if (!this.workspaceGrants.has(workspace)) {
-        throw new Error('Choose this workspace with the native folder picker before saving.');
-      }
-    } else if (existing) {
-      workspace = existing.workspace;
-    } else {
-      if (!this.deps.defaultWorkspaceRoot) {
-        throw new Error('Automatic workspaces are unavailable in this build. Choose a folder.');
-      }
-      workspace = join(
-        this.deps.defaultWorkspaceRoot,
-        `${workspaceSlug(input.name)}-${agentId.slice(0, 8)}`,
-      );
-      await this.deps.createDirectory(workspace);
-      this.workspaceGrants.add(workspace);
-    }
-    // Directory creation yields; another setup request may have finished meanwhile.
-    if (input.startOnboarding && this.state.agents.length) {
-      const created = this.state.agents.find(
-        ({ id }) => id === this.state.preferences.onboarding?.agentId,
-      );
-      if (created) return { agentId: created.id, snapshot: this.resultSnapshot() };
-      throw new Error('An agent was created while setup was in progress.');
-    }
-    const hue = input.hue ?? existing?.hue ?? this.leastUsedHue();
-    const agent: AgentView = {
-      id: agentId,
-      name: input.name.trim(),
-      instructions: input.instructions.trim(),
-      provider,
-      model,
-      workspace,
-      ...(input.harnessPreference
-        ? { harnessPreference: structuredClone(input.harnessPreference) }
-        : existing?.harnessPreference
-          ? { harnessPreference: structuredClone(existing.harnessPreference) }
-          : { harnessPreference: { mode: 'automatic' } as const }),
-      ...(input.voiceId
-        ? { voiceId: input.voiceId.trim() }
-        : existing?.voiceId
-          ? { voiceId: existing.voiceId }
-          : {}),
-      hue,
-      pinned: input.pinned ?? existing?.pinned ?? false,
-      notificationsEnabled:
-        input.notificationsEnabled ?? existing?.notificationsEnabled ?? true,
-      threadIds: existing?.threadIds ?? [],
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-    };
-    const index = this.state.agents.findIndex(({ id }) => id === agentId);
-    if (index >= 0) this.state.agents[index] = agent;
-    else this.state.agents.push(agent);
-    this.state.activeAgentId = agentId;
-    if (!existing) {
-      if (this.computerAccess.accessMode() === 'mac') {
-        this.assistant.library.change(
-          { operation: 'nativeLearning', agentId, enabled: true },
-          (id) => this.requireAgent(id),
-        );
-      }
-      if (input.startOnboarding) this.state.preferences.onboarding = { step: 'voice', agentId };
-      else if (this.state.preferences.onboarding && !this.state.preferences.onboarding.agentId)
-        this.state.preferences.onboarding = { step: 'complete' };
-      const created = this.createThread({ agentId });
-      return { agentId, snapshot: created.snapshot };
-    }
-    this.commit();
-    return { agentId, snapshot: this.resultSnapshot() };
-  }
-
-  setAgentPinned(input: BridgeRequestMap['agents.setPinned']): DesktopSnapshot {
-    const agent = this.requireAgent(input.agentId);
-    agent.pinned = input.pinned;
-    agent.updatedAt = new Date().toISOString();
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  setAgentNotifications(input: BridgeRequestMap['agents.setNotifications']): DesktopSnapshot {
-    const agent = this.requireAgent(input.agentId);
-    agent.notificationsEnabled = input.enabled;
-    agent.updatedAt = new Date().toISOString();
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  duplicateAgent(agentId: string): BridgeResultMap['agents.duplicate'] {
-    const source = this.requireAgent(agentId);
-    requireReleaseProvider(source.provider);
-    const now = new Date().toISOString();
-    const copy: AgentView = {
-      ...structuredClone(source),
-      id: randomUUID(),
-      name: `${source.name} copy`.slice(0, 80),
-      threadIds: [],
-      pinned: false,
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.state.agents.push(copy);
-    this.state.activeAgentId = copy.id;
-    delete this.state.activeThreadId;
-    this.commit();
-    return { agentId: copy.id, snapshot: this.resultSnapshot() };
-  }
-
-  deleteAgent(agentId: string): DesktopSnapshot {
-    const agent = this.requireAgent(agentId);
-    const active = this.state.threads.some(
-      (thread) =>
-        thread.agentId === agent.id &&
-        (thread.status === 'running' ||
-          thread.status === 'queued' ||
-          thread.status === 'waiting' ||
-          this.runningTurns.has(thread.id) ||
-          this.queuedTurns.some((turn) => turn.threadId === thread.id) ||
-          this.pendingQuestions.has(thread.id)),
-    );
-    if (active) throw new Error('Cancel the active or queued task before deleting this agent.');
-    this.assistant.library.forgetAgent(agentId);
-    const threadIds = new Set(agent.threadIds);
-    this.state.agents = this.state.agents.filter(({ id }) => id !== agentId);
-    this.state.threads = this.state.threads.filter(({ agentId: id }) => id !== agentId);
-    this.state.timeline = this.state.timeline.filter(
-      ({ threadId }) => !threadIds.has(threadId),
-    );
-    this.state.schedules = this.state.schedules.filter(
-      ({ threadId }) => !threadIds.has(threadId),
-    );
-    this.state.usageByTurn = Object.fromEntries(
-      Object.entries(this.state.usageByTurn).filter(
-        ([, usage]) => !threadIds.has(usage.threadId),
-      ),
-    );
-    const nextAgentId = this.state.agents[0]?.id;
-    if (nextAgentId) this.state.activeAgentId = nextAgentId;
-    else delete this.state.activeAgentId;
-    delete this.state.activeThreadId;
-    this.commit();
-    return this.resultSnapshot();
   }
 
   /**
@@ -3769,16 +3599,6 @@ export class ControllerContext {
       this.deps.cloud.configured &&
       (this.account.signOutInProgress || this.deps.identity.status().state !== 'signed_in')
     );
-  }
-
-  leastUsedHue(): number {
-    const counts = [0, 0, 0, 0];
-    for (const agent of this.state.agents) {
-      const slot =
-        Number.isInteger(agent.hue) && agent.hue! >= 0 && agent.hue! <= 3 ? agent.hue! : 0;
-      counts[slot] = (counts[slot] ?? 0) + 1;
-    }
-    return counts.reduce((best, count, index) => (count < counts[best]! ? index : best), 0);
   }
 
   requireThread(id: string): ThreadView {

@@ -35,6 +35,7 @@ import { BrowserSession } from './browser.js';
 import { ComputerAccess } from './computer-access.js';
 import { VoiceControls } from './voice.js';
 import { AssistantFeatures } from './assistant.js';
+import { Agents } from './agents.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -57,6 +58,7 @@ export class DesktopController {
       computerAccess: new ComputerAccess(ctx),
       speech: new VoiceControls(ctx),
       assistant: new AssistantFeatures(ctx),
+      agents: new Agents(ctx),
     }));
   }
 
