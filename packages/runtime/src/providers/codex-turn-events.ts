@@ -4,8 +4,8 @@ import type {
   ThreadEventEnvelope,
   ToolEvent,
 } from '@sia/protocol';
-import { AsyncQueue } from '../async-queue.js';
-import { EventFactory, numberAt, record, stringAt } from '../events.js';
+import type { AsyncQueue } from '../async-queue.js';
+import { type EventFactory, numberAt, record, stringAt } from '../events.js';
 
 export interface ActiveTurn {
   readonly session: ProviderSession;

@@ -1,5 +1,5 @@
 import { stringAt } from '../events.js';
-import { JsonRpcPeer } from '../json-rpc.js';
+import type { JsonRpcPeer } from '../json-rpc.js';
 import type { CodexCustomModelProvider } from './codex.js';
 
 /**
