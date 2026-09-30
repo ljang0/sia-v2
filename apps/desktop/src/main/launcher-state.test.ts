@@ -119,3 +119,13 @@ it('keeps the launcher in sync with the saved appearance', () => {
   state.preferences.appearance = 'expressive';
   expect(session.view(state).appearance).toBe('expressive');
 });
+it('carries the saved text size so the panel matches Sia', () => {
+  const session = new LauncherSession();
+  const state = snapshot();
+  expect(session.view(state)).not.toHaveProperty('textSize');
+  (state as { preferences?: unknown }).preferences = {
+    completionSound: false,
+    textSize: 'large',
+  };
+  expect(session.view(state).textSize).toBe('large');
+});

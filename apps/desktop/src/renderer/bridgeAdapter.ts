@@ -473,6 +473,12 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async setAppearance(appearance) {
       publish(await bridge.settings.setAppearance(appearance));
     },
+    async setTheme(theme) {
+      publish(await bridge.settings.setTheme(theme));
+    },
+    async setTextSize(textSize) {
+      publish(await bridge.settings.setTextSize(textSize));
+    },
     async setCompletionSound(enabled) {
       publish(await bridge.settings.setCompletionSound(enabled));
     },

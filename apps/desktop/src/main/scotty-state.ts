@@ -70,6 +70,7 @@ export class ScottyTasks {
       agents: [],
       tasks: [],
       moreTasks: false,
+      ...(snapshot.preferences?.textSize ? { textSize: snapshot.preferences.textSize } : {}),
     };
     if (!available) {
       this.clear();

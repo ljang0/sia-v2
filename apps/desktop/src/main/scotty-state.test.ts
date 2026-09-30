@@ -254,3 +254,11 @@ it('does not dispatch a new turn when the Mac locks while creating its thread', 
   await expect(sending).rejects.toThrow('sign in');
   expect(controller.invoke).toHaveBeenCalledTimes(1);
 });
+it('carries the saved text size, even while Scotty is unavailable', () => {
+  const tasks = new ScottyTasks();
+  const state = snapshot();
+  expect(tasks.view(state, settings, true)).not.toHaveProperty('textSize');
+  state.preferences = { completionSound: false, textSize: 'larger' };
+  expect(tasks.view(state, settings, true).textSize).toBe('larger');
+  expect(tasks.view(state, settings, false).textSize).toBe('larger');
+});

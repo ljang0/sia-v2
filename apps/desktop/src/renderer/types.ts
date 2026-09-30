@@ -1,4 +1,5 @@
 import type { OnboardingProgress, OnboardingStep, PushToTalkView } from '../shared/bridge';
+import type { TextSize, ThemePreference } from '../shared/display';
 export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude';
 /** Safe catalog id. The main process decides whether the corresponding adapter is admitted. */
 type HarnessId = string;
@@ -458,6 +459,8 @@ export interface RendererSnapshot {
     /** Sia opens when the person logs in to their Mac. Off unless they turn it on. */
     openAtLogin?: boolean;
     appearance?: 'calm' | 'expressive';
+    theme?: ThemePreference;
+    textSize?: TextSize;
     /** Shows the workspace Command tool. Off unless turned on in Settings. */
     developerTools?: boolean;
     onboarding?: OnboardingProgress;
@@ -676,6 +679,8 @@ export interface RendererApi {
   restartForOnboarding(): Promise<void>;
   setupMessages(): Promise<void>;
   setAppearance(appearance: 'calm' | 'expressive'): Promise<void>;
+  setTheme(theme: ThemePreference): Promise<void>;
+  setTextSize(textSize: TextSize): Promise<void>;
   setCompletionSound(enabled: boolean): Promise<void>;
   setOpenAtLogin(enabled: boolean): Promise<void>;
   setDeveloperTools(enabled: boolean): Promise<void>;

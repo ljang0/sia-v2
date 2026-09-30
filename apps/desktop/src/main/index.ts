@@ -14,6 +14,8 @@ import { showStorageStartup } from './storage-startup.js';
 import { requestMicrophonePermission } from './microphone-permission.js';
 import { contextMenuTemplate } from './context-menu.js';
 import { viewMenu } from './app-menu.js';
+import { readLaunchTheme, ThemeSync, writeLaunchTheme } from './display-preferences.js';
+import { stepTextSize } from '../shared/display.js';
 import { quitConfirmation, RendererRecovery } from './app-lifecycle.js';
 import {
   readWindowState,
@@ -229,6 +231,15 @@ async function performApplicationCreation(): Promise<void> {
       )
     : undefined;
   windowStateSaver ??= new WindowStateSaver(windowStatePath);
+  // Settings → Appearance → Theme, applied before the first frame so launch never flashes.
+  const launchThemePath = join(app.getPath('userData'), 'appearance.json');
+  themeSync ??= new ThemeSync(
+    readLaunchTheme(launchThemePath),
+    (theme) => {
+      nativeTheme.themeSource = theme;
+    },
+    (theme) => writeLaunchTheme(launchThemePath, theme),
+  );
   const window = new BrowserWindow({
     title: 'Sia',
     ...WINDOW_SIZE,
@@ -705,9 +716,11 @@ async function performApplicationCreation(): Promise<void> {
     controller = activeController;
     // Reload appears in the View menu while Settings → Developer tools is on.
     installApplicationMenu(activeController.developerToolsEnabled());
-    activeController.subscribe(() =>
-      installApplicationMenu(activeController.developerToolsEnabled()),
-    );
+    themeSync?.update(activeController.displayPreferences().theme);
+    activeController.subscribe(() => {
+      installApplicationMenu(activeController.developerToolsEnabled());
+      themeSync?.update(activeController.displayPreferences().theme);
+    });
   }
   const activeController = controller;
   commandLauncher ??= createCommandLauncher(
@@ -840,6 +853,17 @@ function configureSessionSecurity(): void {
 }
 
 let menuDeveloperTools: boolean | undefined;
+let themeSync: ThemeSync | undefined;
+
+/** ⌘+ / ⌘− / ⌘0 step Settings → Appearance → Text size (see viewMenu). */
+function changeTextSize(step: -1 | 0 | 1): void {
+  if (step === 0)
+    for (const window of BrowserWindow.getAllWindows()) window.webContents.setZoomLevel(0);
+  const activeController = controller;
+  if (!activeController) return;
+  const textSize = stepTextSize(activeController.displayPreferences().textSize, step);
+  void activeController.invoke('settings.setTextSize', { textSize }).catch(() => undefined);
+}
 
 function installApplicationMenu(developerTools = false): void {
   if (menuDeveloperTools === developerTools) return;
@@ -881,7 +905,7 @@ function installApplicationMenu(developerTools = false): void {
         ],
       },
       { role: 'editMenu' },
-      viewMenu({ packaged: app.isPackaged, developerTools }),
+      viewMenu({ packaged: app.isPackaged, developerTools, onTextSize: changeTextSize }),
       { role: 'windowMenu' },
     ]),
   );
