@@ -40,8 +40,8 @@ import type {
   ApprovalBroker,
   ApprovalRequest as GatewayApprovalRequest,
 } from '@sia/action-gateway';
-import type { ModelRoute, ProviderAttachment, ThreadEventEnvelope } from '@sia/protocol';
-import { admitHostedRoutes, legacyModelRoute, resolveExecutionTarget } from '@sia/runtime';
+import type { ProviderAttachment, ThreadEventEnvelope } from '@sia/protocol';
+import { legacyModelRoute, resolveExecutionTarget } from '@sia/runtime';
 
 import type {
   ActivityPresentationView,
@@ -56,9 +56,6 @@ import type {
   ComputerPermissionsView,
   DesktopPushEvent,
   DesktopSnapshot,
-  ProviderId,
-  ProviderUsageView,
-  ProviderUsageLimitView,
   ProviderView,
   ScheduleView,
   ThreadView,
@@ -151,6 +148,7 @@ import type { ResearchOutbox } from './research-outbox.js';
 import type { ResearchCapture } from './research-capture.js';
 import type { ConnectorConnections } from './connections.js';
 import type { CloudAccount } from './account.js';
+import type { ProviderAccess } from './providers.js';
 
 const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
   'bootstrap',
@@ -166,7 +164,8 @@ type BridgeHandlers = { [M in BridgeMethod]?: BridgeHandler<M> };
 
 /** The domain collaborators a context is wired with. */
 export type ControllerServices = Pick<ControllerContext, ServiceName>;
-type ServiceName = 'researchOutbox' | 'researchCapture' | 'connections' | 'account';
+type ServiceName =
+  'researchOutbox' | 'researchCapture' | 'connections' | 'account' | 'providers';
 
 /**
  * Everything the desktop controller knows and does. DesktopController is the public facade;
@@ -179,11 +178,8 @@ export class ControllerContext {
   declare readonly researchCapture: ResearchCapture;
   declare readonly connections: ConnectorConnections;
   declare readonly account: CloudAccount;
+  declare readonly providers: ProviderAccess;
   readonly assistantLibrary: AssistantLibrary;
-  codexSetupPending = false;
-  /** Aborts a ChatGPT browser sign-in that is still waiting on the person. */
-  codexLoginAbort: AbortController | undefined;
-  codexSetup: ProviderView['setup'];
   pendingTerminalOperations = 0;
   pushToTalk: PushToTalkService | undefined;
   readonly listeners = new Set<(event: DesktopPushEvent) => void>();
@@ -208,8 +204,6 @@ export class ControllerContext {
   readonly workspaceGrants = new Set<string>();
   readonly attachmentGrants = new Map<string, AttachmentGrant>();
   readonly failedTurnAttachments = new Map<string, readonly ProviderAttachment[]>();
-  readonly backendModelRoutes = new Map<string, ModelRoute>();
-  readonly allowedModelRoutes = new Map<string, readonly ModelRoute[]>();
   readonly actionLeases = new LocalLeaseCoordinator(4);
   queuedTurns: QueuedTurn[] = [];
   /**
@@ -229,9 +223,6 @@ export class ControllerContext {
   browserTarget: { targetId: string; tabId: string } | undefined;
   browserSessionId: string | undefined;
   state: PersistedState = structuredClone(INITIAL_STATE);
-  providers: ProviderView[] = [];
-  /** Plan usage windows reported during this session; kept apart so a provider refresh keeps them. */
-  readonly usageLimits = new Map<ProviderId, ProviderUsageLimitView>();
   computerState: ComputerPermissionsView = {
     status: 'unavailable',
     accessibility: false,
@@ -273,7 +264,7 @@ export class ControllerContext {
       repository: this.deps.repository,
       voice: this.deps.voice,
       allowed: () =>
-        !this.codexSetupPending &&
+        !this.providers.codexSetupPending &&
         !this.releaseAccessLocked() &&
         this.deps.voice?.view().status === 'connected' &&
         this.deps.voice.view().dictationAvailable !== false,
@@ -503,7 +494,7 @@ export class ControllerContext {
   remoteAccessAllowed(): boolean {
     return (
       !this.shuttingDown &&
-      !this.codexSetupPending &&
+      !this.providers.codexSetupPending &&
       !this.account.accountDeletionInProgress &&
       !this.account.signOutInProgress &&
       !this.releaseAccessLocked()
@@ -960,7 +951,7 @@ export class ControllerContext {
           '--- Sia diagnostics (no transcript or file contents) ---',
           `Version: ${this.deps.appVersion}`,
           ...(input.threadId ? [`Thread ID: ${input.threadId}`] : []),
-          `Providers: ${this.providers.map(({ id, status }) => `${id}=${status}`).join(', ')}`,
+          `Providers: ${this.providers.views.map(({ id, status }) => `${id}=${status}`).join(', ')}`,
         ].join('\n')
       : '';
     await this.deps.composeFeedback(
@@ -1055,10 +1046,10 @@ export class ControllerContext {
       this.deps.computer.permissions(),
       this.deps.identity.initialize(),
     ]);
-    this.providers = providers;
+    this.providers.views = providers;
     await this.refreshCapabilityStatuses().catch(() => undefined);
     if (this.deps.fakeServices) {
-      const codexIndex = this.providers.findIndex(({ id }) => id === 'codex');
+      const codexIndex = this.providers.views.findIndex(({ id }) => id === 'codex');
       const fakeCodex: ProviderView = {
         id: 'codex',
         label: 'Codex',
@@ -1086,13 +1077,13 @@ export class ControllerContext {
           },
         ],
       };
-      if (codexIndex >= 0) this.providers[codexIndex] = fakeCodex;
-      else this.providers.push(fakeCodex);
+      if (codexIndex >= 0) this.providers.views[codexIndex] = fakeCodex;
+      else this.providers.views.push(fakeCodex);
     }
-    await this.refreshProviderModels();
+    await this.providers.refreshProviderModels();
     await this.account.reconcileIdentityBoundState();
     await this.account.refreshCloudSession();
-    await this.refreshMetaProviderState();
+    await this.providers.refreshMetaProviderState();
     if (this.deps.identity.status().state === 'signed_in') {
       await this.deps.voice?.refresh().catch(() => undefined);
     }
@@ -1322,13 +1313,13 @@ export class ControllerContext {
             timeline: structuredClone(this.state.timeline),
             approvals: structuredClone(this.state.approvals),
           }),
-      providers: this.providers.map((provider) => ({
+      providers: this.providers.views.map((provider) => ({
         ...structuredClone(provider),
-        ...(this.usageLimits.has(provider.id)
-          ? { limits: { ...this.usageLimits.get(provider.id)! } }
+        ...(this.providers.usageLimits.has(provider.id)
+          ? { limits: { ...this.providers.usageLimits.get(provider.id)! } }
           : {}),
-        ...(provider.id === 'codex' && this.codexSetup
-          ? { setup: { ...this.codexSetup } }
+        ...(provider.id === 'codex' && this.providers.codexSetup
+          ? { setup: { ...this.providers.codexSetup } }
           : {}),
       })),
       connections: structuredClone(this.state.connections),
@@ -1356,7 +1347,7 @@ export class ControllerContext {
         ...(this.pushToTalk ? { pushToTalk: this.pushToTalk.view() } : {}),
       },
       preferences: structuredClone(this.state.preferences),
-      providerUsage: this.providerUsage(),
+      providerUsage: this.providers.providerUsage(),
       updates: structuredClone(this.updates),
       schedules: structuredClone(this.state.schedules),
       ...(this.state.activeAgentId ? { activeAgentId: this.state.activeAgentId } : {}),
@@ -1373,30 +1364,6 @@ export class ControllerContext {
     return () => this.listeners.delete(listener);
   }
 
-  providerUsage(): ProviderUsageView[] {
-    const totals = new Map<ProviderId, ProviderUsageView>();
-    for (const record of Object.values(this.state.usageByTurn)) {
-      const current = totals.get(record.provider) ?? {
-        provider: record.provider,
-        requests: 0,
-        inputTokens: 0,
-        outputTokens: 0,
-        cachedInputTokens: 0,
-        lastUsedAt: record.updatedAt,
-        providerReported: true as const,
-      };
-      current.requests += 1;
-      current.inputTokens += record.inputTokens;
-      current.outputTokens += record.outputTokens;
-      current.cachedInputTokens += record.cachedInputTokens;
-      if (record.updatedAt > current.lastUsedAt) current.lastUsedAt = record.updatedAt;
-      totals.set(record.provider, current);
-    }
-    return [...totals.values()].sort((left, right) =>
-      left.provider.localeCompare(right.provider),
-    );
-  }
-
   async invoke<M extends BridgeMethod>(
     method: M,
     input: BridgeRequestMap[M],
@@ -1406,7 +1373,7 @@ export class ControllerContext {
       method !== 'voice.capture.release' &&
       method !== 'providers.cancelLogin'
     )
-      this.requireCodexSetupIdle();
+      this.providers.requireCodexSetupIdle();
     if (this.account.accountDeletionInProgress && method !== 'bootstrap') {
       throw new Error('Sia account deletion is in progress. Wait for it to finish.');
     }
@@ -1483,9 +1450,9 @@ export class ControllerContext {
     'schedules.delete': ({ scheduleId }) => this.deleteSchedule(scheduleId),
     'schedules.runNow': ({ scheduleId }) => this.runScheduleNow(scheduleId),
     'approvals.resolve': (input) => this.resolveApproval(input),
-    'providers.probe': ({ providerId }) => this.probeProviders(providerId),
-    'providers.login': ({ providerId }) => this.providerLogin(providerId),
-    'providers.cancelLogin': () => this.cancelProviderLogin(),
+    'providers.probe': ({ providerId }) => this.providers.probeProviders(providerId),
+    'providers.login': ({ providerId }) => this.providers.providerLogin(providerId),
+    'providers.cancelLogin': () => this.providers.cancelProviderLogin(),
     'settings.openDirectory': async () => ({ path: await this.grantChosenDirectory() }),
     'settings.setOnboarding': (input) => this.setOnboarding(input),
     'settings.restartForOnboarding': () => this.restartForOnboarding(),
@@ -1690,11 +1657,6 @@ export class ControllerContext {
     return this.resultSnapshot();
   }
 
-  cancelProviderLogin(): DesktopSnapshot {
-    this.codexLoginAbort?.abort(new Error('ChatGPT sign-in was cancelled.'));
-    return this.resultSnapshot();
-  }
-
   setOnboarding({
     step,
     permissionSetup,
@@ -1870,7 +1832,7 @@ export class ControllerContext {
   }
 
   acquireRendererCapture(): BridgeResultMap['voice.capture.acquire'] {
-    this.requireCodexSetupIdle();
+    this.providers.requireCodexSetupIdle();
     return { leaseId: this.pushToTalk?.acquireRendererCapture() ?? randomUUID() };
   }
 
@@ -2085,11 +2047,12 @@ export class ControllerContext {
       : undefined;
     const agentId = existing?.id ?? randomUUID();
     const model = input.model.trim();
-    const provider = input.provider ?? existing?.provider ?? this.providerForModel(model);
+    const provider =
+      input.provider ?? existing?.provider ?? this.providers.providerForModel(model);
     // An agent already running on a retained compatibility provider keeps its route; nothing
     // new may choose one.
     if (provider !== existing?.provider) requireReleaseProvider(provider);
-    this.requireReadyProvider(provider, model);
+    this.providers.requireReadyProvider(provider, model);
     let workspace: string;
     if (input.workspace?.trim()) {
       if (!isAbsolute(input.workspace))
@@ -2257,7 +2220,7 @@ export class ControllerContext {
       throw new Error('Enable learning before requesting suggestions.');
     if (this.runningTurns.size || this.queuedTurns.length)
       throw new Error('Wait for current tasks to finish before reviewing memory.');
-    this.requireReadyProvider(agent.provider, agent.model);
+    this.providers.requireReadyProvider(agent.provider, agent.model);
     const { threadId } = this.createThread(
       { agentId, title: 'Memory and skill review' },
       activate,
@@ -2323,10 +2286,10 @@ export class ControllerContext {
     const id = randomUUID();
     const now = new Date().toISOString();
     const releaseRoute = legacyModelRoute(agent.provider, agent.model);
-    const backendDefault = this.backendModelRoutes.get(
+    const backendDefault = this.providers.backendModelRoutes.get(
       modelRouteKey(agent.provider, agent.model),
     );
-    const allowedRoutes = this.allowedModelRoutes.get(
+    const allowedRoutes = this.providers.allowedModelRoutes.get(
       modelRouteKey(agent.provider, agent.model),
     ) ?? [releaseRoute];
     const resolution = resolveExecutionTarget({
@@ -2357,7 +2320,7 @@ export class ControllerContext {
         }),
       )
       .digest('hex');
-    const reasoningEffort = this.defaultReasoningEffort(agent.provider, agent.model);
+    const reasoningEffort = this.providers.defaultReasoningEffort(agent.provider, agent.model);
     this.state.threads.push({
       id,
       agentId: agent.id,
@@ -2418,7 +2381,7 @@ export class ControllerContext {
 
   configureThread(input: BridgeRequestMap['threads.config']): DesktopSnapshot {
     const thread = this.requireIdleThread(input.threadId, 'change model settings');
-    const provider = this.requireReadyProvider(thread.provider, input.model.trim());
+    const provider = this.providers.requireReadyProvider(thread.provider, input.model.trim());
     const model = provider.models?.find((candidate) => candidate.id === input.model.trim());
     if (provider.models?.length && !model) {
       throw new Error(`${provider.label} does not currently offer that model.`);
@@ -2770,7 +2733,7 @@ export class ControllerContext {
     context?: string,
   ): BridgeResultMap['threads.send'] {
     this.requireSignedInReleaseAccount();
-    this.requireCodexSetupIdle();
+    this.providers.requireCodexSetupIdle();
     if (this.state.capture.status === 'blocked') {
       throw new Error(
         this.state.capture.blockedReason ??
@@ -2855,7 +2818,7 @@ export class ControllerContext {
     }
     // Provider state can change after an agent or immutable thread was created.
     // Revalidate every new turn instead of trusting persisted configuration.
-    this.requireReadyProvider(thread.provider, thread.model);
+    this.providers.requireReadyProvider(thread.provider, thread.model);
     const running = this.runningTurns.get(thread.id);
     // A person can add follow-ups while the thread works, or while a stopped turn is still
     // winding down. They wait behind the thread's own turn and start in order when it ends.
@@ -3016,10 +2979,10 @@ export class ControllerContext {
 
   retryTurn(threadId: string): BridgeResultMap['threads.retry'] {
     this.requireSignedInReleaseAccount();
-    this.requireCodexSetupIdle();
+    this.providers.requireCodexSetupIdle();
     const thread = this.requireThread(threadId);
     if (thread.status !== 'failed') throw new Error('Only a failed turn can be retried.');
-    this.requireReadyProvider(thread.provider, thread.model);
+    this.providers.requireReadyProvider(thread.provider, thread.model);
     // Follow-ups held behind a paused task run after it continues.
     const held = this.heldThreads.has(thread.id);
     if (
@@ -3477,7 +3440,7 @@ export class ControllerContext {
 
   async runTerminal(input: BridgeRequestMap['terminal.run']): Promise<TerminalResultView> {
     this.requireDeveloperTools();
-    this.requireCodexSetupIdle();
+    this.providers.requireCodexSetupIdle();
     const thread = this.requireIdleThread(input.threadId, 'run a terminal command');
     this.pendingTerminalOperations += 1;
     try {
@@ -3494,7 +3457,7 @@ export class ControllerContext {
     input: BridgeRequestMap['terminal.start'],
   ): Promise<BackgroundTerminalView> {
     this.requireDeveloperTools();
-    this.requireCodexSetupIdle();
+    this.providers.requireCodexSetupIdle();
     const thread = this.requireIdleThread(input.threadId, 'start a background process');
     const service = this.requireWorkspaceOperations();
     if (!service.startBackgroundTerminal) {
@@ -3675,7 +3638,7 @@ export class ControllerContext {
 
   async runDueSchedules(): Promise<void> {
     if (
-      this.codexSetupPending ||
+      this.providers.codexSetupPending ||
       this.scheduleRunInFlight ||
       this.account.accountDeletionInProgress ||
       !this.schedulesAvailable()
@@ -3820,222 +3783,6 @@ export class ControllerContext {
     }
     pending.resolve(approved ? 'allow' : 'deny');
     return this.resultSnapshot();
-  }
-
-  async probeProviders(providerId?: ProviderId): Promise<DesktopSnapshot> {
-    if (providerId === 'meta' && this.deps.identity.status().state === 'signed_in') {
-      await this.deps.identity.refreshSession?.();
-      await this.account.refreshCloudSession();
-    }
-    const updated = await this.deps.providerProbe(providerId);
-    if (providerId) {
-      const value = updated[0];
-      if (value) {
-        const index = this.providers.findIndex(({ id }) => id === providerId);
-        if (index >= 0) this.providers[index] = value;
-        else this.providers.push(value);
-      }
-    } else this.providers = updated;
-    await this.refreshMetaProviderState();
-    await this.refreshProviderModels(providerId);
-    if (
-      this.codexSetup?.phase === 'error' &&
-      this.providers.find(({ id }) => id === 'codex')?.status === 'ready'
-    )
-      this.codexSetup = undefined;
-    this.emit();
-    return this.resultSnapshot();
-  }
-
-  async refreshProviderModels(providerId?: ProviderId): Promise<void> {
-    if (this.deps.fakeServices || !this.runtime || (providerId && providerId !== 'codex'))
-      return;
-    const codex = this.providers.find(({ id }) => id === 'codex');
-    if (!codex || codex.status !== 'ready') return;
-    try {
-      const models = await this.runtime.listModels('codex');
-      if (models.length) {
-        codex.models = models.map((model) => ({
-          ...model,
-          reasoningEfforts: [...model.reasoningEfforts],
-        }));
-      }
-    } catch {
-      // The provider probe remains authoritative. Catalog failure leaves the
-      // verified release model available instead of making Codex unusable.
-    }
-  }
-
-  requireCodexSetupIdle(): void {
-    if (this.codexSetupPending)
-      throw new Error('Codex setup is in progress. Follow the setup status in Sia.');
-  }
-
-  requireSafeCodexRestart(): void {
-    this.requireSignedInReleaseAccount();
-    if (this.account.signOutInProgress || this.account.accountDeletionInProgress)
-      throw new Error('Finish the account change before setting up Codex.');
-    if (
-      this.runningTurns.size ||
-      this.queuedTurns.length ||
-      this.pushToTalk?.captureBusy ||
-      this.pendingTerminalOperations ||
-      this.deps.workspaceOperations?.hasRunningTerminals?.() ||
-      this.connections.setup ||
-      this.state.connections.some((app) => app.status === 'connecting')
-    ) {
-      throw new Error(
-        'Finish the current task, terminal process, recording, or account approval, then try Codex setup again.',
-      );
-    }
-    if (this.shuttingDown)
-      throw new Error('Sia is closing. Open it again to finish Codex setup.');
-  }
-
-  async providerLogin(providerId: ProviderId): Promise<BridgeResultMap['providers.login']> {
-    this.requireCodexSetupIdle();
-    const provider = this.providers.find(({ id }) => id === providerId);
-    if (!provider) throw new Error('Provider status is unavailable. Check again first.');
-    if (provider.status === 'disabled') {
-      throw new Error(
-        provider.restriction ?? 'This provider is disabled in the current release.',
-      );
-    }
-    if (providerId === 'meta') {
-      if (provider.status === 'unavailable') {
-        throw new Error('Included models require a configured Sia cloud deployment.');
-      }
-      if (provider.status === 'needs_login') {
-        throw new Error('Sign in to Sia to use included lab models.');
-      }
-      throw new Error('Lab model access is already included with your Sia account.');
-    }
-    const installation =
-      provider.status === 'needs_install' || provider.status === 'incompatible';
-    if (providerId === 'codex') {
-      if (provider.status === 'ready')
-        return { opened: false, snapshot: this.resultSnapshot() };
-      this.codexSetupPending = true;
-      try {
-        if (installation) {
-          if (!this.deps.installCodex || !this.deps.restartApp || this.deps.fakeServices)
-            throw new Error('Automatic Codex setup is unavailable in this build.');
-          this.requireSafeCodexRestart();
-          this.setCodexSetup(
-            'installing',
-            provider.status === 'incompatible'
-              ? 'Updating Codex for Sia…'
-              : 'Downloading and installing Codex…',
-          );
-          await this.deps.installCodex();
-          this.requireSafeCodexRestart();
-          // Only this explicit setup action can authorize sign-in after restart.
-          // No credential, login URL or token is persisted in the continuation.
-          this.deps.repository.put('setup', 'codex-login', {
-            expiresAt: Date.now() + 15 * 60_000,
-          });
-          this.commit();
-          this.setCodexSetup(
-            'restarting',
-            'Restarting Sia. ChatGPT sign-in will continue automatically.',
-          );
-          this.deps.restartApp();
-          return { opened: true, snapshot: this.resultSnapshot() };
-        }
-        if (!this.runtime)
-          throw new Error(
-            'Codex sign-in is temporarily unavailable. Restart Sia and try again.',
-          );
-        this.setCodexSetup(
-          'signing-in',
-          'Finish signing in with ChatGPT in your browser. Sia will check the connection automatically.',
-        );
-        const abort = new AbortController();
-        this.codexLoginAbort = abort;
-        try {
-          const login = await this.runtime.startCodexChatGptLogin(abort.signal);
-          try {
-            abort.signal.throwIfAborted();
-            await this.deps.openExternal(login.authUrl);
-            abort.signal.throwIfAborted();
-            await this.runtime.waitForCodexChatGptLogin(login.loginId, abort.signal);
-          } catch (error) {
-            await this.runtime.cancelCodexChatGptLogin(login.loginId).catch(() => undefined);
-            throw error;
-          }
-        } catch (error) {
-          if (!abort.signal.aborted) throw error;
-          // The person chose Cancel. Leave a plain Try again state instead of an error.
-          this.deps.repository.remove('setup', 'codex-login');
-          this.setCodexSetup(
-            'error',
-            'ChatGPT sign-in was cancelled. Choose Try again to start over.',
-          );
-          return { opened: false, snapshot: this.resultSnapshot() };
-        } finally {
-          if (this.codexLoginAbort === abort) this.codexLoginAbort = undefined;
-        }
-        this.requireSignedInReleaseAccount();
-        this.setCodexSetup('checking', 'Checking your ChatGPT connection…');
-        const snapshot = await this.probeProviders('codex');
-        if (snapshot.providers.find(({ id }) => id === 'codex')?.status !== 'ready')
-          throw new Error(
-            'ChatGPT sign-in finished, but Codex could not verify the connected plan. Try setup again.',
-          );
-        this.codexSetup = undefined;
-        return { opened: true, snapshot: this.resultSnapshot() };
-      } catch (error) {
-        this.deps.repository.remove('setup', 'codex-login');
-        this.setCodexSetup(
-          'error',
-          'Codex setup did not finish. Your progress is saved; try setup again.',
-        );
-        throw error;
-      } finally {
-        if (this.codexSetup?.phase !== 'restarting') this.codexSetupPending = false;
-        this.emit();
-      }
-    }
-    const urls: Partial<Record<ProviderId, string>> = {
-      claude: 'https://docs.anthropic.com/en/docs/claude-code/getting-started',
-    };
-    const url = urls[providerId];
-    if (!url) throw new Error('This provider has no supported sign-in flow in the alpha.');
-    await this.deps.openExternal(url);
-    return { opened: true, snapshot: this.resultSnapshot() };
-  }
-
-  setCodexSetup(phase: NonNullable<ProviderView['setup']>['phase'], message: string): void {
-    this.codexSetup = { phase, message };
-    this.emit();
-  }
-
-  /** Called after the window loads, never on an ordinary launch without setup intent. */
-  async resumeCodexSetup(): Promise<void> {
-    if (this.codexSetupPending || this.releaseAccessLocked() || this.shuttingDown) return;
-    const continuation = this.deps.repository.get<{ expiresAt: number }>(
-      'setup',
-      'codex-login',
-    );
-    if (!continuation) return;
-    // Consume before awaiting anything: a failed/cancelled login must not reopen
-    // itself on the next launch or create concurrent browser sign-in sessions.
-    this.deps.repository.remove('setup', 'codex-login');
-    if (!Number.isFinite(continuation.expiresAt) || continuation.expiresAt < Date.now()) return;
-    const status = this.providers.find(({ id }) => id === 'codex')?.status;
-    if (status === 'ready') return;
-    if (status !== 'needs_login') {
-      this.setCodexSetup(
-        'error',
-        'Codex could not finish updating. Choose Set up Codex to try again.',
-      );
-      return;
-    }
-    try {
-      await this.providerLogin('codex');
-    } catch {
-      // The visible setup error remains actionable. Never reopen a browser in a loop.
-    }
   }
 
   async refreshCapabilityStatuses(): Promise<void> {
@@ -4390,137 +4137,6 @@ export class ControllerContext {
     return this.state.cloudFeatures?.schedules !== false;
   }
 
-  async refreshMetaProviderState(): Promise<void> {
-    const index = this.providers.findIndex(({ id }) => id === 'meta');
-    if (index < 0) return;
-    const current = this.providers[index]!;
-    if (!this.deps.cloud.configured) {
-      this.providers[index] = {
-        ...current,
-        status: 'unavailable',
-        detail: 'Included models require a release build configured for Sia cloud.',
-      };
-      return;
-    }
-    if (this.deps.identity.status().state !== 'signed_in') {
-      this.providers[index] = {
-        ...current,
-        status: 'needs_login',
-        detail: 'Sign in to Sia before using included lab models.',
-      };
-      return;
-    }
-    if (this.deps.fakeServices) {
-      this.providers[index] = {
-        ...current,
-        status: 'unavailable',
-        detail: 'Included models require an authenticated live capability check.',
-      };
-      return;
-    }
-    const codexHarness = this.providers.find(({ id }) => id === 'codex');
-    if (
-      !codexHarness ||
-      codexHarness.status === 'needs_install' ||
-      codexHarness.status === 'incompatible' ||
-      codexHarness.status === 'disabled' ||
-      codexHarness.status === 'unavailable'
-    ) {
-      this.providers[index] = {
-        ...current,
-        status: codexHarness?.status === 'incompatible' ? 'incompatible' : 'needs_install',
-        detail:
-          codexHarness?.status === 'incompatible'
-            ? 'Included models require the supported Codex harness version. Update Codex, then check again.'
-            : 'Included models require the Codex harness. Install Codex, then check again.',
-      };
-      return;
-    }
-    this.providers[index] = {
-      ...current,
-      status: 'unavailable',
-      detail: 'Checking included model labs…',
-    };
-    try {
-      const capabilities = await this.deps.cloud.capabilities();
-      const catalog = await (typeof this.deps.cloud.hostedCatalog === 'function'
-        ? this.deps.cloud
-            .hostedCatalog()
-            .catch(() => ({ schemaVersion: 1 as const, providers: [] }))
-        : Promise.resolve({ schemaVersion: 1 as const, providers: [] }));
-      for (const key of this.backendModelRoutes.keys()) {
-        if (key.startsWith('meta\u0000')) this.backendModelRoutes.delete(key);
-      }
-      for (const key of this.allowedModelRoutes.keys()) {
-        if (key.startsWith('meta\u0000')) this.allowedModelRoutes.delete(key);
-      }
-      for (const hostedProvider of catalog.providers) {
-        if (!hostedProvider.execution) continue;
-        const admitted = admitHostedRoutes({
-          provider: 'meta',
-          defaultHarnessId: hostedProvider.execution.defaultHarnessId,
-          routes: hostedProvider.execution.routes,
-        });
-        const routesByModel = Map.groupBy(admitted.allowedRoutes, ({ model }) => model);
-        for (const [model, routes] of routesByModel) {
-          this.allowedModelRoutes.set(modelRouteKey('meta', model), routes);
-        }
-        for (const route of admitted.allowedRoutes) {
-          if (route.harnessId !== hostedProvider.execution.defaultHarnessId) continue;
-          this.backendModelRoutes.set(modelRouteKey('meta', route.model), route);
-        }
-      }
-      const availableHostedProviders = catalog.providers.filter(({ available }) => available);
-      const catalogModels = availableHostedProviders.flatMap(({ models }) =>
-        models.map(({ id }) => id),
-      );
-      const model = catalogModels.includes(current.model)
-        ? current.model
-        : availableHostedProviders[0]?.defaultModel || capabilities.models[0] || current.model;
-      if (
-        (catalog.providers.length > 0 && availableHostedProviders.length === 0) ||
-        !capabilities.available ||
-        !capabilities.streaming ||
-        !capabilities.tools
-      ) {
-        this.providers[index] = {
-          ...current,
-          status: 'unavailable',
-          detail:
-            capabilities.reason ?? 'The included model relay is missing required capabilities.',
-        };
-        return;
-      }
-      this.providers[index] = {
-        ...current,
-        model,
-        ...(availableHostedProviders.length > 0
-          ? {
-              models: availableHostedProviders.flatMap((hostedProvider) =>
-                hostedProvider.models.map(({ id, name }) => ({
-                  id,
-                  label: name,
-                  description: `${hostedProvider.name} · included with Sia · up to ${hostedProvider.limits.maxOutputTokens.toLocaleString()} output tokens per turn`,
-                  reasoningEfforts: [],
-                })),
-              ),
-            }
-          : {}),
-        status: 'ready',
-        detail:
-          availableHostedProviders.length > 0
-            ? `${availableHostedProviders.length} model lab${availableHostedProviders.length === 1 ? '' : 's'} verified live`
-            : 'Included model verified live; local tools remain on this Mac.',
-      };
-    } catch {
-      this.providers[index] = {
-        ...current,
-        status: 'unavailable',
-        detail: 'Sia could not verify the authenticated model relay.',
-      };
-    }
-  }
-
   startTurn(turn: QueuedTurn): void {
     if (this.shuttingDown) return;
     const thread = this.requireThread(turn.threadId);
@@ -4553,7 +4169,7 @@ export class ControllerContext {
           0,
         ) + 1;
     }
-    const unavailable = this.providerReadinessError(thread.provider, thread.model);
+    const unavailable = this.providers.providerReadinessError(thread.provider, thread.model);
     if (unavailable) {
       thread.status = 'failed';
       delete thread.queueReason;
@@ -4785,7 +4401,8 @@ export class ControllerContext {
         // A reset/older thread can omit effort. Use the selected model's advertised
         // default, not an unrelated reasoning override in the user's CLI config.
         const reasoningEffort =
-          thread.reasoningEffort ?? this.defaultReasoningEffort(thread.provider, thread.model);
+          thread.reasoningEffort ??
+          this.providers.defaultReasoningEffort(thread.provider, thread.model);
         const events = turn.reviewTarget
           ? runtime.runReview(
               { thread: runtimeThread, turnId: turn.id, target: turn.reviewTarget, lease },
@@ -5356,7 +4973,7 @@ export class ControllerContext {
     }
     if (event.type === 'usage') {
       if (event.payload.limits) {
-        this.usageLimits.set(thread.provider, {
+        this.providers.usageLimits.set(thread.provider, {
           usedPercent: event.payload.limits.usedPercent,
           ...(event.payload.limits.resetsAt ? { resetsAt: event.payload.limits.resetsAt } : {}),
           ...(event.payload.limits.windowMinutes
@@ -5899,37 +5516,6 @@ export class ControllerContext {
     return agent;
   }
 
-  providerReadinessError(providerId: ProviderId, model?: string): string | undefined {
-    const provider = this.providers.find(({ id }) => id === providerId);
-    if (!provider) return 'Provider status is unavailable. Check again before starting.';
-    if (
-      provider.status === 'ready' &&
-      model !== undefined &&
-      provider.models?.length &&
-      !provider.models.some(({ id }) => id === model)
-    ) {
-      return provider.models.length === 1
-        ? `${provider.label} model must be ${provider.models[0]!.id} in this release.`
-        : `${provider.label} does not currently offer model ${model}.`;
-    }
-    if (
-      provider.status === 'ready' &&
-      model !== undefined &&
-      !provider.models?.length &&
-      model !== provider.model
-    ) {
-      return `${provider.label} model must be ${provider.model} in this release.`;
-    }
-    if (provider.status === 'ready') return undefined;
-    return `${provider.label} is not ready (${provider.status}). ${provider.detail}`;
-  }
-
-  requireReadyProvider(providerId: ProviderId, model?: string): ProviderView {
-    const error = this.providerReadinessError(providerId, model);
-    if (error) throw new Error(error);
-    return this.providers.find(({ id }) => id === providerId)!;
-  }
-
   requireSignedInReleaseAccount(): void {
     if (!this.releaseAccessLocked()) return;
     throw new Error('Sign in to Sia to continue.');
@@ -5940,19 +5526,6 @@ export class ControllerContext {
       this.deps.cloud.configured &&
       (this.account.signOutInProgress || this.deps.identity.status().state !== 'signed_in')
     );
-  }
-
-  providerForModel(model: string): ProviderId {
-    const matches = this.providers.filter(
-      (provider) =>
-        provider.status === 'ready' &&
-        (provider.model === model ||
-          provider.models?.some((candidate) => candidate.id === model)),
-    );
-    if (matches.length !== 1) {
-      throw new Error('Choose an available model before saving this agent.');
-    }
-    return matches[0]!.id;
   }
 
   leastUsedHue(): number {
@@ -5996,12 +5569,6 @@ export class ControllerContext {
       throw new Error('Local workspace operations are unavailable in this build.');
     }
     return this.deps.workspaceOperations;
-  }
-
-  defaultReasoningEffort(providerId: ProviderId, modelId: string): string | undefined {
-    return this.providers
-      .find(({ id }) => id === providerId)
-      ?.models?.find(({ id }) => id === modelId)?.defaultReasoningEffort;
   }
 
   pruneAttachmentGrants(): void {

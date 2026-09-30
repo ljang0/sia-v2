@@ -27,6 +27,7 @@ import { ResearchOutbox } from './research-outbox.js';
 import { ResearchCapture } from './research-capture.js';
 import { ConnectorConnections } from './connections.js';
 import { CloudAccount } from './account.js';
+import { ProviderAccess } from './providers.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -41,6 +42,7 @@ export class DesktopController {
       researchCapture: new ResearchCapture(ctx),
       connections: new ConnectorConnections(ctx),
       account: new CloudAccount(ctx),
+      providers: new ProviderAccess(ctx),
     }));
   }
 
@@ -308,6 +310,6 @@ export class DesktopController {
 
   /** Called after the window loads, never on an ordinary launch without setup intent. */
   resumeCodexSetup(): Promise<void> {
-    return this.#ctx.resumeCodexSetup();
+    return this.#ctx.providers.resumeCodexSetup();
   }
 }

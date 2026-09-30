@@ -39,7 +39,7 @@ export class CloudAccount {
     }
     await this.reconcileIdentityBoundState();
     await this.refreshCloudSession();
-    await this.ctx.refreshMetaProviderState();
+    await this.ctx.providers.refreshMetaProviderState();
     await this.ctx.deps.voice?.refresh().catch(() => undefined);
     this.ctx.researchOutbox.scheduleSync();
     this.ctx.commit();
@@ -109,7 +109,7 @@ export class CloudAccount {
       this.cloudParticipant = false;
       this.ctx.state.cloudFeatures = structuredClone(INITIAL_STATE.cloudFeatures);
       await this.ctx.runtime?.resetSessions();
-      await this.ctx.refreshMetaProviderState();
+      await this.ctx.providers.refreshMetaProviderState();
       this.ctx.connections.lockConnections(
         'Sign in with the account that created this grant to manage it.',
       );
@@ -263,7 +263,7 @@ export class CloudAccount {
       this.ctx.state = structuredClone(INITIAL_STATE);
       this.ctx.researchOutbox.inFlightSync = undefined;
       this.ctx.researchOutbox.retryDelayMs = 15_000;
-      await this.ctx.refreshMetaProviderState();
+      await this.ctx.providers.refreshMetaProviderState();
       this.ctx.revision += 1;
       this.ctx.emit();
       return this.ctx.resultSnapshot();
