@@ -4,6 +4,7 @@ import { SetupMacAccess, type MacSetupApi } from '../SetupMacAccess';
 import { Notebook, ShieldCheck } from '@phosphor-icons/react';
 import { type ReactNode, useState } from 'react';
 import type { RendererSnapshot } from '../../types';
+import buttons from '../../styles/buttons.module.css';
 import styles from '../../ui.module.css';
 import { InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
 import { errorMessage } from '../../plainErrors';
@@ -93,7 +94,7 @@ export function ComputerSettings({
             role="switch"
             aria-checked={trusted}
             aria-label="Bypass action approvals"
-            className={styles.secondaryButton}
+            className={buttons.secondaryButton}
             disabled={busy}
             onClick={() =>
               trusted
@@ -130,7 +131,7 @@ export function ComputerSettings({
       {snapshot.computer.accessMode !== 'mac' && (
         <p className={styles.settingsNote}>
           Browser and work app connections are in{' '}
-          <button type="button" className={styles.textButton} onClick={onReviewConnections}>
+          <button type="button" className={buttons.textButton} onClick={onReviewConnections}>
             Connections
           </button>
           .
@@ -154,7 +155,7 @@ export function ComputerSettings({
                     {' '}
                     <button
                       type="button"
-                      className={styles.textButton}
+                      className={buttons.textButton}
                       onClick={() => void onRevealTrajectories()}
                     >
                       Show in Finder
@@ -168,7 +169,7 @@ export function ComputerSettings({
               role="switch"
               aria-checked={snapshot.computer.trajectoryLog}
               aria-label="Keep a full local log"
-              className={styles.secondaryButton}
+              className={buttons.secondaryButton}
               disabled={busy}
               onClick={() =>
                 void run('log', () => onSetTrajectoryLog(!snapshot.computer.trajectoryLog))

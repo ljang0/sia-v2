@@ -40,6 +40,8 @@ import { completedReplyId } from '../task-result';
 import { WelcomeHome } from './WelcomeHome';
 import { WelcomeRecents } from './WelcomeRecents';
 import { ReplyReadyMark, ReplySurface } from './ResultCard';
+import layout from '../styles/layout.module.css';
+import buttons from '../styles/buttons.module.css';
 import styles from '../ui.module.css';
 import { ActivityRow } from './ActivityRow';
 import { planProgress, WorkGroup, WorkingStatus } from './WorkGroup';
@@ -502,14 +504,14 @@ export function Conversation({
 
   if (!thread) {
     return (
-      <main className={styles.mainPane} data-companion-conversation data-scene="welcome">
-        <Aurora className={styles.conversationAurora} pauseWhenUnfocused />
+      <main className={layout.mainPane} data-companion-conversation data-scene="welcome">
+        <Aurora className={layout.conversationAurora} pauseWhenUnfocused />
         <div className={styles.emptyState} data-companion-empty>
           <AgentForm identity={agentHue ?? 0} size="large" />
           <span className={styles.emptyStateKicker}>
             {agentName ? `${timeGreeting()} · ${agentName} is ready` : 'Start here'}
           </span>
-          <h1 className={styles.gradientHeading}>
+          <h1 className={layout.gradientHeading}>
             {agentName ? `Start a conversation with ${agentName}.` : 'Create your first agent.'}
           </h1>
           <p>
@@ -530,7 +532,7 @@ export function Conversation({
           ) : null}
           {onOpenApps ? (
             <button
-              className={`${styles.textButton} ${styles.emptyStateLink}`}
+              className={`${buttons.textButton} ${styles.emptyStateLink}`}
               type="button"
               onClick={onOpenApps}
             >
@@ -656,7 +658,7 @@ export function Conversation({
 
   return (
     <main
-      className={styles.mainPane}
+      className={layout.mainPane}
       data-companion-conversation
       data-scene={thread.events.length ? 'conversation' : 'welcome'}
       data-file-dragging={draggingFiles ? 'true' : undefined}
@@ -683,7 +685,7 @@ export function Conversation({
       }}
     >
       <Aurora
-        className={styles.conversationAurora}
+        className={layout.conversationAurora}
         still={thread.events.length > 0}
         pauseWhenUnfocused
       />
@@ -714,7 +716,7 @@ export function Conversation({
           </span>
           <button
             type="button"
-            className={styles.iconButtonSmall}
+            className={buttons.iconButtonSmall}
             disabled={!matchingEventIds.length}
             onClick={() =>
               setFindIndex(
@@ -727,7 +729,7 @@ export function Conversation({
           </button>
           <button
             type="button"
-            className={styles.iconButtonSmall}
+            className={buttons.iconButtonSmall}
             disabled={!matchingEventIds.length}
             onClick={() => setFindIndex((current) => (current + 1) % matchingEventIds.length)}
             aria-label="Next match"
@@ -736,7 +738,7 @@ export function Conversation({
           </button>
           <button
             type="button"
-            className={styles.iconButtonSmall}
+            className={buttons.iconButtonSmall}
             onClick={() => onFindOpenChange?.(false)}
             aria-label="Close find"
           >
@@ -836,7 +838,7 @@ export function Conversation({
               </div>
               <button
                 type="button"
-                className={`${styles.secondaryButton} ${styles.bannerAction}`}
+                className={`${buttons.secondaryButton} ${styles.bannerAction}`}
                 onClick={() => void onRetry()}
                 data-testid="interrupted-turn-retry"
               >
@@ -1303,14 +1305,14 @@ function EventViewContent({
             <div>
               <button
                 type="button"
-                className={styles.secondaryButton}
+                className={buttons.secondaryButton}
                 onClick={() => setEditDraft(undefined)}
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className={styles.primaryButton}
+                className={buttons.primaryButton}
                 disabled={redoing || !editDraft.trim()}
               >
                 {redoing ? 'Sending…' : 'Send'}
@@ -1449,7 +1451,7 @@ function workGroupIdFor(events: readonly ThreadEvent[], eventId: string): string
 
 function ConversationSkeleton() {
   return (
-    <main className={styles.mainPane} aria-label="Loading conversation" aria-busy="true">
+    <main className={layout.mainPane} aria-label="Loading conversation" aria-busy="true">
       <div className={styles.threadScroll}>
         <div className={styles.conversationColumn}>
           <div className={styles.skeletonMessage} />

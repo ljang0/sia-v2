@@ -14,6 +14,7 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 're
 import { activityLabel } from '../../shared/activity-label';
 import { clipText, plainText } from '../../shared/plain-text';
 import type { ActivityEvent, ThreadEvent } from '../types';
+import buttons from '../styles/buttons.module.css';
 import styles from '../ui.module.css';
 
 type OutlineStatus = ActivityEvent['status'];
@@ -186,7 +187,7 @@ export function ConversationOutline({
             </div>
             <button
               type="button"
-              className={styles.iconButtonSmall}
+              className={buttons.iconButtonSmall}
               onClick={() => {
                 setOpen(false);
                 requestAnimationFrame(() => triggerRef.current?.focus());

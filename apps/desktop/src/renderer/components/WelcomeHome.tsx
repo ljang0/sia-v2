@@ -1,7 +1,7 @@
 import { Plugs } from '@phosphor-icons/react';
 import type { CSSProperties } from 'react';
 import type { ThreadSummary } from '../types';
-import styles from '../ui.module.css';
+import layout from '../styles/layout.module.css';
 import { timeGreeting, type StarterPrompt } from '../welcome';
 import { AgentForm } from './AgentForm';
 import { StarterPrompts } from './StarterPrompts';
@@ -37,7 +37,7 @@ export function WelcomeHome({
           {agentName ? ` · ${agentName} is ready` : ''}
         </span>
       </div>
-      <h2 className={`${styles.gradientHeading} ${home.heading}`} style={step(1)}>
+      <h2 className={`${layout.gradientHeading} ${home.heading}`} style={step(1)}>
         What would you like to do?
       </h2>
       <p className={home.lede} style={step(2)}>

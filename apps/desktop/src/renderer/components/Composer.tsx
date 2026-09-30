@@ -17,6 +17,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import layout from '../styles/layout.module.css';
 import styles from '../ui.module.css';
 import { SiaPresence, type SiaPresenceState } from './SiaPresence';
 import { VoiceWave } from './VoiceWave';
@@ -679,7 +680,7 @@ export function Composer({
   return (
     <div className={styles.composerArea} data-companion-composer>
       <div
-        className={`${styles.composer} ${styles.auroraSurface} ${disabled ? styles.composerDisabled : ''}`}
+        className={`${styles.composer} ${layout.auroraSurface} ${disabled ? styles.composerDisabled : ''}`}
       >
         {attachments.length ? (
           <div

@@ -1,5 +1,6 @@
 import { WarningCircle } from '@phosphor-icons/react';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import buttons from '../styles/buttons.module.css';
 import styles from '../ui.module.css';
 import { FeedbackDialog } from './FeedbackDialog';
 
@@ -63,14 +64,14 @@ export class AppErrorBoundary extends Component<AppBoundaryProps, AppBoundarySta
         <div className={styles.fatalActions}>
           <button
             type="button"
-            className={`${styles.primaryButton} ${styles.fatalAction}`}
+            className={`${buttons.primaryButton} ${styles.fatalAction}`}
             onClick={() => (this.props.onReload ?? (() => window.location.reload()))()}
           >
             Reload
           </button>
           <button
             type="button"
-            className={styles.secondaryButton}
+            className={buttons.secondaryButton}
             onClick={() => void this.#copy()}
           >
             {this.state.copied ? 'Details copied' : 'Copy details'}
@@ -78,7 +79,7 @@ export class AppErrorBoundary extends Component<AppBoundaryProps, AppBoundarySta
           {onSendFeedback ? (
             <button
               type="button"
-              className={styles.secondaryButton}
+              className={buttons.secondaryButton}
               onClick={() => this.setState({ feedbackOpen: true })}
             >
               Send feedback

@@ -1,5 +1,6 @@
 import { ArrowCounterClockwise, Tray } from '@phosphor-icons/react';
 import { useEffect, useId, useRef } from 'react';
+import buttons from '../../styles/buttons.module.css';
 import styles from '../../ui.module.css';
 
 interface ArchivedThread {
@@ -55,7 +56,7 @@ export function ArchivedThreadsSection({
               </button>
               <button
                 type="button"
-                className={styles.iconButtonSmall}
+                className={buttons.iconButtonSmall}
                 onClick={() => void onRestore(thread.id)}
                 aria-label={`Restore ${thread.title}`}
               >

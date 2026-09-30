@@ -8,6 +8,7 @@ import {
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 import type { RendererSnapshot } from '../../types';
+import buttons from '../../styles/buttons.module.css';
 import styles from '../../ui.module.css';
 import { SettingsSectionHeader } from './SettingsShared';
 
@@ -163,7 +164,7 @@ export function ReleaseReviewSettings({
           {checked.length ? (
             <button
               type="button"
-              className={styles.textButton}
+              className={buttons.textButton}
               onClick={() => {
                 clearChecks();
                 setChecked([]);
@@ -232,7 +233,7 @@ function ReleaseSignal({
         <p>{detail}</p>
       </div>
       {action ? (
-        <button type="button" className={styles.textButton} onClick={action.onClick}>
+        <button type="button" className={buttons.textButton} onClick={action.onClick}>
           {action.label}
           <ArrowRight size={13} aria-hidden="true" />
         </button>

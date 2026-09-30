@@ -1,6 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { CaretRight, Command, Play, SpinnerGap, Stop, X } from '@phosphor-icons/react';
 import { useEffect, useId, useRef, useState, type FormEvent, type RefObject } from 'react';
+import buttons from '../../styles/buttons.module.css';
 import styles from '../../ui.module.css';
 import type { BackgroundTerminal } from '../../types';
 
@@ -86,7 +87,7 @@ export function TerminalDrawer({
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
-              <button type="button" className={styles.iconButton} aria-label="Close terminal">
+              <button type="button" className={buttons.iconButton} aria-label="Close terminal">
                 <X size={17} aria-hidden="true" />
               </button>
             </Dialog.Close>
@@ -109,7 +110,7 @@ export function TerminalDrawer({
             </label>
             <button
               type="submit"
-              className={styles.primaryButton}
+              className={buttons.primaryButton}
               disabled={run.status === 'running' || !command.trim()}
               data-testid="terminal-run"
             >
@@ -123,7 +124,7 @@ export function TerminalDrawer({
             {onStartBackground ? (
               <button
                 type="button"
-                className={styles.secondaryButton}
+                className={buttons.secondaryButton}
                 disabled={run.status === 'running' || backgroundStarting || !command.trim()}
                 onClick={() => {
                   const value = command.trim();
@@ -179,7 +180,7 @@ export function TerminalDrawer({
                     {session.status === 'running' && onStopBackground ? (
                       <button
                         type="button"
-                        className={styles.iconButtonSmall}
+                        className={buttons.iconButtonSmall}
                         onClick={() => void onStopBackground(session.id)}
                         aria-label={`Stop ${session.command}`}
                         data-testid="background-terminal-stop"
@@ -209,7 +210,7 @@ export function TerminalDrawer({
                         aria-label={`Input for ${session.command}`}
                         data-testid="background-terminal-input"
                       />
-                      <button type="submit" className={styles.secondaryButton}>
+                      <button type="submit" className={buttons.secondaryButton}>
                         Send
                       </button>
                     </form>

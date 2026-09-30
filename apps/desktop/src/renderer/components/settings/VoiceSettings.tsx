@@ -1,6 +1,7 @@
 import { ArrowClockwise, CheckCircle, ShieldCheck, SpeakerHigh } from '@phosphor-icons/react';
 import { useState } from 'react';
 import type { VoiceSettingsState } from '../../types';
+import buttons from '../../styles/buttons.module.css';
 import styles from '../../ui.module.css';
 import {
   InlineSettingsError,
@@ -72,7 +73,7 @@ export function VoiceSettings({
     >
       <InlineSettingsError message={error} />
       {onStartSetup && voice.status !== 'connected' ? (
-        <button className={styles.secondaryButton} onClick={onStartSetup}>
+        <button className={buttons.secondaryButton} onClick={onStartSetup}>
           Walk me through setup
         </button>
       ) : null}
@@ -117,7 +118,7 @@ export function VoiceSettings({
             <div className={styles.voiceActions}>
               <button
                 type="button"
-                className={styles.secondaryButton}
+                className={buttons.secondaryButton}
                 disabled={Boolean(pending)}
                 onClick={() => void run('refresh', onRefresh)}
               >
@@ -126,7 +127,7 @@ export function VoiceSettings({
               </button>
               <button
                 type="button"
-                className={styles.textButtonDanger}
+                className={buttons.textButtonDanger}
                 disabled={Boolean(pending)}
                 onClick={() => void run('disconnect', onDisconnect)}
               >
@@ -149,7 +150,7 @@ export function VoiceSettings({
             </p>
             <button
               type="button"
-              className={styles.primaryButton}
+              className={buttons.primaryButton}
               disabled={Boolean(pending)}
               onClick={() => void run('connect', onConfigure)}
             >

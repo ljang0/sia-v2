@@ -10,6 +10,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { COMPOSER_INPUT_ATTRIBUTE, focusIsAdrift } from '../composerFocus';
 import type { ApprovalEvent, ApprovalDecision } from '../types';
+import buttons from '../styles/buttons.module.css';
 import styles from '../ui.module.css';
 
 interface ApprovalCardProps {
@@ -179,7 +180,7 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
         <footer className={styles.approvalActions}>
           <button
             type="button"
-            className={styles.secondaryButton}
+            className={buttons.secondaryButton}
             onClick={() => onResolve(request.id, 'reject')}
             disabled={busy}
           >
@@ -188,7 +189,7 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
           {request.allowForTask ? (
             <button
               type="button"
-              className={styles.secondaryButton}
+              className={buttons.secondaryButton}
               onClick={() => onResolve(request.id, 'approve_task')}
               disabled={busy}
               title="Sia won't ask again for this same kind of action on this target until this task ends."
@@ -198,7 +199,7 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
           ) : null}
           <button
             type="button"
-            className={styles.primaryButton}
+            className={buttons.primaryButton}
             onClick={() => onResolve(request.id, 'approve')}
             disabled={busy}
           >

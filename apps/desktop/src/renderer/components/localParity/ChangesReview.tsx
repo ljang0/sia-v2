@@ -12,6 +12,8 @@ import {
 } from '@phosphor-icons/react';
 import { useEffect, useId, useState } from 'react';
 import type { WorkspaceSnapshot } from '../../types';
+import buttons from '../../styles/buttons.module.css';
+import dialogs from '../../styles/dialogs.module.css';
 import styles from '../../ui.module.css';
 import { shortDateTime } from '../../format';
 
@@ -79,7 +81,7 @@ export function ChangesReview({
           {onReview && files.length ? (
             <button
               type="button"
-              className={styles.secondaryButton}
+              className={buttons.secondaryButton}
               onClick={() => void onReview()}
               disabled={reviewing}
               data-testid="code-review-start"
@@ -91,7 +93,7 @@ export function ChangesReview({
           {onCreateSnapshot && files.length ? (
             <button
               type="button"
-              className={styles.secondaryButton}
+              className={buttons.secondaryButton}
               onClick={() => void onCreateSnapshot()}
               disabled={Boolean(snapshotBusy)}
               data-testid="workspace-snapshot-create"
@@ -115,7 +117,7 @@ export function ChangesReview({
                 <span>
                   <button
                     type="button"
-                    className={`${styles.textButton} ${styles.snapshotAction}`}
+                    className={`${buttons.textButton} ${styles.snapshotAction}`}
                     disabled={Boolean(snapshotBusy) || files.length > 0}
                     title={files.length ? 'Restore into a clean workspace' : 'Restore snapshot'}
                     onClick={() => void onRestoreSnapshot?.(snapshot.id)}
@@ -125,7 +127,7 @@ export function ChangesReview({
                   </button>
                   <button
                     type="button"
-                    className={`${styles.textButtonDanger} ${styles.snapshotAction}`}
+                    className={`${buttons.textButtonDanger} ${styles.snapshotAction}`}
                     disabled={Boolean(snapshotBusy)}
                     aria-label={`Delete snapshot from ${shortDateTime(snapshot.createdAt)}`}
                     onClick={() => void onDeleteSnapshot?.(snapshot.id)}
@@ -169,7 +171,7 @@ export function ChangesReview({
                 {!selected.staged ? (
                   <button
                     type="button"
-                    className={styles.secondaryButton}
+                    className={buttons.secondaryButton}
                     disabled={busyPath === selected.path}
                     onClick={() => void onStage(selected.path)}
                     data-testid="git-stage"
@@ -184,7 +186,7 @@ export function ChangesReview({
                 )}
                 <button
                   type="button"
-                  className={styles.textButtonDanger}
+                  className={buttons.textButtonDanger}
                   disabled={busyPath === selected.path}
                   onClick={() => setRestorePath(selected.path)}
                   data-testid="git-restore"
@@ -208,8 +210,8 @@ export function ChangesReview({
         onOpenChange={(open) => !open && setRestorePath(undefined)}
       >
         <AlertDialog.Portal>
-          <AlertDialog.Overlay className={styles.dialogOverlay} />
-          <AlertDialog.Content className={styles.alertDialogContent}>
+          <AlertDialog.Overlay className={dialogs.dialogOverlay} />
+          <AlertDialog.Content className={dialogs.alertDialogContent}>
             <div>
               <ArrowCounterClockwise size={20} aria-hidden="true" />
             </div>
@@ -218,16 +220,16 @@ export function ChangesReview({
               This restores {restorePath} from the workspace baseline. Uncommitted edits in this
               file cannot be recovered by Sia.
             </AlertDialog.Description>
-            <div className={styles.dialogActions}>
+            <div className={dialogs.dialogActions}>
               <AlertDialog.Cancel asChild>
-                <button type="button" className={styles.secondaryButton}>
+                <button type="button" className={buttons.secondaryButton}>
                   Cancel
                 </button>
               </AlertDialog.Cancel>
               <AlertDialog.Action asChild>
                 <button
                   type="button"
-                  className={styles.dangerButton}
+                  className={buttons.dangerButton}
                   onClick={() => {
                     if (restorePath) void onRestore(restorePath);
                     setRestorePath(undefined);

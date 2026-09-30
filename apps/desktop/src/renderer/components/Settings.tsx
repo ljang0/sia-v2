@@ -18,6 +18,7 @@ import {
 } from '@phosphor-icons/react';
 import { type RefObject, useEffect, useRef, useState } from 'react';
 import type { AppConnection, ProviderId, RendererApi, RendererSnapshot } from '../types';
+import buttons from '../styles/buttons.module.css';
 import styles from '../ui.module.css';
 import { AssistantSettings } from './settings/AssistantSettings';
 import { AboutSettings } from './settings/AboutSettings';
@@ -195,7 +196,7 @@ export function Settings({
         </div>
         <button
           type="button"
-          className={styles.iconButton}
+          className={buttons.iconButton}
           onClick={onClose}
           aria-label="Close settings"
           title="Close settings"

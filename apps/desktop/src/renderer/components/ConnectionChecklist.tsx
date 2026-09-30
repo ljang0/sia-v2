@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { AppConnection, RendererSnapshot } from '../types';
-import ui from '../ui.module.css';
+import buttons from '../styles/buttons.module.css';
 import styles from './ConnectionChecklist.module.css';
 
 export function ConnectionChecklist({
@@ -78,7 +78,7 @@ export function ConnectionChecklist({
           </label>
         ))}
         <button
-          className={ui.primaryButton}
+          className={buttons.primaryButton}
           disabled={!cloudReady || !missing.length}
           onClick={() => void connect(missing)}
         >
@@ -92,7 +92,7 @@ export function ConnectionChecklist({
             closed the approval page, cancel and try again.
           </p>
           <button
-            className={ui.secondaryButton}
+            className={buttons.secondaryButton}
             disabled={pending}
             onClick={() => void cancel(connecting.id, connecting.connectionId)}
           >

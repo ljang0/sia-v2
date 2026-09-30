@@ -1,6 +1,8 @@
 import { CaretDown, CheckCircle, Flag, Pause, Play } from '@phosphor-icons/react';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { ThreadGoal } from '../../types';
+import buttons from '../../styles/buttons.module.css';
+import dialogs from '../../styles/dialogs.module.css';
 import styles from '../../ui.module.css';
 
 interface SelectOption {
@@ -156,7 +158,7 @@ export function GoalControls({
           {goal.status === 'running' ? (
             <button
               type="button"
-              className={styles.secondaryButton}
+              className={buttons.secondaryButton}
               disabled={busy}
               onClick={() => void onPauseGoal()}
             >
@@ -166,7 +168,7 @@ export function GoalControls({
           ) : (
             <button
               type="button"
-              className={styles.secondaryButton}
+              className={buttons.secondaryButton}
               disabled={busy}
               onClick={() => void onResumeGoal()}
             >
@@ -176,7 +178,7 @@ export function GoalControls({
           )}
           <button
             type="button"
-            className={styles.textButtonDanger}
+            className={buttons.textButtonDanger}
             disabled={busy}
             onClick={() => void onClearGoal()}
           >
@@ -206,7 +208,7 @@ export function GoalControls({
         </div>
         <Flag size={18} aria-hidden="true" />
       </div>
-      <label className={styles.localField} htmlFor={inputId}>
+      <label className={dialogs.localField} htmlFor={inputId}>
         <span>Goal</span>
         <input
           data-testid="goal-title-input"
@@ -218,7 +220,7 @@ export function GoalControls({
         />
       </label>
       <button
-        className={`${styles.primaryButton} ${styles.goalSubmit}`}
+        className={`${buttons.primaryButton} ${styles.goalSubmit}`}
         type="submit"
         disabled={busy || !draft.trim()}
         data-testid="goal-save"

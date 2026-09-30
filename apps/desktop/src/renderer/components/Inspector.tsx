@@ -19,6 +19,7 @@ import type {
   RendererSnapshot,
   ResearchSettings,
 } from '../types';
+import buttons from '../styles/buttons.module.css';
 import styles from '../ui.module.css';
 import { BrowserWindowPicker } from './BrowserWindowPicker';
 
@@ -165,7 +166,7 @@ export function Inspector({
             <Dialog.Close asChild>
               <button
                 type="button"
-                className={styles.iconButton}
+                className={buttons.iconButton}
                 aria-label="Close access"
                 title="Close access"
               >
@@ -288,7 +289,7 @@ function BrowserPanel({
         ) : null}
         <button
           type="button"
-          className={`${styles.primaryButton} ${styles.emptyAction}`}
+          className={`${buttons.primaryButton} ${styles.emptyAction}`}
           disabled={pending}
           onClick={() => onAttach()}
         >
@@ -306,7 +307,7 @@ function BrowserPanel({
           <span className={styles.sectionLabel}>Attached profile</span>
           <strong>{browser.profileName}</strong>
         </div>
-        <button type="button" className={styles.textButtonDanger} onClick={onDetach}>
+        <button type="button" className={buttons.textButtonDanger} onClick={onDetach}>
           <LinkBreak size={15} aria-hidden="true" />
           Detach
         </button>
@@ -349,7 +350,7 @@ function BrowserPanel({
           autoComplete="off"
           spellCheck={false}
         />
-        <button type="submit" className={styles.secondaryButton} disabled={!site.trim()}>
+        <button type="submit" className={buttons.secondaryButton} disabled={!site.trim()}>
           Open
         </button>
       </form>
@@ -389,7 +390,7 @@ function ComputerPanel({
         {!permitted ? (
           <button
             type="button"
-            className={`${styles.secondaryButton} ${styles.permissionAction}`}
+            className={`${buttons.secondaryButton} ${styles.permissionAction}`}
             onClick={onRequestPermissions}
           >
             Open system permissions
@@ -474,7 +475,7 @@ function DataPanel({
                 {cloud.label}. {cloud.detail}
               </span>
             </div>
-            <button type="button" className={styles.textButton} onClick={onOpenCloudSettings}>
+            <button type="button" className={buttons.textButton} onClick={onOpenCloudSettings}>
               Settings
             </button>
           </div>
@@ -491,7 +492,7 @@ function DataPanel({
             </div>
             <button
               type="button"
-              className={styles.textButton}
+              className={buttons.textButton}
               onClick={research.consented ? onToggleResearch : onOpenResearchSettings}
             >
               {!research.consented

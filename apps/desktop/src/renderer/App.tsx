@@ -59,6 +59,8 @@ import {
 } from './components/effects/use-view-transition';
 import './tokens.css';
 import companion from './companion.module.css';
+import layout from './styles/layout.module.css';
+import buttons from './styles/buttons.module.css';
 import styles from './ui.module.css';
 import { useTextSize } from './textSize';
 
@@ -256,7 +258,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         <p>{app.fatalError}</p>
         <button
           type="button"
-          className={`${styles.primaryButton} ${styles.fatalAction}`}
+          className={`${buttons.primaryButton} ${styles.fatalAction}`}
           onClick={app.retry}
         >
           Try again
@@ -379,7 +381,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   const content = (
     <div
       data-appearance={snapshot.preferences.appearance ?? 'expressive'}
-      className={`${styles.appShell} ${companion.companionShell}`}
+      className={`${layout.appShell} ${companion.companionShell}`}
     >
       <Sidebar
         agents={snapshot.agents}
@@ -555,15 +557,15 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               }}
             />
           ) : app.activityOpen ? (
-            <main className={styles.activityPage}>
-              <header className={styles.activityPageHeader}>
+            <main className={layout.activityPage}>
+              <header className={layout.activityPageHeader}>
                 <div>
                   <h1>Activity</h1>
                   <p>What your agents are doing, and anything waiting for you.</p>
                 </div>
                 <button
                   type="button"
-                  className={styles.iconButton}
+                  className={buttons.iconButton}
                   onClick={app.closeActivity}
                   aria-label="Close activity"
                 >

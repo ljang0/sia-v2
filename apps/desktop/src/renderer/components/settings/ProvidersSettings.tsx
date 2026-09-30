@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { errorMessage, usageLeftText } from '../../plainErrors';
 import { providerStatusLabel } from '../../providerSetup';
 import type { ProviderId, ProviderSetup } from '../../types';
+import buttons from '../../styles/buttons.module.css';
 import styles from '../../ui.module.css';
 import { InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
 
@@ -92,7 +93,7 @@ export function ProvidersSettings({
             {provider.id === 'meta' && provider.status === 'needs-login' ? (
               <button
                 type="button"
-                className={styles.primaryButton}
+                className={buttons.primaryButton}
                 disabled={busy}
                 onClick={onOpenCloudSettings}
               >
@@ -103,7 +104,7 @@ export function ProvidersSettings({
               visibleProviders.some(({ id }) => id === 'codex') ? null : (
                 <button
                   type="button"
-                  className={styles.primaryButton}
+                  className={buttons.primaryButton}
                   disabled={busy}
                   onClick={() =>
                     void run(
@@ -120,7 +121,7 @@ export function ProvidersSettings({
               provider.status === 'disabled' ? null : provider.status === 'unavailable' ? (
               <button
                 type="button"
-                className={styles.secondaryButton}
+                className={buttons.secondaryButton}
                 disabled={busy}
                 onClick={() =>
                   void run(provider, onProbe, `${providerName(provider)} could not be checked.`)
@@ -131,12 +132,12 @@ export function ProvidersSettings({
             ) : provider.setup?.phase === 'signing-in' && onCancelProviderSetup ? (
               // A browser sign-in can stall (closed tab, wrong account). Cancel starts over.
               <span className={styles.rowTitleLine}>
-                <button type="button" className={styles.primaryButton} disabled>
+                <button type="button" className={buttons.primaryButton} disabled>
                   {pendingAction(provider)}
                 </button>
                 <button
                   type="button"
-                  className={styles.secondaryButton}
+                  className={buttons.secondaryButton}
                   onClick={() => {
                     setError(undefined);
                     void onCancelProviderSetup(provider.id).catch((cause: unknown) =>
@@ -150,7 +151,7 @@ export function ProvidersSettings({
             ) : (
               <button
                 type="button"
-                className={styles.primaryButton}
+                className={buttons.primaryButton}
                 disabled={busy}
                 onClick={() =>
                   void run(

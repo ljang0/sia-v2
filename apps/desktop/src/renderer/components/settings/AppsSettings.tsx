@@ -9,6 +9,7 @@ import {
 import { useState } from 'react';
 import { useConfirmDialog } from '../ConfirmDialog';
 import type { AppConnection, RendererSnapshot } from '../../types';
+import buttons from '../../styles/buttons.module.css';
 import styles from '../../ui.module.css';
 import { ConnectionChecklist } from '../ConnectionChecklist';
 import { BrowserWindowPicker } from '../BrowserWindowPicker';
@@ -226,7 +227,7 @@ export function AppsSettings({
                 {!googleConnected ? (
                   <button
                     type="button"
-                    className={styles.primaryButton}
+                    className={buttons.primaryButton}
                     disabled={Boolean(pending) || !cloudReady || setupActive}
                     onClick={() =>
                       run(
@@ -254,7 +255,7 @@ export function AppsSettings({
                     {googleAccess === 'read_only' ? (
                       <button
                         type="button"
-                        className={`${styles.secondaryButton} ${styles.connectionAction}`}
+                        className={`${buttons.secondaryButton} ${styles.connectionAction}`}
                         disabled={Boolean(pending) || !cloudReady || googleUpgrading}
                         onClick={() =>
                           run(
@@ -273,7 +274,7 @@ export function AppsSettings({
                     ) : null}
                     <button
                       type="button"
-                      className={`${styles.textButtonDanger} ${styles.connectionAction}`}
+                      className={`${buttons.textButtonDanger} ${styles.connectionAction}`}
                       disabled={Boolean(pending) || !accountReady || googleUpgrading}
                       aria-label="Disconnect Google Workspace"
                       onClick={() =>
@@ -315,7 +316,7 @@ export function AppsSettings({
                 {!slackConnected ? (
                   <button
                     type="button"
-                    className={styles.primaryButton}
+                    className={buttons.primaryButton}
                     disabled={Boolean(pending) || !cloudReady || setupActive}
                     onClick={() =>
                       run(
@@ -339,7 +340,7 @@ export function AppsSettings({
                 ) : (
                   <button
                     type="button"
-                    className={styles.textButtonDanger}
+                    className={buttons.textButtonDanger}
                     disabled={Boolean(pending) || !accountReady}
                     aria-label="Disconnect Slack"
                     onClick={() =>
@@ -491,7 +492,7 @@ function LegacyGrantRow({
       <span>{app.account ?? 'Older grant'}</span>
       <button
         type="button"
-        className={styles.textButtonDanger}
+        className={buttons.textButtonDanger}
         disabled={disabled}
         onClick={onDisconnect}
         aria-label={`Disconnect legacy ${appName(app.id)}`}
@@ -564,7 +565,7 @@ function LocalIntegrations({
           <button
             type="button"
             className={
-              snapshot.browser.attached ? styles.textButtonDanger : styles.secondaryButton
+              snapshot.browser.attached ? buttons.textButtonDanger : buttons.secondaryButton
             }
             disabled={browserBusy}
             onClick={() => {
@@ -627,7 +628,7 @@ function LocalIntegrations({
           </div>
           <button
             type="button"
-            className={styles.secondaryButton}
+            className={buttons.secondaryButton}
             disabled={messagesBusy}
             onClick={() =>
               void run(

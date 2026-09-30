@@ -29,6 +29,8 @@ import {
   useState,
 } from 'react';
 import type { AgentSummary, ThreadSummary } from '../types';
+import buttons from '../styles/buttons.module.css';
+import dialogs from '../styles/dialogs.module.css';
 import styles from '../ui.module.css';
 import { focusComposer } from '../composerFocus';
 import { sidebarAgentOrder, sidebarThreadOrder } from '../shortcuts';
@@ -216,7 +218,7 @@ export function Sidebar({
       >
         <div className={styles.sidebarCollapsedTitlebar} aria-hidden="true" />
         <button
-          className={`${styles.iconButton} ${styles.shellIconButton}`}
+          className={`${buttons.iconButton} ${styles.shellIconButton}`}
           type="button"
           onClick={onToggle}
           aria-label="Expand sidebar"
@@ -226,7 +228,7 @@ export function Sidebar({
         </button>
         {selectedAgent && (
           <button
-            className={`${styles.iconButton} ${styles.shellIconButton}`}
+            className={`${buttons.iconButton} ${styles.shellIconButton}`}
             type="button"
             onClick={() => onCreateThread(selectedAgent.id)}
             aria-label="New conversation"
@@ -237,7 +239,7 @@ export function Sidebar({
         )}
         {onOpenQuickSwitcher && (
           <button
-            className={`${styles.iconButton} ${styles.shellIconButton}`}
+            className={`${buttons.iconButton} ${styles.shellIconButton}`}
             type="button"
             onClick={onOpenQuickSwitcher}
             aria-label="Search conversations"
@@ -265,7 +267,7 @@ export function Sidebar({
           ))}
         </div>
         <button
-          className={`${styles.iconButton} ${styles.shellIconButton}`}
+          className={`${buttons.iconButton} ${styles.shellIconButton}`}
           type="button"
           onClick={onCreateAgent}
           aria-label="Create agent"
@@ -275,7 +277,7 @@ export function Sidebar({
         </button>
         {onOpenActivity && (
           <button
-            className={`${styles.iconButton} ${styles.shellIconButton}`}
+            className={`${buttons.iconButton} ${styles.shellIconButton}`}
             type="button"
             onClick={onOpenActivity}
             aria-label="Activity"
@@ -287,7 +289,7 @@ export function Sidebar({
         )}
         {onOpenScheduled && (
           <button
-            className={`${styles.iconButton} ${styles.shellIconButton}`}
+            className={`${buttons.iconButton} ${styles.shellIconButton}`}
             type="button"
             onClick={onOpenScheduled}
             aria-label="Scheduled"
@@ -298,7 +300,7 @@ export function Sidebar({
           </button>
         )}
         <button
-          className={`${styles.iconButton} ${styles.shellIconButton}`}
+          className={`${buttons.iconButton} ${styles.shellIconButton}`}
           type="button"
           aria-current={activePage === 'settings' ? 'page' : undefined}
           onClick={onOpenSettings}
@@ -322,7 +324,7 @@ export function Sidebar({
           <SiaLogo />
         </div>
         <button
-          className={`${styles.iconButton} ${styles.shellIconButton}`}
+          className={`${buttons.iconButton} ${styles.shellIconButton}`}
           type="button"
           onClick={onToggle}
           aria-label="Collapse sidebar"
@@ -363,7 +365,7 @@ export function Sidebar({
       >
         <span>{agents.length === 1 ? 'Conversations' : 'Your agents'}</span>
         <button
-          className={`${styles.iconButtonSmall} ${styles.shellIconButton}`}
+          className={`${buttons.iconButtonSmall} ${styles.shellIconButton}`}
           type="button"
           onClick={onCreateAgent}
           aria-label="Create agent"
@@ -623,9 +625,9 @@ export function Sidebar({
         onOpenChange={(open) => !open && !pendingThreadAction && setDeletingThread(undefined)}
       >
         <AlertDialog.Portal>
-          <AlertDialog.Overlay className={styles.dialogOverlay} />
+          <AlertDialog.Overlay className={dialogs.dialogOverlay} />
           <AlertDialog.Content
-            className={styles.alertDialogContent}
+            className={dialogs.alertDialogContent}
             onCloseAutoFocus={restoreDialogFocus}
           >
             <AlertDialog.Title>Delete this conversation?</AlertDialog.Title>
@@ -636,11 +638,11 @@ export function Sidebar({
                 ? ', including its separate working copy.'
                 : '.'}
             </AlertDialog.Description>
-            <div className={styles.dialogActions}>
+            <div className={dialogs.dialogActions}>
               <AlertDialog.Cancel asChild>
                 <button
                   type="button"
-                  className={styles.secondaryButton}
+                  className={buttons.secondaryButton}
                   disabled={pendingThreadAction}
                 >
                   Cancel
@@ -648,7 +650,7 @@ export function Sidebar({
               </AlertDialog.Cancel>
               <button
                 type="button"
-                className={styles.dangerButton}
+                className={buttons.dangerButton}
                 disabled={pendingThreadAction}
                 onClick={() => {
                   if (!deletingThread) return;
@@ -667,7 +669,7 @@ export function Sidebar({
               {deletingThread?.worktree?.kind === 'linked' && onCleanupWorktree ? (
                 <button
                   type="button"
-                  className={styles.dangerButton}
+                  className={buttons.dangerButton}
                   disabled={pendingThreadAction}
                   onClick={() => {
                     setPendingThreadAction(true);
@@ -692,16 +694,16 @@ export function Sidebar({
         onOpenChange={(open) => !open && !pendingThreadAction && setForkingThread(undefined)}
       >
         <Dialog.Portal>
-          <Dialog.Overlay className={styles.dialogOverlay} />
+          <Dialog.Overlay className={dialogs.dialogOverlay} />
           <Dialog.Content
-            className={styles.alertDialogContent}
+            className={dialogs.alertDialogContent}
             onCloseAutoFocus={restoreDialogFocus}
           >
             <Dialog.Title>Duplicate conversation</Dialog.Title>
             <Dialog.Description>
               Make a copy you can take in a new direction. The original stays as it is.
             </Dialog.Description>
-            <label className={styles.localField}>
+            <label className={dialogs.localField}>
               <span>Name</span>
               <input
                 value={forkTitle}
@@ -710,7 +712,7 @@ export function Sidebar({
               />
             </label>
             {worktreeForks ? (
-              <label className={styles.forkIsolationOption}>
+              <label className={dialogs.forkIsolationOption}>
                 <input
                   type="checkbox"
                   checked={forkIsolated}
@@ -723,15 +725,15 @@ export function Sidebar({
                 </span>
               </label>
             ) : null}
-            <div className={styles.dialogActions}>
+            <div className={dialogs.dialogActions}>
               <Dialog.Close asChild>
-                <button type="button" className={styles.secondaryButton}>
+                <button type="button" className={buttons.secondaryButton}>
                   Cancel
                 </button>
               </Dialog.Close>
               <button
                 type="button"
-                className={styles.primaryButton}
+                className={buttons.primaryButton}
                 disabled={!forkTitle.trim() || pendingThreadAction}
                 onClick={() => {
                   if (!forkingThread || !onForkThread) return;

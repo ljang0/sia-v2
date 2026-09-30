@@ -6,6 +6,7 @@ import {
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 import type { RendererSnapshot } from '../../types';
+import buttons from '../../styles/buttons.module.css';
 import styles from '../../ui.module.css';
 import { SettingsSectionHeader } from './SettingsShared';
 
@@ -78,7 +79,7 @@ export function AboutSettings({
           {updates.status === 'available' ? (
             <button
               type="button"
-              className={styles.primaryButton}
+              className={buttons.primaryButton}
               onClick={() => void onOpenUpdateDownload()}
             >
               <DownloadSimple size={15} aria-hidden="true" />
@@ -87,7 +88,7 @@ export function AboutSettings({
           ) : updates.status === 'unconfigured' ? null : (
             <button
               type="button"
-              className={styles.secondaryButton}
+              className={buttons.secondaryButton}
               disabled={checking}
               onClick={() => {
                 setPending(true);
@@ -109,7 +110,7 @@ export function AboutSettings({
               </div>
               <p>Something confusing, broken, or delightful? We read every note.</p>
             </div>
-            <button type="button" className={styles.secondaryButton} onClick={onOpenFeedback}>
+            <button type="button" className={buttons.secondaryButton} onClick={onOpenFeedback}>
               Send feedback
             </button>
           </div>

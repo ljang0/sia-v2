@@ -1,5 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { KEYBOARD_SHORTCUTS } from '../shortcuts';
+import buttons from '../styles/buttons.module.css';
+import dialogs from '../styles/dialogs.module.css';
 import styles from '../ui.module.css';
 
 interface KeyboardShortcutsProps {
@@ -12,8 +14,8 @@ export function KeyboardShortcuts({ open, onOpenChange }: KeyboardShortcutsProps
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className={styles.dialogOverlay} />
-        <Dialog.Content className={styles.alertDialogContent} aria-describedby={undefined}>
+        <Dialog.Overlay className={dialogs.dialogOverlay} />
+        <Dialog.Content className={dialogs.alertDialogContent} aria-describedby={undefined}>
           <Dialog.Title>Keyboard shortcuts</Dialog.Title>
           <dl className={styles.shortcutList}>
             {KEYBOARD_SHORTCUTS.map(({ keys, label }) => (
@@ -25,9 +27,9 @@ export function KeyboardShortcuts({ open, onOpenChange }: KeyboardShortcutsProps
               </div>
             ))}
           </dl>
-          <div className={styles.dialogActions}>
+          <div className={dialogs.dialogActions}>
             <Dialog.Close asChild>
-              <button type="button" className={styles.secondaryButton}>
+              <button type="button" className={buttons.secondaryButton}>
                 Done
               </button>
             </Dialog.Close>
