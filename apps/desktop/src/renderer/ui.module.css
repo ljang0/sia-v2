@@ -22,16 +22,14 @@
 .sidebar .iconButton,
 .sidebarCollapsed .iconButton,
 .sidebar .iconButtonSmall,
-.sidebar .agentEditButton,
-.sidebar .disclosureButton {
+.sidebar .agentEditButton {
   color: var(--shell-dim);
 }
 
 .sidebar .iconButton:hover,
 .sidebarCollapsed .iconButton:hover,
 .sidebar .iconButtonSmall:hover,
-.sidebar .agentEditButton:hover,
-.sidebar .disclosureButton:hover {
+.sidebar .agentEditButton:hover {
   background: var(--shell-hover);
   color: var(--shell-text);
 }
@@ -101,8 +99,7 @@
 
 .iconButton,
 .iconButtonSmall,
-.agentEditButton,
-.disclosureButton {
+.agentEditButton {
   display: inline-flex;
   flex: none;
   align-items: center;
@@ -121,16 +118,14 @@
 
 .iconButton,
 .iconButtonSmall,
-.agentEditButton,
-.disclosureButton {
+.agentEditButton {
   width: 32px;
   height: 32px;
 }
 
 .iconButton:hover,
 .iconButtonSmall:hover,
-.agentEditButton:hover,
-.disclosureButton:hover {
+.agentEditButton:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
 }
@@ -138,7 +133,6 @@
 .iconButton:active,
 .iconButtonSmall:active,
 .agentEditButton:active,
-.disclosureButton:active,
 .primaryButton:active,
 .secondaryButton:active,
 .dangerButton:active,
@@ -251,98 +245,8 @@
   color: var(--text-primary);
 }
 
-.agentList {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.agentGroup {
-  min-width: 0;
-}
-
-.agentRow {
-  position: relative;
-  display: grid;
-  min-height: 40px;
-  grid-template-columns: 32px minmax(0, 1fr) 32px 32px;
-  align-items: center;
-  border-radius: var(--radius-tight);
-  color: var(--shell-dim);
-  transition:
-    background-color var(--motion-fast) var(--ease-standard),
-    color var(--motion-fast) var(--ease-standard);
-}
-
-.agentRow:hover {
-  background: var(--shell-hover);
-  color: var(--shell-text);
-}
-
 .agentAvatar {
   transition: transform var(--motion-fast) var(--ease-standard);
-}
-
-/* Agent color is an identity marker, while navigation remains part of the shell. */
-.agentGroup[data-identity='0'] {
-  --agent-color: var(--hue-0);
-}
-
-.agentGroup[data-identity='1'] {
-  --agent-color: var(--hue-1);
-}
-
-.agentGroup[data-identity='2'] {
-  --agent-color: var(--hue-2);
-}
-
-.agentGroup[data-identity='3'] {
-  --agent-color: var(--hue-3);
-}
-
-.agentGroupSelected {
-  border-radius: var(--radius-tight);
-  color: var(--shell-text);
-}
-
-.agentGroupSelected .agentRow,
-.agentGroupSelected .agentRow:hover {
-  background: var(--shell-selected);
-  box-shadow: none;
-  color: var(--shell-text);
-}
-
-.agentGroupSelected .agentEditButton,
-.agentGroupSelected .disclosureButton {
-  color: var(--shell-dim);
-}
-
-.agentGroupSelected .agentEditButton:hover,
-.agentGroupSelected .disclosureButton:hover {
-  background: var(--shell-hover);
-  color: var(--shell-text);
-}
-
-.agentNameButton {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 10px;
-  align-self: stretch;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  text-align: left;
-  transition:
-    color var(--motion-fast) var(--ease-standard),
-    opacity var(--motion-fast) var(--ease-standard),
-    transform var(--motion-fast) var(--ease-standard);
-}
-
-.agentNameButton:active {
-  transform: translateY(1px);
 }
 
 .agentAvatar {
@@ -403,10 +307,6 @@ button.agentAvatar {
   content: '';
 }
 
-.agentGroupSelected .agentAvatar[data-presence]:not([data-presence='idle'])::after {
-  border-color: var(--shell-bg);
-}
-
 .agentAvatar[data-presence='working']::after {
   animation: agentPresencePulse 2s var(--ease-standard) infinite;
 }
@@ -426,7 +326,6 @@ button.agentAvatar {
   }
 }
 
-.agentName,
 .threadTitle {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -535,31 +434,12 @@ button.agentAvatar {
   font-size: var(--text-sm);
 }
 
-.agentName {
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  font-weight: var(--weight-display);
-  font-variation-settings: 'opsz' 24;
-  letter-spacing: -0.015em;
-}
-
 .agentEditButton {
   opacity: 0;
 }
 
-.agentRow:hover .agentEditButton,
 .agentEditButton:focus-visible {
   opacity: 1;
-}
-
-.threadList {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0 0 8px;
-  padding-left: 34px;
-  transform-origin: top;
-  animation: listEnter var(--motion-standard) var(--ease-out-soft) both;
 }
 
 @keyframes listEnter {
@@ -600,28 +480,10 @@ button.agentAvatar {
   color: var(--shell-text);
 }
 
-.agentGroupSelected .threadRow,
-.agentGroupSelected .newThreadInline {
-  color: var(--shell-dim);
-}
-
-.agentGroupSelected .threadRow:hover,
-.agentGroupSelected .newThreadInline:hover {
-  background: var(--shell-hover);
-  color: var(--shell-text);
-}
-
-.threadRowSelected,
-.agentGroupSelected .threadRowSelected {
+.threadRowSelected {
   background: var(--shell-selected);
   color: var(--shell-text);
   font-weight: var(--weight-medium);
-}
-
-.agentGroupSelected .threadMenuButton:hover,
-.agentGroupSelected .threadMenuButton[data-state='open'] {
-  background: var(--shell-hover);
-  color: var(--shell-text);
 }
 
 .threadRowSelected .threadSelectButton::before {
@@ -2568,8 +2430,7 @@ button.agentAvatar {
 
 .skeletonMessage,
 .skeletonActivity,
-.skeletonComposer,
-.sidebarSkeleton span {
+.skeletonComposer {
   background: var(--bg-subtle);
   animation: skeleton 1.4s var(--ease-standard) infinite alternate;
 }
@@ -2600,24 +2461,6 @@ button.agentAvatar {
   height: 88px;
   margin: 10px auto 20px;
   border-radius: var(--radius-surface);
-}
-
-.sidebarSkeleton {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 20px 14px;
-}
-
-.sidebarSkeleton span {
-  height: 34px;
-  border-radius: var(--radius-control);
-}
-
-.sidebarSkeleton span:nth-child(2),
-.sidebarSkeleton span:nth-child(4) {
-  width: 76%;
-  margin-left: 24px;
 }
 
 @keyframes skeleton {
@@ -4694,9 +4537,7 @@ input[type='checkbox'].switch:disabled {
 .state_needs-install,
 .state_needs-login,
 .state_incompatible,
-.state_paused,
-.connection_connecting,
-.connection_error {
+.state_paused {
   color: var(--text-warning);
 }
 
@@ -4714,12 +4555,6 @@ input[type='checkbox'].switch:disabled {
   flex-wrap: wrap;
   gap: 4px 12px;
   margin-top: 7px;
-  color: var(--text-tertiary);
-  font-size: var(--text-sm);
-}
-
-.permissionSummary {
-  margin-top: 6px;
   color: var(--text-tertiary);
   font-size: var(--text-sm);
 }
@@ -7087,13 +6922,6 @@ input[type='checkbox'].switch:disabled {
   font-size: var(--text-sm);
 }
 
-.activityNavMark {
-  width: 3px;
-  height: 14px;
-  border-radius: 2px;
-  background: var(--text-link);
-}
-
 .activityPage {
   display: flex;
   min-width: 0;
@@ -7606,23 +7434,6 @@ input[type='checkbox'].switch:disabled {
   text-transform: uppercase;
 }
 
-.agentRow {
-  min-height: 48px;
-  border-radius: var(--radius-control);
-}
-
-.agentGroupSelected .agentRow,
-.agentGroupSelected .agentRow:hover {
-  box-shadow: inset 3px 0 var(--agent-color);
-}
-
-.agentName {
-  font-family: var(--font-display);
-  font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
-  letter-spacing: -0.015em;
-}
-
 .agentAvatar,
 button.agentAvatar {
   width: 32px;
@@ -7634,12 +7445,6 @@ button.agentAvatar {
 
 .agentAvatar:has([data-state])::after {
   display: none;
-}
-
-.threadList {
-  margin-left: 48px;
-  padding-left: 10px;
-  border-left: 1px solid color-mix(in srgb, var(--agent-color) 32%, var(--shell-line));
 }
 
 .threadRowSelected {
@@ -8128,7 +7933,6 @@ button.agentAvatar {
   .inspector,
   .inspectorOverlay,
   .threadMenuContent,
-  .threadList,
   .dialogOverlay,
   .dialogContent,
   .alertDialogContent,
@@ -8140,7 +7944,6 @@ button.agentAvatar {
   .skeletonMessage,
   .skeletonActivity,
   .skeletonComposer,
-  .sidebarSkeleton span,
   .messageSettled,
   .mainPane,
   .settingsPage,
@@ -8305,55 +8108,11 @@ button.agentAvatar {
 .workspaceDetails summary {
   cursor: pointer;
 }
-.newConversationButton {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  padding: 10px;
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--text-sm);
-  text-align: left;
-}
-.flatThreadList {
-  margin-left: 0;
-  padding-left: 0;
-  border-left: 0;
-}
+
 .agentSettingsMenu .threadControls select:focus-visible {
   outline: 2px solid var(--border-strong);
   outline-offset: 3px;
   border-radius: 3px;
-}
-
-.singleAgentRow {
-  display: flex;
-  gap: 4px;
-  background: transparent;
-}
-.singleAgentRow .newConversationButton {
-  min-width: 0;
-  white-space: normal;
-  background: var(--shell-hover);
-  color: var(--shell-text);
-  border-color: var(--shell-line);
-}
-.singleAgentRow .newConversationButton svg {
-  flex: none;
-}
-
-.agentGroupSelected .singleAgentRow,
-.agentGroupSelected .singleAgentRow:hover {
-  background: transparent;
-  box-shadow: none;
-}
-.singleAgentRow .agentEditButton {
-  opacity: 1;
 }
 
 .settingsDisclosure {

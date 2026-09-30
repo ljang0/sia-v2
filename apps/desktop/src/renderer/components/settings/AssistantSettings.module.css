@@ -23,11 +23,6 @@
   color: var(--text-secondary);
   overflow-wrap: anywhere;
 }
-.eyebrow {
-  font-size: var(--text-2xs);
-  font-weight: 650;
-  letter-spacing: 2px;
-}
 .controls {
   border: 0;
   padding: 0;
