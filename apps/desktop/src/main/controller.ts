@@ -84,7 +84,9 @@ import { verifyUpdateManifestResponse } from './update-manifest.js';
 
 interface ComputerAutomation {
   permissions(): Promise<ComputerPermissionsView>;
-  requestPermissions(): Promise<ComputerPermissionsView>;
+  requestPermissions(
+    permission?: 'accessibility' | 'screenRecording',
+  ): Promise<ComputerPermissionsView>;
   call(
     tool: string,
     args: Record<string, unknown>,
@@ -2237,7 +2239,10 @@ export class DesktopController {
       case 'computer.permissions':
         return (await this.#refreshComputer(false)) as unknown as BridgeResultMap[M];
       case 'computer.requestPermissions':
-        return (await this.#refreshComputer(true)) as unknown as BridgeResultMap[M];
+        return (await this.#refreshComputer(
+          true,
+          (input as BridgeRequestMap['computer.requestPermissions'])?.permission,
+        )) as unknown as BridgeResultMap[M];
       case 'computer.requestAutomation': {
         if (!this.#capabilitySetup?.automationPermissions)
           throw new Error('Mac app permission setup is unavailable in this build.');
@@ -4482,9 +4487,12 @@ export class DesktopController {
     this.#chromeConnection = await this.#capabilitySetup.chromeDebugStatus();
   }
 
-  async #refreshComputer(request: boolean): Promise<DesktopSnapshot> {
+  async #refreshComputer(
+    request: boolean,
+    permission?: 'accessibility' | 'screenRecording',
+  ): Promise<DesktopSnapshot> {
     this.#computerState = request
-      ? await this.#computer.requestPermissions()
+      ? await this.#computer.requestPermissions(permission)
       : await this.#computer.permissions();
     await this.#refreshCapabilityStatuses();
     await this.#voice?.refreshPermissions?.().catch(() => undefined);
@@ -9321,7 +9329,15 @@ function worktreeLabel(title: string, id: string): string {
 
 function backgroundControlUnavailable(access: ComputerPermissionsView): string | undefined {
   if (access.status === 'ready') return undefined;
-  if (access.status === 'needs_permission')
-    return 'Sia needs Accessibility and Screen Recording to work in the background. Allow them in Settings → Computer, then press Continue task.';
+  if (access.status === 'needs_permission') {
+    // Only a permission skipped during setup reaches here; name it plainly.
+    if (access.relaunchFor?.length)
+      return 'Mac access is turned on, but Sia needs to reopen before it can use it. Quit and reopen Sia, then press Continue task.';
+    const missing = [
+      access.accessibility ? '' : 'control your Mac (Accessibility)',
+      access.screenRecording ? '' : 'see your screen (Screen Recording)',
+    ].filter(Boolean);
+    return `To work in the background, Sia needs permission to ${missing.join(' and ')}. Allow it in Settings → Computer, then press Continue task.`;
+  }
   return 'Working in the background isn’t available on this Mac right now. Choose On my screen in Settings → Computer, then press Continue task.';
 }

@@ -1108,10 +1108,10 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
     },
     async revealTrajectories() {},
     async refreshComputerPermissions() {},
-    async requestComputerPermissions() {
+    async requestComputerPermissions(permission) {
       mutate((current) => {
-        current.computer.accessibility = 'allowed';
-        current.computer.screenRecording = 'allowed';
+        if (permission !== 'screenRecording') current.computer.accessibility = 'allowed';
+        if (permission !== 'accessibility') current.computer.screenRecording = 'allowed';
       });
     },
     async openMessages() {

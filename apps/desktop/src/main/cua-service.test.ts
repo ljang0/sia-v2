@@ -43,7 +43,7 @@ afterEach(() => {
 it.each(['ready', 'unavailable'] as const)(
   'does not request permissions again when computer access is %s',
   async (status) => {
-    const service = new CuaService(authorization());
+    const service = new CuaService(authorization(), { platform: 'darwin' });
     const current = {
       status,
       accessibility: status === 'ready',
@@ -55,31 +55,28 @@ it.each(['ready', 'unavailable'] as const)(
   },
 );
 
-it.runIf(process.platform === 'darwin')(
-  'registers the signed Electron app during an explicit missing-screen permission request',
-  async () => {
-    const service = new CuaService(authorization());
-    vi.spyOn(service, 'permissions').mockResolvedValue({
-      status: 'needs_permission',
-      accessibility: true,
-      screenRecording: false,
-    });
-    await service.requestPermissions();
-    expect(permissionUi.getSources).toHaveBeenCalledExactlyOnceWith({
-      types: ['screen'],
-      thumbnailSize: { width: 1, height: 1 },
-      fetchWindowIcons: false,
-    });
-    expect(permissionUi.openExternal).toHaveBeenCalledExactlyOnceWith(
-      'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
-    );
-  },
-);
+it('registers the signed Electron app during an explicit missing-screen permission request', async () => {
+  const service = new CuaService(authorization(), { platform: 'darwin' });
+  vi.spyOn(service, 'permissions').mockResolvedValue({
+    status: 'needs_permission',
+    accessibility: true,
+    screenRecording: false,
+  });
+  await service.requestPermissions();
+  expect(permissionUi.getSources).toHaveBeenCalledExactlyOnceWith({
+    types: ['screen'],
+    thumbnailSize: { width: 1, height: 1 },
+    fetchWindowIcons: false,
+  });
+  expect(permissionUi.openExternal).toHaveBeenCalledExactlyOnceWith(
+    'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
+  );
+});
 
-it.runIf(process.platform === 'darwin').each([true, false])(
+it.each([true, false])(
   'requests Accessibility alone before Screen Recording (screen allowed: %s)',
   async (screenRecording) => {
-    const service = new CuaService(authorization());
+    const service = new CuaService(authorization(), { platform: 'darwin' });
     vi.spyOn(service, 'permissions').mockResolvedValue({
       status: 'needs_permission',
       accessibility: false,
@@ -94,28 +91,83 @@ it.runIf(process.platform === 'darwin').each([true, false])(
   },
 );
 
-it.runIf(process.platform === 'darwin')(
-  'shares overlapping permission requests and permits a later retry after failure',
-  async () => {
-    const service = new CuaService(authorization());
-    vi.spyOn(service, 'permissions').mockResolvedValue({
-      status: 'needs_permission',
-      accessibility: true,
-      screenRecording: false,
-    });
-    permissionUi.openExternal
-      .mockRejectedValueOnce(new Error('Permission service unavailable'))
-      .mockResolvedValue(undefined);
-    const first = service.requestPermissions();
-    expect(service.requestPermissions()).toBe(first);
-    await expect(first).rejects.toThrow('Permission service unavailable');
-    const retry = service.requestPermissions();
-    expect(service.requestPermissions()).toBe(retry);
-    await expect(retry).resolves.toMatchObject({ screenRecording: false });
-    expect(permissionUi.openExternal).toHaveBeenCalledTimes(2);
-    expect(permissionUi.getSources).toHaveBeenCalledTimes(2);
-  },
-);
+it('shares overlapping permission requests and permits a later retry after failure', async () => {
+  const service = new CuaService(authorization(), { platform: 'darwin' });
+  vi.spyOn(service, 'permissions').mockResolvedValue({
+    status: 'needs_permission',
+    accessibility: true,
+    screenRecording: false,
+  });
+  permissionUi.openExternal
+    .mockRejectedValueOnce(new Error('Permission service unavailable'))
+    .mockResolvedValue(undefined);
+  const first = service.requestPermissions();
+  expect(service.requestPermissions()).toBe(first);
+  await expect(first).rejects.toThrow('Permission service unavailable');
+  const retry = service.requestPermissions();
+  expect(service.requestPermissions()).toBe(retry);
+  await expect(retry).resolves.toMatchObject({ screenRecording: false });
+  expect(permissionUi.openExternal).toHaveBeenCalledTimes(2);
+  expect(permissionUi.getSources).toHaveBeenCalledTimes(2);
+});
+
+it('asks for the named permission even when another one is still missing', async () => {
+  const service = new CuaService(authorization(), {
+    platform: 'darwin',
+    readPermissions: async () => ({ accessibility: false, screenRecording: false }),
+  });
+  await service.requestPermissions('screenRecording');
+  expect(permissionUi.accessibility).not.toHaveBeenCalled();
+  expect(permissionUi.getSources).toHaveBeenCalledOnce();
+  expect(permissionUi.openExternal).toHaveBeenCalledExactlyOnceWith(
+    'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
+  );
+});
+
+it('reports a grant that waits for a relaunch and never asks for it again', async () => {
+  const freshPermissions = vi.fn(async () => ({ accessibility: true, screenRecording: true }));
+  const service = new CuaService(authorization(), {
+    platform: 'darwin',
+    readPermissions: async () => ({ accessibility: true, screenRecording: false }),
+    freshPermissions,
+  });
+  expect(await service.permissions()).toEqual({
+    status: 'needs_permission',
+    accessibility: true,
+    screenRecording: false,
+    relaunchFor: ['screenRecording'],
+    detail: 'Reopen Sia to finish turning on Mac access.',
+  });
+  await service.requestPermissions();
+  await service.requestPermissions('screenRecording');
+  expect(permissionUi.getSources).not.toHaveBeenCalled();
+  expect(permissionUi.openExternal).not.toHaveBeenCalled();
+});
+
+it('skips the fresh check once both grants are live, and tolerates a failed check', async () => {
+  const freshPermissions = vi.fn(async () => {
+    throw new Error('probe failed');
+  });
+  let live = { accessibility: false, screenRecording: false };
+  const service = new CuaService(authorization(), {
+    platform: 'darwin',
+    readPermissions: async () => live,
+    freshPermissions,
+  });
+  expect(await service.permissions()).toMatchObject({
+    status: 'needs_permission',
+    detail: 'Accessibility and Screen Recording are both required.',
+  });
+  expect((await service.permissions()).relaunchFor).toBeUndefined();
+  live = { accessibility: true, screenRecording: true };
+  freshPermissions.mockClear();
+  expect(await service.permissions()).toEqual({
+    status: 'ready',
+    accessibility: true,
+    screenRecording: true,
+  });
+  expect(freshPermissions).not.toHaveBeenCalled();
+});
 
 it('keeps simulated permission setup away from the native permission API', async () => {
   const service = new CuaService(authorization(), { fakePermissions: true });

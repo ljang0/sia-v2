@@ -430,8 +430,8 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async requestAutomationPermission(app) {
       publish(await bridge.computer.requestAutomation(app));
     },
-    async requestComputerPermissions() {
-      publish(await bridge.computer.requestPermissions());
+    async requestComputerPermissions(permission) {
+      publish(await bridge.computer.requestPermissions(permission));
     },
     async openMessages() {
       publish(await bridge.computer.openMessages());
@@ -783,6 +783,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
     computer: {
       accessibility: source.computer.accessibility ? 'allowed' : 'not-requested',
       screenRecording: source.computer.screenRecording ? 'allowed' : 'not-requested',
+      relaunchFor: source.computer.relaunchFor,
       windows: [],
       accessMode: source.computer.accessMode,
       backgroundControl: source.computer.backgroundControl,

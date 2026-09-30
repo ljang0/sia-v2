@@ -191,7 +191,8 @@ const api: DesktopBridgeApi = {
   },
   computer: {
     permissions: () => invoke('computer.permissions', undefined),
-    requestPermissions: () => invoke('computer.requestPermissions', undefined),
+    requestPermissions: (permission) =>
+      invoke('computer.requestPermissions', permission ? { permission } : undefined),
     requestAutomation: (app) => invoke('computer.requestAutomation', { app }),
     openMessages: () => invoke('computer.openMessages', undefined),
     setupMessages: () => invoke('computer.setupMessages', undefined),

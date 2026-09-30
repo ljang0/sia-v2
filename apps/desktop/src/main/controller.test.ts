@@ -490,6 +490,8 @@ describe('DesktopController', () => {
       expect(requestPermissions).not.toHaveBeenCalled();
       await controller.invoke('computer.requestPermissions', undefined);
       expect(requestPermissions).toHaveBeenCalledTimes(1);
+      await controller.invoke('computer.requestPermissions', { permission: 'screenRecording' });
+      expect(requestPermissions).toHaveBeenLastCalledWith('screenRecording');
     } finally {
       await controller.shutdown();
     }
@@ -8281,8 +8283,8 @@ describe('Use my Mac power and lock handling', () => {
     await controller.invoke('threads.send', { threadId, text: 'Tidy my desktop' });
     await vi.waitFor(() => expect(status()).toBe('failed'));
     expect(requests).toEqual([]);
-    expect(controller.snapshot().timeline.at(-1)?.text).toContain(
-      'Sia needs Accessibility and Screen Recording to work in the background.',
+    expect(controller.snapshot().timeline.at(-1)?.text).toBe(
+      'To work in the background, Sia needs permission to see your screen (Screen Recording). Allow it in Settings → Computer, then press Continue task.',
     );
     await controller.shutdown();
   });

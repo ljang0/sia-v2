@@ -353,6 +353,8 @@ export interface ComputerInspectorState {
   backgroundFallback?: 'pause' | 'foreground' | undefined;
   accessibility: 'allowed' | 'denied' | 'not-requested';
   screenRecording: 'allowed' | 'denied' | 'not-requested';
+  /** Turned on in System Settings; macOS applies it after Sia reopens once. */
+  relaunchFor?: ('accessibility' | 'screenRecording')[] | undefined;
   windows: ComputerWindow[];
   /** 'auto' runs eligible actions without in-app approval. */
   trust: 'auto' | 'ask';
@@ -645,7 +647,7 @@ export interface RendererApi {
   openBrowserSite(url: string): Promise<void>;
   detachBrowser(): Promise<void>;
   refreshComputerPermissions(): Promise<void>;
-  requestComputerPermissions(): Promise<void>;
+  requestComputerPermissions(permission?: 'accessibility' | 'screenRecording'): Promise<void>;
   requestAutomationPermission(
     app: import('../shared/mac-permissions').AutomationApp,
   ): Promise<void>;

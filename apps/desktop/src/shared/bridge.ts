@@ -416,6 +416,8 @@ export interface ComputerPermissionsView {
   status: 'unavailable' | 'needs_permission' | 'ready' | 'error';
   accessibility: boolean;
   screenRecording: boolean;
+  /** Granted in System Settings, but macOS applies it to Sia only after one relaunch. */
+  relaunchFor?: ('accessibility' | 'screenRecording')[];
   detail?: string;
 }
 
@@ -705,7 +707,8 @@ export interface BridgeRequestMap {
   'updates.check': undefined;
   'updates.openDownload': undefined;
   'computer.permissions': undefined;
-  'computer.requestPermissions': undefined;
+  'computer.requestPermissions':
+    { permission?: 'accessibility' | 'screenRecording' } | undefined;
   'computer.requestAutomation': { app: import('./mac-permissions.js').AutomationApp };
   'computer.openMessages': undefined;
   'computer.setAccessMode': {
@@ -1032,7 +1035,9 @@ export interface DesktopBridgeApi {
   };
   computer: {
     permissions(): Promise<DesktopSnapshot>;
-    requestPermissions(): Promise<DesktopSnapshot>;
+    requestPermissions(
+      permission?: 'accessibility' | 'screenRecording',
+    ): Promise<DesktopSnapshot>;
     requestAutomation(
       app: import('./mac-permissions.js').AutomationApp,
     ): Promise<DesktopSnapshot>;

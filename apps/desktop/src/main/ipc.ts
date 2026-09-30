@@ -252,7 +252,10 @@ const inputSchemas = {
   'updates.check': z.undefined(),
   'updates.openDownload': z.undefined(),
   'computer.permissions': z.undefined(),
-  'computer.requestPermissions': z.undefined(),
+  'computer.requestPermissions': z
+    .object({ permission: z.enum(['accessibility', 'screenRecording']).optional() })
+    .strict()
+    .optional(),
   'computer.requestAutomation': z.object({ app: automationAppSchema }).strict(),
   'computer.openMessages': z.undefined(),
   'computer.setupMessages': z.undefined(),
