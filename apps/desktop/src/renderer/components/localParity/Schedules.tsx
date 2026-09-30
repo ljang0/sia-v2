@@ -34,7 +34,7 @@ import {
   type ScheduleCadence,
 } from './scheduleText';
 
-export interface ScheduleItem {
+interface ScheduleItem {
   id: string;
   label: string;
   prompt: string;
@@ -49,7 +49,7 @@ export interface ScheduleItem {
   runHistory?: readonly ScheduleRun[] | undefined;
 }
 
-export interface ScheduleDraft {
+interface ScheduleDraft {
   prompt: string;
   cadence: ScheduleCadence;
   /** A local datetime ("2030-01-01T09:00") or ISO string. */
@@ -357,7 +357,7 @@ interface ScheduleRowProps {
   confirm: ReturnType<typeof useConfirmDialog>[0];
 }
 
-export function ScheduleRow({
+function ScheduleRow({
   schedule,
   busy,
   context,
@@ -665,7 +665,7 @@ export function ScheduleControls({
   );
 }
 
-export interface ScheduledEntry extends ScheduleItem {
+interface ScheduledEntry extends ScheduleItem {
   threadId: string;
   /** "Agent · Conversation". */
   context: string;

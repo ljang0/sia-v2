@@ -985,7 +985,7 @@ export function Conversation({
 }
 
 /** What in this thread is waiting on the person, if anything, and how to say so briefly. */
-export function waitingOnPerson(
+function waitingOnPerson(
   thread: ThreadDetail,
 ): { key: string; label: string } | undefined {
   const approvals = thread.events.filter(

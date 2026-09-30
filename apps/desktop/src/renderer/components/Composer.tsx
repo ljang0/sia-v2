@@ -911,7 +911,7 @@ export const LONG_PASTE_CHARACTERS = 4_000;
  * Files on the clipboard that the person meant to attach. Office apps put a picture of the
  * copied cells beside the text; that paste stays text. A Finder copy names its files as text.
  */
-export function pastedFiles(data: DataTransfer): File[] {
+function pastedFiles(data: DataTransfer): File[] {
   const files = [...data.files].slice(0, 20);
   if (!files.length) return [];
   const text = data.getData('text/plain').trim();

@@ -1,6 +1,6 @@
 import type { TextSize } from './display.js';
 
-export type ScottySize = 'small' | 'medium' | 'large';
+type ScottySize = 'small' | 'medium' | 'large';
 export type ScottyStatus = 'idle' | 'working' | 'input' | 'ready' | 'blocked';
 export interface ScottySettings {
   enabled: boolean;

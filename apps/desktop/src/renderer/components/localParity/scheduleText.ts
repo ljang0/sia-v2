@@ -42,14 +42,14 @@ export function toTimeInput(date: Date): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-export function clockTime(date: Date): string {
+function clockTime(date: Date): string {
   return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(
     date,
   );
 }
 
 /** "today", "tomorrow", or "Fri, Oct 3". */
-export function friendlyScheduleDay(value: string | Date, now = new Date()): string {
+function friendlyScheduleDay(value: string | Date, now = new Date()): string {
   const date = new Date(value);
   const startOfDay = (day: Date) => new Date(day.getFullYear(), day.getMonth(), day.getDate());
   const days = Math.round(

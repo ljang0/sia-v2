@@ -52,7 +52,7 @@ interface Dependencies {
 }
 const ipv4 = (address: string) =>
   address.split('.').reduce((result, part) => (result << 8) | Number(part), 0) >>> 0;
-export function lanNetwork(): RemoteNetwork | undefined {
+function lanNetwork(): RemoteNetwork | undefined {
   const entries = Object.entries(networkInterfaces()).sort(([a], [b]) =>
     a === 'en0' ? -1 : b === 'en0' ? 1 : a.localeCompare(b),
   );

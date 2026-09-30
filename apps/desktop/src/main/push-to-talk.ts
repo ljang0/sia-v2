@@ -154,7 +154,7 @@ export function nativeVoiceHelperFactory(executable: string): VoiceHelperFactory
   };
 }
 
-export interface VoiceTarget {
+interface VoiceTarget {
   agentId: string;
   threadId?: string;
   label: string;

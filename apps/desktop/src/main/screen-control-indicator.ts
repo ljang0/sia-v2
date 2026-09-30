@@ -135,7 +135,7 @@ kbd{font:inherit;padding:2px 6px;border-radius:5px;background:rgba(255,255,255,.
  * of screenshots, and they belong to Sia's own process, which Sia's window control already
  * refuses to target.
  */
-export function createIndicatorOverlay(onCrash: () => void): IndicatorOverlay {
+function createIndicatorOverlay(onCrash: () => void): IndicatorOverlay {
   const windows = new Map<number, BrowserWindow>();
   let visible = false;
   const create = (display: Electron.Display) => {

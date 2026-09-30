@@ -52,13 +52,13 @@ export function plainError(
 }
 
 /** Share of a plan usage window at which Sia warns before the limit stops work. */
-export const USAGE_WARNING_PERCENT = 80;
+const USAGE_WARNING_PERCENT = 80;
 
 /**
  * When a usage window resets, in words: "at 3:05 PM" today, "tomorrow at 9:00 AM", or
  * "Tue at 9:00 AM" within the week. Undefined for a time already past or unreadable.
  */
-export function formatUsageReset(resetsAt: string, now = new Date()): string | undefined {
+function formatUsageReset(resetsAt: string, now = new Date()): string | undefined {
   const at = new Date(resetsAt);
   if (!Number.isFinite(at.getTime()) || at.getTime() <= now.getTime()) return undefined;
   const time = at.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });

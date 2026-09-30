@@ -15,7 +15,7 @@ export interface LauncherState {
     truncated: boolean;
   };
 }
-export type LauncherInput =
+type LauncherInput =
   | { kind: 'new'; agentId: string; text: string }
   | { kind: 'reply'; sessionId: string; text: string };
 export interface LauncherApi {

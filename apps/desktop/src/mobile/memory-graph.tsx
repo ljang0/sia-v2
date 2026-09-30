@@ -14,7 +14,7 @@ interface Point {
 }
 /** Notch RemoteControlServer.graphHTML force simulation, ported to typed SVG coordinates.
  * The original repulsion, link length, spring, centering and damping constants are retained. */
-export function stepGraph(points: Point[], edges: [string, string][]): void {
+function stepGraph(points: Point[], edges: [string, string][]): void {
   const nodes = new Map(points.map((point) => [point.id, point]));
   for (let i = 0; i < points.length; i++) {
     const a = points[i]!;

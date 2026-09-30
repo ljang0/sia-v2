@@ -8567,7 +8567,7 @@ const SETTLED_APPROVAL_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
  * such as computer-use requests, are shown only beside their turn; drop them a week after
  * they expired so state does not grow with every answered request.
  */
-export function pruneSettledApprovals(
+function pruneSettledApprovals(
   approvals: readonly ApprovalView[],
   timeline: readonly TimelineItemView[],
   now: number,

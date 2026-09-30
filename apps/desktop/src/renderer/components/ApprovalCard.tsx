@@ -213,7 +213,7 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
 const COMMAND_PREFIX = 'Run a command: ';
 
 /** A native shell approval arrives as "Run a command: <command>"; show the command itself. */
-export function nativeCommand(summary: string): string | undefined {
+function nativeCommand(summary: string): string | undefined {
   if (!summary.startsWith(COMMAND_PREFIX)) return undefined;
   return summary.slice(COMMAND_PREFIX.length).trim() || undefined;
 }

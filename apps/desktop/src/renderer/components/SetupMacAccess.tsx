@@ -17,7 +17,7 @@ export type MacSetupApi = Pick<
   Partial<Pick<RendererApi, 'setupMessages'>>;
 
 /** What a row needs from the person right now. */
-export type AccessState = 'ready' | 'needed' | 'denied' | 'relaunch' | 'unavailable' | 'error';
+type AccessState = 'ready' | 'needed' | 'denied' | 'relaunch' | 'unavailable' | 'error';
 
 export type AccessRow = {
   id: string;

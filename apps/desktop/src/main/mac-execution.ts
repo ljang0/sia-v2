@@ -14,7 +14,7 @@ export const MAC_EXECUTION_TOOLS: readonly string[] = [
   'schedule_delete',
 ];
 
-export const MAC_BACKGROUND_TOOLS: readonly string[] = [
+const MAC_BACKGROUND_TOOLS: readonly string[] = [
   'memory_vault',
   'computer_list',
   'computer_snapshot',

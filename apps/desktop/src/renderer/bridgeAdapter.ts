@@ -557,7 +557,7 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
  * Keeps the previous object for every event whose content is unchanged, and the previous array
  * when nothing changed, so memoized transcript rows skip work while one reply streams.
  */
-export function reuseUnchangedEvents(
+function reuseUnchangedEvents(
   previous: readonly ThreadEvent[],
   next: ThreadEvent[],
 ): ThreadEvent[] {
