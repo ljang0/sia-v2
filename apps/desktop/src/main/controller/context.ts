@@ -23,12 +23,6 @@ import type {
 import { probeProviders, providerPlan } from '../provider-probe.js';
 import type { RuntimeCoordinator } from '../runtime-coordinator.js';
 import { verifyUpdateManifestResponse } from '../update-manifest.js';
-import {
-  isTextSize,
-  isTheme,
-  type TextSize,
-  type ThemePreference,
-} from '../../shared/display.js';
 import { settleBeforeShutdown } from './async-utils.js';
 import {
   EMPTY_CONNECTIONS,
@@ -64,6 +58,7 @@ import type { Turns } from './turns.js';
 import type { TurnRunner } from './turn-runner.js';
 import type { RuntimeEventApplier } from './runtime-events.js';
 import type { MacSession } from './mac-session.js';
+import type { AppSettings } from './settings.js';
 
 const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
   'bootstrap',
@@ -98,7 +93,8 @@ type ServiceName =
   | 'turns'
   | 'runner'
   | 'runtimeEvents'
-  | 'mac';
+  | 'mac'
+  | 'settings';
 
 /**
  * Everything the desktop controller knows and does. DesktopController is the public facade;
@@ -126,6 +122,7 @@ export class ControllerContext {
   declare readonly runner: TurnRunner;
   declare readonly runtimeEvents: RuntimeEventApplier;
   declare readonly mac: MacSession;
+  declare readonly settings: AppSettings;
   readonly listeners = new Set<(event: DesktopPushEvent) => void>();
   readonly rendererCall = new AsyncLocalStorage<true>();
   readonly previewMemo: ThreadPreviewMemo = new WeakMap();
@@ -249,20 +246,6 @@ export class ControllerContext {
       !this.account.signOutInProgress &&
       !this.releaseAccessLocked()
     );
-  }
-
-  /**
-   * Theme and text size. They hold nothing private, so they apply before sign-in too and main
-   * mirrors them for the next launch's first frame.
-   */
-  displayPreferences(): { theme?: ThemePreference; textSize?: TextSize } {
-    const { theme, textSize } = this.state.preferences;
-    return { ...(theme ? { theme } : {}), ...(textSize ? { textSize } : {}) };
-  }
-
-  /** Settings → Developer tools (Command tool, worktree duplicates, View → Reload). */
-  developerToolsEnabled(): boolean {
-    return this.state.preferences.developerTools === true;
   }
 
   recordActionResult(notice: Parameters<ActionResultObserver>[0]): void {
@@ -471,7 +454,7 @@ export class ControllerContext {
         threads: [],
         timeline: [],
         approvals: [],
-        preferences: { completionSound: false, ...this.displayPreferences() },
+        preferences: { completionSound: false, ...this.settings.displayPreferences() },
       };
     const lastRequest = new Map<string, TimelineItemView>();
     for (const item of this.state.timeline)
@@ -545,7 +528,7 @@ export class ControllerContext {
         },
         browser: { status: 'detached', grantedOrigins: [] },
         voice: { status: 'disconnected', voices: [] },
-        preferences: { completionSound: false, ...this.displayPreferences() },
+        preferences: { completionSound: false, ...this.settings.displayPreferences() },
         providerUsage: [],
         schedules: [],
         cloud: {
@@ -732,15 +715,15 @@ export class ControllerContext {
     'settings.openDirectory': async () => ({
       path: await this.workspace.grantChosenDirectory(),
     }),
-    'settings.setOnboarding': (input) => this.setOnboarding(input),
-    'settings.restartForOnboarding': () => this.restartForOnboarding(),
+    'settings.setOnboarding': (input) => this.settings.setOnboarding(input),
+    'settings.restartForOnboarding': () => this.settings.restartForOnboarding(),
     'computer.setupMessages': () => this.computerAccess.setupMessages(),
-    'settings.setAppearance': ({ appearance }) => this.setAppearance(appearance),
-    'settings.setTheme': ({ theme }) => this.setTheme(theme),
-    'settings.setTextSize': ({ textSize }) => this.setTextSize(textSize),
-    'settings.setCompletionSound': ({ enabled }) => this.setCompletionSound(enabled),
-    'settings.setOpenAtLogin': ({ enabled }) => this.setOpenAtLoginPreference(enabled),
-    'settings.setDeveloperTools': ({ enabled }) => this.setDeveloperTools(enabled),
+    'settings.setAppearance': ({ appearance }) => this.settings.setAppearance(appearance),
+    'settings.setTheme': ({ theme }) => this.settings.setTheme(theme),
+    'settings.setTextSize': ({ textSize }) => this.settings.setTextSize(textSize),
+    'settings.setCompletionSound': ({ enabled }) => this.settings.setCompletionSound(enabled),
+    'settings.setOpenAtLogin': ({ enabled }) => this.settings.setOpenAtLogin(enabled),
+    'settings.setDeveloperTools': ({ enabled }) => this.settings.setDeveloperTools(enabled),
     'feedback.compose': (input) => this.composeFeedbackMessage(input),
     'updates.check': () => this.checkForUpdates(),
     'updates.openDownload': () => this.openUpdateDownload(),
@@ -807,105 +790,6 @@ export class ControllerContext {
   ): Promise<BridgeResultMap['phone.remote']> {
     if (!this.phoneRemote) throw new Error('Phone remote is unavailable in this build.');
     return await this.phoneRemote(input);
-  }
-
-  setOnboarding({
-    step,
-    permissionSetup,
-  }: BridgeRequestMap['settings.setOnboarding']): DesktopSnapshot {
-    const previous = this.state.preferences.onboarding;
-    const candidateId = step === 'welcome' ? this.state.activeAgentId : previous?.agentId;
-    const agent = this.state.agents.find(({ id }) => id === candidateId);
-    if (['voice', 'access', 'apps', 'restart', 'verify', 'practice'].includes(step) && !agent) {
-      throw new Error('Create your agent before continuing setup.');
-    }
-    this.state.preferences.onboarding = {
-      ...(step === 'welcome' ? {} : previous),
-      ...(permissionSetup ? { permissionSetup } : {}),
-      step,
-      ...(agent ? { agentId: agent.id } : {}),
-    };
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  restartForOnboarding(): DesktopSnapshot {
-    const progress = this.state.preferences.onboarding;
-    if (
-      !progress ||
-      !['restart', 'verify'].includes(progress.step) ||
-      !this.state.agents.some(({ id }) => id === progress.agentId)
-    )
-      throw new Error('Finish connecting your apps before restarting setup.');
-    if (!this.deps.restartApp) throw new Error('Restart is unavailable in this build.');
-    if (
-      this.connections.setup ||
-      this.state.connections.some((app) => app.status === 'connecting')
-    )
-      throw new Error('Finish or cancel account approval before restarting.');
-    if (this.turns.running.size || this.speech.pushToTalk?.busy)
-      throw new Error('Wait for the current task or recording to finish before restarting.');
-    if (progress.restartPending) return this.resultSnapshot();
-    this.state.preferences.onboarding = {
-      ...progress,
-      step: 'verify',
-      restartPending: true,
-      restarted: false,
-    };
-    this.commit();
-    try {
-      this.deps.restartApp();
-    } catch (error) {
-      this.state.preferences.onboarding = progress;
-      this.commit();
-      throw error;
-    }
-    return this.resultSnapshot();
-  }
-
-  setAppearance(
-    appearance: BridgeRequestMap['settings.setAppearance']['appearance'],
-  ): DesktopSnapshot {
-    this.state.preferences.appearance = appearance;
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  setTheme(theme: BridgeRequestMap['settings.setTheme']['theme']): DesktopSnapshot {
-    if (!isTheme(theme)) throw new Error('Choose System, Light, or Dark.');
-    if (theme === 'system') delete this.state.preferences.theme;
-    else this.state.preferences.theme = theme;
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  setTextSize(textSize: BridgeRequestMap['settings.setTextSize']['textSize']): DesktopSnapshot {
-    if (!isTextSize(textSize)) throw new Error('Choose a text size from the list.');
-    if (textSize === 'default') delete this.state.preferences.textSize;
-    else this.state.preferences.textSize = textSize;
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  setCompletionSound(enabled: boolean): DesktopSnapshot {
-    this.state.preferences.completionSound = enabled;
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  setOpenAtLoginPreference(enabled: boolean): DesktopSnapshot {
-    if (!this.deps.setOpenAtLogin) throw new Error('Opening at login is unavailable here.');
-    this.deps.setOpenAtLogin(enabled);
-    this.state.preferences.openAtLogin = enabled;
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  setDeveloperTools(enabled: boolean): DesktopSnapshot {
-    if (enabled) this.state.preferences.developerTools = true;
-    else delete this.state.preferences.developerTools;
-    this.commit();
-    return this.resultSnapshot();
   }
 
   async shutdown(): Promise<void> {

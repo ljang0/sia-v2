@@ -42,6 +42,7 @@ import { Turns } from './turns.js';
 import { TurnRunner } from './turn-runner.js';
 import { RuntimeEventApplier } from './runtime-events.js';
 import { MacSession } from './mac-session.js';
+import { AppSettings } from './settings.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -71,6 +72,7 @@ export class DesktopController {
       runner: new TurnRunner(ctx),
       runtimeEvents: new RuntimeEventApplier(ctx),
       mac: new MacSession(ctx),
+      settings: new AppSettings(ctx),
     }));
   }
 
@@ -163,12 +165,12 @@ export class DesktopController {
    * mirrors them for the next launch's first frame.
    */
   displayPreferences(): { theme?: ThemePreference; textSize?: TextSize } {
-    return this.#ctx.displayPreferences();
+    return this.#ctx.settings.displayPreferences();
   }
 
   /** Settings → Developer tools (Command tool, worktree duplicates, View → Reload). */
   developerToolsEnabled(): boolean {
-    return this.#ctx.developerToolsEnabled();
+    return this.#ctx.settings.developerToolsEnabled();
   }
 
   /** Use my Mac works in the background unless the person explicitly chose On my screen. */
