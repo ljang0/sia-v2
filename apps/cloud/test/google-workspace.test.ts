@@ -4,11 +4,11 @@ import { describe, it } from 'node:test';
 import { S3Client } from '@aws-sdk/client-s3';
 
 import { COMPOSIO_TOOL_SLUGS, COMPOSIO_TOOL_VERSIONS } from '../src/connector-contract.js';
+import { GoogleWorkspaceConnector } from '../src/google-workspace.js';
 import {
   GOOGLE_WORKSPACE_READ_SCOPES,
   GOOGLE_WORKSPACE_WRITE_SCOPES,
-  GoogleWorkspaceConnector,
-} from '../src/google-workspace.js';
+} from '../src/google-workspace/scopes.js';
 import { FixedSecrets, MemoryState } from '../src/memory.js';
 import { ConnectorReconnectRequiredError } from '../src/ports.js';
 import type { ComposioConfig, MetaConfig, TokenCipher } from '../src/ports.js';
