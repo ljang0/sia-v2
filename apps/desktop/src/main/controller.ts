@@ -225,6 +225,11 @@ interface PersistedState {
   activeAgentId?: string;
   activeThreadId?: string;
   schedules: ScheduleView[];
+  /**
+   * Set once recurring schedules saved with the old ten-run default have been made unlimited,
+   * so a limit of ten chosen afterwards is kept.
+   */
+  unlimitedRecurringSchedules?: true;
   cloudFeatures: CloudFeatureFlags;
   preferences: {
     completionSound: boolean;
@@ -439,6 +444,7 @@ const INITIAL_STATE: PersistedState = {
   browser: { status: 'detached', grantedOrigins: [] },
   connectionOwners: {},
   schedules: [],
+  unlimitedRecurringSchedules: true,
   cloudFeatures: {
     researchUploads: true,
     researchArchive: false,
@@ -495,7 +501,7 @@ export class DesktopController {
   readonly #keepAwake: ControllerOptions['keepAwake'];
   /** Mac turns currently keeping the display awake; a turn waiting on the person does not. */
   readonly #awakeTurns = new Set<string>();
-  /** Mac turns that started with On my screen: they show the on-screen indicator and Esc. */
+  /** Mac turns that started with On my screen: they show the on-screen indicator and hold ⌃Esc. */
   readonly #foregroundTurns = new Set<string>();
   #macUnavailable: 'locked' | 'asleep' | undefined;
   readonly #phoneTurns = new Set<string>();
@@ -4203,8 +4209,9 @@ export class DesktopController {
       enabled: true,
       createdAt: new Date().toISOString(),
       runCount: 0,
-      maxRuns: validScheduleRunLimit(input.maxRuns ?? defaultScheduleRunLimit(input.cadence)),
     };
+    const maxRuns = input.maxRuns ?? defaultScheduleRunLimit(input.cadence);
+    if (maxRuns !== undefined) schedule.maxRuns = validScheduleRunLimit(maxRuns);
     schedule.nextRunAt = alignScheduleStart(
       schedule,
       new Date(schedule.nextRunAt),
@@ -4228,7 +4235,9 @@ export class DesktopController {
     const nextRunAt =
       input.nextRunAt === undefined ? undefined : validScheduleTime(input.nextRunAt);
     const maxRuns =
-      input.maxRuns === undefined ? undefined : validScheduleRunLimit(input.maxRuns);
+      input.maxRuns === undefined || input.maxRuns === null
+        ? input.maxRuns
+        : validScheduleRunLimit(input.maxRuns);
     const ruleChanged =
       input.cadence !== undefined || input.days !== undefined || input.everyHours !== undefined;
     if (prompt !== undefined) schedule.prompt = prompt;
@@ -4256,7 +4265,9 @@ export class DesktopController {
         new Date(schedule.nextRunAt),
       ).toISOString();
     }
-    if (maxRuns !== undefined) schedule.maxRuns = maxRuns;
+    // null clears the limit: a recurring schedule then repeats until paused or deleted.
+    if (maxRuns === null) delete schedule.maxRuns;
+    else if (maxRuns !== undefined) schedule.maxRuns = maxRuns;
     if (input.enabled !== undefined) schedule.enabled = input.enabled;
     this.#commit();
     if (schedule.enabled) void this.#runDueSchedules();
@@ -8340,6 +8351,14 @@ export class DesktopController {
         ...(runHistory.length > 0 ? { runHistory } : {}),
       };
     });
+    if (!recovered.unlimitedRecurringSchedules) {
+      // Saved state cannot tell the old form's prefilled ten from a chosen ten, so every recurring
+      // schedule at exactly ten becomes unlimited. One that already ran out stays paused.
+      for (const schedule of recovered.schedules)
+        if (schedule.cadence !== 'once' && schedule.maxRuns === LEGACY_RECURRING_RUN_LIMIT)
+          delete schedule.maxRuns;
+      recovered.unlimitedRecurringSchedules = true;
+    }
     recovered.cloudFeatures =
       recovered.cloudFeatures ?? structuredClone(INITIAL_STATE.cloudFeatures);
     recovered.preferences = recovered.preferences ?? { completionSound: false };
@@ -9151,9 +9170,13 @@ function validScheduleRunLimit(value: number): number {
   return value;
 }
 
-function defaultScheduleRunLimit(cadence: ScheduleView['cadence']): number {
-  return cadence === 'once' ? 1 : 10;
+/** A one-time schedule runs once; recurring ones repeat until paused or deleted. */
+function defaultScheduleRunLimit(cadence: ScheduleView['cadence']): number | undefined {
+  return cadence === 'once' ? 1 : undefined;
 }
+
+/** Recurring schedules used to stop after this many runs unless the person chose otherwise. */
+const LEGACY_RECURRING_RUN_LIMIT = 10;
 
 /** Keeps only the details a cadence uses, so a saved schedule never carries stale ones. */
 function scheduleRuleFields(

@@ -1151,8 +1151,9 @@ describe('DesktopController', () => {
       cadence: 'hourly',
       nextRunAt: '2030-08-21T03:00:00.000Z',
       enabled: true,
-      maxRuns: 10,
     });
+    // A recurring schedule repeats until paused or deleted.
+    expect(created.maxRuns).toBeUndefined();
     expect(controller.listSchedulesForAction(first.threadId)).toHaveLength(1);
     expect(controller.listSchedulesForAction(second.threadId)).toEqual([]);
 
@@ -1261,6 +1262,7 @@ describe('DesktopController', () => {
       cadence: 'weekdays',
       nextRunAt: new Date(2030, 7, 26, 8, 0).toISOString(),
     });
+    expect(schedule?.maxRuns).toBeUndefined();
 
     const edited = await controller.invoke('schedules.update', {
       scheduleId: schedule!.id,
@@ -1278,6 +1280,11 @@ describe('DesktopController', () => {
       maxRuns: 20,
       enabled: true,
     });
+    const unlimited = await controller.invoke('schedules.update', {
+      scheduleId: schedule!.id,
+      maxRuns: null,
+    });
+    expect(unlimited.schedules?.[0]?.maxRuns).toBeUndefined();
 
     const hourly = await controller.invoke('schedules.update', {
       scheduleId: schedule!.id,
@@ -1304,6 +1311,71 @@ describe('DesktopController', () => {
       controller.invoke('schedules.update', { scheduleId: schedule!.id, prompt: '   ' }),
     ).rejects.toThrow('cannot be empty');
     await controller.shutdown();
+  });
+
+  it('makes recurring schedules saved with the old ten-run default unlimited, once', async () => {
+    const initial = await createHarness();
+    const agent = await initial.controller.invoke('agents.save', {
+      name: 'Legacy limits',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await initial.controller.invoke('threads.create', {
+      agentId: agent.agentId,
+    });
+    const firstRunAt = new Date(2030, 7, 23, 16, 0).toISOString();
+    for (const [task, cadence, maxRuns] of [
+      ['Old default', 'daily', 10],
+      ['Chosen limit', 'daily', 5],
+      ['One time', 'once', 1],
+      ['Ran out', 'weekly', 10],
+    ] as const)
+      initial.controller.createScheduleFromAction(threadId, {
+        task,
+        cadence,
+        firstRunAt,
+        maxRuns,
+      });
+    const persisted = structuredClone(
+      initial.repository.get<{
+        schedules: Array<Record<string, unknown>>;
+        unlimitedRecurringSchedules?: true;
+      }>('desktop', 'state')!,
+    );
+    await initial.controller.shutdown();
+    expect(persisted.unlimitedRecurringSchedules).toBe(true);
+    delete persisted.unlimitedRecurringSchedules;
+    Object.assign(persisted.schedules[3]!, { runCount: 10, enabled: false });
+    const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+    repository.put('desktop', 'state', persisted);
+
+    const recovered = await createHarness({ repository });
+    const limits = () =>
+      recovered.controller
+        .snapshot()
+        .schedules?.map(({ prompt, maxRuns, enabled }) => ({ prompt, maxRuns, enabled }));
+    expect(limits()).toEqual([
+      { prompt: 'Old default', maxRuns: undefined, enabled: true },
+      { prompt: 'Chosen limit', maxRuns: 5, enabled: true },
+      { prompt: 'One time', maxRuns: 1, enabled: true },
+      // A schedule that already ran out stays paused until the person resumes it.
+      { prompt: 'Ran out', maxRuns: undefined, enabled: false },
+    ]);
+    // A ten chosen after the migration is kept across the next restart.
+    const chosen = recovered.controller.snapshot().schedules![1]!;
+    await recovered.controller.invoke('schedules.update', {
+      scheduleId: chosen.id,
+      maxRuns: 10,
+    });
+    const saved = structuredClone(recovered.repository.get('desktop', 'state')!);
+    await recovered.controller.shutdown();
+    const again = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+    again.put('desktop', 'state', saved);
+    const restarted = await createHarness({ repository: again });
+    expect(restarted.controller.snapshot().schedules?.[1]?.maxRuns).toBe(10);
+    await restarted.controller.shutdown();
   });
 
   it('keeps weekly schedules saved before chosen days on their original weekday', async () => {
@@ -8380,7 +8452,7 @@ describe('Use my Mac power and lock handling', () => {
     await vi.waitFor(() => expect(status()).toBe('waiting'));
     expect(keepAwake.hold).toHaveBeenCalledTimes(1);
     expect(keepAwake.release).toHaveBeenCalledWith(threadId);
-    // Waiting on the person hides the screen cue and releases Esc.
+    // Waiting on the person hides the screen cue and releases ⌃Esc.
     expect(controller.screenControl()).toEqual({});
     const approval = controller
       .snapshot()

@@ -483,7 +483,6 @@ export const demoSnapshot: RendererSnapshot = {
       enabled: true,
       createdAt: iso(60 * 24 * 6),
       runCount: 4,
-      maxRuns: 30,
       lastRun: {
         id: 'run-inbox-4',
         startedAt: iso(60 * 20),
@@ -1014,7 +1013,7 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
           enabled: true,
           createdAt: new Date().toISOString(),
           runCount: 0,
-          maxRuns: maxRuns ?? (cadence === 'once' ? 1 : 10),
+          ...(cadence === 'once' ? { maxRuns: 1 } : maxRuns ? { maxRuns } : {}),
         });
       });
     },
@@ -1030,7 +1029,8 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
           schedule.everyHours = cadence === 'hourly' ? everyHours : undefined;
         }
         if (nextRunAt !== undefined) schedule.nextRunAt = nextRunAt;
-        if (maxRuns !== undefined) schedule.maxRuns = maxRuns;
+        if (maxRuns === null) delete schedule.maxRuns;
+        else if (maxRuns !== undefined) schedule.maxRuns = maxRuns;
         if (enabled !== undefined) schedule.enabled = enabled;
       });
     },
