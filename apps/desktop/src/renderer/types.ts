@@ -1,4 +1,5 @@
 import type { OnboardingProgress, OnboardingStep, PushToTalkView } from '../shared/bridge';
+import type { ScheduleCadence } from '../shared/schedule-cadence';
 export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude';
 /** Safe catalog id. The main process decides whether the corresponding adapter is admitted. */
 type HarnessId = string;
@@ -270,7 +271,11 @@ interface ThreadSchedule {
   id: string;
   threadId: string;
   prompt: string;
-  cadence: 'once' | 'hourly' | 'daily' | 'weekly';
+  cadence: ScheduleCadence;
+  /** Weekly only: 0 = Sunday … 6 = Saturday. */
+  days?: number[] | undefined;
+  /** Hourly only: hours between runs; missing means every hour. */
+  everyHours?: number | undefined;
   nextRunAt: string;
   enabled?: boolean | undefined;
   createdAt: string;
@@ -279,6 +284,19 @@ interface ThreadSchedule {
   maxRuns?: number | undefined;
   lastRun?: ScheduleRun;
   runHistory?: ScheduleRun[];
+}
+
+export interface ScheduleRuleOptions {
+  days?: number[] | undefined;
+  everyHours?: number | undefined;
+}
+
+export interface ScheduleChanges extends ScheduleRuleOptions {
+  prompt?: string | undefined;
+  cadence?: ScheduleCadence | undefined;
+  nextRunAt?: string | undefined;
+  maxRuns?: number | undefined;
+  enabled?: boolean | undefined;
 }
 
 export interface ScheduleRun {
@@ -607,7 +625,10 @@ export interface RendererApi {
     cadence: ThreadSchedule['cadence'],
     nextRunAt: string,
     maxRuns?: number,
+    rule?: ScheduleRuleOptions,
   ): Promise<void>;
+  /** Saves an edit from the schedule list; only the fields present change. */
+  updateSchedule(scheduleId: string, changes: ScheduleChanges): Promise<void>;
   setScheduleEnabled(scheduleId: string, enabled: boolean): Promise<void>;
   deleteSchedule(scheduleId: string): Promise<void>;
   runScheduleNow(scheduleId: string): Promise<void>;

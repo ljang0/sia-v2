@@ -244,8 +244,10 @@ do not establish transport secrecy or real Wi-Fi reliability.
   binary, interrupted network and browser login cancelled/expired. Use the pinned admitted release.
 - **Schedules/goals:** schedules persist a claim before dispatch, keep stable run IDs and finite
   limits, but require Sia open and the Mac awake (`controller.ts`). Test wake across a due time,
-  timezone/DST changes, overlapping long tasks and crashes on each side of dispatch. Decide explicitly
-  whether missed runs should be skipped or run once on return; do not promise an offline cloud worker.
+  timezone/DST changes, overlapping long tasks and crashes on each side of dispatch. Day-based
+  cadences (daily, weekdays, chosen days) step local calendar days, so 8:00 AM stays 8:00 AM across
+  DST (`shared/schedule-cadence.ts`). A run missed while the Mac slept runs once on wake, then later
+  missed runs are skipped rather than replayed; do not promise an offline cloud worker.
 - **Connectors:** OAuth polling checks pending connection identity and tolerates temporary outages.
   Verify real Google token revocation and Slack workspace switching with disposable accounts.
   Cohort restrictions and Google verification remain separate public-release gates. Browser fallback

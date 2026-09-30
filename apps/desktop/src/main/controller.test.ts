@@ -1206,6 +1206,111 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('edits a schedule from the list and keeps weekday runs at the chosen local time', async () => {
+    const controller = await createController();
+    const agent = await controller.invoke('agents.save', {
+      name: 'Weekday scheduler',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
+    // 2030-08-24 is a Saturday: a weekday schedule moves to Monday, keeping 8:00 AM local.
+    const saturday = new Date(2030, 7, 24, 8, 0);
+    const created = await controller.invoke('schedules.create', {
+      threadId,
+      prompt: 'Summarize my inbox',
+      cadence: 'weekdays',
+      nextRunAt: saturday.toISOString(),
+    });
+    const schedule = created.schedules?.[0];
+    expect(schedule).toMatchObject({
+      cadence: 'weekdays',
+      nextRunAt: new Date(2030, 7, 26, 8, 0).toISOString(),
+    });
+
+    const edited = await controller.invoke('schedules.update', {
+      scheduleId: schedule!.id,
+      prompt: 'Summarize my inbox and calendar',
+      cadence: 'weekly',
+      days: [4, 2, 4],
+      nextRunAt: new Date(2030, 7, 26, 16, 30).toISOString(),
+      maxRuns: 20,
+    });
+    expect(edited.schedules?.[0]).toMatchObject({
+      prompt: 'Summarize my inbox and calendar',
+      cadence: 'weekly',
+      days: [2, 4],
+      nextRunAt: new Date(2030, 7, 27, 16, 30).toISOString(),
+      maxRuns: 20,
+      enabled: true,
+    });
+
+    const hourly = await controller.invoke('schedules.update', {
+      scheduleId: schedule!.id,
+      cadence: 'hourly',
+      everyHours: 3,
+    });
+    expect(hourly.schedules?.[0]).toMatchObject({ cadence: 'hourly', everyHours: 3 });
+    expect(hourly.schedules?.[0]?.days).toBeUndefined();
+
+    const weekdays = await controller.invoke('schedules.update', {
+      scheduleId: schedule!.id,
+      cadence: 'weekdays',
+    });
+    const upcoming = weekdays.schedules![0]!.nextRunAt;
+    expect([1, 2, 3, 4, 5]).toContain(new Date(upcoming).getDay());
+    await controller.invoke('schedules.runNow', { scheduleId: schedule!.id });
+    // Run now is an extra run; the next scheduled one stays put.
+    expect(controller.snapshot().schedules?.[0]).toMatchObject({
+      nextRunAt: upcoming,
+      runCount: 1,
+      enabled: true,
+    });
+    await expect(
+      controller.invoke('schedules.update', { scheduleId: schedule!.id, prompt: '   ' }),
+    ).rejects.toThrow('cannot be empty');
+    await controller.shutdown();
+  });
+
+  it('keeps weekly schedules saved before chosen days on their original weekday', async () => {
+    const initial = await createHarness();
+    const agent = await initial.controller.invoke('agents.save', {
+      name: 'Legacy scheduler',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await initial.controller.invoke('threads.create', {
+      agentId: agent.agentId,
+    });
+    initial.controller.createScheduleFromAction(threadId, {
+      task: 'Recap my week.',
+      cadence: 'weekly',
+      firstRunAt: new Date(2030, 7, 23, 16, 0).toISOString(),
+    });
+    const persisted = structuredClone(
+      initial.repository.get<{ schedules: Array<Record<string, unknown>> }>(
+        'desktop',
+        'state',
+      )!,
+    );
+    await initial.controller.shutdown();
+    delete persisted.schedules[0]!.days;
+    const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+    repository.put('desktop', 'state', persisted);
+
+    const recovered = await createHarness({ repository });
+    expect(recovered.controller.snapshot().schedules?.[0]).toMatchObject({
+      cadence: 'weekly',
+      days: [5],
+      nextRunAt: new Date(2030, 7, 23, 16, 0).toISOString(),
+    });
+    await recovered.controller.shutdown();
+  });
+
   it('recovers a claimed schedule without dispatching its persisted turn twice', async () => {
     const initial = await createHarness();
     const agent = await initial.controller.invoke('agents.save', {

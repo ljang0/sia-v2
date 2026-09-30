@@ -10,7 +10,8 @@ import { ArchivedThreadsSection } from './ThreadLifecycle';
 import { ThreadWorkspaceTools } from './ThreadWorkspace';
 import { createDemoRendererApi, demoSnapshot } from '../../demo';
 import { TranscriptSearch } from './TranscriptSearch';
-import { GoalControls, ScheduleControls, ThreadModelControls } from './WorkControls';
+import { ScheduleControls } from './Schedules';
+import { GoalControls, ThreadModelControls } from './WorkControls';
 
 afterEach(cleanup);
 
@@ -205,7 +206,7 @@ describe('local parity renderer contracts', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Task' }), {
       target: { value: 'Check release status' },
     });
-    fireEvent.change(screen.getByLabelText('First run'), {
+    fireEvent.change(screen.getByLabelText('When'), {
       target: { value: '2026-08-15T09:30' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Create schedule' }));
@@ -301,7 +302,9 @@ describe('local parity renderer contracts', () => {
       'Summarize my inbox',
     );
     expect((screen.getByLabelText('Repeat') as HTMLSelectElement).value).toBe('daily');
-    expect(screen.getByText(/^Runs every day, starting .+ 30 times in all\.$/)).toBeTruthy();
+    expect(
+      screen.getByText(/^Runs every day at 8:00.AM, starting .+, 30 times in all\.$/),
+    ).toBeTruthy();
     // The empty state steps aside while the form is open.
     expect(screen.queryByText('No schedules yet.')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Create schedule' }));
@@ -357,9 +360,112 @@ describe('local parity renderer contracts', () => {
     expect(onCreate).toHaveBeenCalledWith({
       prompt: 'Check the web for new release notes',
       cadence: 'hourly',
+      everyHours: 1,
       runAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
       maxRuns: 10,
     });
+  });
+
+  it('creates weekday and chosen-day schedules at a time of day', async () => {
+    const onCreate = vi.fn(async () => undefined);
+    render(
+      <ScheduleControls
+        schedules={[]}
+        onCreate={onCreate}
+        onSetEnabled={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'New schedule' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Task' }), {
+      target: { value: 'Summarize my inbox' },
+    });
+    fireEvent.change(screen.getByLabelText('Repeat'), { target: { value: 'weekdays' } });
+    fireEvent.change(screen.getByLabelText('Time of day'), { target: { value: '08:00' } });
+    expect(screen.getByText(/^Runs weekdays at 8:00.AM, starting /)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Create schedule' }));
+    await waitFor(() => expect(onCreate).toHaveBeenCalledOnce());
+    const weekdays = (onCreate.mock.calls[0] as unknown as [{ runAt: string }])[0];
+    expect(weekdays).toMatchObject({
+      cadence: 'weekdays',
+      runAt: expect.stringMatching(/T08:00$/),
+    });
+    expect([1, 2, 3, 4, 5]).toContain(new Date(weekdays.runAt).getDay());
+
+    fireEvent.click(screen.getByRole('button', { name: 'New schedule' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Task' }), {
+      target: { value: 'Water the plants' },
+    });
+    fireEvent.change(screen.getByLabelText('Repeat'), { target: { value: 'weekly' } });
+    // Start from no days so the choice below is the whole plan.
+    for (const button of screen.getAllByRole('button', { pressed: true }))
+      fireEvent.click(button);
+    expect(screen.getByText('Choose at least one day.')).toBeTruthy();
+    expect(
+      (screen.getByRole('button', { name: 'Create schedule' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Monday' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Thursday' }));
+    expect(screen.getByText(/^Runs on Mondays and Thursdays at /)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Create schedule' }));
+    await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(2));
+    expect(onCreate.mock.calls[1]).toEqual([
+      expect.objectContaining({ cadence: 'weekly', days: [1, 4] }),
+    ]);
+  });
+
+  it('edits a schedule in place and restarts a finished one with its new plan', async () => {
+    const onSave = vi.fn(async () => undefined);
+    render(
+      <ScheduleControls
+        schedules={[
+          {
+            id: 'schedule-1',
+            label: 'Morning summary',
+            prompt: 'Summarize updates',
+            cadence: 'daily',
+            nextRunAt: new Date(2030, 7, 26, 9).toISOString(),
+            enabled: false,
+            runCount: 10,
+            maxRuns: 10,
+          },
+        ]}
+        onCreate={vi.fn()}
+        onSave={onSave}
+        onSetEnabled={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('schedule-cadence').textContent).toMatch(/Every day at 9:00.AM/);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Morning summary' }));
+    const task = screen.getByRole('textbox', { name: 'Task' }) as HTMLInputElement;
+    expect(task.value).toBe('Summarize updates');
+    expect((screen.getByLabelText('Time of day') as HTMLInputElement).value).toBe('09:00');
+    expect(
+      (screen.getByRole('spinbutton', { name: 'How many more runs' }) as HTMLInputElement)
+        .value,
+    ).toBe('10');
+    fireEvent.change(task, { target: { value: 'Summarize updates and my calendar' } });
+    fireEvent.change(screen.getByLabelText('Repeat'), { target: { value: 'hourly' } });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Hours between runs' }), {
+      target: { value: '3' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith('schedule-1', {
+        prompt: 'Summarize updates and my calendar',
+        cadence: 'hourly',
+        everyHours: 3,
+        nextRunAt: expect.any(String),
+        maxRuns: 20,
+        enabled: true,
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull(),
+    );
   });
 
   it('stages directly but confirms destructive file restoration', async () => {

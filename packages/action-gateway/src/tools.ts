@@ -16,6 +16,20 @@ const string = (
   description: string,
   extra: Record<string, unknown> = {},
 ): Record<string, unknown> => ({ type: 'string', description, ...extra });
+const scheduleDaysDescriptor = (description: string): Record<string, unknown> => ({
+  type: 'array',
+  minItems: 1,
+  maxItems: 7,
+  uniqueItems: true,
+  items: { type: 'string', enum: [...SCHEDULE_DAYS] },
+  description,
+});
+const scheduleEveryHoursDescriptor = (description: string): Record<string, unknown> => ({
+  type: 'integer',
+  minimum: 1,
+  maximum: 24,
+  description,
+});
 type ConnectedAppSelector = 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack';
 const accountSelector = (app: ConnectedAppSelector): Record<string, unknown> =>
   string(`Stable ${app} account selector`, { enum: [app] });
@@ -382,30 +396,54 @@ const messagesSend = z
     text: z.string().min(1).max(10_000),
   })
   .strict();
-const scheduleCadence = z.enum(['once', 'hourly', 'daily', 'weekly']);
+const SCHEDULE_CADENCES = ['once', 'hourly', 'daily', 'weekdays', 'weekly'] as const;
+const SCHEDULE_DAYS = [
+  'sunday',
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+] as const;
+const scheduleCadence = z.enum(SCHEDULE_CADENCES);
+const scheduleDays = z.array(z.enum(SCHEDULE_DAYS)).min(1).max(7);
+const scheduleEveryHours = z.number().int().min(1).max(24);
 const scheduleCreate = z
   .object({
     task: z.string().trim().min(1).max(20_000),
     cadence: scheduleCadence,
+    days: scheduleDays.optional(),
+    every_hours: scheduleEveryHours.optional(),
     first_run_at: z.string().trim().min(1).max(64).optional(),
     max_runs: z.number().int().min(1).max(10_000).optional(),
   })
-  .strict();
+  .strict()
+  .refine(({ cadence, days }) => days === undefined || cadence === 'weekly', {
+    message: 'days only applies to a weekly schedule',
+  })
+  .refine(({ cadence, every_hours }) => every_hours === undefined || cadence === 'hourly', {
+    message: 'every_hours only applies to an hourly schedule',
+  });
 const scheduleList = z.object({}).strict();
 const scheduleUpdate = z
   .object({
     schedule_id: id,
     task: z.string().trim().min(1).max(20_000).optional(),
     cadence: scheduleCadence.optional(),
+    days: scheduleDays.optional(),
+    every_hours: scheduleEveryHours.optional(),
     next_run_at: z.string().trim().min(1).max(64).optional(),
     enabled: z.boolean().optional(),
     max_runs: z.number().int().min(1).max(10_000).optional(),
   })
   .strict()
   .refine(
-    ({ task, cadence, next_run_at, enabled, max_runs }) =>
+    ({ task, cadence, days, every_hours, next_run_at, enabled, max_runs }) =>
       task !== undefined ||
       cadence !== undefined ||
+      days !== undefined ||
+      every_hours !== undefined ||
       next_run_at !== undefined ||
       enabled !== undefined ||
       max_runs !== undefined,
@@ -1170,11 +1208,18 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   schedule_create: {
     name: 'schedule_create',
     description:
-      'Create persisted future or recurring work in the current Sia thread. Use this when the person asks to do, check, monitor, search, or report something later or on a cadence. The task is sent back to the agent verbatim at each run. first_run_at must be an RFC 3339 timestamp with a UTC offset when supplied; recurring schedules otherwise begin one cadence interval from now, while a one-time schedule runs as soon as the current turn is idle.',
+      'Create persisted future or recurring work in the current Sia thread. Use this when the person asks to do, check, monitor, search, or report something later or on a cadence. The task is sent back to the agent verbatim at each run. first_run_at must be an RFC 3339 timestamp with a UTC offset when supplied; for daily, weekdays, and weekly schedules its local time of day is kept for every run. Recurring schedules otherwise begin one interval from now, while a one-time schedule runs as soon as the current turn is idle.',
     inputSchema: object(
       {
         task: string('Exact self-contained task to run each time'),
-        cadence: string('Run frequency', { enum: ['once', 'hourly', 'daily', 'weekly'] }),
+        cadence: string(
+          'Run frequency. weekdays runs Monday to Friday; weekly runs on the chosen days.',
+          { enum: [...SCHEDULE_CADENCES] },
+        ),
+        days: scheduleDaysDescriptor('Weekly only: days of the week it runs'),
+        every_hours: scheduleEveryHoursDescriptor(
+          'Hourly only: hours between runs (default 1)',
+        ),
         first_run_at: string('Optional RFC 3339 first-run timestamp with a UTC offset', {
           format: 'date-time',
         }),
@@ -1203,9 +1248,9 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
       {
         schedule_id: string('Schedule id returned by schedule_list or schedule_create'),
         task: string('Replacement self-contained task'),
-        cadence: string('Replacement run frequency', {
-          enum: ['once', 'hourly', 'daily', 'weekly'],
-        }),
+        cadence: string('Replacement run frequency', { enum: [...SCHEDULE_CADENCES] }),
+        days: scheduleDaysDescriptor('Replacement weekly days'),
+        every_hours: scheduleEveryHoursDescriptor('Replacement hours between hourly runs'),
         next_run_at: string('Replacement RFC 3339 next-run timestamp with a UTC offset', {
           format: 'date-time',
         }),

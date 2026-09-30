@@ -4,6 +4,7 @@ import { automationAppSchema } from '../shared/mac-permissions.js';
 import type { BrowserWindow, IpcMain } from 'electron';
 import { z } from 'zod';
 import { assistantLibraryCommand } from '../shared/assistant-library.js';
+import { MAX_EVERY_HOURS, SCHEDULE_CADENCES } from '../shared/schedule-cadence.js';
 
 import type { DesktopController } from './controller.js';
 import type {
@@ -16,6 +17,9 @@ import type {
 const providerId = z.enum(['codex', 'meta', 'grok', 'gemini', 'claude']);
 const connectionId = z.enum(['gmail', 'drive', 'docs', 'sheets', 'slides', 'slack']);
 const identifier = z.string().uuid();
+const scheduleCadence = z.enum(SCHEDULE_CADENCES);
+const scheduleDays = z.array(z.number().int().min(0).max(6)).min(1).max(7);
+const scheduleEveryHours = z.number().int().min(1).max(MAX_EVERY_HOURS);
 const relativePath = z.string().trim().min(1).max(4_096);
 const harnessId = z
   .string()
@@ -204,9 +208,23 @@ const inputSchemas = {
     .object({
       threadId: identifier,
       prompt: z.string().trim().min(1).max(200_000),
-      cadence: z.enum(['once', 'hourly', 'daily', 'weekly']),
+      cadence: scheduleCadence,
+      days: scheduleDays.optional(),
+      everyHours: scheduleEveryHours.optional(),
       nextRunAt: z.string().datetime({ offset: true }),
       maxRuns: z.number().int().min(1).max(10_000).optional(),
+    })
+    .strict(),
+  'schedules.update': z
+    .object({
+      scheduleId: identifier,
+      prompt: z.string().trim().min(1).max(200_000).optional(),
+      cadence: scheduleCadence.optional(),
+      days: scheduleDays.optional(),
+      everyHours: scheduleEveryHours.optional(),
+      nextRunAt: z.string().datetime({ offset: true }).optional(),
+      maxRuns: z.number().int().min(1).max(10_000).optional(),
+      enabled: z.boolean().optional(),
     })
     .strict(),
   'schedules.setEnabled': z.object({ scheduleId: identifier, enabled: z.boolean() }).strict(),

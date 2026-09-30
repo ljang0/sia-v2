@@ -80,6 +80,14 @@ import type { VoiceOperations } from './voice-service.js';
 import { PushToTalkService, type VoiceHelperFactory } from './push-to-talk.js';
 import type { TrajectoryRecorder } from './trajectory-recorder.js';
 import { RESEARCH_CONSENT_VERSION, SCHEDULE_RUN_HISTORY_LIMIT } from '../shared/bridge.js';
+import {
+  alignScheduleStart,
+  defaultFirstScheduleRun,
+  everyHoursOf,
+  nextScheduleRun,
+  normalizeScheduleDays,
+  type ScheduleRule,
+} from '../shared/schedule-cadence.js';
 import { verifyUpdateManifestResponse } from './update-manifest.js';
 
 interface ComputerAutomation {
@@ -1155,19 +1163,24 @@ export class DesktopController {
     input: {
       task: string;
       cadence: ScheduleView['cadence'];
+      days?: number[];
+      everyHours?: number;
       firstRunAt?: string;
       maxRuns?: number;
     },
   ): ScheduleView {
     const firstRunAt =
       input.firstRunAt ??
-      new Date(
-        Date.now() + (input.cadence === 'once' ? 0 : scheduleIntervalMs(input.cadence)),
+      defaultFirstScheduleRun(
+        { cadence: input.cadence, days: input.days, everyHours: input.everyHours },
+        new Date(),
       ).toISOString();
     const schedule = this.#insertSchedule({
       threadId,
       prompt: input.task,
       cadence: input.cadence,
+      ...(input.days === undefined ? {} : { days: input.days }),
+      ...(input.everyHours === undefined ? {} : { everyHours: input.everyHours }),
       nextRunAt: firstRunAt,
       ...(input.maxRuns === undefined ? {} : { maxRuns: input.maxRuns }),
     });
@@ -1187,6 +1200,8 @@ export class DesktopController {
       scheduleId: string;
       task?: string;
       cadence?: ScheduleView['cadence'];
+      days?: number[];
+      everyHours?: number;
       nextRunAt?: string;
       enabled?: boolean;
       maxRuns?: number;
@@ -1195,19 +1210,11 @@ export class DesktopController {
     const schedule = this.#requireSchedule(input.scheduleId);
     if (schedule.threadId !== threadId)
       throw new Error('Scheduled task not found in this thread.');
-    if (input.task !== undefined) {
-      const task = input.task.trim();
-      if (!task) throw new Error('A scheduled task cannot be empty.');
-      schedule.prompt = task;
-    }
-    if (input.cadence !== undefined) schedule.cadence = input.cadence;
-    if (input.nextRunAt !== undefined) {
-      schedule.nextRunAt = validScheduleTime(input.nextRunAt);
-    }
-    if (input.enabled !== undefined) schedule.enabled = input.enabled;
-    if (input.maxRuns !== undefined) schedule.maxRuns = validScheduleRunLimit(input.maxRuns);
-    this.#commit();
-    if (schedule.enabled) void this.#runDueSchedules();
+    const { task, ...changes } = input;
+    this.#applyScheduleUpdate(schedule, {
+      ...changes,
+      ...(task === undefined ? {} : { prompt: task }),
+    });
     return structuredClone(schedule);
   }
 
@@ -2102,6 +2109,12 @@ export class DesktopController {
         return this.#createSchedule(
           input as BridgeRequestMap['schedules.create'],
         ) as BridgeResultMap[M];
+      case 'schedules.update':
+        this.#applyScheduleUpdate(
+          this.#requireSchedule((input as BridgeRequestMap['schedules.update']).scheduleId),
+          input as BridgeRequestMap['schedules.update'],
+        );
+        return this.#resultSnapshot() as BridgeResultMap[M];
       case 'schedules.setEnabled':
         return this.#setScheduleEnabled(
           input as BridgeRequestMap['schedules.setEnabled'],
@@ -4068,17 +4081,71 @@ export class DesktopController {
       id: randomUUID(),
       threadId: thread.id,
       prompt,
-      cadence: input.cadence,
+      ...scheduleRuleFields(
+        { cadence: input.cadence, days: input.days, everyHours: input.everyHours },
+        new Date(validScheduleTime(input.nextRunAt)),
+      ),
       nextRunAt: validScheduleTime(input.nextRunAt),
       enabled: true,
       createdAt: new Date().toISOString(),
       runCount: 0,
       maxRuns: validScheduleRunLimit(input.maxRuns ?? defaultScheduleRunLimit(input.cadence)),
     };
+    schedule.nextRunAt = alignScheduleStart(
+      schedule,
+      new Date(schedule.nextRunAt),
+    ).toISOString();
     this.#state.schedules.push(schedule);
     this.#commit();
     void this.#runDueSchedules();
     return schedule;
+  }
+
+  /** One edit path for the schedule list and the agent's schedule_update tool. */
+  #applyScheduleUpdate(
+    schedule: ScheduleView,
+    input: Omit<BridgeRequestMap['schedules.update'], 'scheduleId'>,
+  ): void {
+    if (!this.#schedulesAvailable()) {
+      throw new Error('Schedules are turned off for this pilot right now.');
+    }
+    const prompt = input.prompt === undefined ? undefined : input.prompt.trim();
+    if (prompt === '') throw new Error('A scheduled task cannot be empty.');
+    const nextRunAt =
+      input.nextRunAt === undefined ? undefined : validScheduleTime(input.nextRunAt);
+    const maxRuns =
+      input.maxRuns === undefined ? undefined : validScheduleRunLimit(input.maxRuns);
+    const ruleChanged =
+      input.cadence !== undefined || input.days !== undefined || input.everyHours !== undefined;
+    if (prompt !== undefined) schedule.prompt = prompt;
+    if (nextRunAt !== undefined) schedule.nextRunAt = nextRunAt;
+    if (ruleChanged) {
+      const cadence = input.cadence ?? schedule.cadence;
+      const rule = scheduleRuleFields(
+        {
+          cadence,
+          // A new cadence starts from its own details rather than the old one's.
+          days: input.days ?? (cadence === schedule.cadence ? schedule.days : undefined),
+          everyHours:
+            input.everyHours ??
+            (cadence === schedule.cadence ? schedule.everyHours : undefined),
+        },
+        new Date(schedule.nextRunAt),
+      );
+      delete schedule.days;
+      delete schedule.everyHours;
+      Object.assign(schedule, rule);
+    }
+    if (ruleChanged || nextRunAt !== undefined) {
+      schedule.nextRunAt = alignScheduleStart(
+        schedule,
+        new Date(schedule.nextRunAt),
+      ).toISOString();
+    }
+    if (maxRuns !== undefined) schedule.maxRuns = maxRuns;
+    if (input.enabled !== undefined) schedule.enabled = input.enabled;
+    this.#commit();
+    if (schedule.enabled) void this.#runDueSchedules();
   }
 
   #setScheduleEnabled(input: BridgeRequestMap['schedules.setEnabled']): DesktopSnapshot {
@@ -4164,15 +4231,15 @@ export class DesktopController {
   }
 
   #advanceSchedule(schedule: ScheduleView, now: Date): void {
-    if (schedule.cadence === 'once') {
+    const due = new Date(schedule.nextRunAt);
+    // Run now leaves the next scheduled run where it was.
+    if (schedule.cadence !== 'once' && due > now) return;
+    const next = nextScheduleRun(schedule, due, now);
+    if (!next) {
       schedule.enabled = false;
       return;
     }
-    const interval = scheduleIntervalMs(schedule.cadence);
-    let next = Date.parse(schedule.nextRunAt);
-    do next += interval;
-    while (next <= now.getTime());
-    schedule.nextRunAt = new Date(next).toISOString();
+    schedule.nextRunAt = next.toISOString();
   }
 
   #dispatchSchedule(schedule: ScheduleView, now: Date): BridgeResultMap['schedules.runNow'] {
@@ -8127,8 +8194,11 @@ export class DesktopController {
       const runHistory = (schedule.runHistory ?? (schedule.lastRun ? [schedule.lastRun] : []))
         .filter((run, index, history) => history.findIndex(({ id }) => id === run.id) === index)
         .slice(0, SCHEDULE_RUN_HISTORY_LIMIT);
+      // Weekly schedules saved before chosen days existed keep running on their next run's day.
+      const { days: _days, everyHours: _everyHours, ...rest } = schedule;
       return {
-        ...schedule,
+        ...rest,
+        ...scheduleRuleFields(schedule, new Date(schedule.nextRunAt)),
         runCount: schedule.runCount ?? 0,
         ...(runHistory.length > 0 ? { runHistory } : {}),
       };
@@ -8869,7 +8939,14 @@ function summarizeActionTarget(
       typeof argumentsValue.first_run_at === 'string'
         ? ` starting ${argumentsValue.first_run_at}`
         : '';
-    return `${String(argumentsValue.cadence)}: ${String(argumentsValue.task)}${firstRun}`;
+    const days = Array.isArray(argumentsValue.days)
+      ? ` on ${argumentsValue.days.map(String).join(', ')}`
+      : '';
+    const everyHours =
+      typeof argumentsValue.every_hours === 'number'
+        ? ` every ${argumentsValue.every_hours} hours`
+        : '';
+    return `${String(argumentsValue.cadence)}${days}${everyHours}: ${String(argumentsValue.task)}${firstRun}`;
   }
   if (toolName === 'schedule_update' || toolName === 'schedule_delete') {
     return `schedule ${String(argumentsValue.schedule_id)}`;
@@ -8933,11 +9010,19 @@ function defaultScheduleRunLimit(cadence: ScheduleView['cadence']): number {
   return cadence === 'once' ? 1 : 10;
 }
 
-function scheduleIntervalMs(cadence: ScheduleView['cadence']): number {
-  if (cadence === 'hourly') return 60 * 60_000;
-  if (cadence === 'daily') return 24 * 60 * 60_000;
-  if (cadence === 'weekly') return 7 * 24 * 60 * 60_000;
-  return 0;
+/** Keeps only the details a cadence uses, so a saved schedule never carries stale ones. */
+function scheduleRuleFields(
+  rule: ScheduleRule,
+  firstRun: Date,
+): Pick<ScheduleView, 'cadence' | 'days' | 'everyHours'> {
+  if (rule.cadence === 'weekly') {
+    const days = normalizeScheduleDays(rule.days);
+    return { cadence: 'weekly', days: days.length ? days : [firstRun.getDay()] };
+  }
+  if (rule.cadence === 'hourly' && rule.everyHours !== undefined) {
+    return { cadence: 'hourly', everyHours: everyHoursOf(rule) };
+  }
+  return { cadence: rule.cadence };
 }
 
 function textAttachmentPreview(

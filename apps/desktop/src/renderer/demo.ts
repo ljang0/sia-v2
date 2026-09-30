@@ -10,6 +10,7 @@ import type {
 } from './types';
 import { agentIdentity } from './agentIdentity';
 import { RESEARCH_CONSENT_VERSION } from '../shared/bridge';
+import { firstScheduleRunAt } from '../shared/schedule-cadence';
 
 const iso = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
 
@@ -406,8 +407,53 @@ export const demoSnapshot: RendererSnapshot = {
     pendingBytes: 0,
   },
   archivedThreads: [],
-  schedules: [],
+  schedules: [
+    {
+      id: 'schedule-inbox',
+      threadId: 'thread-inbox',
+      prompt: 'Summarize my inbox and tell me what needs a reply',
+      cadence: 'weekdays',
+      nextRunAt: demoNextRunAt(8, [1, 2, 3, 4, 5]),
+      enabled: true,
+      createdAt: iso(60 * 24 * 6),
+      runCount: 4,
+      maxRuns: 30,
+      lastRun: {
+        id: 'run-inbox-4',
+        startedAt: iso(60 * 20),
+        finishedAt: iso(60 * 20 - 2),
+        outcome: 'completed',
+      },
+    },
+    {
+      id: 'schedule-research',
+      threadId: 'thread-research',
+      prompt: 'Recap what changed in the research sources this week',
+      cadence: 'weekly',
+      days: [1, 4],
+      nextRunAt: demoNextRunAt(16, [1, 4]),
+      enabled: false,
+      createdAt: iso(60 * 24 * 12),
+      runCount: 2,
+      maxRuns: 10,
+      lastRun: {
+        id: 'run-research-2',
+        startedAt: iso(60 * 24 * 3),
+        finishedAt: iso(60 * 24 * 3 - 4),
+        outcome: 'failed',
+      },
+    },
+  ],
 };
+
+/** The next local `hour`:00 on one of `days`, so the demo always shows an upcoming run. */
+function demoNextRunAt(hour: number, days: readonly number[]): string {
+  return firstScheduleRunAt(
+    { cadence: 'weekly', days },
+    { hour, minute: 0 },
+    new Date(),
+  ).toISOString();
+}
 
 const clone = <T>(value: T): T => structuredClone(value);
 
@@ -831,14 +877,49 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
     async startReview() {
       return Promise.resolve();
     },
-    async createSchedule() {
-      return Promise.resolve();
+    async createSchedule(threadId, prompt, cadence, nextRunAt, maxRuns, rule) {
+      mutate((current) => {
+        current.schedules.push({
+          id: `schedule-${crypto.randomUUID()}`,
+          threadId,
+          prompt,
+          cadence,
+          ...(rule?.days ? { days: rule.days } : {}),
+          ...(rule?.everyHours ? { everyHours: rule.everyHours } : {}),
+          nextRunAt,
+          enabled: true,
+          createdAt: new Date().toISOString(),
+          runCount: 0,
+          maxRuns: maxRuns ?? (cadence === 'once' ? 1 : 10),
+        });
+      });
     },
-    async setScheduleEnabled() {
-      return Promise.resolve();
+    async updateSchedule(scheduleId, changes) {
+      mutate((current) => {
+        const schedule = current.schedules.find(({ id }) => id === scheduleId);
+        if (!schedule) return;
+        const { prompt, cadence, days, everyHours, nextRunAt, maxRuns, enabled } = changes;
+        if (prompt !== undefined) schedule.prompt = prompt;
+        if (cadence !== undefined) {
+          schedule.cadence = cadence;
+          schedule.days = cadence === 'weekly' ? days : undefined;
+          schedule.everyHours = cadence === 'hourly' ? everyHours : undefined;
+        }
+        if (nextRunAt !== undefined) schedule.nextRunAt = nextRunAt;
+        if (maxRuns !== undefined) schedule.maxRuns = maxRuns;
+        if (enabled !== undefined) schedule.enabled = enabled;
+      });
     },
-    async deleteSchedule() {
-      return Promise.resolve();
+    async setScheduleEnabled(scheduleId, enabled) {
+      mutate((current) => {
+        const schedule = current.schedules.find(({ id }) => id === scheduleId);
+        if (schedule) schedule.enabled = enabled;
+      });
+    },
+    async deleteSchedule(scheduleId) {
+      mutate((current) => {
+        current.schedules = current.schedules.filter(({ id }) => id !== scheduleId);
+      });
     },
     async runScheduleNow() {
       return Promise.resolve();

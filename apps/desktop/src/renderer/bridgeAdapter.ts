@@ -286,16 +286,20 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       const result = await bridge.reviews.start({ threadId, target });
       publish(result.snapshot);
     },
-    async createSchedule(threadId, prompt, cadence, nextRunAt, maxRuns) {
+    async createSchedule(threadId, prompt, cadence, nextRunAt, maxRuns, rule) {
       publish(
         await bridge.schedules.create({
           threadId,
           prompt,
           cadence,
+          ...definedScheduleFields({ ...rule }),
           nextRunAt,
           ...(maxRuns === undefined ? {} : { maxRuns }),
         }),
       );
+    },
+    async updateSchedule(scheduleId, changes) {
+      publish(await bridge.schedules.update({ scheduleId, ...definedScheduleFields(changes) }));
     },
     async setScheduleEnabled(scheduleId, enabled) {
       publish(await bridge.schedules.setEnabled(scheduleId, enabled));
@@ -1120,4 +1124,13 @@ function initialsFor(name: string) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join('');
+}
+
+/** The bridge's strict schemas reject explicit undefined, so only present fields cross it. */
+function definedScheduleFields<T extends object>(
+  fields: T,
+): { [K in keyof T]-?: Exclude<T[K], undefined> } {
+  return Object.fromEntries(
+    Object.entries(fields).filter(([, value]) => value !== undefined),
+  ) as { [K in keyof T]-?: Exclude<T[K], undefined> };
 }

@@ -151,6 +151,7 @@ const api: DesktopBridgeApi = {
   },
   schedules: {
     create: (input) => invoke('schedules.create', input),
+    update: (input) => invoke('schedules.update', input),
     setEnabled: (scheduleId, enabled) =>
       invoke('schedules.setEnabled', { scheduleId, enabled }),
     delete: (scheduleId) => invoke('schedules.delete', { scheduleId }),

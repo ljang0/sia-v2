@@ -1,3 +1,5 @@
+import type { ScheduleCadence } from './schedule-cadence.js';
+
 export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude';
 
 /** Safe catalog id. Executability still requires an audited runtime registration. */
@@ -302,7 +304,11 @@ export interface ScheduleView {
   id: string;
   threadId: string;
   prompt: string;
-  cadence: 'once' | 'hourly' | 'daily' | 'weekly';
+  cadence: ScheduleCadence;
+  /** Weekly only: 0 = Sunday … 6 = Saturday. */
+  days?: number[];
+  /** Hourly only: hours between runs; missing means every hour. */
+  everyHours?: number;
   nextRunAt: string;
   enabled: boolean;
   createdAt: string;
@@ -602,8 +608,22 @@ export interface CreateScheduleInput {
   threadId: string;
   prompt: string;
   cadence: ScheduleView['cadence'];
+  days?: number[];
+  everyHours?: number;
   nextRunAt: string;
   maxRuns?: number;
+}
+
+/** An edit from the schedule list; each field that is present replaces the saved one. */
+export interface UpdateScheduleInput {
+  scheduleId: string;
+  prompt?: string;
+  cadence?: ScheduleView['cadence'];
+  days?: number[];
+  everyHours?: number;
+  nextRunAt?: string;
+  maxRuns?: number;
+  enabled?: boolean;
 }
 
 export interface StartReviewInput {
@@ -683,6 +703,7 @@ export interface BridgeRequestMap {
   'terminal.stop': { threadId: string; terminalId: string };
   'reviews.start': StartReviewInput;
   'schedules.create': CreateScheduleInput;
+  'schedules.update': UpdateScheduleInput;
   'schedules.setEnabled': { scheduleId: string; enabled: boolean };
   'schedules.delete': { scheduleId: string };
   'schedules.runNow': { scheduleId: string };
@@ -815,6 +836,7 @@ export interface BridgeResultMap {
   'terminal.stop': BackgroundTerminalView;
   'reviews.start': { turnId: string; snapshot: DesktopSnapshot };
   'schedules.create': DesktopSnapshot;
+  'schedules.update': DesktopSnapshot;
   'schedules.setEnabled': DesktopSnapshot;
   'schedules.delete': DesktopSnapshot;
   'schedules.runNow': { turnId: string; snapshot: DesktopSnapshot };
@@ -992,6 +1014,7 @@ export interface DesktopBridgeApi {
   };
   schedules: {
     create(input: CreateScheduleInput): Promise<DesktopSnapshot>;
+    update(input: UpdateScheduleInput): Promise<DesktopSnapshot>;
     setEnabled(scheduleId: string, enabled: boolean): Promise<DesktopSnapshot>;
     delete(scheduleId: string): Promise<DesktopSnapshot>;
     runNow(scheduleId: string): Promise<BridgeResultMap['schedules.runNow']>;
