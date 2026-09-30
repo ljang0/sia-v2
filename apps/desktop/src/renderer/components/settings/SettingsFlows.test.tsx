@@ -532,7 +532,8 @@ describe('research consent settings', () => {
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('Research service is unavailable.');
-    expect(document.activeElement).toBe(alert);
+    // Focus moves in an effect after the error renders, so wait for it rather than racing it.
+    await waitFor(() => expect(document.activeElement).toBe(alert));
     expect(document.body.contains(dialog)).toBe(true);
   });
 
