@@ -169,6 +169,14 @@ const inputSchemas = {
       confirmation: z.literal('DELETE SNAPSHOT'),
     })
     .strict(),
+  'changes.turn.read': z.object({ threadId: identifier, eventId: identifier }).strict(),
+  'changes.turn.apply': z
+    .object({
+      threadId: identifier,
+      eventId: identifier,
+      direction: z.enum(['undo', 'redo']),
+    })
+    .strict(),
   'terminal.run': z
     .object({ threadId: identifier, command: z.string().trim().min(1).max(20_000) })
     .strict(),

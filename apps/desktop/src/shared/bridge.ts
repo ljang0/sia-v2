@@ -271,6 +271,19 @@ export interface WorkspaceSnapshotView {
   createdAt: string;
 }
 
+/**
+ * The files one reply changed, checked against the disk. `ready`: they still hold the reply's
+ * changes, so they can go back. `undone`: they are back as before, so the changes can be redone.
+ * `changed`: some were edited since, so neither is safe. `unavailable`: Sia has no complete
+ * record to put them back.
+ */
+export interface TurnChangesView {
+  state: 'ready' | 'undone' | 'changed' | 'unavailable';
+  files: Array<{ path: string; change: 'added' | 'edited' | 'deleted' | 'renamed' }>;
+  /** Files edited since, or ones Sia may not touch; they block undo and redo. */
+  blocked: string[];
+}
+
 export interface TerminalResultView {
   command: string;
   cwd: string;
@@ -679,6 +692,8 @@ export interface BridgeRequestMap {
     snapshotId: string;
     confirmation: 'DELETE SNAPSHOT';
   };
+  'changes.turn.read': { threadId: string; eventId: string };
+  'changes.turn.apply': { threadId: string; eventId: string; direction: 'undo' | 'redo' };
   'terminal.run': { threadId: string; command: string };
   'terminal.start': { threadId: string; command: string };
   'terminal.list': { threadId: string };
@@ -812,6 +827,8 @@ export interface BridgeResultMap {
     diff: WorkspaceDiffView;
   };
   'changes.snapshots.delete': { snapshots: WorkspaceSnapshotView[] };
+  'changes.turn.read': TurnChangesView;
+  'changes.turn.apply': TurnChangesView;
   'terminal.run': TerminalResultView;
   'terminal.start': BackgroundTerminalView;
   'terminal.list': { sessions: BackgroundTerminalView[] };
@@ -984,6 +1001,12 @@ export interface DesktopBridgeApi {
       threadId: string,
       snapshotId: string,
     ): Promise<{ snapshots: WorkspaceSnapshotView[] }>;
+    readTurn(threadId: string, eventId: string): Promise<TurnChangesView>;
+    applyTurn(
+      threadId: string,
+      eventId: string,
+      direction: 'undo' | 'redo',
+    ): Promise<TurnChangesView>;
   };
   terminal: {
     run(threadId: string, command: string): Promise<TerminalResultView>;

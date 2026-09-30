@@ -497,6 +497,12 @@ web search and connected-browser tools remain unavailable. Only one Sia Mac task
 at a time; others queue. Long results can be written to `~/SiaOutbox`, and reusable native scripts live
 in the agent's `.sia-mac/skills/`. Your existing memory and conversation history remain available.
 
+**Undo changes.** A finished reply that edited files shows **Changed N files · Undo changes**
+under it. Undo lists the files that go back and asks first; afterwards the line reads **Changes
+undone** with **Redo**. If a file was edited since, Sia explains and changes nothing. Undo covers
+files Codex edited directly; changes made by shell commands, sent messages or emails, and actions
+in other apps or websites stay as they are.
+
 **Settings → Computer → Where Sia works** offers **Work in background** (the default) and
 **On my screen** (the native route). Profiles that never chose keep working in the background; an
 explicit On my screen choice is kept. The choice applies to the next typed or Fn request. If the

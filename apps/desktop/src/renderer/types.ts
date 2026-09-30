@@ -1,4 +1,9 @@
-import type { OnboardingProgress, OnboardingStep, PushToTalkView } from '../shared/bridge';
+import type {
+  OnboardingProgress,
+  OnboardingStep,
+  PushToTalkView,
+  TurnChangesView,
+} from '../shared/bridge';
 export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude';
 /** Safe catalog id. The main process decides whether the corresponding adapter is admitted. */
 type HarnessId = string;
@@ -247,6 +252,8 @@ export interface WorkspaceSnapshot {
   id: string;
   createdAt: string;
 }
+
+export type TurnChanges = TurnChangesView;
 
 export interface TerminalResult {
   command: string;
@@ -588,6 +595,14 @@ export interface RendererApi {
     snapshotId: string,
   ): Promise<{ snapshots: WorkspaceSnapshot[]; diff: WorkspaceDiff }>;
   deleteWorkspaceSnapshot(threadId: string, snapshotId: string): Promise<WorkspaceSnapshot[]>;
+  /** Where the files one reply changed stand now. `eventId` is any event of that reply. */
+  readTurnChanges(threadId: string, eventId: string): Promise<TurnChanges>;
+  /** Puts one reply's files back (undo) or brings its changes back (redo). */
+  applyTurnChanges(
+    threadId: string,
+    eventId: string,
+    direction: 'undo' | 'redo',
+  ): Promise<TurnChanges>;
   runTerminal(threadId: string, command: string): Promise<TerminalResult>;
   startBackgroundTerminal(threadId: string, command: string): Promise<BackgroundTerminal>;
   listBackgroundTerminals(threadId: string): Promise<BackgroundTerminal[]>;

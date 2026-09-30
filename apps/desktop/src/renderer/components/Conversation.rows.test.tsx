@@ -131,3 +131,55 @@ it('offers copy and read aloud only once a reply is finished', () => {
   expect(reply().querySelector('[aria-label="Copy message"]')).not.toBeNull();
   expect(reply().querySelector('[data-testid="message-read-aloud"]')).not.toBeNull();
 });
+
+it('keeps rows memoized while offering Undo changes under finished replies that edited files', () => {
+  const edits = (events: ThreadEvent[]) =>
+    events.map((event) =>
+      event.type === 'activity'
+        ? {
+            ...event,
+            presentation: {
+              kind: 'file_change' as const,
+              files: [{ path: `/notes/${event.id}.md`, change: 'add', diff: 'hi\n' }],
+            },
+          }
+        : event,
+    );
+  const props = {
+    onSend: async () => undefined,
+    onStop: async () => undefined,
+    onRetry: async () => undefined,
+    onResolveApproval: async () => undefined,
+  };
+  // App passes a fresh object each render; rows must not notice.
+  const turnChanges = () => ({
+    read: vi.fn(),
+    apply: vi.fn(),
+  });
+  let events = edits(history(5));
+  const view = render(
+    <Conversation thread={thread(events)} turnChanges={turnChanges()} {...props} />,
+  );
+  // The running reply has no Undo yet; the four finished ones do.
+  expect(view.getAllByTestId('turn-changes')).toHaveLength(4);
+
+  for (const token of [' and', ' more']) {
+    const last = events.at(-1)! as Extract<ThreadEvent, { type: 'message' }>;
+    events = [...events.slice(0, -1), { ...last, content: last.content + token }];
+    view.rerender(
+      <Conversation thread={thread(events)} turnChanges={turnChanges()} {...props} />,
+    );
+  }
+  expect(markdownRenders.get('Reply 0')).toBe(1);
+  expect(markdownRenders.get('Reply 4 and more')).toBe(1);
+
+  view.rerender(
+    <Conversation
+      thread={{ ...thread(events), status: 'idle' }}
+      turnChanges={turnChanges()}
+      {...props}
+    />,
+  );
+  expect(view.getAllByTestId('turn-changes')).toHaveLength(5);
+  expect(view.getAllByTestId('turn-changes-undo')[0]!.hasAttribute('disabled')).toBe(false);
+});
