@@ -134,7 +134,7 @@ export class CloudAccount {
       const turnId = thread ? this.ctx.workspaceLeases.get(thread.workspace) : undefined;
       running.abort(new Error('Sia signed out.'));
       if (turnId) {
-        this.ctx.revokeApprovalsForTurn(threadId, turnId);
+        this.ctx.approvals.revokeApprovalsForTurn(threadId, turnId);
         void this.ctx.runtime?.cancel(threadId, turnId).catch(() => undefined);
       }
     }
@@ -145,8 +145,8 @@ export class CloudAccount {
         .catch(() => undefined);
     }
     this.ctx.pendingQuestions.clear();
-    for (const [approvalId, pending] of [...this.ctx.pendingApprovals]) {
-      this.ctx.revokeApproval(approvalId, pending);
+    for (const [approvalId, pending] of [...this.ctx.approvals.pending]) {
+      this.ctx.approvals.revokeApproval(approvalId, pending);
     }
     for (const threadId of affectedThreadIds) {
       const thread = this.ctx.state.threads.find(({ id }) => id === threadId);
@@ -196,7 +196,7 @@ export class CloudAccount {
         const turnId = thread ? this.ctx.workspaceLeases.get(thread.workspace) : undefined;
         running.abort(new Error('Sia account deletion was requested.'));
         if (turnId) {
-          this.ctx.revokeApprovalsForTurn(threadId, turnId);
+          this.ctx.approvals.revokeApprovalsForTurn(threadId, turnId);
           void this.ctx.runtime?.cancel(threadId, turnId).catch(() => undefined);
         }
       }
@@ -207,8 +207,8 @@ export class CloudAccount {
           .catch(() => undefined);
       }
       this.ctx.pendingQuestions.clear();
-      for (const [approvalId, pending] of [...this.ctx.pendingApprovals]) {
-        this.ctx.revokeApproval(approvalId, pending);
+      for (const [approvalId, pending] of [...this.ctx.approvals.pending]) {
+        this.ctx.approvals.revokeApproval(approvalId, pending);
       }
       for (const threadId of affectedThreadIds) {
         const thread = this.ctx.state.threads.find(({ id }) => id === threadId);
@@ -250,7 +250,7 @@ export class CloudAccount {
 
       this.ctx.researchCapture.staging.clear();
       this.ctx.workspaceGrants.clear();
-      this.ctx.approvedConnectorBindings.clear();
+      this.ctx.approvals.approvedConnectorBindings.clear();
       this.ctx.runningTurns.clear();
       for (const threadId of this.ctx.awakeTurns) this.ctx.deps.keepAwake?.release(threadId);
       this.ctx.awakeTurns.clear();
@@ -258,7 +258,7 @@ export class CloudAccount {
       this.ctx.foregroundTurns.clear();
       this.ctx.turnTasks.clear();
       this.ctx.workspaceLeases.clear();
-      this.ctx.pendingApprovals.clear();
+      this.ctx.approvals.pending.clear();
       this.ctx.deps.repository.clearAll();
       this.ctx.state = structuredClone(INITIAL_STATE);
       this.ctx.researchOutbox.inFlightSync = undefined;

@@ -3,7 +3,6 @@ import type { TaskSnapshot } from '../latest-task-turn.js';
 import type { PhoneRemoteApi } from '../../shared/phone-remote.js';
 import type { ScottySettingsApi } from '../../shared/scotty.js';
 import { MEMORY_REVIEW_PROMPT, NATIVE_MEMORY_REVIEW_PROMPT } from '../memory-suggestions.js';
-import { activityLabel } from '../../shared/activity-label.js';
 import { conversationTitle, UNTITLED_THREAD_TITLE } from '../../shared/plain-text.js';
 import { turnFinishedNotice } from '../notification-copy.js';
 import { threadPreviews, type ThreadPreviewMemo } from '../../shared/thread-previews.js';
@@ -15,23 +14,13 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { isAbsolute } from 'node:path';
 
-import {
-  LocalLeaseCoordinator,
-  parseActionArguments,
-  type TurnLease,
-} from '@sia/action-gateway';
-import type {
-  ActionInvocationObserver,
-  ActionResultObserver,
-  ApprovalBroker,
-  ApprovalRequest as GatewayApprovalRequest,
-} from '@sia/action-gateway';
+import { LocalLeaseCoordinator, type TurnLease } from '@sia/action-gateway';
+import type { ActionInvocationObserver, ActionResultObserver } from '@sia/action-gateway';
 import type { ProviderAttachment, ThreadEventEnvelope } from '@sia/protocol';
 
 import type {
   ActivityPresentationView,
   AgentView,
-  ApprovalView,
   BridgeMethod,
   BridgeRequestMap,
   BridgeResultMap,
@@ -45,7 +34,6 @@ import type {
 } from '../../shared/bridge.js';
 import { probeProviders, providerPlan } from '../provider-probe.js';
 import type { RuntimeCoordinator } from '../runtime-coordinator.js';
-import type { CuaAuthorizationContext } from '../cua-service.js';
 import { RESEARCH_CONSENT_VERSION } from '../../shared/bridge.js';
 import { verifyUpdateManifestResponse } from '../update-manifest.js';
 import {
@@ -54,22 +42,10 @@ import {
   type TextSize,
   type ThemePreference,
 } from '../../shared/display.js';
-import {
-  computerApprovalPresentation,
-  safeResourceLabel,
-  summarizeActionTarget,
-  summarizeDataLeaving,
-} from '../approval-copy.js';
-import {
-  humanizeToolName,
-  mapRuntimePresentation,
-  runtimeToolTitle,
-} from '../runtime-activity.js';
-import { gatewayTaskGrant } from './approval-grants.js';
+import { mapRuntimePresentation, runtimeToolTitle } from '../runtime-activity.js';
 import { abortableDelay, settleBeforeShutdown } from './async-utils.js';
 import { backgroundControlUnavailable } from './computer-access.js';
 import {
-  connectorAppForTool,
   EMPTY_CONNECTIONS,
   GOOGLE_WORKSPACE_ACTION,
   isConnectorActionTool,
@@ -81,13 +57,7 @@ import {
 } from './persisted-state.js';
 import { SAFE_RESEARCH_ACTIONS } from './research-records.js';
 import { isStreamingDelta } from './runtime-events.js';
-import type {
-  ApprovedConnectorBinding,
-  BrowserCapabilitySink,
-  ControllerOptions,
-  PendingApproval,
-  QueuedTurn,
-} from './types.js';
+import type { BrowserCapabilitySink, ControllerOptions, QueuedTurn } from './types.js';
 import { type ControllerDeps, resolveControllerDeps } from './deps.js';
 import { compareVersions, isCleanHttpsUrl } from './update-feed.js';
 import { normalizeWorkspace } from './workspace-paths.js';
@@ -105,6 +75,7 @@ import type { VoiceControls } from './voice.js';
 import type { AssistantFeatures } from './assistant.js';
 import type { Agents } from './agents.js';
 import type { Threads } from './threads.js';
+import type { Approvals } from './approvals.js';
 
 const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
   'bootstrap',
@@ -134,7 +105,8 @@ type ServiceName =
   | 'speech'
   | 'assistant'
   | 'agents'
-  | 'threads';
+  | 'threads'
+  | 'approvals';
 
 /**
  * Everything the desktop controller knows and does. DesktopController is the public facade;
@@ -157,6 +129,7 @@ export class ControllerContext {
   declare readonly assistant: AssistantFeatures;
   declare readonly agents: Agents;
   declare readonly threads: Threads;
+  declare readonly approvals: Approvals;
   readonly listeners = new Set<(event: DesktopPushEvent) => void>();
   readonly rendererCall = new AsyncLocalStorage<true>();
   readonly previewMemo: ThreadPreviewMemo = new WeakMap();
@@ -171,10 +144,6 @@ export class ControllerContext {
   readonly phoneTurns = new Set<string>();
   readonly turnTasks = new Map<string, Promise<void>>();
   readonly workspaceLeases = new Map<string, string>();
-  readonly pendingApprovals = new Map<string, PendingApproval>();
-  /** "Allow for this task" grants by turn id; a grant ends with its turn. */
-  readonly taskGrants = new Map<string, Set<string>>();
-  readonly approvedConnectorBindings = new Map<string, ApprovedConnectorBinding>();
   readonly pendingQuestions = new Map<string, { requestId: string; turnId: string }>();
   readonly workspaceGrants = new Set<string>();
   readonly failedTurnAttachments = new Map<string, readonly ProviderAttachment[]>();
@@ -239,7 +208,7 @@ export class ControllerContext {
     if (!running || !turn || running.signal.aborted) return;
     this.speech.pushToTalk?.cancelTask(threadId);
     running.abort();
-    this.revokeApprovalsForTurn(threadId, turn.id);
+    this.approvals.revokeApprovalsForTurn(threadId, turn.id);
     void this.runtime?.cancel(threadId, turn.id).catch(() => undefined);
     const question = this.pendingQuestions.get(threadId);
     this.pendingQuestions.delete(threadId);
@@ -279,12 +248,6 @@ export class ControllerContext {
     if (this.browserCapabilitySink)
       throw new Error('The browser action backend is already attached.');
     this.browserCapabilitySink = sink;
-  }
-
-  approvalBroker(): ApprovalBroker {
-    return {
-      requestApproval: (request, signal) => this.authorizeGatewayAction(request, signal),
-    };
   }
 
   actionInvocationObserver(): ActionInvocationObserver {
@@ -385,14 +348,6 @@ export class ControllerContext {
   /** Settings → Developer tools (Command tool, worktree duplicates, View → Reload). */
   developerToolsEnabled(): boolean {
     return this.state.preferences.developerTools === true;
-  }
-
-  /**
-   * Full bypass never extends to phone turns: the phone link is plain HTTP on the local network,
-   * so anyone who observes it could otherwise run unattended actions on this Mac.
-   */
-  trustForTurn(turnId: string | undefined): 'auto' | 'ask' {
-    return turnId && this.phoneTurns.has(turnId) ? 'ask' : this.computerAccess.trust();
   }
 
   recordActionResult(notice: Parameters<ActionResultObserver>[0]): void {
@@ -869,7 +824,7 @@ export class ControllerContext {
     'schedules.setEnabled': (input) => this.schedules.setScheduleEnabled(input),
     'schedules.delete': ({ scheduleId }) => this.schedules.deleteSchedule(scheduleId),
     'schedules.runNow': ({ scheduleId }) => this.schedules.runScheduleNow(scheduleId),
-    'approvals.resolve': (input) => this.resolveApproval(input),
+    'approvals.resolve': (input) => this.approvals.resolveApproval(input),
     'providers.probe': ({ providerId }) => this.providers.probeProviders(providerId),
     'providers.login': ({ providerId }) => this.providers.providerLogin(providerId),
     'providers.cancelLogin': () => this.providers.cancelProviderLogin(),
@@ -1052,128 +1007,6 @@ export class ControllerContext {
     return this.resultSnapshot();
   }
 
-  async authorizeComputer(
-    request: {
-      adapterId: string;
-      riskClass: string;
-      permissionMode: string;
-      publicSession: string;
-      requestDigest: string;
-      humanSummary: string;
-      resourceJson: string;
-      expiresUnixMs: bigint;
-    },
-    context: CuaAuthorizationContext,
-  ): Promise<'allow' | 'deny' | 'cancel'> {
-    if (this.releaseAccessLocked()) return 'deny';
-    if (context.kind === 'direct_user') return 'allow';
-    const active = this.activeTurnId(context.threadId);
-    if (active !== context.turnId) return 'cancel';
-    const presentation = computerApprovalPresentation(request.adapterId, request.humanSummary);
-    const resource = safeResourceLabel(request.resourceJson, presentation.kind);
-    const taskGrant =
-      ['native_tool', 'foreground_takeover'].includes(presentation.kind) &&
-      !this.phoneTurns.has(context.turnId)
-        ? [
-            'computer',
-            request.adapterId,
-            request.riskClass,
-            request.permissionMode,
-            resource,
-          ].join('\u0000')
-        : undefined;
-    if (
-      this.trustForTurn(active) === 'auto' ||
-      (taskGrant && this.hasTaskGrant(context.threadId, context.turnId, taskGrant))
-    ) {
-      // Trusted local mode: the driver's own risk prompt is answered for the person, but the
-      // decision is written to the trajectory log so every action stays reviewable afterwards.
-      this.deps.trajectory?.record({
-        type: 'computer_authorization',
-        threadId: context.threadId,
-        turnId: context.turnId,
-        decision: 'allow',
-        automatic: true,
-        adapterId: request.adapterId,
-        riskClass: request.riskClass,
-        summary: request.humanSummary,
-      });
-      this.researchCapture.stageRawResearchEvent({
-        threadId: context.threadId,
-        turnId: context.turnId,
-        eventType: 'computer.authorization',
-        data: {
-          decision: 'allow',
-          automatic: true,
-          adapterId: request.adapterId,
-          riskClass: request.riskClass,
-          permissionMode: request.permissionMode,
-          requestDigest: request.requestDigest,
-          humanSummary: request.humanSummary,
-          resourceJson: request.resourceJson,
-          expiresUnixMs: request.expiresUnixMs.toString(),
-        },
-      });
-      return 'allow';
-    }
-    const approvalId = randomUUID();
-    const expiresAt = new Date(Number(request.expiresUnixMs)).toISOString();
-    this.state.approvals.push({
-      id: approvalId,
-      threadId: context.threadId,
-      callId: request.requestDigest,
-      kind: presentation.kind,
-      title: presentation.title,
-      summary: `${request.humanSummary} (${request.riskClass}, ${request.permissionMode})`,
-      target: resource,
-      reversible: false,
-      expiresAt,
-      status: 'pending',
-      ...(taskGrant ? { allowForTask: true } : {}),
-    });
-    this.researchCapture.stageRawResearchEvent({
-      threadId: context.threadId,
-      turnId: context.turnId,
-      eventType: 'computer.authorization_request',
-      data: {
-        approvalId,
-        adapterId: request.adapterId,
-        riskClass: request.riskClass,
-        permissionMode: request.permissionMode,
-        requestDigest: request.requestDigest,
-        humanSummary: request.humanSummary,
-        resourceJson: request.resourceJson,
-        expiresUnixMs: request.expiresUnixMs.toString(),
-      },
-    });
-    this.waitForApproval(context.threadId);
-    this.commit();
-    this.notifyNeedsAttention(context.threadId, 'approval', presentation.title);
-
-    return new Promise((resolve) => {
-      // Wait for the person until the driver's own deadline; Sia adds no shorter limit.
-      const remaining = Math.max(0, Number(request.expiresUnixMs) - Date.now());
-      const timeout = setTimeout(
-        () => {
-          this.pendingApprovals.delete(approvalId);
-          this.resumeAfterRequest(context.threadId);
-          this.setApprovalStatus(approvalId, 'expired');
-          this.stageApprovalDecision(approvalId, context, 'expired');
-          resolve('cancel');
-        },
-        Math.min(remaining, 2_147_483_647),
-      );
-      this.pendingApprovals.set(approvalId, {
-        resolve,
-        timeout,
-        kind: 'computer',
-        threadId: context.threadId,
-        turnId: context.turnId,
-        ...(taskGrant ? { taskGrant } : {}),
-      });
-    });
-  }
-
   async shutdown(): Promise<void> {
     this.shuttingDown = true;
     this.speech.pushToTalk?.dispose();
@@ -1185,13 +1018,13 @@ export class ControllerContext {
     if (this.assistant.memoryTimer) clearInterval(this.assistant.memoryTimer);
     if (this.assistant.notchTimer) clearInterval(this.assistant.notchTimer);
     for (const controller of this.runningTurns.values()) controller.abort();
-    for (const pending of this.pendingApprovals.values()) {
+    for (const pending of this.approvals.pending.values()) {
       clearTimeout(pending.timeout);
       pending.resolve('cancel');
     }
-    this.pendingApprovals.clear();
-    this.taskGrants.clear();
-    this.approvedConnectorBindings.clear();
+    this.approvals.pending.clear();
+    this.approvals.taskGrants.clear();
+    this.approvals.approvedConnectorBindings.clear();
     this.connections.setup?.controller.abort();
     this.browserCapabilitySink?.resetBrowserCapabilities();
     await settleBeforeShutdown(
@@ -1573,7 +1406,7 @@ export class ControllerContext {
     if (running) {
       running.abort();
       if (activeTurnId) {
-        this.revokeApprovalsForTurn(threadId, activeTurnId);
+        this.approvals.revokeApprovalsForTurn(threadId, activeTurnId);
         await this.runtime?.cancel(threadId, activeTurnId).catch(() => undefined);
       }
     }
@@ -1731,48 +1564,6 @@ export class ControllerContext {
         ),
     );
     return before - this.state.timeline.length;
-  }
-
-  resolveApproval(input: BridgeRequestMap['approvals.resolve']): DesktopSnapshot {
-    const pending = this.pendingApprovals.get(input.approvalId);
-    if (!pending) throw new Error('This approval expired or was already resolved.');
-    if (this.activeTurnId(pending.threadId) !== pending.turnId) {
-      this.revokeApproval(input.approvalId, pending);
-      this.commit();
-      throw new Error('This approval belongs to a turn that is no longer active.');
-    }
-    const approval = this.state.approvals.find(({ id }) => id === input.approvalId);
-    const forTask = input.decision === 'approve_task';
-    if (forTask && (!approval?.allowForTask || this.phoneTurns.has(pending.turnId)))
-      throw new Error('This request can only be allowed once.');
-    const approved = input.decision !== 'deny';
-    clearTimeout(pending.timeout);
-    this.pendingApprovals.delete(input.approvalId);
-    this.resumeAfterRequest(pending.threadId);
-    if (forTask) {
-      approval!.scope = 'task';
-      if (pending.taskGrant) {
-        const grants = this.taskGrants.get(pending.turnId) ?? new Set<string>();
-        grants.add(`${pending.threadId}\u0000${pending.taskGrant}`);
-        this.taskGrants.set(pending.turnId, grants);
-      }
-    }
-    this.setApprovalStatus(input.approvalId, approved ? 'approved' : 'denied');
-    this.stageApprovalDecision(
-      input.approvalId,
-      { threadId: pending.threadId, turnId: pending.turnId },
-      approved ? 'approved' : 'denied',
-    );
-    if (pending.kind === 'provider' && pending.threadId && pending.requestId) {
-      void this.runtime
-        ?.respondToRequest(pending.threadId, {
-          requestId: pending.requestId,
-          choiceId: forTask ? 'allow_task' : approved ? 'allow_once' : 'deny',
-        })
-        .catch(() => undefined);
-    }
-    pending.resolve(approved ? 'allow' : 'deny');
-    return this.resultSnapshot();
   }
 
   startTurn(turn: QueuedTurn): void {
@@ -2008,7 +1799,7 @@ export class ControllerContext {
           computerAccessMode: this.computerAccess.accessMode(),
           macBackgroundControl: this.computerAccess.backgroundControl(),
           macBackgroundFallback: this.computerAccess.backgroundFallback(),
-          computerTrust: this.trustForTurn(turn.id),
+          computerTrust: this.approvals.trustForTurn(turn.id),
           ...(this.assistant.library.isReview(thread.id)
             ? { nativeTools: 'disabled' as const }
             : {}),
@@ -2025,7 +1816,7 @@ export class ControllerContext {
               : this.assistant.library.reviewWorkspace(thread.id)
                 ? NATIVE_MEMORY_REVIEW_PROMPT
                 : MEMORY_REVIEW_PROMPT
-            : `${thread.instructionsSnapshot}\n\n${this.computerAccess.accessMode() === 'mac' ? (this.computerAccess.backgroundControl() ? 'Use my Mac background control is active. Follow the window-control instructions and use this turn’s provided tools.' : 'Use my Mac is active. Follow the native Mac operating instructions.') : DESKTOP_EXECUTION_GUIDANCE}\nAccess mode: ${this.computerAccess.accessMode() === 'mac' ? `Use my Mac. Action approvals: ${this.trustForTurn(turn.id) === 'auto' ? 'bypass enabled; perform permitted task actions without asking for each step' : 'confirm changes through the provided tools'}.` : 'Connected apps. Browser tools require a connected Chrome window; Use my Mac can be enabled in Settings → Computer for native browser access.'}`,
+            : `${thread.instructionsSnapshot}\n\n${this.computerAccess.accessMode() === 'mac' ? (this.computerAccess.backgroundControl() ? 'Use my Mac background control is active. Follow the window-control instructions and use this turn’s provided tools.' : 'Use my Mac is active. Follow the native Mac operating instructions.') : DESKTOP_EXECUTION_GUIDANCE}\nAccess mode: ${this.computerAccess.accessMode() === 'mac' ? `Use my Mac. Action approvals: ${this.approvals.trustForTurn(turn.id) === 'auto' ? 'bypass enabled; perform permitted task actions without asking for each step' : 'confirm changes through the provided tools'}.` : 'Connected apps. Browser tools require a connected Chrome window; Use my Mac can be enabled in Settings → Computer for native browser access.'}`,
           priorMessages: this.state.timeline
             .filter(
               (item) =>
@@ -2206,7 +1997,7 @@ export class ControllerContext {
           }
         }
       }
-      this.revokeApprovalsForTurn(turn.threadId, turn.id);
+      this.approvals.revokeApprovalsForTurn(turn.threadId, turn.id);
       lease?.release();
       this.releaseTurn(turn.threadId);
       this.commit();
@@ -2462,7 +2253,7 @@ export class ControllerContext {
     }
     if (event.type === 'approval' && event.payload.phase === 'requested') {
       this.researchCapture.taintResearchTurn(event.turnId);
-      void this.authorizeProviderRequest(event);
+      void this.approvals.authorizeProviderRequest(event);
       thread.status = 'waiting';
       return;
     }
@@ -2685,355 +2476,10 @@ export class ControllerContext {
     }
   }
 
-  async authorizeProviderRequest(
-    event: Extract<ThreadEventEnvelope, { type: 'approval' }>,
-  ): Promise<void> {
-    if (this.assistant.library.isReview(event.threadId)) {
-      await this.runtime?.respondToRequest(event.threadId, {
-        requestId: event.payload.requestId,
-        choiceId: 'deny',
-      });
-      return;
-    }
-    this.researchCapture.taintResearchTurn(event.turnId);
-    const alreadyRequested = [...this.pendingApprovals.values()].some(
-      (pending) =>
-        pending.kind === 'provider' &&
-        pending.threadId === event.threadId &&
-        pending.requestId === event.payload.requestId,
-    );
-    const approvalId = randomUUID();
-    // Like Codex, a native approval waits until it is answered or the turn ends.
-    this.state.approvals.push({
-      id: approvalId,
-      threadId: event.threadId,
-      callId: event.payload.requestId,
-      kind: 'native_tool',
-      title: event.payload.title,
-      summary: event.payload.description,
-      target: event.provider,
-      reversible: false,
-      status: 'pending',
-      // Phone turns always ask on the Mac, one request at a time.
-      ...(event.payload.choices?.some(({ kind }) => kind === 'allow_task') &&
-      !this.phoneTurns.has(event.turnId)
-        ? { allowForTask: true }
-        : {}),
-    });
-    this.appendTimeline(event.threadId, {
-      id: event.id,
-      turnId: event.turnId,
-      kind: 'approval',
-      title: event.payload.title,
-      text: event.payload.description,
-      detail: event.provider,
-      status: 'pending',
-      approvalId,
-      toolName: 'provider.native',
-      timestamp: event.timestamp,
-    });
-    this.pendingApprovals.set(approvalId, {
-      resolve: () => undefined,
-      kind: 'provider',
-      threadId: event.threadId,
-      turnId: event.turnId,
-      requestId: event.payload.requestId,
-    });
-    this.commit();
-    if (!alreadyRequested)
-      this.notifyNeedsAttention(
-        event.threadId,
-        'approval',
-        event.payload.description || event.payload.title,
-      );
-  }
-
-  async authorizeGatewayAction(
-    request: GatewayApprovalRequest,
-    signal?: AbortSignal,
-  ): Promise<{ approved: boolean }> {
-    this.researchCapture.taintResearchTurn(request.turnId);
-    const approvalId = randomUUID();
-    const connector = /^(mail|drive|docs|sheets|slides|slack)_/.test(request.tool.name);
-    const upload = /upload/.test(request.tool.name);
-    let reviewArguments = request.arguments;
-    if (request.tool.name === 'skill_run') {
-      const args = parseActionArguments('skill_run', request.arguments);
-      const agentId = this.requireThread(request.threadId).agentId;
-      const skill = this.assistant.library.skill(agentId, args.id, args.revision);
-      // The approval digest binds id + SHA-256 revision + input. Resolve the
-      // exact source in the host, never ask the model to copy it back to us.
-      reviewArguments = { ...args, source: skill.source };
-    }
-    const dataLeaving = summarizeDataLeaving(reviewArguments, request.tool.name);
-    const dataLabel = request.tool.name.startsWith('skill_')
-      ? 'Bash source and inputs to review'
-      : request.tool.name === 'mac_automation'
-        ? 'Native app action'
-        : dataLeaving && request.tool.name === 'computer_action'
-          ? 'Text or keys used in this action'
-          : undefined;
-    const capabilityBound = ['computer_action', 'browser_action', 'browser_upload'].includes(
-      request.tool.name,
-    );
-    const trustedTarget = capabilityBound
-      ? this.browserCapabilitySink?.trustedApprovalTarget(request.tool.name, request.arguments)
-      : undefined;
-    if (capabilityBound && !trustedTarget) return { approved: false };
-    const connectorApp = connector ? connectorAppForTool(request.tool.name) : undefined;
-    const connectorSelector =
-      connector && typeof request.arguments.account_id === 'string'
-        ? request.arguments.account_id
-        : undefined;
-    const pinnedConnectionId =
-      connectorApp && connectorSelector
-        ? this.connections.connectionIdForAction(connectorApp, connectorSelector)
-        : undefined;
-    const pinnedGeneration = connectorApp
-      ? (this.connections.generations.get(connectorApp) ?? 0)
-      : undefined;
-    if (connector && (!connectorApp || !connectorSelector || !pinnedConnectionId)) {
-      return { approved: false };
-    }
-    const account = connector
-      ? this.connections.connectorAccountLabel(request.arguments.account_id)
-      : undefined;
-    const taskGrant = this.phoneTurns.has(request.turnId)
-      ? undefined
-      : gatewayTaskGrant(request.tool.name, request.arguments);
-    if (
-      (this.trustForTurn(request.turnId) === 'auto' &&
-        !request.tool.name.startsWith('skill_')) ||
-      (taskGrant && this.hasTaskGrant(request.threadId, request.turnId, taskGrant))
-    ) {
-      if (
-        connectorApp &&
-        connectorSelector &&
-        pinnedConnectionId &&
-        pinnedGeneration !== undefined
-      ) {
-        this.approvedConnectorBindings.set(request.id, {
-          approvalId: request.id,
-          threadId: request.threadId,
-          turnId: request.turnId,
-          app: connectorApp,
-          selector: connectorSelector,
-          connectionId: pinnedConnectionId,
-          generation: pinnedGeneration,
-          ...(account ? { account } : {}),
-        });
-      }
-      const automaticTarget =
-        trustedTarget ?? summarizeActionTarget(request.arguments, request.tool.name);
-      this.deps.trajectory?.record({
-        type: 'action_authorization',
-        threadId: request.threadId,
-        turnId: request.turnId,
-        decision: 'allow',
-        automatic: true,
-        toolName: request.tool.name,
-        target: GOOGLE_WORKSPACE_ACTION.test(request.tool.name)
-          ? 'Google Workspace'
-          : automaticTarget,
-      });
-      this.researchCapture.stageRawResearchEvent({
-        threadId: request.threadId,
-        turnId: request.turnId,
-        eventType: 'action.authorization',
-        data: {
-          requestId: request.id,
-          decision: 'allow',
-          automatic: true,
-          toolName: request.tool.name,
-          target: automaticTarget,
-          ...(account ? { account } : {}),
-          ...(dataLeaving ? { dataLeaving } : {}),
-        },
-      });
-      return { approved: true };
-    }
-    this.state.approvals.push({
-      id: approvalId,
-      threadId: request.threadId,
-      callId: request.id,
-      kind: connector ? 'connector_write' : upload ? 'file_upload' : 'native_tool',
-      title: `Approve ${humanizeToolName(request.tool.name)}`,
-      summary: request.reason,
-      target: trustedTarget ?? summarizeActionTarget(request.arguments, request.tool.name),
-      ...(account ? { account } : {}),
-      ...(dataLeaving ? { dataLeaving } : {}),
-      ...(dataLabel ? { dataLabel } : {}),
-      reversible: false,
-      status: 'pending',
-      ...(taskGrant ? { allowForTask: true } : {}),
-    });
-    this.appendTimeline(request.threadId, {
-      id: randomUUID(),
-      turnId: request.turnId,
-      kind: 'approval',
-      title: `Approve ${humanizeToolName(request.tool.name)}`,
-      text: request.reason,
-      detail: trustedTarget ?? summarizeActionTarget(request.arguments, request.tool.name),
-      status: 'pending',
-      approvalId,
-      toolName: request.tool.name,
-      timestamp: new Date().toISOString(),
-    });
-    this.waitForApproval(request.threadId);
-    this.commit();
-    // The notification names the step in words ("Sending your mail"), not the tool id.
-    const step = activityLabel(request.tool.name);
-    this.notifyNeedsAttention(
-      request.threadId,
-      'approval',
-      step === activityLabel(undefined) ? runtimeToolTitle(request.tool.name) : step,
-    );
-    return await new Promise((resolve) => {
-      const finish = (decision: 'allow' | 'deny' | 'cancel'): void => {
-        signal?.removeEventListener('abort', abort);
-        const connectionUnchanged =
-          connectorApp &&
-          connectorSelector &&
-          pinnedConnectionId &&
-          pinnedGeneration !== undefined
-            ? this.connections.connectionIdForAction(connectorApp, connectorSelector) ===
-                pinnedConnectionId &&
-              (this.connections.generations.get(connectorApp) ?? 0) === pinnedGeneration
-            : true;
-        if (
-          decision === 'allow' &&
-          connectionUnchanged &&
-          connectorApp &&
-          connectorSelector &&
-          pinnedConnectionId
-        ) {
-          this.approvedConnectorBindings.set(request.id, {
-            approvalId: request.id,
-            threadId: request.threadId,
-            turnId: request.turnId,
-            app: connectorApp,
-            selector: connectorSelector,
-            connectionId: pinnedConnectionId,
-            generation: pinnedGeneration!,
-            ...(account ? { account } : {}),
-          });
-        } else {
-          this.approvedConnectorBindings.delete(request.id);
-        }
-        resolve({ approved: decision === 'allow' && connectionUnchanged });
-      };
-      const abort = (): void => {
-        this.pendingApprovals.delete(approvalId);
-        this.resumeAfterRequest(request.threadId);
-        this.setApprovalStatus(approvalId, 'expired');
-        finish('cancel');
-      };
-      // Waits for the person; the turn ending (or the tool call aborting) revokes it.
-      this.pendingApprovals.set(approvalId, {
-        resolve: finish,
-        kind: 'gateway',
-        threadId: request.threadId,
-        turnId: request.turnId,
-        requestId: request.id,
-        ...(taskGrant ? { taskGrant } : {}),
-      });
-      if (signal?.aborted) abort();
-      else signal?.addEventListener('abort', abort, { once: true });
-    });
-  }
-
-  /** A task keeps working after its approval is answered; leave "waiting" once nothing is pending. */
-  resumeAfterRequest(threadId: string): void {
-    const thread = this.state.threads.find(({ id }) => id === threadId);
-    if (
-      thread?.status === 'waiting' &&
-      this.runningTurns.has(threadId) &&
-      !this.pendingQuestions.has(threadId) &&
-      ![...this.pendingApprovals.values()].some((pending) => pending.threadId === threadId)
-    )
-      thread.status = 'running';
-  }
-
-  /** A running task that asks the person to approve an action is waiting on them. */
-  waitForApproval(threadId: string): void {
-    const thread = this.state.threads.find(({ id }) => id === threadId);
-    if (thread?.status === 'running' && this.runningTurns.has(threadId))
-      thread.status = 'waiting';
-  }
-
   activeTurnId(threadId: string): string | undefined {
     if (!this.runningTurns.has(threadId)) return undefined;
     const thread = this.state.threads.find(({ id }) => id === threadId);
     return thread ? this.workspaceLeases.get(thread.workspace) : undefined;
-  }
-
-  hasTaskGrant(threadId: string, turnId: string, grant: string): boolean {
-    return (
-      !this.phoneTurns.has(turnId) &&
-      this.activeTurnId(threadId) === turnId &&
-      Boolean(this.taskGrants.get(turnId)?.has(`${threadId}\u0000${grant}`))
-    );
-  }
-
-  revokeApprovalsForTurn(threadId: string, turnId: string): void {
-    this.taskGrants.delete(turnId);
-    for (const [approvalId, pending] of [...this.pendingApprovals]) {
-      if (pending.threadId === threadId && pending.turnId === turnId) {
-        this.revokeApproval(approvalId, pending);
-      }
-    }
-    for (const [approvalId, binding] of this.approvedConnectorBindings) {
-      if (binding.threadId === threadId && binding.turnId === turnId) {
-        this.approvedConnectorBindings.delete(approvalId);
-      }
-    }
-  }
-
-  revokeApproval(approvalId: string, pending: PendingApproval): void {
-    clearTimeout(pending.timeout);
-    this.pendingApprovals.delete(approvalId);
-    if (pending.requestId) this.approvedConnectorBindings.delete(pending.requestId);
-    const approval = this.state.approvals.find(({ id }) => id === approvalId);
-    if (approval?.status === 'pending') approval.status = 'expired';
-    this.stageApprovalDecision(
-      approvalId,
-      { threadId: pending.threadId, turnId: pending.turnId },
-      'expired',
-    );
-    if (pending.kind === 'provider' && pending.requestId) {
-      void this.runtime
-        ?.respondToRequest(pending.threadId, {
-          requestId: pending.requestId,
-          choiceId: 'deny',
-        })
-        .catch(() => undefined);
-    }
-    pending.resolve('cancel');
-  }
-
-  stageApprovalDecision(
-    approvalId: string,
-    context: { threadId: string; turnId: string },
-    decision: 'approved' | 'denied' | 'expired',
-  ): void {
-    const approval = this.state.approvals.find(({ id }) => id === approvalId);
-    this.researchCapture.stageRawResearchEvent({
-      threadId: context.threadId,
-      turnId: context.turnId,
-      eventType: 'approval.decision',
-      data: {
-        approvalId,
-        decision,
-        ...(approval
-          ? {
-              kind: approval.kind,
-              title: approval.title,
-              summary: approval.summary,
-              target: approval.target,
-            }
-          : {}),
-      },
-    });
   }
 
   releaseTurn(threadId: string): void {
@@ -3041,7 +2487,7 @@ export class ControllerContext {
     const turnId = this.activeTurnId(threadId);
     if (turnId) {
       this.phoneTurns.delete(turnId);
-      this.taskGrants.delete(turnId);
+      this.approvals.taskGrants.delete(turnId);
     }
     this.runningTurns.delete(threadId);
     this.macTurns.delete(threadId);
@@ -3124,12 +2570,6 @@ export class ControllerContext {
       turnId: item.turnId,
       item: structuredClone(item),
     });
-  }
-
-  setApprovalStatus(id: string, status: ApprovalView['status']): void {
-    const approval = this.state.approvals.find((candidate) => candidate.id === id);
-    if (approval) approval.status = status;
-    this.commit();
   }
 
   requireAgent(id: string): AgentView {

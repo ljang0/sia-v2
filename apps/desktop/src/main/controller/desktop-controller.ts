@@ -37,6 +37,7 @@ import { VoiceControls } from './voice.js';
 import { AssistantFeatures } from './assistant.js';
 import { Agents } from './agents.js';
 import { Threads } from './threads.js';
+import { Approvals } from './approvals.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -61,6 +62,7 @@ export class DesktopController {
       assistant: new AssistantFeatures(ctx),
       agents: new Agents(ctx),
       threads: new Threads(ctx),
+      approvals: new Approvals(ctx),
     }));
   }
 
@@ -97,7 +99,7 @@ export class DesktopController {
   }
 
   approvalBroker(): ApprovalBroker {
-    return this.#ctx.approvalBroker();
+    return this.#ctx.approvals.approvalBroker();
   }
 
   actionInvocationObserver(): ActionInvocationObserver {
@@ -177,7 +179,7 @@ export class DesktopController {
 
   /** Action-gateway trust for one turn; phone turns always confirm on the Mac. */
   trustForTurn(turnId: string | undefined): 'auto' | 'ask' {
-    return this.#ctx.trustForTurn(turnId);
+    return this.#ctx.approvals.trustForTurn(turnId);
   }
 
   trajectoryLogEnabled(): boolean {
@@ -307,7 +309,7 @@ export class DesktopController {
     },
     context: CuaAuthorizationContext,
   ): Promise<'allow' | 'deny' | 'cancel'> {
-    return this.#ctx.authorizeComputer(request, context);
+    return this.#ctx.approvals.authorizeComputer(request, context);
   }
 
   shutdown(): Promise<void> {

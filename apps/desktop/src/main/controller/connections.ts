@@ -37,8 +37,8 @@ export class ConnectorConnections {
       return undefined;
     }
     if (approvalId) {
-      const approved = this.ctx.approvedConnectorBindings.get(approvalId);
-      this.ctx.approvedConnectorBindings.delete(approvalId);
+      const approved = this.ctx.approvals.approvedConnectorBindings.get(approvalId);
+      this.ctx.approvals.approvedConnectorBindings.delete(approvalId);
       if (
         !approved ||
         approved.app !== app ||
