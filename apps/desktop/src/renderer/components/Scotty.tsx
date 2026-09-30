@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ScottyAction, ScottyApi, ScottyState, ScottyStatus } from '../../shared/scotty';
 import { ScottySprite, type ScottyPose } from './ScottySprite';
 import styles from './Scotty.module.css';
+import { useTextSize } from '../textSize';
 const empty: ScottyState = {
   revision: -1,
   settings: { enabled: false, size: 'medium', motion: true },
@@ -67,6 +68,7 @@ function useScotty(api: ScottyApi) {
       unsubscribe();
     };
   }, [api]);
+  useTextSize(state.textSize);
   return { state, error, setError };
 }
 export function ScottyPet({ api = window.siaScotty }: { api?: ScottyApi }) {

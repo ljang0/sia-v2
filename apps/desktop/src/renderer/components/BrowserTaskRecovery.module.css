@@ -8,12 +8,12 @@
   border-radius: 14px;
   background: var(--bg-raised);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 .card p {
   margin: 6px 0 0;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--text-sm);
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
