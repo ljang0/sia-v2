@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createBridgeRendererApi } from './bridgeAdapter';
 import type { SettingsSection } from './components/Settings';
-import type { AgentSummary, RendererApi, RendererSnapshot } from './types';
+import type { AgentSummary, RendererApi, RendererAttachment, RendererSnapshot } from './types';
 import { errorMessage } from './plainErrors';
 
 const BRIDGE_ERROR =
@@ -33,7 +33,7 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
   const [agentDialogOpen, setAgentDialogOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<AgentSummary>();
   const [startupNoticeDismissed, setStartupNoticeDismissed] = useState(false);
-  const [attachments, setAttachments] = useState<import('./types').RendererAttachment[]>([]);
+  const [attachments, setAttachments] = useState<RendererAttachment[]>([]);
   const [archivedThread, setArchivedThread] = useState<{ id: string; reselect: boolean }>();
 
   useEffect(() => {
