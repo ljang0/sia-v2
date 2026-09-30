@@ -4,6 +4,7 @@ import { developmentRelaunchArguments } from './development-relaunch.js';
 import { PhoneRemote } from './phone-remote.js';
 import { remoteQR, advertiseRemote } from './phone-remote-native.js';
 import { createScottyCompanion } from './scotty-window.js';
+import { createScreenControlIndicator } from './screen-control-indicator.js';
 import { createCommandLauncher } from './command-launcher.js';
 import { runMacAutomation } from './mac-automation.js';
 import { installedApplications, launchInstalledApplication } from './application-catalog.js';
@@ -88,6 +89,7 @@ const PRODUCTION_HEADER_CSP = PRODUCTION_CSP.replace(
 );
 let phoneRemote: PhoneRemote | undefined;
 let scotty: ReturnType<typeof createScottyCompanion> | undefined;
+let screenIndicator: ReturnType<typeof createScreenControlIndicator> | undefined;
 let commandLauncher: ReturnType<typeof createCommandLauncher> | undefined;
 let mainWindow: BrowserWindow | undefined;
 let controller: DesktopController | undefined;
@@ -139,6 +141,8 @@ if (!gotLock) {
     phoneRemote = undefined;
     scotty?.dispose();
     scotty = undefined;
+    screenIndicator?.dispose();
+    screenIndicator = undefined;
     commandLauncher?.dispose();
     commandLauncher = undefined;
     unsubscribeDockBadge?.();
@@ -670,6 +674,7 @@ async function performApplicationCreation(): Promise<void> {
       rendererDevUrl,
     );
     activeController.attachScotty(scotty.configure);
+    screenIndicator = createScreenControlIndicator(activeController);
     let voiceAsleep = false;
     let voiceScreenLocked =
       process.platform === 'darwin' && powerMonitor.getSystemIdleState(1) === 'locked';
@@ -681,6 +686,7 @@ async function performApplicationCreation(): Promise<void> {
       commandLauncher?.suspend(voiceAsleep || voiceScreenLocked);
       phoneRemote?.suspend(voiceAsleep || voiceScreenLocked);
       scotty?.suspend(voiceAsleep || voiceScreenLocked);
+      screenIndicator?.suspend(voiceAsleep || voiceScreenLocked);
     };
     // Waking the Mac must not re-enable capture while its screen remains locked.
     powerMonitor.on('suspend', () => {

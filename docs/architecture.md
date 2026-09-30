@@ -203,6 +203,12 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   with no CUA tools. Its foreground operating prompt comes from the pinned Notch source, followed
   by the Codex tool-name, screenshot-coordinate, presentation and permission adapters. It does not
   append the separate background window-control recipe or a hardcoded Canvas investigation plan.
+  While an On my screen turn is running (not waiting on the person, paused, or ended),
+  `screen-control-indicator.ts` shows one click-through, non-focusable, content-protected panel
+  per display and registers a global `Escape` that cancels those turns; both are released as soon
+  as no such turn runs, on lock/sleep, and at quit. The panels live in Sia's own process, which the
+  host-pid exclusion already keeps out of window control. The route is pinned when the turn starts.
+  Background turns show no overlay, only a Scotty/Dock status.
   Matching saved skills can use the already signed-in apps; an explicit UI-only/no-API request
   takes precedence. Private account data and observed email addresses must not go to public search.
   A separately installed, reviewed `canvas-api` skill reads active CMU courses/teachers or a course's

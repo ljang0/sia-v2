@@ -88,6 +88,14 @@ uses a real model with **in-memory browser fixtures** to check coursework outsid
 inaccessible-course reporting. Neither replaces the live GUI checks above. Background
 window control (the Use my Mac default) must be validated separately, including its selected foreground fallback policy.
 
+For the On my screen indicator, start a disposable On my screen task on a Mac with two displays and
+a full-screen app. Verify the border and pill appear on every display and Space, never take focus or
+clicks, are absent from `screencapture` and from Sia's own task screenshots, and vanish on finish,
+Stop, an approval, lock, and sleep. Press Esc in another app mid-task: the task stops and Esc works
+normally again afterwards. Confirm a task that presses Escape itself is not stopped (the prompt asks
+it not to). In the default background mode, verify nothing appears on screen and the Dock menu reads
+“Sia is working quietly in the background.”
+
 For composer voice, record a short disposable sentence with **Dictate message**, then click its
 stop control. Verify the transcript enters the draft without sending. In **Start voice conversation**,
 verify silence detection submits one utterance; **Finish speaking** must also submit quiet speech
