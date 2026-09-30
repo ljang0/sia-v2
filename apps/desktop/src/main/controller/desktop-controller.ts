@@ -31,6 +31,7 @@ import { ProviderAccess } from './providers.js';
 import { Schedules } from './schedules.js';
 import { Attachments } from './attachments.js';
 import { WorkspaceTools } from './workspace.js';
+import { BrowserSession } from './browser.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -49,6 +50,7 @@ export class DesktopController {
       schedules: new Schedules(ctx),
       attachments: new Attachments(ctx),
       workspace: new WorkspaceTools(ctx),
+      browser: new BrowserSession(ctx),
     }));
   }
 
@@ -212,11 +214,11 @@ export class DesktopController {
 
   /** Any HTTP(S) origin is allowed while trusted; otherwise only origins granted at attach. */
   isBrowserOriginAllowed(origin: string): boolean {
-    return this.#ctx.isBrowserOriginAllowed(origin);
+    return this.#ctx.browser.isBrowserOriginAllowed(origin);
   }
 
   ensureBrowserAttachedForActions(): Promise<string | undefined> {
-    return this.#ctx.ensureBrowserAttachedForActions();
+    return this.#ctx.browser.ensureBrowserAttachedForActions();
   }
 
   initialize(): Promise<void> {

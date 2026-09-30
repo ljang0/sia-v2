@@ -234,18 +234,18 @@ export class CloudAccount {
       // The concrete identity manager clears encrypted local tokens before its
       // best-effort Cognito revocation call. The cloud identity is already gone.
       await this.ctx.deps.identity.signOut().catch(() => undefined);
-      if (this.ctx.browserSessionId) {
+      if (this.ctx.browser.sessionId) {
         await this.ctx.deps.computer
           .call(
             'end_session',
-            { session: this.ctx.browserSessionId },
+            { session: this.ctx.browser.sessionId },
             { kind: 'direct_user', operation: 'browser_detach' },
           )
           .catch(() => undefined);
       }
       this.ctx.browserCapabilitySink?.resetBrowserCapabilities();
-      this.ctx.browserTarget = undefined;
-      this.ctx.browserSessionId = undefined;
+      this.ctx.browser.target = undefined;
+      this.ctx.browser.sessionId = undefined;
       await this.ctx.runtime?.resetSessions();
 
       this.ctx.researchCapture.staging.clear();

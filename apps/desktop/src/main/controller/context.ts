@@ -46,7 +46,6 @@ import type {
   BridgeMethod,
   BridgeRequestMap,
   BridgeResultMap,
-  BrowserWindowView,
   ComputerPermissionsView,
   DesktopPushEvent,
   DesktopSnapshot,
@@ -69,15 +68,6 @@ import {
   type TextSize,
   type ThemePreference,
 } from '../../shared/display.js';
-import {
-  browserAttachmentError,
-  chromeDebugPortOwnerPid,
-  collectHttpOrigins,
-  directBrowserUrl,
-  findBrowserTarget,
-  findChromeCandidates,
-  preferredChromeWindows,
-} from '../chrome-discovery.js';
 import {
   computerApprovalPresentation,
   safeResourceLabel,
@@ -125,6 +115,7 @@ import type { ProviderAccess } from './providers.js';
 import type { Schedules } from './schedules.js';
 import type { Attachments } from './attachments.js';
 import type { WorkspaceTools } from './workspace.js';
+import type { BrowserSession } from './browser.js';
 
 const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
   'bootstrap',
@@ -148,7 +139,8 @@ type ServiceName =
   | 'providers'
   | 'schedules'
   | 'attachments'
-  | 'workspace';
+  | 'workspace'
+  | 'browser';
 
 /**
  * Everything the desktop controller knows and does. DesktopController is the public facade;
@@ -165,6 +157,7 @@ export class ControllerContext {
   declare readonly schedules: Schedules;
   declare readonly attachments: Attachments;
   declare readonly workspace: WorkspaceTools;
+  declare readonly browser: BrowserSession;
   readonly assistantLibrary: AssistantLibrary;
   pushToTalk: PushToTalkService | undefined;
   readonly listeners = new Set<(event: DesktopPushEvent) => void>();
@@ -202,8 +195,6 @@ export class ControllerContext {
   nextNotchCheck = 0;
   runtime: RuntimeCoordinator | undefined;
   browserCapabilitySink: BrowserCapabilitySink | undefined;
-  browserTarget: { targetId: string; tabId: string } | undefined;
-  browserSessionId: string | undefined;
   state: PersistedState = structuredClone(INITIAL_STATE);
   computerState: ComputerPermissionsView = {
     status: 'unavailable',
@@ -213,8 +204,6 @@ export class ControllerContext {
   automationPermissions: AutomationPermissions | undefined;
   messagesAccess: 'ready' | 'needs_full_disk_access' | 'unavailable' | undefined;
   chromeConnection: 'enabled' | 'off' | 'unavailable' | undefined;
-  readonly browserContinuations = new Set<string>();
-  browserAutoAttach: Promise<void> | undefined;
   revision = 0;
   shuttingDown = false;
   updates: UpdateView;
@@ -786,38 +775,6 @@ export class ControllerContext {
     return this.state.preferences.trajectoryLog ?? true;
   }
 
-  /** Any HTTP(S) origin is allowed while trusted; otherwise only origins granted at attach. */
-  isBrowserOriginAllowed(origin: string): boolean {
-    if (this.state.browser.grantedOrigins.includes(origin)) return true;
-    return this.computerTrust() === 'auto' && /^https?:$/.test(new URL(origin).protocol);
-  }
-
-  /**
-   * In trusted mode the model does not need the person to pick a Chrome window first: the
-   * frontmost visible window is attached on demand the first time a browser tool runs.
-   */
-  async chromeDebugOwnerPid(): Promise<number | undefined> {
-    return chromeDebugPortOwnerPid(this.deps.runCommand);
-  }
-
-  async ensureBrowserAttachedForActions(): Promise<string | undefined> {
-    if (this.computerAccessMode() === 'mac')
-      return 'Use my Mac is enabled. Use native shell, AppleScript and screenshots with the existing Safari or browser window. Chrome attachment is optional.';
-    if (this.computerTrust() !== 'auto')
-      return 'No Chrome window is connected. Sia shows a Connect Chrome & continue control below this response. Ask the user to choose their window there; they do not need to repeat the request.';
-    if (this.state.browser.status === 'attached' && this.browserSessionId) return undefined;
-    if (!this.browserAutoAttach) {
-      this.browserAutoAttach = this.attachBrowser({}, { auto: true })
-        .then(() => undefined)
-        .catch(() => undefined)
-        .finally(() => {
-          this.browserAutoAttach = undefined;
-        });
-    }
-    await this.browserAutoAttach;
-    return this.state.browser.status === 'attached' ? undefined : this.state.browser.detail;
-  }
-
   recordActionResult(notice: Parameters<ActionResultObserver>[0]): void {
     if (!this.deps.trajectory) return;
     if (GOOGLE_WORKSPACE_ACTION.test(notice.name)) {
@@ -1382,10 +1339,10 @@ export class ControllerContext {
     'computer.setTrust': ({ trust }) => this.setComputerTrust(trust),
     'computer.setTrajectoryLog': ({ enabled }) => this.setTrajectoryLog(enabled),
     'computer.revealTrajectories': () => this.revealTrajectories(),
-    'browser.connectAndContinue': (input) => this.connectBrowserAndContinue(input),
-    'browser.attach': (input) => this.attachBrowser(input),
-    'browser.open': ({ url }) => this.openBrowserUrl(url),
-    'browser.detach': () => this.detachBrowser(),
+    'browser.connectAndContinue': (input) => this.browser.connectBrowserAndContinue(input),
+    'browser.attach': (input) => this.browser.attachBrowser(input),
+    'browser.open': ({ url }) => this.browser.openBrowserUrl(url),
+    'browser.detach': () => this.browser.detachBrowser(),
     'voice.pushToTalk.configure': (input) => this.configurePushToTalk(input),
     'voice.pushToTalk.cancel': () => this.cancelPushToTalk(),
     'voice.capture.acquire': () => this.acquireRendererCapture(),
@@ -3190,292 +3147,6 @@ export class ControllerContext {
   async openMessagesApp(): Promise<DesktopSnapshot> {
     if (!this.deps.openMessages) throw new Error('Messages is unavailable on this Mac.');
     await this.deps.openMessages();
-    return this.resultSnapshot();
-  }
-
-  async connectBrowserAndContinue(
-    input: BridgeRequestMap['browser.connectAndContinue'],
-  ): Promise<DesktopSnapshot> {
-    const validate = () => {
-      this.requireSignedInReleaseAccount();
-      const thread = this.requireThread(input.threadId);
-      const lastUser = this.state.timeline.findLast(
-        (item) =>
-          item.threadId === thread.id && item.kind === 'user' && item.status !== 'pending',
-      );
-      if (thread.archivedAt || !lastUser || lastUser.id !== input.userMessageId)
-        throw new Error(
-          'This request changed. Return to the current conversation before continuing.',
-        );
-      if (
-        this.runningTurns.has(thread.id) ||
-        this.queuedTurns.some((turn) => turn.threadId === thread.id)
-      )
-        throw new Error(
-          'Wait for the current response to finish before connecting and continuing.',
-        );
-    };
-    validate();
-    if (this.browserContinuations.size)
-      throw new Error('Chrome connection is already in progress for this request.');
-    this.browserContinuations.add(input.threadId);
-    try {
-      if (
-        this.state.browser.status !== 'attached' ||
-        !this.browserSessionId ||
-        !this.state.browser.grantedOrigins.length ||
-        input.windowId !== undefined
-      ) {
-        await this.attachBrowser(
-          input.windowId === undefined ? {} : { windowId: input.windowId },
-        );
-      }
-      validate(); // Window selection may outlive a thread change, sign-out, or cancellation.
-      if (this.state.browser.status !== 'attached') return this.resultSnapshot();
-      if (!this.state.browser.grantedOrigins.length)
-        throw new Error(
-          'Chrome is connected. Open the website for this task in that window, then connect again to grant it.',
-        );
-      const thread = this.requireThread(input.threadId);
-      const draft = thread.draft;
-      this.sendTurn({
-        threadId: input.threadId,
-        text: 'Chrome is connected now. Continue my previous request using the browser tools. Check what has already completed before taking further actions.',
-      });
-      if (draft !== undefined) {
-        thread.draft = draft;
-        this.commit();
-      }
-      return this.resultSnapshot();
-    } finally {
-      this.browserContinuations.delete(input.threadId);
-    }
-  }
-
-  async attachBrowser(
-    input: BridgeRequestMap['browser.attach'],
-    options: { auto?: boolean } = {},
-  ): Promise<DesktopSnapshot> {
-    if (this.state.browser.status === 'attaching')
-      throw new Error('Chrome connection is already in progress.');
-    this.browserTarget = undefined;
-    this.browserSessionId = undefined;
-    this.browserCapabilitySink?.resetBrowserCapabilities();
-    let availableWindows = this.state.browser.availableWindows ?? [];
-    this.state.browser = {
-      status: 'attaching',
-      grantedOrigins: [],
-      ...(availableWindows.length ? { availableWindows } : {}),
-    };
-    this.commit();
-    try {
-      const directContext = { kind: 'direct_user', operation: 'browser_attach' } as const;
-      const apps = await this.deps.computer.call('list_apps', {}, directContext);
-      const candidates = findChromeCandidates(apps);
-      if (!candidates.length) throw new Error('Open Chrome, then try attaching again.');
-      // Several Chrome processes can coexist (a leftover instance, a helper). Only the one that
-      // owns the remote-debugging port can attach, so its windows are tried first and are the
-      // only ones offered the silent cdp_port route.
-      const debugOwnerPid = await this.chromeDebugOwnerPid();
-      const orderedCandidates = [...candidates].sort((left, right) => {
-        const leftOwns = left.pid === debugOwnerPid ? 0 : 1;
-        const rightOwns = right.pid === debugOwnerPid ? 0 : 1;
-        return leftOwns - rightOwns;
-      });
-      const windowPairs: { pid: number; window: BrowserWindowView }[] = [];
-      for (const candidate of orderedCandidates.slice(0, 3)) {
-        const windows = await this.deps.computer.call(
-          'list_windows',
-          { pid: candidate.pid },
-          directContext,
-        );
-        for (const window of preferredChromeWindows(windows)) {
-          windowPairs.push({ pid: candidate.pid, window });
-        }
-      }
-      windowPairs.forEach((pair, index) => {
-        pair.window = { ...pair.window, label: `Chrome window ${index + 1}` };
-      });
-      availableWindows = windowPairs.map(({ window }) => window);
-      if (!windowPairs.length) {
-        throw new Error(
-          'No visible Chrome window was found. Bring a Chrome window onto this Space (not minimized), then try again.',
-        );
-      }
-      const explicitPair =
-        input.windowId === undefined
-          ? windowPairs.length === 1
-            ? windowPairs[0]
-            : undefined
-          : windowPairs.find(({ window }) => window.id === input.windowId);
-      // In trusted auto mode any candidate will do; a window the driver cannot
-      // disambiguate is skipped in favour of the next one.
-      const pairsToTry = explicitPair
-        ? [explicitPair]
-        : options.auto
-          ? windowPairs.slice(0, 3)
-          : [];
-      if (!pairsToTry.length) {
-        this.state.browser = {
-          status: input.windowId === undefined ? 'detached' : 'error',
-          grantedOrigins: [],
-          availableWindows,
-          detail:
-            input.windowId === undefined
-              ? 'Choose the signed-in Chrome window you want Sia to use.'
-              : 'That Chrome window changed or closed. Choose one of the current windows.',
-        };
-        this.commit();
-        return this.resultSnapshot();
-      }
-      let lastFailure: unknown;
-      let attachedWindow: BrowserWindowView | undefined;
-      candidates: for (const { pid: chromePid, window: candidate } of pairsToTry) {
-        // The silent cdp_port route only works against the process that owns the debugging
-        // port; offering it to another process's window just fails, so it is scoped here.
-        const attempts =
-          debugOwnerPid === undefined || chromePid === debugOwnerPid
-            ? [{ cdp_port: 9222 }, {}]
-            : [{}];
-        for (const prepareArguments of attempts) {
-          try {
-            // CUA sessions are terminal after end_session. Minting a new opaque id for
-            // every attachment lets a user detach and reattach without restarting Sia,
-            // while resetBrowserCapabilities still revokes every prior model-visible ref.
-            const browserSessionId = `sia-browser-${randomUUID()}`;
-            const prepared = await this.deps.computer.call(
-              'browser_prepare',
-              {
-                pid: chromePid,
-                window_id: candidate.id,
-                session: browserSessionId,
-                strategy: { kind: 'existing_profile' },
-                ...prepareArguments,
-              },
-              directContext,
-            );
-            const state = await this.deps.computer.call(
-              'get_browser_state',
-              {
-                session: browserSessionId,
-                pid: chromePid,
-                window_id: candidate.id,
-              },
-              directContext,
-            );
-            // browser_prepare can include transitional target ids while Chrome enables
-            // and reconnects its existing-profile route. Only the follow-up live state
-            // is safe to mint into model-visible browser capabilities.
-            this.browserCapabilitySink?.acceptBrowserState(state, browserSessionId);
-            this.browserTarget = findBrowserTarget([state, prepared]);
-            this.browserSessionId = browserSessionId;
-            const grantedOrigins = collectHttpOrigins([prepared, state]);
-            this.state.browser = {
-              status: 'attached',
-              browser: 'Chrome',
-              profileLabel: candidate.label,
-              grantedOrigins,
-              ...(grantedOrigins.length === 0
-                ? { detail: 'Attached, but no HTTP or HTTPS tab is currently granted.' }
-                : {}),
-            };
-            this.deps.trajectory?.record({
-              type: 'browser_attached',
-              threadId: this.state.activeThreadId ?? 'app',
-              window: candidate.label,
-              automatic: Boolean(options.auto),
-              grantedOrigins,
-            });
-            attachedWindow = candidate;
-            break candidates;
-          } catch (candidateError) {
-            lastFailure = candidateError;
-          }
-        }
-      }
-      if (!attachedWindow)
-        throw lastFailure ?? new Error('No Chrome window could be attached.');
-    } catch (error) {
-      this.browserTarget = undefined;
-      this.browserSessionId = undefined;
-      const detail = browserAttachmentError(error);
-      this.state.browser = {
-        status: 'error',
-        grantedOrigins: [],
-        ...(availableWindows.length ? { availableWindows } : {}),
-        detail,
-      };
-    }
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  async openBrowserUrl(urlValue: string): Promise<DesktopSnapshot> {
-    if (
-      this.state.browser.status !== 'attached' ||
-      !this.browserTarget ||
-      !this.browserSessionId
-    ) {
-      throw new Error('Attach a Chrome window before opening a site.');
-    }
-    const url = directBrowserUrl(urlValue);
-    const context = { kind: 'direct_user', operation: 'browser_navigate' } as const;
-    const target = this.browserTarget;
-    const browserSessionId = this.browserSessionId;
-    await this.deps.computer.call(
-      'browser_navigate',
-      {
-        session: browserSessionId,
-        target_id: target.targetId,
-        tab_id: target.tabId,
-        url: url.toString(),
-      },
-      context,
-    );
-    const state = await this.deps.computer.call(
-      'get_browser_state',
-      {
-        session: browserSessionId,
-        target_id: target.targetId,
-        tab_id: target.tabId,
-      },
-      context,
-    );
-    this.browserCapabilitySink?.acceptBrowserState(state, browserSessionId);
-    this.browserTarget = findBrowserTarget(state) ?? target;
-    const grantedOrigins = collectHttpOrigins(state);
-    if (!grantedOrigins.length) {
-      throw new Error('Chrome opened the site, but did not return a usable web tab.');
-    }
-    this.state.browser = {
-      status: 'attached',
-      browser: this.state.browser.browser ?? 'Chrome',
-      ...(this.state.browser.profileLabel
-        ? { profileLabel: this.state.browser.profileLabel }
-        : {}),
-      grantedOrigins,
-    };
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  async detachBrowser(): Promise<DesktopSnapshot> {
-    try {
-      if (this.browserSessionId) {
-        await this.deps.computer.call(
-          'end_session',
-          { session: this.browserSessionId },
-          { kind: 'direct_user', operation: 'browser_detach' },
-        );
-      }
-    } catch {
-      // A missing or already-ended CUA session is safely detached locally.
-    }
-    this.browserCapabilitySink?.resetBrowserCapabilities();
-    this.browserTarget = undefined;
-    this.browserSessionId = undefined;
-    this.state.browser = { status: 'detached', grantedOrigins: [] };
-    this.commit();
     return this.resultSnapshot();
   }
 
