@@ -8,6 +8,7 @@ import type {
   ProviderUsageView,
   ProviderView,
 } from '../../shared/bridge.js';
+import { providerPlan } from '../provider-probe.js';
 import type { ControllerContext } from './context.js';
 import { modelRouteKey } from './execution-routes.js';
 
@@ -31,6 +32,46 @@ export class ProviderAccess {
   readonly allowedModelRoutes = new Map<string, readonly ModelRoute[]>();
 
   constructor(private readonly ctx: ControllerContext) {}
+
+  /**
+   * Takes the views from the startup probe. In fake-services mode Codex is replaced with the
+   * deterministic test runtime.
+   */
+  setInitialViews(views: ProviderView[]): void {
+    this.views = views;
+    if (this.ctx.deps.fakeServices) {
+      const codexIndex = this.views.findIndex(({ id }) => id === 'codex');
+      const fakeCodex: ProviderView = {
+        id: 'codex',
+        label: 'Codex',
+        ...(providerPlan('codex') ? { plan: providerPlan('codex')! } : {}),
+        status: 'ready',
+        model: 'gpt-5.6-sol',
+        version: '0.147.0',
+        account: 'Deterministic test runtime',
+        detail: 'Deterministic local development runtime.',
+        billing: 'No provider account is used in fake-services mode.',
+        models: [
+          {
+            id: 'gpt-5.6-sol',
+            label: 'GPT-5.6 Sol',
+            description: 'Deterministic test model.',
+            reasoningEfforts: ['low', 'medium', 'high', 'xhigh'],
+            defaultReasoningEffort: 'high',
+          },
+          {
+            id: 'gpt-5.6-terra',
+            label: 'GPT-5.6 Terra',
+            description: 'Deterministic alternate test model.',
+            reasoningEfforts: ['low', 'medium', 'high'],
+            defaultReasoningEffort: 'medium',
+          },
+        ],
+      };
+      if (codexIndex >= 0) this.views[codexIndex] = fakeCodex;
+      else this.views.push(fakeCodex);
+    }
+  }
 
   async probeProviders(providerId?: ProviderId): Promise<DesktopSnapshot> {
     if (providerId === 'meta' && this.ctx.deps.identity.status().state === 'signed_in') {

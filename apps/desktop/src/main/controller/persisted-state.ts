@@ -2,7 +2,6 @@
 
 import { randomUUID } from 'node:crypto';
 import {
-  SCHEDULE_RUN_HISTORY_LIMIT,
   type AgentView,
   type ApprovalView,
   type BrowserView,
@@ -11,6 +10,7 @@ import {
   type ConnectionView,
   type DesktopSnapshot,
   type ProviderId,
+  SCHEDULE_RUN_HISTORY_LIMIT,
   type ScheduleView,
   type ThreadView,
   type TimelineItemView,

@@ -1,51 +1,49 @@
-import type { PhoneRemoteApi } from '../../shared/phone-remote.js';
-import type { ScottySettingsApi } from '../../shared/scotty.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { isAbsolute } from 'node:path';
-
 import type {
   AgentView,
   DesktopPushEvent,
   DesktopSnapshot,
-  ProviderView,
   ThreadView,
   TimelineItemView,
 } from '../../shared/bridge.js';
-import { probeProviders, providerPlan } from '../provider-probe.js';
+import type { PhoneRemoteApi } from '../../shared/phone-remote.js';
+import type { ScottySettingsApi } from '../../shared/scotty.js';
+import { probeProviders } from '../provider-probe.js';
 import type { RuntimeCoordinator } from '../runtime-coordinator.js';
+import type { CloudAccount } from './account.js';
+import type { ActionHost } from './action-host.js';
+import type { Agents } from './agents.js';
+import type { Approvals } from './approvals.js';
+import type { AssistantFeatures } from './assistant.js';
 import { settleBeforeShutdown } from './async-utils.js';
+import type { Attachments } from './attachments.js';
+import type { BridgeRouter } from './bridge-router.js';
+import type { BrowserSession } from './browser.js';
+import type { ComputerAccess } from './computer-access.js';
+import type { ConnectorConnections } from './connections.js';
+import { type ControllerDeps, resolveControllerDeps } from './deps.js';
+import type { MacSession } from './mac-session.js';
 import {
   INITIAL_STATE,
   type PersistedState,
   recoverPersistedState,
 } from './persisted-state.js';
-import type { BrowserCapabilitySink, ControllerOptions } from './types.js';
-import { type ControllerDeps, resolveControllerDeps } from './deps.js';
-import { normalizeWorkspace } from './workspace-paths.js';
-import type { ResearchOutbox } from './research-outbox.js';
-import type { ResearchCapture } from './research-capture.js';
-import type { ConnectorConnections } from './connections.js';
-import type { CloudAccount } from './account.js';
 import type { ProviderAccess } from './providers.js';
-import type { Schedules } from './schedules.js';
-import type { Attachments } from './attachments.js';
-import type { WorkspaceTools } from './workspace.js';
-import type { BrowserSession } from './browser.js';
-import type { ComputerAccess } from './computer-access.js';
-import type { VoiceControls } from './voice.js';
-import type { AssistantFeatures } from './assistant.js';
-import type { Agents } from './agents.js';
-import type { Threads } from './threads.js';
-import type { Approvals } from './approvals.js';
-import type { Turns } from './turns.js';
-import type { TurnRunner } from './turn-runner.js';
+import type { ResearchCapture } from './research-capture.js';
+import type { ResearchOutbox } from './research-outbox.js';
 import type { RuntimeEventApplier } from './runtime-events.js';
-import type { MacSession } from './mac-session.js';
+import type { Schedules } from './schedules.js';
 import type { AppSettings } from './settings.js';
-import type { AppSupport } from './support.js';
-import type { ActionHost } from './action-host.js';
 import type { Snapshots } from './snapshots.js';
-import type { BridgeRouter } from './bridge-router.js';
+import type { AppSupport } from './support.js';
+import type { Threads } from './threads.js';
+import type { TurnRunner } from './turn-runner.js';
+import type { Turns } from './turns.js';
+import type { BrowserCapabilitySink, ControllerOptions } from './types.js';
+import type { VoiceControls } from './voice.js';
+import { normalizeWorkspace } from './workspace-paths.js';
+import type { WorkspaceTools } from './workspace.js';
 
 /** The domain collaborators a context is wired with. */
 export type ControllerServices = Pick<ControllerContext, ServiceName>;
@@ -81,7 +79,7 @@ type ServiceName =
  */
 export class ControllerContext {
   readonly deps: ControllerDeps;
-  // Domain collaborators, created by DesktopController right after this context.
+  // Domain collaborators, created by DesktopController through the wire callback.
   declare readonly researchOutbox: ResearchOutbox;
   declare readonly researchCapture: ResearchCapture;
   declare readonly connections: ConnectorConnections;
@@ -106,6 +104,7 @@ export class ControllerContext {
   declare readonly actions: ActionHost;
   declare readonly snapshots: Snapshots;
   declare readonly router: BridgeRouter;
+
   readonly listeners = new Set<(event: DesktopPushEvent) => void>();
   readonly rendererCall = new AsyncLocalStorage<true>();
   readonly workspaceGrants = new Set<string>();
@@ -113,6 +112,8 @@ export class ControllerContext {
   streamPersistTimer: NodeJS.Timeout | undefined;
   runtime: RuntimeCoordinator | undefined;
   browserCapabilitySink: BrowserCapabilitySink | undefined;
+  scotty: ScottySettingsApi | undefined;
+  phoneRemote: PhoneRemoteApi | undefined;
   state: PersistedState = structuredClone(INITIAL_STATE);
   revision = 0;
   shuttingDown = false;
@@ -136,15 +137,14 @@ export class ControllerContext {
     this.browserCapabilitySink = sink;
   }
 
-  scotty: ScottySettingsApi | undefined;
   attachScotty(handler: ScottySettingsApi): void {
     this.scotty = handler;
   }
 
-  phoneRemote: PhoneRemoteApi | undefined;
   attachPhoneRemote(handler: PhoneRemoteApi): void {
     this.phoneRemote = handler;
   }
+
   remoteAccessAllowed(): boolean {
     return (
       !this.shuttingDown &&
@@ -175,40 +175,8 @@ export class ControllerContext {
       this.deps.computer.permissions(),
       this.deps.identity.initialize(),
     ]);
-    this.providers.views = providers;
+    this.providers.setInitialViews(providers);
     await this.computerAccess.refreshCapabilityStatuses().catch(() => undefined);
-    if (this.deps.fakeServices) {
-      const codexIndex = this.providers.views.findIndex(({ id }) => id === 'codex');
-      const fakeCodex: ProviderView = {
-        id: 'codex',
-        label: 'Codex',
-        ...(providerPlan('codex') ? { plan: providerPlan('codex')! } : {}),
-        status: 'ready',
-        model: 'gpt-5.6-sol',
-        version: '0.147.0',
-        account: 'Deterministic test runtime',
-        detail: 'Deterministic local development runtime.',
-        billing: 'No provider account is used in fake-services mode.',
-        models: [
-          {
-            id: 'gpt-5.6-sol',
-            label: 'GPT-5.6 Sol',
-            description: 'Deterministic test model.',
-            reasoningEfforts: ['low', 'medium', 'high', 'xhigh'],
-            defaultReasoningEffort: 'high',
-          },
-          {
-            id: 'gpt-5.6-terra',
-            label: 'GPT-5.6 Terra',
-            description: 'Deterministic alternate test model.',
-            reasoningEfforts: ['low', 'medium', 'high'],
-            defaultReasoningEffort: 'medium',
-          },
-        ],
-      };
-      if (codexIndex >= 0) this.providers.views[codexIndex] = fakeCodex;
-      else this.providers.views.push(fakeCodex);
-    }
     await this.providers.refreshProviderModels();
     await this.account.reconcileIdentityBoundState();
     await this.account.refreshCloudSession();
