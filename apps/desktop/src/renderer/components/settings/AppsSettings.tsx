@@ -10,7 +10,9 @@ import { useState } from 'react';
 import { useConfirmDialog } from '../ConfirmDialog';
 import type { AppConnection, RendererSnapshot } from '../../types';
 import buttons from '../../styles/buttons.module.css';
-import styles from '../../ui.module.css';
+import settings from './SettingsShared.module.css';
+import ui from '../../ui.module.css';
+import styles from './AppsSettings.module.css';
 import { ConnectionChecklist } from '../ConnectionChecklist';
 import { BrowserWindowPicker } from '../BrowserWindowPicker';
 import { CloudAccountSettings } from './CloudAccountSettings';
@@ -111,14 +113,14 @@ export function AppsSettings({
         title="Connections"
         description="Browser and device connections are managed here. Work apps require Sia cloud."
       >
-        <div className={styles.cloudLocalSummary}>
-          <div className={styles.cloudIdentityHeader}>
+        <div className={settings.cloudLocalSummary}>
+          <div className={settings.cloudIdentityHeader}>
             <div>
               <strong>Cloud connections unavailable</strong>
               <p>This build does not have a Sia cloud service configured.</p>
             </div>
           </div>
-          <div className={styles.cloudUnavailable} role="status">
+          <div className={settings.cloudUnavailable} role="status">
             Google Workspace and Slack will appear after cloud service is configured.
           </div>
         </div>
@@ -153,7 +155,7 @@ export function AppsSettings({
         />
       ) : null}
       {!connectorsEnabled ? (
-        <div className={styles.inlineWarning} role="status">
+        <div className={settings.inlineWarning} role="status">
           Work app connections are not enabled for this account yet. Existing connections can
           still be disconnected.
         </div>
@@ -238,7 +240,7 @@ export function AppsSettings({
                     }
                   >
                     {pending === 'connect-google' || setupActive ? (
-                      <CircleNotch className={styles.spin} size={16} aria-hidden="true" />
+                      <CircleNotch className={ui.spin} size={16} aria-hidden="true" />
                     ) : (
                       <GoogleLogo size={16} weight="bold" aria-hidden="true" />
                     )}
@@ -327,7 +329,7 @@ export function AppsSettings({
                     }
                   >
                     {pending === 'connect-slack' || setupActive ? (
-                      <CircleNotch className={styles.spin} size={16} aria-hidden="true" />
+                      <CircleNotch className={ui.spin} size={16} aria-hidden="true" />
                     ) : (
                       <ChatsCircle size={16} aria-hidden="true" />
                     )}
@@ -431,16 +433,16 @@ export function AppsSettings({
             ))}
         </div>
       ) : null}
-      <div className={styles.settingsNote}>
+      <div className={settings.settingsNote}>
         You can disconnect any app without affecting core Sia features. Account approval opens
         in your browser. You control which account and workspace Sia can use.
       </div>
-      <details className={styles.settingsDisclosure}>
+      <details className={settings.settingsDisclosure}>
         <summary>
           <span>Other ways to connect</span>
           <small>Chrome and Messages on this Mac</small>
         </summary>
-        <div className={styles.settingsDisclosureBody}>
+        <div className={settings.settingsDisclosureBody}>
           <LocalIntegrations
             snapshot={snapshot}
             pending={pending}
@@ -453,12 +455,12 @@ export function AppsSettings({
         </div>
       </details>
       {snapshot.cloudAuth.state === 'signed-in' ? (
-        <details className={styles.settingsDisclosure}>
+        <details className={settings.settingsDisclosure}>
           <summary>
             <span>Account</span>
             <small>{snapshot.cloudAuth.email ?? 'Signed in'}</small>
           </summary>
-          <div className={styles.settingsDisclosureBody}>
+          <div className={settings.settingsDisclosureBody}>
             <CloudAccountSettings
               cloudAuth={snapshot.cloudAuth}
               onStartCloudSignIn={onStartCloudSignIn}
@@ -527,21 +529,21 @@ function LocalIntegrations({
   const messagesBusy = pending === 'local-messages';
 
   return (
-    <div className={styles.integrationSubsection}>
+    <div className={settings.integrationSubsection}>
       <header>
         <strong>On this Mac</strong>
         <p>Use accounts already signed in on this Mac without copying passwords or cookies.</p>
       </header>
-      <div className={styles.settingsList}>
-        <div className={styles.settingsRow}>
+      <div className={settings.settingsList}>
+        <div className={settings.settingsRow}>
           <span className={styles.appGlyph} data-app="chrome">
             <Browser size={20} aria-hidden="true" />
           </span>
-          <div className={styles.settingsRowBody}>
-            <div className={styles.rowTitleLine}>
+          <div className={settings.settingsRowBody}>
+            <div className={settings.rowTitleLine}>
               <strong>Signed-in Chrome</strong>
               <span
-                className={`${styles.stateLabel} ${
+                className={`${settings.stateLabel} ${
                   snapshot.browser.attached
                     ? styles.connection_connected
                     : styles.connection_disconnected
@@ -610,14 +612,14 @@ function LocalIntegrations({
             />
           </div>
         ) : null}
-        <div className={styles.settingsRow}>
+        <div className={settings.settingsRow}>
           <span className={styles.appGlyph} data-app="messages">
             <ChatCircleText size={20} aria-hidden="true" />
           </span>
-          <div className={styles.settingsRowBody}>
-            <div className={styles.rowTitleLine}>
+          <div className={settings.settingsRowBody}>
+            <div className={settings.rowTitleLine}>
               <strong>Messages</strong>
-              <span className={`${styles.stateLabel} ${styles.connection_disconnected}`}>
+              <span className={`${settings.stateLabel} ${styles.connection_disconnected}`}>
                 Uses this Mac
               </span>
             </div>

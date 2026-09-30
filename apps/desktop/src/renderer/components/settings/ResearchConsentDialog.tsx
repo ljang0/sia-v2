@@ -3,7 +3,8 @@ import { CheckCircle, ShieldCheck, WarningCircle } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import buttons from '../../styles/buttons.module.css';
 import dialogs from '../../styles/dialogs.module.css';
-import styles from '../../ui.module.css';
+import settings from './SettingsShared.module.css';
+import styles from './ResearchConsentDialog.module.css';
 import {} from './SettingsShared';
 import { errorMessage } from '../../plainErrors';
 
@@ -133,7 +134,7 @@ export function ResearchConsentDialog({
           </div>
 
           {error ? (
-            <div ref={errorRef} className={styles.dialogError} role="alert" tabIndex={-1}>
+            <div ref={errorRef} className={settings.dialogError} role="alert" tabIndex={-1}>
               <WarningCircle size={16} aria-hidden="true" />
               {error}
             </div>

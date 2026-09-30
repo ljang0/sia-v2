@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import styles from '../../ui.module.css';
+import settings from './SettingsShared.module.css';
 import { Switch } from '../Switch';
 import { InlineSettingsError, SavedNote, useSavedFlash } from './SettingsShared';
 import { errorMessage } from '../../plainErrors';
@@ -23,9 +23,9 @@ export function StartupSettings({
   const [saved, flashSaved] = useSavedFlash();
 
   return (
-    <div className={compact ? styles.openAtLoginInline : styles.openAtLoginSetting}>
+    <div className={compact ? settings.openAtLoginInline : settings.openAtLoginSetting}>
       <InlineSettingsError message={error} />
-      <label className={styles.voicePreference}>
+      <label className={settings.voicePreference}>
         <span>
           <strong>
             Open Sia at login <SavedNote show={saved} />

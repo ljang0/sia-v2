@@ -13,7 +13,9 @@ import { useEffect, useRef, useState } from 'react';
 import type { RendererSnapshot } from '../../types';
 import buttons from '../../styles/buttons.module.css';
 import dialogs from '../../styles/dialogs.module.css';
-import styles from '../../ui.module.css';
+import settings from './SettingsShared.module.css';
+import ui from '../../ui.module.css';
+import styles from './PrivacySettings.module.css';
 import { InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
 import { ResearchConsentDialog } from './ResearchConsentDialog';
 import { errorMessage } from '../../plainErrors';
@@ -68,7 +70,7 @@ export function PrivacySettings({
     >
       <InlineSettingsError message={error} />
       {uploadsPaused ? (
-        <div className={styles.inlineWarning} role="status">
+        <div className={settings.inlineWarning} role="status">
           <WarningCircle size={15} aria-hidden="true" />
           <div>
             <strong>Research is not enabled for this account</strong>
@@ -79,17 +81,17 @@ export function PrivacySettings({
           </div>
         </div>
       ) : null}
-      <section className={styles.captureSettings} aria-label="Research capture">
+      <section className={settings.captureSettings} aria-label="Research capture">
         <div>
-          <div className={styles.rowTitleLine}>
+          <div className={settings.rowTitleLine}>
             <strong>Research capture</strong>
             <span
-              className={`${styles.stateLabel} ${
+              className={`${settings.stateLabel} ${
                 !snapshot.research.consented
-                  ? styles.state_unavailable
+                  ? settings.state_unavailable
                   : paused || blocked
-                    ? styles.state_paused
-                    : styles.state_ready
+                    ? settings.state_paused
+                    : settings.state_ready
               }`}
             >
               {captureLabel}
@@ -102,7 +104,7 @@ export function PrivacySettings({
           </p>
         </div>
         {uploadsPaused ? (
-          <span className={styles.stateLabel}>Not enabled for this account</span>
+          <span className={settings.stateLabel}>Not enabled for this account</span>
         ) : !snapshot.research.consented ? (
           <ResearchConsentDialog
             cloudAvailable={snapshot.cloudAuth.state !== 'unconfigured'}
@@ -135,7 +137,7 @@ export function PrivacySettings({
         )}
       </section>
 
-      <details className={styles.settingsDisclosure}>
+      <details className={settings.settingsDisclosure}>
         <summary>How research data is handled</summary>
         <div className={styles.privacyFacts}>
           <div>
@@ -170,7 +172,7 @@ export function PrivacySettings({
       </details>
 
       {blocked ? (
-        <div className={styles.inlineError} role="alert">
+        <div className={ui.inlineError} role="alert">
           <WarningCircle size={15} aria-hidden="true" />
           <div>
             <strong>Research capture is blocked</strong>
@@ -181,7 +183,7 @@ export function PrivacySettings({
           </div>
         </div>
       ) : snapshot.research.consented && snapshot.research.pendingItems ? (
-        <div className={styles.inlineWarning} role="status">
+        <div className={settings.inlineWarning} role="status">
           <WarningCircle size={15} aria-hidden="true" />
           <div>
             <strong>

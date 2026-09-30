@@ -10,7 +10,8 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { ResearchBatchSummary, ResearchInvite, ResearchParticipant } from '../../types';
 import buttons from '../../styles/buttons.module.css';
 import dialogs from '../../styles/dialogs.module.css';
-import styles from '../../ui.module.css';
+import settings from './SettingsShared.module.css';
+import styles from './ResearchArchiveSettings.module.css';
 import { SettingsSectionHeader } from './SettingsShared';
 import { errorMessage } from '../../plainErrors';
 import { formatBytes } from '../../format';
@@ -248,7 +249,7 @@ export function ResearchArchiveSettings({
       </div>
 
       {error ? (
-        <div className={styles.settingsError} role="alert">
+        <div className={settings.settingsError} role="alert">
           {error}
         </div>
       ) : null}

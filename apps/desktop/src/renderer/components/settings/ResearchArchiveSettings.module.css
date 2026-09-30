@@ -1,0 +1,312 @@
+@keyframes statusEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.researchArchiveToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.archiveInvitePanel {
+  display: grid;
+  gap: 13px;
+  margin-bottom: 24px;
+  padding: 18px 0 22px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.archiveInviteCopy {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.archiveInviteCopy > svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--text-secondary);
+}
+
+.archiveInviteCopy strong {
+  font-size: var(--text-md);
+}
+
+.archiveInviteCopy p {
+  max-width: 680px;
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.archiveInviteForm {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  align-items: end;
+  gap: 9px;
+  max-width: 720px;
+}
+
+.archiveInviteMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
+.archiveInviteMeta span:not(:first-child) {
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.archiveInviteSuccess {
+  margin: 0;
+  color: var(--text-success);
+  font-size: var(--text-sm);
+  animation: statusEnter var(--motion-standard) var(--ease-out-soft) both;
+}
+
+.researchArchiveToolbar > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.researchArchiveGrid {
+  display: grid;
+  min-height: 500px;
+  grid-template-columns: minmax(160px, 0.8fr) minmax(190px, 0.95fr) minmax(300px, 1.55fr);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-surface);
+  background: var(--bg-raised);
+}
+
+.researchArchiveColumn {
+  min-width: 0;
+  border-right: 1px solid var(--border-subtle);
+}
+
+.researchArchiveColumn:last-child {
+  border-right: 0;
+}
+
+.researchArchiveColumn > header {
+  display: flex;
+  min-height: 43px;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-subtle);
+  font-size: var(--text-sm);
+}
+
+.researchArchiveList,
+.researchEventList {
+  max-height: 560px;
+  overflow: auto;
+}
+
+.researchArchiveList > button {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.researchArchiveList > button:hover {
+  background: var(--bg-hover);
+}
+
+.researchArchiveList > button.archiveRowActive {
+  background: var(--bg-selected);
+  box-shadow: inset 3px 0 0 var(--bg-accent);
+}
+
+.researchArchiveList strong,
+.researchArchiveList span,
+.researchArchiveList small {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.researchArchiveList strong {
+  font-size: var(--text-sm);
+}
+
+.researchArchiveList span,
+.researchArchiveList small,
+.researchArchiveList > p,
+.researchEventList > p {
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
+.researchArchiveList > p,
+.researchEventList > p {
+  margin: 0;
+  padding: 16px 12px;
+  line-height: 1.5;
+}
+
+.researchEventColumn > header {
+  justify-content: space-between;
+}
+
+.researchEventColumn > header input {
+  width: 130px;
+  min-height: 28px;
+  padding: 4px 7px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 48%, var(--border-subtle));
+  border-radius: var(--radius-control);
+  background: var(--bg-field);
+  color: var(--text-primary);
+  font: inherit;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
+}
+
+.researchEventColumn > header input:focus {
+  border-color: var(--focus-ring);
+  background: var(--bg-raised);
+  box-shadow: 0 0 0 3px var(--focus-halo);
+}
+
+.researchEventRow {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.researchEventRow summary {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.researchEventRow summary:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.researchEventRow summary time {
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  white-space: nowrap;
+}
+
+.researchEventRow pre {
+  max-height: 360px;
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-canvas);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.researchEventRow[open] pre {
+  animation: detailEnter var(--motion-standard) var(--ease-out-soft) both;
+}
+
+@keyframes detailEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.researchEventImages {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.researchEventImages img {
+  width: 100%;
+  max-height: 300px;
+  border-radius: var(--radius-control);
+  object-fit: contain;
+}
+
+.researchEventColumn > header input:focus-visible {
+  outline: none;
+}
+
+@media (max-width: 780px) {
+  .researchArchiveGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .archiveInviteForm {
+    grid-template-columns: 1fr;
+  }
+
+  .researchArchiveColumn {
+    border-right: 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .researchArchiveColumn:last-child {
+    border-bottom: 0;
+  }
+
+  .researchArchiveList,
+  .researchEventList {
+    max-height: 360px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .researchEventRow[open] pre {
+    animation: none;
+  }
+}

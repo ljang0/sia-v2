@@ -5,7 +5,8 @@ import { Notebook, ShieldCheck } from '@phosphor-icons/react';
 import { type ReactNode, useState } from 'react';
 import type { RendererSnapshot } from '../../types';
 import buttons from '../../styles/buttons.module.css';
-import styles from '../../ui.module.css';
+import settings from './SettingsShared.module.css';
+import styles from './ComputerSettings.module.css';
 import { InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
 import { errorMessage } from '../../plainErrors';
 
@@ -70,13 +71,13 @@ export function ComputerSettings({
           }
         />
       ) : null}
-      <div className={styles.accessGroup}>
+      <div className={settings.accessGroup}>
         <div className={styles.accessRow}>
           <ShieldCheck size={20} aria-hidden="true" />
           <div>
-            <div className={styles.rowTitleLine}>
+            <div className={settings.rowTitleLine}>
               <strong>Bypass action approvals</strong>
-              {trusted ? <span className={styles.stateLabel}>Enabled</span> : null}
+              {trusted ? <span className={settings.stateLabel}>Enabled</span> : null}
             </div>
             <p>
               {trusted
@@ -129,7 +130,7 @@ export function ComputerSettings({
         includeApps
       />
       {snapshot.computer.accessMode !== 'mac' && (
-        <p className={styles.settingsNote}>
+        <p className={settings.settingsNote}>
           Browser and work app connections are in{' '}
           <button type="button" className={buttons.textButton} onClick={onReviewConnections}>
             Connections
@@ -137,11 +138,11 @@ export function ComputerSettings({
           .
         </p>
       )}
-      <details className={styles.settingsDisclosure}>
+      <details className={settings.settingsDisclosure}>
         <summary>
           <span>Diagnostics</span>
         </summary>
-        <div className={styles.accessGroup}>
+        <div className={settings.accessGroup}>
           <div className={styles.accessRow}>
             <Notebook size={20} aria-hidden="true" />
             <div>

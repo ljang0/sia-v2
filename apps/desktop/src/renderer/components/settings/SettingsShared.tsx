@@ -1,6 +1,6 @@
 import { Check, WarningCircle } from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import styles from '../../ui.module.css';
+import styles from './SettingsShared.module.css';
 
 export function SettingsSectionHeader({
   title,

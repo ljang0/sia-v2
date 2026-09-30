@@ -9,7 +9,7 @@ import {
 import { useState } from 'react';
 import type { RendererSnapshot } from '../../types';
 import buttons from '../../styles/buttons.module.css';
-import styles from '../../ui.module.css';
+import styles from './ReleaseReviewSettings.module.css';
 import { SettingsSectionHeader } from './SettingsShared';
 
 const STORAGE_KEY = 'sia.alpha-release-review.v1';

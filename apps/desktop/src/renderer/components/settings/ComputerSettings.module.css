@@ -1,0 +1,57 @@
+.accessRow p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.accessRow strong {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.accessRow {
+  display: grid;
+  min-height: 82px;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background-color var(--motion-fast) var(--ease-standard);
+}
+
+.accessRow:hover {
+  background: color-mix(in srgb, var(--bg-hover) 44%, transparent);
+}
+
+.accessRow > svg {
+  color: var(--text-secondary);
+}
+
+@container (max-width: 520px) {
+  .accessRow {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .accessRow > button {
+    width: fit-content;
+    max-width: 100%;
+    grid-column: 2;
+    justify-self: start;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 860px) {
+  .accessRow {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .accessRow > button {
+    width: fit-content;
+    grid-column: 2;
+    justify-self: start;
+  }
+}

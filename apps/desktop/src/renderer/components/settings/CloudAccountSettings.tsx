@@ -4,7 +4,8 @@ import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
 import type { RendererSnapshot } from '../../types';
 import buttons from '../../styles/buttons.module.css';
 import dialogs from '../../styles/dialogs.module.css';
-import styles from '../../ui.module.css';
+import settings from './SettingsShared.module.css';
+import styles from './CloudAccountSettings.module.css';
 import { InlineSettingsError } from './SettingsShared';
 import { errorMessage } from '../../plainErrors';
 
@@ -96,7 +97,7 @@ export function CloudAccountSettings({
 
   return (
     <div
-      className={styles.cloudIdentity}
+      className={settings.cloudIdentity}
       aria-labelledby={
         !autoFocusEmail || cloudAuth.state === 'signed-in' ? `${formId}-title` : undefined
       }
@@ -105,7 +106,7 @@ export function CloudAccountSettings({
       }
     >
       {!autoFocusEmail || cloudAuth.state === 'signed-in' ? (
-        <div className={styles.cloudIdentityHeader}>
+        <div className={settings.cloudIdentityHeader}>
           <div>
             <strong id={`${formId}-title`}>Sia cloud account</strong>
             <p>{accountDescription(cloudAuth)}</p>
@@ -271,7 +272,7 @@ export function CloudAccountSettings({
       ) : null}
 
       {cloudAuth.state === 'unconfigured' ? (
-        <div className={styles.cloudUnavailable} role="status">
+        <div className={settings.cloudUnavailable} role="status">
           Local mode is ready. No Sia account or cloud credits are required.
         </div>
       ) : null}
@@ -463,7 +464,7 @@ function DeleteCloudAccountDialog({
               />
             </label>
             {error ? (
-              <div ref={errorRef} className={styles.dialogError} role="alert" tabIndex={-1}>
+              <div ref={errorRef} className={settings.dialogError} role="alert" tabIndex={-1}>
                 {error}
               </div>
             ) : null}
