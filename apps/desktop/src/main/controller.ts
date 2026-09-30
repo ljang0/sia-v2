@@ -175,8 +175,6 @@ interface ControllerOptions {
   updateManifestPublicKey?: string;
   exportJson(value: unknown): Promise<string | null>;
   notify?(notice: { threadId: string; title: string; body: string }): void;
-  /** True while Sia's window is on screen, so the open conversation is being seen. */
-  isConversationVisible?(): boolean;
   workspaceOperations?: {
     hasRunningTerminals?(): boolean;
     readDiff(workspace: string): Promise<WorkspaceDiffView>;
@@ -484,9 +482,6 @@ export class DesktopController {
   readonly #exportJson: (value: unknown) => Promise<string | null>;
   readonly #notify:
     ((notice: { threadId: string; title: string; body: string }) => void) | undefined;
-  readonly #isConversationVisible: () => boolean;
-  /** The open conversation, when it finished while Sia's window was hidden or minimized. */
-  #finishedWhileAway: string | undefined;
   readonly #workspaceOperations: ControllerOptions['workspaceOperations'];
   readonly #voice: VoiceOperations | undefined;
   #pushToTalk: PushToTalkService | undefined;
@@ -625,7 +620,6 @@ export class DesktopController {
     };
     this.#exportJson = options.exportJson;
     this.#notify = options.notify;
-    this.#isConversationVisible = options.isConversationVisible ?? (() => false);
     this.#workspaceOperations = options.workspaceOperations;
     this.#voice = options.voice;
     this.#startupNotice = options.startupNotice;
@@ -3014,21 +3008,9 @@ export class DesktopController {
     return { threadId: id, snapshot: this.#resultSnapshot() };
   }
 
-  /** Sia's window is on screen again: the open conversation's finished work is now seen. */
-  conversationShown(): void {
-    const threadId = this.#finishedWhileAway;
-    this.#finishedWhileAway = undefined;
-    if (!threadId || this.#state.activeThreadId !== threadId) return;
-    const thread = this.#state.threads.find(({ id }) => id === threadId);
-    if (!thread?.unread) return;
-    thread.unread = false;
-    this.#commit();
-  }
-
   #selectThread(threadId: string): DesktopSnapshot {
     const thread = this.#requireThread(threadId);
     thread.unread = false;
-    this.#finishedWhileAway = undefined;
     this.#state.activeThreadId = thread.id;
     this.#state.activeAgentId = thread.agentId;
     this.#commit();
@@ -3098,7 +3080,6 @@ export class DesktopController {
   #setThreadUnread(input: BridgeRequestMap['threads.setUnread']): DesktopSnapshot {
     const thread = this.#requireThread(input.threadId);
     thread.unread = input.unread;
-    if (this.#finishedWhileAway === thread.id) this.#finishedWhileAway = undefined;
     this.#commit();
     return this.#resultSnapshot();
   }
@@ -7201,13 +7182,7 @@ export class DesktopController {
     }
     // A memory review is Sia's own housekeeping, not work the person is waiting for.
     if (this.#assistantLibrary.isReview(thread.id)) return;
-    // The conversation on screen is read as it finishes, like Codex and Claude. The open one
-    // that finished while Sia was out of sight is read once the window shows again.
-    if (this.#state.activeThreadId !== thread.id) thread.unread = true;
-    else if (!this.#isConversationVisible()) {
-      thread.unread = true;
-      this.#finishedWhileAway = thread.id;
-    }
+    thread.unread = true;
     const agent = this.#state.agents.find(({ id }) => id === thread.agentId);
     if (agent?.notificationsEnabled !== false) {
       this.#notify?.({
