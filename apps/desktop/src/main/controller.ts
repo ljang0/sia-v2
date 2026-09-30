@@ -478,6 +478,8 @@ export class DesktopController {
   readonly #keepAwake: ControllerOptions['keepAwake'];
   /** Mac turns currently keeping the display awake; a turn waiting on the person does not. */
   readonly #awakeTurns = new Set<string>();
+  /** Mac turns that started with On my screen: they show the on-screen indicator and Esc. */
+  readonly #foregroundTurns = new Set<string>();
   #macUnavailable: 'locked' | 'asleep' | undefined;
   readonly #phoneTurns = new Set<string>();
   readonly #turnTasks = new Map<string, Promise<void>>();
@@ -1526,6 +1528,22 @@ export class DesktopController {
   }
 
   /** Task metadata and each thread's latest turn, without cloning every thread's history. */
+  /**
+   * Use my Mac turns that are actively working (not paused or waiting on the person), and
+   * whether each controls the screen or works in the background.
+   */
+  screenControl(): Record<string, 'foreground' | 'background'> {
+    const result: Record<string, 'foreground' | 'background'> = {};
+    if (this.#releaseAccessLocked() || this.#macUnavailable) return result;
+    for (const threadId of this.#macTurns.keys()) {
+      const running = this.#runningTurns.get(threadId);
+      const thread = this.#state.threads.find(({ id }) => id === threadId);
+      if (!running || running.signal.aborted || thread?.status !== 'running') continue;
+      result[threadId] = this.#foregroundTurns.has(threadId) ? 'foreground' : 'background';
+    }
+    return result;
+  }
+
   taskSnapshot(): TaskSnapshot {
     if (this.#releaseAccessLocked())
       return {
@@ -1551,6 +1569,7 @@ export class DesktopController {
       ),
       approvals: structuredClone(this.#state.approvals),
       preferences: structuredClone(this.#state.preferences),
+      screenControl: this.screenControl(),
       ...(this.#state.activeAgentId ? { activeAgentId: this.#state.activeAgentId } : {}),
     };
   }
@@ -5346,6 +5365,7 @@ export class DesktopController {
       for (const threadId of this.#awakeTurns) this.#keepAwake?.release(threadId);
       this.#awakeTurns.clear();
       this.#macTurns.clear();
+      this.#foregroundTurns.clear();
       this.#turnTasks.clear();
       this.#workspaceLeases.clear();
       this.#pendingApprovals.clear();
@@ -6545,6 +6565,7 @@ export class DesktopController {
     this.#workspaceLeases.set(thread.workspace, turn.id);
     if (this.#isMacTurn(thread.id)) {
       this.#macTurns.set(thread.id, turn);
+      if (!this.macBackgroundControl()) this.#foregroundTurns.add(thread.id);
       this.#awakeTurns.add(thread.id);
       this.#keepAwake?.hold(thread.id);
     }
@@ -7777,6 +7798,7 @@ export class DesktopController {
     }
     this.#runningTurns.delete(threadId);
     this.#macTurns.delete(threadId);
+    this.#foregroundTurns.delete(threadId);
     if (this.#awakeTurns.delete(threadId)) this.#keepAwake?.release(threadId);
     if (thread) this.#workspaceLeases.delete(thread.workspace);
     this.#drainQueue();

@@ -7,7 +7,10 @@ import type { DesktopSnapshot, TimelineItemView } from '../shared/bridge.js';
 export type TaskSnapshot = Pick<
   DesktopSnapshot,
   'revision' | 'agents' | 'threads' | 'timeline' | 'approvals' | 'activeAgentId' | 'preferences'
->;
+> & {
+  /** Working Use my Mac tasks by thread: on the person's screen or in the background. */
+  screenControl?: Record<string, 'foreground' | 'background'>;
+};
 
 /** Items must belong to one thread and retain timeline order. */
 export function latestTaskTurn(items: readonly TimelineItemView[]) {

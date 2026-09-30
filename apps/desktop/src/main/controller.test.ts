@@ -7984,6 +7984,39 @@ describe('Use my Mac power and lock handling', () => {
     await failing.controller.shutdown();
   });
 
+  it('reports which working Mac tasks use the screen and clears them on stop or lock', async () => {
+    const quiet = await macThread({ runtime: holdingRuntime().runtime });
+    await quiet.controller.invoke('threads.send', {
+      threadId: quiet.threadId,
+      text: 'Tidy my desktop',
+    });
+    await vi.waitFor(() =>
+      expect(quiet.controller.screenControl()).toEqual({ [quiet.threadId]: 'background' }),
+    );
+    expect(quiet.controller.taskSnapshot().screenControl).toEqual({
+      [quiet.threadId]: 'background',
+    });
+    await quiet.controller.invoke('threads.cancel', { threadId: quiet.threadId });
+    await vi.waitFor(() => expect(quiet.status()).toBe('idle'));
+    expect(quiet.controller.screenControl()).toEqual({});
+    await quiet.controller.shutdown();
+
+    const { runtime } = holdingRuntime();
+    const { controller, threadId, status } = await macThread({ runtime });
+    await controller.invoke('computer.setAccessMode', { mode: 'mac', background: false });
+    await controller.invoke('threads.send', { threadId, text: 'File my receipts' });
+    await vi.waitFor(() =>
+      expect(controller.screenControl()).toEqual({ [threadId]: 'foreground' }),
+    );
+    // Switching modes mid-task applies to the next task, not the one on screen.
+    await controller.invoke('computer.setAccessMode', { mode: 'mac', background: true });
+    expect(controller.screenControl()).toEqual({ [threadId]: 'foreground' });
+    controller.setMacAvailability('locked');
+    expect(status()).toBe('failed');
+    expect(controller.screenControl()).toEqual({});
+    await controller.shutdown();
+  });
+
   it('lets the display sleep while a Mac task waits on an approval', async () => {
     const gate = Promise.withResolvers<void>();
     const runtime = {
@@ -8019,6 +8052,8 @@ describe('Use my Mac power and lock handling', () => {
     await vi.waitFor(() => expect(status()).toBe('waiting'));
     expect(keepAwake.hold).toHaveBeenCalledTimes(1);
     expect(keepAwake.release).toHaveBeenCalledWith(threadId);
+    // Waiting on the person hides the screen cue and releases Esc.
+    expect(controller.screenControl()).toEqual({});
     const approval = controller
       .snapshot()
       .approvals.find((item) => item.threadId === threadId)!;
@@ -8027,6 +8062,7 @@ describe('Use my Mac power and lock handling', () => {
       decision: 'approve',
     });
     expect(status()).toBe('running');
+    expect(controller.screenControl()).toEqual({ [threadId]: 'background' });
     expect(keepAwake.hold).toHaveBeenCalledTimes(2);
     gate.resolve();
     await vi.waitFor(() => expect(status()).toBe('idle'));
