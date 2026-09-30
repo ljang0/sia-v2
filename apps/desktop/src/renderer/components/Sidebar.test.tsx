@@ -234,6 +234,52 @@ describe('thread navigation', () => {
     );
   });
 
+  it('lists pinned conversations first in their group and offers Pin or Unpin', async () => {
+    const agents = structuredClone(demoSnapshot.agents);
+    const [newest, older] = agents[0]!.threads;
+    older!.pinned = true;
+    const onSetThreadPinned = vi.fn(async () => undefined);
+    render(
+      <Sidebar
+        agents={agents}
+        selectedAgentId={agents[0]!.id}
+        collapsed={false}
+        onToggle={vi.fn()}
+        onSelectAgent={vi.fn()}
+        onSelectThread={vi.fn()}
+        onCreateThread={vi.fn()}
+        onRenameThread={vi.fn()}
+        onDeleteThread={vi.fn()}
+        onSetThreadPinned={onSetThreadPinned}
+        onCreateAgent={vi.fn()}
+        onEditAgent={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    );
+    const rows = screen
+      .getAllByTestId('thread-actions')
+      .map((button) => button.getAttribute('aria-label'));
+    expect(rows.slice(0, 2)).toEqual([
+      `Conversation actions for ${older!.title}`,
+      `Conversation actions for ${newest!.title}`,
+    ]);
+    expect(screen.getAllByTestId('thread-pinned')).toHaveLength(1);
+
+    fireEvent.pointerDown(
+      screen.getByRole('button', { name: `Conversation actions for ${older!.title}` }),
+      { button: 0, ctrlKey: false },
+    );
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Unpin' }));
+    expect(onSetThreadPinned).toHaveBeenCalledWith(older!.id, false);
+
+    fireEvent.pointerDown(
+      screen.getByRole('button', { name: `Conversation actions for ${newest!.title}` }),
+      { button: 0, ctrlKey: false },
+    );
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Pin' }));
+    expect(onSetThreadPinned).toHaveBeenCalledWith(newest!.id, true);
+  });
+
   it('disables Duplicate while a conversation is working and explains why', async () => {
     const agents = structuredClone(demoSnapshot.agents);
     const thread = agents[0]!.threads[0]!;

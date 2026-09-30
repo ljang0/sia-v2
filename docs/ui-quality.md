@@ -58,7 +58,10 @@ does not erase the whole effect. Chat, Tasks, Memory, and keyboard transitions k
 mounted; Reduce Motion keeps a still gradient.
 
 The desktop sidebar keeps New conversation and filtering above the scrolling task list. Pinned
-agents come first, followed by names; changing selection never reorders groups. Conversation titles
+agents come first, followed by names; changing selection never reorders groups. Within a group,
+conversations pinned from the row menu (Pin / Unpin) come first with a small pin, then the rest by
+recency; ⌘1–9 and the ⌘K Pinned section follow the same order. Conversations saved before pinning
+existed start unpinned, and a duplicate starts unpinned. Conversation titles
 stay on one line with ellipsis, in evenly sized rows. Working, waiting, unread, and draft cues remain
 visible; the full title, draft or latest reply, and update time live in the hover or keyboard-focus
 preview. Previewing does not select the conversation or mark it read. Escape, scrolling, and leaving

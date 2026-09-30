@@ -558,6 +558,14 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         }
       });
     },
+    async setThreadPinned(threadId, pinned) {
+      mutate((current) => {
+        for (const agent of current.agents) {
+          const thread = agent.threads.find(({ id }) => id === threadId);
+          if (thread) thread.pinned = pinned;
+        }
+      });
+    },
     async forkThread(threadId) {
       const source = snapshot.activeThread?.id === threadId ? snapshot.activeThread : undefined;
       if (!source) return '';

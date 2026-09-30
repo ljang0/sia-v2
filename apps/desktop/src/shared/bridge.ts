@@ -100,6 +100,8 @@ export interface ThreadView {
   archivedAt?: string;
   sourceThreadId?: string;
   unread?: boolean;
+  /** Listed first in its agent's conversations. Older saved state has none: unpinned. */
+  pinned?: boolean;
   /** Local encrypted composer text that has not been sent. */
   draft?: string;
   interruptedTurnId?: string;
@@ -638,6 +640,7 @@ export interface BridgeRequestMap {
   'threads.archive': { threadId: string };
   'threads.unarchive': { threadId: string };
   'threads.setUnread': { threadId: string; unread: boolean };
+  'threads.setPinned': { threadId: string; pinned: boolean };
   'threads.fork': { threadId: string; title?: string; isolated: boolean };
   'threads.handoff': {
     threadId: string;
@@ -777,6 +780,7 @@ export interface BridgeResultMap {
   'threads.archive': DesktopSnapshot;
   'threads.unarchive': DesktopSnapshot;
   'threads.setUnread': DesktopSnapshot;
+  'threads.setPinned': DesktopSnapshot;
   'threads.fork': { threadId: string; snapshot: DesktopSnapshot };
   'threads.handoff': { threadId: string; snapshot: DesktopSnapshot };
   'worktrees.cleanup': DesktopSnapshot;
@@ -920,6 +924,7 @@ export interface DesktopBridgeApi {
     archive(threadId: string): Promise<DesktopSnapshot>;
     unarchive(threadId: string): Promise<DesktopSnapshot>;
     setUnread(threadId: string, unread: boolean): Promise<DesktopSnapshot>;
+    setPinned(threadId: string, pinned: boolean): Promise<DesktopSnapshot>;
     fork(
       threadId: string,
       isolated: boolean,

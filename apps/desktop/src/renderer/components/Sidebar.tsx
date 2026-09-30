@@ -18,11 +18,19 @@ import {
   PushPin,
   Pulse,
 } from '@phosphor-icons/react';
-import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  memo,
+  type RefObject,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { AgentSummary, ThreadSummary } from '../types';
 import styles from '../ui.module.css';
 import { focusComposer } from '../composerFocus';
-import { sidebarAgentOrder } from '../shortcuts';
+import { sidebarAgentOrder, sidebarThreadOrder } from '../shortcuts';
 import { AgentForm } from './AgentForm';
 import navigation from './navigation.module.css';
 import { TaskPreviewButton } from './TaskPreviewButton';
@@ -54,6 +62,7 @@ interface SidebarProps {
   onSetAgentNotifications?(agentId: string, enabled: boolean): Promise<void>;
   onDuplicateAgent?(agentId: string): Promise<void>;
   onSetThreadUnread?(threadId: string, unread: boolean): Promise<void>;
+  onSetThreadPinned?(threadId: string, pinned: boolean): Promise<void>;
   onOpenActivity?(): void;
   onOpenSettings(): void;
   onOpenQuickSwitcher?(): void;
@@ -81,6 +90,7 @@ export function Sidebar({
   onSetAgentNotifications,
   onDuplicateAgent,
   onSetThreadUnread,
+  onSetThreadPinned,
   onOpenActivity,
   onOpenSettings,
   onOpenQuickSwitcher,
@@ -169,7 +179,7 @@ export function Sidebar({
     return sidebarAgentOrder(
       agents
         .map((agent) => {
-          const threads = agent.threads.map((thread) =>
+          const threads = sidebarThreadOrder(agent.threads).map((thread) =>
             thread.title === threadDisplayTitle(thread.title)
               ? thread
               : { ...thread, title: threadDisplayTitle(thread.title) },
@@ -510,6 +520,11 @@ export function Sidebar({
                                 ? () => void onSetThreadUnread(thread.id, !thread.unread)
                                 : undefined
                             }
+                            onSetPinned={
+                              onSetThreadPinned
+                                ? () => void onSetThreadPinned(thread.id, !thread.pinned)
+                                : undefined
+                            }
                             onRename={() => {
                               setEditingThread(thread);
                               setEditingTitle(thread.title);
@@ -744,7 +759,18 @@ function useScrollEdges(ref: RefObject<HTMLElement | null>): {
   return { moreAbove, moreBelow };
 }
 
-function ThreadLabel({ thread }: { thread: ThreadSummary }) {
+/** Snapshots rebuild every thread object, so compare only what the label shows. */
+const ThreadLabel = memo(
+  ThreadLabelContent,
+  ({ thread: a }, { thread: b }) =>
+    a.title === b.title &&
+    a.status === b.status &&
+    a.unread === b.unread &&
+    a.pinned === b.pinned &&
+    Boolean(a.draft?.trim()) === Boolean(b.draft?.trim()),
+);
+
+function ThreadLabelContent({ thread }: { thread: ThreadSummary }) {
   const draft = Boolean(thread.draft?.trim());
   const state = threadStateLabel(thread);
   const signal = threadSignal(thread);
@@ -754,7 +780,18 @@ function ThreadLabel({ thread }: { thread: ThreadSummary }) {
       data-thread-draft={draft || undefined}
       data-thread-unread={thread.unread || undefined}
     >
-      <span className={`${styles.threadTitle} ${navigation.taskTitle}`}>{thread.title}</span>
+      <span className={`${styles.threadTitle} ${navigation.taskTitle}`}>
+        {thread.pinned ? (
+          <PushPin
+            className={navigation.taskPin}
+            size={11}
+            weight="fill"
+            aria-hidden="true"
+            data-testid="thread-pinned"
+          />
+        ) : null}
+        {thread.title}
+      </span>
       {draft || state ? (
         <span className={navigation.taskMeta} data-signal={signal}>
           {draft ? <strong>Draft</strong> : null}
@@ -803,6 +840,7 @@ function ThreadMenu({
   onFork,
   onArchive,
   onSetUnread,
+  onSetPinned,
 }: {
   thread: ThreadSummary;
   onRename(): void;
@@ -810,6 +848,7 @@ function ThreadMenu({
   onFork?: ((opener: HTMLElement | null) => void) | undefined;
   onArchive?: (() => void) | undefined;
   onSetUnread?: (() => void) | undefined;
+  onSetPinned?: (() => void) | undefined;
 }) {
   const trigger = useRef<HTMLButtonElement>(null);
   const busy =
@@ -829,6 +868,16 @@ function ThreadMenu({
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content className={styles.threadMenuContent} sideOffset={4} align="start">
+          {onSetPinned ? (
+            <DropdownMenu.Item
+              className={styles.threadMenuItem}
+              onSelect={onSetPinned}
+              data-testid="thread-pin"
+            >
+              <PushPin size={14} aria-hidden="true" />
+              {thread.pinned ? 'Unpin' : 'Pin'}
+            </DropdownMenu.Item>
+          ) : null}
           <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onRename}>
             <PencilSimple size={14} aria-hidden="true" />
             Rename

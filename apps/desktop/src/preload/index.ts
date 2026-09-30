@@ -48,6 +48,7 @@ const api: DesktopBridgeApi = {
     archive: (threadId) => invoke('threads.archive', { threadId }),
     unarchive: (threadId) => invoke('threads.unarchive', { threadId }),
     setUnread: (threadId, unread) => invoke('threads.setUnread', { threadId, unread }),
+    setPinned: (threadId, pinned) => invoke('threads.setPinned', { threadId, pinned }),
     fork: (threadId, isolated, title) =>
       invoke('threads.fork', {
         threadId,

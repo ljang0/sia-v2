@@ -169,4 +169,36 @@ describe('QuickSwitcher resources', () => {
     const option = screen.getByRole('option', { name: /Alpha readiness/ });
     expect(option.querySelector('mark')?.textContent).toBe('readi');
   });
+
+  it('shows pinned conversations in their own browse section, first when titles tie', () => {
+    const pinnedAgents = structuredClone(agents);
+    pinnedAgents[0]!.threads.push({
+      id: 'thread-2',
+      agentId: 'agent-1',
+      title: 'Alpha pinned plan',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+      status: 'idle',
+      pinned: true,
+    });
+    render(
+      <QuickSwitcher
+        open
+        agents={pinnedAgents}
+        actions={[]}
+        onOpenChange={() => undefined}
+        onSelectAgent={() => undefined}
+        onSelectThread={() => undefined}
+      />,
+    );
+
+    const pinned = screen.getByRole('group', { name: 'Pinned' });
+    expect(pinned.textContent).toContain('Alpha pinned plan');
+    expect(pinned.textContent).not.toContain('Alpha readiness');
+    const recent = screen.getByRole('group', { name: 'Recent conversations' });
+    expect(recent.textContent).not.toContain('Alpha pinned plan');
+
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'alpha' } });
+    const options = screen.getAllByRole('option').map((option) => option.textContent);
+    expect(options[0]).toContain('Alpha pinned plan');
+  });
 });

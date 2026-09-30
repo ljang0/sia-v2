@@ -41,6 +41,8 @@ export interface ThreadSummary {
   archivedAt?: string | undefined;
   sourceThreadId?: string | undefined;
   unread?: boolean | undefined;
+  /** Listed first among its agent's conversations. */
+  pinned?: boolean | undefined;
   draft?: string | undefined;
   worktree?:
     | { kind: 'primary'; sourceWorkspace: string; branch?: string | undefined }
@@ -551,6 +553,7 @@ export interface RendererApi {
   archiveThread(threadId: string): Promise<void>;
   unarchiveThread(threadId: string): Promise<void>;
   setThreadUnread(threadId: string, unread: boolean): Promise<void>;
+  setThreadPinned(threadId: string, pinned: boolean): Promise<void>;
   forkThread(threadId: string, isolated: boolean, title?: string): Promise<string>;
   handoffThread(
     threadId: string,

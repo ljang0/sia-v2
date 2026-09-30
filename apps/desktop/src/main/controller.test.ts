@@ -7507,6 +7507,57 @@ it('works in the background by default, including profiles saved before the sett
   await onScreen.controller.shutdown();
 });
 
+it('pins conversations, keeps copies unpinned, and reads older saved threads as unpinned', async () => {
+  const { controller, repository } = await createHarness();
+  const created = await controller.invoke('agents.save', {
+    name: 'Pinned room',
+    instructions: 'Keep things tidy.',
+    provider: 'codex',
+    model: 'gpt-5.6-sol',
+    workspace: '/tmp/sia-workspace',
+  });
+  const first = await controller.invoke('threads.create', { agentId: created.agentId });
+  const second = await controller.invoke('threads.create', { agentId: created.agentId });
+  const before = controller.snapshot().threads.find(({ id }) => id === first.threadId)!;
+  expect(before.pinned).toBe(false);
+
+  await controller.invoke('threads.setPinned', { threadId: first.threadId, pinned: true });
+  const pinned = controller.snapshot().threads.find(({ id }) => id === first.threadId)!;
+  expect(pinned.pinned).toBe(true);
+  // Pinning is not activity: it does not move the conversation in recency order.
+  expect(pinned.updatedAt).toBe(before.updatedAt);
+
+  const copy = await controller.invoke('threads.fork', {
+    threadId: first.threadId,
+    isolated: false,
+  });
+  expect(copy.snapshot.threads.find(({ id }) => id === copy.threadId)?.pinned).toBe(false);
+
+  const reopened = await createHarness({ repository });
+  expect(
+    reopened.controller.snapshot().threads.find(({ id }) => id === first.threadId)?.pinned,
+  ).toBe(true);
+  await reopened.controller.invoke('threads.setPinned', {
+    threadId: first.threadId,
+    pinned: false,
+  });
+  expect(
+    reopened.controller.snapshot().threads.find(({ id }) => id === first.threadId)?.pinned,
+  ).toBe(false);
+
+  const stored = repository.get<{ threads: { id: string; pinned?: boolean }[] }>(
+    'desktop',
+    'state',
+  )!;
+  for (const thread of stored.threads) delete thread.pinned;
+  repository.put('desktop', 'state', stored);
+  const legacy = await createHarness({ repository });
+  expect(
+    legacy.controller.snapshot().threads.find(({ id }) => id === second.threadId)?.pinned,
+  ).toBe(false);
+  await legacy.controller.shutdown();
+});
+
 it('preserves connected mode for existing profiles, including profiles predating the mode setting', async () => {
   const { controller, repository } = await createHarness();
   await controller.invoke('computer.setAccessMode', { mode: 'connected' });
