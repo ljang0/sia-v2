@@ -2773,6 +2773,12 @@ button.agentAvatar {
   animation: dialogExit var(--motion-fast) ease-in;
 }
 
+/* A completed save closes at once (see AgentDialog): unmounting must not wait on animationend. */
+.dialogOverlay[data-instant-close][data-state='closed'],
+.dialogContent[data-instant-close][data-state='closed'] {
+  animation: none;
+}
+
 .alertDialogContent {
   width: min(440px, calc(100vw - 40px));
   padding: 20px;

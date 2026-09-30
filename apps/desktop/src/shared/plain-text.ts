@@ -32,12 +32,14 @@ export function clipText(text: string, max: number): string {
 /** The title a conversation has until its first message names it. */
 export const UNTITLED_THREAD_TITLE = 'New thread';
 
-/** A short conversation title from the person's first request: plain text, no raw URLs. */
+const CONVERSATION_TITLE_MAX = 80;
+
+/**
+ * A conversation title from the person's first request: plain text, no raw URLs. A long
+ * request ends in an ellipsis instead of stopping mid-sentence; the header and sidebar clip
+ * further with CSS and show the whole title on hover.
+ */
 export function conversationTitle(request: string): string {
-  const words = plainText(request)
-    .replace(/https?:\/\/(?:www\.)?([^\s/?#]+)\S*/gi, '$1')
-    .split(' ')
-    .slice(0, 7)
-    .join(' ');
-  return clipText(words, 52);
+  const text = plainText(request).replace(/https?:\/\/(?:www\.)?([^\s/?#]+)\S*/gi, '$1');
+  return clipText(text, CONVERSATION_TITLE_MAX);
 }

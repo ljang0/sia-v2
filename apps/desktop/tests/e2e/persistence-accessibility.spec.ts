@@ -60,7 +60,12 @@ test('saved agents, threads, transcripts, and drafts survive a full app relaunch
         .getByRole('complementary', { name: 'Agent navigation' })
         .getByRole('button', { name: 'Agent actions for Persistent helper', exact: true }),
     ).toBeVisible();
-    await expect(restoredPage.getByText(prompt, { exact: true })).toBeVisible();
+    // The title repeats a short request in the header and sidebar; check the transcript itself.
+    await expect(
+      restoredPage
+        .getByLabel('Conversation', { exact: true })
+        .getByText(prompt, { exact: true }),
+    ).toBeVisible();
     await expect(restoredPage.getByText(assistantReply, { exact: true })).toBeVisible();
     await expect(restoredPage.getByRole('textbox', { name: 'Message' })).toHaveValue(draft);
     await expect(restoredPage.getByText('Draft', { exact: true })).toBeVisible();

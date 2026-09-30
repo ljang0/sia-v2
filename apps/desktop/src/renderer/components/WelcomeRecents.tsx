@@ -37,7 +37,9 @@ export function WelcomeRecents({
             >
               <span className={styles.dot} aria-hidden="true" />
               <span className={styles.copy}>
-                <strong>{threadDisplayTitle(thread.title)}</strong>
+                <strong title={threadDisplayTitle(thread.title)}>
+                  {threadDisplayTitle(thread.title)}
+                </strong>
                 {preview ? <span className={styles.preview}>{preview}</span> : null}
               </span>
               <span className={styles.meta}>

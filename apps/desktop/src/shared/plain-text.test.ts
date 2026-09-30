@@ -35,4 +35,16 @@ describe('plainText', () => {
     ).toBe('Summarize this doc: docs.google.com');
     expect(conversationTitle('```\nconst x = 1\n```')).toBe('');
   });
+
+  it('keeps a whole short request and ends a long one with an ellipsis', () => {
+    expect(conversationTitle('Summarize the next three steps for the alpha review.')).toBe(
+      'Summarize the next three steps for the alpha review.',
+    );
+    const long = conversationTitle(
+      'Plan a weekend in Pittsburgh with a museum, a long walk by the rivers, and a quiet dinner somewhere nearby',
+    );
+    expect(long.endsWith('…')).toBe(true);
+    expect(long.length).toBeLessThanOrEqual(80);
+    expect(long).toMatch(/^Plan a weekend in Pittsburgh with a museum/);
+  });
 });

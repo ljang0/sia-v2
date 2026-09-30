@@ -13,7 +13,15 @@ import {
   X,
   WarningCircle,
 } from '@phosphor-icons/react';
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { Onboarding, onboardingStep } from './components/Onboarding';
 import { AgentDialog } from './components/AgentDialog';
 import { WorkspaceNotice } from './components/AppStates';
@@ -25,6 +33,7 @@ import { Inspector } from './components/Inspector';
 import { RoomHeader } from './components/RoomHeader';
 import { QuickSwitcher, type QuickSwitcherAction } from './components/QuickSwitcher';
 import { KeyboardShortcuts } from './components/KeyboardShortcuts';
+import { useReadOnScreen, useWindowVisible } from './readOnScreen';
 import { conversationForShortcut } from './shortcuts';
 import { Settings } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
@@ -84,6 +93,16 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   );
   useInstantThemeSwitch();
   useTextSize(app.snapshot?.preferences.textSize);
+  const windowVisible = useWindowVisible();
+  const markRead = useCallback(
+    (threadId: string) => void app.api.setThreadUnread(threadId, false).catch(() => undefined),
+    [app.api],
+  );
+  useReadOnScreen(
+    app.snapshot?.activeThread,
+    windowVisible && viewKey.startsWith('thread:'),
+    markRead,
+  );
   const [reveal, setReveal] = useState(0);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
