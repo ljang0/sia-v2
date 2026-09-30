@@ -40,6 +40,7 @@ import { Threads } from './threads.js';
 import { Approvals } from './approvals.js';
 import { Turns } from './turns.js';
 import { TurnRunner } from './turn-runner.js';
+import { RuntimeEventApplier } from './runtime-events.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -67,6 +68,7 @@ export class DesktopController {
       approvals: new Approvals(ctx),
       turns: new Turns(ctx),
       runner: new TurnRunner(ctx),
+      runtimeEvents: new RuntimeEventApplier(ctx),
     }));
   }
 

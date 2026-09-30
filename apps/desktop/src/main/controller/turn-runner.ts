@@ -299,11 +299,11 @@ export class TurnRunner {
               text: macTask.result.response,
               timestamp: event.timestamp,
             });
-            this.ctx.applyRuntimeEvent({
+            this.ctx.runtimeEvents.apply({
               ...event,
               payload: { ...event.payload, status: 'failed' },
             });
-          } else this.ctx.applyRuntimeEvent(event);
+          } else this.ctx.runtimeEvents.apply(event);
           if (stoppedStatus) {
             thread.status = stoppedStatus.status;
             if (stoppedStatus.queueReason) thread.queueReason = stoppedStatus.queueReason;
