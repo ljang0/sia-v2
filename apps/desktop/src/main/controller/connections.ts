@@ -106,7 +106,7 @@ export class ConnectorConnections {
     if (google.some(({ upgradeConnectionId }) => Boolean(upgradeConnectionId))) {
       return { opened: false, snapshot: this.ctx.resultSnapshot() };
     }
-    const owner = this.ctx.currentIdentityKey();
+    const owner = this.ctx.account.currentIdentityKey();
     if (!this.ctx.deps.fakeServices && !owner) {
       throw new Error('Sign in to Sia cloud before enabling Google editing.');
     }
@@ -165,7 +165,7 @@ export class ConnectorConnections {
       throw new Error('Connect Google Workspace before changing its service access.');
     }
     const owner = this.ctx.state.connectionOwners[connectionId];
-    if (!this.ctx.deps.fakeServices && owner !== this.ctx.currentIdentityKey()) {
+    if (!this.ctx.deps.fakeServices && owner !== this.ctx.account.currentIdentityKey()) {
       throw new Error('Sign in with the account that created this grant before changing it.');
     }
     this.generations.set(connectionId, (this.generations.get(connectionId) ?? 0) + 1);
@@ -319,7 +319,7 @@ export class ConnectorConnections {
       });
       existing = this.ctx.state.connections.find(({ id }) => id === connectionId);
     }
-    const owner = this.ctx.currentIdentityKey();
+    const owner = this.ctx.account.currentIdentityKey();
     if (!this.ctx.deps.fakeServices && !owner) {
       throw new Error('Sign in to Sia cloud before connecting an app.');
     }
@@ -413,7 +413,11 @@ export class ConnectorConnections {
     this.setup?.controller.abort();
     this.generations.set(connectionId, (this.generations.get(connectionId) ?? 0) + 1);
     const owner = this.ctx.state.connectionOwners[connectionId];
-    if (!this.ctx.deps.fakeServices && owner && owner !== this.ctx.currentIdentityKey()) {
+    if (
+      !this.ctx.deps.fakeServices &&
+      owner &&
+      owner !== this.ctx.account.currentIdentityKey()
+    ) {
       throw new Error('Sign in with the account that created this grant before revoking it.');
     }
     if (!this.ctx.deps.fakeServices && current?.connectionId) {

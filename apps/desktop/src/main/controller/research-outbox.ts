@@ -52,7 +52,7 @@ export class ResearchOutbox {
       throw new Error('Review and accept the research consent before enabling capture.');
     }
     if (input.enabled) {
-      const identity = this.ctx.currentIdentityKey();
+      const identity = this.ctx.account.currentIdentityKey();
       if (
         identity &&
         this.ctx.state.researchIdentity &&
@@ -305,7 +305,7 @@ export class ResearchOutbox {
       this.ctx.deps.fakeServices ||
       !this.ctx.deps.cloud.configured ||
       this.ctx.deps.identity.status().state !== 'signed_in' ||
-      this.ctx.state.researchIdentity !== this.ctx.currentIdentityKey()
+      this.ctx.state.researchIdentity !== this.ctx.account.currentIdentityKey()
     ) {
       if (this.ctx.state.capture.status === 'recording') {
         this.ctx.state.capture.status = 'sync_pending';

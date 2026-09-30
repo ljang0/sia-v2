@@ -119,7 +119,6 @@ import {
   EMPTY_CONNECTIONS,
   GOOGLE_WORKSPACE_ACTION,
   isConnectorActionTool,
-  isGoogleConnection,
 } from './connection-ids.js';
 import { modelRouteKey, requireReleaseProvider } from './execution-routes.js';
 import {
@@ -127,7 +126,7 @@ import {
   type PersistedState,
   recoverPersistedState,
 } from './persisted-state.js';
-import { LOCAL_RESEARCH_IDENTITY, SAFE_RESEARCH_ACTIONS } from './research-records.js';
+import { SAFE_RESEARCH_ACTIONS } from './research-records.js';
 import { isStreamingDelta } from './runtime-events.js';
 import {
   defaultScheduleRunLimit,
@@ -151,6 +150,7 @@ import { normalizeWorkspace, workspaceSlug, worktreeLabel } from './workspace-pa
 import type { ResearchOutbox } from './research-outbox.js';
 import type { ResearchCapture } from './research-capture.js';
 import type { ConnectorConnections } from './connections.js';
+import type { CloudAccount } from './account.js';
 
 const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
   'bootstrap',
@@ -166,7 +166,7 @@ type BridgeHandlers = { [M in BridgeMethod]?: BridgeHandler<M> };
 
 /** The domain collaborators a context is wired with. */
 export type ControllerServices = Pick<ControllerContext, ServiceName>;
-type ServiceName = 'researchOutbox' | 'researchCapture' | 'connections';
+type ServiceName = 'researchOutbox' | 'researchCapture' | 'connections' | 'account';
 
 /**
  * Everything the desktop controller knows and does. DesktopController is the public facade;
@@ -178,6 +178,7 @@ export class ControllerContext {
   declare readonly researchOutbox: ResearchOutbox;
   declare readonly researchCapture: ResearchCapture;
   declare readonly connections: ConnectorConnections;
+  declare readonly account: CloudAccount;
   readonly assistantLibrary: AssistantLibrary;
   codexSetupPending = false;
   /** Aborts a ChatGPT browser sign-in that is still waiting on the person. */
@@ -242,10 +243,7 @@ export class ControllerContext {
   readonly browserContinuations = new Set<string>();
   browserAutoAttach: Promise<void> | undefined;
   revision = 0;
-  accountDeletionInProgress = false;
   shuttingDown = false;
-  signOutInProgress = false;
-  cloudParticipant = false;
   updates: UpdateView;
 
   constructor(
@@ -506,8 +504,8 @@ export class ControllerContext {
     return (
       !this.shuttingDown &&
       !this.codexSetupPending &&
-      !this.accountDeletionInProgress &&
-      !this.signOutInProgress &&
+      !this.account.accountDeletionInProgress &&
+      !this.account.signOutInProgress &&
       !this.releaseAccessLocked()
     );
   }
@@ -1092,8 +1090,8 @@ export class ControllerContext {
       else this.providers.push(fakeCodex);
     }
     await this.refreshProviderModels();
-    await this.reconcileIdentityBoundState();
-    await this.refreshCloudSession();
+    await this.account.reconcileIdentityBoundState();
+    await this.account.refreshCloudSession();
     await this.refreshMetaProviderState();
     if (this.deps.identity.status().state === 'signed_in') {
       await this.deps.voice?.refresh().catch(() => undefined);
@@ -1254,17 +1252,19 @@ export class ControllerContext {
     const identity = this.deps.identity.status();
     const cloud: DesktopSnapshot['cloud'] = {
       status:
-        this.deps.cloud.configured && identity.state === 'signed_in' && !this.signOutInProgress
+        this.deps.cloud.configured &&
+        identity.state === 'signed_in' &&
+        !this.account.signOutInProgress
           ? 'online'
           : 'offline',
       auth: this.deps.cloud.configured
-        ? this.signOutInProgress || identity.state === 'unconfigured'
+        ? this.account.signOutInProgress || identity.state === 'unconfigured'
           ? 'signed_out'
           : identity.state
         : 'unconfigured',
       ...(identity.email ? { account: identity.email } : {}),
       ...(identity.admin ? { admin: true } : {}),
-      ...(this.cloudParticipant ? { participant: true } : {}),
+      ...(this.account.cloudParticipant ? { participant: true } : {}),
       ...(identity.adminMfa ? { adminMfa: true } : {}),
       features: structuredClone(this.state.cloudFeatures),
     };
@@ -1407,10 +1407,10 @@ export class ControllerContext {
       method !== 'providers.cancelLogin'
     )
       this.requireCodexSetupIdle();
-    if (this.accountDeletionInProgress && method !== 'bootstrap') {
+    if (this.account.accountDeletionInProgress && method !== 'bootstrap') {
       throw new Error('Sia account deletion is in progress. Wait for it to finish.');
     }
-    if (this.signOutInProgress && method !== 'bootstrap') {
+    if (this.account.signOutInProgress && method !== 'bootstrap') {
       throw new Error('Sia sign-out is in progress. Wait for it to finish.');
     }
     if (this.releaseAccessLocked() && !SIGN_IN_BRIDGE_METHODS.has(method)) {
@@ -1531,12 +1531,12 @@ export class ControllerContext {
       this.connections.startAppConnection(connectionId),
     'connections.setEnabled': (input) => this.connections.setConnectionEnabled(input),
     'connections.disconnect': (input) => this.connections.disconnectConnection(input),
-    'auth.start': ({ email }) => this.startSignIn(email),
-    'auth.complete': ({ code }) => this.completeSignIn(code),
-    'auth.mfaBegin': () => this.beginMfaEnrollment(),
-    'auth.mfaComplete': ({ code }) => this.completeMfaEnrollment(code),
-    'auth.signOut': () => this.signOut(),
-    'auth.deleteAccount': ({ confirmation }) => this.deleteCloudAccount(confirmation),
+    'auth.start': ({ email }) => this.account.startSignIn(email),
+    'auth.complete': ({ code }) => this.account.completeSignIn(code),
+    'auth.mfaBegin': () => this.account.beginMfaEnrollment(),
+    'auth.mfaComplete': ({ code }) => this.account.completeMfaEnrollment(code),
+    'auth.signOut': () => this.account.signOut(),
+    'auth.deleteAccount': ({ confirmation }) => this.account.deleteCloudAccount(confirmation),
     'research.setCapture': (input) => this.researchOutbox.setCapture(input),
     'research.export': () => this.researchOutbox.exportResearch(),
     'research.delete': ({ confirmation }) => this.researchOutbox.deleteResearch(confirmation),
@@ -1907,13 +1907,6 @@ export class ControllerContext {
   async speak(value: BridgeRequestMap['voice.speak']): Promise<BridgeResultMap['voice.speak']> {
     this.requireVoiceAvailable();
     return await this.requireVoice().speak(value.text, value.voiceId);
-  }
-
-  async beginMfaEnrollment(): Promise<BridgeResultMap['auth.mfaBegin']> {
-    if (!this.deps.identity.beginMfaEnrollment) {
-      throw new Error('Authenticator setup is unavailable in this build.');
-    }
-    return await this.deps.identity.beginMfaEnrollment();
   }
 
   async authorizeComputer(
@@ -3684,7 +3677,7 @@ export class ControllerContext {
     if (
       this.codexSetupPending ||
       this.scheduleRunInFlight ||
-      this.accountDeletionInProgress ||
+      this.account.accountDeletionInProgress ||
       !this.schedulesAvailable()
     )
       return;
@@ -3832,7 +3825,7 @@ export class ControllerContext {
   async probeProviders(providerId?: ProviderId): Promise<DesktopSnapshot> {
     if (providerId === 'meta' && this.deps.identity.status().state === 'signed_in') {
       await this.deps.identity.refreshSession?.();
-      await this.refreshCloudSession();
+      await this.account.refreshCloudSession();
     }
     const updated = await this.deps.providerProbe(providerId);
     if (providerId) {
@@ -3880,7 +3873,7 @@ export class ControllerContext {
 
   requireSafeCodexRestart(): void {
     this.requireSignedInReleaseAccount();
-    if (this.signOutInProgress || this.accountDeletionInProgress)
+    if (this.account.signOutInProgress || this.account.accountDeletionInProgress)
       throw new Error('Finish the account change before setting up Codex.');
     if (
       this.runningTurns.size ||
@@ -4392,273 +4385,9 @@ export class ControllerContext {
     return this.deps.voice;
   }
 
-  async startSignIn(email: string): Promise<DesktopSnapshot> {
-    if (this.deps.cloud.configured) await this.deps.cloud.registerAccount(email);
-    await this.deps.identity.startEmailSignIn(email);
-    this.emit();
-    return this.resultSnapshot();
-  }
-
-  async completeSignIn(code: string): Promise<DesktopSnapshot> {
-    const state = this.deps.identity.status().state;
-    if (state === 'password_required') {
-      if (!this.deps.identity.completePasswordSignIn) {
-        throw new Error('Administrator password sign-in is unavailable in this build.');
-      }
-      await this.deps.identity.completePasswordSignIn(code);
-    } else if (state === 'mfa_required') {
-      if (!this.deps.identity.completeMfaSignIn) {
-        throw new Error('Authenticator sign-in is unavailable in this build.');
-      }
-      await this.deps.identity.completeMfaSignIn(code);
-    } else {
-      await this.deps.identity.completeEmailSignIn(code);
-    }
-    await this.reconcileIdentityBoundState();
-    await this.refreshCloudSession();
-    await this.refreshMetaProviderState();
-    await this.deps.voice?.refresh().catch(() => undefined);
-    this.researchOutbox.scheduleSync();
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  async completeMfaEnrollment(code: string): Promise<DesktopSnapshot> {
-    if (!this.deps.identity.completeMfaEnrollment) {
-      throw new Error('Authenticator setup is unavailable in this build.');
-    }
-    await this.deps.identity.completeMfaEnrollment(code);
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  async refreshCloudSession(): Promise<void> {
-    if (
-      this.deps.fakeServices ||
-      !this.deps.cloud.configured ||
-      this.deps.identity.status().state !== 'signed_in'
-    )
-      return;
-    try {
-      const previousToolAvailability = this.toolAvailabilitySignature();
-      const session = await this.deps.cloud.sessionStatus();
-      this.cloudParticipant = session.participant;
-      this.state.cloudFeatures = structuredClone(session.features);
-      if (!session.features.researchUploads)
-        this.researchOutbox.disableForCurrentAccessPolicy();
-      if (previousToolAvailability !== this.toolAvailabilitySignature()) {
-        await this.runtime?.resetSessions();
-      }
-    } catch {
-      // Keep the last signed operator policy while offline. Cloud endpoints enforce the current
-      // policy independently, so a stale cache cannot re-enable a server-side capability.
-    }
-  }
-
   schedulesAvailable(): boolean {
     if (this.releaseAccessLocked()) return false;
     return this.state.cloudFeatures?.schedules !== false;
-  }
-
-  toolAvailabilitySignature(): string {
-    return `${this.actionToolAvailable('mail_search')}:${this.actionToolAvailable('schedule_list')}`;
-  }
-
-  async signOut(): Promise<DesktopSnapshot> {
-    this.signOutInProgress = true;
-    this.emit();
-    try {
-      this.connections.setup?.controller.abort();
-      await this.stopAllWorkForAuthenticationBoundary();
-      if (this.deps.cloud.configured) {
-        await this.researchOutbox.inFlightSync?.catch(() => undefined);
-        this.researchOutbox.refreshPendingCount();
-        if (this.state.capture.pendingCount > 0) {
-          await this.researchOutbox.syncBatches(this.researchOutbox.generation);
-          this.researchOutbox.refreshPendingCount();
-        }
-        if (this.state.capture.pendingCount > 0) {
-          throw new Error(
-            'Sia still has raw research waiting for AWS. Reconnect and retry, or delete the research data before signing out.',
-          );
-        }
-      }
-      await this.researchOutbox.clearForIdentityBoundary();
-      await this.deps.identity.signOut();
-      this.cloudParticipant = false;
-      this.state.cloudFeatures = structuredClone(INITIAL_STATE.cloudFeatures);
-      await this.runtime?.resetSessions();
-      await this.refreshMetaProviderState();
-      this.connections.lockConnections(
-        'Sign in with the account that created this grant to manage it.',
-      );
-      this.commit();
-      return this.resultSnapshot();
-    } finally {
-      this.signOutInProgress = false;
-      this.emit();
-    }
-  }
-
-  async stopAllWorkForAuthenticationBoundary(): Promise<void> {
-    this.deps.voice?.disconnect();
-    const queuedTurnIds = this.queuedTurns.map(({ id }) => id);
-    const affectedThreadIds = new Set(this.queuedTurns.map(({ threadId }) => threadId));
-    this.queuedTurns = [];
-    for (const turnId of queuedTurnIds) this.researchCapture.discardResearchTurn(turnId);
-
-    for (const [threadId, running] of this.runningTurns) {
-      affectedThreadIds.add(threadId);
-      const thread = this.state.threads.find(({ id }) => id === threadId);
-      const turnId = thread ? this.workspaceLeases.get(thread.workspace) : undefined;
-      running.abort(new Error('Sia signed out.'));
-      if (turnId) {
-        this.revokeApprovalsForTurn(threadId, turnId);
-        void this.runtime?.cancel(threadId, turnId).catch(() => undefined);
-      }
-    }
-    for (const [threadId, question] of this.pendingQuestions) {
-      affectedThreadIds.add(threadId);
-      void this.runtime
-        ?.respondToRequest(threadId, { requestId: question.requestId })
-        .catch(() => undefined);
-    }
-    this.pendingQuestions.clear();
-    for (const [approvalId, pending] of [...this.pendingApprovals]) {
-      this.revokeApproval(approvalId, pending);
-    }
-    for (const threadId of affectedThreadIds) {
-      const thread = this.state.threads.find(({ id }) => id === threadId);
-      if (thread) {
-        thread.status = 'idle';
-        delete thread.queueReason;
-      }
-    }
-    await Promise.allSettled([...this.turnTasks.values()]);
-  }
-
-  async deleteCloudAccount(confirmation: 'DELETE ACCOUNT'): Promise<DesktopSnapshot> {
-    if (confirmation !== 'DELETE ACCOUNT') {
-      throw new Error('Enter DELETE ACCOUNT exactly to confirm account deletion.');
-    }
-    if (!this.deps.cloud.configured) {
-      throw new Error('Sia cloud account deletion is not configured in this build.');
-    }
-    if (this.deps.identity.status().state !== 'signed_in') {
-      throw new Error('Sign in to the Sia cloud account you want to delete.');
-    }
-
-    const previousCapture = structuredClone(this.state.capture);
-    this.connections.setup?.controller.abort();
-    const inFlightResearchSync = this.researchOutbox.inFlightSync;
-    let cloudCompleted = false;
-    this.accountDeletionInProgress = true;
-    this.deps.voice?.disconnect();
-    this.state.capture.status = 'deleting';
-    this.commit();
-
-    try {
-      this.researchOutbox.generation += 1;
-      if (this.researchOutbox.retryTimer) {
-        clearTimeout(this.researchOutbox.retryTimer);
-        this.researchOutbox.retryTimer = undefined;
-      }
-
-      const queuedTurnIds = this.queuedTurns.map(({ id }) => id);
-      const affectedThreadIds = new Set(this.queuedTurns.map(({ threadId }) => threadId));
-      this.queuedTurns = [];
-      for (const turnId of queuedTurnIds) this.researchCapture.discardResearchTurn(turnId);
-
-      for (const [threadId, running] of this.runningTurns) {
-        affectedThreadIds.add(threadId);
-        const thread = this.state.threads.find(({ id }) => id === threadId);
-        const turnId = thread ? this.workspaceLeases.get(thread.workspace) : undefined;
-        running.abort(new Error('Sia account deletion was requested.'));
-        if (turnId) {
-          this.revokeApprovalsForTurn(threadId, turnId);
-          void this.runtime?.cancel(threadId, turnId).catch(() => undefined);
-        }
-      }
-      for (const [threadId, question] of this.pendingQuestions) {
-        affectedThreadIds.add(threadId);
-        void this.runtime
-          ?.respondToRequest(threadId, { requestId: question.requestId })
-          .catch(() => undefined);
-      }
-      this.pendingQuestions.clear();
-      for (const [approvalId, pending] of [...this.pendingApprovals]) {
-        this.revokeApproval(approvalId, pending);
-      }
-      for (const threadId of affectedThreadIds) {
-        const thread = this.state.threads.find(({ id }) => id === threadId);
-        if (thread) {
-          thread.status = 'idle';
-          delete thread.queueReason;
-        }
-      }
-
-      await Promise.allSettled([...this.turnTasks.values()]);
-      await inFlightResearchSync?.catch(() => undefined);
-
-      const deletion = await this.deps.cloud.deleteAccountData();
-      if (
-        deletion.scope !== 'account' ||
-        deletion.state !== 'completed' ||
-        deletion.id.length === 0
-      ) {
-        throw new Error('Sia cloud did not confirm the accepted account deletion job.');
-      }
-      cloudCompleted = true;
-
-      // The concrete identity manager clears encrypted local tokens before its
-      // best-effort Cognito revocation call. The cloud identity is already gone.
-      await this.deps.identity.signOut().catch(() => undefined);
-      if (this.browserSessionId) {
-        await this.deps.computer
-          .call(
-            'end_session',
-            { session: this.browserSessionId },
-            { kind: 'direct_user', operation: 'browser_detach' },
-          )
-          .catch(() => undefined);
-      }
-      this.browserCapabilitySink?.resetBrowserCapabilities();
-      this.browserTarget = undefined;
-      this.browserSessionId = undefined;
-      await this.runtime?.resetSessions();
-
-      this.researchCapture.staging.clear();
-      this.workspaceGrants.clear();
-      this.approvedConnectorBindings.clear();
-      this.runningTurns.clear();
-      for (const threadId of this.awakeTurns) this.deps.keepAwake?.release(threadId);
-      this.awakeTurns.clear();
-      this.macTurns.clear();
-      this.foregroundTurns.clear();
-      this.turnTasks.clear();
-      this.workspaceLeases.clear();
-      this.pendingApprovals.clear();
-      this.deps.repository.clearAll();
-      this.state = structuredClone(INITIAL_STATE);
-      this.researchOutbox.inFlightSync = undefined;
-      this.researchOutbox.retryDelayMs = 15_000;
-      await this.refreshMetaProviderState();
-      this.revision += 1;
-      this.emit();
-      return this.resultSnapshot();
-    } catch (error) {
-      if (cloudCompleted) {
-        throw new Error(
-          'Your Sia cloud account was deleted, but this Mac could not finish clearing local Sia data. Quit Sia and contact the maintainer before using it again.',
-        );
-      }
-      this.state.capture = previousCapture;
-      this.commit();
-      this.researchOutbox.scheduleSync();
-      throw error;
-    } finally {
-      this.accountDeletionInProgress = false;
-    }
   }
 
   async refreshMetaProviderState(): Promise<void> {
@@ -6164,98 +5893,6 @@ export class ControllerContext {
     this.commit();
   }
 
-  currentIdentityKey(): string | undefined {
-    const status = this.deps.identity.status();
-    return status.state === 'signed_in' && status.email
-      ? status.email.trim().toLowerCase()
-      : undefined;
-  }
-
-  async reconcileIdentityBoundState(): Promise<void> {
-    if (this.deps.fakeServices) return;
-    const storedBatches = this.researchOutbox.batches();
-    if (!this.state.researchIdentity && storedBatches.length > 0) {
-      // Old local-only builds predate the ownership marker. Fail private: retain those
-      // batches locally and mark them ineligible for any future cloud sync.
-      this.state.researchIdentity = LOCAL_RESEARCH_IDENTITY;
-      for (const batch of storedBatches) {
-        if (batch.syncEligible === false) continue;
-        this.deps.repository.put('research', batch.batchId, { ...batch, syncEligible: false });
-      }
-    }
-    const identity = this.currentIdentityKey();
-    if (!identity) {
-      if (
-        this.deps.cloud.configured &&
-        this.state.researchIdentity !== LOCAL_RESEARCH_IDENTITY &&
-        (this.state.researchIdentity || storedBatches.length)
-      ) {
-        this.state.capture = {
-          status: 'not_consented',
-          pendingCount: this.state.capture.pendingCount,
-          ...(this.state.capture.promptReviewedVersion
-            ? { promptReviewedVersion: this.state.capture.promptReviewedVersion }
-            : {}),
-        };
-      }
-      this.connections.lockConnections(
-        'Sign in with the account that created this grant to manage it.',
-      );
-      return;
-    }
-    if (this.state.researchIdentity === LOCAL_RESEARCH_IDENTITY) {
-      // Existing local captures stay local-only. New captures can sync under the
-      // explicitly signed-in identity covered by the same reviewed consent.
-      this.state.researchIdentity = identity;
-    } else if (this.state.researchIdentity && this.state.researchIdentity !== identity) {
-      if (storedBatches.some(({ batchId }) => !this.researchOutbox.batchSynced(batchId))) {
-        this.researchOutbox.blockCapture(
-          'This Mac has unsynced research for another Sia account. Sign in with that account or delete its local research before continuing.',
-        );
-        this.connections.lockConnections('This grant belongs to another Sia cloud account.');
-        return;
-      }
-      await this.researchOutbox.clearForIdentityBoundary();
-    }
-    const pendingGoogleUpgrades = new Set<string>();
-    for (const connection of this.state.connections) {
-      if (!connection.connectionId) continue;
-      const owner = this.state.connectionOwners[connection.id];
-      if (owner !== identity) {
-        connection.status = 'error';
-        delete connection.account;
-        connection.detail = owner
-          ? 'This grant belongs to another Sia cloud account.'
-          : 'This legacy grant has no verifiable account owner; reconnect is blocked.';
-        continue;
-      }
-      try {
-        const result = await this.deps.cloud.connectionStatus(connection.id);
-        const remote = result.connections.find(({ id }) => id === connection.connectionId);
-        if (remote?.status === 'connected') {
-          connection.status = 'connected';
-          if (remote.accountLabel) connection.account = remote.accountLabel;
-          if (isGoogleConnection(connection.id) && remote.access) {
-            connection.googleAccess = remote.access;
-          }
-          if (connection.upgradeConnectionId) {
-            pendingGoogleUpgrades.add(connection.upgradeConnectionId);
-          }
-          delete connection.detail;
-        } else {
-          connection.status = 'error';
-          connection.detail =
-            'This saved grant is not connected. Disconnect it before starting a new grant.';
-        }
-      } catch {
-        connection.status = 'error';
-        connection.detail = 'Sia could not verify this saved grant. Try again when online.';
-      }
-    }
-    for (const upgradeId of pendingGoogleUpgrades)
-      void this.connections.pollGoogleUpgrade(upgradeId);
-  }
-
   requireAgent(id: string): AgentView {
     const agent = this.state.agents.find((candidate) => candidate.id === id);
     if (!agent) throw new Error('Agent not found.');
@@ -6301,7 +5938,7 @@ export class ControllerContext {
   releaseAccessLocked(): boolean {
     return (
       this.deps.cloud.configured &&
-      (this.signOutInProgress || this.deps.identity.status().state !== 'signed_in')
+      (this.account.signOutInProgress || this.deps.identity.status().state !== 'signed_in')
     );
   }
 

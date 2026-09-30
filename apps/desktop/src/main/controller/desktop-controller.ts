@@ -26,6 +26,7 @@ import type { BrowserCapabilitySink, ControllerOptions } from './types.js';
 import { ResearchOutbox } from './research-outbox.js';
 import { ResearchCapture } from './research-capture.js';
 import { ConnectorConnections } from './connections.js';
+import { CloudAccount } from './account.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -39,6 +40,7 @@ export class DesktopController {
       researchOutbox: new ResearchOutbox(ctx),
       researchCapture: new ResearchCapture(ctx),
       connections: new ConnectorConnections(ctx),
+      account: new CloudAccount(ctx),
     }));
   }
 
