@@ -166,6 +166,7 @@ const api: DesktopBridgeApi = {
   providers: {
     probe: (providerId) => invoke('providers.probe', providerId ? { providerId } : {}),
     login: (providerId) => invoke('providers.login', { providerId }),
+    cancelLogin: (providerId) => invoke('providers.cancelLogin', { providerId }),
   },
   settings: {
     openDirectory: () => invoke('settings.openDirectory', undefined),
@@ -194,7 +195,8 @@ const api: DesktopBridgeApi = {
   },
   computer: {
     permissions: () => invoke('computer.permissions', undefined),
-    requestPermissions: () => invoke('computer.requestPermissions', undefined),
+    requestPermissions: (permission) =>
+      invoke('computer.requestPermissions', permission ? { permission } : undefined),
     requestAutomation: (app) => invoke('computer.requestAutomation', { app }),
     openMessages: () => invoke('computer.openMessages', undefined),
     setupMessages: () => invoke('computer.setupMessages', undefined),

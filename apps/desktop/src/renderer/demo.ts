@@ -477,6 +477,48 @@ export const demoSnapshot: RendererSnapshot = {
 
 const clone = <T>(value: T): T => structuredClone(value);
 
+/** `#demo?setup`: first-run Mac access with a realistic mix of granted and missing permissions. */
+export function demoSetupSnapshot(variant?: string | null): RendererSnapshot {
+  const snapshot = structuredClone(demoSnapshot);
+  snapshot.preferences.onboarding = {
+    step: 'verify',
+    agentId: snapshot.selectedAgentId!,
+    permissionSetup: { includeApps: true, active: false },
+  };
+  snapshot.computer = {
+    ...snapshot.computer,
+    accessMode: 'mac',
+    trust: 'auto',
+    accessibility: 'allowed',
+    screenRecording: 'not-requested',
+    ...(variant === 'relaunch' ? { relaunchFor: ['screenRecording' as const] } : {}),
+    messagesAccess: 'needs_full_disk_access',
+    automation: {
+      system_events: 'ready',
+      safari: 'needs_permission',
+      chrome: 'unavailable',
+      calendar: 'ready',
+      reminders: 'needs_permission',
+      finder: 'ready',
+      messages: 'denied',
+    },
+  };
+  snapshot.voice = {
+    ...snapshot.voice,
+    engine: 'macos',
+    dictationAvailable: true,
+    speechRecognition: 'not-requested',
+    pushToTalk: {
+      available: true,
+      enabled: false,
+      accessibility: true,
+      microphone: false,
+      phase: 'idle',
+    },
+  };
+  return snapshot;
+}
+
 export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
   let snapshot = clone(seed);
   const listeners = new Set<(next: RendererSnapshot) => void>();
@@ -1020,6 +1062,16 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         if (target && target.status !== 'disabled') target.status = 'ready';
       });
     },
+    async cancelProviderSetup(provider) {
+      mutate((current) => {
+        const target = current.providers.find((item) => item.id === provider);
+        if (target?.setup?.phase === 'signing-in')
+          target.setup = {
+            phase: 'error',
+            message: 'ChatGPT sign-in was cancelled. Choose Try again to start over.',
+          };
+      });
+    },
     async refreshProvider() {
       return Promise.resolve();
     },
@@ -1180,10 +1232,10 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
     },
     async revealTrajectories() {},
     async refreshComputerPermissions() {},
-    async requestComputerPermissions() {
+    async requestComputerPermissions(permission) {
       mutate((current) => {
-        current.computer.accessibility = 'allowed';
-        current.computer.screenRecording = 'allowed';
+        if (permission !== 'screenRecording') current.computer.accessibility = 'allowed';
+        if (permission !== 'accessibility') current.computer.screenRecording = 'allowed';
       });
     },
     async openMessages() {

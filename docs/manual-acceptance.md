@@ -34,9 +34,10 @@ Run Chrome probing only with a dedicated visible test window and a unique
 On a clean macOS test account, use the exact signed release artifact and an unlocked login
 Keychain. **Set up Codex** must install or update the managed version, resume official browser
 sign-in after any restart, and show **Connected** without terminal commands or a manual download.
-Cancel browser sign-in once and verify that retry stays in Sia; ordinary launches must not reopen it.
-**Set up permissions** must show individual statuses, skip granted access, and refresh after returning
-from System Settings. The tester completes any macOS approval dialogs.
+While Sia shows **Waiting for sign-in…**, press **Cancel** once (or leave the browser tab closed) and
+verify **Try again** starts a fresh sign-in in Sia; ordinary launches must not reopen it.
+**Grant all** must show individual statuses, skip granted access, and refresh after returning
+from System Settings without a restart. The tester completes any macOS approval dialogs.
 
 Check both a fresh install and an upgrade from the previous signed release. Create a disposable
 conversation, quit/reopen twice, then update and reopen. Conversations and settings must remain
@@ -265,10 +266,14 @@ Research recruitment is a separate release. It requires every approval in
   in Sia; any authentication stays in the native macOS dialog.
 - Choose **Finish later** while a prompt is pending. Complete or dismiss that prompt and confirm
   no subsequent permissions open. Chat remains available with the access already granted.
-- At Screen Recording, use **I enabled it — restart Sia**. Verify the saved app choice survives
-  and only missing permissions resume. Completing the pass restarts once and opens the conversation.
-- Repeat from **Settings → Computer → Grant all permissions**. Verify unavailable apps and existing
-  grants are skipped. For Screen Recording changes, follow macOS’s restart instruction.
+- At Screen Recording, choose **Later** in macOS’s quit prompt. Within a few seconds the row must
+  read **Reopen Sia** and one **Relaunch Sia** button must appear (real-Mac check of the fresh-process
+  probe). Relaunch: setup must reopen on Mac access, resume the pass, and not ask again for any
+  permission already granted or skipped. Completing the pass opens the conversation with no restart.
+- Skip **Talk with Fn** and one app. Finish setup, then start a task that needs the skipped app and
+  confirm macOS asks once, in its own words.
+- Repeat from **Settings → Computer → Grant all**. Verify unavailable apps and existing grants are
+  skipped. For Screen Recording changes, quit and reopen Sia when the row says **Reopen Sia**.
 - Launch while another app is foreground. The secure-workspace explanation must appear before
   any Keychain wait, with instructions for bringing Sia’s native prompt forward. Confirm no
   saved conversation or encrypted state is reset if access is declined.

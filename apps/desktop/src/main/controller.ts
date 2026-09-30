@@ -86,7 +86,9 @@ import { verifyUpdateManifestResponse } from './update-manifest.js';
 
 interface ComputerAutomation {
   permissions(): Promise<ComputerPermissionsView>;
-  requestPermissions(): Promise<ComputerPermissionsView>;
+  requestPermissions(
+    permission?: 'accessibility' | 'screenRecording',
+  ): Promise<ComputerPermissionsView>;
   call(
     tool: string,
     args: Record<string, unknown>,
@@ -451,6 +453,8 @@ export class DesktopController {
   readonly #restartApp: (() => void) | undefined;
   readonly #installCodex: (() => Promise<void>) | undefined;
   #codexSetupPending = false;
+  /** Aborts a ChatGPT browser sign-in that is still waiting on the person. */
+  #codexLoginAbort: AbortController | undefined;
   #codexSetup: ProviderView['setup'];
   #pendingTerminalOperations = 0;
   readonly #chooseDirectory: () => Promise<string | null>;
@@ -1789,7 +1793,11 @@ export class DesktopController {
     method: M,
     input: BridgeRequestMap[M],
   ): Promise<BridgeResultMap[M]> {
-    if (method !== 'bootstrap' && method !== 'voice.capture.release')
+    if (
+      method !== 'bootstrap' &&
+      method !== 'voice.capture.release' &&
+      method !== 'providers.cancelLogin'
+    )
       this.#requireCodexSetupIdle();
     if (this.#accountDeletionInProgress && method !== 'bootstrap') {
       throw new Error('Sia account deletion is in progress. Wait for it to finish.');
@@ -2159,6 +2167,9 @@ export class DesktopController {
         return (await this.#providerLogin(
           (input as BridgeRequestMap['providers.login']).providerId,
         )) as unknown as BridgeResultMap[M];
+      case 'providers.cancelLogin':
+        this.#codexLoginAbort?.abort(new Error('ChatGPT sign-in was cancelled.'));
+        return this.#resultSnapshot() as BridgeResultMap[M];
       case 'settings.openDirectory':
         return { path: await this.#grantChosenDirectory() } as unknown as BridgeResultMap[M];
       case 'settings.setOnboarding': {
@@ -2261,7 +2272,10 @@ export class DesktopController {
       case 'computer.permissions':
         return (await this.#refreshComputer(false)) as unknown as BridgeResultMap[M];
       case 'computer.requestPermissions':
-        return (await this.#refreshComputer(true)) as unknown as BridgeResultMap[M];
+        return (await this.#refreshComputer(
+          true,
+          (input as BridgeRequestMap['computer.requestPermissions'])?.permission,
+        )) as unknown as BridgeResultMap[M];
       case 'computer.requestAutomation': {
         if (!this.#capabilitySetup?.automationPermissions)
           throw new Error('Mac app permission setup is unavailable in this build.');
@@ -4453,13 +4467,30 @@ export class DesktopController {
           'signing-in',
           'Finish signing in with ChatGPT in your browser. Sia will check the connection automatically.',
         );
-        const login = await this.#runtime.startCodexChatGptLogin();
+        const abort = new AbortController();
+        this.#codexLoginAbort = abort;
         try {
-          await this.#openExternal(login.authUrl);
-          await this.#runtime.waitForCodexChatGptLogin(login.loginId);
+          const login = await this.#runtime.startCodexChatGptLogin(abort.signal);
+          try {
+            abort.signal.throwIfAborted();
+            await this.#openExternal(login.authUrl);
+            abort.signal.throwIfAborted();
+            await this.#runtime.waitForCodexChatGptLogin(login.loginId, abort.signal);
+          } catch (error) {
+            await this.#runtime.cancelCodexChatGptLogin(login.loginId).catch(() => undefined);
+            throw error;
+          }
         } catch (error) {
-          await this.#runtime.cancelCodexChatGptLogin(login.loginId).catch(() => undefined);
-          throw error;
+          if (!abort.signal.aborted) throw error;
+          // The person chose Cancel. Leave a plain Try again state instead of an error.
+          this.#repository.remove('setup', 'codex-login');
+          this.#setCodexSetup(
+            'error',
+            'ChatGPT sign-in was cancelled. Choose Try again to start over.',
+          );
+          return { opened: false, snapshot: this.#resultSnapshot() };
+        } finally {
+          if (this.#codexLoginAbort === abort) this.#codexLoginAbort = undefined;
         }
         this.#requireSignedInReleaseAccount();
         this.#setCodexSetup('checking', 'Checking your ChatGPT connection…');
@@ -4528,9 +4559,12 @@ export class DesktopController {
     this.#chromeConnection = await this.#capabilitySetup.chromeDebugStatus();
   }
 
-  async #refreshComputer(request: boolean): Promise<DesktopSnapshot> {
+  async #refreshComputer(
+    request: boolean,
+    permission?: 'accessibility' | 'screenRecording',
+  ): Promise<DesktopSnapshot> {
     this.#computerState = request
-      ? await this.#computer.requestPermissions()
+      ? await this.#computer.requestPermissions(permission)
       : await this.#computer.permissions();
     await this.#refreshCapabilityStatuses();
     await this.#voice?.refreshPermissions?.().catch(() => undefined);
@@ -9371,7 +9405,15 @@ function worktreeLabel(title: string, id: string): string {
 
 function backgroundControlUnavailable(access: ComputerPermissionsView): string | undefined {
   if (access.status === 'ready') return undefined;
-  if (access.status === 'needs_permission')
-    return 'Sia needs Accessibility and Screen Recording to work in the background. Allow them in Settings → Computer, then press Continue task.';
+  if (access.status === 'needs_permission') {
+    // Only a permission skipped during setup reaches here; name it plainly.
+    if (access.relaunchFor?.length)
+      return 'Mac access is turned on, but Sia needs to reopen before it can use it. Quit and reopen Sia, then press Continue task.';
+    const missing = [
+      access.accessibility ? '' : 'control your Mac (Accessibility)',
+      access.screenRecording ? '' : 'see your screen (Screen Recording)',
+    ].filter(Boolean);
+    return `To work in the background, Sia needs permission to ${missing.join(' and ')}. Allow it in Settings → Computer, then press Continue task.`;
+  }
   return 'Working in the background isn’t available on this Mac right now. Choose On my screen in Settings → Computer, then press Continue task.';
 }

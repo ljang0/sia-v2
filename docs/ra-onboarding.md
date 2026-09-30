@@ -194,39 +194,61 @@ opening or changing the saved database. It does not start a temporary, unsaved w
 
 After any required email sign-in:
 
-1. Click **Set up Sia**. This creates the default assistant and requests missing screen-control and voice permissions.
-2. Follow the on-screen guide and approve each macOS prompt. Sia opens one missing permission at a
-   time, waits for verified access, and advances automatically. **I don’t see the prompt** reopens
-   the current step; denied access opens its System Settings pane.
-3. Sia restarts after the completed permission pass and opens your conversation. If Screen Recording
-   requires an earlier restart, choose **I enabled it — restart Sia**. Setup resumes the remaining
-   permissions using your saved choice of apps. **Finish later** stops the pass; **Start using Sia**
-   continues with the access already granted.
+1. Click **Set up Sia**. This creates the default assistant and opens the **Mac access** checklist.
+2. The checklist lists every permission Sia can ask for, each with a plain name, one line on why,
+   a live status (**Allowed**, **Needs you**, **Turned off**, or **Reopen Sia**), and one button
+   (**Allow** shows the real macOS prompt; **Open Settings** opens the exact System Settings pane).
+   **Grant all** walks them in order, one prompt at a time, and moves on only when macOS reports
+   the grant. **I don’t see the prompt** reopens the current step; optional steps have **Skip**.
+   Statuses refresh on their own every few seconds and when you return from System Settings, so
+   rows flip to **Allowed** without restarting Sia.
+3. When the needed permissions are on, setup opens your conversation. There is no routine
+   restart. If macOS applies a grant only after Sia reopens (usually Screen Recording), the row
+   shows **Reopen Sia** and one **Relaunch Sia** button appears. It saves the step, relaunches,
+   and resumes the checklist where it was, without asking again for anything already granted or
+   skipped. **Finish later** stops the pass; **Start using Sia** continues with the access granted.
+
+| Row                                                                  | macOS permission                                            | Needed?  | How Sia asks                                             |
+| -------------------------------------------------------------------- | ----------------------------------------------------------- | -------- | -------------------------------------------------------- |
+| Control your Mac                                                     | Accessibility (also covers the Fn key; no Input Monitoring) | Yes      | System prompt, then the Accessibility pane               |
+| See your screen                                                      | Screen & System Audio Recording                             | Yes      | Registers Sia, then the Screen Recording pane            |
+| Talk with Fn                                                         | Microphone and Speech Recognition                           | Optional | Native prompts from the signed app                       |
+| System Events, Safari, Chrome, Calendar, Reminders, Finder, Messages | Automation (Apple Events) for that app                      | Optional | One native prompt per app; apps not installed are hidden |
+| Read Messages history                                                | Full Disk Access                                            | Optional | Opens the Full Disk Access pane (macOS has no prompt)    |
+
+Not in the checklist: notifications (macOS asks the first time a task-finished notice is sent),
+Local Network (asked only when you turn on Phone remote), and the Keychain prompt at launch. Sia
+does not use Contacts, Calendars, or Reminders data access; Calendar and Reminders work through
+Automation. Anything skipped is asked for by macOS the first time a task needs it, and a
+background task that is missing Accessibility or Screen Recording names the missing permission
+in plain words.
 
 In Use my Mac, **Prepare everyday apps now** is selected by default. The same setup pass requests
 missing Automation grants for System Events, Safari, Chrome, Calendar, Reminders, Finder and
 Messages. Already allowed or unavailable apps are skipped; running apps are reused and missing
 apps open hidden where macOS supports it. Uncheck the option to defer those app prompts until a
 task needs them. Connected apps setup does not request these Automation grants.
-**Settings → Computer → Grant all permissions** runs the same guided pass later.
+**Settings → Computer** shows the same checklist and **Grant all** later.
 
 The default is **Use my Mac** with bypass: Sia works in the background with signed-in Mac apps
 and may send messages or change files without per-action approval. **Customize setup** contains the
 alternative **Connected apps only** route, an **Ask before each action** checkbox (off by default)
 for confirmations, agent name, and model choice. The starter uses a ready
 model from the admitted catalog and an automatic private workspace. If no model is ready,
-complete AI sign-in first. No API key is required.
+complete AI sign-in first. No API key is required. If the ChatGPT browser sign-in stalls (tab
+closed, wrong account), **Cancel** next to **Waiting for sign-in…** stops it and **Try again**
+starts a fresh one.
 
-Setup includes Accessibility, Screen Recording, microphone, Speech Recognition when using Mac
-dictation, the Fn shortcut, and selected app Automation grants. Messages history (Full Disk Access)
-remains a separate optional setup when needed. macOS still requires its
-own approvals; a single Sia button cannot replace them with a single password prompt. Passwords
-are entered only in macOS dialogs, never Sia or the agent. Sia skips grants already allowed and
-never records during setup. Returning from System Settings only reads current status. A setup
-restart resumes an explicitly active pass, while a paused pass stays paused. **Permission details**
-shows which access is ready. You can start chatting
-without optional permissions. A closed app may need to be opened before its Automation grant can
-be checked.
+Only Accessibility and Screen Recording are needed to finish setup; the rest can be skipped.
+macOS still requires its own approvals; a single Sia button cannot replace them with a single
+password prompt. Passwords are entered only in macOS dialogs, never Sia or the agent. Sia skips
+grants already allowed and never records during setup. Status checks only read; they never open a
+prompt. To tell when a relaunch is needed, Sia reads the same two grants from a short-lived child
+process (Electron as Node, `out/main/permission-probe.js`): a fresh “on” next to the running
+app’s “off” means macOS is waiting for a relaunch. If that check cannot run, a **Turned it on?
+Relaunch Sia** link appears after you ask for a needed permission. A relaunch resumes an
+explicitly active pass, while a paused pass stays paused. A closed app may need to be opened
+before its Automation grant can be checked.
 
 **Connect Google or Slack** is optional. Both accounts are checked by default; uncheck unused
 accounts and click **Connect selected apps** once. Complete each provider's sign-in in order.
@@ -235,9 +257,9 @@ the pending grant while keeping completed connections. Google begins with read a
 sends require separate consent. In an unconfigured build, use your signed-in websites through
 Mac access instead. Chrome window selection remains available in **Settings → Computer**.
 
-Restart is no longer a required onboarding step. If macOS asks for one, open **Permission not
-updating? → Restart Sia**. Progress is saved before relaunch; active tasks, recordings, or account
-approvals block a restart. Development restarts keep the same profile and service configuration.
+Restart is not an onboarding step. The only relaunch is **Relaunch Sia** in the checklist, shown
+when macOS needs it. Progress is saved before relaunch; active tasks, recordings, or account
+approvals block it. Development restarts keep the same profile and service configuration.
 Older saved setup steps resume on the simplified screen. **Start using Sia** opens the existing
 conversation without sending a message. To revisit setup, use **Settings → Voice → Walk me
 through setup**; it reuses the existing agent. Research consent remains separate.

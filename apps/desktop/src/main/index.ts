@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { openApplicationRepository } from './application-repository.js';
 import { showStorageStartup } from './storage-startup.js';
 import { requestMicrophonePermission } from './microphone-permission.js';
+import { freshPermissionProbe } from './fresh-permissions.js';
 import { contextMenuTemplate } from './context-menu.js';
 import { viewMenu } from './app-menu.js';
 import { quitConfirmation, RendererRecovery } from './app-lifecycle.js';
@@ -375,7 +376,13 @@ async function performApplicationCreation(): Promise<void> {
       {
         authorize: (request, context) => activeController.authorizeComputer(request, context),
       },
-      { fakePermissions: fakeServices },
+      {
+        fakePermissions: fakeServices,
+        freshPermissions: freshPermissionProbe({
+          executable: process.execPath,
+          entryPath: join(import.meta.dirname, 'permission-probe.js'),
+        }),
+      },
     );
     const fakeTurnDelayMs = fakeServices
       ? testFakeTurnDelay(process.env.SIA_TEST_FAKE_TURN_DELAY_MS)

@@ -22,6 +22,10 @@ export default defineConfig({
             'src/main/configure-personal-voice.ts',
           ),
           'tool-bridge': resolve(import.meta.dirname, 'src/main/tool-bridge-entry.ts'),
+          'permission-probe': resolve(
+            import.meta.dirname,
+            'src/main/permission-probe-entry.ts',
+          ),
         },
       },
     },

@@ -226,11 +226,19 @@ const inputSchemas = {
     .strict(),
   'providers.probe': z.object({ providerId: providerId.optional() }).strict(),
   'providers.login': z.object({ providerId }).strict(),
+  'providers.cancelLogin': z.object({ providerId }).strict(),
   'settings.openDirectory': z.undefined(),
   'settings.setOnboarding': z
     .object({
       permissionSetup: z
-        .object({ includeApps: z.boolean(), active: z.boolean() })
+        .object({
+          includeApps: z.boolean(),
+          active: z.boolean(),
+          skipped: z
+            .array(z.string().regex(/^[a-z_]{1,40}$/))
+            .max(20)
+            .optional(),
+        })
         .strict()
         .optional(),
       step: z.enum([
@@ -260,7 +268,10 @@ const inputSchemas = {
   'updates.check': z.undefined(),
   'updates.openDownload': z.undefined(),
   'computer.permissions': z.undefined(),
-  'computer.requestPermissions': z.undefined(),
+  'computer.requestPermissions': z
+    .object({ permission: z.enum(['accessibility', 'screenRecording']).optional() })
+    .strict()
+    .optional(),
   'computer.requestAutomation': z.object({ app: automationAppSchema }).strict(),
   'computer.openMessages': z.undefined(),
   'computer.setupMessages': z.undefined(),

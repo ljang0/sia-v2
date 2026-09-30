@@ -431,6 +431,8 @@ export interface ComputerPermissionsView {
   status: 'unavailable' | 'needs_permission' | 'ready' | 'error';
   accessibility: boolean;
   screenRecording: boolean;
+  /** Granted in System Settings, but macOS applies it to Sia only after one relaunch. */
+  relaunchFor?: ('accessibility' | 'screenRecording')[];
   detail?: string;
 }
 
@@ -571,7 +573,8 @@ export interface OnboardingProgress {
   agentId?: string;
   restartPending?: boolean;
   restarted?: boolean;
-  permissionSetup?: { includeApps: boolean; active: boolean };
+  /** `skipped` lists optional checklist rows the person skipped, so a relaunch does not re-ask. */
+  permissionSetup?: { includeApps: boolean; active: boolean; skipped?: string[] };
 }
 
 export interface SaveAgentInput {
@@ -707,6 +710,7 @@ export interface BridgeRequestMap {
   'approvals.resolve': ResolveApprovalInput;
   'providers.probe': { providerId?: ProviderId };
   'providers.login': { providerId: ProviderId };
+  'providers.cancelLogin': { providerId: ProviderId };
   'settings.openDirectory': undefined;
   'settings.setOnboarding': {
     step: OnboardingStep;
@@ -722,7 +726,8 @@ export interface BridgeRequestMap {
   'updates.check': undefined;
   'updates.openDownload': undefined;
   'computer.permissions': undefined;
-  'computer.requestPermissions': undefined;
+  'computer.requestPermissions':
+    { permission?: 'accessibility' | 'screenRecording' } | undefined;
   'computer.requestAutomation': { app: import('./mac-permissions.js').AutomationApp };
   'computer.openMessages': undefined;
   'computer.setAccessMode': {
@@ -842,6 +847,7 @@ export interface BridgeResultMap {
   'approvals.resolve': DesktopSnapshot;
   'providers.probe': DesktopSnapshot;
   'providers.login': { opened: boolean; snapshot: DesktopSnapshot };
+  'providers.cancelLogin': DesktopSnapshot;
   'settings.openDirectory': { path: string | null };
   'settings.setOnboarding': DesktopSnapshot;
   'settings.restartForOnboarding': DesktopSnapshot;
@@ -1030,6 +1036,8 @@ export interface DesktopBridgeApi {
   providers: {
     probe(providerId?: ProviderId): Promise<DesktopSnapshot>;
     login(providerId: ProviderId): Promise<BridgeResultMap['providers.login']>;
+    /** Stops a browser sign-in that is still waiting, so setup can start over. */
+    cancelLogin(providerId: ProviderId): Promise<DesktopSnapshot>;
   };
   settings: {
     openDirectory(): Promise<{ path: string | null }>;
@@ -1056,7 +1064,9 @@ export interface DesktopBridgeApi {
   };
   computer: {
     permissions(): Promise<DesktopSnapshot>;
-    requestPermissions(): Promise<DesktopSnapshot>;
+    requestPermissions(
+      permission?: 'accessibility' | 'screenRecording',
+    ): Promise<DesktopSnapshot>;
     requestAutomation(
       app: import('./mac-permissions.js').AutomationApp,
     ): Promise<DesktopSnapshot>;
