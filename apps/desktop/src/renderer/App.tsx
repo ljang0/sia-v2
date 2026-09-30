@@ -3,6 +3,7 @@ import {
   Archive,
   ChatCircle,
   EnvelopeSimple,
+  Keyboard,
   GearSix,
   MagnifyingGlass,
   Plus,
@@ -12,7 +13,7 @@ import {
   WarningCircle,
 } from '@phosphor-icons/react';
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Onboarding } from './components/Onboarding';
+import { Onboarding, onboardingStep } from './components/Onboarding';
 import { AgentDialog } from './components/AgentDialog';
 import { WorkspaceNotice } from './components/AppStates';
 import { StartupTransition } from './components/StartupTransition';
@@ -22,6 +23,8 @@ import { replyFeedbackDraft } from './components/ReplyFeedback';
 import { Inspector } from './components/Inspector';
 import { RoomHeader } from './components/RoomHeader';
 import { QuickSwitcher, type QuickSwitcherAction } from './components/QuickSwitcher';
+import { KeyboardShortcuts } from './components/KeyboardShortcuts';
+import { conversationForShortcut } from './shortcuts';
 import { Settings } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
 import { AppearanceContext } from './components/effects/appearance';
@@ -80,6 +83,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackDraft, setFeedbackDraft] = useState<string>();
   const [conversationFindOpen, setConversationFindOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const online = useOnline();
   // A focus retry must not outlive the app it was aiming at.
   useEffect(() => cancelComposerFocus, []);
@@ -115,9 +119,43 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
           return;
         }
       }
+      // Esc stops the running task, unless it is closing something else first.
+      const running = app.snapshot?.activeThread;
+      if (
+        event.key === 'Escape' &&
+        !event.defaultPrevented &&
+        running?.status === 'running' &&
+        !app.activityOpen &&
+        !app.settingsOpen &&
+        !conversationFindOpen &&
+        !document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]')
+      ) {
+        event.preventDefault();
+        void app.run(() => app.api.cancelTurn(running.id)).then(() => focusComposer());
+        return;
+      }
       const modifier = mac ? event.metaKey && !event.ctrlKey : event.metaKey || event.ctrlKey;
       if (!modifier || event.altKey) return;
       const key = event.key.toLocaleLowerCase();
+      // ⌘1–9 open the conversations listed in the sidebar, in order.
+      const digit = /^Digit([1-9])$/.exec(event.code)?.[1] ?? /^[1-9]$/.exec(key)?.[0];
+      if (digit && !event.shiftKey && app.snapshot) {
+        const threadId = conversationForShortcut(app.snapshot.agents, Number(digit));
+        if (!threadId) return;
+        event.preventDefault();
+        setQuickSwitcherOpen(false);
+        setShortcutsOpen(false);
+        app.closeSettings();
+        app.closeActivity();
+        void app.run(() => app.api.selectThread(threadId)).then(() => focusComposer());
+        return;
+      }
+      if (key === '/' || event.code === 'Slash') {
+        event.preventDefault();
+        setQuickSwitcherOpen(false);
+        setShortcutsOpen((current) => !current);
+        return;
+      }
       if (key === 'k') {
         event.preventDefault();
         setQuickSwitcherOpen((current) => !current);
@@ -148,7 +186,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [app, auditMode, signInRequired]);
+  }, [app, auditMode, signInRequired, conversationFindOpen]);
   useEffect(
     () =>
       app.api.onOpenConversation?.(() => {
@@ -226,9 +264,9 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
       ? [
           {
             id: 'new-thread',
-            label: 'Create a new thread',
+            label: 'New conversation',
             detail: `Start in ${selectedAgent.name}`,
-            keywords: 'new chat task',
+            keywords: 'new chat task thread',
             icon: <ChatCircle size={17} />,
             opensConversation: true,
             run: () => {
@@ -240,6 +278,14 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         ]
       : []),
     {
+      id: 'keyboard-shortcuts',
+      label: 'Keyboard shortcuts',
+      detail: '⌘/',
+      keywords: 'keys hotkeys help',
+      icon: <Keyboard size={17} />,
+      run: () => setShortcutsOpen(true),
+    },
+    {
       id: 'feedback',
       label: 'Send feedback',
       detail: 'Review a note in your mail app',
@@ -249,7 +295,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     },
     {
       id: 'new-agent',
-      label: 'Create a new agent',
+      label: 'New agent',
       detail: 'Start another kind of work',
       keywords: 'new room assistant',
       icon: <Plus size={17} />,
@@ -261,9 +307,9 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     },
     {
       id: 'search-transcripts',
-      label: 'Search all transcripts',
-      detail: 'Includes archived threads',
-      keywords: 'find messages history',
+      label: 'Search all conversations',
+      detail: 'Every message, including archived ones',
+      keywords: 'find messages history transcripts',
       icon: <MagnifyingGlass size={17} />,
       run: () => app.openActivity('search'),
     },
@@ -277,9 +323,9 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     },
     {
       id: 'archived',
-      label: 'Open archived threads',
+      label: 'Open archived conversations',
       detail: 'Restore or revisit a conversation',
-      keywords: 'history old',
+      keywords: 'history old threads',
       icon: <Archive size={17} />,
       run: () => app.openActivity('archived'),
     },
@@ -334,6 +380,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         onForkThread={(threadId, isolated, title) =>
           app.attempt(() => api.forkThread(threadId, isolated, title)) as Promise<void>
         }
+        worktreeForks={snapshot.preferences.developerTools === true}
         onArchiveThread={(threadId) => app.archiveThread(threadId).then(() => focusComposer())}
         onCreateAgent={app.openNewAgent}
         onEditAgent={app.openEditAgent}
@@ -376,6 +423,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         }}
         searchResources={(query) => api.searchThreads(query)}
       />
+      <KeyboardShortcuts open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
 
       <section
         ref={workspace}
@@ -388,6 +436,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
           <RoomHeader
             agent={roomAgent}
             thread={activeThread}
+            setup={Boolean(onboardingStep(snapshot))}
             controls={
               <div className={styles.topbarActions}>
                 {activeThread ? (
@@ -444,7 +493,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               <header className={styles.activityPageHeader}>
                 <div>
                   <h1>Activity</h1>
-                  <p>Running work and threads that need your attention.</p>
+                  <p>What your agents are doing, and anything waiting for you.</p>
                 </div>
                 <button
                   type="button"
@@ -456,6 +505,13 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 </button>
               </header>
               <div className={styles.activityPageContent}>
+                <ActivityDashboard
+                  activities={activityItems(snapshot)}
+                  onOpenThread={(threadId) => {
+                    app.closeActivity();
+                    void run(() => api.selectThread(threadId));
+                  }}
+                />
                 <TranscriptSearch
                   focusOnMount={app.activityTarget === 'search'}
                   search={(query) => api.searchThreads(query)}
@@ -465,13 +521,6 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                       if (archived) await api.unarchiveThread(threadId);
                       await api.selectThread(threadId);
                     });
-                  }}
-                />
-                <ActivityDashboard
-                  activities={activityItems(snapshot)}
-                  onOpenThread={(threadId) => {
-                    app.closeActivity();
-                    void run(() => api.selectThread(threadId));
                   }}
                 />
                 <ArchivedThreadsSection
@@ -607,6 +656,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                     ? (files) => app.dropAttachments(activeThread.id, files)
                     : undefined
                 }
+                onPasteAttachments={
+                  activeThread
+                    ? (files) => app.run(() => app.pasteAttachments(activeThread.id, files))
+                    : undefined
+                }
                 onPreviewAttachment={
                   activeThread
                     ? (attachmentId) => api.previewAttachment(activeThread.id, attachmentId)
@@ -624,7 +678,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                         app.run(() => api.revealAttachment(activeThread.id, attachmentId))
                     : undefined
                 }
-                starterPrompts={welcomePrompts(roomAgent)}
+                starterPrompts={welcomePrompts(roomAgent, { apps: snapshot.apps })}
                 recentThreads={
                   activeThread?.events.length
                     ? []
@@ -691,6 +745,14 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                         )
                       : Promise.resolve()
                 }
+                onSendQueuedNow={
+                  activeThread &&
+                  online &&
+                  !outbox.held.some(({ threadId }) => threadId === activeThread.id)
+                    ? (messageId) =>
+                        run(() => api.steerQueuedMessage(activeThread.id, messageId))
+                    : undefined
+                }
                 browserRecovery={
                   snapshot.activeThread ? (
                     <BrowserTaskRecovery
@@ -706,6 +768,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 }
                 onRetry={() =>
                   activeThread ? run(() => api.retryThread(activeThread.id)) : Promise.resolve()
+                }
+                onRedo={
+                  activeThread && online
+                    ? (text) => run(() => api.redoLastMessage(activeThread.id, text))
+                    : undefined
                 }
                 onRateReply={(rating, reply) => {
                   setFeedbackDraft(replyFeedbackDraft(rating, reply));
@@ -740,7 +807,11 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                     <>
                       {activeThread.sourceThreadId ? (
                         <div className={styles.forkSourceLabel} data-testid="fork-source-label">
-                          Forked from {activeThread.sourceThreadId}
+                          Copied from{' '}
+                          {snapshot.agents
+                            .flatMap(({ threads }) => threads)
+                            .find(({ id }) => id === activeThread.sourceThreadId)?.title ??
+                            'another conversation'}
                         </div>
                       ) : null}
                       <ThreadWorkspaceTools

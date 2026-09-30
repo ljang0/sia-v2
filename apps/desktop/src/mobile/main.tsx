@@ -22,6 +22,7 @@ import {
 } from '@phosphor-icons/react';
 import type { RemoteState } from '../shared/phone-remote';
 import { SiaLogo } from '../renderer/components/SiaLogo';
+import { VoiceWave } from '../renderer/components/VoiceWave';
 import { remoteRequest, RemoteRequestError, requestId } from './api';
 import { MemoryGraph } from './memory-graph';
 import { DitherAurora as Aurora } from '../renderer/components/effects/DitherAurora';
@@ -500,8 +501,17 @@ function App() {
                 />
                 <div className="composer-controls">
                   <span className="composer-context">
-                    <Desktop size={14} />
-                    {state?.mode === 'connected' ? 'Connected apps' : 'Use my Mac'}
+                    {listening ? (
+                      <>
+                        <VoiceWave />
+                        Listening…
+                      </>
+                    ) : (
+                      <>
+                        <Desktop size={14} />
+                        {state?.mode === 'connected' ? 'Connected apps' : 'Use my Mac'}
+                      </>
+                    )}
                   </span>
                   <LiquidMetalButton
                     type="button"

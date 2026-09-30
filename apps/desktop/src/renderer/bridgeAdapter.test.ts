@@ -132,6 +132,26 @@ describe('bridge renderer retry', () => {
   });
 });
 
+describe('bridge renderer edit and try again', () => {
+  it('sends Edit text and Try again through the redo method', async () => {
+    const initial = snapshot([]);
+    const redo = vi.fn(async () => ({
+      turnId: 'redo-turn',
+      snapshot: structuredClone(initial),
+    }));
+    const api = createBridgeRendererApi({
+      bootstrap: async () => initial,
+      threads: { redo },
+      subscribe: () => () => undefined,
+    } as unknown as DesktopBridgeApi);
+    await api.getSnapshot();
+    await api.redoLastMessage('thread-1');
+    expect(redo).toHaveBeenLastCalledWith('thread-1', undefined);
+    await api.redoLastMessage('thread-1', 'Somewhere cold');
+    expect(redo).toHaveBeenLastCalledWith('thread-1', 'Somewhere cold');
+  });
+});
+
 describe('bridge renderer selection', () => {
   it('preserves a local agent selection across background snapshots', async () => {
     const initial = snapshot([]);
@@ -282,6 +302,41 @@ describe('bridge renderer truthfulness', () => {
       request: { kind: 'connector', account: 'Account unspecified' },
     });
   });
+
+  it('carries Allow for this task to the card and back to the main process', async () => {
+    const initial = snapshot([]);
+    initial.approvals = [
+      {
+        id: 'approval-1',
+        threadId: 'thread-1',
+        callId: 'call-1',
+        kind: 'native_tool',
+        title: 'Allow Mac action',
+        summary: 'Run a command: open -a TextEdit',
+        target: 'codex',
+        reversible: false,
+        status: 'approved',
+        allowForTask: true,
+        scope: 'task',
+      },
+    ];
+    expect(
+      mapDesktopSnapshot(initial).activeThread?.events.find(({ type }) => type === 'approval'),
+    ).toMatchObject({ status: 'approved', scope: 'task', request: { allowForTask: true } });
+    const resolve = vi.fn(async () => initial);
+    const bridge = {
+      bootstrap: async () => initial,
+      approvals: { resolve },
+      subscribe: () => () => undefined,
+    } as unknown as DesktopBridgeApi;
+    const api = createBridgeRendererApi(bridge);
+    await api.getSnapshot();
+    await api.respondToApproval('approval-1', 'approve_task');
+    expect(resolve).toHaveBeenCalledWith({
+      approvalId: 'approval-1',
+      decision: 'approve_task',
+    });
+  });
 });
 
 describe('bridge renderer queued follow-ups', () => {
@@ -330,14 +385,17 @@ describe('bridge renderer queued follow-ups', () => {
     });
 
     const unqueue = vi.fn(async () => structuredClone(source));
+    const steer = vi.fn(async () => structuredClone(source));
     const api = createBridgeRendererApi({
       bootstrap: async () => source,
-      threads: { unqueue },
+      threads: { unqueue, steer },
       subscribe: () => () => undefined,
     } as unknown as DesktopBridgeApi);
     await api.getSnapshot();
     await api.removeQueuedMessage('thread-1', 'user-2');
     expect(unqueue).toHaveBeenCalledWith('thread-1', 'user-2');
+    await api.steerQueuedMessage('thread-1', 'user-2');
+    expect(steer).toHaveBeenCalledWith('thread-1', 'user-2');
   });
 });
 

@@ -68,8 +68,15 @@ const api: DesktopBridgeApi = {
     delete: (threadId) => invoke('threads.delete', { threadId }),
     send: (input) => invoke('threads.send', input),
     retry: (threadId) => invoke('threads.retry', { threadId }),
+    redo: (threadId, text, attachmentIds) =>
+      invoke('threads.redo', {
+        threadId,
+        ...(text ? { text } : {}),
+        ...(attachmentIds?.length ? { attachmentIds: [...attachmentIds] } : {}),
+      }),
     cancel: (threadId) => invoke('threads.cancel', { threadId }),
     unqueue: (threadId, messageId) => invoke('threads.unqueue', { threadId, messageId }),
+    steer: (threadId, messageId) => invoke('threads.steer', { threadId, messageId }),
   },
   worktrees: {
     cleanup: (threadId) =>
@@ -85,6 +92,30 @@ const api: DesktopBridgeApi = {
           .filter(Boolean)
           .slice(0, 20),
       }),
+    paste: async (threadId, files) => {
+      const attachments: BridgeResultMap['attachments.paste']['attachments'] = [];
+      const paths: string[] = [];
+      for (const file of files.slice(0, 20)) {
+        const path = webUtils.getPathForFile(file);
+        if (path) {
+          paths.push(path);
+          continue;
+        }
+        const pasted = await invoke('attachments.paste', {
+          threadId,
+          ...(file.name ? { name: file.name } : {}),
+          mimeType: file.type || 'application/octet-stream',
+          data: new Uint8Array(await file.arrayBuffer()),
+        });
+        attachments.push(...pasted.attachments);
+      }
+      if (paths.length) {
+        attachments.push(
+          ...(await invoke('attachments.drop', { threadId, paths })).attachments,
+        );
+      }
+      return { attachments };
+    },
     preview: (threadId, attachmentId) =>
       invoke('attachments.preview', { threadId, attachmentId }),
     open: (threadId, attachmentId) => invoke('attachments.open', { threadId, attachmentId }),

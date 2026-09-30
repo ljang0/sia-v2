@@ -7,8 +7,10 @@ import {
   NATIVE_MEMORY_REVIEW_PROMPT,
 } from './memory-suggestions.js';
 import { NativeSkills } from './native-skills.js';
-import { imageActivityTitle } from '../shared/activity-label.js';
+import { savePastedAttachment } from './pasted-attachments.js';
+import { activityLabel, imageActivityTitle } from '../shared/activity-label.js';
 import { conversationTitle } from '../shared/plain-text.js';
+import { turnFinishedNotice } from './notification-copy.js';
 import { threadPreviews, type ThreadPreviewMemo } from '../shared/thread-previews.js';
 import { skillExecutionMode, skillUnavailableReason } from '../shared/skill-execution.js';
 import { NotchVault } from './notch/vault.js';
@@ -149,6 +151,8 @@ interface ControllerOptions {
   defaultWorkspaceRoot?: string;
   createDirectory?(path: string): Promise<void>;
   chooseFiles?(): Promise<string[]>;
+  /** Private folder where pasted screenshots, files and long text are saved as attachments. */
+  pastedAttachmentRoot?: string;
   openPath?(path: string): Promise<void>;
   composeFeedback?(subject: string, body: string): Promise<void>;
   /** Registers or removes Sia as a macOS login item. */
@@ -371,6 +375,8 @@ interface PendingApproval {
   threadId: string;
   turnId: string;
   requestId?: string;
+  /** What "Allow for this task" would cover; absent when it is not offered. */
+  taskGrant?: string;
 }
 
 interface ApprovedConnectorBinding {
@@ -449,6 +455,7 @@ export class DesktopController {
   readonly #defaultWorkspaceRoot: string | undefined;
   readonly #createDirectory: (path: string) => Promise<void>;
   readonly #chooseFiles: (() => Promise<string[]>) | undefined;
+  readonly #pastedAttachmentRoot: string | undefined;
   readonly #openPath: ((path: string) => Promise<void>) | undefined;
   readonly #composeFeedback: ((subject: string, body: string) => Promise<void>) | undefined;
   readonly #setOpenAtLogin: ((enabled: boolean) => void) | undefined;
@@ -476,6 +483,8 @@ export class DesktopController {
   readonly #turnTasks = new Map<string, Promise<void>>();
   readonly #workspaceLeases = new Map<string, string>();
   readonly #pendingApprovals = new Map<string, PendingApproval>();
+  /** "Allow for this task" grants by turn id; a grant ends with its turn. */
+  readonly #taskGrants = new Map<string, Set<string>>();
   readonly #approvedConnectorBindings = new Map<string, ApprovedConnectorBinding>();
   readonly #connectorGenerations = new Map<ConnectionView['id'], number>();
   readonly #connectorLinkExpiries = new Map<string, number>();
@@ -576,6 +585,7 @@ export class DesktopController {
         await mkdir(path, { recursive: true, mode: 0o700 });
       });
     this.#chooseFiles = options.chooseFiles;
+    this.#pastedAttachmentRoot = options.pastedAttachmentRoot;
     this.#openPath = options.openPath;
     this.#composeFeedback = options.composeFeedback;
     this.#setOpenAtLogin = options.setOpenAtLogin;
@@ -1102,6 +1112,11 @@ export class DesktopController {
     return this.#state.preferences.computerAccessMode ?? 'connected';
   }
 
+  /** Settings → Developer tools (Command tool, worktree duplicates, View → Reload). */
+  developerToolsEnabled(): boolean {
+    return this.#state.preferences.developerTools === true;
+  }
+
   /** Use my Mac works in the background unless the person explicitly chose On my screen. */
   macBackgroundControl(): boolean {
     return this.#state.preferences.macBackgroundControl !== false;
@@ -1113,8 +1128,9 @@ export class DesktopController {
       : 'pause';
   }
 
+  /** Bypass is the default; only an explicit 'ask' turns confirmations on. */
   computerTrust(): 'auto' | 'ask' {
-    return this.#state.preferences.computerTrust ?? 'ask';
+    return this.#state.preferences.computerTrust === 'ask' ? 'ask' : 'auto';
   }
 
   /**
@@ -1583,7 +1599,7 @@ export class DesktopController {
           status: 'unavailable',
           accessibility: false,
           screenRecording: false,
-          trust: 'ask',
+          trust: 'auto',
           trajectoryLog: false,
           detail: 'Sign in to Sia to use computer access.',
         },
@@ -1987,6 +2003,10 @@ export class DesktopController {
         return this.#retryTurn(
           (input as BridgeRequestMap['threads.retry']).threadId,
         ) as BridgeResultMap[M];
+      case 'threads.redo':
+        return (await this.#redoLastTurn(
+          input as BridgeRequestMap['threads.redo'],
+        )) as BridgeResultMap[M];
       case 'threads.unqueue':
         return this.#unqueueMessage(
           (input as BridgeRequestMap['threads.unqueue']).threadId,
@@ -1996,6 +2016,11 @@ export class DesktopController {
         return (await this.#cancelTurn(
           (input as BridgeRequestMap['threads.cancel']).threadId,
         )) as BridgeResultMap[M];
+      case 'threads.steer':
+        return (await this.#steerQueuedMessage(
+          (input as BridgeRequestMap['threads.steer']).threadId,
+          (input as BridgeRequestMap['threads.steer']).messageId,
+        )) as BridgeResultMap[M];
       case 'attachments.pick':
         return (await this.#pickAttachments(
           (input as BridgeRequestMap['attachments.pick']).threadId,
@@ -2004,6 +2029,10 @@ export class DesktopController {
         return (await this.#grantAttachments(
           (input as BridgeRequestMap['attachments.drop']).threadId,
           (input as BridgeRequestMap['attachments.drop']).paths,
+        )) as BridgeResultMap[M];
+      case 'attachments.paste':
+        return (await this.#pasteAttachment(
+          input as BridgeRequestMap['attachments.paste'],
         )) as BridgeResultMap[M];
       case 'attachments.preview':
         return (await this.#previewAttachment(
@@ -2425,7 +2454,23 @@ export class DesktopController {
     if (context.kind === 'direct_user') return 'allow';
     const active = this.#activeTurnId(context.threadId);
     if (active !== context.turnId) return 'cancel';
-    if (this.#trustForTurn(active) === 'auto') {
+    const presentation = computerApprovalPresentation(request.adapterId, request.humanSummary);
+    const resource = safeResourceLabel(request.resourceJson, presentation.kind);
+    const taskGrant =
+      ['native_tool', 'foreground_takeover'].includes(presentation.kind) &&
+      !this.#phoneTurns.has(context.turnId)
+        ? [
+            'computer',
+            request.adapterId,
+            request.riskClass,
+            request.permissionMode,
+            resource,
+          ].join('\u0000')
+        : undefined;
+    if (
+      this.#trustForTurn(active) === 'auto' ||
+      (taskGrant && this.#hasTaskGrant(context.threadId, context.turnId, taskGrant))
+    ) {
       // Trusted local mode: the driver's own risk prompt is answered for the person, but the
       // decision is written to the trajectory log so every action stays reviewable afterwards.
       this.#trajectory?.record({
@@ -2458,8 +2503,6 @@ export class DesktopController {
     }
     const approvalId = randomUUID();
     const expiresAt = new Date(Number(request.expiresUnixMs)).toISOString();
-    const presentation = computerApprovalPresentation(request.adapterId, request.humanSummary);
-    const resource = safeResourceLabel(request.resourceJson, presentation.kind);
     this.#state.approvals.push({
       id: approvalId,
       threadId: context.threadId,
@@ -2471,6 +2514,7 @@ export class DesktopController {
       reversible: false,
       expiresAt,
       status: 'pending',
+      ...(taskGrant ? { allowForTask: true } : {}),
     });
     this.#stageRawResearchEvent({
       threadId: context.threadId,
@@ -2510,6 +2554,7 @@ export class DesktopController {
         kind: 'computer',
         threadId: context.threadId,
         turnId: context.turnId,
+        ...(taskGrant ? { taskGrant } : {}),
       });
     });
   }
@@ -2530,6 +2575,7 @@ export class DesktopController {
       pending.resolve('cancel');
     }
     this.#pendingApprovals.clear();
+    this.#taskGrants.clear();
     this.#approvedConnectorBindings.clear();
     this.#connectionSetup?.controller.abort();
     this.#browserCapabilitySink?.resetBrowserCapabilities();
@@ -3432,6 +3478,65 @@ export class DesktopController {
     return { turnId, snapshot: this.#resultSnapshot() };
   }
 
+  /**
+   * Edit or Try again: replaces the thread's last exchange with a new turn. The last message
+   * and everything after it leave the transcript, and the provider starts a fresh session
+   * seeded with the conversation before it, so the old reply is not part of the context.
+   * Actions the agent already took stay done.
+   */
+  async #redoLastTurn(
+    input: BridgeRequestMap['threads.redo'],
+  ): Promise<BridgeResultMap['threads.redo']> {
+    const thread = this.#requireThread(input.threadId);
+    if (
+      !['idle', 'failed'].includes(thread.status) ||
+      this.#runningTurns.has(thread.id) ||
+      this.#queuedTurns.some((turn) => turn.threadId === thread.id) ||
+      this.#pendingQuestions.has(thread.id)
+    ) {
+      throw new Error('Wait for Sia to finish before changing the last message.');
+    }
+    const items = this.#state.timeline
+      .filter((item) => item.threadId === thread.id)
+      .sort((left, right) => left.sequence - right.sequence);
+    const last = items.findLast((item) => item.kind === 'user' && item.status === 'complete');
+    if (!last?.text) throw new Error('There is no message to change in this conversation.');
+    const text = input.text?.trim() || last.text;
+    // The original files go with the message again while their one-hour access lasts.
+    const attachmentIds = [
+      ...new Set([
+        ...(last.attachments ?? []).map(({ id }) => id),
+        ...(input.attachmentIds ?? []),
+      ]),
+    ];
+    for (const id of attachmentIds) {
+      const grant = this.#attachmentGrants.get(id);
+      if (!grant || grant.threadId !== thread.id || grant.expiresAt <= Date.now()) {
+        throw new Error(
+          'A file on this message is no longer available. Attach it again and send.',
+        );
+      }
+    }
+    const removed = new Set(items.filter((item) => item.sequence >= last.sequence));
+    const timeline = this.#state.timeline;
+    this.#state.timeline = timeline.filter((item) => !removed.has(item));
+    const previousStatus = thread.status;
+    thread.status = 'idle';
+    try {
+      // The next turn starts a fresh provider session from the remaining conversation.
+      void this.#runtime?.releaseSession(thread.id).catch(() => undefined);
+      return this.#sendTurn({
+        threadId: thread.id,
+        text,
+        ...(attachmentIds.length ? { attachmentIds } : {}),
+      });
+    } catch (error) {
+      this.#state.timeline = timeline;
+      thread.status = previousStatus;
+      throw error;
+    }
+  }
+
   #retryTurn(threadId: string): BridgeResultMap['threads.retry'] {
     this.#requireSignedInReleaseAccount();
     this.#requireCodexSetupIdle();
@@ -3593,6 +3698,73 @@ export class DesktopController {
     return this.#resultSnapshot();
   }
 
+  /**
+   * "Send now": a queued follow-up joins the running turn instead of waiting for it to end.
+   * The message stays queued when the provider cannot take it.
+   */
+  async #steerQueuedMessage(threadId: string, messageId: string): Promise<DesktopSnapshot> {
+    const thread = this.#requireThread(threadId);
+    const item = this.#state.timeline.find(
+      (candidate) =>
+        candidate.id === messageId &&
+        candidate.threadId === threadId &&
+        candidate.kind === 'user' &&
+        candidate.status === 'pending',
+    );
+    const index = this.#queuedTurns.findIndex((turn) => turn.id === item?.turnId);
+    const queued = this.#queuedTurns[index];
+    if (!item || !queued) throw new Error('This message has already started or was removed.');
+    const activeTurnId = this.#activeTurnId(threadId);
+    if (
+      !activeTurnId ||
+      thread.status !== 'running' ||
+      this.#runningTurns.get(threadId)?.signal.aborted
+    ) {
+      throw new Error('Sia is not working on this right now. Your message will be sent next.');
+    }
+    // Take it out of the queue first so the turn ending meanwhile cannot also start it.
+    this.#queuedTurns.splice(index, 1);
+    try {
+      if (!this.#fakeServices) {
+        const runtime = this.#runtime;
+        if (!runtime) throw new Error('The provider runtime did not initialize.');
+        await runtime.steer(threadId, activeTurnId, {
+          text: queued.text,
+          ...(queued.attachments?.length ? { attachments: queued.attachments } : {}),
+        });
+      }
+    } catch (error) {
+      this.#queuedTurns.splice(Math.min(index, this.#queuedTurns.length), 0, queued);
+      // The turn may have ended while the provider refused; the message then runs next.
+      if (!this.#runningTurns.has(threadId)) this.#drainQueue();
+      this.#commit();
+      throw new Error(
+        `Sia could not add this to the current task, so it will be sent next. ${error instanceof Error ? error.message : ''}`.trim(),
+      );
+    }
+    // The message now belongs to the running turn and appears where it joined.
+    item.status = 'complete';
+    item.turnId = activeTurnId;
+    item.sequence =
+      this.#state.timeline.reduce(
+        (highest, candidate) =>
+          candidate.threadId === threadId ? Math.max(highest, candidate.sequence) : highest,
+        0,
+      ) + 1;
+    this.#discardResearchTurn(queued.id);
+    this.#stageResearchText({
+      turnId: activeTurnId,
+      eventId: item.id,
+      occurredAt: item.timestamp,
+      role: 'user',
+      text: queued.text,
+      provider: thread.provider,
+    });
+    thread.updatedAt = new Date().toISOString();
+    this.#commit();
+    return this.#resultSnapshot();
+  }
+
   /** Drops the pending user messages of queued follow-ups that will no longer run. */
   #removeQueuedMessages(threadId: string, turnIds: ReadonlySet<string>): number {
     const before = this.#state.timeline.length;
@@ -3613,6 +3785,16 @@ export class DesktopController {
     if (!this.#chooseFiles) throw new Error('File attachments are unavailable in this build.');
     const selected = await this.#chooseFiles();
     return await this.#grantAttachments(threadId, selected);
+  }
+
+  async #pasteAttachment(
+    input: BridgeRequestMap['attachments.paste'],
+  ): Promise<BridgeResultMap['attachments.paste']> {
+    if (!this.#pastedAttachmentRoot)
+      throw new Error('Pasting files is unavailable in this build.');
+    this.#requireThread(input.threadId);
+    const path = await savePastedAttachment(this.#pastedAttachmentRoot, input);
+    return await this.#grantAttachments(input.threadId, [path]);
   }
 
   async #grantAttachments(
@@ -4040,27 +4222,37 @@ export class DesktopController {
       this.#commit();
       throw new Error('This approval belongs to a turn that is no longer active.');
     }
+    const approval = this.#state.approvals.find(({ id }) => id === input.approvalId);
+    const forTask = input.decision === 'approve_task';
+    if (forTask && (!approval?.allowForTask || this.#phoneTurns.has(pending.turnId)))
+      throw new Error('This request can only be allowed once.');
+    const approved = input.decision !== 'deny';
     clearTimeout(pending.timeout);
     this.#pendingApprovals.delete(input.approvalId);
     this.#resumeAfterRequest(pending.threadId);
-    this.#setApprovalStatus(
-      input.approvalId,
-      input.decision === 'approve' ? 'approved' : 'denied',
-    );
+    if (forTask) {
+      approval!.scope = 'task';
+      if (pending.taskGrant) {
+        const grants = this.#taskGrants.get(pending.turnId) ?? new Set<string>();
+        grants.add(`${pending.threadId}\u0000${pending.taskGrant}`);
+        this.#taskGrants.set(pending.turnId, grants);
+      }
+    }
+    this.#setApprovalStatus(input.approvalId, approved ? 'approved' : 'denied');
     this.#stageApprovalDecision(
       input.approvalId,
       { threadId: pending.threadId, turnId: pending.turnId },
-      input.decision === 'approve' ? 'approved' : 'denied',
+      approved ? 'approved' : 'denied',
     );
     if (pending.kind === 'provider' && pending.threadId && pending.requestId) {
       void this.#runtime
         ?.respondToRequest(pending.threadId, {
           requestId: pending.requestId,
-          choiceId: input.decision === 'approve' ? 'allow_once' : 'deny',
+          choiceId: forTask ? 'allow_task' : approved ? 'allow_once' : 'deny',
         })
         .catch(() => undefined);
     }
-    pending.resolve(input.decision === 'approve' ? 'allow' : 'deny');
+    pending.resolve(approved ? 'allow' : 'deny');
     return this.#resultSnapshot();
   }
 
@@ -6792,14 +6984,19 @@ export class DesktopController {
     if (agent?.notificationsEnabled !== false) {
       this.#notify?.({
         threadId: thread.id,
-        title:
-          outcome === 'complete'
-            ? `${thread.title} finished`
-            : `${thread.title} needs attention`,
-        body:
-          outcome === 'complete'
-            ? 'Background work is ready to review.'
-            : 'The task stopped before it could finish.',
+        ...turnFinishedNotice({
+          title: thread.title,
+          outcome,
+          reply: this.#state.timeline
+            .filter(
+              (item) =>
+                item.threadId === thread.id &&
+                item.turnId === turn.id &&
+                item.kind === 'assistant',
+            )
+            .map((item) => item.text ?? '')
+            .join('\n\n'),
+        }),
       });
     }
   }
@@ -7249,6 +7446,11 @@ export class DesktopController {
       target: event.provider,
       reversible: false,
       status: 'pending',
+      // Phone turns always ask on the Mac, one request at a time.
+      ...(event.payload.choices?.some(({ kind }) => kind === 'allow_task') &&
+      !this.#phoneTurns.has(event.turnId)
+        ? { allowForTask: true }
+        : {}),
     });
     this.#appendTimeline(event.threadId, {
       id: event.id,
@@ -7328,9 +7530,13 @@ export class DesktopController {
     const account = connector
       ? this.#connectorAccountLabel(request.arguments.account_id)
       : undefined;
+    const taskGrant = this.#phoneTurns.has(request.turnId)
+      ? undefined
+      : gatewayTaskGrant(request.tool.name, request.arguments);
     if (
-      this.#trustForTurn(request.turnId) === 'auto' &&
-      !request.tool.name.startsWith('skill_')
+      (this.#trustForTurn(request.turnId) === 'auto' &&
+        !request.tool.name.startsWith('skill_')) ||
+      (taskGrant && this.#hasTaskGrant(request.threadId, request.turnId, taskGrant))
     ) {
       if (
         connectorApp &&
@@ -7391,6 +7597,7 @@ export class DesktopController {
       ...(dataLabel ? { dataLabel } : {}),
       reversible: false,
       status: 'pending',
+      ...(taskGrant ? { allowForTask: true } : {}),
     });
     this.#appendTimeline(request.threadId, {
       id: randomUUID(),
@@ -7406,10 +7613,12 @@ export class DesktopController {
     });
     this.#waitForApproval(request.threadId);
     this.#commit();
+    // The notification names the step in words ("Sending your mail"), not the tool id.
+    const step = activityLabel(request.tool.name);
     this.#notifyNeedsAttention(
       request.threadId,
       'approval',
-      runtimeToolTitle(request.tool.name),
+      step === activityLabel(undefined) ? runtimeToolTitle(request.tool.name) : step,
     );
     return await new Promise((resolve) => {
       const finish = (decision: 'allow' | 'deny' | 'cancel'): void => {
@@ -7458,6 +7667,7 @@ export class DesktopController {
         threadId: request.threadId,
         turnId: request.turnId,
         requestId: request.id,
+        ...(taskGrant ? { taskGrant } : {}),
       });
       if (signal?.aborted) abort();
       else signal?.addEventListener('abort', abort, { once: true });
@@ -7489,7 +7699,16 @@ export class DesktopController {
     return thread ? this.#workspaceLeases.get(thread.workspace) : undefined;
   }
 
+  #hasTaskGrant(threadId: string, turnId: string, grant: string): boolean {
+    return (
+      !this.#phoneTurns.has(turnId) &&
+      this.#activeTurnId(threadId) === turnId &&
+      Boolean(this.#taskGrants.get(turnId)?.has(`${threadId}\u0000${grant}`))
+    );
+  }
+
   #revokeApprovalsForTurn(threadId: string, turnId: string): void {
+    this.#taskGrants.delete(turnId);
     for (const [approvalId, pending] of [...this.#pendingApprovals]) {
       if (pending.threadId === threadId && pending.turnId === turnId) {
         this.#revokeApproval(approvalId, pending);
@@ -7552,7 +7771,10 @@ export class DesktopController {
   #releaseTurn(threadId: string): void {
     const thread = this.#state.threads.find(({ id }) => id === threadId);
     const turnId = this.#activeTurnId(threadId);
-    if (turnId) this.#phoneTurns.delete(turnId);
+    if (turnId) {
+      this.#phoneTurns.delete(turnId);
+      this.#taskGrants.delete(turnId);
+    }
     this.#runningTurns.delete(threadId);
     this.#macTurns.delete(threadId);
     if (this.#awakeTurns.delete(threadId)) this.#keepAwake?.release(threadId);
@@ -8909,6 +9131,55 @@ function partitionRawResearchEvents(
   }
   if (current.length) partitions.push(current);
   return partitions;
+}
+
+/**
+ * What "Allow for this task" covers for a Sia-hosted action: the same kind of action on the same
+ * app, site, account, recipients or item. Saved skills and uploads always ask, because each run or
+ * file is different content. Hard safety denials run before this and are never granted.
+ */
+function gatewayTaskGrant(
+  toolName: string,
+  argumentsValue: Readonly<Record<string, unknown>>,
+): string | undefined {
+  if (toolName.startsWith('skill_') || toolName.includes('upload')) return undefined;
+  const parts = [toolName];
+  for (const key of [
+    'operation',
+    'calendar',
+    'list',
+    'application',
+    'app_id',
+    'origin',
+    'account_id',
+    'channel_id',
+    'recipient',
+    'resource_id',
+    'document_id',
+    'spreadsheet_id',
+    'presentation_id',
+    'schedule_id',
+    'name',
+  ]) {
+    const value = argumentsValue[key];
+    if (typeof value === 'string') parts.push(`${key}=${value}`);
+  }
+  if (typeof argumentsValue.url === 'string') {
+    try {
+      parts.push(`url=${new URL(argumentsValue.url).origin}`);
+    } catch {
+      return undefined;
+    }
+  }
+  const recipients = [...stringArray(argumentsValue.to), ...stringArray(argumentsValue.cc)];
+  if (recipients.length)
+    parts.push(
+      `to=${recipients
+        .map((value) => value.trim().toLowerCase())
+        .sort()
+        .join(',')}`,
+    );
+  return parts.join('\u0000');
 }
 
 function stringArray(value: unknown): string[] {

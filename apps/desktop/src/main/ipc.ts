@@ -113,13 +113,33 @@ const inputSchemas = {
       message: 'Enter a message or attach a file.',
     }),
   'threads.retry': z.object({ threadId: identifier }).strict(),
+  'threads.redo': z
+    .object({
+      threadId: identifier,
+      text: z.string().trim().max(200_000).optional(),
+      attachmentIds: z.array(identifier).max(20).optional(),
+    })
+    .strict(),
   'threads.cancel': z.object({ threadId: identifier }).strict(),
   'threads.unqueue': z.object({ threadId: identifier, messageId: identifier }).strict(),
+  'threads.steer': z.object({ threadId: identifier, messageId: identifier }).strict(),
   'attachments.pick': z.object({ threadId: identifier }).strict(),
   'attachments.drop': z
     .object({
       threadId: identifier,
       paths: z.array(z.string().trim().min(1).max(4_096)).min(1).max(20),
+    })
+    .strict(),
+  'attachments.paste': z
+    .object({
+      threadId: identifier,
+      name: z.string().trim().max(255).optional(),
+      mimeType: z.string().trim().min(1).max(100),
+      data: z
+        .instanceof(Uint8Array)
+        .refine((data) => data.byteLength > 0 && data.byteLength <= 25 * 1024 * 1024, {
+          message: 'Pasted items must be between 1 byte and 25 MB.',
+        }),
     })
     .strict(),
   'attachments.preview': z.object({ threadId: identifier, attachmentId: identifier }).strict(),
@@ -193,7 +213,7 @@ const inputSchemas = {
   'schedules.delete': z.object({ scheduleId: identifier }).strict(),
   'schedules.runNow': z.object({ scheduleId: identifier }).strict(),
   'approvals.resolve': z
-    .object({ approvalId: identifier, decision: z.enum(['approve', 'deny']) })
+    .object({ approvalId: identifier, decision: z.enum(['approve', 'approve_task', 'deny']) })
     .strict(),
   'providers.probe': z.object({ providerId: providerId.optional() }).strict(),
   'providers.login': z.object({ providerId }).strict(),

@@ -34,16 +34,17 @@ export function SiaSignInDialog({
               <span>Sia</span>
             </div>
             <div>
-              <h2>One place to ask, review, and keep going.</h2>
-              <p>Keep each kind of work with the instructions, files, and history it needs.</p>
+              <h2>Your helper for everyday tasks.</h2>
+              <p>
+                Ask in plain words. Sia works in the apps you already use, and you stay in
+                charge.
+              </p>
             </div>
           </aside>
           <section className={companion.onboardingPanel}>
             <header>
               <Dialog.Title>Sign in to Sia</Dialog.Title>
-              <Dialog.Description>
-                Enter your email. We&apos;ll send a one-time code—no password required.
-              </Dialog.Description>
+              <Dialog.Description>{signInHint(cloudAuth.state)}</Dialog.Description>
             </header>
             <div className={companion.onboardingSignIn}>
               <CloudAccountSettings
@@ -62,4 +63,13 @@ export function SiaSignInDialog({
       </Dialog.Portal>
     </Dialog.Root>
   );
+}
+
+/** One plain sentence for where the person is in email sign-in. */
+function signInHint(state: RendererSnapshot['cloudAuth']['state']): string {
+  if (state === 'code-sent')
+    return 'Check your inbox for a one-time code. It can take a minute.';
+  if (state === 'mfa-required') return 'Enter the code from your authenticator app.';
+  if (state === 'password-required') return 'Enter the administrator password to continue.';
+  return 'Enter your email and we’ll send a one-time code. No password needed.';
 }

@@ -2034,6 +2034,152 @@ describe('Notch-style native Mac sessions', () => {
       await adapter.dispose();
     }
   });
+  it('allows an equivalent native request for the rest of the task only', async () => {
+    const peers = linkedPeers();
+    const decisions: unknown[] = [];
+    let turn = 0;
+    peers.server.onRequest(async (method, params) => {
+      if (method === 'initialize') return {};
+      if (method === 'thread/start')
+        return {
+          thread: { id: 'native-mac' },
+          sandbox: { type: 'dangerFullAccess' },
+          approvalPolicy: 'untrusted',
+        };
+      if (method === 'experimentalFeature/list')
+        return {
+          data: Object.entries({ ...isolatedCodexFeatures, multi_agent: false }).map(
+            ([name, enabled]) => ({ name, enabled }),
+          ),
+          nextCursor: null,
+        };
+      if (method === 'turn/start') {
+        turn += 1;
+        const nativeTurn = `native-turn-${turn}`;
+        const command = (value: string, extra: Record<string, unknown> = {}) =>
+          peers.server.request('item/commandExecution/requestApproval', {
+            threadId: 'native-mac',
+            turnId: nativeTurn,
+            itemId: `command-${decisions.length}`,
+            command: value,
+            cwd: '/Users/me',
+            ...extra,
+          });
+        setImmediate(() => {
+          void (async () => {
+            decisions.push(await command('open -a TextEdit'));
+            if (turn === 1) {
+              decisions.push(await command('open -a TextEdit'));
+              decisions.push(await command('rm notes.md'));
+              decisions.push(
+                await command('open -a TextEdit', {
+                  networkApprovalContext: { host: 'example.com', protocol: 'https' },
+                }),
+              );
+              await peers.server.notify('item/started', {
+                threadId: 'native-mac',
+                item: {
+                  type: 'fileChange',
+                  id: 'patch',
+                  status: 'inProgress',
+                  changes: [{ path: '/Users/me/notes.md', kind: 'update' }],
+                },
+              });
+              decisions.push(
+                await peers.server.request('item/fileChange/requestApproval', {
+                  threadId: 'native-mac',
+                  turnId: nativeTurn,
+                  itemId: 'patch',
+                }),
+              );
+              decisions.push(
+                await peers.server.request('item/fileChange/requestApproval', {
+                  threadId: 'native-mac',
+                  turnId: nativeTurn,
+                  itemId: 'patch',
+                }),
+              );
+            }
+            await peers.server.notify('turn/completed', {
+              threadId: 'native-mac',
+              turn: { id: nativeTurn, status: 'completed' },
+            });
+          })();
+        });
+        return { turn: { id: nativeTurn } };
+      }
+      if (method === 'thread/backgroundTerminals/clean') return {};
+      const isolated = codexIsolationResponse(method, params);
+      if (isolated !== undefined) return isolated;
+      throw new Error(`Unexpected ${method}`);
+    });
+    const adapter = new CodexAppServerAdapter({
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    try {
+      const session = await adapter.createSession({
+        ...sessionOptions,
+        model: 'gpt-6-astra',
+        tools: [],
+        nativeTools: 'mac',
+        nativeApproval: 'ask',
+        baseInstructions: 'You are Sia.',
+      });
+      const asked: { description: string; choices: string[] }[] = [];
+      const answers = ['allow_task', 'deny', 'allow_once', 'allow_task', 'deny'];
+      for (const text of ['Open TextEdit', 'Open TextEdit again']) {
+        for await (const event of adapter.sendTurn(session, { turnId: `turn-${text}`, text })) {
+          if (event.type !== 'approval') continue;
+          asked.push({
+            description: event.payload.description,
+            choices: event.payload.choices.map(({ kind }) => kind),
+          });
+          await adapter.respondToRequest(session, {
+            requestId: event.payload.requestId,
+            choiceId: answers[asked.length - 1]!,
+          });
+        }
+      }
+      expect(asked).toEqual([
+        {
+          description: 'Run a command: open -a TextEdit',
+          choices: ['allow_once', 'allow_task', 'deny'],
+        },
+        {
+          description: 'Run a command: rm notes.md',
+          choices: ['allow_once', 'allow_task', 'deny'],
+        },
+        // Network access is never covered by a task grant.
+        { description: 'Run a command: open -a TextEdit', choices: ['allow_once', 'deny'] },
+        {
+          description: 'Change /Users/me/notes.md',
+          choices: ['allow_once', 'allow_task', 'deny'],
+        },
+        // A new task asks again.
+        {
+          description: 'Run a command: open -a TextEdit',
+          choices: ['allow_once', 'allow_task', 'deny'],
+        },
+      ]);
+      expect(decisions).toEqual([
+        { decision: 'accept' },
+        { decision: 'accept' },
+        { decision: 'decline' },
+        { decision: 'accept' },
+        { decision: 'accept' },
+        { decision: 'accept' },
+        { decision: 'decline' },
+      ]);
+    } finally {
+      await adapter.dispose();
+    }
+  });
 });
 
 describe('Codex turn resilience', () => {
@@ -2051,12 +2197,70 @@ describe('Codex turn resilience', () => {
         return { thread: { id: 'native-thread' }, sandbox: { type: 'workspaceWrite' } };
       if (method === 'turn/start') return await onTurn(peers, params);
       if (method === 'turn/interrupt') return await onInterrupt(params);
+      if (method === 'turn/steer') return { turnId: 'native-turn' };
       const isolationResponse = codexIsolationResponse(method, params);
       if (isolationResponse !== undefined) return isolationResponse;
       throw new Error(`unexpected ${method}`);
     });
     return peers;
   }
+
+  it('steers the running turn with its native turn id, waiting for Codex to report it', async () => {
+    const steers: unknown[] = [];
+    const turnStarted = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const peers = codexServer(
+      async (p) => {
+        turnStarted.resolve();
+        await release.promise;
+        setTimeout(() => {
+          void p.server.notify('turn/completed', {
+            threadId: 'native-thread',
+            turn: { id: 'native-turn', status: 'completed' },
+          });
+        }, 5);
+        return { turn: { id: 'native-turn' } };
+      },
+      undefined,
+      (method, params) => {
+        if (method === 'turn/steer') steers.push(params);
+      },
+    );
+    const adapter = new CodexAppServerAdapter({
+      sessionEphemeral: true,
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    const session = await adapter.createSession(sessionOptions);
+    const done = (async () => {
+      for await (const event of adapter.sendTurn(session, { turnId: 't1', text: 'hi' }))
+        void event;
+    })();
+    await turnStarted.promise;
+    const steered = adapter.steerTurn(session, 't1', { text: 'Also check Friday' });
+    // The native turn id is not known yet; the steer waits for it instead of failing.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(steers).toEqual([]);
+    release.resolve();
+    await steered;
+    expect(steers).toEqual([
+      {
+        threadId: 'native-thread',
+        input: [{ type: 'text', text: 'Also check Friday', text_elements: [] }],
+        expectedTurnId: 'native-turn',
+      },
+    ]);
+    await done;
+    await expect(adapter.steerTurn(session, 't1', { text: 'Too late' })).rejects.toThrow(
+      'This task already finished.',
+    );
+    await adapter.dispose();
+  });
 
   it('keeps reasoning summaries apart from raw reasoning text', async () => {
     const peers = codexServer(async (p) => {

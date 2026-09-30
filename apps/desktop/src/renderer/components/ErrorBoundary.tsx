@@ -52,9 +52,14 @@ export class AppErrorBoundary extends Component<AppBoundaryProps, AppBoundarySta
     const { onSendFeedback } = this.props;
     return (
       <div className={styles.fatalState} role="alert" data-testid="app-error-boundary">
-        <WarningCircle size={26} aria-hidden="true" />
+        <span className={styles.fatalIcon} aria-hidden="true">
+          <WarningCircle size={24} weight="duotone" />
+        </span>
         <h1>Something went wrong</h1>
-        <p>Sia hit a problem showing this window. Your conversations are saved.</p>
+        <p>
+          Sia hit a snag showing this window. Your conversations are safe, and reloading usually
+          fixes it.
+        </p>
         <div className={styles.fatalActions}>
           <button
             type="button"

@@ -11,6 +11,8 @@ import {
   FolderSimple,
   ImageSquare,
   MagnifyingGlass,
+  Paperclip,
+  PencilSimple,
   SpeakerHigh,
   SpinnerGap,
   StopCircle,
@@ -37,8 +39,9 @@ import type {
   ThreadEvent,
   ThreadSummary,
 } from '../types';
-import { timeGreeting } from '../welcome';
+import { timeGreeting, type StarterPrompt } from '../welcome';
 import { completedReplyId } from '../task-result';
+import { WelcomeHome } from './WelcomeHome';
 import { WelcomeRecents } from './WelcomeRecents';
 import { ReplyReadyMark, ReplySurface } from './ResultCard';
 import styles from '../ui.module.css';
@@ -72,10 +75,11 @@ interface ConversationProps {
   onPickAttachments?: (() => Promise<void> | void) | undefined;
   onRemoveAttachment?: ((attachmentId: string) => Promise<void> | void) | undefined;
   onDropAttachments?: ((files: File[]) => Promise<void> | void) | undefined;
+  onPasteAttachments?: ((files: File[]) => Promise<void> | void) | undefined;
   onPreviewAttachment?: ((attachmentId: string) => Promise<AttachmentPreview>) | undefined;
   onOpenAttachment?: ((attachmentId: string) => Promise<void>) | undefined;
   onRevealAttachment?: ((attachmentId: string) => Promise<void>) | undefined;
-  starterPrompts?: readonly string[] | undefined;
+  starterPrompts?: readonly StarterPrompt[] | undefined;
   findOpen?: boolean | undefined;
   onFindOpenChange?: ((open: boolean) => void) | undefined;
   voiceEnabled?: boolean | undefined;
@@ -96,7 +100,11 @@ interface ConversationProps {
   onSend(content: string, attachmentIds?: readonly string[]): Promise<void>;
   onStop(): Promise<void>;
   onRemoveQueued?: ((messageId: string) => Promise<void>) | undefined;
+  /** "Send now" on a queued message while the thread runs. */
+  onSendQueuedNow?: ((messageId: string) => Promise<void>) | undefined;
   onRetry(): Promise<void>;
+  /** Edit (new text) or Try again (no text) on the last exchange once the task has ended. */
+  onRedo?: ((text?: string) => Promise<void>) | undefined;
   onResolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
   /** Thumbs up or down on a reply opens a feedback draft about it. */
   onRateReply?: ((rating: ReplyRating, reply: string) => void) | undefined;
@@ -121,6 +129,7 @@ export function Conversation({
   onPickAttachments,
   onRemoveAttachment,
   onDropAttachments,
+  onPasteAttachments,
   onPreviewAttachment,
   onOpenAttachment,
   onRevealAttachment,
@@ -142,7 +151,9 @@ export function Conversation({
   onSend,
   onStop,
   onRemoveQueued,
+  onSendQueuedNow,
   onRetry,
+  onRedo,
   onResolveApproval,
   onRateReply,
   onCreateThread,
@@ -428,6 +439,7 @@ export function Conversation({
         return result.kind === 'image' ? result.dataUrl : undefined;
       },
       rateReply: (rating, reply) => onRateReply?.(rating, reply),
+      redo: (text) => onRedo?.(text) ?? Promise.resolve(),
       resolveApproval: async (approvalId, decision) => {
         setBusyApprovalId(approvalId);
         try {
@@ -451,6 +463,7 @@ export function Conversation({
       loadThumbnail: (attachment) =>
         latestRowActions.current?.loadThumbnail(attachment) ?? Promise.resolve(undefined),
       rateReply: (rating, reply) => latestRowActions.current?.rateReply(rating, reply),
+      redo: (text) => latestRowActions.current?.redo(text) ?? Promise.resolve(),
       resolveApproval: (approvalId, decision) =>
         latestRowActions.current?.resolveApproval(approvalId, decision) ?? Promise.resolve(),
     }),
@@ -458,6 +471,12 @@ export function Conversation({
   );
   const events = thread?.events ?? [];
   const blocks = useMemo(() => conversationBlocks(events), [events]);
+  // What the thread held when it opened. Rows added after that (a sent message, a new step,
+  // the reply) ease in; reopening a thread shows its history still.
+  const openedEventIds = useMemo(
+    () => new Set((thread?.events ?? []).map(({ id }) => id)),
+    [thread?.id],
+  );
   const matchingEventIdSet = useMemo(
     () => new Set(matchingEventIds),
     [matchingEventIds.join(':')],
@@ -474,7 +493,7 @@ export function Conversation({
             {agentName ? `${timeGreeting()} · ${agentName} is ready` : 'Start here'}
           </span>
           <h1 className={styles.gradientHeading}>
-            {agentName ? `Start a thread with ${agentName}.` : 'Create your first agent.'}
+            {agentName ? `Start a conversation with ${agentName}.` : 'Create your first agent.'}
           </h1>
           <p>
             {agentName
@@ -485,7 +504,7 @@ export function Conversation({
           </p>
           {onCreateThread ? (
             <LiquidMetalButton tone="sage" onClick={onCreateThread}>
-              New thread
+              New conversation
             </LiquidMetalButton>
           ) : onCreateAgent ? (
             <LiquidMetalButton tone="sage" onClick={onCreateAgent}>
@@ -526,6 +545,14 @@ export function Conversation({
       : undefined;
   const outlineAvailable = hasConversationOutline(thread.events);
   const resultId = completedReplyId(thread);
+  // Edit and Try again change only the last exchange, and only once nothing is in flight.
+  const redoable =
+    Boolean(onRedo) &&
+    (thread.status === 'idle' || thread.status === 'error') &&
+    !thread.queuedMessages?.length &&
+    lastUserEventIndex >= 0;
+  const editableEventId = redoable ? thread.events[lastUserEventIndex]?.id : undefined;
+  const tryAgainEventId = redoable ? currentAssistantEventId : undefined;
   const turnActive = running || waiting;
   const currentStep = running
     ? thread.events
@@ -555,6 +582,7 @@ export function Conversation({
         actions={rowActions}
         findMatch={matchingEventIdSet.has(event.id)}
         findCurrent={matchingEventIds[findIndex] === event.id}
+        entering={!openedEventIds.has(event.id)}
         agentName={agentName}
         usageResetsAt={
           event.type === 'notice' && event.tone === 'error'
@@ -579,6 +607,8 @@ export function Conversation({
         speakable={Boolean(voiceEnabled && onSpeak)}
         previewable={Boolean(onPreviewAttachment)}
         rateable={Boolean(onRateReply)}
+        editable={event.id === editableEventId}
+        retryable={event.id === tryAgainEventId}
       />
     );
   };
@@ -638,7 +668,9 @@ export function Conversation({
             placeholder="Find in this thread"
             aria-label="Find in this thread"
           />
-          <span>{findQuery ? `${matchingEventIds.length} found` : 'Type to find'}</span>
+          <span className={styles.findCount} aria-live="polite">
+            {findCountLabel(findQuery, findIndex, matchingEventIds.length)}
+          </span>
           <button
             type="button"
             className={styles.iconButtonSmall}
@@ -673,7 +705,11 @@ export function Conversation({
       ) : null}
       {draggingFiles ? (
         <div className={styles.attachmentDropOverlay} role="status">
-          Drop up to 20 files to attach
+          <span className={styles.attachmentDropCard}>
+            <Paperclip size={22} aria-hidden="true" />
+            <strong>Drop to attach</strong>
+            <small>Up to 20 files or images</small>
+          </span>
         </div>
       ) : null}
       <div
@@ -696,31 +732,15 @@ export function Conversation({
           ) : null}
 
           {thread.events.length === 0 ? (
-            <div className={styles.threadEmpty} data-companion-thread-empty>
-              <AgentForm identity={agentHue} size="medium" />
-              <span className={styles.emptyStateKicker}>
-                {timeGreeting()}
-                {agentName ? ` · ${agentName} is ready` : ''}
-              </span>
-              <h2 className={styles.gradientHeading}>What would you like to do?</h2>
-              <p>Describe the outcome, attach any useful files, or choose a suggested start.</p>
-              {onOpenApps ? (
-                <button className={styles.textButton} type="button" onClick={onOpenApps}>
-                  Connect work apps
-                </button>
-              ) : null}
-              {starterPrompts.length ? (
-                <div className={styles.starterPrompts} aria-label="Suggested starts">
-                  {starterPrompts.map((prompt) => (
-                    <button key={prompt} type="button" onClick={() => void onSend(prompt)}>
-                      <span>{prompt}</span>
-                      <span aria-hidden="true">↗</span>
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-              <WelcomeRecents threads={recentThreads} onOpen={onOpenThread} />
-            </div>
+            <WelcomeHome
+              agentName={agentName}
+              agentHue={agentHue}
+              prompts={starterPrompts}
+              recentThreads={recentThreads}
+              onSend={(prompt) => void onSend(prompt)}
+              onOpenThread={onOpenThread}
+              onOpenApps={onOpenApps}
+            />
           ) : (
             <div className={styles.eventList}>
               {blocks.map((block) =>
@@ -837,6 +857,7 @@ export function Conversation({
         messages={thread.queuedMessages ?? []}
         agentName={agentName}
         onRemove={onRemoveQueued}
+        onSendNow={running ? onSendQueuedNow : undefined}
       />
       <Composer
         key={thread.id}
@@ -853,6 +874,7 @@ export function Conversation({
         acceptingAttachments={acceptingAttachments}
         onPickAttachments={onPickAttachments}
         onRemoveAttachment={onRemoveAttachment}
+        onPasteFiles={onPasteAttachments}
         onPreviewAttachment={
           onPreviewAttachment
             ? (attachmentId) => {
@@ -971,6 +993,10 @@ interface EventViewProps {
   justCompleted?: boolean | undefined;
   onToggleSpeech?: ((text: string) => Promise<void>) | undefined;
   onRateReply?: ((rating: ReplyRating, reply: string) => void) | undefined;
+  /** Replaces the last message with new text and asks again. */
+  onEditMessage?: ((text: string) => Promise<void>) | undefined;
+  /** Asks the last message again for a new reply. */
+  onTryAgain?: (() => Promise<void>) | undefined;
   onPreviewAttachment?: ((attachment: RendererAttachment) => void) | undefined;
   onLoadThumbnail?:
     ((attachment: RendererAttachment) => Promise<string | undefined>) | undefined;
@@ -983,6 +1009,7 @@ interface RowActions {
   previewAttachment(attachment: RendererAttachment): void;
   loadThumbnail(attachment: RendererAttachment): Promise<string | undefined>;
   rateReply(rating: ReplyRating, reply: string): void;
+  redo(text?: string): Promise<void>;
   resolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
 }
 
@@ -993,13 +1020,19 @@ interface ConversationRowProps extends Omit<
   | 'onLoadThumbnail'
   | 'onResolveApproval'
   | 'onRateReply'
+  | 'onEditMessage'
+  | 'onTryAgain'
 > {
   actions: RowActions;
   findMatch: boolean;
   findCurrent: boolean;
+  /** Added after the thread opened; the row eases in once when it mounts. */
+  entering: boolean;
   speakable: boolean;
   previewable: boolean;
   rateable: boolean;
+  editable: boolean;
+  retryable: boolean;
 }
 
 /** One transcript row. Memoized so streaming into the last reply leaves earlier rows alone. */
@@ -1007,9 +1040,12 @@ const ConversationRow = memo(function ConversationRow({
   actions,
   findMatch,
   findCurrent,
+  entering,
   speakable,
   previewable,
   rateable,
+  editable,
+  retryable,
   ...view
 }: ConversationRowProps) {
   const { event } = view;
@@ -1018,6 +1054,7 @@ const ConversationRow = memo(function ConversationRow({
       ref={(node) => actions.registerRow(event.id, node)}
       className={styles.eventSearchAnchor}
       tabIndex={-1}
+      data-entering={entering ? 'true' : undefined}
       data-find-match={findMatch ? 'true' : undefined}
       data-find-current={findCurrent ? 'true' : undefined}
     >
@@ -1027,6 +1064,8 @@ const ConversationRow = memo(function ConversationRow({
         onPreviewAttachment={previewable ? actions.previewAttachment : undefined}
         onLoadThumbnail={previewable ? actions.loadThumbnail : undefined}
         onRateReply={rateable ? actions.rateReply : undefined}
+        onEditMessage={editable ? (text) => actions.redo(text) : undefined}
+        onTryAgain={retryable ? () => actions.redo() : undefined}
         onResolveApproval={actions.resolveApproval}
       />
     </div>
@@ -1056,10 +1095,24 @@ function EventViewContent({
   justCompleted,
   onToggleSpeech,
   onRateReply,
+  onEditMessage,
+  onTryAgain,
   onPreviewAttachment,
   onLoadThumbnail,
   onResolveApproval,
 }: EventViewProps) {
+  const [editDraft, setEditDraft] = useState<string>();
+  const [redoing, setRedoing] = useState(false);
+  const editing = editDraft !== undefined && Boolean(onEditMessage);
+  const redo = (action: () => Promise<void>) => {
+    setRedoing(true);
+    void action()
+      .then(
+        () => setEditDraft(undefined),
+        () => undefined,
+      )
+      .finally(() => setRedoing(false));
+  };
   if (event.type === 'activity') return <ActivityRow event={event} />;
   if (event.type === 'approval') {
     return (
@@ -1117,8 +1170,34 @@ function EventViewContent({
         <span>{event.role === 'user' ? 'You' : agentName}</span>
         {event.role === 'assistant' ? <ReplyReadyMark ready={Boolean(completed)} /> : null}
         <time dateTime={event.timestamp}>{formatTime(event.timestamp)}</time>
-        <CopyMessageButton content={event.content} />
-        {event.role === 'assistant' && onToggleSpeech ? (
+        {/* A reply still being written has nothing whole to copy, read, or rate yet. */}
+        {streaming ? null : <CopyMessageButton content={event.content} />}
+        {event.role === 'user' && onEditMessage && !editing ? (
+          <button
+            type="button"
+            className={styles.messageActionButton}
+            onClick={() => setEditDraft(event.content)}
+            aria-label="Edit message"
+            title="Edit message"
+            data-testid="message-edit"
+          >
+            <PencilSimple size={14} aria-hidden="true" />
+          </button>
+        ) : null}
+        {event.role === 'assistant' && onTryAgain && !streaming ? (
+          <button
+            type="button"
+            className={styles.messageActionButton}
+            onClick={() => redo(onTryAgain)}
+            disabled={redoing}
+            aria-label="Try again"
+            title="Ask again for a new reply"
+            data-testid="message-try-again"
+          >
+            <ArrowClockwise size={14} aria-hidden="true" />
+          </button>
+        ) : null}
+        {event.role === 'assistant' && onToggleSpeech && !streaming ? (
           <button
             type="button"
             className={styles.messageActionButton}
@@ -1150,7 +1229,54 @@ function EventViewContent({
         className={`${styles.messageContent} ${streaming ? styles.streamingContent : ''}`}
         data-streaming={streaming ? 'true' : undefined}
       >
-        {event.role === 'user' ? (
+        {editing ? (
+          <form
+            className={styles.messageEditor}
+            onSubmit={(submit) => {
+              submit.preventDefault();
+              const text = editDraft.trim();
+              if (text) redo(() => onEditMessage!(text));
+            }}
+          >
+            <textarea
+              aria-label="Edit message"
+              value={editDraft}
+              autoFocus
+              rows={Math.min(8, Math.max(2, editDraft.split('\n').length))}
+              onChange={(change) => setEditDraft(change.target.value)}
+              onKeyDown={(key) => {
+                if (key.key === 'Escape') {
+                  key.preventDefault();
+                  key.stopPropagation();
+                  setEditDraft(undefined);
+                } else if (
+                  key.key === 'Enter' &&
+                  !key.shiftKey &&
+                  !key.nativeEvent.isComposing
+                ) {
+                  key.preventDefault();
+                  key.currentTarget.form?.requestSubmit();
+                }
+              }}
+            />
+            <div>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => setEditDraft(undefined)}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className={styles.primaryButton}
+                disabled={redoing || !editDraft.trim()}
+              >
+                {redoing ? 'Sending…' : 'Send'}
+              </button>
+            </div>
+          </form>
+        ) : event.role === 'user' ? (
           // What the person typed is shown verbatim; snake_case must not become italics.
           <p>{event.content}</p>
         ) : (
@@ -1265,13 +1391,19 @@ function CopyMessageButton({ content }: { content: string }) {
       className={styles.messageActionButton}
       onClick={() => void copy()}
       aria-label={copied ? 'Message copied' : 'Copy message'}
-      title={copied ? 'Copied' : 'Copy message'}
+      title={copied ? undefined : 'Copy message'}
+      data-copied={copied ? 'true' : undefined}
     >
       {copied ? (
-        <Check size={14} weight="bold" aria-hidden="true" />
+        <Check size={14} weight="bold" className={styles.copiedCheck} aria-hidden="true" />
       ) : (
         <Copy size={14} aria-hidden="true" />
       )}
+      {copied ? (
+        <span className={styles.copiedTip} aria-hidden="true">
+          Copied
+        </span>
+      ) : null}
     </button>
   );
 }
@@ -1345,6 +1477,13 @@ function AttachmentPreviewDialog({
       </Dialog.Portal>
     </Dialog.Root>
   );
+}
+
+/** Where find stands: “2 of 5”, “No matches”, or a prompt before anything is typed. */
+export function findCountLabel(query: string, index: number, total: number): string {
+  if (!query.trim()) return 'Type to find';
+  if (!total) return 'No matches';
+  return `${Math.min(index, total - 1) + 1} of ${total}`;
 }
 
 function eventSearchText(event: ThreadEvent): string {

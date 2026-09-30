@@ -13,7 +13,7 @@ test('launcher uses an isolated bridge, opens from the menu, and dispatches to t
       page.getByRole('heading', { name: 'What would you like to do?' }),
     ).toBeVisible();
     await expect(page.getByTestId('thread-model-select')).not.toBeVisible();
-    const newConversation = page.getByRole('button', { name: 'Start a thread with Sia' });
+    const newConversation = page.getByRole('button', { name: 'Start a conversation with Sia' });
     const bounds = await newConversation.boundingBox();
     expect(bounds!.width).toBeGreaterThan(18);
     expect(bounds!.width).toBeLessThan(60);

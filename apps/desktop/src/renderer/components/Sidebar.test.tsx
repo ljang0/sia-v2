@@ -40,6 +40,65 @@ describe('thread navigation', () => {
     );
   });
 
+  it('shows an untitled conversation as a new conversation, in plain words', () => {
+    const agents = structuredClone(demoSnapshot.agents);
+    agents[0]!.threads[0]!.title = 'New thread';
+    render(
+      <Sidebar
+        agents={agents}
+        selectedAgentId={agents[0]!.id}
+        collapsed={false}
+        onToggle={vi.fn()}
+        onSelectAgent={vi.fn()}
+        onSelectThread={vi.fn()}
+        onCreateThread={vi.fn()}
+        onRenameThread={vi.fn()}
+        onDeleteThread={vi.fn()}
+        onCreateAgent={vi.fn()}
+        onEditAgent={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    );
+    // The primary New conversation button, and the untitled conversation's row.
+    expect(screen.getAllByRole('button', { name: 'New conversation' })).toHaveLength(2);
+    expect(screen.queryByText('New thread')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: `Start a conversation with ${agents[0]!.name}` }),
+    ).toBeTruthy();
+  });
+
+  it('marks each conversation with what it wants from the person', () => {
+    const agents = structuredClone(demoSnapshot.agents);
+    const [first, second] = agents[0]!.threads;
+    first!.status = 'waiting';
+    second!.status = 'running';
+    agents[1]!.threads[0]!.unread = true;
+    render(
+      <Sidebar
+        agents={agents}
+        selectedAgentId={agents[0]!.id}
+        collapsed={false}
+        onToggle={vi.fn()}
+        onSelectAgent={vi.fn()}
+        onSelectThread={vi.fn()}
+        onCreateThread={vi.fn()}
+        onRenameThread={vi.fn()}
+        onDeleteThread={vi.fn()}
+        onCreateAgent={vi.fn()}
+        onEditAgent={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    );
+    const signal = (title: string) =>
+      screen
+        .getByRole('button', { name: title })
+        .querySelector('i[data-signal]')
+        ?.getAttribute('data-signal');
+    expect(signal(first!.title)).toBe('needs-you');
+    expect(signal(second!.title)).toBe('working');
+    expect(signal(agents[1]!.threads[0]!.title)).toBe('unread');
+  });
+
   it('explains the empty list before any agent exists', () => {
     render(
       <Sidebar
@@ -175,7 +234,7 @@ describe('thread navigation', () => {
     );
   });
 
-  it('disables Fork while a thread is working and explains why', async () => {
+  it('disables Duplicate while a conversation is working and explains why', async () => {
     const agents = structuredClone(demoSnapshot.agents);
     const thread = agents[0]!.threads[0]!;
     thread.status = 'running';
@@ -197,12 +256,62 @@ describe('thread navigation', () => {
       />,
     );
     fireEvent.pointerDown(
-      screen.getByRole('button', { name: `Thread actions for ${thread.title}` }),
+      screen.getByRole('button', { name: `Conversation actions for ${thread.title}` }),
       { button: 0, ctrlKey: false },
     );
-    const fork = await screen.findByRole('menuitem', { name: 'Fork' });
+    const fork = await screen.findByRole('menuitem', { name: 'Duplicate' });
     expect(fork.getAttribute('aria-disabled')).toBe('true');
-    expect(fork.getAttribute('title')).toBe('Stop or finish the current task before forking.');
+    expect(fork.getAttribute('title')).toBe(
+      'Stop or finish the current task before duplicating.',
+    );
+  });
+
+  it('duplicates a conversation and shows the worktree option only with developer tools', async () => {
+    const agents = structuredClone(demoSnapshot.agents);
+    const thread = agents[0]!.threads[0]!;
+    thread.status = 'idle';
+    const onForkThread = vi.fn().mockResolvedValue(undefined);
+    const view = (worktreeForks: boolean) => (
+      <Sidebar
+        agents={agents}
+        selectedAgentId={agents[0]!.id}
+        collapsed={false}
+        onToggle={vi.fn()}
+        onSelectAgent={vi.fn()}
+        onSelectThread={vi.fn()}
+        onCreateThread={vi.fn()}
+        onRenameThread={vi.fn()}
+        onDeleteThread={vi.fn()}
+        onForkThread={onForkThread}
+        worktreeForks={worktreeForks}
+        onCreateAgent={vi.fn()}
+        onEditAgent={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />
+    );
+    const openDialog = async () => {
+      fireEvent.pointerDown(
+        screen.getByRole('button', { name: `Conversation actions for ${thread.title}` }),
+        { button: 0, ctrlKey: false },
+      );
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Duplicate' }));
+      return screen.findByRole('dialog', { name: 'Duplicate conversation' });
+    };
+    const { rerender } = render(view(false));
+    await openDialog();
+    expect(screen.queryByTestId('fork-isolation-checkbox')).toBeNull();
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe(
+      `${thread.title} (copy)`,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate' }));
+    await waitFor(() =>
+      expect(onForkThread).toHaveBeenCalledWith(thread.id, false, `${thread.title} (copy)`),
+    );
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    rerender(view(true));
+    await openDialog();
+    expect(screen.getByTestId('fork-isolation-checkbox')).toBeTruthy();
   });
 
   it('searches, renames, and confirms deletion of an idle thread', async () => {
@@ -244,7 +353,7 @@ describe('thread navigation', () => {
     expect(screen.queryByRole('button', { name: 'Weekly research update' })).toBeNull();
 
     const menu = screen.getByRole('button', {
-      name: 'Thread actions for Triage today’s inbox',
+      name: 'Conversation actions for Triage today’s inbox',
     });
     fireEvent.pointerDown(menu, { button: 0, ctrlKey: false });
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));
@@ -258,12 +367,12 @@ describe('thread navigation', () => {
     );
     await waitFor(() =>
       expect(
-        screen.getByRole('button', { name: 'Thread actions for Triage today’s inbox' }),
+        screen.getByRole('button', { name: 'Conversation actions for Triage today’s inbox' }),
       ).toBeTruthy(),
     );
 
     fireEvent.pointerDown(
-      screen.getByRole('button', { name: 'Thread actions for Triage today’s inbox' }),
+      screen.getByRole('button', { name: 'Conversation actions for Triage today’s inbox' }),
       { button: 0, ctrlKey: false },
     );
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }));
@@ -296,7 +405,7 @@ describe('thread navigation', () => {
       />,
     );
     fireEvent.pointerDown(
-      screen.getByRole('button', { name: `Thread actions for ${waiting.title}` }),
+      screen.getByRole('button', { name: `Conversation actions for ${waiting.title}` }),
       { button: 0, ctrlKey: false },
     );
     const remove = await screen.findByRole('menuitem', { name: /^Delete/ });
@@ -324,7 +433,7 @@ describe('thread navigation', () => {
     );
     const openRename = async () => {
       fireEvent.pointerDown(
-        screen.getByRole('button', { name: 'Thread actions for Triage today’s inbox' }),
+        screen.getByRole('button', { name: 'Conversation actions for Triage today’s inbox' }),
         { button: 0, ctrlKey: false },
       );
       fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));

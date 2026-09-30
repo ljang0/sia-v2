@@ -17,6 +17,8 @@ function setup(step: OnboardingStep = 'welcome') {
     ...(step === 'welcome' || step === 'agent' ? {} : { agentId: snapshot.agents[0]!.id }),
   };
   if (step === 'welcome' || step === 'agent') snapshot.agents = [];
+  // A new profile starts with bypass, the product default.
+  snapshot.computer.trust = 'auto';
   const api = {
     getSnapshot: vi.fn(async () => structuredClone(snapshot)),
     setComputerAccessMode: vi.fn(async () => {}),
@@ -46,9 +48,13 @@ function setup(step: OnboardingStep = 'welcome') {
   return { snapshot, api, props };
 }
 
-it.each(['mac-bypass', 'connected'] as const)(
-  'one click creates the default agent and starts missing permissions in %s mode',
-  async (route) => {
+it.each([
+  ['mac-bypass', false],
+  ['connected', false],
+  ['connected', true],
+] as const)(
+  'one click creates the default agent and starts missing permissions in %s mode (confirmations: %s)',
+  async (route, confirmActions) => {
     const { snapshot, api, props } = setup();
     const view = render(
       <Onboarding {...props}>
@@ -99,8 +105,13 @@ it.each(['mac-bypass', 'connected'] as const)(
     );
     if (route === 'connected') {
       fireEvent.click(screen.getByText('Customize setup'));
-      fireEvent.click(screen.getByRole('radio', { name: /Connected apps \+ confirmations/ }));
+      fireEvent.click(screen.getByRole('radio', { name: /Connected apps only/ }));
     }
+    const confirmations = screen.getByRole<HTMLInputElement>('checkbox', {
+      name: /Ask before each action/,
+    });
+    expect(confirmations.checked).toBe(false);
+    if (confirmActions) fireEvent.click(confirmations);
     fireEvent.click(screen.getByRole('button', { name: 'Set up Sia' }));
     await waitFor(() => expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1));
     expect(api.createAgent).toHaveBeenCalledTimes(1);
@@ -117,7 +128,7 @@ it.each(['mac-bypass', 'connected'] as const)(
     expect(api.setComputerAccessMode).toHaveBeenCalledWith(
       route === 'mac-bypass' ? 'mac' : 'connected',
     );
-    expect(api.setComputerTrust).toHaveBeenCalledWith(route === 'mac-bypass' ? 'auto' : 'ask');
+    expect(api.setComputerTrust).toHaveBeenCalledWith(confirmActions ? 'ask' : 'auto');
     expect(api.createAgent.mock.invocationCallOrder[0]).toBeGreaterThan(
       api.setComputerTrust.mock.invocationCallOrder[0]!,
     );
@@ -195,7 +206,10 @@ it.each(['voice', 'access', 'apps', 'restart', 'verify', 'practice'] as const)(
       </Onboarding>,
     );
     await waitFor(() => expect(api.refreshComputerPermissions).toHaveBeenCalledTimes(1));
-    expect(screen.getByRole('heading', { name: 'Your Sia setup.' })).toBeTruthy();
+    expect(
+      screen.getByRole('heading', { name: /^(Give Sia access to your Mac|You’re all set)\.$/ }),
+    ).toBeTruthy();
+    expect(screen.getByRole('list', { name: 'Setup progress' })).toBeTruthy();
     expect(api.requestComputerPermissions).not.toHaveBeenCalled();
     expect(api.requestAutomationPermission).not.toHaveBeenCalled();
     expect(api.createAgent).not.toHaveBeenCalled();
@@ -504,4 +518,80 @@ it('lands in the conversation composer when setup finishes', async () => {
   await waitFor(() =>
     expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' })),
   );
+});
+
+it('shows progress through setup and a calm note after finishing', async () => {
+  const { snapshot, api, props } = setup();
+  const view = render(
+    <Onboarding {...props}>
+      <div>Conversation</div>
+    </Onboarding>,
+  );
+  const progress = screen.getByRole('list', { name: 'Setup progress' });
+  expect(progress.querySelector('[aria-current="step"]')?.textContent).toContain('Welcome');
+
+  snapshot.agents = structuredClone(demoSnapshot.agents.slice(0, 1));
+  snapshot.preferences.onboarding = { step: 'verify', agentId: snapshot.agents[0]!.id };
+  view.rerender(
+    <Onboarding {...props}>
+      <div>Conversation</div>
+    </Onboarding>,
+  );
+  expect(
+    screen.getByRole('list', { name: 'Setup progress' }).querySelector('[aria-current="step"]')
+      ?.textContent,
+  ).toMatch(/Mac access|Ready/);
+
+  api.setOnboarding.mockImplementation(async (step: OnboardingStep) => {
+    snapshot.preferences.onboarding = { step };
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Start using Sia' }));
+  await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('complete'));
+  view.rerender(
+    <Onboarding {...props}>
+      <div>Conversation</div>
+    </Onboarding>,
+  );
+  expect(screen.getByText('Conversation')).toBeTruthy();
+  expect((await screen.findByRole('status')).textContent).toContain('You’re all set.');
+});
+
+it('skipping setup does not claim it finished', async () => {
+  const { snapshot, api, props } = setup('verify');
+  api.setOnboarding.mockImplementation(async (step: OnboardingStep) => {
+    snapshot.preferences.onboarding = { step };
+  });
+  const view = render(
+    <Onboarding {...props}>
+      <div>Conversation</div>
+    </Onboarding>,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Exit setup' }));
+  await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('complete'));
+  view.rerender(
+    <Onboarding {...props}>
+      <div>Conversation</div>
+    </Onboarding>,
+  );
+  expect(screen.queryByText(/You’re all set/)).toBeNull();
+});
+
+it('summarizes the chosen way of working, including confirmations', () => {
+  const { props } = setup();
+  props.snapshot.computer.trust = 'auto';
+  render(
+    <Onboarding {...props}>
+      <div />
+    </Onboarding>,
+  );
+  expect(screen.getByText('Works quietly in the background')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Change' }));
+  expect(screen.getByRole('textbox', { name: 'Agent name' }).closest('details')!.open).toBe(
+    true,
+  );
+  fireEvent.click(screen.getByRole('checkbox', { name: /Ask before each action/ }));
+  expect(screen.getByText('Asks before it acts')).toBeTruthy();
+  fireEvent.click(screen.getByRole('checkbox', { name: /Ask before each action/ }));
+  fireEvent.click(screen.getByRole('radio', { name: /Connected apps only/ }));
+  expect(screen.getByText('Works in your connected apps')).toBeTruthy();
 });

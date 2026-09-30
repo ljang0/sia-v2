@@ -9,9 +9,17 @@ import {
   Waveform,
   X,
 } from '@phosphor-icons/react';
-import { type KeyboardEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  type ClipboardEvent,
+  type KeyboardEvent,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import styles from '../ui.module.css';
 import { SiaPresence, type SiaPresenceState } from './SiaPresence';
+import { VoiceWave } from './VoiceWave';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
 
 interface ComposerAttachment {
@@ -33,6 +41,8 @@ interface ComposerProps {
   onPickAttachments?: (() => Promise<void> | void) | undefined;
   onRemoveAttachment?: ((attachmentId: string) => Promise<void> | void) | undefined;
   onPreviewAttachment?: ((attachmentId: string) => void) | undefined;
+  /** Pasted screenshots or files, and long pasted text as a text file. */
+  onPasteFiles?: ((files: File[]) => Promise<void> | void) | undefined;
   voiceEnabled?: boolean | undefined;
   realtimeDictation?: boolean | undefined;
   onAcquireVoiceCapture?: (() => Promise<string>) | undefined;
@@ -64,6 +74,7 @@ export function Composer({
   onPickAttachments,
   onRemoveAttachment,
   onPreviewAttachment,
+  onPasteFiles,
   voiceEnabled = false,
   realtimeDictation = false,
   onTranscribe,
@@ -256,6 +267,24 @@ export function Composer({
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       void submit();
+    }
+  };
+
+  const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!onPasteFiles || !acceptingAttachments || disabled) return;
+    const files = pastedFiles(event.clipboardData);
+    if (files.length) {
+      event.preventDefault();
+      void onPasteFiles(files);
+      return;
+    }
+    const text = event.clipboardData.getData('text/plain');
+    if (text.length > LONG_PASTE_CHARACTERS) {
+      // Long pasted text rides along as a file instead of flooding the message box.
+      event.preventDefault();
+      void onPasteFiles([
+        new globalThis.File([text], 'Pasted text.txt', { type: 'text/plain' }),
+      ]);
     }
   };
 
@@ -649,6 +678,7 @@ export function Composer({
           data-composer-input
           onChange={(event) => updateValue(event.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
         />
         <div className={styles.composerControls}>
           <div className={styles.composerContextGroup}>
@@ -752,6 +782,7 @@ export function Composer({
               }
               audioLevel={voiceLevel}
             />
+            {voicePhase === 'recording' ? <VoiceWave level={voiceLevel} /> : null}
             <span className={styles.composerContext} role="status">
               {voiceConversation
                 ? voiceError
@@ -818,6 +849,24 @@ export function Composer({
       ) : null}
     </div>
   );
+}
+
+/** Pasted text longer than this becomes a text attachment. */
+export const LONG_PASTE_CHARACTERS = 4_000;
+
+/**
+ * Files on the clipboard that the person meant to attach. Office apps put a picture of the
+ * copied cells beside the text; that paste stays text. A Finder copy names its files as text.
+ */
+export function pastedFiles(data: DataTransfer): File[] {
+  const files = [...data.files].slice(0, 20);
+  if (!files.length) return [];
+  const text = data.getData('text/plain').trim();
+  if (!text) return files;
+  const names = new Set(files.map(({ name }) => name));
+  const namesFiles = text.split(/\r?\n|\r/).every((line) => names.has(line.trim()));
+  const allImages = files.every(({ type }) => type.startsWith('image/'));
+  return namesFiles || !allImages ? files : [];
 }
 
 interface MutableSlot<T> {

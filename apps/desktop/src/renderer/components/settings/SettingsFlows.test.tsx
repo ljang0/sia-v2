@@ -532,7 +532,8 @@ describe('research consent settings', () => {
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('Research service is unavailable.');
-    expect(document.activeElement).toBe(alert);
+    // Focus moves in an effect after the error renders, so wait for it rather than racing it.
+    await waitFor(() => expect(document.activeElement).toBe(alert));
     expect(document.body.contains(dialog)).toBe(true);
   });
 
@@ -722,6 +723,33 @@ describe('computer access settings', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Keep a full local log' }));
     await waitFor(() => expect(onSetTrajectoryLog).toHaveBeenCalledWith(false));
   });
+});
+
+it('drops the connection checklist once both work apps are connected', () => {
+  const snapshot = withCloud('signed-in', 'lawrence@example.com');
+  snapshot.apps = snapshot.apps.map((app) => ({
+    ...app,
+    status: 'connected',
+    connectionId: app.id === 'slack' ? 'slack-grant' : 'google-grant',
+  }));
+  render(
+    <AppsSettings
+      snapshot={snapshot}
+      onConnectSelected={vi.fn()}
+      onConnectGoogle={vi.fn()}
+      onConnect={vi.fn()}
+      onDisconnect={vi.fn()}
+      onStartCloudSignIn={vi.fn()}
+      onCompleteCloudSignIn={vi.fn()}
+      onSignOutCloud={vi.fn()}
+      onDeleteCloudAccount={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByText('All connected')).toBeTruthy();
+  expect(screen.queryByRole('group', { name: 'Choose your connections' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Disconnect Google Workspace' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Disconnect Slack' })).toBeTruthy();
 });
 
 function withCloud(

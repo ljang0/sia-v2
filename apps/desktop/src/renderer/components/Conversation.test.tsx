@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MessageEvent, ThreadDetail } from '../types';
-import { Conversation } from './Conversation';
+import { Conversation, findCountLabel } from './Conversation';
 
 afterEach(cleanup);
 
@@ -721,7 +721,9 @@ describe('Conversation continuity tools', () => {
     render(
       <Conversation
         thread={baseThread({ status: 'idle', events: [] })}
-        starterPrompts={['Review the release blockers.']}
+        starterPrompts={[
+          { icon: 'review', title: 'Review blockers', prompt: 'Review the release blockers.' },
+        ]}
         onSend={onSend}
         onStop={async () => undefined}
         onRetry={async () => undefined}
@@ -729,7 +731,9 @@ describe('Conversation continuity tools', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Review the release blockers/ }));
+    fireEvent.click(
+      screen.getByRole('button', { name: /Review blockers.*Review the release blockers/ }),
+    );
     expect(onSend).toHaveBeenCalledWith('Review the release blockers.');
   });
 
@@ -771,7 +775,18 @@ describe('Conversation continuity tools', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: 'Find in this thread' }), {
       target: { value: 'release gate' },
     });
-    expect(screen.getByText('1 found')).toBeTruthy();
+    expect(screen.getByText('1 of 1')).toBeTruthy();
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find in this thread' }), {
+      target: { value: 'nothing like this' },
+    });
+    expect(screen.getByText('No matches')).toBeTruthy();
+  });
+
+  it('says where find stands in plain words', () => {
+    expect(findCountLabel('', 0, 0)).toBe('Type to find');
+    expect(findCountLabel('gate', 0, 0)).toBe('No matches');
+    expect(findCountLabel('gate', 1, 3)).toBe('2 of 3');
+    expect(findCountLabel('gate', 7, 3)).toBe('3 of 3');
   });
 });
 
@@ -838,5 +853,91 @@ describe('Conversation follow-ups while running', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove queued message' }));
     await waitFor(() => expect(onRemoveQueued).toHaveBeenCalledWith('queued-1'));
+  });
+
+  it('offers Send now on a queued message only while the task runs', async () => {
+    const onSendQueuedNow = vi.fn(async () => undefined);
+    const view = (status: 'running' | 'queued') => (
+      <Conversation
+        thread={baseThread({ status, queuedMessages: [queuedMessage] })}
+        onSend={vi.fn(async () => undefined)}
+        onStop={vi.fn(async () => undefined)}
+        onSendQueuedNow={onSendQueuedNow}
+        onRetry={async () => undefined}
+        onResolveApproval={async () => undefined}
+      />
+    );
+    const { rerender } = render(view('running'));
+    fireEvent.click(screen.getByRole('button', { name: 'Send now' }));
+    await waitFor(() => expect(onSendQueuedNow).toHaveBeenCalledWith('queued-1'));
+    rerender(view('queued'));
+    expect(screen.queryByRole('button', { name: 'Send now' })).toBeNull();
+  });
+});
+
+describe('Conversation edit and try again', () => {
+  const exchange: ThreadDetail['events'] = [
+    {
+      id: 'user-1',
+      type: 'message',
+      role: 'user',
+      content: 'Plan a trip',
+      timestamp: '2026-09-28T00:00:00.000Z',
+    },
+    {
+      id: 'reply-1',
+      type: 'message',
+      role: 'assistant',
+      content: 'Where to?',
+      timestamp: '2026-09-28T00:00:01.000Z',
+    },
+    {
+      id: 'user-2',
+      type: 'message',
+      role: 'user',
+      content: 'Somewhere warm',
+      timestamp: '2026-09-28T00:00:02.000Z',
+    },
+    {
+      id: 'reply-2',
+      type: 'message',
+      role: 'assistant',
+      content: 'Try Lisbon.',
+      timestamp: '2026-09-28T00:00:03.000Z',
+    },
+  ];
+  const view = (status: ThreadDetail['status'], onRedo: (text?: string) => Promise<void>) => (
+    <Conversation
+      thread={baseThread({ status, events: exchange })}
+      onSend={vi.fn(async () => undefined)}
+      onStop={vi.fn(async () => undefined)}
+      onRedo={onRedo}
+      onRetry={async () => undefined}
+      onResolveApproval={async () => undefined}
+    />
+  );
+
+  it('offers Edit on the last message and Try again on the last reply once the task ends', async () => {
+    const onRedo = vi.fn(async (_text?: string) => undefined);
+    const { rerender } = render(view('idle', onRedo));
+    expect(screen.getAllByRole('button', { name: 'Edit message' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(onRedo).toHaveBeenCalledWith(undefined));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit message' }));
+    const editor = screen.getByRole('textbox', { name: 'Edit message' }) as HTMLTextAreaElement;
+    expect(editor.value).toBe('Somewhere warm');
+    fireEvent.change(editor, { target: { value: 'Somewhere cold' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(onRedo).toHaveBeenLastCalledWith('Somewhere cold'));
+    await waitFor(() =>
+      expect(screen.queryByRole('textbox', { name: 'Edit message' })).toBeNull(),
+    );
+
+    rerender(view('running', onRedo));
+    expect(screen.queryByRole('button', { name: 'Edit message' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
   });
 });

@@ -80,3 +80,54 @@ it('re-renders only the streaming reply when earlier rows are unchanged', () => 
   expect(markdownRenders.get('Reply 29 and more')).toBe(1);
   expect(view.container.querySelectorAll('[data-message-role]').length).toBe(60);
 });
+
+it('eases in only rows that arrive after the thread opened', () => {
+  const props = {
+    onSend: async () => undefined,
+    onStop: async () => undefined,
+    onRetry: async () => undefined,
+    onResolveApproval: async () => undefined,
+  };
+  const events = history(2);
+  const view = render(<Conversation thread={thread(events)} {...props} />);
+  expect(view.container.querySelectorAll('[data-entering]').length).toBe(0);
+
+  const next: ThreadEvent[] = [
+    ...events,
+    {
+      id: 'ask-new',
+      type: 'message',
+      role: 'user',
+      content: 'One more thing',
+      timestamp: '2026-08-13T00:10:00.000Z',
+    },
+  ];
+  view.rerender(<Conversation thread={thread(next)} {...props} />);
+  const entering = view.container.querySelectorAll('[data-entering="true"]');
+  expect(entering.length).toBe(1);
+  expect(entering[0]!.textContent).toContain('One more thing');
+
+  // Opening the thread again shows its whole history still.
+  view.rerender(<Conversation thread={{ ...thread(next), id: 'thread-2' }} {...props} />);
+  expect(view.container.querySelectorAll('[data-entering]').length).toBe(0);
+});
+
+it('offers copy and read aloud only once a reply is finished', () => {
+  const props = {
+    onSend: async () => undefined,
+    onStop: async () => undefined,
+    onRetry: async () => undefined,
+    onResolveApproval: async () => undefined,
+    voiceEnabled: true,
+    onSpeak: async () => ({ audioBase64: '', mimeType: 'audio/wav' as const }),
+  };
+  const events = history(1);
+  const view = render(<Conversation thread={thread(events)} {...props} />);
+  const reply = () => view.container.querySelector('[data-message-role="assistant"]')!;
+  expect(reply().querySelector('[aria-label="Copy message"]')).toBeNull();
+  expect(reply().querySelector('[data-testid="message-read-aloud"]')).toBeNull();
+
+  view.rerender(<Conversation thread={{ ...thread(events), status: 'idle' }} {...props} />);
+  expect(reply().querySelector('[aria-label="Copy message"]')).not.toBeNull();
+  expect(reply().querySelector('[data-testid="message-read-aloud"]')).not.toBeNull();
+});

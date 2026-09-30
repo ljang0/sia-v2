@@ -56,7 +56,8 @@ test('settings and personal-library surfaces remain readable at supported window
     await page.getByText('Customize setup', { exact: true }).click();
     await page.getByLabel('Agent name').scrollIntoViewIfNeeded();
     await capture(page, info, 'setup-customize');
-    await page.getByRole('radio', { name: /Connected apps \+ confirmations/ }).check();
+    await page.getByRole('radio', { name: /Connected apps only/ }).check();
+    await page.getByRole('checkbox', { name: /Ask before each action/ }).check();
     page = await sia.completeSetup();
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     await capture(page, info, 'workspace-empty');

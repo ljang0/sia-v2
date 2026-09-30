@@ -1,4 +1,4 @@
-import { Clock, X } from '@phosphor-icons/react';
+import { ArrowUp, Clock, X } from '@phosphor-icons/react';
 import { useState } from 'react';
 import type { MessageEvent } from '../types';
 import styles from './QueuedMessages.module.css';
@@ -7,11 +7,19 @@ interface QueuedMessagesProps {
   messages: readonly MessageEvent[];
   agentName?: string | undefined;
   onRemove?: ((messageId: string) => Promise<void>) | undefined;
+  /** Adds the message to the task that is running now instead of waiting for it to end. */
+  onSendNow?: ((messageId: string) => Promise<void>) | undefined;
 }
 
 /** Follow-ups sent while the thread works. Each one starts, in order, when the current task ends. */
-export function QueuedMessages({ messages, agentName, onRemove }: QueuedMessagesProps) {
+export function QueuedMessages({
+  messages,
+  agentName,
+  onRemove,
+  onSendNow,
+}: QueuedMessagesProps) {
   const [removing, setRemoving] = useState<string>();
+  const [sending, setSending] = useState<string>();
   if (!messages.length) return null;
   return (
     <section
@@ -36,13 +44,29 @@ export function QueuedMessages({ messages, agentName, onRemove }: QueuedMessages
                   : `${message.attachments.length} attachments`}
               </span>
             ) : null}
+            {onSendNow ? (
+              <button
+                type="button"
+                className={styles.sendNow}
+                title="Add this to what Sia is doing now"
+                data-testid="queued-send-now"
+                disabled={sending === message.id || removing === message.id}
+                onClick={() => {
+                  setSending(message.id);
+                  void onSendNow(message.id).finally(() => setSending(undefined));
+                }}
+              >
+                <ArrowUp size={12} weight="bold" aria-hidden="true" />
+                {sending === message.id ? 'Sending…' : 'Send now'}
+              </button>
+            ) : null}
             {onRemove ? (
               <button
                 type="button"
                 className={styles.remove}
                 aria-label="Remove queued message"
                 title="Remove"
-                disabled={removing === message.id}
+                disabled={removing === message.id || sending === message.id}
                 onClick={() => {
                   setRemoving(message.id);
                   void onRemove(message.id).finally(() => setRemoving(undefined));

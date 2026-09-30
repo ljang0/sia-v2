@@ -13,6 +13,7 @@ import { openApplicationRepository } from './application-repository.js';
 import { showStorageStartup } from './storage-startup.js';
 import { requestMicrophonePermission } from './microphone-permission.js';
 import { contextMenuTemplate } from './context-menu.js';
+import { viewMenu } from './app-menu.js';
 import { quitConfirmation, RendererRecovery } from './app-lifecycle.js';
 import {
   readWindowState,
@@ -70,6 +71,7 @@ import {
   personalVoicePath,
 } from './personal-voice.js';
 import { nativeVoiceHelperFactory } from './push-to-talk.js';
+import { dockBadgeText } from './dock-badge.js';
 
 const WINDOW_SIZE = { width: 1220, height: 780, minWidth: 960, minHeight: 640 };
 const PRODUCTION_CSP =
@@ -211,7 +213,7 @@ function createApplication(): Promise<void> {
 }
 
 async function performApplicationCreation(): Promise<void> {
-  installApplicationMenu();
+  installApplicationMenu(controller?.developerToolsEnabled() ?? false);
   configureSessionSecurity();
   await configureProviderPath();
   const developmentMode = !app.isPackaged;
@@ -444,6 +446,7 @@ async function performApplicationCreation(): Promise<void> {
           ? process.env.SIA_TEST_WORKSPACE
           : join(app.getPath('home'), 'Sia', 'Agents'),
       chooseFiles,
+      pastedAttachmentRoot: join(app.getPath('userData'), 'attachments', 'pasted'),
       exportJson,
       openPath: async (path) => {
         const error = await shell.openPath(path);
@@ -624,11 +627,13 @@ async function performApplicationCreation(): Promise<void> {
     activeController.attachRuntime(activeRuntime);
     await activeController.initialize();
     unsubscribeDockBadge?.();
+    let dockBadge: string | undefined;
     const updateDockBadge = (snapshot: ReturnType<typeof activeController.snapshot>) => {
-      const unread = snapshot.threads.filter(
-        (thread) => thread.unread && !thread.archivedAt,
-      ).length;
-      app.dock?.setBadge(unread ? String(unread) : '');
+      // Snapshots arrive while replies stream; only a changed count reaches the Dock.
+      const next = dockBadgeText(snapshot.threads);
+      if (next === dockBadge) return;
+      dockBadge = next;
+      app.dock?.setBadge(next);
     };
     updateDockBadge(activeController.snapshot());
     unsubscribeDockBadge = activeController.subscribe((event) => {
@@ -698,6 +703,11 @@ async function performApplicationCreation(): Promise<void> {
     await phoneRemote.initialize();
     scotty.initialize();
     controller = activeController;
+    // Reload appears in the View menu while Settings → Developer tools is on.
+    installApplicationMenu(activeController.developerToolsEnabled());
+    activeController.subscribe(() =>
+      installApplicationMenu(activeController.developerToolsEnabled()),
+    );
   }
   const activeController = controller;
   commandLauncher ??= createCommandLauncher(
@@ -829,7 +839,11 @@ function configureSessionSecurity(): void {
   });
 }
 
-function installApplicationMenu(): void {
+let menuDeveloperTools: boolean | undefined;
+
+function installApplicationMenu(developerTools = false): void {
+  if (menuDeveloperTools === developerTools) return;
+  menuDeveloperTools = developerTools;
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       {
@@ -867,7 +881,7 @@ function installApplicationMenu(): void {
         ],
       },
       { role: 'editMenu' },
-      { role: 'viewMenu' },
+      viewMenu({ packaged: app.isPackaged, developerTools }),
       { role: 'windowMenu' },
     ]),
   );

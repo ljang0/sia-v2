@@ -125,6 +125,7 @@ interface ForegroundApproval {
   appName: string;
   target: string;
   restoresFocusTo: string;
+  allowForTask?: boolean | undefined;
 }
 
 interface ConnectorApproval {
@@ -137,6 +138,7 @@ interface ConnectorApproval {
   destination: string;
   preview: string;
   expiresAt?: string | undefined;
+  allowForTask?: boolean | undefined;
 }
 
 interface ActionApproval {
@@ -150,6 +152,7 @@ interface ActionApproval {
   dataLabel?: string | undefined;
   reversible: boolean;
   expiresAt?: string | undefined;
+  allowForTask?: boolean | undefined;
 }
 
 type ApprovalRequest = ForegroundApproval | ConnectorApproval | ActionApproval;
@@ -159,6 +162,8 @@ export interface ApprovalEvent {
   type: 'approval';
   request: ApprovalRequest;
   status: 'pending' | 'approved' | 'rejected' | 'expired';
+  /** Approved for the rest of its task, not just once. */
+  scope?: 'task' | undefined;
   timestamp: string;
 }
 
@@ -515,7 +520,7 @@ export interface ResearchBatchSummary {
   };
 }
 
-export type ApprovalDecision = 'approve' | 'reject';
+export type ApprovalDecision = 'approve' | 'approve_task' | 'reject';
 
 export interface RendererApi {
   onOpenConversation?(listener: () => void): () => void;
@@ -560,6 +565,8 @@ export interface RendererApi {
   clearGoal(threadId: string): Promise<void>;
   pickAttachments(threadId: string): Promise<RendererAttachment[]>;
   dropAttachments(threadId: string, files: File[]): Promise<RendererAttachment[]>;
+  /** Pasted screenshots, copied files and long pasted text, attached like a dropped file. */
+  pasteAttachments(threadId: string, files: File[]): Promise<RendererAttachment[]>;
   previewAttachment(threadId: string, attachmentId: string): Promise<AttachmentPreview>;
   openAttachment(threadId: string, attachmentId: string): Promise<void>;
   revealAttachment(threadId: string, attachmentId: string): Promise<void>;
@@ -606,8 +613,12 @@ export interface RendererApi {
   runScheduleNow(scheduleId: string): Promise<void>;
   cancelTurn(threadId: string): Promise<void>;
   removeQueuedMessage(threadId: string, messageId: string): Promise<void>;
+  /** Adds a queued message to the running task ("Send now"). */
+  steerQueuedMessage(threadId: string, messageId: string): Promise<void>;
   respondToApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
   retryThread(threadId: string): Promise<void>;
+  /** Replaces the last exchange: new text edits the last message, none asks it again. */
+  redoLastMessage(threadId: string, text?: string): Promise<void>;
   setCapturePaused(paused: boolean): Promise<void>;
   declineResearchConsent(): Promise<void>;
   openProviderSetup(provider: ProviderId): Promise<void>;

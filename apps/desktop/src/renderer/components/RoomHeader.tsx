@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import type { AgentSummary, ThreadDetail } from '../types';
 import companion from '../companion.module.css';
 import { AgentForm } from './AgentForm';
+import { threadDisplayTitle } from '../threadTitle';
 import { workingLabel } from './WorkGroup';
 import type { SiaPresenceState } from './SiaPresence';
 
@@ -11,10 +12,13 @@ export function RoomHeader({
   agent,
   thread,
   controls,
+  setup = false,
 }: {
   agent?: AgentSummary | undefined;
   thread?: ThreadDetail | undefined;
   controls: ReactNode;
+  /** First-run setup is open; the header names it instead of an empty workspace. */
+  setup?: boolean;
 }) {
   const state: SiaPresenceState =
     thread?.status === 'running' || thread?.status === 'queued'
@@ -52,7 +56,9 @@ export function RoomHeader({
           ? pendingApproval
             ? 'Waiting for your approval'
             : 'Waiting for your answer'
-          : presenceLabel(state);
+          : setup
+            ? 'getting set up'
+            : presenceLabel(state);
   return (
     <header className={companion.roomHeader} data-companion-room-header>
       <div className={companion.roomIdentity}>
@@ -61,8 +67,14 @@ export function RoomHeader({
           <span className={companion.roomEyebrow}>
             {agent?.name ?? 'Sia'} · {label}
           </span>
-          <strong title={thread?.title}>
-            {thread?.title ?? (agent ? 'New conversation' : 'Your conversations')}
+          <strong title={thread ? threadDisplayTitle(thread.title) : undefined}>
+            {setup
+              ? 'Welcome'
+              : thread
+                ? threadDisplayTitle(thread.title)
+                : agent
+                  ? 'New conversation'
+                  : 'Your conversations'}
           </strong>
           {thread?.goal ? (
             <div className={companion.roomMeta}>

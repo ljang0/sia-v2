@@ -9,6 +9,7 @@ import type {
   ProviderReviewInput,
   ProviderSession,
   ProviderSessionOptions,
+  ProviderSteerInput,
   ProviderTurnInput,
   ThreadEventEnvelope,
   ToolEvent,
@@ -160,6 +161,11 @@ interface ActiveTurn {
   readonly dynamicToolNames: ReadonlySet<string>;
   readonly mac: boolean;
   readonly nativeApproval: 'ask' | 'auto';
+  /**
+   * "Allow for this task" grants: Codex's acceptForSession semantics (the same command in the
+   * same folder, or the same files), kept in Sia so they end with this turn, not the session.
+   */
+  readonly taskGrants: Set<string>;
   lastActivity?: number;
   approvalPending?: boolean;
   dynamicToolsPending?: number;
@@ -168,6 +174,8 @@ interface ActiveTurn {
   nativeTurnId?: string;
   /** Stop arrived before Codex reported the native turn id. */
   interruptPending?: boolean;
+  /** Steers waiting for the native turn id, which turn/steer requires. */
+  nativeTurnIdWaiters?: Array<(nativeTurnId: string | undefined) => void>;
 }
 
 interface DeferredRequest {
@@ -448,23 +456,9 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     input: ProviderTurnInput,
     signal?: AbortSignal,
   ): AsyncIterable<ThreadEventEnvelope> {
-    // Codex drops `mention` inputs for ordinary files, so name them in the text instead.
-    const files = (input.attachments ?? []).filter(({ kind }) => kind === 'file');
-    const text = files.length
-      ? `${input.text}\n\n${await attachedFilesText(files)}`
-      : input.text;
     const params = {
       threadId: session.nativeId,
-      input: [
-        { type: 'text', text, text_elements: [] },
-        ...(input.attachments ?? []).flatMap((attachment) =>
-          attachment.kind === 'image'
-            ? [{ type: 'localImage', path: attachment.path }]
-            : attachment.kind === 'audio'
-              ? [{ type: 'localAudio', path: attachment.path }]
-              : [],
-        ),
-      ],
+      input: await codexUserInput(input),
       ...(input.model ? { model: input.model } : {}),
       ...(input.reasoningEffort ? { effort: input.reasoningEffort } : {}),
       ...(input.outputSchema ? { outputSchema: input.outputSchema } : {}),
@@ -519,6 +513,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       queue: new AsyncQueue(),
       events: new EventFactory(this.id, session.threadId, input.turnId),
       nativeItems: new Map(),
+      taskGrants: new Set(),
       mac: ['mac', 'mac-background'].includes(
         this.#sessionOptions.get(session.id)?.nativeTools ?? '',
       ),
@@ -603,6 +598,40 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     await this.#interrupt(active, active.nativeTurnId);
   }
 
+  async steerTurn(
+    session: ProviderSession,
+    turnId: string,
+    input: ProviderSteerInput,
+  ): Promise<void> {
+    const active = this.#activeByThread.get(session.nativeId);
+    if (!active || active.input.turnId !== turnId)
+      throw new Error('This task already finished.');
+    // turn/steer names the running native turn; wait briefly for Codex to report it.
+    const nativeTurnId =
+      active.nativeTurnId ??
+      (await new Promise<string | undefined>((resolve) => {
+        const timer = setTimeout(() => resolve(undefined), this.#timeout);
+        timer.unref?.();
+        (active.nativeTurnIdWaiters ??= []).push((id) => {
+          clearTimeout(timer);
+          resolve(id);
+        });
+      }));
+    if (!nativeTurnId || this.#activeByThread.get(session.nativeId) !== active)
+      throw new Error('This task already finished.');
+    const peer = await this.#peer();
+    await peer.request(
+      'turn/steer',
+      {
+        threadId: session.nativeId,
+        input: await codexUserInput(input),
+        expectedTurnId: nativeTurnId,
+      },
+      { timeoutMs: this.#timeout },
+    );
+    active.lastActivity = Date.now();
+  }
+
   async #interrupt(active: ActiveTurn, nativeTurnId: string): Promise<void> {
     const peer = await this.#peer();
     await peer.request(
@@ -615,6 +644,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   #learnNativeTurnId(active: ActiveTurn, nativeTurnId: string): void {
     active.nativeTurnId = nativeTurnId;
     this.#activeByNativeTurn.set(nativeTurnId, active);
+    for (const waiter of active.nativeTurnIdWaiters?.splice(0) ?? []) waiter(nativeTurnId);
     if (!active.interruptPending) return;
     active.interruptPending = false;
     void this.#interrupt(active, nativeTurnId).catch((error: unknown) =>
@@ -1351,6 +1381,9 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       const active = this.#findActive(params);
       if (!active) return { decision: 'decline' };
       if (!active.mac || active.nativeApproval === 'auto') return { decision: 'accept' };
+      const grants = nativeTaskGrantKeys(method, active, params);
+      if (grants && grants.every((grant) => active.taskGrants.has(grant)))
+        return { decision: 'accept' };
       const requestId =
         stringAt(params, ['approvalId'], ['itemId']) ?? `${method}:${randomUUID()}`;
       active.approvalPending = true;
@@ -1370,11 +1403,24 @@ export class CodexAppServerAdapter implements ProviderAdapter {
             description: nativeApprovalDescription(active, params),
             choices: [
               { id: 'allow_once', label: 'Allow once', kind: 'allow_once' },
+              ...(grants
+                ? [
+                    {
+                      id: 'allow_task',
+                      label: 'Allow for this task',
+                      kind: 'allow_task' as const,
+                    },
+                  ]
+                : []),
               { id: 'deny', label: 'Deny', kind: 'deny' },
             ],
           }),
         );
         const response = await decision;
+        if (response.choiceId === 'allow_task' && grants) {
+          for (const grant of grants) active.taskGrants.add(grant);
+          return { decision: 'accept' };
+        }
         return { decision: response.choiceId === 'allow_once' ? 'accept' : 'decline' };
       } finally {
         active.approvalPending = false;
@@ -1449,11 +1495,29 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         pending.resolve({ requestId: id, choiceId: 'deny' });
       }
     }
+    for (const waiter of active.nativeTurnIdWaiters?.splice(0) ?? []) waiter(undefined);
     if (this.#activeByThread.get(active.session.nativeId) === active)
       this.#activeByThread.delete(active.session.nativeId);
     if (active.nativeTurnId && this.#activeByNativeTurn.get(active.nativeTurnId) === active)
       this.#activeByNativeTurn.delete(active.nativeTurnId);
   }
+}
+
+/** Codex user input for a new or steered turn: text plus local images and audio. */
+async function codexUserInput(input: ProviderSteerInput): Promise<Record<string, unknown>[]> {
+  // Codex drops `mention` inputs for ordinary files, so name them in the text instead.
+  const files = (input.attachments ?? []).filter(({ kind }) => kind === 'file');
+  const text = files.length ? `${input.text}\n\n${await attachedFilesText(files)}` : input.text;
+  return [
+    { type: 'text', text, text_elements: [] },
+    ...(input.attachments ?? []).flatMap((attachment) =>
+      attachment.kind === 'image'
+        ? [{ type: 'localImage', path: attachment.path }]
+        : attachment.kind === 'audio'
+          ? [{ type: 'localAudio', path: attachment.path }]
+          : [],
+    ),
+  ];
 }
 
 const ATTACHED_TEXT_FILE_BYTES = 128 * 1024;
@@ -1500,6 +1564,42 @@ async function readSmallTextFile(path: string, limit: number): Promise<string | 
   } catch {
     return undefined;
   }
+}
+
+/**
+ * What an "Allow for this task" answer covers, or undefined when it cannot be offered. Like
+ * Codex's acceptForSession: a command is matched exactly (with its folder) and a file change by
+ * its paths. Requests for extra permissions, network access, terminal input, or a whole folder
+ * always ask.
+ */
+function nativeTaskGrantKeys(
+  method: string,
+  active: ActiveTurn,
+  params: unknown,
+): string[] | undefined {
+  const value = record(params);
+  if (method === 'item/commandExecution/requestApproval') {
+    const command = stringAt(params, ['command']);
+    if (
+      !command ||
+      (stringAt(params, ['kind']) ?? 'command') !== 'command' ||
+      value.additionalPermissions ||
+      value.networkApprovalContext
+    )
+      return undefined;
+    return [`command\u0000${stringAt(params, ['cwd']) ?? ''}\u0000${command}`];
+  }
+  if (method === 'item/fileChange/requestApproval') {
+    if (stringAt(params, ['grantRoot'])) return undefined;
+    const itemId = stringAt(params, ['itemId']);
+    const item = itemId ? active.nativeItems.get(itemId) : undefined;
+    const paths = (Array.isArray(item?.changes) ? item.changes : []).flatMap((candidate) => {
+      const path = stringAt(record(candidate), ['path']);
+      return path ? [`file\u0000${path}`] : [];
+    });
+    return paths.length ? paths : undefined;
+  }
+  return undefined;
 }
 
 function nativeApprovalDescription(active: ActiveTurn, params: unknown): string {

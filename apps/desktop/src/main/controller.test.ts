@@ -90,6 +90,7 @@ async function createHarness(
     notify?: ConstructorParameters<typeof DesktopController>[0]['notify'];
     keepAwake?: ConstructorParameters<typeof DesktopController>[0]['keepAwake'];
     notchHelperPath?: string;
+    pastedAttachmentRoot?: string;
   } = {},
 ): Promise<{
   controller: DesktopController;
@@ -151,6 +152,9 @@ async function createHarness(
     ...(options.notify ? { notify: options.notify } : {}),
     ...(options.keepAwake ? { keepAwake: options.keepAwake } : {}),
     ...(options.notchHelperPath ? { notchHelperPath: options.notchHelperPath } : {}),
+    ...(options.pastedAttachmentRoot
+      ? { pastedAttachmentRoot: options.pastedAttachmentRoot }
+      : {}),
   });
   await controller.initialize();
   if (
@@ -2372,7 +2376,7 @@ describe('DesktopController', () => {
     expect(notify).toHaveBeenCalledExactlyOnceWith({
       threadId,
       title: 'Juniper needs your OK',
-      body: 'Mail Send',
+      body: 'Sending your mail',
     });
     const status = () =>
       controller.snapshot().threads.find(({ id }) => id === threadId)?.status;
@@ -4031,8 +4035,173 @@ describe('DesktopController', () => {
     );
     const approval = controller.snapshot().approvals.at(-1)!;
     expect(approval).toMatchObject({ kind: 'native_tool', title: 'Allow computer access' });
+    // Phone turns never offer, or accept, "Allow for this task".
+    expect(approval.allowForTask).toBeUndefined();
+    await expect(
+      controller.invoke('approvals.resolve', {
+        approvalId: approval.id,
+        decision: 'approve_task',
+      }),
+    ).rejects.toThrow('only be allowed once');
     await controller.invoke('approvals.resolve', { approvalId: approval.id, decision: 'deny' });
     await expect(decision).resolves.toBe('deny');
+    await controller.shutdown();
+  });
+
+  it('allows equivalent computer and Sia actions for the rest of the task only', async () => {
+    const controller = await createController();
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
+    const started = await controller.invoke('threads.send', { threadId, text: 'Use Notes' });
+    const computer = (turnId: string, app: string, digest: string) =>
+      controller.authorizeComputer(
+        {
+          adapterId: 'desktop_input',
+          riskClass: 'r2',
+          permissionMode: 'standard',
+          publicSession: turnId,
+          requestDigest: digest,
+          humanSummary: `Control the selected ${app} window`,
+          resourceJson: JSON.stringify({ app_name: app, window_title: 'Draft' }),
+          expiresUnixMs: BigInt(Date.now() + 30_000),
+        },
+        { kind: 'turn', threadId, turnId },
+      );
+    const message = (recipient: string, text: string) =>
+      controller.approvalBroker().requestApproval({
+        id: randomUUID(),
+        sessionId: 'session-1',
+        threadId,
+        turnId: started.turnId,
+        tool: getActionToolDescriptor('messages_send')!,
+        arguments: { recipient, text },
+        targetDigest: 'digest',
+        reason: 'This sends a message.',
+      });
+
+    const first = computer(started.turnId, 'Notes', 'digest-1');
+    const approval = controller.snapshot().approvals.at(-1)!;
+    expect(approval.allowForTask).toBe(true);
+    await controller.invoke('approvals.resolve', {
+      approvalId: approval.id,
+      decision: 'approve_task',
+    });
+    await expect(first).resolves.toBe('allow');
+    expect(controller.snapshot().approvals.at(-1)).toMatchObject({
+      id: approval.id,
+      status: 'approved',
+      scope: 'task',
+    });
+    const count = controller.snapshot().approvals.length;
+    await expect(computer(started.turnId, 'Notes', 'digest-2')).resolves.toBe('allow');
+    expect(controller.snapshot().approvals).toHaveLength(count);
+    const other = computer(started.turnId, 'TextEdit', 'digest-3');
+    const textEdit = controller.snapshot().approvals.at(-1)!;
+    expect(textEdit).toMatchObject({ target: 'TextEdit, Draft', status: 'pending' });
+    await controller.invoke('approvals.resolve', { approvalId: textEdit.id, decision: 'deny' });
+    await expect(other).resolves.toBe('deny');
+
+    const sent = message('+15555550100', 'On my way');
+    const send = controller.snapshot().approvals.at(-1)!;
+    expect(send.allowForTask).toBe(true);
+    await controller.invoke('approvals.resolve', {
+      approvalId: send.id,
+      decision: 'approve_task',
+    });
+    await expect(sent).resolves.toEqual({ approved: true });
+    await expect(message('+15555550100', 'Running late')).resolves.toEqual({ approved: true });
+    const stranger = message('+15555550199', 'Hello');
+    const asked = controller.snapshot().approvals.at(-1)!;
+    expect(asked).toMatchObject({ status: 'pending', target: 'recipient: +15555550199' });
+    await controller.invoke('approvals.resolve', { approvalId: asked.id, decision: 'deny' });
+    await expect(stranger).resolves.toEqual({ approved: false });
+
+    // The grant ends with its task.
+    await controller.invoke('threads.cancel', { threadId });
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).not.toBe(
+        'running',
+      ),
+    );
+    const next = await controller.invoke('threads.send', { threadId, text: 'Use Notes again' });
+    const again = computer(next.turnId, 'Notes', 'digest-4');
+    const renewed = controller.snapshot().approvals.at(-1)!;
+    expect(renewed).toMatchObject({ status: 'pending', target: 'Notes, Draft' });
+    await controller.invoke('approvals.resolve', { approvalId: renewed.id, decision: 'deny' });
+    await expect(again).resolves.toBe('deny');
+    await controller.shutdown();
+  });
+
+  it('passes "Allow for this task" to native provider requests that offer it', async () => {
+    let runtimeThreadId = '';
+    const runtime = {
+      async *runTurn(input: { turnId: string }, signal?: AbortSignal) {
+        yield {
+          id: crypto.randomUUID(),
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          sequence: 1,
+          timestamp: new Date().toISOString(),
+          type: 'approval' as const,
+          payload: {
+            requestId: 'provider-request-1',
+            phase: 'requested' as const,
+            title: 'Allow Mac action',
+            description: 'Run a command: open -a TextEdit',
+            choices: [
+              { id: 'allow_once', label: 'Allow once', kind: 'allow_once' as const },
+              { id: 'allow_task', label: 'Allow for this task', kind: 'allow_task' as const },
+              { id: 'deny', label: 'Deny', kind: 'deny' as const },
+            ],
+          },
+        };
+        await new Promise<void>((resolve) => {
+          if (signal?.aborted) resolve();
+          else signal?.addEventListener('abort', () => resolve(), { once: true });
+        });
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    await controller.invoke('computer.setTrust', { trust: 'ask' });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Personal',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
+    runtimeThreadId = threadId;
+    await controller.invoke('threads.send', { threadId, text: 'Open TextEdit' });
+    await vi.waitFor(() =>
+      expect(controller.snapshot().approvals.at(-1)?.status).toBe('pending'),
+    );
+    const approval = controller.snapshot().approvals.at(-1)!;
+    expect(approval.allowForTask).toBe(true);
+    await controller.invoke('approvals.resolve', {
+      approvalId: approval.id,
+      decision: 'approve_task',
+    });
+    expect(runtime.respondToRequest).toHaveBeenCalledWith(threadId, {
+      requestId: 'provider-request-1',
+      choiceId: 'allow_task',
+    });
+    expect(controller.snapshot().approvals.at(-1)).toMatchObject({
+      status: 'approved',
+      scope: 'task',
+    });
+    await controller.invoke('threads.cancel', { threadId });
     await controller.shutdown();
   });
 
@@ -7280,7 +7449,7 @@ it('defaults new profiles to automatic action approval and preserves it after ag
   await restored.controller.shutdown();
 });
 
-it('preserves confirmations for legacy profiles without an approval preference', async () => {
+it('uses bypass for profiles that never chose an approval preference', async () => {
   const { repository } = await createHarness();
   const stored = repository.get<{ preferences: { computerTrust?: string } }>(
     'desktop',
@@ -7289,8 +7458,9 @@ it('preserves confirmations for legacy profiles without an approval preference',
   delete stored.preferences.computerTrust;
   repository.put('desktop', 'state', stored);
   const restored = await createHarness({ repository });
-  expect(restored.controller.computerTrust()).toBe('ask');
-  expect(restored.controller.snapshot().computer.trust).toBe('ask');
+  expect(restored.controller.computerTrust()).toBe('auto');
+  expect(restored.controller.snapshot().computer.trust).toBe('auto');
+  expect(restored.controller.isBrowserOriginAllowed('https://example.com')).toBe(true);
   await restored.controller.shutdown();
 });
 
@@ -7400,8 +7570,12 @@ describe('follow-up messages while a turn runs', () => {
     return { runtime, turns, release };
   }
 
-  async function startThread(runtime: unknown) {
-    const { controller, repository } = await createHarness({ fakeServices: false, runtime });
+  async function startThread(runtime: unknown, pastedAttachmentRoot?: string) {
+    const { controller, repository } = await createHarness({
+      fakeServices: false,
+      runtime,
+      ...(pastedAttachmentRoot ? { pastedAttachmentRoot } : {}),
+    });
     await controller.invoke('computer.setAccessMode', { mode: 'connected' });
     const { agentId } = await controller.invoke('agents.save', {
       name: 'Follow-ups',
@@ -7531,6 +7705,156 @@ describe('follow-up messages while a turn runs', () => {
       await new Promise((resolve) => setTimeout(resolve, 120));
       expect(turns).toHaveLength(1);
       expect(thread().status).toBe('idle');
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('Try again and Edit replace the last exchange and start from the conversation before it', async () => {
+    const { runtime, turns, release } = followUpRuntime();
+    const releaseSession = vi.fn(async () => undefined);
+    const { controller, threadId, thread } = await startThread({ ...runtime, releaseSession });
+    const transcript = () =>
+      controller
+        .snapshot()
+        .timeline.filter(
+          (item) =>
+            item.threadId === threadId && (item.kind === 'user' || item.kind === 'assistant'),
+        )
+        .sort((left, right) => left.sequence - right.sequence)
+        .map(({ text }) => text);
+    const finish = async (count: number) => {
+      await vi.waitFor(() => expect(turns).toHaveLength(count));
+      await vi.waitFor(() => expect(release.has(turns.at(-1)!.turnId)).toBe(true));
+      release.get(turns.at(-1)!.turnId)!();
+      await vi.waitFor(() => expect(thread().status).toBe('idle'));
+    };
+    try {
+      await controller.invoke('threads.send', { threadId, text: 'Plan a trip' });
+      await expect(controller.invoke('threads.redo', { threadId })).rejects.toThrow(
+        'Wait for Sia to finish',
+      );
+      await finish(1);
+      await controller.invoke('threads.send', { threadId, text: 'Somewhere warm' });
+      await finish(2);
+      expect(transcript()).toEqual(['Plan a trip', 'Reply 1', 'Somewhere warm', 'Reply 2']);
+
+      await controller.invoke('threads.redo', { threadId });
+      expect(releaseSession).toHaveBeenCalledWith(threadId);
+      await finish(3);
+      expect(transcript()).toEqual(['Plan a trip', 'Reply 1', 'Somewhere warm', 'Reply 3']);
+      // The replaced reply is not part of what the provider sees.
+      expect(turns[2]!.text).toContain('Somewhere warm');
+      expect(turns[2]!.thread.priorMessages?.map(({ text }) => text)).toEqual([
+        'Plan a trip',
+        'Reply 1',
+      ]);
+
+      await controller.invoke('threads.redo', { threadId, text: 'Somewhere cold' });
+      await finish(4);
+      expect(transcript()).toEqual(['Plan a trip', 'Reply 1', 'Somewhere cold', 'Reply 4']);
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it('attaches a pasted screenshot to a follow-up sent while the turn runs', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'sia-pasted-'));
+    const { runtime, turns, release } = followUpRuntime();
+    const { controller, threadId, users } = await startThread(runtime, root);
+    try {
+      const first = await controller.invoke('threads.send', { threadId, text: 'Tidy my desk' });
+      await vi.waitFor(() => expect(release.has(first.turnId)).toBe(true));
+      const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+      const { attachments } = await controller.invoke('attachments.paste', {
+        threadId,
+        name: 'image.png',
+        mimeType: 'image/png',
+        data: png,
+      });
+      expect(attachments).toEqual([
+        expect.objectContaining({ name: 'Pasted image.png', kind: 'image', bytes: png.length }),
+      ]);
+      await expect(
+        controller.invoke('attachments.paste', {
+          threadId,
+          mimeType: 'image/png',
+          data: new TextEncoder().encode('not really a png'),
+        }),
+      ).rejects.toThrow('could not be read');
+
+      await controller.invoke('threads.send', {
+        threadId,
+        text: 'Like this one',
+        attachmentIds: [attachments[0]!.id],
+      });
+      expect(users().at(-1)).toMatchObject({
+        status: 'pending',
+        attachments: [expect.objectContaining({ name: 'Pasted image.png' })],
+      });
+      release.get(first.turnId)!();
+      await vi.waitFor(() => expect(turns).toHaveLength(2));
+      const [attached] = turns[1]!.attachments ?? [];
+      expect(attached).toMatchObject({ kind: 'image', name: 'Pasted image.png' });
+      expect(attached!.path.startsWith(root)).toBe(true);
+      release.get(turns[1]!.turnId)?.();
+    } finally {
+      await controller.shutdown();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('sends a queued follow-up into the running turn, and keeps it queued when that fails', async () => {
+    const { runtime, turns, release } = followUpRuntime();
+    const steer = vi.fn(async () => undefined);
+    const { controller, threadId, thread, users } = await startThread({ ...runtime, steer });
+    try {
+      const first = await controller.invoke('threads.send', { threadId, text: 'Plan a trip' });
+      await vi.waitFor(() => expect(release.has(first.turnId)).toBe(true));
+      await controller.invoke('threads.send', { threadId, text: 'Make it Portugal' });
+      await controller.invoke('threads.send', { threadId, text: 'Under $2k' });
+      const portugal = users().find(({ text }) => text === 'Make it Portugal')!;
+
+      await controller.invoke('threads.steer', { threadId, messageId: portugal.id });
+      expect(steer).toHaveBeenCalledWith(threadId, first.turnId, { text: 'Make it Portugal' });
+      // It joins the running turn after what the agent already said; the other stays queued.
+      const ordered = controller
+        .snapshot()
+        .timeline.filter(
+          (item) =>
+            item.threadId === threadId && (item.kind === 'user' || item.kind === 'assistant'),
+        )
+        .sort((left, right) => left.sequence - right.sequence)
+        .map(({ text, status, turnId }) => ({ text, status, turnId }));
+      expect(ordered.filter(({ status }) => status !== 'pending')).toEqual([
+        { text: 'Plan a trip', status: 'complete', turnId: first.turnId },
+        { text: 'Reply 1', status: 'complete', turnId: first.turnId },
+        { text: 'Make it Portugal', status: 'complete', turnId: first.turnId },
+      ]);
+      expect(ordered.filter(({ status }) => status === 'pending')).toMatchObject([
+        { text: 'Under $2k' },
+      ]);
+      await expect(
+        controller.invoke('threads.steer', { threadId, messageId: portugal.id }),
+      ).rejects.toThrow('already started or was removed');
+
+      steer.mockRejectedValueOnce(new Error('Turn mismatch.'));
+      const budget = users().find(({ text }) => text === 'Under $2k')!;
+      await expect(
+        controller.invoke('threads.steer', { threadId, messageId: budget.id }),
+      ).rejects.toThrow('it will be sent next');
+      expect(users().find(({ id }) => id === budget.id)).toMatchObject({ status: 'pending' });
+
+      release.get(first.turnId)!();
+      await vi.waitFor(() => expect(turns).toHaveLength(2));
+      // The steered message never starts a turn of its own.
+      expect(turns[1]!.text).toContain('Under $2k');
+      await vi.waitFor(() => expect(release.has(turns[1]!.turnId)).toBe(true));
+      await expect(
+        controller.invoke('threads.steer', { threadId, messageId: budget.id }),
+      ).rejects.toThrow('already started or was removed');
+      release.get(turns[1]!.turnId)!();
+      await vi.waitFor(() => expect(thread().status).toBe('idle'));
     } finally {
       await controller.shutdown();
     }

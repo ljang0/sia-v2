@@ -221,6 +221,10 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       const result = await bridge.attachments.drop(threadId, files);
       return structuredClone(result.attachments);
     },
+    async pasteAttachments(threadId, files) {
+      const result = await bridge.attachments.paste(threadId, files);
+      return structuredClone(result.attachments);
+    },
     async previewAttachment(threadId, attachmentId) {
       return structuredClone(await bridge.attachments.preview(threadId, attachmentId));
     },
@@ -309,17 +313,23 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async removeQueuedMessage(threadId, messageId) {
       publish(await bridge.threads.unqueue(threadId, messageId));
     },
+    async steerQueuedMessage(threadId, messageId) {
+      publish(await bridge.threads.steer(threadId, messageId));
+    },
     async respondToApproval(approvalId, decision) {
       publish(
         await bridge.approvals.resolve({
           approvalId,
-          decision: decision === 'reject' ? 'deny' : 'approve',
+          decision: decision === 'reject' ? 'deny' : decision,
         }),
       );
     },
     async retryThread(threadId) {
       const result = await bridge.threads.retry(threadId);
       publish(result.snapshot);
+    },
+    async redoLastMessage(threadId, text) {
+      publish((await bridge.threads.redo(threadId, text)).snapshot);
     },
     async setCapturePaused(paused) {
       publish(
@@ -943,6 +953,7 @@ function mapApproval(
       id: approval.id,
       type: 'approval',
       status,
+      ...(approval.scope ? { scope: approval.scope } : {}),
       timestamp,
       request: {
         id: approval.id,
@@ -952,6 +963,7 @@ function mapApproval(
         appName: approval.target,
         target: approval.dataLeaving ?? approval.summary,
         restoresFocusTo: 'your current app',
+        allowForTask: approval.allowForTask,
       },
     };
   }
@@ -961,6 +973,7 @@ function mapApproval(
       id: approval.id,
       type: 'approval',
       status,
+      ...(approval.scope ? { scope: approval.scope } : {}),
       timestamp,
       request: {
         id: approval.id,
@@ -972,6 +985,7 @@ function mapApproval(
         destination: approval.target,
         preview: approval.dataLeaving ?? approval.summary,
         expiresAt: approval.expiresAt,
+        allowForTask: approval.allowForTask,
       },
     };
   }
@@ -980,6 +994,7 @@ function mapApproval(
     id: approval.id,
     type: 'approval',
     status,
+    ...(approval.scope ? { scope: approval.scope } : {}),
     timestamp,
     request: {
       id: approval.id,
@@ -997,6 +1012,7 @@ function mapApproval(
       dataLabel: approval.dataLabel,
       reversible: approval.reversible,
       expiresAt: approval.expiresAt,
+      allowForTask: approval.allowForTask,
     },
   };
 }

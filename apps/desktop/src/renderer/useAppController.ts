@@ -182,6 +182,14 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
         return [...next.values()];
       });
     },
+    pasteAttachments: async (threadId: string, files: File[]) => {
+      const pasted = await api.pasteAttachments(threadId, files);
+      setAttachments((current) => {
+        const next = new Map(current.map((attachment) => [attachment.id, attachment]));
+        pasted.forEach((attachment) => next.set(attachment.id, attachment));
+        return [...next.values()];
+      });
+    },
     removeAttachment: (attachmentId: string) =>
       setAttachments((current) =>
         current.filter((attachment) => attachment.id !== attachmentId),
