@@ -22,9 +22,9 @@ import { AssistantLibrary, DESKTOP_EXECUTION_GUIDANCE } from '../assistant-libra
 import { applyTurnChanges, readTurnChanges, turnFileChanges } from '../turn-changes.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, extname, isAbsolute, join, normalize, resolve } from 'node:path';
+import { basename, extname, isAbsolute, join, normalize } from 'node:path';
 
 import {
   LocalLeaseCoordinator,
@@ -43,7 +43,6 @@ import type {
 import type { ModelRoute, ProviderAttachment, ThreadEventEnvelope } from '@sia/protocol';
 import { admitHostedRoutes, legacyModelRoute, resolveExecutionTarget } from '@sia/runtime';
 
-import type { CloudClient } from '../cloud-client.js';
 import type {
   ActivityPresentationView,
   AgentView,
@@ -70,13 +69,11 @@ import type {
   WorkspaceDiffView,
   TerminalResultView,
 } from '../../shared/bridge.js';
-import type { RecordRepository } from '../persistence.js';
 import { probeProviders, providerPlan } from '../provider-probe.js';
 import type { RuntimeCoordinator } from '../runtime-coordinator.js';
 import type { CuaAuthorizationContext } from '../cua-service.js';
 import type { VoiceOperations } from '../voice-service.js';
 import { PushToTalkService, type VoiceHelperFactory } from '../push-to-talk.js';
-import type { TrajectoryRecorder } from '../trajectory-recorder.js';
 import { RESEARCH_CONSENT_VERSION } from '../../shared/bridge.js';
 import {
   alignScheduleStart,
@@ -111,7 +108,7 @@ import {
   runtimeToolTitle,
 } from '../runtime-activity.js';
 import { gatewayTaskGrant } from './approval-grants.js';
-import { abortableDelay, defaultRunCommand, settleBeforeShutdown } from './async-utils.js';
+import { abortableDelay, settleBeforeShutdown } from './async-utils.js';
 import {
   attachmentKind,
   previewImageMimeType,
@@ -164,11 +161,11 @@ import type {
   ApprovedConnectorBinding,
   AttachmentGrant,
   BrowserCapabilitySink,
-  ComputerAutomation,
   ControllerOptions,
   PendingApproval,
   QueuedTurn,
 } from './types.js';
+import { type ControllerDeps, resolveControllerDeps } from './deps.js';
 import { compareVersions, isCleanHttpsUrl } from './update-feed.js';
 import { normalizeWorkspace, workspaceSlug, worktreeLabel } from './workspace-paths.js';
 
@@ -189,49 +186,20 @@ type BridgeHandlers = { [M in BridgeMethod]?: BridgeHandler<M> };
  * this context holds the shared state and wires the domain collaborators.
  */
 export class ControllerContext {
-  readonly repository: RecordRepository;
+  readonly deps: ControllerDeps;
   readonly assistantLibrary: AssistantLibrary;
-  readonly cloud: CloudClient;
-  readonly computer: ComputerAutomation;
-  readonly identity: ControllerOptions['identity'];
-  readonly fakeServices: boolean;
-  readonly fakeTurnDelayMs: number;
-  readonly openExternal: (url: string) => Promise<void>;
-  readonly openMessages: (() => Promise<void>) | undefined;
-  readonly openMessagesPermissions: (() => Promise<void>) | undefined;
-  readonly requestMicrophonePermission: (() => Promise<void>) | undefined;
-  readonly restartApp: (() => void) | undefined;
-  readonly installCodex: (() => Promise<void>) | undefined;
   codexSetupPending = false;
   /** Aborts a ChatGPT browser sign-in that is still waiting on the person. */
   codexLoginAbort: AbortController | undefined;
   codexSetup: ProviderView['setup'];
   pendingTerminalOperations = 0;
-  readonly chooseDirectory: () => Promise<string | null>;
-  readonly defaultWorkspaceRoot: string | undefined;
-  readonly createDirectory: (path: string) => Promise<void>;
-  readonly chooseFiles: (() => Promise<string[]>) | undefined;
-  readonly pastedAttachmentRoot: string | undefined;
-  readonly openPath: ((path: string) => Promise<void>) | undefined;
-  readonly composeFeedback: ((subject: string, body: string) => Promise<void>) | undefined;
-  readonly setOpenAtLogin: ((enabled: boolean) => void) | undefined;
-  readonly appVersion: string;
-  readonly updateManifestUrl: string | undefined;
-  readonly updateManifestPublicKey: string | undefined;
-  readonly exportJson: (value: unknown) => Promise<string | null>;
-  readonly notify:
-    ((notice: { threadId: string; title: string; body: string }) => void) | undefined;
-  readonly workspaceOperations: ControllerOptions['workspaceOperations'];
-  readonly voice: VoiceOperations | undefined;
   pushToTalk: PushToTalkService | undefined;
-  readonly startupNotice: ControllerOptions['startupNotice'];
   readonly listeners = new Set<(event: DesktopPushEvent) => void>();
   readonly rendererCall = new AsyncLocalStorage<true>();
   readonly previewMemo: ThreadPreviewMemo = new WeakMap();
   readonly runningTurns = new Map<string, AbortController>();
   /** Running Use my Mac turns by thread; they hold the keep-awake assertion. */
   readonly macTurns = new Map<string, QueuedTurn>();
-  readonly keepAwake: ControllerOptions['keepAwake'];
   /** Mac turns currently keeping the display awake; a turn waiting on the person does not. */
   readonly awakeTurns = new Set<string>();
   /** Mac turns that started with On my screen: they show the on-screen indicator and hold ⌃Esc. */
@@ -274,7 +242,6 @@ export class ControllerContext {
   memoryTimer: NodeJS.Timeout | undefined;
   notchTimer: NodeJS.Timeout | undefined;
   nextNotchCheck = 0;
-  readonly notchHelperPath: string;
   scheduleRunInFlight = false;
   researchRetryDelayMs = 15_000;
   researchGeneration = 0;
@@ -291,15 +258,9 @@ export class ControllerContext {
     accessibility: false,
     screenRecording: false,
   };
-  readonly trajectory: TrajectoryRecorder | undefined;
-  readonly capabilitySetup: ControllerOptions['capabilitySetup'];
-  readonly runCommand: (file: string, args: readonly string[]) => Promise<string>;
-  readonly providerProbe: typeof probeProviders;
-  readonly captureMacContext: ControllerOptions['captureMacContext'];
   automationPermissions: AutomationPermissions | undefined;
   messagesAccess: 'ready' | 'needs_full_disk_access' | 'unavailable' | undefined;
   chromeConnection: 'enabled' | 'off' | 'unavailable' | undefined;
-  readonly revealDirectory: ((path: string) => Promise<void>) | undefined;
   readonly browserContinuations = new Set<string>();
   browserAutoAttach: Promise<void> | undefined;
   revision = 0;
@@ -310,58 +271,15 @@ export class ControllerContext {
   updates: UpdateView;
 
   constructor(options: ControllerOptions) {
-    this.notchHelperPath =
-      options.notchHelperPath ??
-      resolve(import.meta.dirname, '../../../build/native/SiaVoiceHelper');
-    this.repository = options.repository;
-    this.assistantLibrary = new AssistantLibrary(options.repository);
-    this.cloud = options.cloud;
-    this.computer = options.computer;
-    this.identity = options.identity;
-    this.fakeServices = options.fakeServices;
-    this.fakeTurnDelayMs = options.fakeTurnDelayMs ?? 160;
-    this.openExternal = options.openExternal;
-    this.trajectory = options.trajectory;
-    this.capabilitySetup = options.capabilitySetup;
-    this.keepAwake = options.keepAwake;
-    this.runCommand = options.runCommand ?? defaultRunCommand;
-    this.providerProbe = options.providerProbe ?? probeProviders;
-    this.captureMacContext = options.captureMacContext;
-    this.revealDirectory = options.revealDirectory;
-    this.openMessages = options.openMessages;
-    this.openMessagesPermissions = options.openMessagesPermissions;
-    this.requestMicrophonePermission = options.requestMicrophonePermission;
-    this.restartApp = options.restartApp;
-    this.installCodex = options.installCodex;
-    this.chooseDirectory = options.chooseDirectory;
-    this.defaultWorkspaceRoot = options.defaultWorkspaceRoot
-      ? normalizeWorkspace(options.defaultWorkspaceRoot)
-      : undefined;
-    this.createDirectory =
-      options.createDirectory ??
-      (async (path) => {
-        await mkdir(path, { recursive: true, mode: 0o700 });
-      });
-    this.chooseFiles = options.chooseFiles;
-    this.pastedAttachmentRoot = options.pastedAttachmentRoot;
-    this.openPath = options.openPath;
-    this.composeFeedback = options.composeFeedback;
-    this.setOpenAtLogin = options.setOpenAtLogin;
-    this.appVersion = options.appVersion ?? 'development';
-    this.updateManifestUrl = options.updateManifestUrl;
-    this.updateManifestPublicKey = options.updateManifestPublicKey;
+    this.deps = resolveControllerDeps(options);
+    this.assistantLibrary = new AssistantLibrary(this.deps.repository);
     this.updates = {
-      status: options.updateManifestUrl ? 'idle' : 'unconfigured',
-      currentVersion: this.appVersion,
-      detail: options.updateManifestUrl
+      status: this.deps.updateManifestUrl ? 'idle' : 'unconfigured',
+      currentVersion: this.deps.appVersion,
+      detail: this.deps.updateManifestUrl
         ? 'Ready to check the configured release feed.'
         : 'This build does not have a persistent signed update feed configured.',
     };
-    this.exportJson = options.exportJson;
-    this.notify = options.notify;
-    this.workspaceOperations = options.workspaceOperations;
-    this.voice = options.voice;
-    this.startupNotice = options.startupNotice;
   }
 
   attachPushToTalk(options: {
@@ -369,16 +287,16 @@ export class ControllerContext {
     createHelper: VoiceHelperFactory;
     isFocused(): boolean;
   }): void {
-    if (!this.voice || this.pushToTalk) return;
+    if (!this.deps.voice || this.pushToTalk) return;
     this.pushToTalk = new PushToTalkService({
       ...options,
-      repository: this.repository,
-      voice: this.voice,
+      repository: this.deps.repository,
+      voice: this.deps.voice,
       allowed: () =>
         !this.codexSetupPending &&
         !this.releaseAccessLocked() &&
-        this.voice?.view().status === 'connected' &&
-        this.voice.view().dictationAvailable !== false,
+        this.deps.voice?.view().status === 'connected' &&
+        this.deps.voice.view().dictationAvailable !== false,
       target: (agentId) => {
         this.requireSignedInReleaseAccount();
         const fallback = this.requireAgent(agentId);
@@ -530,7 +448,10 @@ export class ControllerContext {
     return (invocation) => {
       if (GOOGLE_WORKSPACE_ACTION.test(invocation.name)) {
         this.excludeResearchTurn(invocation.context.turnId);
-        this.trajectory?.excludeTurn(invocation.context.threadId, invocation.context.turnId);
+        this.deps.trajectory?.excludeTurn(
+          invocation.context.threadId,
+          invocation.context.turnId,
+        );
         return;
       }
       if (SAFE_RESEARCH_ACTIONS.has(invocation.name)) {
@@ -580,9 +501,9 @@ export class ControllerContext {
     if (this.releaseAccessLocked()) return false;
     if (isConnectorActionTool(name)) {
       return (
-        this.fakeServices ||
-        (this.cloud.configured &&
-          this.identity.status().state === 'signed_in' &&
+        this.deps.fakeServices ||
+        (this.deps.cloud.configured &&
+          this.deps.identity.status().state === 'signed_in' &&
           this.state.cloudFeatures.connectors)
       );
     }
@@ -634,7 +555,7 @@ export class ControllerContext {
   libraryView() {
     const view = this.assistantLibrary.view();
     if (this.computerAccessMode() !== 'mac') return view;
-    if (!this.fakeServices) {
+    if (!this.deps.fakeServices) {
       for (const agent of this.state.agents) this.notchVault(agent.id).initialize(view);
     }
     return {
@@ -991,7 +912,7 @@ export class ControllerContext {
    * frontmost visible window is attached on demand the first time a browser tool runs.
    */
   async chromeDebugOwnerPid(): Promise<number | undefined> {
-    return chromeDebugPortOwnerPid(this.runCommand);
+    return chromeDebugPortOwnerPid(this.deps.runCommand);
   }
 
   async ensureBrowserAttachedForActions(): Promise<string | undefined> {
@@ -1013,7 +934,7 @@ export class ControllerContext {
   }
 
   recordActionResult(notice: Parameters<ActionResultObserver>[0]): void {
-    if (!this.trajectory) return;
+    if (!this.deps.trajectory) return;
     if (GOOGLE_WORKSPACE_ACTION.test(notice.name)) {
       return;
     }
@@ -1021,7 +942,7 @@ export class ControllerContext {
       mimeType: image.mimeType,
       dataBase64: image.dataBase64,
     }));
-    this.trajectory.record(
+    this.deps.trajectory.record(
       {
         type: 'action_result',
         threadId: notice.context.threadId,
@@ -1038,7 +959,7 @@ export class ControllerContext {
   }
 
   async grantChosenDirectory(): Promise<string | null> {
-    const chosen = await this.chooseDirectory();
+    const chosen = await this.deps.chooseDirectory();
     if (!chosen) return null;
     if (!isAbsolute(chosen))
       throw new Error('The native picker returned an invalid workspace.');
@@ -1050,19 +971,19 @@ export class ControllerContext {
   async composeFeedbackMessage(
     input: BridgeRequestMap['feedback.compose'],
   ): Promise<BridgeResultMap['feedback.compose']> {
-    if (!this.composeFeedback)
+    if (!this.deps.composeFeedback)
       throw new Error('Feedback handoff is unavailable in this build.');
     if (input.threadId) this.requireThread(input.threadId);
     const diagnostics = input.includeDiagnostics
       ? [
           '',
           '--- Sia diagnostics (no transcript or file contents) ---',
-          `Version: ${this.appVersion}`,
+          `Version: ${this.deps.appVersion}`,
           ...(input.threadId ? [`Thread ID: ${input.threadId}`] : []),
           `Providers: ${this.providers.map(({ id, status }) => `${id}=${status}`).join(', ')}`,
         ].join('\n')
       : '';
-    await this.composeFeedback(
+    await this.deps.composeFeedback(
       'Sia internal feedback',
       `${input.message.trim()}${diagnostics}`,
     );
@@ -1070,11 +991,11 @@ export class ControllerContext {
   }
 
   async checkForUpdates(): Promise<UpdateView> {
-    if (!this.updateManifestUrl) return structuredClone(this.updates);
-    if (!isCleanHttpsUrl(this.updateManifestUrl)) {
+    if (!this.deps.updateManifestUrl) return structuredClone(this.updates);
+    if (!isCleanHttpsUrl(this.deps.updateManifestUrl)) {
       this.updates = {
         status: 'error',
-        currentVersion: this.appVersion,
+        currentVersion: this.deps.appVersion,
         detail: 'The configured release feed must be a clean HTTPS URL.',
       };
       this.emit();
@@ -1082,32 +1003,32 @@ export class ControllerContext {
     }
     this.updates = {
       status: 'checking',
-      currentVersion: this.appVersion,
+      currentVersion: this.deps.appVersion,
       detail: 'Checking the configured release feed…',
     };
     this.emit();
     try {
-      if (!this.updateManifestPublicKey) {
+      if (!this.deps.updateManifestPublicKey) {
         throw new Error('The release feed does not have a pinned signing key.');
       }
-      await this.identity.refreshSession?.();
-      const token = await this.identity.read?.();
+      await this.deps.identity.refreshSession?.();
+      const token = await this.deps.identity.read?.();
       if (!token) throw new Error('Sign in with an approved Sia account to check for updates.');
-      const response = await fetch(this.updateManifestUrl, {
+      const response = await fetch(this.deps.updateManifestUrl, {
         headers: { accept: 'application/json', authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(10_000),
       });
       if (!response.ok) throw new Error(`Release feed returned HTTP ${response.status}.`);
       const verified = verifyUpdateManifestResponse(
         await response.json(),
-        this.updateManifestPublicKey,
+        this.deps.updateManifestPublicKey,
       );
       const latestVersion = verified.payload.version;
       const downloadUrl = verified.downloadUrl;
-      const available = compareVersions(latestVersion, this.appVersion) > 0;
+      const available = compareVersions(latestVersion, this.deps.appVersion) > 0;
       this.updates = {
         status: available ? 'available' : 'current',
-        currentVersion: this.appVersion,
+        currentVersion: this.deps.appVersion,
         latestVersion,
         ...(available ? { downloadUrl } : {}),
         detail: available
@@ -1117,7 +1038,7 @@ export class ControllerContext {
     } catch (error) {
       this.updates = {
         status: 'error',
-        currentVersion: this.appVersion,
+        currentVersion: this.deps.appVersion,
         detail:
           error instanceof Error ? error.message : 'The release feed could not be checked.',
       };
@@ -1130,12 +1051,12 @@ export class ControllerContext {
     if (this.updates.status !== 'available' || !this.updates.downloadUrl) {
       throw new Error('Check for updates before opening a download.');
     }
-    await this.openExternal(this.updates.downloadUrl);
+    await this.deps.openExternal(this.updates.downloadUrl);
     return { opened: true };
   }
 
   async initialize(): Promise<void> {
-    const stored = this.repository.get<PersistedState>('desktop', 'state');
+    const stored = this.deps.repository.get<PersistedState>('desktop', 'state');
     this.state = stored ? recoverPersistedState(stored) : structuredClone(INITIAL_STATE);
     this.pruneExpiredResearchBatches();
     for (const workspace of [
@@ -1148,13 +1069,15 @@ export class ControllerContext {
       // Fake-services mode must not inspect or depend on host CLI installs or
       // authentication. An empty PATH produces deterministic placeholder views;
       // Codex is replaced with the explicit fake runtime below.
-      this.fakeServices ? probeProviders(undefined, { PATH: '' }) : this.providerProbe(),
-      this.computer.permissions(),
-      this.identity.initialize(),
+      this.deps.fakeServices
+        ? probeProviders(undefined, { PATH: '' })
+        : this.deps.providerProbe(),
+      this.deps.computer.permissions(),
+      this.deps.identity.initialize(),
     ]);
     this.providers = providers;
     await this.refreshCapabilityStatuses().catch(() => undefined);
-    if (this.fakeServices) {
+    if (this.deps.fakeServices) {
       const codexIndex = this.providers.findIndex(({ id }) => id === 'codex');
       const fakeCodex: ProviderView = {
         id: 'codex',
@@ -1190,8 +1113,8 @@ export class ControllerContext {
     await this.reconcileIdentityBoundState();
     await this.refreshCloudSession();
     await this.refreshMetaProviderState();
-    if (this.identity.status().state === 'signed_in') {
-      await this.voice?.refresh().catch(() => undefined);
+    if (this.deps.identity.status().state === 'signed_in') {
+      await this.deps.voice?.refresh().catch(() => undefined);
     }
     this.computerState = computer;
     this.refreshResearchPendingCount();
@@ -1236,7 +1159,7 @@ export class ControllerContext {
     this.nextNotchCheck = Date.now() + 120_000;
     this.notchTimer = setInterval(() => {
       if (
-        this.fakeServices ||
+        this.deps.fakeServices ||
         this.shuttingDown ||
         this.assistantSuspended ||
         this.releaseAccessLocked() ||
@@ -1346,13 +1269,13 @@ export class ControllerContext {
   }
 
   buildSnapshot(scoped: boolean): DesktopSnapshot {
-    const identity = this.identity.status();
+    const identity = this.deps.identity.status();
     const cloud: DesktopSnapshot['cloud'] = {
       status:
-        this.cloud.configured && identity.state === 'signed_in' && !this.signOutInProgress
+        this.deps.cloud.configured && identity.state === 'signed_in' && !this.signOutInProgress
           ? 'online'
           : 'offline',
-      auth: this.cloud.configured
+      auth: this.deps.cloud.configured
         ? this.signOutInProgress || identity.state === 'unconfigured'
           ? 'signed_out'
           : identity.state
@@ -1438,12 +1361,15 @@ export class ControllerContext {
         backgroundFallback: this.macBackgroundFallback(),
         trust: this.computerTrust(),
         trajectoryLog: this.trajectoryLogEnabled(),
-        ...(this.trajectory ? { trajectoryDirectory: this.trajectory.rootDirectory } : {}),
+        ...(this.deps.trajectory
+          ? { trajectoryDirectory: this.deps.trajectory.rootDirectory }
+          : {}),
       },
       browser: structuredClone(this.state.browser),
       voice: {
         ...structuredClone(
-          this.voice?.view() ?? ({ status: 'disconnected', voices: [] } satisfies VoiceView),
+          this.deps.voice?.view() ??
+            ({ status: 'disconnected', voices: [] } satisfies VoiceView),
         ),
         ...(this.pushToTalk ? { pushToTalk: this.pushToTalk.view() } : {}),
       },
@@ -1454,7 +1380,9 @@ export class ControllerContext {
       ...(this.state.activeAgentId ? { activeAgentId: this.state.activeAgentId } : {}),
       ...(this.state.activeThreadId ? { activeThreadId: this.state.activeThreadId } : {}),
       cloud,
-      ...(this.startupNotice ? { startupNotice: structuredClone(this.startupNotice) } : {}),
+      ...(this.deps.startupNotice
+        ? { startupNotice: structuredClone(this.deps.startupNotice) }
+        : {}),
     };
   }
 
@@ -1684,12 +1612,13 @@ export class ControllerContext {
     'research.setCapture': (input) => this.setCapture(input),
     'research.export': () => this.exportResearch(),
     'research.delete': ({ confirmation }) => this.deleteResearch(confirmation),
-    'research.admin.invites': () => this.cloud.listAdminInvites(),
-    'research.admin.invite': ({ email }) => this.cloud.createAdminInvite(email),
-    'research.admin.participants': () => this.cloud.listAdminResearchParticipants(),
-    'research.admin.batches': ({ subject }) => this.cloud.listAdminResearchBatches(subject),
+    'research.admin.invites': () => this.deps.cloud.listAdminInvites(),
+    'research.admin.invite': ({ email }) => this.deps.cloud.createAdminInvite(email),
+    'research.admin.participants': () => this.deps.cloud.listAdminResearchParticipants(),
+    'research.admin.batches': ({ subject }) =>
+      this.deps.cloud.listAdminResearchBatches(subject),
     'research.admin.readBatch': ({ subject, batchId }) =>
-      this.cloud.readAdminResearchBatch(subject, batchId),
+      this.deps.cloud.readAdminResearchBatch(subject, batchId),
   };
 
   async configureScotty(
@@ -1866,7 +1795,7 @@ export class ControllerContext {
       !this.state.agents.some(({ id }) => id === progress.agentId)
     )
       throw new Error('Finish connecting your apps before restarting setup.');
-    if (!this.restartApp) throw new Error('Restart is unavailable in this build.');
+    if (!this.deps.restartApp) throw new Error('Restart is unavailable in this build.');
     if (
       this.connectionSetup ||
       this.state.connections.some((app) => app.status === 'connecting')
@@ -1883,7 +1812,7 @@ export class ControllerContext {
     };
     this.commit();
     try {
-      this.restartApp();
+      this.deps.restartApp();
     } catch (error) {
       this.state.preferences.onboarding = progress;
       this.commit();
@@ -1893,9 +1822,9 @@ export class ControllerContext {
   }
 
   async setupMessages(): Promise<DesktopSnapshot> {
-    if (!this.openMessagesPermissions)
+    if (!this.deps.openMessagesPermissions)
       throw new Error('Messages setup is unavailable on this Mac.');
-    await this.openMessagesPermissions();
+    await this.deps.openMessagesPermissions();
     await this.refreshCapabilityStatuses();
     this.emit();
     return this.resultSnapshot();
@@ -1932,8 +1861,8 @@ export class ControllerContext {
   }
 
   setOpenAtLoginPreference(enabled: boolean): DesktopSnapshot {
-    if (!this.setOpenAtLogin) throw new Error('Opening at login is unavailable here.');
-    this.setOpenAtLogin(enabled);
+    if (!this.deps.setOpenAtLogin) throw new Error('Opening at login is unavailable here.');
+    this.deps.setOpenAtLogin(enabled);
     this.state.preferences.openAtLogin = enabled;
     this.commit();
     return this.resultSnapshot();
@@ -1949,9 +1878,9 @@ export class ControllerContext {
   async requestAutomation(
     app: BridgeRequestMap['computer.requestAutomation']['app'],
   ): Promise<DesktopSnapshot> {
-    if (!this.capabilitySetup?.automationPermissions)
+    if (!this.deps.capabilitySetup?.automationPermissions)
       throw new Error('Mac app permission setup is unavailable in this build.');
-    this.automationPermissions = await this.capabilitySetup.automationPermissions(app);
+    this.automationPermissions = await this.deps.capabilitySetup.automationPermissions(app);
     this.emit();
     return this.resultSnapshot();
   }
@@ -1984,8 +1913,8 @@ export class ControllerContext {
   }
 
   async revealTrajectories(): Promise<DesktopSnapshot> {
-    if (this.trajectory && this.revealDirectory) {
-      await this.revealDirectory(this.trajectory.rootDirectory);
+    if (this.deps.trajectory && this.deps.revealDirectory) {
+      await this.deps.revealDirectory(this.deps.trajectory.rootDirectory);
     }
     return this.resultSnapshot();
   }
@@ -1995,8 +1924,8 @@ export class ControllerContext {
   ): Promise<DesktopSnapshot> {
     if (!this.pushToTalk) throw new Error('Fn push-to-talk is unavailable in this build.');
     if (value.enabled) {
-      await this.voice?.prepareDictation?.();
-      await this.requestMicrophonePermission?.();
+      await this.deps.voice?.prepareDictation?.();
+      await this.deps.requestMicrophonePermission?.();
     }
     this.pushToTalk.configure(
       value.enabled,
@@ -2062,10 +1991,10 @@ export class ControllerContext {
   }
 
   async beginMfaEnrollment(): Promise<BridgeResultMap['auth.mfaBegin']> {
-    if (!this.identity.beginMfaEnrollment) {
+    if (!this.deps.identity.beginMfaEnrollment) {
       throw new Error('Authenticator setup is unavailable in this build.');
     }
-    return await this.identity.beginMfaEnrollment();
+    return await this.deps.identity.beginMfaEnrollment();
   }
 
   async authorizeComputer(
@@ -2104,7 +2033,7 @@ export class ControllerContext {
     ) {
       // Trusted local mode: the driver's own risk prompt is answered for the person, but the
       // decision is written to the trajectory log so every action stays reviewable afterwards.
-      this.trajectory?.record({
+      this.deps.trajectory?.record({
         type: 'computer_authorization',
         threadId: context.threadId,
         turnId: context.turnId,
@@ -2217,12 +2146,12 @@ export class ControllerContext {
     await settleBeforeShutdown(this.connectionSetup?.task, shutdownDeadline);
     await settleBeforeShutdown(this.researchSync, shutdownDeadline);
     await settleBeforeShutdown(this.runtime?.dispose(), shutdownDeadline);
-    this.workspaceOperations?.dispose?.();
-    this.voice?.dispose?.();
-    await settleBeforeShutdown(this.computer.shutdown(), shutdownDeadline);
+    this.deps.workspaceOperations?.dispose?.();
+    this.deps.voice?.dispose?.();
+    await settleBeforeShutdown(this.deps.computer.shutdown(), shutdownDeadline);
     this.cancelStreamCommit();
     this.persist();
-    this.repository.close();
+    this.deps.repository.close();
   }
 
   async saveAgent(
@@ -2260,14 +2189,14 @@ export class ControllerContext {
     } else if (existing) {
       workspace = existing.workspace;
     } else {
-      if (!this.defaultWorkspaceRoot) {
+      if (!this.deps.defaultWorkspaceRoot) {
         throw new Error('Automatic workspaces are unavailable in this build. Choose a folder.');
       }
       workspace = join(
-        this.defaultWorkspaceRoot,
+        this.deps.defaultWorkspaceRoot,
         `${workspaceSlug(input.name)}-${agentId.slice(0, 8)}`,
       );
-      await this.createDirectory(workspace);
+      await this.deps.createDirectory(workspace);
       this.workspaceGrants.add(workspace);
     }
     // Directory creation yields; another setup request may have finished meanwhile.
@@ -2898,13 +2827,13 @@ export class ControllerContext {
   /** Host-only Cmd+E capture, before the command panel takes the user's app focus. */
   async captureLauncherContext(): Promise<string | undefined> {
     const allowed = () =>
-      !this.fakeServices &&
+      !this.deps.fakeServices &&
       !this.assistantSuspended &&
       !this.releaseAccessLocked() &&
       this.computerAccessMode() === 'mac' &&
       !this.macBackgroundControl();
     if (!allowed()) return undefined;
-    const context = await this.captureMacContext?.().catch(() => undefined);
+    const context = await this.deps.captureMacContext?.().catch(() => undefined);
     return allowed() ? context : undefined;
   }
 
@@ -3361,7 +3290,7 @@ export class ControllerContext {
     // Take it out of the queue first so the turn ending meanwhile cannot also start it.
     this.queuedTurns.splice(index, 1);
     try {
-      if (!this.fakeServices) {
+      if (!this.deps.fakeServices) {
         const runtime = this.runtime;
         if (!runtime) throw new Error('The provider runtime did not initialize.');
         await runtime.steer(threadId, activeTurnId, {
@@ -3418,18 +3347,19 @@ export class ControllerContext {
   }
 
   async pickAttachments(threadId: string): Promise<BridgeResultMap['attachments.pick']> {
-    if (!this.chooseFiles) throw new Error('File attachments are unavailable in this build.');
-    const selected = await this.chooseFiles();
+    if (!this.deps.chooseFiles)
+      throw new Error('File attachments are unavailable in this build.');
+    const selected = await this.deps.chooseFiles();
     return await this.grantAttachments(threadId, selected);
   }
 
   async pasteAttachment(
     input: BridgeRequestMap['attachments.paste'],
   ): Promise<BridgeResultMap['attachments.paste']> {
-    if (!this.pastedAttachmentRoot)
+    if (!this.deps.pastedAttachmentRoot)
       throw new Error('Pasting files is unavailable in this build.');
     this.requireThread(input.threadId);
-    const path = await savePastedAttachment(this.pastedAttachmentRoot, input);
+    const path = await savePastedAttachment(this.deps.pastedAttachmentRoot, input);
     return await this.grantAttachments(input.threadId, [path]);
   }
 
@@ -3507,18 +3437,20 @@ export class ControllerContext {
   async openAttachment(
     input: BridgeRequestMap['attachments.open'],
   ): Promise<BridgeResultMap['attachments.open']> {
-    if (!this.openPath) throw new Error('Opening local files is unavailable in this build.');
+    if (!this.deps.openPath)
+      throw new Error('Opening local files is unavailable in this build.');
     const grant = this.requireAttachmentGrant(input.threadId, input.attachmentId);
-    await this.openPath(grant.attachment.path);
+    await this.deps.openPath(grant.attachment.path);
     return { opened: true };
   }
 
   async revealAttachment(
     input: BridgeRequestMap['attachments.reveal'],
   ): Promise<BridgeResultMap['attachments.reveal']> {
-    if (!this.revealDirectory) throw new Error('Finder reveal is unavailable in this build.');
+    if (!this.deps.revealDirectory)
+      throw new Error('Finder reveal is unavailable in this build.');
     const grant = this.requireAttachmentGrant(input.threadId, input.attachmentId);
-    await this.revealDirectory(grant.attachment.path);
+    await this.deps.revealDirectory(grant.attachment.path);
     return { revealed: true };
   }
 
@@ -3979,11 +3911,11 @@ export class ControllerContext {
   }
 
   async probeProviders(providerId?: ProviderId): Promise<DesktopSnapshot> {
-    if (providerId === 'meta' && this.identity.status().state === 'signed_in') {
-      await this.identity.refreshSession?.();
+    if (providerId === 'meta' && this.deps.identity.status().state === 'signed_in') {
+      await this.deps.identity.refreshSession?.();
       await this.refreshCloudSession();
     }
-    const updated = await this.providerProbe(providerId);
+    const updated = await this.deps.providerProbe(providerId);
     if (providerId) {
       const value = updated[0];
       if (value) {
@@ -4004,7 +3936,8 @@ export class ControllerContext {
   }
 
   async refreshProviderModels(providerId?: ProviderId): Promise<void> {
-    if (this.fakeServices || !this.runtime || (providerId && providerId !== 'codex')) return;
+    if (this.deps.fakeServices || !this.runtime || (providerId && providerId !== 'codex'))
+      return;
     const codex = this.providers.find(({ id }) => id === 'codex');
     if (!codex || codex.status !== 'ready') return;
     try {
@@ -4035,7 +3968,7 @@ export class ControllerContext {
       this.queuedTurns.length ||
       this.pushToTalk?.captureBusy ||
       this.pendingTerminalOperations ||
-      this.workspaceOperations?.hasRunningTerminals?.() ||
+      this.deps.workspaceOperations?.hasRunningTerminals?.() ||
       this.connectionSetup ||
       this.state.connections.some((app) => app.status === 'connecting')
     ) {
@@ -4073,7 +4006,7 @@ export class ControllerContext {
       this.codexSetupPending = true;
       try {
         if (installation) {
-          if (!this.installCodex || !this.restartApp || this.fakeServices)
+          if (!this.deps.installCodex || !this.deps.restartApp || this.deps.fakeServices)
             throw new Error('Automatic Codex setup is unavailable in this build.');
           this.requireSafeCodexRestart();
           this.setCodexSetup(
@@ -4082,17 +4015,19 @@ export class ControllerContext {
               ? 'Updating Codex for Sia…'
               : 'Downloading and installing Codex…',
           );
-          await this.installCodex();
+          await this.deps.installCodex();
           this.requireSafeCodexRestart();
           // Only this explicit setup action can authorize sign-in after restart.
           // No credential, login URL or token is persisted in the continuation.
-          this.repository.put('setup', 'codex-login', { expiresAt: Date.now() + 15 * 60_000 });
+          this.deps.repository.put('setup', 'codex-login', {
+            expiresAt: Date.now() + 15 * 60_000,
+          });
           this.commit();
           this.setCodexSetup(
             'restarting',
             'Restarting Sia. ChatGPT sign-in will continue automatically.',
           );
-          this.restartApp();
+          this.deps.restartApp();
           return { opened: true, snapshot: this.resultSnapshot() };
         }
         if (!this.runtime)
@@ -4109,7 +4044,7 @@ export class ControllerContext {
           const login = await this.runtime.startCodexChatGptLogin(abort.signal);
           try {
             abort.signal.throwIfAborted();
-            await this.openExternal(login.authUrl);
+            await this.deps.openExternal(login.authUrl);
             abort.signal.throwIfAborted();
             await this.runtime.waitForCodexChatGptLogin(login.loginId, abort.signal);
           } catch (error) {
@@ -4119,7 +4054,7 @@ export class ControllerContext {
         } catch (error) {
           if (!abort.signal.aborted) throw error;
           // The person chose Cancel. Leave a plain Try again state instead of an error.
-          this.repository.remove('setup', 'codex-login');
+          this.deps.repository.remove('setup', 'codex-login');
           this.setCodexSetup(
             'error',
             'ChatGPT sign-in was cancelled. Choose Try again to start over.',
@@ -4138,7 +4073,7 @@ export class ControllerContext {
         this.codexSetup = undefined;
         return { opened: true, snapshot: this.resultSnapshot() };
       } catch (error) {
-        this.repository.remove('setup', 'codex-login');
+        this.deps.repository.remove('setup', 'codex-login');
         this.setCodexSetup(
           'error',
           'Codex setup did not finish. Your progress is saved; try setup again.',
@@ -4154,7 +4089,7 @@ export class ControllerContext {
     };
     const url = urls[providerId];
     if (!url) throw new Error('This provider has no supported sign-in flow in the alpha.');
-    await this.openExternal(url);
+    await this.deps.openExternal(url);
     return { opened: true, snapshot: this.resultSnapshot() };
   }
 
@@ -4166,11 +4101,14 @@ export class ControllerContext {
   /** Called after the window loads, never on an ordinary launch without setup intent. */
   async resumeCodexSetup(): Promise<void> {
     if (this.codexSetupPending || this.releaseAccessLocked() || this.shuttingDown) return;
-    const continuation = this.repository.get<{ expiresAt: number }>('setup', 'codex-login');
+    const continuation = this.deps.repository.get<{ expiresAt: number }>(
+      'setup',
+      'codex-login',
+    );
     if (!continuation) return;
     // Consume before awaiting anything: a failed/cancelled login must not reopen
     // itself on the next launch or create concurrent browser sign-in sessions.
-    this.repository.remove('setup', 'codex-login');
+    this.deps.repository.remove('setup', 'codex-login');
     if (!Number.isFinite(continuation.expiresAt) || continuation.expiresAt < Date.now()) return;
     const status = this.providers.find(({ id }) => id === 'codex')?.status;
     if (status === 'ready') return;
@@ -4189,10 +4127,10 @@ export class ControllerContext {
   }
 
   async refreshCapabilityStatuses(): Promise<void> {
-    if (!this.capabilitySetup) return;
-    this.automationPermissions = await this.capabilitySetup.automationPermissions?.();
-    this.messagesAccess = this.capabilitySetup.messagesStatus();
-    this.chromeConnection = await this.capabilitySetup.chromeDebugStatus();
+    if (!this.deps.capabilitySetup) return;
+    this.automationPermissions = await this.deps.capabilitySetup.automationPermissions?.();
+    this.messagesAccess = this.deps.capabilitySetup.messagesStatus();
+    this.chromeConnection = await this.deps.capabilitySetup.chromeDebugStatus();
   }
 
   async refreshComputer(
@@ -4200,18 +4138,18 @@ export class ControllerContext {
     permission?: 'accessibility' | 'screenRecording',
   ): Promise<DesktopSnapshot> {
     this.computerState = request
-      ? await this.computer.requestPermissions(permission)
-      : await this.computer.permissions();
+      ? await this.deps.computer.requestPermissions(permission)
+      : await this.deps.computer.permissions();
     await this.refreshCapabilityStatuses();
-    await this.voice?.refreshPermissions?.().catch(() => undefined);
+    await this.deps.voice?.refreshPermissions?.().catch(() => undefined);
     this.pushToTalk?.refreshPermissions();
     this.emit();
     return this.resultSnapshot();
   }
 
   async openMessagesApp(): Promise<DesktopSnapshot> {
-    if (!this.openMessages) throw new Error('Messages is unavailable on this Mac.');
-    await this.openMessages();
+    if (!this.deps.openMessages) throw new Error('Messages is unavailable on this Mac.');
+    await this.deps.openMessages();
     return this.resultSnapshot();
   }
 
@@ -4292,7 +4230,7 @@ export class ControllerContext {
     this.commit();
     try {
       const directContext = { kind: 'direct_user', operation: 'browser_attach' } as const;
-      const apps = await this.computer.call('list_apps', {}, directContext);
+      const apps = await this.deps.computer.call('list_apps', {}, directContext);
       const candidates = findChromeCandidates(apps);
       if (!candidates.length) throw new Error('Open Chrome, then try attaching again.');
       // Several Chrome processes can coexist (a leftover instance, a helper). Only the one that
@@ -4306,7 +4244,7 @@ export class ControllerContext {
       });
       const windowPairs: { pid: number; window: BrowserWindowView }[] = [];
       for (const candidate of orderedCandidates.slice(0, 3)) {
-        const windows = await this.computer.call(
+        const windows = await this.deps.computer.call(
           'list_windows',
           { pid: candidate.pid },
           directContext,
@@ -4365,7 +4303,7 @@ export class ControllerContext {
             // every attachment lets a user detach and reattach without restarting Sia,
             // while resetBrowserCapabilities still revokes every prior model-visible ref.
             const browserSessionId = `sia-browser-${randomUUID()}`;
-            const prepared = await this.computer.call(
+            const prepared = await this.deps.computer.call(
               'browser_prepare',
               {
                 pid: chromePid,
@@ -4376,7 +4314,7 @@ export class ControllerContext {
               },
               directContext,
             );
-            const state = await this.computer.call(
+            const state = await this.deps.computer.call(
               'get_browser_state',
               {
                 session: browserSessionId,
@@ -4401,7 +4339,7 @@ export class ControllerContext {
                 ? { detail: 'Attached, but no HTTP or HTTPS tab is currently granted.' }
                 : {}),
             };
-            this.trajectory?.record({
+            this.deps.trajectory?.record({
               type: 'browser_attached',
               threadId: this.state.activeThreadId ?? 'app',
               window: candidate.label,
@@ -4444,7 +4382,7 @@ export class ControllerContext {
     const context = { kind: 'direct_user', operation: 'browser_navigate' } as const;
     const target = this.browserTarget;
     const browserSessionId = this.browserSessionId;
-    await this.computer.call(
+    await this.deps.computer.call(
       'browser_navigate',
       {
         session: browserSessionId,
@@ -4454,7 +4392,7 @@ export class ControllerContext {
       },
       context,
     );
-    const state = await this.computer.call(
+    const state = await this.deps.computer.call(
       'get_browser_state',
       {
         session: browserSessionId,
@@ -4484,7 +4422,7 @@ export class ControllerContext {
   async detachBrowser(): Promise<DesktopSnapshot> {
     try {
       if (this.browserSessionId) {
-        await this.computer.call(
+        await this.deps.computer.call(
           'end_session',
           { session: this.browserSessionId },
           { kind: 'direct_user', operation: 'browser_detach' },
@@ -4531,8 +4469,8 @@ export class ControllerContext {
   }
 
   requireVoice(): VoiceOperations {
-    if (!this.voice) throw new Error('Voice is unavailable in this build.');
-    return this.voice;
+    if (!this.deps.voice) throw new Error('Voice is unavailable in this build.');
+    return this.deps.voice;
   }
 
   async startGoogleConnections(): Promise<BridgeResultMap['connections.startGoogle']> {
@@ -4568,10 +4506,10 @@ export class ControllerContext {
       return { opened: false, snapshot: this.resultSnapshot() };
     }
     const owner = this.currentIdentityKey();
-    if (!this.fakeServices && !owner) {
+    if (!this.deps.fakeServices && !owner) {
       throw new Error('Sign in to Sia cloud before enabling Google editing.');
     }
-    if (this.fakeServices) {
+    if (this.deps.fakeServices) {
       for (const id of GOOGLE_CONNECTION_IDS) {
         this.updateConnection(id, { googleAccess: 'read_write' });
       }
@@ -4579,7 +4517,7 @@ export class ControllerContext {
       return { opened: false, snapshot: this.resultSnapshot() };
     }
 
-    const started = await this.cloud.startConnection('gmail', 'read_write');
+    const started = await this.deps.cloud.startConnection('gmail', 'read_write');
     const linkExpiry = Date.parse(started.expiresAt);
     if (Number.isFinite(linkExpiry)) {
       this.connectorLinkExpiries.set(started.connectionId, linkExpiry);
@@ -4590,7 +4528,7 @@ export class ControllerContext {
     this.commit();
     const url = new URL(started.redirectUrl);
     if (url.protocol !== 'https:') throw new Error('Connector authorization must use HTTPS.');
-    await this.openExternal(url.toString());
+    await this.deps.openExternal(url.toString());
     this.recordLifecycleEvent('connector.google_access.upgrade_started', {
       app: 'gmail',
       connectionId: started.connectionId,
@@ -4626,7 +4564,7 @@ export class ControllerContext {
       throw new Error('Connect Google Workspace before changing its service access.');
     }
     const owner = this.state.connectionOwners[connectionId];
-    if (!this.fakeServices && owner !== this.currentIdentityKey()) {
+    if (!this.deps.fakeServices && owner !== this.currentIdentityKey()) {
       throw new Error('Sign in with the account that created this grant before changing it.');
     }
     this.connectorGenerations.set(
@@ -4692,7 +4630,7 @@ export class ControllerContext {
     if (pending.length === 0) return { opened: false, snapshot: this.resultSnapshot() };
     this.recordLifecycleEvent('connector.guided_setup.started', { apps: pending });
 
-    if (this.fakeServices) {
+    if (this.deps.fakeServices) {
       for (const connectionId of pending) {
         await this.startConnection(connectionId, { partOfBundle: true });
       }
@@ -4759,7 +4697,7 @@ export class ControllerContext {
     connectionId: BridgeRequestMap['connections.start']['connectionId'],
     options: { poll?: boolean; partOfBundle?: boolean } = {},
   ): Promise<BridgeResultMap['connections.start']> {
-    if (!this.fakeServices && this.state.cloudFeatures?.connectors === false) {
+    if (!this.deps.fakeServices && this.state.cloudFeatures?.connectors === false) {
       throw new Error('Connected apps are temporarily disabled by the alpha operator.');
     }
     if (this.connectionSetup && !options.partOfBundle) {
@@ -4778,7 +4716,7 @@ export class ControllerContext {
       existing = this.state.connections.find(({ id }) => id === connectionId);
     }
     const owner = this.currentIdentityKey();
-    if (!this.fakeServices && !owner) {
+    if (!this.deps.fakeServices && !owner) {
       throw new Error('Sign in to Sia cloud before connecting an app.');
     }
     this.recordLifecycleEvent('connector.setup.started', {
@@ -4791,7 +4729,7 @@ export class ControllerContext {
       this.updateConnection(id, { status: 'connecting' });
     }
     this.commit();
-    if (this.fakeServices) {
+    if (this.deps.fakeServices) {
       const connectedAccount = `demo@${googleConnection ? 'google' : connectionId}.test`;
       const connectedId = `fake-${googleConnection ? 'google' : connectionId}-${randomUUID()}`;
       for (const id of affected) {
@@ -4811,7 +4749,7 @@ export class ControllerContext {
       return { opened: false, snapshot: this.resultSnapshot() };
     }
     try {
-      const started = await this.cloud.startConnection(connectionId);
+      const started = await this.deps.cloud.startConnection(connectionId);
       const linkExpiry = Date.parse(started.expiresAt);
       if (Number.isFinite(linkExpiry)) {
         this.connectorLinkExpiries.set(started.connectionId, linkExpiry);
@@ -4826,7 +4764,7 @@ export class ControllerContext {
       this.commit();
       const url = new URL(started.redirectUrl);
       if (url.protocol !== 'https:') throw new Error('Connector authorization must use HTTPS.');
-      await this.openExternal(url.toString());
+      await this.deps.openExternal(url.toString());
       this.recordLifecycleEvent('connector.authorization.opened', {
         app: connectionId,
         connectionId: started.connectionId,
@@ -4850,55 +4788,55 @@ export class ControllerContext {
   }
 
   async startSignIn(email: string): Promise<DesktopSnapshot> {
-    if (this.cloud.configured) await this.cloud.registerAccount(email);
-    await this.identity.startEmailSignIn(email);
+    if (this.deps.cloud.configured) await this.deps.cloud.registerAccount(email);
+    await this.deps.identity.startEmailSignIn(email);
     this.emit();
     return this.resultSnapshot();
   }
 
   async completeSignIn(code: string): Promise<DesktopSnapshot> {
-    const state = this.identity.status().state;
+    const state = this.deps.identity.status().state;
     if (state === 'password_required') {
-      if (!this.identity.completePasswordSignIn) {
+      if (!this.deps.identity.completePasswordSignIn) {
         throw new Error('Administrator password sign-in is unavailable in this build.');
       }
-      await this.identity.completePasswordSignIn(code);
+      await this.deps.identity.completePasswordSignIn(code);
     } else if (state === 'mfa_required') {
-      if (!this.identity.completeMfaSignIn) {
+      if (!this.deps.identity.completeMfaSignIn) {
         throw new Error('Authenticator sign-in is unavailable in this build.');
       }
-      await this.identity.completeMfaSignIn(code);
+      await this.deps.identity.completeMfaSignIn(code);
     } else {
-      await this.identity.completeEmailSignIn(code);
+      await this.deps.identity.completeEmailSignIn(code);
     }
     await this.reconcileIdentityBoundState();
     await this.refreshCloudSession();
     await this.refreshMetaProviderState();
-    await this.voice?.refresh().catch(() => undefined);
+    await this.deps.voice?.refresh().catch(() => undefined);
     this.scheduleResearchSync();
     this.commit();
     return this.resultSnapshot();
   }
 
   async completeMfaEnrollment(code: string): Promise<DesktopSnapshot> {
-    if (!this.identity.completeMfaEnrollment) {
+    if (!this.deps.identity.completeMfaEnrollment) {
       throw new Error('Authenticator setup is unavailable in this build.');
     }
-    await this.identity.completeMfaEnrollment(code);
+    await this.deps.identity.completeMfaEnrollment(code);
     this.commit();
     return this.resultSnapshot();
   }
 
   async refreshCloudSession(): Promise<void> {
     if (
-      this.fakeServices ||
-      !this.cloud.configured ||
-      this.identity.status().state !== 'signed_in'
+      this.deps.fakeServices ||
+      !this.deps.cloud.configured ||
+      this.deps.identity.status().state !== 'signed_in'
     )
       return;
     try {
       const previousToolAvailability = this.toolAvailabilitySignature();
-      const session = await this.cloud.sessionStatus();
+      const session = await this.deps.cloud.sessionStatus();
       this.cloudParticipant = session.participant;
       this.state.cloudFeatures = structuredClone(session.features);
       if (!session.features.researchUploads) this.disableResearchForCurrentAccessPolicy();
@@ -4926,7 +4864,7 @@ export class ControllerContext {
     try {
       this.connectionSetup?.controller.abort();
       await this.stopAllWorkForAuthenticationBoundary();
-      if (this.cloud.configured) {
+      if (this.deps.cloud.configured) {
         await this.researchSync?.catch(() => undefined);
         this.refreshResearchPendingCount();
         if (this.state.capture.pendingCount > 0) {
@@ -4940,7 +4878,7 @@ export class ControllerContext {
         }
       }
       await this.clearResearchForIdentityBoundary();
-      await this.identity.signOut();
+      await this.deps.identity.signOut();
       this.cloudParticipant = false;
       this.state.cloudFeatures = structuredClone(INITIAL_STATE.cloudFeatures);
       await this.runtime?.resetSessions();
@@ -4955,7 +4893,7 @@ export class ControllerContext {
   }
 
   async stopAllWorkForAuthenticationBoundary(): Promise<void> {
-    this.voice?.disconnect();
+    this.deps.voice?.disconnect();
     const queuedTurnIds = this.queuedTurns.map(({ id }) => id);
     const affectedThreadIds = new Set(this.queuedTurns.map(({ threadId }) => threadId));
     this.queuedTurns = [];
@@ -4995,10 +4933,10 @@ export class ControllerContext {
     if (confirmation !== 'DELETE ACCOUNT') {
       throw new Error('Enter DELETE ACCOUNT exactly to confirm account deletion.');
     }
-    if (!this.cloud.configured) {
+    if (!this.deps.cloud.configured) {
       throw new Error('Sia cloud account deletion is not configured in this build.');
     }
-    if (this.identity.status().state !== 'signed_in') {
+    if (this.deps.identity.status().state !== 'signed_in') {
       throw new Error('Sign in to the Sia cloud account you want to delete.');
     }
 
@@ -5007,7 +4945,7 @@ export class ControllerContext {
     const inFlightResearchSync = this.researchSync;
     let cloudCompleted = false;
     this.accountDeletionInProgress = true;
-    this.voice?.disconnect();
+    this.deps.voice?.disconnect();
     this.state.capture.status = 'deleting';
     this.commit();
 
@@ -5054,7 +4992,7 @@ export class ControllerContext {
       await Promise.allSettled([...this.turnTasks.values()]);
       await inFlightResearchSync?.catch(() => undefined);
 
-      const deletion = await this.cloud.deleteAccountData();
+      const deletion = await this.deps.cloud.deleteAccountData();
       if (
         deletion.scope !== 'account' ||
         deletion.state !== 'completed' ||
@@ -5066,9 +5004,9 @@ export class ControllerContext {
 
       // The concrete identity manager clears encrypted local tokens before its
       // best-effort Cognito revocation call. The cloud identity is already gone.
-      await this.identity.signOut().catch(() => undefined);
+      await this.deps.identity.signOut().catch(() => undefined);
       if (this.browserSessionId) {
-        await this.computer
+        await this.deps.computer
           .call(
             'end_session',
             { session: this.browserSessionId },
@@ -5085,14 +5023,14 @@ export class ControllerContext {
       this.workspaceGrants.clear();
       this.approvedConnectorBindings.clear();
       this.runningTurns.clear();
-      for (const threadId of this.awakeTurns) this.keepAwake?.release(threadId);
+      for (const threadId of this.awakeTurns) this.deps.keepAwake?.release(threadId);
       this.awakeTurns.clear();
       this.macTurns.clear();
       this.foregroundTurns.clear();
       this.turnTasks.clear();
       this.workspaceLeases.clear();
       this.pendingApprovals.clear();
-      this.repository.clearAll();
+      this.deps.repository.clearAll();
       this.state = structuredClone(INITIAL_STATE);
       this.researchSync = undefined;
       this.researchRetryDelayMs = 15_000;
@@ -5119,7 +5057,7 @@ export class ControllerContext {
     const index = this.providers.findIndex(({ id }) => id === 'meta');
     if (index < 0) return;
     const current = this.providers[index]!;
-    if (!this.cloud.configured) {
+    if (!this.deps.cloud.configured) {
       this.providers[index] = {
         ...current,
         status: 'unavailable',
@@ -5127,7 +5065,7 @@ export class ControllerContext {
       };
       return;
     }
-    if (this.identity.status().state !== 'signed_in') {
+    if (this.deps.identity.status().state !== 'signed_in') {
       this.providers[index] = {
         ...current,
         status: 'needs_login',
@@ -5135,7 +5073,7 @@ export class ControllerContext {
       };
       return;
     }
-    if (this.fakeServices) {
+    if (this.deps.fakeServices) {
       this.providers[index] = {
         ...current,
         status: 'unavailable',
@@ -5167,9 +5105,11 @@ export class ControllerContext {
       detail: 'Checking included model labs…',
     };
     try {
-      const capabilities = await this.cloud.capabilities();
-      const catalog = await (typeof this.cloud.hostedCatalog === 'function'
-        ? this.cloud.hostedCatalog().catch(() => ({ schemaVersion: 1 as const, providers: [] }))
+      const capabilities = await this.deps.cloud.capabilities();
+      const catalog = await (typeof this.deps.cloud.hostedCatalog === 'function'
+        ? this.deps.cloud
+            .hostedCatalog()
+            .catch(() => ({ schemaVersion: 1 as const, providers: [] }))
         : Promise.resolve({ schemaVersion: 1 as const, providers: [] }));
       for (const key of this.backendModelRoutes.keys()) {
         if (key.startsWith('meta\u0000')) this.backendModelRoutes.delete(key);
@@ -5260,16 +5200,16 @@ export class ControllerContext {
       (this.connectorGenerations.get(connectionId) ?? 0) + 1,
     );
     const owner = this.state.connectionOwners[connectionId];
-    if (!this.fakeServices && owner && owner !== this.currentIdentityKey()) {
+    if (!this.deps.fakeServices && owner && owner !== this.currentIdentityKey()) {
       throw new Error('Sign in with the account that created this grant before revoking it.');
     }
-    if (!this.fakeServices && current?.connectionId) {
-      if (!this.cloud.configured || this.identity.status().state !== 'signed_in') {
+    if (!this.deps.fakeServices && current?.connectionId) {
+      if (!this.deps.cloud.configured || this.deps.identity.status().state !== 'signed_in') {
         throw new Error('Sign in to Sia cloud before revoking this connected app.');
       }
     }
-    if (!this.fakeServices && this.cloud.configured && current?.connectionId) {
-      await this.cloud.disconnect(connectionId, current.connectionId);
+    if (!this.deps.fakeServices && this.deps.cloud.configured && current?.connectionId) {
+      await this.deps.cloud.disconnect(connectionId, current.connectionId);
     }
     const unifiedGoogle = Boolean(
       isGoogleConnection(connectionId) &&
@@ -5320,7 +5260,7 @@ export class ControllerContext {
       if (!current || current.connectionId !== expectedId || current.status !== 'connecting')
         return finish(false);
       try {
-        const status = await this.cloud.connectionStatus(connectionId);
+        const status = await this.deps.cloud.connectionStatus(connectionId);
         const pending = this.state.connections.find(({ id }) => id === connectionId);
         if (
           signal?.aborted ||
@@ -5435,14 +5375,14 @@ export class ControllerContext {
         return;
       }
       try {
-        const status = await this.cloud.connectionStatus('gmail');
+        const status = await this.deps.cloud.connectionStatus('gmail');
         const remote = status.connections.find(({ id }) => id === expectedId);
         if (remote?.status === 'connected' && remote.access === 'read_write') {
           // Retire only Sia's encrypted copy of the prior credential. Do not disconnect it from
           // Google: both refresh tokens may belong to the same authorization grant, so revoking
           // the old token can invalidate the verified editor replacement as well.
           for (const previousId of previousIds) {
-            await this.cloud.retireSupersededGoogleConnection(previousId, expectedId);
+            await this.deps.cloud.retireSupersededGoogleConnection(previousId, expectedId);
           }
           for (const id of GOOGLE_CONNECTION_IDS) {
             const connection = this.state.connections.find((candidate) => candidate.id === id);
@@ -5482,8 +5422,8 @@ export class ControllerContext {
     }
     if (
       input.enabled &&
-      this.cloud.configured &&
-      this.identity.status().state === 'signed_in' &&
+      this.deps.cloud.configured &&
+      this.deps.identity.status().state === 'signed_in' &&
       this.state.cloudFeatures.researchUploads === false
     ) {
       throw new Error('Research capture is not enabled for this Sia account.');
@@ -5547,7 +5487,7 @@ export class ControllerContext {
         staged.eventByMessageId.clear();
       }
     }
-    this.trajectory?.record({
+    this.deps.trajectory?.record({
       type: input.enabled
         ? 'research_consent_accepted'
         : input.consentVersion
@@ -5555,7 +5495,7 @@ export class ControllerContext {
           : 'research_capture_paused',
       threadId: 'app-lifecycle',
       consentVersion,
-      signedIn: this.identity.status().state === 'signed_in',
+      signedIn: this.deps.identity.status().state === 'signed_in',
     });
     this.commit();
     if (input.enabled) this.scheduleResearchSync();
@@ -5563,9 +5503,9 @@ export class ControllerContext {
   }
 
   async exportResearch(): Promise<BridgeResultMap['research.export']> {
-    if (!this.fakeServices && this.researchRequiredForCurrentAccount()) {
-      const { downloadUrl } = await this.cloud.requestResearchExport();
-      await this.openExternal(downloadUrl);
+    if (!this.deps.fakeServices && this.researchRequiredForCurrentAccount()) {
+      const { downloadUrl } = await this.deps.cloud.requestResearchExport();
+      await this.deps.openExternal(downloadUrl);
       return { path: null };
     }
     const payload = {
@@ -5573,7 +5513,7 @@ export class ControllerContext {
       consentVersion: this.state.capture.consentVersion,
       batches: this.researchBatches(),
     };
-    return { path: await this.exportJson(payload) };
+    return { path: await this.deps.exportJson(payload) };
   }
 
   async deleteResearch(confirmation: 'DELETE'): Promise<DesktopSnapshot> {
@@ -5594,31 +5534,31 @@ export class ControllerContext {
         this.researchRetryTimer = undefined;
       }
       await inFlightResearchSync?.catch(() => undefined);
-      if (!this.fakeServices && this.researchRequiredForCurrentAccount()) {
+      if (!this.deps.fakeServices && this.researchRequiredForCurrentAccount()) {
         try {
-          await this.cloud.deleteResearchData();
+          await this.deps.cloud.deleteResearchData();
         } catch {
           throw new Error(
             'Sia could not confirm cloud deletion. Local research batches remain available so you can retry safely.',
           );
         }
-      } else if (!this.fakeServices && this.cloud.configured) {
+      } else if (!this.deps.fakeServices && this.deps.cloud.configured) {
         throw new Error(
           'Sign in to Sia cloud to delete local research batches and any previously synced copy.',
         );
       }
       this.researchStaging.clear();
-      for (const record of this.repository.list<Record<string, unknown>>('research')) {
+      for (const record of this.deps.repository.list<Record<string, unknown>>('research')) {
         const id =
           typeof record.batchId === 'string'
             ? record.batchId
             : typeof record.id === 'string'
               ? record.id
               : undefined;
-        if (id) this.repository.remove('research', id);
+        if (id) this.deps.repository.remove('research', id);
       }
-      for (const record of this.repository.list<ResearchSyncRecord>('research_sync')) {
-        if (record.batchId) this.repository.remove('research_sync', record.batchId);
+      for (const record of this.deps.repository.list<ResearchSyncRecord>('research_sync')) {
+        if (record.batchId) this.deps.repository.remove('research_sync', record.batchId);
       }
       const promptReviewedVersion =
         this.state.capture.consentVersion ?? this.state.capture.promptReviewedVersion;
@@ -5753,7 +5693,7 @@ export class ControllerContext {
     const occurredAt = new Date().toISOString();
     const threadId = 'app-lifecycle';
     const turnId = `lifecycle-${randomUUID()}`;
-    this.trajectory?.record({
+    this.deps.trajectory?.record({
       type: eventType,
       threadId,
       turnId,
@@ -5998,8 +5938,8 @@ export class ControllerContext {
 
   researchCaptureActive(): boolean {
     if (
-      this.cloud.configured &&
-      this.identity.status().state === 'signed_in' &&
+      this.deps.cloud.configured &&
+      this.deps.identity.status().state === 'signed_in' &&
       this.state.cloudFeatures.researchUploads === false
     ) {
       return false;
@@ -6010,7 +5950,7 @@ export class ControllerContext {
   }
 
   researchBatches(): ResearchBatchRecord[] {
-    return this.repository
+    return this.deps.repository
       .list<unknown>('research')
       .filter((value): value is ResearchBatchRecord => isResearchBatchRecord(value));
   }
@@ -6024,8 +5964,8 @@ export class ControllerContext {
         occurredAt < cutoff &&
         this.researchBatchSynced(batch.batchId)
       ) {
-        this.repository.remove('research', batch.batchId);
-        this.repository.remove('research_sync', batch.batchId);
+        this.deps.repository.remove('research', batch.batchId);
+        this.deps.repository.remove('research_sync', batch.batchId);
       }
     }
   }
@@ -6052,15 +5992,15 @@ export class ControllerContext {
       if (!oldest) break;
       storedBytes -= Buffer.byteLength(JSON.stringify(oldest), 'utf8');
       storedBatches -= 1;
-      this.repository.remove('research', oldest.batchId);
-      this.repository.remove('research_sync', oldest.batchId);
+      this.deps.repository.remove('research', oldest.batchId);
+      this.deps.repository.remove('research_sync', oldest.batchId);
     }
   }
 
   storeResearchBatch(batch: ResearchBatchRecord): boolean {
     try {
-      this.repository.put('research', batch.batchId, batch);
-      this.repository.put<ResearchSyncRecord>('research_sync', batch.batchId, {
+      this.deps.repository.put('research', batch.batchId, batch);
+      this.deps.repository.put<ResearchSyncRecord>('research_sync', batch.batchId, {
         batchId: batch.batchId,
         synced: false,
       });
@@ -6122,9 +6062,9 @@ export class ControllerContext {
     )
       return;
     if (
-      this.fakeServices ||
-      !this.cloud.configured ||
-      this.identity.status().state !== 'signed_in' ||
+      this.deps.fakeServices ||
+      !this.deps.cloud.configured ||
+      this.deps.identity.status().state !== 'signed_in' ||
       this.state.researchIdentity !== this.currentIdentityKey()
     ) {
       if (this.state.capture.status === 'recording') {
@@ -6148,11 +6088,14 @@ export class ControllerContext {
         ({ batchId, syncEligible }) =>
           syncEligible !== false && !this.researchBatchSynced(batchId),
       )) {
-        await this.cloud.uploadResearchBatch(batch);
+        await this.deps.cloud.uploadResearchBatch(batch);
         if (generation !== this.researchGeneration) return;
-        const current = this.repository.get<ResearchBatchRecord>('research', batch.batchId);
+        const current = this.deps.repository.get<ResearchBatchRecord>(
+          'research',
+          batch.batchId,
+        );
         if (!current) continue;
-        this.repository.put<ResearchSyncRecord>('research_sync', batch.batchId, {
+        this.deps.repository.put<ResearchSyncRecord>('research_sync', batch.batchId, {
           batchId: batch.batchId,
           synced: true,
         });
@@ -6201,8 +6144,8 @@ export class ControllerContext {
 
   researchRequiredForCurrentAccount(): boolean {
     return (
-      this.cloud.configured &&
-      this.identity.status().state === 'signed_in' &&
+      this.deps.cloud.configured &&
+      this.deps.identity.status().state === 'signed_in' &&
       this.state.cloudFeatures.researchUploads !== false
     );
   }
@@ -6222,14 +6165,16 @@ export class ControllerContext {
     this.researchStaging.clear();
     for (const batch of this.researchBatches()) {
       if (batch.syncEligible === false || this.researchBatchSynced(batch.batchId)) continue;
-      this.repository.put('research', batch.batchId, { ...batch, syncEligible: false });
+      this.deps.repository.put('research', batch.batchId, { ...batch, syncEligible: false });
     }
     this.state.capture = { status: 'not_consented', pendingCount: 0 };
     this.refreshResearchPendingCount();
   }
 
   researchBatchSynced(batchId: string): boolean {
-    return this.repository.get<ResearchSyncRecord>('research_sync', batchId)?.synced ?? false;
+    return (
+      this.deps.repository.get<ResearchSyncRecord>('research_sync', batchId)?.synced ?? false
+    );
   }
 
   startTurn(turn: QueuedTurn): void {
@@ -6287,7 +6232,7 @@ export class ControllerContext {
       this.macTurns.set(thread.id, turn);
       if (!this.macBackgroundControl()) this.foregroundTurns.add(thread.id);
       this.awakeTurns.add(thread.id);
-      this.keepAwake?.hold(thread.id);
+      this.deps.keepAwake?.hold(thread.id);
     }
     if (turn.fromPhone) this.phoneTurns.add(turn.id);
     thread.status = 'running';
@@ -6296,7 +6241,7 @@ export class ControllerContext {
       id: randomUUID(),
       turnId: turn.id,
       kind: 'activity',
-      title: this.fakeServices
+      title: this.deps.fakeServices
         ? 'Preparing local tools'
         : `Starting ${thread.provider === 'codex' ? 'Codex' : thread.provider}`,
       detail: thread.workspace,
@@ -6330,7 +6275,7 @@ export class ControllerContext {
       recordedNative = true;
       try {
         const agentId = this.requireThread(turn.threadId).agentId;
-        await recordVault.engine(this.notchHelperPath, {
+        await recordVault.engine(this.deps.notchHelperPath, {
           operation: 'record',
           request: macTask.request,
           response:
@@ -6357,8 +6302,8 @@ export class ControllerContext {
         signal,
       });
       await lease.acquire({ kind: 'workspace_writer', id: leasedThread.workspace }, signal);
-      if (this.fakeServices) {
-        await abortableDelay(turn.fakeDelayMs ?? this.fakeTurnDelayMs, signal);
+      if (this.deps.fakeServices) {
+        await abortableDelay(turn.fakeDelayMs ?? this.deps.fakeTurnDelayMs, signal);
         this.completeRunningActivities(turn.threadId, turn.id);
         const assistantEventId = randomUUID();
         const assistantTimestamp = new Date().toISOString();
@@ -6401,7 +6346,7 @@ export class ControllerContext {
         if (macTask && this.macBackgroundControl()) {
           // The background driver ships in the app, but it can fail to load or lack access.
           // Stop with a plain next step instead of letting the first window action fail.
-          this.computerState = await this.computer.permissions();
+          this.computerState = await this.deps.computer.permissions();
           const unavailable = backgroundControlUnavailable(this.computerState);
           if (unavailable) throw new Error(unavailable);
         }
@@ -6421,7 +6366,7 @@ export class ControllerContext {
           // run the person's request with the ordinary memory prompt instead of failing.
           try {
             const prepared = await nativeVault.engine(
-              this.notchHelperPath,
+              this.deps.notchHelperPath,
               {
                 operation: 'prepare',
                 background: this.macBackgroundControl(),
@@ -6698,7 +6643,7 @@ export class ControllerContext {
       this.failedTurnAttachments.set(turn.id, turn.attachments);
     // Streamed items are appended early and mutated as text arrives; the finished turn is
     // written once more so the log always ends with the final transcript for that turn.
-    this.trajectory?.record({
+    this.deps.trajectory?.record({
       type: 'turn_finished',
       threadId: thread.id,
       turnId: turn.id,
@@ -6719,7 +6664,7 @@ export class ControllerContext {
     thread.unread = true;
     const agent = this.state.agents.find(({ id }) => id === thread.agentId);
     if (agent?.notificationsEnabled !== false) {
-      this.notify?.({
+      this.deps.notify?.({
         threadId: thread.id,
         ...turnFinishedNotice({
           title: thread.title,
@@ -6747,7 +6692,7 @@ export class ControllerContext {
     if (agent?.notificationsEnabled === false) return;
     const name = agent?.name ?? thread.title;
     const body = step.replace(/\s+/g, ' ').trim();
-    this.notify?.({
+    this.deps.notify?.({
       threadId,
       title: need === 'approval' ? `${name} needs your OK` : `${name} has a question`,
       body:
@@ -7294,7 +7239,7 @@ export class ControllerContext {
       }
       const automaticTarget =
         trustedTarget ?? summarizeActionTarget(request.arguments, request.tool.name);
-      this.trajectory?.record({
+      this.deps.trajectory?.record({
         type: 'action_authorization',
         threadId: request.threadId,
         turnId: request.turnId,
@@ -7515,7 +7460,7 @@ export class ControllerContext {
     this.runningTurns.delete(threadId);
     this.macTurns.delete(threadId);
     this.foregroundTurns.delete(threadId);
-    if (this.awakeTurns.delete(threadId)) this.keepAwake?.release(threadId);
+    if (this.awakeTurns.delete(threadId)) this.deps.keepAwake?.release(threadId);
     if (thread) this.workspaceLeases.delete(thread.workspace);
     this.drainQueue();
     // A follow-up can still wait when another thread took the workspace first. A paused
@@ -7587,7 +7532,7 @@ export class ControllerContext {
       });
     }
     this.state.timeline.push({ ...item, threadId, sequence });
-    this.trajectory?.record({
+    this.deps.trajectory?.record({
       type: `timeline_${item.kind}`,
       threadId,
       turnId: item.turnId,
@@ -7611,7 +7556,7 @@ export class ControllerContext {
   }
 
   currentIdentityKey(): string | undefined {
-    const status = this.identity.status();
+    const status = this.deps.identity.status();
     return status.state === 'signed_in' && status.email
       ? status.email.trim().toLowerCase()
       : undefined;
@@ -7631,11 +7576,11 @@ export class ControllerContext {
     }
     await inFlight?.catch(() => undefined);
     this.researchStaging.clear();
-    for (const batch of this.repository.list<ResearchBatchRecord>('research')) {
-      if (batch.batchId) this.repository.remove('research', batch.batchId);
+    for (const batch of this.deps.repository.list<ResearchBatchRecord>('research')) {
+      if (batch.batchId) this.deps.repository.remove('research', batch.batchId);
     }
-    for (const sync of this.repository.list<ResearchSyncRecord>('research_sync')) {
-      if (sync.batchId) this.repository.remove('research_sync', sync.batchId);
+    for (const sync of this.deps.repository.list<ResearchSyncRecord>('research_sync')) {
+      if (sync.batchId) this.deps.repository.remove('research_sync', sync.batchId);
     }
     delete this.state.researchIdentity;
     this.state.capture = { status: 'not_consented', pendingCount: 0 };
@@ -7651,7 +7596,7 @@ export class ControllerContext {
   }
 
   async reconcileIdentityBoundState(): Promise<void> {
-    if (this.fakeServices) return;
+    if (this.deps.fakeServices) return;
     const storedBatches = this.researchBatches();
     if (!this.state.researchIdentity && storedBatches.length > 0) {
       // Old local-only builds predate the ownership marker. Fail private: retain those
@@ -7659,13 +7604,13 @@ export class ControllerContext {
       this.state.researchIdentity = LOCAL_RESEARCH_IDENTITY;
       for (const batch of storedBatches) {
         if (batch.syncEligible === false) continue;
-        this.repository.put('research', batch.batchId, { ...batch, syncEligible: false });
+        this.deps.repository.put('research', batch.batchId, { ...batch, syncEligible: false });
       }
     }
     const identity = this.currentIdentityKey();
     if (!identity) {
       if (
-        this.cloud.configured &&
+        this.deps.cloud.configured &&
         this.state.researchIdentity !== LOCAL_RESEARCH_IDENTITY &&
         (this.state.researchIdentity || storedBatches.length)
       ) {
@@ -7707,7 +7652,7 @@ export class ControllerContext {
         continue;
       }
       try {
-        const result = await this.cloud.connectionStatus(connection.id);
+        const result = await this.deps.cloud.connectionStatus(connection.id);
         const remote = result.connections.find(({ id }) => id === connection.connectionId);
         if (remote?.status === 'connected') {
           connection.status = 'connected';
@@ -7784,8 +7729,8 @@ export class ControllerContext {
 
   releaseAccessLocked(): boolean {
     return (
-      this.cloud.configured &&
-      (this.signOutInProgress || this.identity.status().state !== 'signed_in')
+      this.deps.cloud.configured &&
+      (this.signOutInProgress || this.deps.identity.status().state !== 'signed_in')
     );
   }
 
@@ -7839,10 +7784,10 @@ export class ControllerContext {
   }
 
   requireWorkspaceOperations(): NonNullable<ControllerOptions['workspaceOperations']> {
-    if (!this.workspaceOperations) {
+    if (!this.deps.workspaceOperations) {
       throw new Error('Local workspace operations are unavailable in this build.');
     }
-    return this.workspaceOperations;
+    return this.deps.workspaceOperations;
   }
 
   defaultReasoningEffort(providerId: ProviderId, modelId: string): string | undefined {
@@ -7866,10 +7811,10 @@ export class ControllerContext {
     for (const threadId of this.macTurns.keys()) {
       const waiting =
         this.state.threads.find(({ id }) => id === threadId)?.status === 'waiting';
-      if (waiting && this.awakeTurns.delete(threadId)) this.keepAwake?.release(threadId);
+      if (waiting && this.awakeTurns.delete(threadId)) this.deps.keepAwake?.release(threadId);
       else if (!waiting && !this.awakeTurns.has(threadId)) {
         this.awakeTurns.add(threadId);
-        this.keepAwake?.hold(threadId);
+        this.deps.keepAwake?.hold(threadId);
       }
     }
   }
@@ -7916,7 +7861,7 @@ export class ControllerContext {
     // Chrome window titles and native ids are process-local chooser data. Keep them out of
     // durable storage even though the rest of the application state is encrypted at rest.
     delete browser.availableWindows;
-    this.repository.put('desktop', 'state', { ...this.state, browser });
+    this.deps.repository.put('desktop', 'state', { ...this.state, browser });
   }
 
   emit(): void {
