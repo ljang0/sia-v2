@@ -43,6 +43,7 @@ import { TurnRunner } from './turn-runner.js';
 import { RuntimeEventApplier } from './runtime-events.js';
 import { MacSession } from './mac-session.js';
 import { AppSettings } from './settings.js';
+import { AppSupport } from './support.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -73,6 +74,7 @@ export class DesktopController {
       runtimeEvents: new RuntimeEventApplier(ctx),
       mac: new MacSession(ctx),
       settings: new AppSettings(ctx),
+      support: new AppSupport(ctx),
     }));
   }
 

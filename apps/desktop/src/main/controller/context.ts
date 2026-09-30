@@ -17,12 +17,10 @@ import type {
   ProviderView,
   ThreadView,
   TimelineItemView,
-  UpdateView,
   VoiceView,
 } from '../../shared/bridge.js';
 import { probeProviders, providerPlan } from '../provider-probe.js';
 import type { RuntimeCoordinator } from '../runtime-coordinator.js';
-import { verifyUpdateManifestResponse } from '../update-manifest.js';
 import { settleBeforeShutdown } from './async-utils.js';
 import {
   EMPTY_CONNECTIONS,
@@ -37,7 +35,6 @@ import {
 import { SAFE_RESEARCH_ACTIONS } from './research-records.js';
 import type { BrowserCapabilitySink, ControllerOptions } from './types.js';
 import { type ControllerDeps, resolveControllerDeps } from './deps.js';
-import { compareVersions, isCleanHttpsUrl } from './update-feed.js';
 import { normalizeWorkspace } from './workspace-paths.js';
 import type { ResearchOutbox } from './research-outbox.js';
 import type { ResearchCapture } from './research-capture.js';
@@ -59,6 +56,7 @@ import type { TurnRunner } from './turn-runner.js';
 import type { RuntimeEventApplier } from './runtime-events.js';
 import type { MacSession } from './mac-session.js';
 import type { AppSettings } from './settings.js';
+import type { AppSupport } from './support.js';
 
 const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
   'bootstrap',
@@ -94,7 +92,8 @@ type ServiceName =
   | 'runner'
   | 'runtimeEvents'
   | 'mac'
-  | 'settings';
+  | 'settings'
+  | 'support';
 
 /**
  * Everything the desktop controller knows and does. DesktopController is the public facade;
@@ -123,6 +122,7 @@ export class ControllerContext {
   declare readonly runtimeEvents: RuntimeEventApplier;
   declare readonly mac: MacSession;
   declare readonly settings: AppSettings;
+  declare readonly support: AppSupport;
   readonly listeners = new Set<(event: DesktopPushEvent) => void>();
   readonly rendererCall = new AsyncLocalStorage<true>();
   readonly previewMemo: ThreadPreviewMemo = new WeakMap();
@@ -134,20 +134,12 @@ export class ControllerContext {
   state: PersistedState = structuredClone(INITIAL_STATE);
   revision = 0;
   shuttingDown = false;
-  updates: UpdateView;
 
   constructor(
     options: ControllerOptions,
     wire: (ctx: ControllerContext) => ControllerServices,
   ) {
     this.deps = resolveControllerDeps(options);
-    this.updates = {
-      status: this.deps.updateManifestUrl ? 'idle' : 'unconfigured',
-      currentVersion: this.deps.appVersion,
-      detail: this.deps.updateManifestUrl
-        ? 'Ready to check the configured release feed.'
-        : 'This build does not have a persistent signed update feed configured.',
-    };
     Object.assign(this, wire(this));
   }
 
@@ -271,93 +263,6 @@ export class ControllerContext {
       },
       images,
     );
-  }
-
-  async composeFeedbackMessage(
-    input: BridgeRequestMap['feedback.compose'],
-  ): Promise<BridgeResultMap['feedback.compose']> {
-    if (!this.deps.composeFeedback)
-      throw new Error('Feedback handoff is unavailable in this build.');
-    if (input.threadId) this.requireThread(input.threadId);
-    const diagnostics = input.includeDiagnostics
-      ? [
-          '',
-          '--- Sia diagnostics (no transcript or file contents) ---',
-          `Version: ${this.deps.appVersion}`,
-          ...(input.threadId ? [`Thread ID: ${input.threadId}`] : []),
-          `Providers: ${this.providers.views.map(({ id, status }) => `${id}=${status}`).join(', ')}`,
-        ].join('\n')
-      : '';
-    await this.deps.composeFeedback(
-      'Sia internal feedback',
-      `${input.message.trim()}${diagnostics}`,
-    );
-    return { opened: true };
-  }
-
-  async checkForUpdates(): Promise<UpdateView> {
-    if (!this.deps.updateManifestUrl) return structuredClone(this.updates);
-    if (!isCleanHttpsUrl(this.deps.updateManifestUrl)) {
-      this.updates = {
-        status: 'error',
-        currentVersion: this.deps.appVersion,
-        detail: 'The configured release feed must be a clean HTTPS URL.',
-      };
-      this.emit();
-      return structuredClone(this.updates);
-    }
-    this.updates = {
-      status: 'checking',
-      currentVersion: this.deps.appVersion,
-      detail: 'Checking the configured release feed…',
-    };
-    this.emit();
-    try {
-      if (!this.deps.updateManifestPublicKey) {
-        throw new Error('The release feed does not have a pinned signing key.');
-      }
-      await this.deps.identity.refreshSession?.();
-      const token = await this.deps.identity.read?.();
-      if (!token) throw new Error('Sign in with an approved Sia account to check for updates.');
-      const response = await fetch(this.deps.updateManifestUrl, {
-        headers: { accept: 'application/json', authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!response.ok) throw new Error(`Release feed returned HTTP ${response.status}.`);
-      const verified = verifyUpdateManifestResponse(
-        await response.json(),
-        this.deps.updateManifestPublicKey,
-      );
-      const latestVersion = verified.payload.version;
-      const downloadUrl = verified.downloadUrl;
-      const available = compareVersions(latestVersion, this.deps.appVersion) > 0;
-      this.updates = {
-        status: available ? 'available' : 'current',
-        currentVersion: this.deps.appVersion,
-        latestVersion,
-        ...(available ? { downloadUrl } : {}),
-        detail: available
-          ? `Sia ${latestVersion} is ready to download.`
-          : 'This build is up to date.',
-      };
-    } catch (error) {
-      this.updates = {
-        status: 'error',
-        currentVersion: this.deps.appVersion,
-        detail:
-          error instanceof Error ? error.message : 'The release feed could not be checked.',
-      };
-    }
-    this.emit();
-    return structuredClone(this.updates);
-  }
-
-  async openUpdateDownload(): Promise<BridgeResultMap['updates.openDownload']> {
-    if (this.updates.status !== 'available' || !this.updates.downloadUrl) {
-      throw new Error('Check for updates before opening a download.');
-    }
-    await this.deps.openExternal(this.updates.downloadUrl);
-    return { opened: true };
   }
 
   async initialize(): Promise<void> {
@@ -603,7 +508,7 @@ export class ControllerContext {
       },
       preferences: structuredClone(this.state.preferences),
       providerUsage: this.providers.providerUsage(),
-      updates: structuredClone(this.updates),
+      updates: structuredClone(this.support.updates),
       schedules: structuredClone(this.state.schedules),
       ...(this.state.activeAgentId ? { activeAgentId: this.state.activeAgentId } : {}),
       ...(this.state.activeThreadId ? { activeThreadId: this.state.activeThreadId } : {}),
@@ -724,9 +629,9 @@ export class ControllerContext {
     'settings.setCompletionSound': ({ enabled }) => this.settings.setCompletionSound(enabled),
     'settings.setOpenAtLogin': ({ enabled }) => this.settings.setOpenAtLogin(enabled),
     'settings.setDeveloperTools': ({ enabled }) => this.settings.setDeveloperTools(enabled),
-    'feedback.compose': (input) => this.composeFeedbackMessage(input),
-    'updates.check': () => this.checkForUpdates(),
-    'updates.openDownload': () => this.openUpdateDownload(),
+    'feedback.compose': (input) => this.support.composeFeedbackMessage(input),
+    'updates.check': () => this.support.checkForUpdates(),
+    'updates.openDownload': () => this.support.openUpdateDownload(),
     'computer.permissions': () => this.computerAccess.refreshComputer(false),
     'computer.requestPermissions': (input) =>
       this.computerAccess.refreshComputer(true, input?.permission),
