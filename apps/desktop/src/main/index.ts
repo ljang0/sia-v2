@@ -220,6 +220,16 @@ function createApplication(): Promise<void> {
 }
 
 async function performApplicationCreation(): Promise<void> {
+  // Settings → Appearance → Theme, applied before anything awaits (the Mac PATH lookup can take
+  // a moment) so the saved theme is in force from the first instant, never after a light flash.
+  const launchThemePath = join(app.getPath('userData'), 'appearance.json');
+  themeSync ??= new ThemeSync(
+    readLaunchTheme(launchThemePath),
+    (theme) => {
+      nativeTheme.themeSource = theme;
+    },
+    (theme) => writeLaunchTheme(launchThemePath, theme),
+  );
   installApplicationMenu(controller?.developerToolsEnabled() ?? false);
   configureSessionSecurity();
   await configureProviderPath();
@@ -236,15 +246,6 @@ async function performApplicationCreation(): Promise<void> {
       )
     : undefined;
   windowStateSaver ??= new WindowStateSaver(windowStatePath);
-  // Settings → Appearance → Theme, applied before the first frame so launch never flashes.
-  const launchThemePath = join(app.getPath('userData'), 'appearance.json');
-  themeSync ??= new ThemeSync(
-    readLaunchTheme(launchThemePath),
-    (theme) => {
-      nativeTheme.themeSource = theme;
-    },
-    (theme) => writeLaunchTheme(launchThemePath, theme),
-  );
   const window = new BrowserWindow({
     title: 'Sia',
     ...WINDOW_SIZE,
