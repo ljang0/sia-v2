@@ -1,7 +1,8 @@
 import { CaretDown, CheckCircle, CircleNotch, WarningCircle } from '@phosphor-icons/react';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { ActivityEvent } from '../types';
-import styles from '../ui.module.css';
+import activityRow from './ActivityRow.module.css';
+import styles from './WorkGroup.module.css';
 
 interface WorkGroupProps {
   events: readonly ActivityEvent[];
@@ -57,7 +58,7 @@ export function WorkGroup({
         ) : null}
         <CaretDown
           size={13}
-          className={open ? styles.caretExpanded : styles.caret}
+          className={open ? activityRow.caretExpanded : activityRow.caret}
           aria-hidden="true"
         />
       </button>

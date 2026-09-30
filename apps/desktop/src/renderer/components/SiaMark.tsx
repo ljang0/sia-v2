@@ -1,4 +1,4 @@
-import styles from '../ui.module.css';
+import styles from './SiaMark.module.css';
 
 export type SiaMarkState =
   'idle' | 'working' | 'waiting' | 'listening' | 'speaking' | 'complete' | 'error';

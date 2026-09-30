@@ -5,7 +5,8 @@ import { errorMessage } from '../plainErrors';
 import type { AttachmentPreview, RendererAttachment } from '../types';
 import buttons from '../styles/buttons.module.css';
 import dialogs from '../styles/dialogs.module.css';
-import styles from '../ui.module.css';
+import ui from '../ui.module.css';
+import styles from './Conversation.module.css';
 
 // Thumbnails of sent images, kept for the session so scrolling back does not reload them.
 const thumbnailCache = new Map<string, string>();
@@ -82,7 +83,7 @@ export function AttachmentPreviewDialog({
           </Dialog.Description>
           <div className={styles.attachmentPreviewBody}>
             {!preview?.result ? (
-              <SpinnerGap className={styles.spin} size={22} aria-label="Loading preview" />
+              <SpinnerGap className={ui.spin} size={22} aria-label="Loading preview" />
             ) : preview.result.kind === 'image' ? (
               <img src={preview.result.dataUrl} alt={preview.attachment.name} />
             ) : preview.result.kind === 'text' ? (

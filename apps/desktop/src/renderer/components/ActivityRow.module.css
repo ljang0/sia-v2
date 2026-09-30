@@ -1,0 +1,302 @@
+.activityRow {
+  width: min(calc(100% - 42px), 680px);
+  margin-left: 42px;
+  border-left: 0;
+  border-radius: var(--radius-control);
+  color: var(--text-secondary);
+}
+
+.activityButton {
+  display: grid;
+  width: 100%;
+  min-height: 34px;
+  grid-template-columns: 18px minmax(0, 1fr) 16px 14px;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px 5px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.activityButton {
+  border-radius: var(--radius-control);
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.activityButton:hover {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.activityTitle {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes workStepsReveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.activitySpinner {
+  flex: none;
+  color: var(--agent-color, var(--text-primary));
+  animation: working-spin 1.1s linear infinite;
+}
+
+.activityDoneIcon {
+  flex: none;
+  color: color-mix(in srgb, var(--text-success) 78%, var(--text-tertiary));
+}
+
+.activityDonePop {
+  animation: stepDonePop 420ms var(--ease-out-soft) both;
+}
+
+@keyframes stepDonePop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+}
+
+@keyframes working-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.activitySummary {
+  margin-left: 8px;
+  color: var(--text-tertiary);
+  font-weight: var(--weight-regular);
+}
+
+.activitySummaryCode {
+  font-family: var(--font-mono);
+  font-size: calc(var(--text-sm) - 1px);
+}
+
+.activityDetail {
+  margin: 0 12px 7px 35px;
+  padding: 8px 10px;
+  border-radius: var(--radius-control);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  animation: workStepsReveal 200ms var(--ease-out-soft) both;
+}
+
+.commandDetail {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: calc(var(--text-sm) - 0.5px);
+}
+
+.commandLine {
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.commandOutput {
+  max-height: 240px;
+  margin: 0;
+  padding: 8px 10px;
+  overflow: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: calc(var(--radius-control) - 2px);
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  font: inherit;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.commandDetail small,
+.commandWaiting {
+  color: var(--text-tertiary);
+  font: inherit;
+}
+
+.commandDetail .commandResult[data-outcome='success'] {
+  color: var(--text-success);
+}
+
+.commandDetail .commandResult[data-outcome='failure'] {
+  color: var(--text-danger);
+}
+
+.activityStack {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.activityStack pre {
+  max-height: 240px;
+  margin: 0;
+  overflow: auto;
+  color: var(--text-primary);
+  font: inherit;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.activityStack small,
+.activityList small {
+  color: var(--text-tertiary);
+  font: inherit;
+}
+
+.activityList,
+.activitySources,
+.activityPlan {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activityList li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.activityList .diffAdded {
+  color: var(--text-success);
+}
+
+.activityList .diffRemoved {
+  color: var(--text-danger);
+}
+
+.activityList li span,
+.activitySources a {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activitySources a {
+  display: block;
+  color: var(--text-primary);
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 2px;
+}
+
+.activitySources a:hover {
+  text-decoration-color: currentColor;
+}
+
+.activityPlan {
+  gap: 7px;
+  white-space: normal;
+}
+
+.activityPlan li {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: start;
+  gap: 9px;
+  color: var(--text-secondary);
+}
+
+.activityPlan li[data-status='completed'] {
+  color: var(--text-tertiary);
+}
+
+.activityPlan li[data-status='in_progress'] {
+  color: var(--text-primary);
+  font-weight: var(--weight-semibold);
+}
+
+.planMark {
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  place-items: center;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text-tertiary) 60%, transparent);
+  transition:
+    background-color var(--motion-standard) var(--ease-standard),
+    box-shadow var(--motion-standard) var(--ease-standard);
+}
+
+.activityPlan li[data-status='completed'] .planMark {
+  background: color-mix(in srgb, var(--text-success) 82%, var(--bg-raised));
+  box-shadow: none;
+  color: var(--bg-raised);
+}
+
+.activityPlan li[data-status='in_progress'] .planMark {
+  box-shadow: none;
+  color: var(--agent-color, var(--text-primary));
+}
+
+.activityPlan li[data-status='completed'] .planText {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--text-tertiary) 55%, transparent);
+}
+
+@media (forced-colors: active) {
+  .planMark {
+    border: 1px solid CanvasText;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activitySpinner,
+  .activityDonePop,
+  .activityDetail {
+    animation: none;
+  }
+}
+
+.activity_running {
+  color: var(--text-primary);
+}
+
+.activity_error {
+  border-left-color: var(--border-strong);
+  color: var(--text-secondary);
+}
+
+.activityErrorIcon {
+  flex: none;
+  color: var(--text-danger);
+}
+
+.activity_queued {
+  color: var(--text-tertiary);
+}
+
+.caret,
+.caretExpanded {
+  transition: transform var(--motion-standard) var(--ease-standard);
+}
+
+.caretExpanded {
+  transform: rotate(180deg);
+}

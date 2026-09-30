@@ -18,7 +18,7 @@ import {
   type Icon,
 } from '@phosphor-icons/react';
 import type { StarterPrompt } from '../welcome';
-import styles from '../ui.module.css';
+import styles from './StarterPrompts.module.css';
 
 const ICONS: Record<StarterPrompt['icon'], Icon> = {
   calendar: CalendarBlank,

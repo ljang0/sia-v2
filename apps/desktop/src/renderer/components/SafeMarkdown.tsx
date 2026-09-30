@@ -1,5 +1,5 @@
 import { createElement, Fragment, memo, type ReactNode } from 'react';
-import styles from '../ui.module.css';
+import styles from './SafeMarkdown.module.css';
 
 /**
  * Renders the Markdown surface returned by provider CLIs. React escapes all source text,

@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 import { COMPOSER_INPUT_ATTRIBUTE, focusIsAdrift } from '../composerFocus';
 import type { ApprovalEvent, ApprovalDecision } from '../types';
 import buttons from '../styles/buttons.module.css';
-import styles from '../ui.module.css';
+import styles from './ApprovalCard.module.css';
 
 interface ApprovalCardProps {
   event: ApprovalEvent;

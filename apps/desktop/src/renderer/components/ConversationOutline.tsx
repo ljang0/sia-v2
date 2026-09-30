@@ -15,7 +15,8 @@ import { activityLabel } from '../../shared/activity-label';
 import { clipText, plainText } from '../../shared/plain-text';
 import type { ActivityEvent, ThreadEvent } from '../types';
 import buttons from '../styles/buttons.module.css';
-import styles from '../ui.module.css';
+import ui from '../ui.module.css';
+import styles from './ConversationOutline.module.css';
 
 type OutlineStatus = ActivityEvent['status'];
 
@@ -251,7 +252,7 @@ function OutlineEntry({
                   )}
                 </span>
                 <span>{step.text}</span>
-                <span className={styles.visuallyHidden}>{stepStatusLabel(step.status)}</span>
+                <span className={ui.visuallyHidden}>{stepStatusLabel(step.status)}</span>
               </button>
             </li>
           ))}
@@ -274,7 +275,7 @@ function OutlineStatus({ status }: { status: OutlineStatus }) {
       ) : (
         <Circle size={8} aria-hidden="true" />
       )}
-      <span className={styles.visuallyHidden}>{label}</span>
+      <span className={ui.visuallyHidden}>{label}</span>
     </span>
   );
 }

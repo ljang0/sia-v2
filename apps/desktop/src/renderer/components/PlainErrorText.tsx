@@ -1,5 +1,5 @@
 import { plainError } from '../plainErrors';
-import styles from '../ui.module.css';
+import styles from './PlainErrorText.module.css';
 
 /** The original provider or system text, kept one click away for support. */
 function ErrorDetails({ detail }: { detail: string }) {
