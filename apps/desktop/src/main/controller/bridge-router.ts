@@ -13,13 +13,41 @@ type BridgeHandler<M extends BridgeMethod> = (
 ) => BridgeResultMap[M] | Promise<BridgeResultMap[M]>;
 type BridgeHandlers = { [M in BridgeMethod]?: BridgeHandler<M> };
 
+/** The parts of the controller context BridgeRouter uses. */
+type BridgeRouterContext = Pick<
+  ControllerContext,
+  | 'account'
+  | 'agents'
+  | 'approvals'
+  | 'assistant'
+  | 'attachments'
+  | 'browser'
+  | 'computerAccess'
+  | 'connections'
+  | 'deps'
+  | 'phoneRemote'
+  | 'providers'
+  | 'releaseAccessLocked'
+  | 'rendererCall'
+  | 'researchOutbox'
+  | 'resultSnapshot'
+  | 'schedules'
+  | 'scotty'
+  | 'settings'
+  | 'speech'
+  | 'support'
+  | 'threads'
+  | 'turns'
+  | 'workspace'
+>;
+
 /**
  * Routes typed bridge requests to the collaborator that owns each method, after the sign-in and
  * release-access guards.
  */
 export class BridgeRouter {
   /** One canonical route per renderer bridge method. */
-  readonly handlers: BridgeHandlers = {
+  private readonly handlers: BridgeHandlers = {
     bootstrap: () => this.ctx.resultSnapshot(),
     'scotty.configure': (input) => this.configureScotty(input),
     'phone.remote': (input) => this.phoneRemoteCommand(input),
@@ -159,7 +187,7 @@ export class BridgeRouter {
       this.ctx.deps.cloud.readAdminResearchBatch(subject, batchId),
   };
 
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: BridgeRouterContext) {}
 
   async invoke<M extends BridgeMethod>(
     method: M,
@@ -193,14 +221,14 @@ export class BridgeRouter {
     return this.ctx.rendererCall.run(true, () => this.invoke(method, input));
   }
 
-  async configureScotty(
+  private async configureScotty(
     input: BridgeRequestMap['scotty.configure'],
   ): Promise<BridgeResultMap['scotty.configure']> {
     if (!this.ctx.scotty) throw new Error('Scotty is unavailable in this build.');
     return await this.ctx.scotty(input);
   }
 
-  async phoneRemoteCommand(
+  private async phoneRemoteCommand(
     input: BridgeRequestMap['phone.remote'],
   ): Promise<BridgeResultMap['phone.remote']> {
     if (!this.ctx.phoneRemote) throw new Error('Phone remote is unavailable in this build.');

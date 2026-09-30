@@ -4,6 +4,29 @@ import type { ControllerContext } from './context.js';
 import { INITIAL_STATE } from './persisted-state.js';
 import { LOCAL_RESEARCH_IDENTITY } from './research-records.js';
 
+/** The parts of the controller context CloudAccount uses. */
+type CloudAccountContext = Pick<
+  ControllerContext,
+  | 'actions'
+  | 'approvals'
+  | 'browser'
+  | 'browserCapabilitySink'
+  | 'commit'
+  | 'connections'
+  | 'deps'
+  | 'emit'
+  | 'mac'
+  | 'providers'
+  | 'researchCapture'
+  | 'researchOutbox'
+  | 'resultSnapshot'
+  | 'revision'
+  | 'runtime'
+  | 'state'
+  | 'turns'
+  | 'workspaceGrants'
+>;
+
 /**
  * Email sign-in, MFA, session refresh, sign-out and account deletion, and the identity boundary
  * that clears account-bound state when the signed-in person changes.
@@ -13,7 +36,7 @@ export class CloudAccount {
   signOutInProgress = false;
   accountDeletionInProgress = false;
 
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: CloudAccountContext) {}
 
   async startSignIn(email: string): Promise<DesktopSnapshot> {
     if (this.ctx.deps.cloud.configured) await this.ctx.deps.cloud.registerAccount(email);
@@ -121,7 +144,7 @@ export class CloudAccount {
     }
   }
 
-  async stopAllWorkForAuthenticationBoundary(): Promise<void> {
+  private async stopAllWorkForAuthenticationBoundary(): Promise<void> {
     this.ctx.deps.voice?.disconnect();
     const queuedTurnIds = this.ctx.turns.queued.map(({ id }) => id);
     const affectedThreadIds = new Set(this.ctx.turns.queued.map(({ threadId }) => threadId));
@@ -385,7 +408,7 @@ export class CloudAccount {
       : undefined;
   }
 
-  toolAvailabilitySignature(): string {
+  private toolAvailabilitySignature(): string {
     return `${this.ctx.actions.toolAvailable('mail_search')}:${this.ctx.actions.toolAvailable('schedule_list')}`;
   }
 }

@@ -15,6 +15,12 @@ import {
   TARGET_LOCAL_RESEARCH_BYTES,
 } from './research-records.js';
 
+/** The parts of the controller context ResearchOutbox uses. */
+type ResearchOutboxContext = Pick<
+  ControllerContext,
+  'account' | 'commit' | 'deps' | 'researchCapture' | 'resultSnapshot' | 'state'
+>;
+
 /**
  * Consented research after capture: the consent choice, encrypted local batches, and their
  * upload to Sia cloud with retry. Unsynced research is never discarded to meet a quota.
@@ -25,7 +31,7 @@ export class ResearchOutbox {
   retryDelayMs = 15_000;
   generation = 0;
 
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: ResearchOutboxContext) {}
 
   setCapture(input: BridgeRequestMap['research.setCapture']): DesktopSnapshot {
     if (input.enabled && this.ctx.state.capture.status === 'deleting') {
@@ -364,7 +370,7 @@ export class ResearchOutbox {
     }
   }
 
-  scheduleRetry(): void {
+  private scheduleRetry(): void {
     if (
       this.ctx.state.capture.status === 'deleting' ||
       this.retryTimer ||

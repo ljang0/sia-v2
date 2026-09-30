@@ -25,6 +25,19 @@ export function backgroundControlUnavailable(
   return 'Working in the background isn’t available on this Mac right now. Choose On my screen in Settings → Computer, then press Continue task.';
 }
 
+/** The parts of the controller context ComputerAccess uses. */
+type ComputerAccessContext = Pick<
+  ControllerContext,
+  | 'assistant'
+  | 'commit'
+  | 'deps'
+  | 'emit'
+  | 'requireSignedInReleaseAccount'
+  | 'resultSnapshot'
+  | 'speech'
+  | 'state'
+>;
+
 /**
  * Use my Mac access: macOS permissions, Messages and Chrome status, the access mode, trust
  * setting and trajectory log, and whether background control is available.
@@ -40,7 +53,7 @@ export class ComputerAccess {
   messagesAccess: 'ready' | 'needs_full_disk_access' | 'unavailable' | undefined;
   chromeConnection: 'enabled' | 'off' | 'unavailable' | undefined;
 
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: ComputerAccessContext) {}
 
   /** Use my Mac, or connected apps only. */
   accessMode(): 'mac' | 'connected' {

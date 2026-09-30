@@ -12,6 +12,25 @@ import { providerPlan } from '../provider-probe.js';
 import type { ControllerContext } from './context.js';
 import { modelRouteKey } from './execution-routes.js';
 
+/** The parts of the controller context ProviderAccess uses. */
+type ProviderAccessContext = Pick<
+  ControllerContext,
+  | 'account'
+  | 'commit'
+  | 'connections'
+  | 'deps'
+  | 'emit'
+  | 'releaseAccessLocked'
+  | 'requireSignedInReleaseAccount'
+  | 'resultSnapshot'
+  | 'runtime'
+  | 'shuttingDown'
+  | 'speech'
+  | 'state'
+  | 'turns'
+  | 'workspace'
+>;
+
 /**
  * Model provider views and readiness, Codex sign-in and setup, Meta provider state, and the
  * model routes the signed-in account may use.
@@ -25,13 +44,13 @@ export class ProviderAccess {
   codexSetupPending = false;
 
   /** Aborts a ChatGPT browser sign-in that is still waiting on the person. */
-  codexLoginAbort: AbortController | undefined;
+  private codexLoginAbort: AbortController | undefined;
 
   codexSetup: ProviderView['setup'];
   readonly backendModelRoutes = new Map<string, ModelRoute>();
   readonly allowedModelRoutes = new Map<string, readonly ModelRoute[]>();
 
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: ProviderAccessContext) {}
 
   /**
    * Takes the views from the startup probe. In fake-services mode Codex is replaced with the
@@ -126,7 +145,7 @@ export class ProviderAccess {
       throw new Error('Codex setup is in progress. Follow the setup status in Sia.');
   }
 
-  requireSafeCodexRestart(): void {
+  private requireSafeCodexRestart(): void {
     this.ctx.requireSignedInReleaseAccount();
     if (this.ctx.account.signOutInProgress || this.ctx.account.accountDeletionInProgress)
       throw new Error('Finish the account change before setting up Codex.');
@@ -271,7 +290,10 @@ export class ProviderAccess {
     return this.ctx.resultSnapshot();
   }
 
-  setCodexSetup(phase: NonNullable<ProviderView['setup']>['phase'], message: string): void {
+  private setCodexSetup(
+    phase: NonNullable<ProviderView['setup']>['phase'],
+    message: string,
+  ): void {
     this.codexSetup = { phase, message };
     this.ctx.emit();
   }

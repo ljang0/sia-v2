@@ -11,11 +11,14 @@ import {
 import type { ControllerContext } from './context.js';
 import type { AttachmentGrant } from './types.js';
 
+/** The parts of the controller context Attachments uses. */
+type AttachmentsContext = Pick<ControllerContext, 'deps' | 'requireThread'>;
+
 /** Grants the files a person picks or pastes to a thread, and previews, opens and reveals them. */
 export class Attachments {
   readonly grants = new Map<string, AttachmentGrant>();
 
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: AttachmentsContext) {}
 
   async pickAttachments(threadId: string): Promise<BridgeResultMap['attachments.pick']> {
     if (!this.ctx.deps.chooseFiles)
@@ -125,7 +128,7 @@ export class Attachments {
     return { revealed: true };
   }
 
-  requireAttachmentGrant(threadId: string, attachmentId: string): AttachmentGrant {
+  private requireAttachmentGrant(threadId: string, attachmentId: string): AttachmentGrant {
     this.ctx.requireThread(threadId);
     this.pruneAttachmentGrants();
     const grant = this.grants.get(attachmentId);
@@ -135,7 +138,7 @@ export class Attachments {
     return grant;
   }
 
-  pruneAttachmentGrants(): void {
+  private pruneAttachmentGrants(): void {
     const now = Date.now();
     for (const [id, grant] of this.grants) {
       if (grant.expiresAt <= now) this.grants.delete(id);

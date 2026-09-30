@@ -16,6 +16,9 @@ import {
   type StagedResearchTurn,
 } from './research-records.js';
 
+/** The parts of the controller context ResearchCapture uses. */
+type ResearchCaptureContext = Pick<ControllerContext, 'deps' | 'researchOutbox' | 'state'>;
+
 /**
  * Stages consented research capture for a turn: redacted text, trajectories and action results,
  * and raw events when raw capture is enabled. Staged turns go to the outbox when they finish.
@@ -27,9 +30,9 @@ export class ResearchCapture {
    * A Google Workspace action excludes its entire turn from research capture. The set lets us
    * discard events staged before the action was invoked and reject events that arrive afterwards.
    */
-  readonly excludedTurns = new Set<string>();
+  private readonly excludedTurns = new Set<string>();
 
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: ResearchCaptureContext) {}
 
   stageResearchText(input: {
     turnId: string;
@@ -127,7 +130,7 @@ export class ResearchCapture {
     this.staging.delete(turnId);
   }
 
-  rawResearchEnabled(): boolean {
+  private rawResearchEnabled(): boolean {
     return (
       this.researchCaptureActive() &&
       this.ctx.state.capture.consentVersion === RESEARCH_CONSENT_VERSION
@@ -318,7 +321,7 @@ export class ResearchCapture {
     this.ctx.researchOutbox.scheduleSync();
   }
 
-  persistRawResearchTurn(turnId: string, outcome: 'completed' | 'discarded'): void {
+  private persistRawResearchTurn(turnId: string, outcome: 'completed' | 'discarded'): void {
     if (this.excludedTurns.has(turnId)) {
       this.staging.delete(turnId);
       return;

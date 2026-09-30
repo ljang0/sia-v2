@@ -12,6 +12,12 @@ import type { ControllerContext } from './context.js';
 import type { ControllerOptions } from './types.js';
 import { normalizeWorkspace } from './workspace-paths.js';
 
+/** The parts of the controller context WorkspaceTools uses. */
+type WorkspaceToolsContext = Pick<
+  ControllerContext,
+  'deps' | 'providers' | 'requireThread' | 'state' | 'turns' | 'workspaceGrants'
+>;
+
 /**
  * Developer workspace operations: change review and staging, workspace snapshots, per-turn
  * changes, terminals and code review, all behind the developer tools setting.
@@ -19,7 +25,7 @@ import { normalizeWorkspace } from './workspace-paths.js';
 export class WorkspaceTools {
   pendingTerminalOperations = 0;
 
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: WorkspaceToolsContext) {}
 
   async readChanges(threadId: string): Promise<WorkspaceDiffView> {
     const thread = this.ctx.requireThread(threadId);
@@ -117,14 +123,14 @@ export class WorkspaceTools {
     );
   }
 
-  turnChanges(threadId: string, eventId: string) {
+  private turnChanges(threadId: string, eventId: string) {
     const changes = turnFileChanges(this.ctx.state.timeline, threadId, eventId);
     if (!changes) throw new Error('This reply is no longer in the conversation.');
     return changes;
   }
 
   /** The renderer's Command tool runs unreviewed shell commands, so it is opt-in. */
-  requireDeveloperTools(): void {
+  private requireDeveloperTools(): void {
     if (this.ctx.state.preferences.developerTools === true) return;
     throw new Error('Turn on Developer tools in Settings to run commands.');
   }

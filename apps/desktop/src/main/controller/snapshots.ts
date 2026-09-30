@@ -4,14 +4,30 @@ import type { TaskSnapshot } from '../latest-task-turn.js';
 import { EMPTY_CONNECTIONS } from './connection-ids.js';
 import type { ControllerContext } from './context.js';
 
+/** The parts of the controller context Snapshots uses. */
+type SnapshotsContext = Pick<
+  ControllerContext,
+  | 'account'
+  | 'computerAccess'
+  | 'deps'
+  | 'mac'
+  | 'providers'
+  | 'releaseAccessLocked'
+  | 'revision'
+  | 'settings'
+  | 'speech'
+  | 'state'
+  | 'support'
+>;
+
 /**
  * Builds the desktop snapshots: the complete state for in-process callers, the scoped view the
  * renderer draws, and task metadata for the launcher and phone remote.
  */
 export class Snapshots {
-  readonly previewMemo: ThreadPreviewMemo = new WeakMap();
+  private readonly previewMemo: ThreadPreviewMemo = new WeakMap();
 
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: SnapshotsContext) {}
 
   /** The complete state, including every thread's history, for in-process callers and tests. */
   full(): DesktopSnapshot {

@@ -12,12 +12,30 @@ import { modelRouteKey, requireReleaseProvider } from './execution-routes.js';
 import { extractHttpUrls, safeUrlHost, searchExcerpt } from './thread-search.js';
 import { normalizeWorkspace, worktreeLabel } from './workspace-paths.js';
 
+/** The parts of the controller context Threads uses. */
+type ThreadsContext = Pick<
+  ControllerContext,
+  | 'attachments'
+  | 'commit'
+  | 'persistSoon'
+  | 'providers'
+  | 'requireAgent'
+  | 'requireSignedInReleaseAccount'
+  | 'requireThread'
+  | 'resultSnapshot'
+  | 'runtime'
+  | 'state'
+  | 'turns'
+  | 'workspace'
+  | 'workspaceGrants'
+>;
+
 /**
  * Creates, configures, forks, hands off, searches, archives and deletes conversation threads,
  * and manages thread goals and worktrees.
  */
 export class Threads {
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: ThreadsContext) {}
 
   /**
    * The user-facing "New conversation" route. Like a single draft tab, it reopens the agent's

@@ -8,6 +8,23 @@ import { PushToTalkService, type VoiceHelperFactory } from '../push-to-talk.js';
 import type { VoiceOperations } from '../voice-service.js';
 import type { ControllerContext } from './context.js';
 
+/** The parts of the controller context VoiceControls uses. */
+type VoiceControlsContext = Pick<
+  ControllerContext,
+  | 'assistant'
+  | 'computerAccess'
+  | 'deps'
+  | 'emit'
+  | 'providers'
+  | 'releaseAccessLocked'
+  | 'requireAgent'
+  | 'requireSignedInReleaseAccount'
+  | 'resultSnapshot'
+  | 'state'
+  | 'threads'
+  | 'turns'
+>;
+
 /**
  * Fn push-to-talk, renderer microphone capture, transcription, realtime voice and speech, and
  * the voice account settings.
@@ -16,7 +33,7 @@ export class VoiceControls {
   pushToTalk: PushToTalkService | undefined;
   assistantSuspended = false;
 
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: VoiceControlsContext) {}
 
   attachPushToTalk(options: {
     available: boolean;
@@ -192,12 +209,12 @@ export class VoiceControls {
     return this.ctx.resultSnapshot();
   }
 
-  requireVoiceAvailable(): void {
+  private requireVoiceAvailable(): void {
     if (this.pushToTalk?.busy)
       throw new Error('Fn recording is active. Release Fn or press Escape first.');
   }
 
-  requireVoice(): VoiceOperations {
+  private requireVoice(): VoiceOperations {
     if (!this.ctx.deps.voice) throw new Error('Voice is unavailable in this build.');
     return this.ctx.deps.voice;
   }

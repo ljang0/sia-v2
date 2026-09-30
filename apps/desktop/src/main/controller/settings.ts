@@ -7,12 +7,18 @@ import {
 } from '../../shared/display.js';
 import type { ControllerContext } from './context.js';
 
+/** The parts of the controller context AppSettings uses. */
+type AppSettingsContext = Pick<
+  ControllerContext,
+  'commit' | 'connections' | 'deps' | 'resultSnapshot' | 'speech' | 'state' | 'turns'
+>;
+
 /**
  * Onboarding and display preferences: appearance, theme, text size, completion sound, open at
  * login and developer tools.
  */
 export class AppSettings {
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: AppSettingsContext) {}
 
   /**
    * Theme and text size. They hold nothing private, so they apply before sign-in too and main

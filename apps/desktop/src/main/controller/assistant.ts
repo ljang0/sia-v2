@@ -16,6 +16,24 @@ import { NativeSkills } from '../native-skills.js';
 import { NotchVault } from '../notch/vault.js';
 import type { ControllerContext } from './context.js';
 
+/** The parts of the controller context AssistantFeatures uses. */
+type AssistantFeaturesContext = Pick<
+  ControllerContext,
+  | 'commit'
+  | 'computerAccess'
+  | 'deps'
+  | 'providers'
+  | 'releaseAccessLocked'
+  | 'requireAgent'
+  | 'requireSignedInReleaseAccount'
+  | 'requireThread'
+  | 'shuttingDown'
+  | 'speech'
+  | 'state'
+  | 'threads'
+  | 'turns'
+>;
+
 /**
  * The assistant library (memories, skills, suggestions and reviews), Notch native learning,
  * launcher actions, and the idle memory-review timers.
@@ -24,10 +42,10 @@ export class AssistantFeatures {
   readonly library: AssistantLibrary;
   memoryTimer: NodeJS.Timeout | undefined;
   notchTimer: NodeJS.Timeout | undefined;
-  nextNotchCheck = 0;
-  launcherRegistered = false;
+  private nextNotchCheck = 0;
+  private launcherRegistered = false;
 
-  constructor(private readonly ctx: ControllerContext) {
+  constructor(private readonly ctx: AssistantFeaturesContext) {
     this.library = new AssistantLibrary(ctx.deps.repository);
   }
 
@@ -122,7 +140,7 @@ export class AssistantFeatures {
     );
   }
 
-  nativeSkills(agentId: string): NativeSkills {
+  private nativeSkills(agentId: string): NativeSkills {
     const agent = this.ctx.requireAgent(agentId);
     return new NativeSkills(agent.workspace, agentId);
   }
@@ -131,7 +149,7 @@ export class AssistantFeatures {
     return new NotchVault(this.ctx.requireAgent(agentId).workspace, agentId);
   }
 
-  libraryView() {
+  private libraryView() {
     const view = this.library.view();
     if (this.ctx.computerAccess.accessMode() !== 'mac') return view;
     if (!this.ctx.deps.fakeServices) {
@@ -150,7 +168,7 @@ export class AssistantFeatures {
     };
   }
 
-  resolveSuggestion(id: string, revision: string, accept: boolean) {
+  private resolveSuggestion(id: string, revision: string, accept: boolean) {
     return this.library.resolveSuggestion(
       id,
       revision,
@@ -488,7 +506,7 @@ export class AssistantFeatures {
     } as BridgeResultMap['assistant.library'];
   }
 
-  async awaitCompletedTurns(): Promise<void> {
+  private async awaitCompletedTurns(): Promise<void> {
     // The UI can show the final response while the native journal is flushing.
     // A review must read that outcome, not race the final helper write.
     await Promise.allSettled(
@@ -501,7 +519,7 @@ export class AssistantFeatures {
     );
   }
 
-  startMemoryReview(agentId: string, activate: boolean): string {
+  private startMemoryReview(agentId: string, activate: boolean): string {
     this.ctx.requireSignedInReleaseAccount();
     const agent = this.ctx.requireAgent(agentId);
     if (!this.library.view().learningAgents?.includes(agentId))

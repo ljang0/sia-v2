@@ -10,9 +10,26 @@ import type { ControllerContext } from './context.js';
 import { requireReleaseProvider } from './execution-routes.js';
 import { normalizeWorkspace, workspaceSlug } from './workspace-paths.js';
 
+/** The parts of the controller context Agents uses. */
+type AgentsContext = Pick<
+  ControllerContext,
+  | 'assistant'
+  | 'commit'
+  | 'computerAccess'
+  | 'deps'
+  | 'providers'
+  | 'requireAgent'
+  | 'requireSignedInReleaseAccount'
+  | 'resultSnapshot'
+  | 'state'
+  | 'threads'
+  | 'turns'
+  | 'workspaceGrants'
+>;
+
 /** Creates, edits, duplicates and deletes agents. */
 export class Agents {
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: AgentsContext) {}
 
   async saveAgent(
     input: BridgeRequestMap['agents.save'],
@@ -192,7 +209,7 @@ export class Agents {
     return this.ctx.resultSnapshot();
   }
 
-  leastUsedHue(): number {
+  private leastUsedHue(): number {
     const counts = [0, 0, 0, 0];
     for (const agent of this.ctx.state.agents) {
       const slot =

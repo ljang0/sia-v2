@@ -13,14 +13,33 @@ import type { ControllerContext } from './context.js';
 import { isStreamingDelta } from './runtime-events.js';
 import type { QueuedTurn } from './types.js';
 
+/** The parts of the controller context TurnRunner uses. */
+type TurnRunnerContext = Pick<
+  ControllerContext,
+  | 'appendTimeline'
+  | 'approvals'
+  | 'assistant'
+  | 'commit'
+  | 'computerAccess'
+  | 'deps'
+  | 'providers'
+  | 'requireThread'
+  | 'researchCapture'
+  | 'runtime'
+  | 'runtimeEvents'
+  | 'schedules'
+  | 'state'
+  | 'turns'
+>;
+
 /**
  * Runs one provider turn end to end: action leases, runtime stream, completion bookkeeping and
  * attention notices.
  */
 export class TurnRunner {
-  readonly actionLeases = new LocalLeaseCoordinator(4);
+  private readonly actionLeases = new LocalLeaseCoordinator(4);
 
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: TurnRunnerContext) {}
 
   async runTurn(turn: QueuedTurn, signal: AbortSignal): Promise<void> {
     let lease: TurnLease | undefined;
@@ -382,7 +401,7 @@ export class TurnRunner {
     }
   }
 
-  markTurnFinished(
+  private markTurnFinished(
     thread: ThreadView,
     turn: QueuedTurn,
     outcome: 'complete' | 'failed',

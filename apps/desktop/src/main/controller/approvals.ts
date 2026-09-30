@@ -20,6 +20,26 @@ import { connectorAppForTool, GOOGLE_WORKSPACE_ACTION } from './connection-ids.j
 import type { ControllerContext } from './context.js';
 import type { ApprovedConnectorBinding, PendingApproval } from './types.js';
 
+/** The parts of the controller context Approvals uses. */
+type ApprovalsContext = Pick<
+  ControllerContext,
+  | 'appendTimeline'
+  | 'assistant'
+  | 'browserCapabilitySink'
+  | 'commit'
+  | 'computerAccess'
+  | 'connections'
+  | 'deps'
+  | 'releaseAccessLocked'
+  | 'requireThread'
+  | 'researchCapture'
+  | 'resultSnapshot'
+  | 'runner'
+  | 'runtime'
+  | 'state'
+  | 'turns'
+>;
+
 /**
  * Authorizes provider requests, Sia-hosted gateway actions and computer use: per-turn trust,
  * pending approval cards, task grants and approved connector bindings.
@@ -32,7 +52,7 @@ export class Approvals {
 
   readonly approvedConnectorBindings = new Map<string, ApprovedConnectorBinding>();
 
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: ApprovalsContext) {}
 
   approvalBroker(): ApprovalBroker {
     return {
@@ -277,7 +297,7 @@ export class Approvals {
       );
   }
 
-  async authorizeGatewayAction(
+  private async authorizeGatewayAction(
     request: GatewayApprovalRequest,
     signal?: AbortSignal,
   ): Promise<{ approved: boolean }> {
@@ -475,7 +495,7 @@ export class Approvals {
   }
 
   /** A task keeps working after its approval is answered; leave "waiting" once nothing is pending. */
-  resumeAfterRequest(threadId: string): void {
+  private resumeAfterRequest(threadId: string): void {
     const thread = this.ctx.state.threads.find(({ id }) => id === threadId);
     if (
       thread?.status === 'waiting' &&
@@ -487,13 +507,13 @@ export class Approvals {
   }
 
   /** A running task that asks the person to approve an action is waiting on them. */
-  waitForApproval(threadId: string): void {
+  private waitForApproval(threadId: string): void {
     const thread = this.ctx.state.threads.find(({ id }) => id === threadId);
     if (thread?.status === 'running' && this.ctx.turns.running.has(threadId))
       thread.status = 'waiting';
   }
 
-  hasTaskGrant(threadId: string, turnId: string, grant: string): boolean {
+  private hasTaskGrant(threadId: string, turnId: string, grant: string): boolean {
     return (
       !this.ctx.turns.phoneTurns.has(turnId) &&
       this.ctx.turns.activeTurnId(threadId) === turnId &&
@@ -537,7 +557,7 @@ export class Approvals {
     pending.resolve('cancel');
   }
 
-  stageApprovalDecision(
+  private stageApprovalDecision(
     approvalId: string,
     context: { threadId: string; turnId: string },
     decision: 'approved' | 'denied' | 'expired',
@@ -562,7 +582,7 @@ export class Approvals {
     });
   }
 
-  setApprovalStatus(id: string, status: ApprovalView['status']): void {
+  private setApprovalStatus(id: string, status: ApprovalView['status']): void {
     const approval = this.ctx.state.approvals.find((candidate) => candidate.id === id);
     if (approval) approval.status = status;
     this.ctx.commit();

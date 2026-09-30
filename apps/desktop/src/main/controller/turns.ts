@@ -12,6 +12,30 @@ import { taskRecoveryContext } from '../task-recovery.js';
 import type { ControllerContext } from './context.js';
 import type { QueuedTurn } from './types.js';
 
+/** The parts of the controller context Turns uses. */
+type TurnsContext = Pick<
+  ControllerContext,
+  | 'appendTimeline'
+  | 'approvals'
+  | 'assistant'
+  | 'attachments'
+  | 'commit'
+  | 'computerAccess'
+  | 'deps'
+  | 'mac'
+  | 'providers'
+  | 'requireSignedInReleaseAccount'
+  | 'requireThread'
+  | 'researchCapture'
+  | 'researchOutbox'
+  | 'resultSnapshot'
+  | 'runner'
+  | 'runtime'
+  | 'shuttingDown'
+  | 'speech'
+  | 'state'
+>;
+
 /**
  * Sends, queues, steers, retries, redoes and cancels turns, and tracks the turns in flight and
  * the per-thread queues they drain from.
@@ -32,7 +56,7 @@ export class Turns {
 
   readonly failedTurnAttachments = new Map<string, readonly ProviderAttachment[]>();
 
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: TurnsContext) {}
 
   sendTurn(
     input: BridgeRequestMap['threads.send'],
@@ -515,7 +539,7 @@ export class Turns {
   }
 
   /** Drops the pending user messages of queued follow-ups that will no longer run. */
-  removeQueuedMessages(threadId: string, turnIds: ReadonlySet<string>): number {
+  private removeQueuedMessages(threadId: string, turnIds: ReadonlySet<string>): number {
     const before = this.ctx.state.timeline.length;
     this.ctx.state.timeline = this.ctx.state.timeline.filter(
       (item) =>
@@ -530,7 +554,7 @@ export class Turns {
     return before - this.ctx.state.timeline.length;
   }
 
-  startTurn(turn: QueuedTurn): void {
+  private startTurn(turn: QueuedTurn): void {
     if (this.ctx.shuttingDown) return;
     const thread = this.ctx.requireThread(turn.threadId);
     if (this.ctx.mac.unavailable && this.ctx.mac.isMacTurn(thread.id)) {
@@ -644,7 +668,7 @@ export class Turns {
   }
 
   /** Shows why a thread's queued follow-up has not started yet. */
-  markWaitingFollowUps(thread: ThreadView): void {
+  private markWaitingFollowUps(thread: ThreadView): void {
     if (this.running.has(thread.id) || !this.queued.some((turn) => turn.threadId === thread.id))
       return;
     thread.status = 'queued';

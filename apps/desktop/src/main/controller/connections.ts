@@ -9,16 +9,30 @@ import { abortableDelay } from './async-utils.js';
 import { GOOGLE_CONNECTION_IDS, isGoogleConnection } from './connection-ids.js';
 import type { ControllerContext } from './context.js';
 
+/** The parts of the controller context ConnectorConnections uses. */
+type ConnectorConnectionsContext = Pick<
+  ControllerContext,
+  | 'account'
+  | 'approvals'
+  | 'commit'
+  | 'deps'
+  | 'releaseAccessLocked'
+  | 'researchCapture'
+  | 'resultSnapshot'
+  | 'state'
+  | 'turns'
+>;
+
 /**
  * Connects, polls, upgrades and disconnects Google Workspace, Slack and app connectors, and maps
  * connector actions to the connection that serves them.
  */
 export class ConnectorConnections {
   readonly generations = new Map<ConnectionView['id'], number>();
-  readonly linkExpiries = new Map<string, number>();
+  private readonly linkExpiries = new Map<string, number>();
   setup: { controller: AbortController; task: Promise<void> } | undefined;
 
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: ConnectorConnectionsContext) {}
 
   /** Keeps opaque cloud connection ids out of model arguments and renderer-controlled routing. */
   connectionIdForAction(
@@ -138,7 +152,7 @@ export class ConnectorConnections {
     return { opened: true, snapshot: this.ctx.resultSnapshot() };
   }
 
-  async startGoogleConnection(
+  private async startGoogleConnection(
     connectionId: ConnectionView['id'],
   ): Promise<BridgeResultMap['connections.start']> {
     await this.removeLegacyGoogleConnections();
@@ -178,7 +192,7 @@ export class ConnectorConnections {
     return this.ctx.resultSnapshot();
   }
 
-  async removeLegacyGoogleConnections(): Promise<void> {
+  private async removeLegacyGoogleConnections(): Promise<void> {
     const google = this.ctx.state.connections.filter(({ id }) => isGoogleConnection(id));
     const grants = new Set(google.map(({ connectionId }) => connectionId).filter(Boolean));
     const unified =
@@ -198,7 +212,7 @@ export class ConnectorConnections {
     }
   }
 
-  async startConnectionGroup(
+  private async startConnectionGroup(
     included: readonly ConnectionView['id'][],
   ): Promise<BridgeResultMap['connections.startGoogle']> {
     if (this.setup) {
@@ -260,7 +274,7 @@ export class ConnectorConnections {
     return { opened: started.opened, snapshot: this.ctx.resultSnapshot() };
   }
 
-  async continueConnectionSetup(
+  private async continueConnectionSetup(
     ordered: readonly ConnectionView['id'][],
     firstId: ConnectionView['id'],
     firstExpectedId: string,
@@ -297,7 +311,7 @@ export class ConnectorConnections {
     }
   }
 
-  async startConnection(
+  private async startConnection(
     connectionId: BridgeRequestMap['connections.start']['connectionId'],
     options: { poll?: boolean; partOfBundle?: boolean } = {},
   ): Promise<BridgeResultMap['connections.start']> {
@@ -465,7 +479,7 @@ export class ConnectorConnections {
     return this.ctx.resultSnapshot();
   }
 
-  async pollConnection(
+  private async pollConnection(
     connectionId: ConnectionView['id'],
     expectedId: string,
     signal?: AbortSignal,
@@ -645,7 +659,7 @@ export class ConnectorConnections {
     clearPending();
   }
 
-  updateConnection(
+  private updateConnection(
     id: ConnectionView['id'],
     patch: Partial<Omit<ConnectionView, 'id' | 'label'>>,
   ): void {

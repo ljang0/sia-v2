@@ -3,11 +3,17 @@ import { verifyUpdateManifestResponse } from '../update-manifest.js';
 import type { ControllerContext } from './context.js';
 import { compareVersions, isCleanHttpsUrl } from './update-feed.js';
 
+/** The parts of the controller context AppSupport uses. */
+type AppSupportContext = Pick<
+  ControllerContext,
+  'deps' | 'emit' | 'providers' | 'requireThread'
+>;
+
 /** Signed update checks and downloads, and the support feedback message. */
 export class AppSupport {
   updates: UpdateView;
 
-  constructor(private readonly ctx: ControllerContext) {
+  constructor(private readonly ctx: AppSupportContext) {
     this.updates = {
       status: ctx.deps.updateManifestUrl ? 'idle' : 'unconfigured',
       currentVersion: ctx.deps.appVersion,

@@ -15,12 +15,25 @@ export function isStreamingDelta(event: ThreadEventEnvelope): boolean {
   );
 }
 
+/** The parts of the controller context RuntimeEventApplier uses. */
+type RuntimeEventApplierContext = Pick<
+  ControllerContext,
+  | 'appendTimeline'
+  | 'approvals'
+  | 'providers'
+  | 'requireThread'
+  | 'researchCapture'
+  | 'runner'
+  | 'state'
+  | 'turns'
+>;
+
 /**
  * Applies provider runtime events to thread state: streaming text, activities, questions,
  * usage, and turn completion.
  */
 export class RuntimeEventApplier {
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: RuntimeEventApplierContext) {}
 
   apply(event: ThreadEventEnvelope): void {
     const thread = this.ctx.requireThread(event.threadId);

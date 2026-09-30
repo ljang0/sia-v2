@@ -20,12 +20,26 @@ import {
 } from './schedule-rules.js';
 import type { QueuedTurn } from './types.js';
 
+/** The parts of the controller context Schedules uses. */
+type SchedulesContext = Pick<
+  ControllerContext,
+  | 'account'
+  | 'appendTimeline'
+  | 'commit'
+  | 'providers'
+  | 'releaseAccessLocked'
+  | 'requireThread'
+  | 'resultSnapshot'
+  | 'state'
+  | 'turns'
+>;
+
 /** Creates, updates and runs scheduled tasks, from the app and from the schedule action tools. */
 export class Schedules {
   timer: NodeJS.Timeout | undefined;
-  runInFlight = false;
+  private runInFlight = false;
 
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: SchedulesContext) {}
 
   createScheduleFromAction(
     threadId: string,
@@ -100,7 +114,7 @@ export class Schedules {
     return this.ctx.resultSnapshot();
   }
 
-  insertSchedule(input: BridgeRequestMap['schedules.create']): ScheduleView {
+  private insertSchedule(input: BridgeRequestMap['schedules.create']): ScheduleView {
     if (!this.schedulesAvailable()) {
       throw new Error('Schedules are turned off for this pilot right now.');
     }
@@ -134,7 +148,7 @@ export class Schedules {
   }
 
   /** One edit path for the schedule list and the agent's schedule_update tool. */
-  applyScheduleUpdate(
+  private applyScheduleUpdate(
     schedule: ScheduleView,
     input: Omit<BridgeRequestMap['schedules.update'], 'scheduleId'>,
   ): void {
@@ -271,7 +285,7 @@ export class Schedules {
     }
   }
 
-  advanceSchedule(schedule: ScheduleView, now: Date): void {
+  private advanceSchedule(schedule: ScheduleView, now: Date): void {
     const due = new Date(schedule.nextRunAt);
     // Run now leaves the next scheduled run where it was.
     if (schedule.cadence !== 'once' && due > now) return;
@@ -283,7 +297,10 @@ export class Schedules {
     schedule.nextRunAt = next.toISOString();
   }
 
-  dispatchSchedule(schedule: ScheduleView, now: Date): BridgeResultMap['schedules.runNow'] {
+  private dispatchSchedule(
+    schedule: ScheduleView,
+    now: Date,
+  ): BridgeResultMap['schedules.runNow'] {
     const claim =
       schedule.activeRun ??
       ({
@@ -352,7 +369,7 @@ export class Schedules {
     return this.ctx.state.cloudFeatures?.schedules !== false;
   }
 
-  requireSchedule(id: string): ScheduleView {
+  private requireSchedule(id: string): ScheduleView {
     const schedule = this.ctx.state.schedules.find((candidate) => candidate.id === id);
     if (!schedule) throw new Error('Scheduled task not found.');
     return schedule;

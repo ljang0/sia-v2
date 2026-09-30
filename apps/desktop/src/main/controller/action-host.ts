@@ -3,12 +3,18 @@ import { GOOGLE_WORKSPACE_ACTION, isConnectorActionTool } from './connection-ids
 import type { ControllerContext } from './context.js';
 import { SAFE_RESEARCH_ACTIONS } from './research-records.js';
 
+/** The parts of the controller context ActionHost uses. */
+type ActionHostContext = Pick<
+  ControllerContext,
+  'assistant' | 'deps' | 'releaseAccessLocked' | 'researchCapture' | 'schedules' | 'state'
+>;
+
 /**
  * Hosts Sia's gateway actions for the runtime: which action tools are available, what an
  * invocation excludes from research, and how results reach trajectories and research.
  */
 export class ActionHost {
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: ActionHostContext) {}
 
   invocationObserver(): ActionInvocationObserver {
     return (invocation) => {
@@ -82,7 +88,7 @@ export class ActionHost {
     return true;
   }
 
-  recordActionResult(notice: Parameters<ActionResultObserver>[0]): void {
+  private recordActionResult(notice: Parameters<ActionResultObserver>[0]): void {
     if (!this.ctx.deps.trajectory) return;
     if (GOOGLE_WORKSPACE_ACTION.test(notice.name)) {
       return;

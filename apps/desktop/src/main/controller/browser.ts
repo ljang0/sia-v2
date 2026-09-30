@@ -15,6 +15,20 @@ import {
 } from '../chrome-discovery.js';
 import type { ControllerContext } from './context.js';
 
+/** The parts of the controller context BrowserSession uses. */
+type BrowserSessionContext = Pick<
+  ControllerContext,
+  | 'browserCapabilitySink'
+  | 'commit'
+  | 'computerAccess'
+  | 'deps'
+  | 'requireSignedInReleaseAccount'
+  | 'requireThread'
+  | 'resultSnapshot'
+  | 'state'
+  | 'turns'
+>;
+
 /**
  * Signed-in Chrome for browser actions: attaching, opening pages, the origins actions may use,
  * and continuing a turn once the browser is connected.
@@ -22,10 +36,10 @@ import type { ControllerContext } from './context.js';
 export class BrowserSession {
   target: { targetId: string; tabId: string } | undefined;
   sessionId: string | undefined;
-  readonly continuations = new Set<string>();
-  autoAttach: Promise<void> | undefined;
+  private readonly continuations = new Set<string>();
+  private autoAttach: Promise<void> | undefined;
 
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: BrowserSessionContext) {}
 
   /** Any HTTP(S) origin is allowed while trusted; otherwise only origins granted at attach. */
   isBrowserOriginAllowed(origin: string): boolean {
@@ -39,7 +53,7 @@ export class BrowserSession {
    * In trusted mode the model does not need the person to pick a Chrome window first: the
    * frontmost visible window is attached on demand the first time a browser tool runs.
    */
-  async chromeDebugOwnerPid(): Promise<number | undefined> {
+  private async chromeDebugOwnerPid(): Promise<number | undefined> {
     return chromeDebugPortOwnerPid(this.ctx.deps.runCommand);
   }
 

@@ -2,6 +2,23 @@ import { randomUUID } from 'node:crypto';
 import type { ControllerContext } from './context.js';
 import type { QueuedTurn } from './types.js';
 
+/** The parts of the controller context MacSession uses. */
+type MacSessionContext = Pick<
+  ControllerContext,
+  | 'appendTimeline'
+  | 'approvals'
+  | 'assistant'
+  | 'commit'
+  | 'computerAccess'
+  | 'deps'
+  | 'releaseAccessLocked'
+  | 'requireThread'
+  | 'runtime'
+  | 'speech'
+  | 'state'
+  | 'turns'
+>;
+
 /**
  * Use my Mac turns in flight: keeping the display awake, pausing when the Mac locks or sleeps,
  * screen-control state for the overlay, and launcher context capture.
@@ -18,7 +35,7 @@ export class MacSession {
 
   unavailable: 'locked' | 'asleep' | undefined;
 
-  constructor(private readonly ctx: ControllerContext) {}
+  constructor(private readonly ctx: MacSessionContext) {}
 
   /**
    * A locked or sleeping Mac blocks both Use my Mac routes. Running Mac tasks pause with a
@@ -43,7 +60,7 @@ export class MacSession {
     this.ctx.commit();
   }
 
-  pauseMacTurn(threadId: string, text: string): void {
+  private pauseMacTurn(threadId: string, text: string): void {
     const thread = this.ctx.requireThread(threadId);
     const running = this.ctx.turns.running.get(threadId);
     const turn = this.turns.get(threadId);
