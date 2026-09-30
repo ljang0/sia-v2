@@ -611,7 +611,7 @@ export class Turns {
         }, 180_000)
       : undefined;
     reviewTimeout?.unref();
-    const task = this.ctx.runTurn(turn, controller.signal).finally(() => {
+    const task = this.ctx.runner.runTurn(turn, controller.signal).finally(() => {
       if (reviewTimeout) clearTimeout(reviewTimeout);
       if (this.tasks.get(thread.id) === task) this.tasks.delete(thread.id);
     });

@@ -39,6 +39,7 @@ import { Agents } from './agents.js';
 import { Threads } from './threads.js';
 import { Approvals } from './approvals.js';
 import { Turns } from './turns.js';
+import { TurnRunner } from './turn-runner.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -65,6 +66,7 @@ export class DesktopController {
       threads: new Threads(ctx),
       approvals: new Approvals(ctx),
       turns: new Turns(ctx),
+      runner: new TurnRunner(ctx),
     }));
   }
 

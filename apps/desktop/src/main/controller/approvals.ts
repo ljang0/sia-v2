@@ -146,7 +146,7 @@ export class Approvals {
     });
     this.waitForApproval(context.threadId);
     this.ctx.commit();
-    this.ctx.notifyNeedsAttention(context.threadId, 'approval', presentation.title);
+    this.ctx.runner.notifyNeedsAttention(context.threadId, 'approval', presentation.title);
 
     return new Promise((resolve) => {
       // Wait for the person until the driver's own deadline; Sia adds no shorter limit.
@@ -270,7 +270,7 @@ export class Approvals {
     });
     this.ctx.commit();
     if (!alreadyRequested)
-      this.ctx.notifyNeedsAttention(
+      this.ctx.runner.notifyNeedsAttention(
         event.threadId,
         'approval',
         event.payload.description || event.payload.title,
@@ -415,7 +415,7 @@ export class Approvals {
     this.ctx.commit();
     // The notification names the step in words ("Sending your mail"), not the tool id.
     const step = activityLabel(request.tool.name);
-    this.ctx.notifyNeedsAttention(
+    this.ctx.runner.notifyNeedsAttention(
       request.threadId,
       'approval',
       step === activityLabel(undefined) ? runtimeToolTitle(request.tool.name) : step,
