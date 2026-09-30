@@ -4130,7 +4130,6 @@ describe('DesktopController', () => {
   });
 
   it('prioritizes the Chrome process that owns the remote-debugging port when attaching', async () => {
-    const listWindows = new Map<number, unknown>();
     const attachedPids: number[] = [];
     const computer = {
       permissions: async () => ({

@@ -34,7 +34,6 @@ import type {
   ApprovalDecision,
   AttachmentPreview,
   RendererAttachment,
-  MessageEvent,
   ThreadDetail,
   ThreadEvent,
   ThreadSummary,
