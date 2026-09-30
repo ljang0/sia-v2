@@ -92,9 +92,9 @@ window control (the Use my Mac default) must be validated separately, including 
 For the On my screen indicator, start a disposable On my screen task on a Mac with two displays and
 a full-screen app. Verify the border and pill appear on every display and Space, never take focus or
 clicks, are absent from `screencapture` and from Sia's own task screenshots, and vanish on finish,
-Stop, an approval, lock, and sleep. Press Esc in another app mid-task: the task stops and Esc works
-normally again afterwards. Confirm a task that presses Escape itself is not stopped (the prompt asks
-it not to). In the default background mode, verify nothing appears on screen and the Dock menu reads
+Stop, an approval, lock, and sleep. Press ⌃Esc (Control+Escape) in another app mid-task: the task stops and
+⌃Esc works normally again afterwards. Confirm a task that presses Escape itself (for example, to
+close a menu) is not stopped. In the default background mode, verify nothing appears on screen and the Dock menu reads
 “Sia is working quietly in the background.”
 
 For composer voice, record a short disposable sentence with **Dictate message**, then click its

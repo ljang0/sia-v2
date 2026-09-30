@@ -8380,7 +8380,7 @@ describe('Use my Mac power and lock handling', () => {
     await vi.waitFor(() => expect(status()).toBe('waiting'));
     expect(keepAwake.hold).toHaveBeenCalledTimes(1);
     expect(keepAwake.release).toHaveBeenCalledWith(threadId);
-    // Waiting on the person hides the screen cue and releases Esc.
+    // Waiting on the person hides the screen cue and releases ⌃Esc.
     expect(controller.screenControl()).toEqual({});
     const approval = controller
       .snapshot()

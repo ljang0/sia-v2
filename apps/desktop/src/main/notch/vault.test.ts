@@ -202,7 +202,7 @@ it('keeps the upstream sources pinned and uses screenshot verification and the a
   const prompt = notchForegroundInstructions('/fixture/vault');
   expect(prompt).toContain('after EVERY state-changing step');
   expect(prompt).toContain('/fixture/vault/MOC.md');
-  expect(prompt).toContain('press Escape to stop the task');
+  expect(prompt).not.toMatch(/Escape/);
   expect(prompt).not.toMatch(/~\/\.notch|screencapture|Bash call's|BACKGROUND CODING WORKERS/);
   expect(prompt).toContain('verify its saved contents by reading it back');
   expect(prompt).not.toContain('open it with `open <file>`');

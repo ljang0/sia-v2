@@ -545,9 +545,10 @@ background driver cannot load or lacks Accessibility or Screen Recording, the ta
 starting with a plain next step and a **Continue task** button.
 
 While an On my screen task works, a thin glowing border and a small “Sia is using your screen ·
-Press Esc to stop” pill sit on top of every display. They never take focus or clicks, are kept out of
-screenshots, and disappear when the task finishes, stops, waits for you, or pauses. Esc stops the
-task; it is claimed only while the pill is showing. Background tasks show nothing on screen; Scotty's
+Press ⌃Esc to stop” pill sit on top of every display. They never take focus or clicks, are kept out of
+screenshots, and disappear when the task finishes, stops, waits for you, or pauses. ⌃Esc
+(Control+Escape) stops the task from any app; it is claimed only while the pill is showing, and plain
+Escape still works normally in your apps. Background tasks show nothing on screen; Scotty's
 task tray and the Dock menu say “Working quietly in the background” instead.
 
 Sia keeps the display awake while a Use my Mac task runs. If you lock the Mac or it sleeps anyway,

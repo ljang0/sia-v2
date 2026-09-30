@@ -1,7 +1,8 @@
 import { app, BrowserWindow, globalShortcut, Menu, screen } from 'electron';
 
 export type ScreenControl = Record<string, 'foreground' | 'background'>;
-export const STOP_SHORTCUT = 'Escape';
+/** Control+Escape, so an Escape that Sia itself types never stops the task. */
+export const STOP_SHORTCUT = 'Control+Escape';
 
 /** The on-screen cue: one click-through window per display. */
 export interface IndicatorOverlay {
@@ -23,7 +24,7 @@ export interface IndicatorDependencies {
 }
 
 /**
- * Shows the "Sia is using your screen" cue and holds the global Esc shortcut only while an
+ * Shows the "Sia is using your screen" cue and holds the global ⌃Esc shortcut only while an
  * On my screen task is actively working. Background tasks show nothing on screen. Pausing
  * (lock or sleep), waiting on the person, finishing, stopping, or a failed turn all hide it.
  */
@@ -70,7 +71,7 @@ export class ScreenControlIndicator {
     this.#sync();
   }
 
-  /** The overlay's renderer died; the next update recreates it if still needed. Esc stays. */
+  /** The overlay's renderer died; the next update recreates it if still needed. ⌃Esc stays. */
   overlayCrashed(): void {
     this.#shown = false;
   }
@@ -127,7 +128,7 @@ kbd{font:inherit;padding:2px 6px;border-radius:5px;background:rgba(255,255,255,.
 @keyframes breathe{50%{opacity:.55}}
 @media (prefers-reduced-motion:reduce){.edge{animation:none}}
 </style></head><body><div class="edge"></div>
-<div class="pill" role="status"><span class="dot"></span>Sia is using your screen · Press <kbd>Esc</kbd> to stop</div>
+<div class="pill" role="status"><span class="dot"></span>Sia is using your screen · Press <kbd>⌃Esc</kbd> to stop</div>
 </body></html>`;
 
 /**
@@ -240,7 +241,7 @@ export function createIndicatorOverlay(onCrash: () => void): IndicatorOverlay {
   };
 }
 
-/** Wires the indicator to the controller, the global Esc shortcut, and the Dock menu. */
+/** Wires the indicator to the controller, the global ⌃Esc shortcut, and the Dock menu. */
 export function createScreenControlIndicator(controller: {
   screenControl(): ScreenControl;
   subscribe(listener: () => void): () => void;

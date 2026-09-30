@@ -144,5 +144,5 @@ it('says whether a working Mac task is on the screen or quietly in the backgroun
   task.screen = 'foreground';
   render(<ScottyPanel api={api} />);
   fireEvent.click(await screen.findByRole('button', { name: /Plan my week/ }));
-  expect(screen.getByText('Using your screen · Press Esc to stop')).toBeTruthy();
+  expect(screen.getByText('Using your screen · Press ⌃Esc to stop')).toBeTruthy();
 });

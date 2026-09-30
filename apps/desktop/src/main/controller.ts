@@ -495,7 +495,7 @@ export class DesktopController {
   readonly #keepAwake: ControllerOptions['keepAwake'];
   /** Mac turns currently keeping the display awake; a turn waiting on the person does not. */
   readonly #awakeTurns = new Set<string>();
-  /** Mac turns that started with On my screen: they show the on-screen indicator and Esc. */
+  /** Mac turns that started with On my screen: they show the on-screen indicator and hold ⌃Esc. */
   readonly #foregroundTurns = new Set<string>();
   #macUnavailable: 'locked' | 'asleep' | undefined;
   readonly #phoneTurns = new Set<string>();
