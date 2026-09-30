@@ -15,10 +15,10 @@ import {
 import { ProcessSupervisor, sanitizedEnvironment } from './supervisor.js';
 import {
   codexAppServerArgs,
-  CodexAppServerAdapter,
   SIA_CODEX_DISABLED_FEATURES,
   SIA_CODEX_ENABLED_FEATURES,
-} from './providers/codex.js';
+} from './providers/codex-isolation.js';
+import { CodexAppServerAdapter } from './providers/codex.js';
 import {
   AcpAdapter,
   createGeminiAdapter,

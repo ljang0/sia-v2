@@ -6,7 +6,7 @@ import {
   type S3Client,
 } from '@aws-sdk/client-s3';
 
-import { S3ResearchObjects } from '../src/aws.js';
+import { S3ResearchObjects } from '../../src/aws/research-objects.js';
 
 const BUCKET = 'research-bucket';
 const KMS_KEY = 'arn:aws:kms:us-east-1:123456789012:key/test';

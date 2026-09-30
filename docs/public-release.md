@@ -4,7 +4,6 @@
 
 Sia `0.1.0-alpha.25` is prepared for internal release validation. It is **not approved or ready for
 public distribution**. The public website and download artifacts have not been published.
-The source changes remain local and uncommitted on `codex/codex-setup`.
 
 The universal candidate is `apps/desktop/release/mac-universal/Sia.app`. It is signed with the
 existing Developer ID Application identity and contains arm64 and x86_64 slices. Its designated

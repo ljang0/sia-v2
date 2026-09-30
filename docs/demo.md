@@ -15,9 +15,8 @@ is the "Sia Demo Runbook" artifact.
   If demonstrating integrations, open **Settings → Connections** after
   the core task and press **Connect Google** or **Connect Slack**. Google uses one grant for Gmail,
   Drive, Docs, Sheets, and Slides; Google and Slack still confirm separately in the browser.
-- **Settings → Computer → Unlock everything**: one card shows every capability (Mac control,
-  silent Chrome, Messages) with live status; one click requests all the grantable permissions
-  and opens the panes macOS keeps manual (flip the Full Disk Access switch when it appears).
+- **Settings → Computer → Grant all**: requests missing Mac control, voice, and everyday app access
+  in sequence. macOS still shows its own approval for each grant; **Check access** refreshes status.
 - One signed-in Chrome window on the presenting Space. Attach is silent — Sia enables Chrome's
   debugging toggle and connects to the process that owns it. If Chrome has never restarted since
   Sia first enabled the toggle, restart it once so the port serves; that's the only manual step.
@@ -79,7 +78,7 @@ equivalent raw stream is queued to AWS. "Nothing asked permission, and everythin
 | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
 | "Bring a Chrome window onto this Space"                | Drag a Chrome window onto the current Space (not minimized), re-send.                                                  |
 | "Chrome refused this window / Allow remote debugging?" | One-time consent: Settings → Computer → Choose window, then click **Allow** on Chrome's prompt. Do this in pre-flight. |
-| "Codex (incompatible)"                                 | CLI auto-updated past the pin; widen `provider-probe.ts` + `providers/codex.ts`.                                       |
+| Codex shows **Set up Codex** / "Updating…"             | The CLI moved past the pin. Let **Set up Codex** install the supported build, or widen `CODEX_SUPPORTED_VERSIONS`.     |
 | Red "Provider error" card                              | Card shows the real reason (sign-in, usage limits). Fix account, Retry.                                                |
 | Turn hangs                                             | Stop, re-send. First turn after launch is slowest.                                                                     |
 

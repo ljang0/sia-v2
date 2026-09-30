@@ -1,19 +1,46 @@
 # Sia
 
-Sia is a local-first personal computer assistant for macOS. This repository contains the focused v2
-implementation for a controlled CMU pilot.
+Sia is a personal assistant for macOS that works in your apps for you. It is built for everyday
+people without a technical background: you sign in with your email, connect an AI plan, and ask Sia
+to do things on your Mac. This repository is being prepared for a controlled CMU pilot.
 
-The release experience has two AI paths: an included, live-verified model-lab allowance for signed-in
-Sia accounts, or the user's existing Codex plan through Codex's official ChatGPT sign-in. Both run
-through the Codex App Server harness. Users do not paste model API keys into Sia.
+Every task runs through the Codex App Server harness, using either an included model that comes with
+the Sia account or the person's existing ChatGPT plan. Nobody pastes a model API key into Sia.
 
-Google Workspace, Slack, signed-in Chrome, Apple Messages, computer use, and app-open schedules are
-optional capabilities. New profiles default to Use my Mac with automatic action approval, and profiles that never chose
-an approval preference use it too. Onboarding also offers confirmations for supervised testing; an
-explicit confirmation choice is preserved, and macOS still requires its own permission grants. Research capture is a
-separate opt-in program and is not enabled by joining the pilot.
+## Defaults at a glance
 
-## Start developing
+- **Use my Mac, in the background.** New profiles start on Use my Mac with action approvals
+  bypassed. Confirmations (**Ask before each action**) are an explicit opt-in for supervised
+  testing. **On my screen** is the alternative for watching Sia work; press ⌃Esc (Control+Escape)
+  to stop a task that is using the screen.
+- **Phone requests always ask on the Mac**, one request at a time, even with approvals bypassed.
+- **Hard safety blocks apply in every mode.** Sia never types into password fields, sign-in
+  screens, Keychain, or password managers.
+- **Connections are optional.** Google Workspace, Slack, signed-in Chrome, Apple Messages, and
+  computer use never block first-run setup.
+- **Schedules** repeat until paused or deleted; one-time schedules run once. Sia must stay open and
+  the Mac awake for local tasks and schedules.
+- **Research capture is off** unless a person separately agrees to it. The pilot is not a research
+  release.
+
+The full product contract, safety boundaries, and change rules are in [`AGENTS.md`](./AGENTS.md).
+
+## Repository map
+
+| Path                                                   | What lives there                                                            |
+| ------------------------------------------------------ | --------------------------------------------------------------------------- |
+| [`apps/desktop`](./apps/desktop)                       | Electron main process, typed preload bridge, React renderer, native helpers |
+| [`apps/cloud`](./apps/cloud)                           | AWS control plane: sign-in, connectors, hosted model and voice relays       |
+| [`apps/site`](./apps/site)                             | Static public, privacy, support, and research pages                         |
+| [`packages/runtime`](./packages/runtime)               | Provider and harness resolution, supervised provider processes              |
+| [`packages/action-gateway`](./packages/action-gateway) | Authorization and argument schemas for Sia-hosted actions                   |
+| [`packages/tool-bridge`](./packages/tool-bridge)       | Capability-scoped transport for approved tools                              |
+| [`packages/protocol`](./packages/protocol)             | Shared runtime event and request contracts                                  |
+| [`infra`](./infra)                                     | Deployable AWS and connector configuration                                  |
+| [`scripts`](./scripts)                                 | Repository checks behind `pnpm onboard:check` and `pnpm quality:guard`      |
+| [`docs`](./docs)                                       | Architecture, operations, pilot, and policy documentation                   |
+
+## Set up
 
 Requirements: macOS 14+, Node 24+, pnpm 11+, and Xcode command-line tools.
 
@@ -23,57 +50,26 @@ pnpm onboard:check
 SIA_FAKE_SERVICES=1 pnpm dev
 ```
 
-New contributors should follow [`docs/ra-onboarding.md`](./docs/ra-onboarding.md). Repository rules,
-the package map, safety boundaries, and the definition of done are in [`AGENTS.md`](./AGENTS.md).
+`SIA_FAKE_SERVICES=1` runs Sia against fake cloud and model services, so you need no AWS access,
+API key, or paid model turn. The first-day walkthrough is
+[`docs/ra-onboarding.md`](./docs/ra-onboarding.md).
 
-## Verify a change
+## Test
 
-```sh
-pnpm check
-pnpm test:pilot
-```
+| Command                          | When                                                                   |
+| -------------------------------- | ---------------------------------------------------------------------- |
+| `pnpm --filter <workspace> test` | While developing, for the workspace you changed                        |
+| `pnpm check`                     | Before review: build, formatting, quality guard, types, and unit tests |
+| `pnpm test:pilot`                | Pilot-facing behavior: `check` plus desktop E2E and renderer tests     |
 
-`pnpm check` builds every workspace, checks formatting and policy, type-checks, and runs unit tests.
-`pnpm test:pilot` adds the deterministic desktop E2E suite. Real provider and connector tests are
-opt-in and must use disposable accounts; see [`docs/manual-acceptance.md`](./docs/manual-acceptance.md).
+Real provider and connector tests are opt-in, need explicit environment flags, and must use
+disposable accounts; see [`docs/manual-acceptance.md`](./docs/manual-acceptance.md). Packaging and
+notarization (`pnpm package:mac`) are release-operator tasks that need protected signing and cloud
+configuration; see [`docs/release.md`](./docs/release.md).
 
-Packaging and notarization are release-operator tasks:
+## Documentation
 
-```sh
-pnpm package:mac
-```
-
-That command requires protected cloud and Apple signing configuration. Local contributors should not
-need release credentials.
-
-**Set up Codex** in onboarding or AI settings downloads or updates Sia's supported Codex version,
-restarts Sia, and continues to ChatGPT sign-in in the browser. Sia verifies the connection and shows
-Connected. No terminal commands or manual downloads are required.
-
-Permission setup uses one checklist in onboarding and **Settings → Computer**. **Grant all**
-requests missing Mac control, voice, and everyday app access in sequence; macOS still requires its own
-approval clicks. **Check access** only refreshes status. Core permission statuses stay visible during onboarding;
-returning from System Settings refreshes them automatically. The development preview remembers its app and
-profile so a permission-related Quit & Reopen does not return to Electron’s welcome screen.
-
-For tasks that should leave your screen alone, choose **Work in background** and **Pause and tell me**
-in Computer settings. Background window control remains experimental: unsupported actions pause,
-and an app can still raise its own window. Choose **Allow brief foreground control** to let Sia
-bring an app forward and continue when its window cannot accept background input, including some
-windows on another desktop. On my screen allows native scripts and foreground control.
-
-## Current release boundary
-
-- A cloud-configured release blocks all private app surfaces until email sign-in succeeds.
-- Codex uses the official app-server protocol and keeps ChatGPT credentials in Codex.
-- Included model-lab credentials stay in AWS Secrets Manager; the desktop receives only scoped,
-  short-lived capabilities.
-- Google Workspace and Slack are separate optional connections. Chrome and Messages reuse accounts
-  already configured on the Mac without copying cookies or provider credentials.
-- Local work continues after the window closes, but Sia must remain running and the Mac awake.
-- Claude, Gemini, Grok, OpenCode, and Pi are compatibility or evaluation paths, not new-agent choices
-  in this release.
-
-The documentation index is [`docs/README.md`](./docs/README.md). Start with the
-[`CMU pilot runbook`](./docs/cmu-pilot-runbook.md), [`architecture`](./docs/architecture.md), and
-[`release process`](./docs/release.md).
+- [`docs/README.md`](./docs/README.md) — every document, grouped by audience.
+- [`AGENTS.md`](./AGENTS.md) — product contract, safety boundaries, and the definition of done.
+- [`SECURITY.md`](./SECURITY.md), [`PRIVACY.md`](./PRIVACY.md), [`SUPPORT.md`](./SUPPORT.md), and
+  [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).

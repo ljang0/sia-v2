@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { ComposioConnector } from '../src/aws.js';
-import { COMPOSIO_TOOL_SLUGS, COMPOSIO_TOOL_VERSIONS } from '../src/connector-contract.js';
-import { ConnectorReconnectRequiredError } from '../src/ports.js';
-import type { ComposioConfig, SecretProvider } from '../src/ports.js';
+import { ComposioConnector } from '../../src/aws/composio-connector.js';
+import { COMPOSIO_TOOL_SLUGS, COMPOSIO_TOOL_VERSIONS } from '../../src/connector-contract.js';
+import { ConnectorReconnectRequiredError } from '../../src/ports.js';
+import type { ComposioConfig, SecretProvider } from '../../src/ports.js';
 
 const config: ComposioConfig = {
   apiKey: 'provider-secret-never-returned',
