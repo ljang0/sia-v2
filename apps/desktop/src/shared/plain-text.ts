@@ -29,6 +29,9 @@ export function clipText(text: string, max: number): string {
   return `${clipped.trimEnd()}…`;
 }
 
+/** The title a conversation has until its first message names it. */
+export const UNTITLED_THREAD_TITLE = 'New thread';
+
 /** A short conversation title from the person's first request: plain text, no raw URLs. */
 export function conversationTitle(request: string): string {
   const words = plainText(request)

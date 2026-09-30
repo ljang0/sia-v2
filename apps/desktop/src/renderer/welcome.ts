@@ -1,3 +1,4 @@
+import { UNTITLED_THREAD_TITLE } from '../shared/plain-text';
 import type { AgentSummary, AppConnection, ThreadSummary } from './types';
 
 export function timeGreeting(now = new Date()): string {
@@ -32,7 +33,7 @@ export function recentThreads(
       (thread) =>
         thread.id !== currentId &&
         !thread.archivedAt &&
-        (thread.preview || thread.title !== 'New thread' || thread.draft?.trim()),
+        (thread.preview || thread.title !== UNTITLED_THREAD_TITLE || thread.draft?.trim()),
     )
     .toSorted((a, b) => {
       const attention = (thread: ThreadSummary) =>

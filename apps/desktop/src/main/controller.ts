@@ -9,7 +9,7 @@ import {
 import { NativeSkills } from './native-skills.js';
 import { savePastedAttachment } from './pasted-attachments.js';
 import { activityLabel, imageActivityTitle } from '../shared/activity-label.js';
-import { conversationTitle } from '../shared/plain-text.js';
+import { conversationTitle, UNTITLED_THREAD_TITLE } from '../shared/plain-text.js';
 import { turnFinishedNotice } from './notification-copy.js';
 import { threadPreviews, type ThreadPreviewMemo } from '../shared/thread-previews.js';
 import { skillExecutionMode, skillUnavailableReason } from '../shared/skill-execution.js';
@@ -2982,7 +2982,7 @@ export class DesktopController {
     this.#state.threads.push({
       id,
       agentId: agent.id,
-      title: input.title?.trim() || 'New thread',
+      title: input.title?.trim() || UNTITLED_THREAD_TITLE,
       provider: agent.provider,
       model: agent.model,
       ...(reasoningEffort ? { reasoningEffort } : {}),
@@ -3510,11 +3510,11 @@ export class DesktopController {
       text: messageText,
       provider: thread.provider,
     });
-    if (thread.title === 'New thread') {
+    if (thread.title === UNTITLED_THREAD_TITLE) {
       thread.title =
         conversationTitle(input.text) ||
         attachmentGrants[0]?.view.name ||
-        (attachmentGrants.length ? 'Attached files' : 'New thread');
+        (attachmentGrants.length ? 'Attached files' : UNTITLED_THREAD_TITLE);
     }
     const queued: QueuedTurn = {
       ...(context ? { context } : {}),
