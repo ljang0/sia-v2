@@ -302,7 +302,7 @@ export class Schedules {
     );
     const result = dispatched?.turnId
       ? { turnId: dispatched.turnId, snapshot: this.ctx.resultSnapshot() }
-      : this.ctx.sendTurn(
+      : this.ctx.turns.sendTurn(
           { threadId: schedule.threadId, text: schedule.prompt },
           'schedule',
           undefined,

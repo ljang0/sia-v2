@@ -27,13 +27,13 @@ export class WorkspaceTools {
   }
 
   async stageChanges(input: BridgeRequestMap['changes.stage']): Promise<WorkspaceDiffView> {
-    const thread = this.ctx.requireIdleThread(input.threadId, 'stage changes');
+    const thread = this.ctx.turns.requireIdleThread(input.threadId, 'stage changes');
     return await this.requireWorkspaceOperations().stage(thread.workspace, input.paths);
   }
 
   async restoreChanges(input: BridgeRequestMap['changes.restore']): Promise<WorkspaceDiffView> {
     if (input.confirmation !== 'RESTORE') throw new Error('Restore confirmation is required.');
-    const thread = this.ctx.requireIdleThread(input.threadId, 'restore changes');
+    const thread = this.ctx.turns.requireIdleThread(input.threadId, 'restore changes');
     return await this.requireWorkspaceOperations().restore(thread.workspace, input.paths);
   }
 
@@ -51,7 +51,7 @@ export class WorkspaceTools {
   async createWorkspaceSnapshot(
     threadId: string,
   ): Promise<BridgeResultMap['changes.snapshots.create']> {
-    const thread = this.ctx.requireIdleThread(threadId, 'create a workspace snapshot');
+    const thread = this.ctx.turns.requireIdleThread(threadId, 'create a workspace snapshot');
     const operations = this.requireWorkspaceOperations();
     if (!operations.createSnapshot) {
       throw new Error('Workspace snapshots are unavailable in this build.');
@@ -62,7 +62,10 @@ export class WorkspaceTools {
   async restoreWorkspaceSnapshot(
     input: BridgeRequestMap['changes.snapshots.restore'],
   ): Promise<BridgeResultMap['changes.snapshots.restore']> {
-    const thread = this.ctx.requireIdleThread(input.threadId, 'restore a workspace snapshot');
+    const thread = this.ctx.turns.requireIdleThread(
+      input.threadId,
+      'restore a workspace snapshot',
+    );
     const operations = this.requireWorkspaceOperations();
     if (!operations.restoreSnapshot || !operations.listSnapshots) {
       throw new Error('Workspace snapshots are unavailable in this build.');
@@ -77,7 +80,10 @@ export class WorkspaceTools {
     if (input.confirmation !== 'DELETE SNAPSHOT') {
       throw new Error('Snapshot deletion confirmation is required.');
     }
-    const thread = this.ctx.requireIdleThread(input.threadId, 'delete a workspace snapshot');
+    const thread = this.ctx.turns.requireIdleThread(
+      input.threadId,
+      'delete a workspace snapshot',
+    );
     const operations = this.requireWorkspaceOperations();
     if (!operations.deleteSnapshot) {
       throw new Error('Workspace snapshots are unavailable in this build.');
@@ -100,7 +106,10 @@ export class WorkspaceTools {
   async applyTurnChanges(
     input: BridgeRequestMap['changes.turn.apply'],
   ): Promise<BridgeResultMap['changes.turn.apply']> {
-    const thread = this.ctx.requireIdleThread(input.threadId, `${input.direction} changes`);
+    const thread = this.ctx.turns.requireIdleThread(
+      input.threadId,
+      `${input.direction} changes`,
+    );
     return await applyTurnChanges(
       this.turnChanges(thread.id, input.eventId),
       { workspace: thread.workspace, home: homedir() },
@@ -123,7 +132,7 @@ export class WorkspaceTools {
   async runTerminal(input: BridgeRequestMap['terminal.run']): Promise<TerminalResultView> {
     this.requireDeveloperTools();
     this.ctx.providers.requireCodexSetupIdle();
-    const thread = this.ctx.requireIdleThread(input.threadId, 'run a terminal command');
+    const thread = this.ctx.turns.requireIdleThread(input.threadId, 'run a terminal command');
     this.pendingTerminalOperations += 1;
     try {
       return await this.requireWorkspaceOperations().runTerminal(
@@ -140,7 +149,10 @@ export class WorkspaceTools {
   ): Promise<BackgroundTerminalView> {
     this.requireDeveloperTools();
     this.ctx.providers.requireCodexSetupIdle();
-    const thread = this.ctx.requireIdleThread(input.threadId, 'start a background process');
+    const thread = this.ctx.turns.requireIdleThread(
+      input.threadId,
+      'start a background process',
+    );
     const service = this.requireWorkspaceOperations();
     if (!service.startBackgroundTerminal) {
       throw new Error('Background processes are unavailable in this build.');
@@ -190,7 +202,7 @@ export class WorkspaceTools {
   }
 
   startReview(input: BridgeRequestMap['reviews.start']): BridgeResultMap['reviews.start'] {
-    const thread = this.ctx.requireIdleThread(input.threadId, 'start a code review');
+    const thread = this.ctx.turns.requireIdleThread(input.threadId, 'start a code review');
     if (thread.provider !== 'codex') {
       throw new Error('Dedicated code review currently requires the Codex provider.');
     }
@@ -200,7 +212,7 @@ export class WorkspaceTools {
         : input.target.type === 'base_branch'
           ? `Review changes against ${input.target.branch}`
           : `Review: ${input.target.instructions}`;
-    return this.ctx.sendTurn({ threadId: thread.id, text }, 'review', input.target);
+    return this.ctx.turns.sendTurn({ threadId: thread.id, text }, 'review', input.target);
   }
 
   requireWorkspaceOperations(): NonNullable<ControllerOptions['workspaceOperations']> {

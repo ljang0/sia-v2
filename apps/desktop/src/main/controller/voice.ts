@@ -57,7 +57,7 @@ export class VoiceControls {
         const threadId =
           target.threadId ??
           this.ctx.threads.createThread({ agentId: target.agentId }).threadId;
-        const { turnId } = this.ctx.sendTurn(
+        const { turnId } = this.ctx.turns.sendTurn(
           { threadId, text },
           'manual',
           undefined,

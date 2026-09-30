@@ -46,7 +46,7 @@ export class ConnectorConnections {
         approved.connectionId !== connection.connectionId ||
         approved.generation !== (this.generations.get(app) ?? 0) ||
         approved.account !== connection.account ||
-        this.ctx.activeTurnId(approved.threadId) !== approved.turnId
+        this.ctx.turns.activeTurnId(approved.threadId) !== approved.turnId
       ) {
         return undefined;
       }

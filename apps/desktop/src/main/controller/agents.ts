@@ -164,9 +164,9 @@ export class Agents {
         (thread.status === 'running' ||
           thread.status === 'queued' ||
           thread.status === 'waiting' ||
-          this.ctx.runningTurns.has(thread.id) ||
-          this.ctx.queuedTurns.some((turn) => turn.threadId === thread.id) ||
-          this.ctx.pendingQuestions.has(thread.id)),
+          this.ctx.turns.running.has(thread.id) ||
+          this.ctx.turns.queued.some((turn) => turn.threadId === thread.id) ||
+          this.ctx.turns.pendingQuestions.has(thread.id)),
     );
     if (active) throw new Error('Cancel the active or queued task before deleting this agent.');
     this.ctx.assistant.library.forgetAgent(agentId);

@@ -38,6 +38,7 @@ import { AssistantFeatures } from './assistant.js';
 import { Agents } from './agents.js';
 import { Threads } from './threads.js';
 import { Approvals } from './approvals.js';
+import { Turns } from './turns.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -63,6 +64,7 @@ export class DesktopController {
       agents: new Agents(ctx),
       threads: new Threads(ctx),
       approvals: new Approvals(ctx),
+      turns: new Turns(ctx),
     }));
   }
 
@@ -325,7 +327,7 @@ export class DesktopController {
     input: BridgeRequestMap['threads.send'],
     context?: string,
   ): BridgeResultMap['threads.send'] {
-    return this.#ctx.sendLauncherTurn(input, context);
+    return this.#ctx.turns.sendLauncherTurn(input, context);
   }
 
   /** Called after the window loads, never on an ordinary launch without setup intent. */

@@ -38,8 +38,8 @@ export class Threads {
             thread.workspace === agent.workspace &&
             thread.instructionsSnapshot === agent.instructions &&
             thread.worktree?.kind !== 'linked' &&
-            !this.ctx.runningTurns.has(thread.id) &&
-            !this.ctx.queuedTurns.some((turn) => turn.threadId === thread.id) &&
+            !this.ctx.turns.running.has(thread.id) &&
+            !this.ctx.turns.queued.some((turn) => turn.threadId === thread.id) &&
             !this.ctx.state.schedules.some((schedule) => schedule.threadId === thread.id) &&
             !this.ctx.state.timeline.some((item) => item.threadId === thread.id),
         );
@@ -154,7 +154,7 @@ export class Threads {
   }
 
   configureThread(input: BridgeRequestMap['threads.config']): DesktopSnapshot {
-    const thread = this.ctx.requireIdleThread(input.threadId, 'change model settings');
+    const thread = this.ctx.turns.requireIdleThread(input.threadId, 'change model settings');
     const provider = this.ctx.providers.requireReadyProvider(
       thread.provider,
       input.model.trim(),
@@ -180,7 +180,7 @@ export class Threads {
   }
 
   archiveThread(threadId: string): DesktopSnapshot {
-    const thread = this.ctx.requireIdleThread(threadId, 'archive this thread');
+    const thread = this.ctx.turns.requireIdleThread(threadId, 'archive this thread');
     thread.archivedAt = new Date().toISOString();
     thread.unread = false;
     if (this.ctx.state.activeThreadId === thread.id) delete this.ctx.state.activeThreadId;
@@ -216,7 +216,7 @@ export class Threads {
     primary = false,
   ): Promise<BridgeResultMap['threads.fork']> {
     // A busy thread's live approval, question and queued follow-ups belong to that run.
-    const source = this.ctx.requireIdleThread(input.threadId, 'fork this thread');
+    const source = this.ctx.turns.requireIdleThread(input.threadId, 'fork this thread');
     const id = randomUUID();
     let workspace = primary
       ? normalizeWorkspace(source.worktree?.sourceWorkspace ?? source.workspace)
@@ -283,7 +283,7 @@ export class Threads {
   async handoffThread(
     input: BridgeRequestMap['threads.handoff'],
   ): Promise<BridgeResultMap['threads.handoff']> {
-    const source = this.ctx.requireIdleThread(input.threadId, 'handoff this thread');
+    const source = this.ctx.turns.requireIdleThread(input.threadId, 'handoff this thread');
     if (input.destination === 'primary' && source.worktree?.kind !== 'linked') {
       throw new Error('This thread is already using the primary workspace.');
     }
@@ -305,7 +305,7 @@ export class Threads {
     if (input.confirmation !== 'REMOVE WORKTREE') {
       throw new Error('Worktree removal confirmation is required.');
     }
-    const thread = this.ctx.requireIdleThread(input.threadId, 'remove this worktree');
+    const thread = this.ctx.turns.requireIdleThread(input.threadId, 'remove this worktree');
     if (thread.worktree?.kind !== 'linked') {
       throw new Error('This thread does not own a linked worktree.');
     }
@@ -389,7 +389,7 @@ export class Threads {
   }
 
   setGoal(input: BridgeRequestMap['threads.goal.set']): DesktopSnapshot {
-    const thread = this.ctx.requireIdleThread(input.threadId, 'set a goal');
+    const thread = this.ctx.turns.requireIdleThread(input.threadId, 'set a goal');
     const now = new Date().toISOString();
     thread.goal = {
       text: input.text.trim(),
@@ -411,11 +411,11 @@ export class Threads {
   }
 
   resumeGoal(threadId: string): DesktopSnapshot {
-    const thread = this.ctx.requireIdleThread(threadId, 'resume this goal');
+    const thread = this.ctx.turns.requireIdleThread(threadId, 'resume this goal');
     if (!thread.goal) throw new Error('This thread does not have a goal.');
     thread.goal.status = 'running';
     thread.goal.updatedAt = new Date().toISOString();
-    const result = this.ctx.sendTurn(
+    const result = this.ctx.turns.sendTurn(
       {
         threadId,
         text: `Continue working toward this long-running goal:\n\n${thread.goal.text}`,
@@ -426,7 +426,7 @@ export class Threads {
   }
 
   clearGoal(threadId: string): DesktopSnapshot {
-    const thread = this.ctx.requireIdleThread(threadId, 'clear this goal');
+    const thread = this.ctx.turns.requireIdleThread(threadId, 'clear this goal');
     delete thread.goal;
     this.ctx.commit();
     return this.ctx.resultSnapshot();
@@ -435,9 +435,9 @@ export class Threads {
   deleteThread(threadId: string): DesktopSnapshot {
     const thread = this.ctx.requireThread(threadId);
     if (
-      this.ctx.runningTurns.has(thread.id) ||
-      this.ctx.queuedTurns.some((turn) => turn.threadId === thread.id) ||
-      this.ctx.pendingQuestions.has(thread.id) ||
+      this.ctx.turns.running.has(thread.id) ||
+      this.ctx.turns.queued.some((turn) => turn.threadId === thread.id) ||
+      this.ctx.turns.pendingQuestions.has(thread.id) ||
       thread.status === 'running' ||
       thread.status === 'queued' ||
       thread.status === 'waiting'
@@ -450,10 +450,10 @@ export class Threads {
     // Release what the deleted thread still holds: its provider session and file grants.
     for (const item of this.ctx.state.timeline)
       if (item.threadId === thread.id && item.turnId)
-        this.ctx.failedTurnAttachments.delete(item.turnId);
+        this.ctx.turns.failedTurnAttachments.delete(item.turnId);
     for (const [id, grant] of this.ctx.attachments.grants)
       if (grant.threadId === thread.id) this.ctx.attachments.grants.delete(id);
-    this.ctx.heldThreads.delete(thread.id);
+    this.ctx.turns.heldThreads.delete(thread.id);
     const runtime = this.ctx.runtime;
     void Promise.resolve()
       .then(() => runtime?.releaseSession(thread.id))

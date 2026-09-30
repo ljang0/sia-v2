@@ -45,7 +45,9 @@ export class Approvals {
    * so anyone who observes it could otherwise run unattended actions on this Mac.
    */
   trustForTurn(turnId: string | undefined): 'auto' | 'ask' {
-    return turnId && this.ctx.phoneTurns.has(turnId) ? 'ask' : this.ctx.computerAccess.trust();
+    return turnId && this.ctx.turns.phoneTurns.has(turnId)
+      ? 'ask'
+      : this.ctx.computerAccess.trust();
   }
 
   async authorizeComputer(
@@ -63,13 +65,13 @@ export class Approvals {
   ): Promise<'allow' | 'deny' | 'cancel'> {
     if (this.ctx.releaseAccessLocked()) return 'deny';
     if (context.kind === 'direct_user') return 'allow';
-    const active = this.ctx.activeTurnId(context.threadId);
+    const active = this.ctx.turns.activeTurnId(context.threadId);
     if (active !== context.turnId) return 'cancel';
     const presentation = computerApprovalPresentation(request.adapterId, request.humanSummary);
     const resource = safeResourceLabel(request.resourceJson, presentation.kind);
     const taskGrant =
       ['native_tool', 'foreground_takeover'].includes(presentation.kind) &&
-      !this.ctx.phoneTurns.has(context.turnId)
+      !this.ctx.turns.phoneTurns.has(context.turnId)
         ? [
             'computer',
             request.adapterId,
@@ -173,14 +175,14 @@ export class Approvals {
   resolveApproval(input: BridgeRequestMap['approvals.resolve']): DesktopSnapshot {
     const pending = this.pending.get(input.approvalId);
     if (!pending) throw new Error('This approval expired or was already resolved.');
-    if (this.ctx.activeTurnId(pending.threadId) !== pending.turnId) {
+    if (this.ctx.turns.activeTurnId(pending.threadId) !== pending.turnId) {
       this.revokeApproval(input.approvalId, pending);
       this.ctx.commit();
       throw new Error('This approval belongs to a turn that is no longer active.');
     }
     const approval = this.ctx.state.approvals.find(({ id }) => id === input.approvalId);
     const forTask = input.decision === 'approve_task';
-    if (forTask && (!approval?.allowForTask || this.ctx.phoneTurns.has(pending.turnId)))
+    if (forTask && (!approval?.allowForTask || this.ctx.turns.phoneTurns.has(pending.turnId)))
       throw new Error('This request can only be allowed once.');
     const approved = input.decision !== 'deny';
     clearTimeout(pending.timeout);
@@ -243,7 +245,7 @@ export class Approvals {
       status: 'pending',
       // Phone turns always ask on the Mac, one request at a time.
       ...(event.payload.choices?.some(({ kind }) => kind === 'allow_task') &&
-      !this.ctx.phoneTurns.has(event.turnId)
+      !this.ctx.turns.phoneTurns.has(event.turnId)
         ? { allowForTask: true }
         : {}),
     });
@@ -328,7 +330,7 @@ export class Approvals {
     const account = connector
       ? this.ctx.connections.connectorAccountLabel(request.arguments.account_id)
       : undefined;
-    const taskGrant = this.ctx.phoneTurns.has(request.turnId)
+    const taskGrant = this.ctx.turns.phoneTurns.has(request.turnId)
       ? undefined
       : gatewayTaskGrant(request.tool.name, request.arguments);
     if (
@@ -477,8 +479,8 @@ export class Approvals {
     const thread = this.ctx.state.threads.find(({ id }) => id === threadId);
     if (
       thread?.status === 'waiting' &&
-      this.ctx.runningTurns.has(threadId) &&
-      !this.ctx.pendingQuestions.has(threadId) &&
+      this.ctx.turns.running.has(threadId) &&
+      !this.ctx.turns.pendingQuestions.has(threadId) &&
       ![...this.pending.values()].some((pending) => pending.threadId === threadId)
     )
       thread.status = 'running';
@@ -487,14 +489,14 @@ export class Approvals {
   /** A running task that asks the person to approve an action is waiting on them. */
   waitForApproval(threadId: string): void {
     const thread = this.ctx.state.threads.find(({ id }) => id === threadId);
-    if (thread?.status === 'running' && this.ctx.runningTurns.has(threadId))
+    if (thread?.status === 'running' && this.ctx.turns.running.has(threadId))
       thread.status = 'waiting';
   }
 
   hasTaskGrant(threadId: string, turnId: string, grant: string): boolean {
     return (
-      !this.ctx.phoneTurns.has(turnId) &&
-      this.ctx.activeTurnId(threadId) === turnId &&
+      !this.ctx.turns.phoneTurns.has(turnId) &&
+      this.ctx.turns.activeTurnId(threadId) === turnId &&
       Boolean(this.taskGrants.get(turnId)?.has(`${threadId}\u0000${grant}`))
     );
   }

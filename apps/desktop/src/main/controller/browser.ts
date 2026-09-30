@@ -78,8 +78,8 @@ export class BrowserSession {
           'This request changed. Return to the current conversation before continuing.',
         );
       if (
-        this.ctx.runningTurns.has(thread.id) ||
-        this.ctx.queuedTurns.some((turn) => turn.threadId === thread.id)
+        this.ctx.turns.running.has(thread.id) ||
+        this.ctx.turns.queued.some((turn) => turn.threadId === thread.id)
       )
         throw new Error(
           'Wait for the current response to finish before connecting and continuing.',
@@ -108,7 +108,7 @@ export class BrowserSession {
         );
       const thread = this.ctx.requireThread(input.threadId);
       const draft = thread.draft;
-      this.ctx.sendTurn({
+      this.ctx.turns.sendTurn({
         threadId: input.threadId,
         text: 'Chrome is connected now. Continue my previous request using the browser tools. Check what has already completed before taking further actions.',
       });

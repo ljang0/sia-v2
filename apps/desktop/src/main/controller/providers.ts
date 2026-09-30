@@ -90,8 +90,8 @@ export class ProviderAccess {
     if (this.ctx.account.signOutInProgress || this.ctx.account.accountDeletionInProgress)
       throw new Error('Finish the account change before setting up Codex.');
     if (
-      this.ctx.runningTurns.size ||
-      this.ctx.queuedTurns.length ||
+      this.ctx.turns.running.size ||
+      this.ctx.turns.queued.length ||
       this.ctx.speech.pushToTalk?.captureBusy ||
       this.ctx.workspace.pendingTerminalOperations ||
       this.ctx.deps.workspaceOperations?.hasRunningTerminals?.() ||

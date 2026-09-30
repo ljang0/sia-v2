@@ -41,8 +41,8 @@ export class AssistantFeatures {
         this.ctx.shuttingDown ||
         this.ctx.speech.assistantSuspended ||
         this.ctx.releaseAccessLocked() ||
-        this.ctx.runningTurns.size ||
-        this.ctx.queuedTurns.length ||
+        this.ctx.turns.running.size ||
+        this.ctx.turns.queued.length ||
         this.ctx.speech.pushToTalk?.busy
       )
         return;
@@ -77,8 +77,8 @@ export class AssistantFeatures {
         this.ctx.speech.assistantSuspended ||
         this.ctx.releaseAccessLocked() ||
         this.ctx.computerAccess.accessMode() !== 'mac' ||
-        this.ctx.runningTurns.size ||
-        this.ctx.queuedTurns.length ||
+        this.ctx.turns.running.size ||
+        this.ctx.turns.queued.length ||
         this.ctx.speech.pushToTalk?.busy
       )
         return;
@@ -180,7 +180,7 @@ export class AssistantFeatures {
     this.ctx.requireSignedInReleaseAccount();
     if (
       request.context.signal?.aborted ||
-      this.ctx.activeTurnId(request.context.threadId) !== request.context.turnId
+      this.ctx.turns.activeTurnId(request.context.threadId) !== request.context.turnId
     )
       throw new Error('This assistant action no longer belongs to an active turn.');
     if (!this.allowsReviewAction(request.context.threadId, request.name))
@@ -371,7 +371,7 @@ export class AssistantFeatures {
       if (this.ctx.computerAccess.accessMode() !== 'mac')
         throw new Error('Native vault edits require Use my Mac.');
       if (
-        [...this.ctx.runningTurns.keys()].some(
+        [...this.ctx.turns.running.keys()].some(
           (id) => this.ctx.requireThread(id).agentId === command.agentId,
         )
       )
@@ -438,7 +438,7 @@ export class AssistantFeatures {
         agentId: skill.agentId,
         title: skill.title,
       });
-      this.ctx.sendTurn({
+      this.ctx.turns.sendTurn({
         threadId,
         text:
           skill.execution === 'native'
@@ -454,7 +454,7 @@ export class AssistantFeatures {
         agentId: workflow.agentId,
         title: workflow.title,
       });
-      this.ctx.sendTurn({ threadId, text: workflow.text });
+      this.ctx.turns.sendTurn({ threadId, text: workflow.text });
       return {
         ...this.library.view(),
         threadId,
@@ -469,12 +469,12 @@ export class AssistantFeatures {
         command.operation === 'nativeLearning') &&
       !command.enabled
     ) {
-      for (const threadId of this.ctx.runningTurns.keys()) {
+      for (const threadId of this.ctx.turns.running.keys()) {
         if (
           this.library.isReview(threadId) &&
           this.ctx.requireThread(threadId).agentId === command.agentId
         )
-          await this.ctx.cancelTurn(threadId);
+          await this.ctx.turns.cancelTurn(threadId);
       }
     }
     this.ctx.speech.pushToTalk?.setContextEnabled(
@@ -492,7 +492,7 @@ export class AssistantFeatures {
     // The UI can show the final response while the native journal is flushing.
     // A review must read that outcome, not race the final helper write.
     await Promise.allSettled(
-      [...this.ctx.turnTasks]
+      [...this.ctx.turns.tasks]
         .filter(
           ([id]) =>
             !['running', 'waiting', 'queued'].includes(this.ctx.requireThread(id).status),
@@ -506,7 +506,7 @@ export class AssistantFeatures {
     const agent = this.ctx.requireAgent(agentId);
     if (!this.library.view().learningAgents?.includes(agentId))
       throw new Error('Enable learning before requesting suggestions.');
-    if (this.ctx.runningTurns.size || this.ctx.queuedTurns.length)
+    if (this.ctx.turns.running.size || this.ctx.turns.queued.length)
       throw new Error('Wait for current tasks to finish before reviewing memory.');
     this.ctx.providers.requireReadyProvider(agent.provider, agent.model);
     const { threadId } = this.ctx.threads.createThread(
@@ -525,7 +525,7 @@ export class AssistantFeatures {
       this.notchVault(agentId).markConsolidation();
     }
     this.library.markReview(agentId, threadId, workspace, notch);
-    this.ctx.sendTurn({
+    this.ctx.turns.sendTurn({
       threadId,
       text: notch
         ? 'Consolidate this agent’s native memory vault. Follow PROMOTE, DISTILL and INDEX, then summarize the changes you actually saved.'
