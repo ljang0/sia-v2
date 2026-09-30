@@ -57,7 +57,6 @@ import type {
   DesktopPushEvent,
   DesktopSnapshot,
   ProviderView,
-  ScheduleView,
   ThreadView,
   TimelineItemView,
   UpdateView,
@@ -71,11 +70,6 @@ import type { CuaAuthorizationContext } from '../cua-service.js';
 import type { VoiceOperations } from '../voice-service.js';
 import { PushToTalkService, type VoiceHelperFactory } from '../push-to-talk.js';
 import { RESEARCH_CONSENT_VERSION } from '../../shared/bridge.js';
-import {
-  alignScheduleStart,
-  defaultFirstScheduleRun,
-  nextScheduleRun,
-} from '../../shared/schedule-cadence.js';
 import { verifyUpdateManifestResponse } from '../update-manifest.js';
 import {
   isTextSize,
@@ -125,13 +119,6 @@ import {
 } from './persisted-state.js';
 import { SAFE_RESEARCH_ACTIONS } from './research-records.js';
 import { isStreamingDelta } from './runtime-events.js';
-import {
-  defaultScheduleRunLimit,
-  scheduleRuleFields,
-  upsertScheduleRun,
-  validScheduleRunLimit,
-  validScheduleTime,
-} from './schedule-rules.js';
 import { extractHttpUrls, safeUrlHost, searchExcerpt } from './thread-search.js';
 import type {
   ApprovedConnectorBinding,
@@ -149,6 +136,7 @@ import type { ResearchCapture } from './research-capture.js';
 import type { ConnectorConnections } from './connections.js';
 import type { CloudAccount } from './account.js';
 import type { ProviderAccess } from './providers.js';
+import type { Schedules } from './schedules.js';
 
 const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
   'bootstrap',
@@ -165,7 +153,7 @@ type BridgeHandlers = { [M in BridgeMethod]?: BridgeHandler<M> };
 /** The domain collaborators a context is wired with. */
 export type ControllerServices = Pick<ControllerContext, ServiceName>;
 type ServiceName =
-  'researchOutbox' | 'researchCapture' | 'connections' | 'account' | 'providers';
+  'researchOutbox' | 'researchCapture' | 'connections' | 'account' | 'providers' | 'schedules';
 
 /**
  * Everything the desktop controller knows and does. DesktopController is the public facade;
@@ -179,6 +167,7 @@ export class ControllerContext {
   declare readonly connections: ConnectorConnections;
   declare readonly account: CloudAccount;
   declare readonly providers: ProviderAccess;
+  declare readonly schedules: Schedules;
   readonly assistantLibrary: AssistantLibrary;
   pendingTerminalOperations = 0;
   pushToTalk: PushToTalkService | undefined;
@@ -213,11 +202,9 @@ export class ControllerContext {
   readonly heldThreads = new Set<string>();
   streamCommitTimer: NodeJS.Timeout | undefined;
   streamPersistTimer: NodeJS.Timeout | undefined;
-  scheduleTimer: NodeJS.Timeout | undefined;
   memoryTimer: NodeJS.Timeout | undefined;
   notchTimer: NodeJS.Timeout | undefined;
   nextNotchCheck = 0;
-  scheduleRunInFlight = false;
   runtime: RuntimeCoordinator | undefined;
   browserCapabilitySink: BrowserCapabilitySink | undefined;
   browserTarget: { targetId: string; tabId: string } | undefined;
@@ -478,7 +465,7 @@ export class ControllerContext {
           this.state.cloudFeatures.connectors)
       );
     }
-    if (name.startsWith('schedule_')) return this.schedulesAvailable();
+    if (name.startsWith('schedule_')) return this.schedules.schedulesAvailable();
     return true;
   }
 
@@ -804,74 +791,6 @@ export class ControllerContext {
     return this.state.preferences.trajectoryLog ?? true;
   }
 
-  createScheduleFromAction(
-    threadId: string,
-    input: {
-      task: string;
-      cadence: ScheduleView['cadence'];
-      days?: number[];
-      everyHours?: number;
-      firstRunAt?: string;
-      maxRuns?: number;
-    },
-  ): ScheduleView {
-    const firstRunAt =
-      input.firstRunAt ??
-      defaultFirstScheduleRun(
-        { cadence: input.cadence, days: input.days, everyHours: input.everyHours },
-        new Date(),
-      ).toISOString();
-    const schedule = this.insertSchedule({
-      threadId,
-      prompt: input.task,
-      cadence: input.cadence,
-      ...(input.days === undefined ? {} : { days: input.days }),
-      ...(input.everyHours === undefined ? {} : { everyHours: input.everyHours }),
-      nextRunAt: firstRunAt,
-      ...(input.maxRuns === undefined ? {} : { maxRuns: input.maxRuns }),
-    });
-    return structuredClone(schedule);
-  }
-
-  listSchedulesForAction(threadId: string): ScheduleView[] {
-    this.requireThread(threadId);
-    return structuredClone(
-      this.state.schedules.filter((schedule) => schedule.threadId === threadId),
-    );
-  }
-
-  updateScheduleFromAction(
-    threadId: string,
-    input: {
-      scheduleId: string;
-      task?: string;
-      cadence?: ScheduleView['cadence'];
-      days?: number[];
-      everyHours?: number;
-      nextRunAt?: string;
-      enabled?: boolean;
-      maxRuns?: number;
-    },
-  ): ScheduleView {
-    const schedule = this.requireSchedule(input.scheduleId);
-    if (schedule.threadId !== threadId)
-      throw new Error('Scheduled task not found in this thread.');
-    const { task, ...changes } = input;
-    this.applyScheduleUpdate(schedule, {
-      ...changes,
-      ...(task === undefined ? {} : { prompt: task }),
-    });
-    return structuredClone(schedule);
-  }
-
-  deleteScheduleFromAction(threadId: string, scheduleId: string): void {
-    const schedule = this.requireSchedule(scheduleId);
-    if (schedule.threadId !== threadId)
-      throw new Error('Scheduled task not found in this thread.');
-    this.state.schedules = this.state.schedules.filter(({ id }) => id !== scheduleId);
-    this.commit();
-  }
-
   /** Any HTTP(S) origin is allowed while trusted; otherwise only origins granted at attach. */
   isBrowserOriginAllowed(origin: string): boolean {
     if (this.state.browser.grantedOrigins.includes(origin)) return true;
@@ -1091,8 +1010,8 @@ export class ControllerContext {
     this.researchOutbox.refreshPendingCount();
     this.persist();
     this.researchOutbox.scheduleSync();
-    this.scheduleTimer = setInterval(() => void this.runDueSchedules(), 30_000);
-    this.scheduleTimer.unref();
+    this.schedules.timer = setInterval(() => void this.schedules.runDueSchedules(), 30_000);
+    this.schedules.timer.unref();
     this.memoryTimer = setInterval(() => {
       if (
         this.shuttingDown ||
@@ -1163,7 +1082,7 @@ export class ControllerContext {
       }
     }, 5000);
     this.notchTimer.unref();
-    void this.runDueSchedules();
+    void this.schedules.runDueSchedules();
   }
 
   /** The complete state, including every thread's history, for in-process callers and tests. */
@@ -1444,11 +1363,11 @@ export class ControllerContext {
     'terminal.write': (input) => this.writeBackgroundTerminal(input),
     'terminal.stop': (input) => this.stopBackgroundTerminal(input),
     'reviews.start': (input) => this.startReview(input),
-    'schedules.create': (input) => this.createSchedule(input),
-    'schedules.update': (input) => this.updateSchedule(input),
-    'schedules.setEnabled': (input) => this.setScheduleEnabled(input),
-    'schedules.delete': ({ scheduleId }) => this.deleteSchedule(scheduleId),
-    'schedules.runNow': ({ scheduleId }) => this.runScheduleNow(scheduleId),
+    'schedules.create': (input) => this.schedules.createSchedule(input),
+    'schedules.update': (input) => this.schedules.updateSchedule(input),
+    'schedules.setEnabled': (input) => this.schedules.setScheduleEnabled(input),
+    'schedules.delete': ({ scheduleId }) => this.schedules.deleteSchedule(scheduleId),
+    'schedules.runNow': ({ scheduleId }) => this.schedules.runScheduleNow(scheduleId),
     'approvals.resolve': (input) => this.resolveApproval(input),
     'providers.probe': ({ providerId }) => this.providers.probeProviders(providerId),
     'providers.login': ({ providerId }) => this.providers.providerLogin(providerId),
@@ -1650,11 +1569,6 @@ export class ControllerContext {
       ...this.libraryView(),
       launcherRegistered: this.launcherRegistered,
     } as BridgeResultMap['assistant.library'];
-  }
-
-  updateSchedule(input: BridgeRequestMap['schedules.update']): DesktopSnapshot {
-    this.applyScheduleUpdate(this.requireSchedule(input.scheduleId), input);
-    return this.resultSnapshot();
   }
 
   setOnboarding({
@@ -2000,7 +1914,7 @@ export class ControllerContext {
     // stops responding. The app has already stopped accepting work at this point.
     const shutdownDeadline = Date.now() + 8_000;
     if (this.researchOutbox.retryTimer) clearTimeout(this.researchOutbox.retryTimer);
-    if (this.scheduleTimer) clearInterval(this.scheduleTimer);
+    if (this.schedules.timer) clearInterval(this.schedules.timer);
     if (this.memoryTimer) clearInterval(this.memoryTimer);
     if (this.notchTimer) clearInterval(this.notchTimer);
     for (const controller of this.runningTurns.values()) controller.abort();
@@ -3521,228 +3435,6 @@ export class ControllerContext {
     return this.sendTurn({ threadId: thread.id, text }, 'review', input.target);
   }
 
-  createSchedule(input: BridgeRequestMap['schedules.create']): DesktopSnapshot {
-    this.insertSchedule(input);
-    return this.resultSnapshot();
-  }
-
-  insertSchedule(input: BridgeRequestMap['schedules.create']): ScheduleView {
-    if (!this.schedulesAvailable()) {
-      throw new Error('Schedules are turned off for this pilot right now.');
-    }
-    const thread = this.requireThread(input.threadId);
-    if (thread.archivedAt) throw new Error('Unarchive this thread before scheduling work.');
-    const prompt = input.prompt.trim();
-    if (!prompt) throw new Error('A scheduled task cannot be empty.');
-    const schedule: ScheduleView = {
-      id: randomUUID(),
-      threadId: thread.id,
-      prompt,
-      ...scheduleRuleFields(
-        { cadence: input.cadence, days: input.days, everyHours: input.everyHours },
-        new Date(validScheduleTime(input.nextRunAt)),
-      ),
-      nextRunAt: validScheduleTime(input.nextRunAt),
-      enabled: true,
-      createdAt: new Date().toISOString(),
-      runCount: 0,
-    };
-    const maxRuns = input.maxRuns ?? defaultScheduleRunLimit(input.cadence);
-    if (maxRuns !== undefined) schedule.maxRuns = validScheduleRunLimit(maxRuns);
-    schedule.nextRunAt = alignScheduleStart(
-      schedule,
-      new Date(schedule.nextRunAt),
-    ).toISOString();
-    this.state.schedules.push(schedule);
-    this.commit();
-    void this.runDueSchedules();
-    return schedule;
-  }
-
-  /** One edit path for the schedule list and the agent's schedule_update tool. */
-  applyScheduleUpdate(
-    schedule: ScheduleView,
-    input: Omit<BridgeRequestMap['schedules.update'], 'scheduleId'>,
-  ): void {
-    if (!this.schedulesAvailable()) {
-      throw new Error('Schedules are turned off for this pilot right now.');
-    }
-    const prompt = input.prompt === undefined ? undefined : input.prompt.trim();
-    if (prompt === '') throw new Error('A scheduled task cannot be empty.');
-    const nextRunAt =
-      input.nextRunAt === undefined ? undefined : validScheduleTime(input.nextRunAt);
-    const maxRuns =
-      input.maxRuns === undefined || input.maxRuns === null
-        ? input.maxRuns
-        : validScheduleRunLimit(input.maxRuns);
-    const ruleChanged =
-      input.cadence !== undefined || input.days !== undefined || input.everyHours !== undefined;
-    if (prompt !== undefined) schedule.prompt = prompt;
-    if (nextRunAt !== undefined) schedule.nextRunAt = nextRunAt;
-    if (ruleChanged) {
-      const cadence = input.cadence ?? schedule.cadence;
-      const rule = scheduleRuleFields(
-        {
-          cadence,
-          // A new cadence starts from its own details rather than the old one's.
-          days: input.days ?? (cadence === schedule.cadence ? schedule.days : undefined),
-          everyHours:
-            input.everyHours ??
-            (cadence === schedule.cadence ? schedule.everyHours : undefined),
-        },
-        new Date(schedule.nextRunAt),
-      );
-      delete schedule.days;
-      delete schedule.everyHours;
-      Object.assign(schedule, rule);
-    }
-    if (ruleChanged || nextRunAt !== undefined) {
-      schedule.nextRunAt = alignScheduleStart(
-        schedule,
-        new Date(schedule.nextRunAt),
-      ).toISOString();
-    }
-    // null clears the limit: a recurring schedule then repeats until paused or deleted.
-    if (maxRuns === null) delete schedule.maxRuns;
-    else if (maxRuns !== undefined) schedule.maxRuns = maxRuns;
-    if (input.enabled !== undefined) schedule.enabled = input.enabled;
-    this.commit();
-    if (schedule.enabled) void this.runDueSchedules();
-  }
-
-  setScheduleEnabled(input: BridgeRequestMap['schedules.setEnabled']): DesktopSnapshot {
-    if (input.enabled && !this.schedulesAvailable()) {
-      throw new Error('Schedules are turned off for this pilot right now.');
-    }
-    const schedule = this.requireSchedule(input.scheduleId);
-    schedule.enabled = input.enabled;
-    this.commit();
-    if (input.enabled) void this.runDueSchedules();
-    return this.resultSnapshot();
-  }
-
-  deleteSchedule(scheduleId: string): DesktopSnapshot {
-    this.requireSchedule(scheduleId);
-    this.state.schedules = this.state.schedules.filter(({ id }) => id !== scheduleId);
-    this.commit();
-    return this.resultSnapshot();
-  }
-
-  runScheduleNow(scheduleId: string): BridgeResultMap['schedules.runNow'] {
-    if (!this.schedulesAvailable()) {
-      throw new Error('Schedules are turned off for this pilot right now.');
-    }
-    const schedule = this.requireSchedule(scheduleId);
-    return this.dispatchSchedule(schedule, new Date());
-  }
-
-  async runDueSchedules(): Promise<void> {
-    if (
-      this.providers.codexSetupPending ||
-      this.scheduleRunInFlight ||
-      this.account.accountDeletionInProgress ||
-      !this.schedulesAvailable()
-    )
-      return;
-    this.scheduleRunInFlight = true;
-    try {
-      const now = new Date();
-      const due = this.state.schedules.filter(
-        (schedule) =>
-          Boolean(schedule.activeRun) ||
-          (schedule.enabled && Date.parse(schedule.nextRunAt) <= now.getTime()),
-      );
-      // A due run that waits for a busy thread changes nothing. Saving the whole encrypted
-      // state for it every 30 seconds grew costly as history grew.
-      let changed = false;
-      for (const schedule of due) {
-        const thread = this.state.threads.find(({ id }) => id === schedule.threadId);
-        if (!thread || thread.archivedAt) {
-          schedule.enabled = false;
-          changed = true;
-          continue;
-        }
-        if (
-          thread.status === 'running' ||
-          thread.status === 'queued' ||
-          thread.status === 'waiting'
-        ) {
-          continue;
-        }
-        changed = true;
-        try {
-          this.dispatchSchedule(schedule, now);
-        } catch (error) {
-          delete schedule.activeRun;
-          schedule.enabled = false;
-          this.appendTimeline(thread.id, {
-            id: randomUUID(),
-            kind: 'notice',
-            title: 'Scheduled task paused',
-            text:
-              error instanceof Error ? error.message : 'The scheduled task could not start.',
-            status: 'failed',
-            timestamp: now.toISOString(),
-          });
-        }
-      }
-      if (changed) this.commit();
-    } finally {
-      this.scheduleRunInFlight = false;
-    }
-  }
-
-  advanceSchedule(schedule: ScheduleView, now: Date): void {
-    const due = new Date(schedule.nextRunAt);
-    // Run now leaves the next scheduled run where it was.
-    if (schedule.cadence !== 'once' && due > now) return;
-    const next = nextScheduleRun(schedule, due, now);
-    if (!next) {
-      schedule.enabled = false;
-      return;
-    }
-    schedule.nextRunAt = next.toISOString();
-  }
-
-  dispatchSchedule(schedule: ScheduleView, now: Date): BridgeResultMap['schedules.runNow'] {
-    const claim =
-      schedule.activeRun ??
-      ({
-        id: randomUUID(),
-        dueAt: schedule.nextRunAt,
-        claimedAt: now.toISOString(),
-      } satisfies NonNullable<ScheduleView['activeRun']>);
-    if (!schedule.activeRun) {
-      schedule.activeRun = claim;
-      // The claim reaches disk before the user turn. Recovery can now distinguish a crash before
-      // dispatch from a crash after dispatch by searching for this stable scheduleRunId.
-      this.commit();
-    }
-    const dispatched = this.state.timeline.find(
-      (item) => item.scheduleRunId === claim.id && item.kind === 'user' && item.turnId,
-    );
-    const result = dispatched?.turnId
-      ? { turnId: dispatched.turnId, snapshot: this.resultSnapshot() }
-      : this.sendTurn(
-          { threadId: schedule.threadId, text: schedule.prompt },
-          'schedule',
-          undefined,
-          claim.id,
-        );
-    const startedAt = dispatched?.timestamp ?? now.toISOString();
-    schedule.lastRunAt = startedAt;
-    schedule.lastRun = { id: claim.id, startedAt, outcome: 'started' };
-    upsertScheduleRun(schedule, schedule.lastRun);
-    schedule.runCount = (schedule.runCount ?? 0) + 1;
-    this.advanceSchedule(schedule, now);
-    if (schedule.maxRuns !== undefined && schedule.runCount >= schedule.maxRuns) {
-      schedule.enabled = false;
-    }
-    delete schedule.activeRun;
-    this.commit();
-    return result;
-  }
-
   resolveApproval(input: BridgeRequestMap['approvals.resolve']): DesktopSnapshot {
     const pending = this.pendingApprovals.get(input.approvalId);
     if (!pending) throw new Error('This approval expired or was already resolved.');
@@ -4130,11 +3822,6 @@ export class ControllerContext {
   requireVoice(): VoiceOperations {
     if (!this.deps.voice) throw new Error('Voice is unavailable in this build.');
     return this.deps.voice;
-  }
-
-  schedulesAvailable(): boolean {
-    if (this.releaseAccessLocked()) return false;
-    return this.state.cloudFeatures?.schedules !== false;
   }
 
   startTurn(turn: QueuedTurn): void {
@@ -4547,7 +4234,7 @@ export class ControllerContext {
       if (signal.aborted) {
         this.completeRunningActivities(turn.threadId, turn.id);
         this.researchCapture.discardResearchTurn(turn.id);
-        this.markScheduleRunFinished(turn, 'cancelled');
+        this.schedules.markScheduleRunFinished(turn, 'cancelled');
         if (macTask) {
           try {
             this.assistantLibrary.recordMacTask({
@@ -4596,7 +4283,10 @@ export class ControllerContext {
     } catch {
       /* Optional memory storage must never turn completed work into a failed task. */
     }
-    this.markScheduleRunFinished(turn, outcome === 'complete' ? 'completed' : 'failed');
+    this.schedules.markScheduleRunFinished(
+      turn,
+      outcome === 'complete' ? 'completed' : 'failed',
+    );
     // Continue task resends the failed turn's files, whatever ended it (start error,
     // model error or a task that reported it could not finish).
     if (outcome === 'complete') this.failedTurnAttachments.delete(turn.id);
@@ -4662,31 +4352,6 @@ export class ControllerContext {
           ? 'Open Sia to allow or deny the next step.'
           : 'Open Sia to answer.'),
     });
-  }
-
-  markScheduleRunFinished(
-    turn: QueuedTurn,
-    outcome: 'completed' | 'failed' | 'cancelled',
-  ): void {
-    if (!turn.scheduleRunId) return;
-    const schedule = this.state.schedules.find(
-      ({ lastRun, runHistory }) =>
-        lastRun?.id === turn.scheduleRunId ||
-        runHistory?.some(({ id }) => id === turn.scheduleRunId),
-    );
-    if (!schedule) return;
-    const startedRun =
-      schedule.lastRun?.id === turn.scheduleRunId
-        ? schedule.lastRun
-        : schedule.runHistory?.find(({ id }) => id === turn.scheduleRunId);
-    if (!startedRun) return;
-    const finishedRun = {
-      ...startedRun,
-      outcome,
-      finishedAt: new Date().toISOString(),
-    };
-    if (schedule.lastRun?.id === turn.scheduleRunId) schedule.lastRun = finishedRun;
-    upsertScheduleRun(schedule, finishedRun);
   }
 
   applyRuntimeEvent(event: ThreadEventEnvelope): void {
@@ -5556,12 +5221,6 @@ export class ControllerContext {
       throw new Error(`Stop the active task before you ${action}.`);
     }
     return thread;
-  }
-
-  requireSchedule(id: string): ScheduleView {
-    const schedule = this.state.schedules.find((candidate) => candidate.id === id);
-    if (!schedule) throw new Error('Scheduled task not found.');
-    return schedule;
   }
 
   requireWorkspaceOperations(): NonNullable<ControllerOptions['workspaceOperations']> {

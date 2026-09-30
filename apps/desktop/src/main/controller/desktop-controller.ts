@@ -28,6 +28,7 @@ import { ResearchCapture } from './research-capture.js';
 import { ConnectorConnections } from './connections.js';
 import { CloudAccount } from './account.js';
 import { ProviderAccess } from './providers.js';
+import { Schedules } from './schedules.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -43,6 +44,7 @@ export class DesktopController {
       connections: new ConnectorConnections(ctx),
       account: new CloudAccount(ctx),
       providers: new ProviderAccess(ctx),
+      schedules: new Schedules(ctx),
     }));
   }
 
@@ -177,11 +179,11 @@ export class DesktopController {
       maxRuns?: number;
     },
   ): ScheduleView {
-    return this.#ctx.createScheduleFromAction(threadId, input);
+    return this.#ctx.schedules.createScheduleFromAction(threadId, input);
   }
 
   listSchedulesForAction(threadId: string): ScheduleView[] {
-    return this.#ctx.listSchedulesForAction(threadId);
+    return this.#ctx.schedules.listSchedulesForAction(threadId);
   }
 
   updateScheduleFromAction(
@@ -197,11 +199,11 @@ export class DesktopController {
       maxRuns?: number;
     },
   ): ScheduleView {
-    return this.#ctx.updateScheduleFromAction(threadId, input);
+    return this.#ctx.schedules.updateScheduleFromAction(threadId, input);
   }
 
   deleteScheduleFromAction(threadId: string, scheduleId: string): void {
-    this.#ctx.deleteScheduleFromAction(threadId, scheduleId);
+    this.#ctx.schedules.deleteScheduleFromAction(threadId, scheduleId);
   }
 
   /** Any HTTP(S) origin is allowed while trusted; otherwise only origins granted at attach. */
