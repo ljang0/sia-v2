@@ -56,8 +56,6 @@ import type {
 import { probeProviders, providerPlan } from '../provider-probe.js';
 import type { RuntimeCoordinator } from '../runtime-coordinator.js';
 import type { CuaAuthorizationContext } from '../cua-service.js';
-import type { VoiceOperations } from '../voice-service.js';
-import { PushToTalkService, type VoiceHelperFactory } from '../push-to-talk.js';
 import { RESEARCH_CONSENT_VERSION } from '../../shared/bridge.js';
 import { verifyUpdateManifestResponse } from '../update-manifest.js';
 import {
@@ -115,6 +113,7 @@ import type { Attachments } from './attachments.js';
 import type { WorkspaceTools } from './workspace.js';
 import type { BrowserSession } from './browser.js';
 import type { ComputerAccess } from './computer-access.js';
+import type { VoiceControls } from './voice.js';
 
 const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
   'bootstrap',
@@ -140,7 +139,8 @@ type ServiceName =
   | 'attachments'
   | 'workspace'
   | 'browser'
-  | 'computerAccess';
+  | 'computerAccess'
+  | 'speech';
 
 /**
  * Everything the desktop controller knows and does. DesktopController is the public facade;
@@ -159,8 +159,8 @@ export class ControllerContext {
   declare readonly workspace: WorkspaceTools;
   declare readonly browser: BrowserSession;
   declare readonly computerAccess: ComputerAccess;
+  declare readonly speech: VoiceControls;
   readonly assistantLibrary: AssistantLibrary;
-  pushToTalk: PushToTalkService | undefined;
   readonly listeners = new Set<(event: DesktopPushEvent) => void>();
   readonly rendererCall = new AsyncLocalStorage<true>();
   readonly previewMemo: ThreadPreviewMemo = new WeakMap();
@@ -217,83 +217,6 @@ export class ControllerContext {
     Object.assign(this, wire(this));
   }
 
-  attachPushToTalk(options: {
-    available: boolean;
-    createHelper: VoiceHelperFactory;
-    isFocused(): boolean;
-  }): void {
-    if (!this.deps.voice || this.pushToTalk) return;
-    this.pushToTalk = new PushToTalkService({
-      ...options,
-      repository: this.deps.repository,
-      voice: this.deps.voice,
-      allowed: () =>
-        !this.providers.codexSetupPending &&
-        !this.releaseAccessLocked() &&
-        this.deps.voice?.view().status === 'connected' &&
-        this.deps.voice.view().dictationAvailable !== false,
-      target: (agentId) => {
-        this.requireSignedInReleaseAccount();
-        const fallback = this.requireAgent(agentId);
-        const thread = options.isFocused()
-          ? this.state.threads.find(
-              (candidate) =>
-                candidate.id === this.state.activeThreadId && !candidate.archivedAt,
-            )
-          : undefined;
-        const agent = thread ? this.requireAgent(thread.agentId) : fallback;
-        return {
-          agentId: agent.id,
-          ...(thread ? { threadId: thread.id } : {}),
-          label: thread
-            ? `${agent.name} · ${thread.title}`
-            : `${agent.name} · New conversation`,
-        };
-      },
-      send: async (target, text, context) => {
-        this.requireSignedInReleaseAccount();
-        this.requireAgent(target.agentId);
-        const threadId =
-          target.threadId ?? this.createThread({ agentId: target.agentId }).threadId;
-        const { turnId } = this.sendTurn(
-          { threadId, text },
-          'manual',
-          undefined,
-          undefined,
-          context,
-        );
-        return { threadId, turnId };
-      },
-      taskReply: ({ threadId, turnId }) => {
-        const thread = this.state.threads.find(
-          (item) => item.id === threadId && !item.archivedAt,
-        );
-        if (!thread || !['idle', 'failed'].includes(thread.status)) return undefined;
-        return this.state.timeline.findLast(
-          (item) =>
-            item.threadId === threadId &&
-            item.turnId === turnId &&
-            ((item.kind === 'assistant' && item.status === 'complete') ||
-              item.kind === 'error'),
-        )?.text;
-      },
-      taskStatus: (threadId) => {
-        const thread = this.state.threads.find(
-          (item) => item.id === threadId && !item.archivedAt,
-        );
-        return thread && ['running', 'queued', 'waiting'].includes(thread.status)
-          ? (thread.status as 'running' | 'queued' | 'waiting')
-          : 'finished';
-      },
-      changed: () => this.emit(),
-    });
-    this.pushToTalk.setContextEnabled(
-      this.assistantLibrary.view().context || this.computerAccess.accessMode() === 'mac',
-      this.computerAccess.accessMode() === 'mac',
-    );
-    this.pushToTalk.syncAccess();
-  }
-
   /**
    * A locked or sleeping Mac blocks both Use my Mac routes. Running Mac tasks pause with a
    * Continue task banner; new ones wait in the queue until the Mac is available again.
@@ -322,7 +245,7 @@ export class ControllerContext {
     const running = this.runningTurns.get(threadId);
     const turn = this.macTurns.get(threadId);
     if (!running || !turn || running.signal.aborted) return;
-    this.pushToTalk?.cancelTask(threadId);
+    this.speech.pushToTalk?.cancelTask(threadId);
     running.abort();
     this.revokeApprovalsForTurn(threadId, turn.id);
     void this.runtime?.cancel(threadId, turn.id).catch(() => undefined);
@@ -353,15 +276,6 @@ export class ControllerContext {
     return (
       this.computerAccess.accessMode() === 'mac' && !this.assistantLibrary.isReview(threadId)
     );
-  }
-
-  assistantSuspended = false;
-  suspendVoice(suspended: boolean): void {
-    this.assistantSuspended = suspended;
-    this.pushToTalk?.suspend(suspended);
-  }
-  releaseRendererVoiceCapture(): void {
-    this.pushToTalk?.releaseRendererCapture();
   }
 
   attachRuntime(runtime: RuntimeCoordinator): void {
@@ -927,11 +841,11 @@ export class ControllerContext {
     this.memoryTimer = setInterval(() => {
       if (
         this.shuttingDown ||
-        this.assistantSuspended ||
+        this.speech.assistantSuspended ||
         this.releaseAccessLocked() ||
         this.runningTurns.size ||
         this.queuedTurns.length ||
-        this.pushToTalk?.busy
+        this.speech.pushToTalk?.busy
       )
         return;
       try {
@@ -963,12 +877,12 @@ export class ControllerContext {
       if (
         this.deps.fakeServices ||
         this.shuttingDown ||
-        this.assistantSuspended ||
+        this.speech.assistantSuspended ||
         this.releaseAccessLocked() ||
         this.computerAccess.accessMode() !== 'mac' ||
         this.runningTurns.size ||
         this.queuedTurns.length ||
-        this.pushToTalk?.busy
+        this.speech.pushToTalk?.busy
       )
         return;
       const periodic = Date.now() >= this.nextNotchCheck;
@@ -1181,7 +1095,7 @@ export class ControllerContext {
           this.deps.voice?.view() ??
             ({ status: 'disconnected', voices: [] } satisfies VoiceView),
         ),
-        ...(this.pushToTalk ? { pushToTalk: this.pushToTalk.view() } : {}),
+        ...(this.speech.pushToTalk ? { pushToTalk: this.speech.pushToTalk.view() } : {}),
       },
       preferences: structuredClone(this.state.preferences),
       providerUsage: this.providers.providerUsage(),
@@ -1320,19 +1234,19 @@ export class ControllerContext {
     'browser.attach': (input) => this.browser.attachBrowser(input),
     'browser.open': ({ url }) => this.browser.openBrowserUrl(url),
     'browser.detach': () => this.browser.detachBrowser(),
-    'voice.pushToTalk.configure': (input) => this.configurePushToTalk(input),
-    'voice.pushToTalk.cancel': () => this.cancelPushToTalk(),
-    'voice.capture.acquire': () => this.acquireRendererCapture(),
-    'voice.capture.release': ({ leaseId }) => this.releaseRendererCapture(leaseId),
-    'voice.configure': () => this.configureVoice(),
-    'voice.refresh': () => this.refreshVoice(),
-    'voice.select': ({ voiceId }) => this.selectVoice(voiceId),
-    'voice.disconnect': () => this.disconnectVoice(),
-    'voice.transcribe': (input) => this.transcribe(input),
-    'voice.realtime.start': () => this.startRealtime(),
-    'voice.realtime.append': (input) => this.appendRealtime(input),
-    'voice.realtime.stop': (input) => this.stopRealtime(input),
-    'voice.speak': (input) => this.speak(input),
+    'voice.pushToTalk.configure': (input) => this.speech.configurePushToTalk(input),
+    'voice.pushToTalk.cancel': () => this.speech.cancelPushToTalk(),
+    'voice.capture.acquire': () => this.speech.acquireRendererCapture(),
+    'voice.capture.release': ({ leaseId }) => this.speech.releaseRendererCapture(leaseId),
+    'voice.configure': () => this.speech.configureVoice(),
+    'voice.refresh': () => this.speech.refreshVoice(),
+    'voice.select': ({ voiceId }) => this.speech.selectVoice(voiceId),
+    'voice.disconnect': () => this.speech.disconnectVoice(),
+    'voice.transcribe': (input) => this.speech.transcribe(input),
+    'voice.realtime.start': () => this.speech.startRealtime(),
+    'voice.realtime.append': (input) => this.speech.appendRealtime(input),
+    'voice.realtime.stop': (input) => this.speech.stopRealtime(input),
+    'voice.speak': (input) => this.speech.speak(input),
     'connections.startGoogle': () => this.connections.startGoogleConnections(),
     'connections.startSelected': ({ apps }) => this.connections.startSelectedConnections(apps),
     'connections.upgradeGoogle': () => this.connections.upgradeGoogleConnections(),
@@ -1483,7 +1397,7 @@ export class ControllerContext {
           await this.cancelTurn(threadId);
       }
     }
-    this.pushToTalk?.setContextEnabled(
+    this.speech.pushToTalk?.setContextEnabled(
       result.context || this.computerAccess.accessMode() === 'mac',
       this.computerAccess.accessMode() === 'mac',
     );
@@ -1528,7 +1442,7 @@ export class ControllerContext {
       this.state.connections.some((app) => app.status === 'connecting')
     )
       throw new Error('Finish or cancel account approval before restarting.');
-    if (this.runningTurns.size || this.pushToTalk?.busy)
+    if (this.runningTurns.size || this.speech.pushToTalk?.busy)
       throw new Error('Wait for the current task or recording to finish before restarting.');
     if (progress.restartPending) return this.resultSnapshot();
     this.state.preferences.onboarding = {
@@ -1591,68 +1505,6 @@ export class ControllerContext {
     else delete this.state.preferences.developerTools;
     this.commit();
     return this.resultSnapshot();
-  }
-
-  async configurePushToTalk(
-    value: BridgeRequestMap['voice.pushToTalk.configure'],
-  ): Promise<DesktopSnapshot> {
-    if (!this.pushToTalk) throw new Error('Fn push-to-talk is unavailable in this build.');
-    if (value.enabled) {
-      await this.deps.voice?.prepareDictation?.();
-      await this.deps.requestMicrophonePermission?.();
-    }
-    this.pushToTalk.configure(
-      value.enabled,
-      value.agentId,
-      value.requestAccessibility,
-      value.speakReplies,
-    );
-    return this.resultSnapshot();
-  }
-
-  cancelPushToTalk(): undefined {
-    this.pushToTalk?.cancel();
-    return undefined;
-  }
-
-  acquireRendererCapture(): BridgeResultMap['voice.capture.acquire'] {
-    this.providers.requireCodexSetupIdle();
-    return { leaseId: this.pushToTalk?.acquireRendererCapture() ?? randomUUID() };
-  }
-
-  releaseRendererCapture(
-    leaseId: BridgeRequestMap['voice.capture.release']['leaseId'],
-  ): undefined {
-    this.pushToTalk?.releaseRendererCapture(leaseId);
-    return undefined;
-  }
-
-  async transcribe(
-    value: BridgeRequestMap['voice.transcribe'],
-  ): Promise<BridgeResultMap['voice.transcribe']> {
-    this.requireVoiceAvailable();
-    return { text: await this.requireVoice().transcribe(value.audioBase64, value.mimeType) };
-  }
-
-  async startRealtime(): Promise<BridgeResultMap['voice.realtime.start']> {
-    this.requireVoiceAvailable();
-    return await this.requireVoice().startRealtime();
-  }
-
-  appendRealtime(value: BridgeRequestMap['voice.realtime.append']): undefined {
-    this.requireVoice().appendRealtime(value.sessionId, value.audioBase64);
-    return undefined;
-  }
-
-  async stopRealtime(
-    value: BridgeRequestMap['voice.realtime.stop'],
-  ): Promise<BridgeResultMap['voice.realtime.stop']> {
-    return { text: await this.requireVoice().stopRealtime(value.sessionId, value.commit) };
-  }
-
-  async speak(value: BridgeRequestMap['voice.speak']): Promise<BridgeResultMap['voice.speak']> {
-    this.requireVoiceAvailable();
-    return await this.requireVoice().speak(value.text, value.voiceId);
   }
 
   async authorizeComputer(
@@ -1779,7 +1631,7 @@ export class ControllerContext {
 
   async shutdown(): Promise<void> {
     this.shuttingDown = true;
-    this.pushToTalk?.dispose();
+    this.speech.pushToTalk?.dispose();
     // Quit must remain bounded even when an OS integration or provider subprocess
     // stops responding. The app has already stopped accepting work at this point.
     const shutdownDeadline = Date.now() + 8_000;
@@ -2488,7 +2340,7 @@ export class ControllerContext {
   async captureLauncherContext(): Promise<string | undefined> {
     const allowed = () =>
       !this.deps.fakeServices &&
-      !this.assistantSuspended &&
+      !this.speech.assistantSuspended &&
       !this.releaseAccessLocked() &&
       this.computerAccess.accessMode() === 'mac' &&
       !this.computerAccess.backgroundControl();
@@ -2842,7 +2694,7 @@ export class ControllerContext {
 
   async cancelTurn(threadId: string): Promise<DesktopSnapshot> {
     const thread = this.requireThread(threadId);
-    this.pushToTalk?.cancelTask(threadId);
+    this.speech.pushToTalk?.cancelTask(threadId);
     const running = this.runningTurns.get(threadId);
     const activeTurnId = running ? this.workspaceLeases.get(thread.workspace) : undefined;
     if (running) {
@@ -3048,40 +2900,6 @@ export class ControllerContext {
     }
     pending.resolve(approved ? 'allow' : 'deny');
     return this.resultSnapshot();
-  }
-
-  async configureVoice(): Promise<DesktopSnapshot> {
-    await this.requireVoice().configure();
-    this.emit();
-    return this.resultSnapshot();
-  }
-
-  async refreshVoice(): Promise<DesktopSnapshot> {
-    await this.requireVoice().refresh();
-    this.emit();
-    return this.resultSnapshot();
-  }
-
-  async selectVoice(voiceId: string): Promise<DesktopSnapshot> {
-    await this.requireVoice().select(voiceId);
-    this.emit();
-    return this.resultSnapshot();
-  }
-
-  disconnectVoice(): DesktopSnapshot {
-    this.requireVoice().disconnect();
-    this.emit();
-    return this.resultSnapshot();
-  }
-
-  requireVoiceAvailable(): void {
-    if (this.pushToTalk?.busy)
-      throw new Error('Fn recording is active. Release Fn or press Escape first.');
-  }
-
-  requireVoice(): VoiceOperations {
-    if (!this.deps.voice) throw new Error('Voice is unavailable in this build.');
-    return this.deps.voice;
   }
 
   startTurn(turn: QueuedTurn): void {
@@ -4551,8 +4369,8 @@ export class ControllerContext {
   }
 
   emit(): void {
-    this.pushToTalk?.syncAccess();
-    this.pushToTalk?.syncTasks();
+    this.speech.pushToTalk?.syncAccess();
+    this.speech.pushToTalk?.syncTasks();
     const event: DesktopPushEvent = { type: 'snapshot', snapshot: this.rendererSnapshot() };
     for (const listener of this.listeners) listener(event);
   }

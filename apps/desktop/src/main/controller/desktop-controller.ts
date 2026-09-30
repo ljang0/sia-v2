@@ -33,6 +33,7 @@ import { Attachments } from './attachments.js';
 import { WorkspaceTools } from './workspace.js';
 import { BrowserSession } from './browser.js';
 import { ComputerAccess } from './computer-access.js';
+import { VoiceControls } from './voice.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -53,6 +54,7 @@ export class DesktopController {
       workspace: new WorkspaceTools(ctx),
       browser: new BrowserSession(ctx),
       computerAccess: new ComputerAccess(ctx),
+      speech: new VoiceControls(ctx),
     }));
   }
 
@@ -61,7 +63,7 @@ export class DesktopController {
     createHelper: VoiceHelperFactory;
     isFocused(): boolean;
   }): void {
-    this.#ctx.attachPushToTalk(options);
+    this.#ctx.speech.attachPushToTalk(options);
   }
 
   /**
@@ -73,11 +75,11 @@ export class DesktopController {
   }
 
   suspendVoice(suspended: boolean): void {
-    this.#ctx.suspendVoice(suspended);
+    this.#ctx.speech.suspendVoice(suspended);
   }
 
   releaseRendererVoiceCapture(): void {
-    this.#ctx.releaseRendererVoiceCapture();
+    this.#ctx.speech.releaseRendererVoiceCapture();
   }
 
   attachRuntime(runtime: RuntimeCoordinator): void {

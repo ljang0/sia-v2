@@ -92,7 +92,7 @@ export class ProviderAccess {
     if (
       this.ctx.runningTurns.size ||
       this.ctx.queuedTurns.length ||
-      this.ctx.pushToTalk?.captureBusy ||
+      this.ctx.speech.pushToTalk?.captureBusy ||
       this.ctx.workspace.pendingTerminalOperations ||
       this.ctx.deps.workspaceOperations?.hasRunningTerminals?.() ||
       this.ctx.connections.setup ||

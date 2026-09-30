@@ -83,7 +83,7 @@ export class ComputerAccess {
       : await this.ctx.deps.computer.permissions();
     await this.refreshCapabilityStatuses();
     await this.ctx.deps.voice?.refreshPermissions?.().catch(() => undefined);
-    this.ctx.pushToTalk?.refreshPermissions();
+    this.ctx.speech.pushToTalk?.refreshPermissions();
     this.ctx.emit();
     return this.ctx.resultSnapshot();
   }
@@ -120,7 +120,7 @@ export class ComputerAccess {
     if (background !== undefined) this.ctx.state.preferences.macBackgroundControl = background;
     const fallback = input.backgroundFallback;
     if (fallback !== undefined) this.ctx.state.preferences.macBackgroundFallback = fallback;
-    this.ctx.pushToTalk?.setContextEnabled(
+    this.ctx.speech.pushToTalk?.setContextEnabled(
       this.ctx.assistantLibrary.view().context || this.accessMode() === 'mac',
       this.accessMode() === 'mac',
     );
