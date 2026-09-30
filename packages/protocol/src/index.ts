@@ -753,3 +753,34 @@ export interface HarnessAdapter {
 export function parseThreadEvent(value: unknown): ThreadEventEnvelope {
   return threadEventEnvelopeSchema.parse(value);
 }
+
+/** An image a Sia-hosted tool returns beside its structured result. */
+export interface ToolResultImage {
+  mimeType: string;
+  dataBase64: string;
+}
+
+/** The well-formed images in a tool result's optional `images` list; anything else is dropped. */
+export function toolResultImages(value: unknown): ToolResultImage[] {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return [];
+  const images = (value as Record<string, unknown>).images;
+  if (!Array.isArray(images)) return [];
+  return images.flatMap((candidate) => {
+    if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate))
+      return [];
+    const image = candidate as Record<string, unknown>;
+    return typeof image.mimeType === 'string' &&
+      /^image\/[a-z0-9.+-]+$/i.test(image.mimeType) &&
+      typeof image.dataBase64 === 'string' &&
+      image.dataBase64.length > 0
+      ? [{ mimeType: image.mimeType, dataBase64: image.dataBase64 }]
+      : [];
+  });
+}
+
+/** A tool result without its `images` list, for the structured text the model reads. */
+export function withoutToolResultImages(value: unknown): unknown {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;
+  const { images: _images, ...rest } = value as Record<string, unknown>;
+  return rest;
+}

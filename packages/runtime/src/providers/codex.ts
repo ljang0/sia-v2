@@ -15,17 +15,14 @@ import type {
   ToolEvent,
   UsageLimit,
 } from '@sia/protocol';
+import { toolResultImages, withoutToolResultImages } from '@sia/protocol';
 import { randomUUID } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { AsyncQueue } from '../async-queue.js';
 import { discoverCli, type CommandRunner, type SupportedVersionRange } from '../discovery.js';
 import { EventFactory, numberAt, record, stringAt } from '../events.js';
 import { JsonLinesTransport, JsonRpcPeer } from '../json-rpc.js';
-import {
-  ProcessSupervisor,
-  type SupervisedProcess,
-  waitForProcessSpawn,
-} from '../supervisor.js';
+import { ProcessSupervisor, waitForProcessSpawn } from '../supervisor.js';
 import { CODEX_SUPPORTED_VERSIONS } from './codex-versions.js';
 
 export { CODEX_SUPPORTED_VERSIONS };
@@ -1851,29 +1848,6 @@ function subagentPhase(
 function subagentName(agentPath: string | undefined, subagentId: string): string {
   const leaf = agentPath?.split('/').filter(Boolean).at(-1);
   return leaf || `Agent ${subagentId.slice(0, 8)}`;
-}
-
-function toolResultImages(value: unknown): Array<{ mimeType: string; dataBase64: string }> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return [];
-  const images = (value as Record<string, unknown>).images;
-  if (!Array.isArray(images)) return [];
-  return images.flatMap((candidate) => {
-    if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate))
-      return [];
-    const image = candidate as Record<string, unknown>;
-    return typeof image.mimeType === 'string' &&
-      /^image\/[a-z0-9.+-]+$/i.test(image.mimeType) &&
-      typeof image.dataBase64 === 'string' &&
-      image.dataBase64.length > 0
-      ? [{ mimeType: image.mimeType, dataBase64: image.dataBase64 }]
-      : [];
-  });
-}
-
-function withoutToolResultImages(value: unknown): unknown {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;
-  const { images: _images, ...rest } = value as Record<string, unknown>;
-  return rest;
 }
 
 function isTextOnlyCodexItem(itemType: string | undefined): boolean {
