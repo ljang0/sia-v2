@@ -6,6 +6,7 @@ import { AppearanceContext } from './effects/appearance';
 import { DitherAurora as Aurora } from './effects/DitherAurora';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
 import { useTextSize } from '../textSize';
+import { errorMessage } from '../plainErrors';
 export function CommandLauncher() {
   const [state, setState] = useState<LauncherState>({ agents: [] });
   useTextSize(state.textSize);
@@ -76,7 +77,7 @@ export function CommandLauncher() {
     try {
       await run();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not complete this action.');
+      setError(errorMessage(cause, 'Could not complete this action.'));
     } finally {
       setBusy(false);
     }

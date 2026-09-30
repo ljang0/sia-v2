@@ -10,6 +10,8 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { ResearchBatchSummary, ResearchInvite, ResearchParticipant } from '../../types';
 import styles from '../../ui.module.css';
 import { SettingsSectionHeader } from './SettingsShared';
+import { errorMessage } from '../../plainErrors';
+import { formatBytes } from '../../format';
 
 interface ResearchArchiveSettingsProps {
   listInvites(): Promise<{ invites: ResearchInvite[]; limit: number }>;
@@ -67,7 +69,7 @@ export function ResearchArchiveSettings({
       setInvites(next.invites);
       setInviteLimit(next.limit);
     } catch (cause) {
-      setError(messageFor(cause, 'Alpha invitations could not be loaded.'));
+      setError(errorMessage(cause, 'Alpha invitations could not be loaded.'));
     }
   };
 
@@ -79,7 +81,7 @@ export function ResearchArchiveSettings({
       setParticipants(next);
       setSelectedSubject((current) => current ?? next[0]?.subject);
     } catch (cause) {
-      setError(messageFor(cause, 'The research archive could not be opened.'));
+      setError(errorMessage(cause, 'The research archive could not be opened.'));
     } finally {
       setLoading(undefined);
     }
@@ -103,7 +105,7 @@ export function ResearchArchiveSettings({
       setInviteEmail('');
       setInviteMessage(`Invitation sent to ${invite.email}.`);
     } catch (cause) {
-      setError(messageFor(cause, 'The invitation could not be sent.'));
+      setError(errorMessage(cause, 'The invitation could not be sent.'));
     } finally {
       setInviting(false);
     }
@@ -121,7 +123,7 @@ export function ResearchArchiveSettings({
         if (current) setBatches(next);
       })
       .catch((cause: unknown) => {
-        if (current) setError(messageFor(cause, 'Participant turns could not be loaded.'));
+        if (current) setError(errorMessage(cause, 'Participant turns could not be loaded.'));
       })
       .finally(() => {
         if (current) setLoading(undefined);
@@ -155,7 +157,7 @@ export function ResearchArchiveSettings({
       setEvents(readArchiveEvents(documents));
       setVisibleLimit(EVENT_PAGE_SIZE);
     } catch (cause) {
-      setError(messageFor(cause, 'The raw turn could not be loaded.'));
+      setError(errorMessage(cause, 'The raw turn could not be loaded.'));
       setEvents([]);
     } finally {
       setLoading(undefined);
@@ -551,17 +553,7 @@ function shortId(value: string): string {
   return value.length > 14 ? `${value.slice(0, 7)}…${value.slice(-5)}` : value;
 }
 
-function formatBytes(value: number): string {
-  if (value < 1024) return `${value} B`;
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
-  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 function formatTime(value: string): string {
   const time = Date.parse(value);
   return Number.isFinite(time) ? new Date(time).toLocaleString() : value;
-}
-
-function messageFor(cause: unknown, fallback: string): string {
-  return cause instanceof Error ? cause.message : fallback;
 }

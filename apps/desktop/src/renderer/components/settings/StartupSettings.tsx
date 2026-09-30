@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import styles from '../../ui.module.css';
 import { Switch } from '../Switch';
-import { errorMessage, InlineSettingsError, SavedNote, useSavedFlash } from './SettingsShared';
+import { InlineSettingsError, SavedNote, useSavedFlash } from './SettingsShared';
+import { errorMessage } from '../../plainErrors';
 
 /**
  * Open Sia at login. Schedules and phone requests only run while Sia is open, so this sits near

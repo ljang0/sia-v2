@@ -55,7 +55,7 @@ import { ConversationOutline, hasConversationOutline } from './ConversationOutli
 import { SafeMarkdown } from './SafeMarkdown';
 import { RowErrorBoundary } from './ErrorBoundary';
 import { NoticeText, ThreadErrorText } from './PlainErrorText';
-import { usageWarningText } from '../plainErrors';
+import { errorMessage, usageWarningText } from '../plainErrors';
 import { ReplyFeedbackButtons, type ReplyRating } from './ReplyFeedback';
 import { TurnChangesBar, turnChangeSummaries, type TurnChangeActions } from './TurnChanges';
 import { DitherAurora as Aurora } from './effects/DitherAurora';
@@ -303,7 +303,7 @@ export function Conversation({
       setSpeech({
         eventId,
         phase: 'idle',
-        error: cause instanceof Error ? cause.message : 'Speech could not be played.',
+        error: errorMessage(cause, 'Speech could not be played.'),
       });
     }
   };
@@ -985,9 +985,7 @@ export function Conversation({
 }
 
 /** What in this thread is waiting on the person, if anything, and how to say so briefly. */
-function waitingOnPerson(
-  thread: ThreadDetail,
-): { key: string; label: string } | undefined {
+function waitingOnPerson(thread: ThreadDetail): { key: string; label: string } | undefined {
   const approvals = thread.events.filter(
     (event) => event.type === 'approval' && event.status === 'pending',
   );

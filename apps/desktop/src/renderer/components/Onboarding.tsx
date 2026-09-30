@@ -21,6 +21,7 @@ import { SetupMacAccess } from './SetupMacAccess';
 import { ProvidersSettings } from './settings/ProvidersSettings';
 import ui from '../ui.module.css';
 import styles from './Onboarding.module.css';
+import { errorMessage } from '../plainErrors';
 
 export function onboardingStep(snapshot: RendererSnapshot): OnboardingStep | undefined {
   const progress = snapshot.preferences.onboarding;
@@ -164,7 +165,7 @@ export function Onboarding({
     try {
       await action();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Setup could not finish. Try again.');
+      setError(errorMessage(cause, 'Setup could not finish. Try again.'));
     } finally {
       working.current = false;
       setPending(false);

@@ -93,3 +93,8 @@ export function usageWarningText(
     ? `You’ve reached your plan’s usage limit.${when}`
     : `You’ve used ${Math.round(limits.usedPercent)}% of your plan’s usage limit.${when}`;
 }
+
+/** The message a failed call carries, or a plain fallback when it has none. */
+export function errorMessage(cause: unknown, fallback: string): string {
+  return cause instanceof Error ? cause.message : fallback;
+}

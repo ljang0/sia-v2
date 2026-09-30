@@ -33,6 +33,7 @@ import {
   weekdayName,
   type ScheduleCadence,
 } from './scheduleText';
+import { shortDateTime } from '../../format';
 
 interface ScheduleItem {
   id: string;
@@ -452,7 +453,7 @@ function ScheduleRow({
             <span className={styles.scheduleOutcome} data-outcome={schedule.lastRun.outcome}>
               Last {scheduleOutcomeLabel(schedule.lastRun.outcome)} ·{' '}
               <time dateTime={scheduleRunTimestamp(schedule.lastRun)}>
-                {formatScheduleTime(scheduleRunTimestamp(schedule.lastRun))}
+                {shortDateTime(scheduleRunTimestamp(schedule.lastRun))}
               </time>
             </span>
           ) : (
@@ -534,7 +535,7 @@ function ScheduleRow({
                 {scheduleOutcomeLabel(run.outcome)}
               </span>
               <time dateTime={scheduleRunTimestamp(run)}>
-                {formatScheduleTime(scheduleRunTimestamp(run))}
+                {shortDateTime(scheduleRunTimestamp(run))}
               </time>
             </li>
           ))}
@@ -875,15 +876,6 @@ const SCHEDULE_IDEAS: readonly ScheduleIdea[] = [
     }),
   },
 ];
-
-function formatScheduleTime(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(new Date(value));
-}
 
 function scheduleRuns(schedule: ScheduleItem): readonly ScheduleRun[] {
   if (schedule.runHistory?.length) return schedule.runHistory;

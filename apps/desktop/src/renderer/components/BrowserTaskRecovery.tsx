@@ -3,6 +3,7 @@ import type { RendererSnapshot, ThreadDetail } from '../types';
 import { BrowserWindowPicker } from './BrowserWindowPicker';
 import styles from './BrowserTaskRecovery.module.css';
 import ui from '../ui.module.css';
+import { errorMessage } from '../plainErrors';
 
 export function browserTaskRequest(thread: ThreadDetail): string | undefined {
   const index = thread.events.findLastIndex(
@@ -39,7 +40,7 @@ export function BrowserTaskRecovery({
     try {
       await connect(thread.id, userMessageId, windowId);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Chrome could not connect. Try again.');
+      setError(errorMessage(cause, 'Chrome could not connect. Try again.'));
     } finally {
       setPending(false);
     }

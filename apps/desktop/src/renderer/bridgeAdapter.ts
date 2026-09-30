@@ -1,6 +1,6 @@
 import { threadPreviews } from '../shared/thread-previews';
 import { clipText } from '../shared/plain-text';
-import { agentIdentity } from './agentIdentity';
+import { agentIdentity, agentInitials } from './agentIdentity';
 import type {
   ApprovalView,
   DesktopBridgeApi,
@@ -594,7 +594,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
   const agents: AgentSummary[] = source.agents.map((agent) => ({
     id: agent.id,
     name: agent.name,
-    initials: initialsFor(agent.name),
+    initials: agentInitials(agent.name),
     hue: agent.hue ?? agentIdentity(agent.id),
     pinned: agent.pinned ?? false,
     notificationsEnabled: agent.notificationsEnabled ?? true,
@@ -1135,15 +1135,6 @@ function inferApprovalCategory(value?: string): 'Tool' | 'Browser' | 'File' {
   if (normalized.includes('browser')) return 'Browser';
   if (normalized.includes('file') || normalized.includes('upload')) return 'File';
   return 'Tool';
-}
-
-function initialsFor(name: string) {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
 }
 
 /** The bridge's strict schemas reject explicit undefined, so only present fields cross it. */

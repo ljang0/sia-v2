@@ -13,6 +13,7 @@ import {
 import { useEffect, useId, useState } from 'react';
 import type { WorkspaceSnapshot } from '../../types';
 import styles from '../../ui.module.css';
+import { shortDateTime } from '../../format';
 
 export interface ChangedFile {
   path: string;
@@ -110,7 +111,7 @@ export function ChangesReview({
           <div>
             {snapshots.map((snapshot) => (
               <div key={snapshot.id}>
-                <time dateTime={snapshot.createdAt}>{snapshotTime(snapshot.createdAt)}</time>
+                <time dateTime={snapshot.createdAt}>{shortDateTime(snapshot.createdAt)}</time>
                 <span>
                   <button
                     type="button"
@@ -126,7 +127,7 @@ export function ChangesReview({
                     type="button"
                     className={styles.textButtonDanger}
                     disabled={Boolean(snapshotBusy)}
-                    aria-label={`Delete snapshot from ${snapshotTime(snapshot.createdAt)}`}
+                    aria-label={`Delete snapshot from ${shortDateTime(snapshot.createdAt)}`}
                     onClick={() => void onDeleteSnapshot?.(snapshot.id)}
                     data-testid="workspace-snapshot-delete"
                   >
@@ -281,13 +282,4 @@ function statusLabel(status: ChangedFile['status']) {
       : status === 'deleted'
         ? 'D'
         : 'U';
-}
-
-function snapshotTime(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(new Date(value));
 }

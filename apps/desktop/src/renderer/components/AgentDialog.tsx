@@ -11,6 +11,7 @@ import type {
 import styles from '../ui.module.css';
 import { modelChoices, firstReadyModel } from '../agentModels';
 import { voiceOptionLabel } from '../voiceReadiness';
+import { errorMessage } from '../plainErrors';
 
 interface AgentDialogProps {
   open: boolean;
@@ -142,7 +143,7 @@ export function AgentDialog({
       onOpenChange(false);
     } catch (cause) {
       submission.current = false;
-      setError(cause instanceof Error ? cause.message : 'The agent could not be saved.');
+      setError(errorMessage(cause, 'The agent could not be saved.'));
       setSaving(false);
     }
   };

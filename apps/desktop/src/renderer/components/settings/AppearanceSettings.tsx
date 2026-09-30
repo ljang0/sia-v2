@@ -2,8 +2,9 @@ import { Check, Desktop, Moon, MoonStars, Sparkle, Sun } from '@phosphor-icons/r
 import { useState } from 'react';
 import type { TextSize, ThemePreference } from '../../../shared/display';
 import type { Appearance } from '../effects/appearance';
-import { errorMessage, InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
+import { InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
 import styles from './AppearanceSettings.module.css';
+import { errorMessage } from '../../plainErrors';
 
 const THEME_CHOICES = [
   { value: 'system', label: 'System', icon: <Desktop size={15} aria-hidden="true" /> },

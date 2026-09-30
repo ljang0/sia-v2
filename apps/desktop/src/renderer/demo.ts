@@ -8,7 +8,7 @@ import type {
   ThreadDetail,
   ThreadEvent,
 } from './types';
-import { agentIdentity } from './agentIdentity';
+import { agentIdentity, agentInitials } from './agentIdentity';
 import { RESEARCH_CONSENT_VERSION } from '../shared/bridge';
 import { firstScheduleRunAt } from '../shared/schedule-cadence';
 
@@ -802,7 +802,7 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
       const agent: AgentSummary = {
         ...draft,
         id,
-        initials: initialsFor(draft.name),
+        initials: agentInitials(draft.name),
         hue: draft.hue ?? agentIdentity(id),
         pinned: false,
         notificationsEnabled: true,
@@ -828,7 +828,7 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         current.agents[index] = {
           ...existing,
           ...draft,
-          initials: initialsFor(draft.name),
+          initials: agentInitials(draft.name),
           hue: draft.hue ?? existing.hue,
         };
       });
@@ -1475,15 +1475,6 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
       return undefined;
     },
   };
-}
-
-function initialsFor(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
 }
 
 export function agentToDraft(agent: AgentSummary): AgentDraft {

@@ -13,7 +13,8 @@ import styles from '../../ui.module.css';
 import { ConnectionChecklist } from '../ConnectionChecklist';
 import { BrowserWindowPicker } from '../BrowserWindowPicker';
 import { CloudAccountSettings } from './CloudAccountSettings';
-import { errorMessage, InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
+import { InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
+import { errorMessage } from '../../plainErrors';
 
 export function AppsSettings({
   snapshot,

@@ -12,8 +12,10 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import type { RendererSnapshot } from '../../types';
 import styles from '../../ui.module.css';
-import { errorMessage, InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
+import { InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
 import { ResearchConsentDialog } from './ResearchConsentDialog';
+import { errorMessage } from '../../plainErrors';
+import { formatBytes } from '../../format';
 
 interface PrivacySettingsProps {
   snapshot: RendererSnapshot;
@@ -215,12 +217,6 @@ export function PrivacySettings({
       </div>
     </SettingsSectionHeader>
   );
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function DeleteResearchDialog({

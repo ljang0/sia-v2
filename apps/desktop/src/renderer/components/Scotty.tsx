@@ -17,6 +17,7 @@ import type { ScottyAction, ScottyApi, ScottyState, ScottyStatus } from '../../s
 import { ScottySprite, type ScottyPose } from './ScottySprite';
 import styles from './Scotty.module.css';
 import { useTextSize } from '../textSize';
+import { errorMessage } from '../plainErrors';
 const empty: ScottyState = {
   revision: -1,
   settings: { enabled: false, size: 'medium', motion: true },
@@ -231,7 +232,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
       }
       setText('');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not complete this action.');
+      setError(errorMessage(cause, 'Could not complete this action.'));
     } finally {
       setBusy(false);
     }

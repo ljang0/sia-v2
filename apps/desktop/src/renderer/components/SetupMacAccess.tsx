@@ -5,6 +5,7 @@ import { dictationReady } from '../voiceReadiness';
 import { automationApps, type AutomationStatus } from '../../shared/mac-permissions';
 import ui from '../ui.module.css';
 import styles from './Onboarding.module.css';
+import { errorMessage } from '../plainErrors';
 
 export type MacSetupApi = Pick<
   RendererApi,
@@ -303,7 +304,7 @@ export function SetupMacAccess({
         }
       } catch (cause) {
         if (pass === generation.current)
-          setError(cause instanceof Error ? cause.message : 'Setup needs another try.');
+          setError(errorMessage(cause, 'Setup needs another try.'));
       } finally {
         requesting.current = false;
         if (mounted.current) {
@@ -323,7 +324,7 @@ export function SetupMacAccess({
   const relaunchNow = () => {
     pause();
     void onRestart?.([...skipped]).catch((cause: unknown) =>
-      setError(cause instanceof Error ? cause.message : 'Sia could not relaunch. Try again.'),
+      setError(errorMessage(cause, 'Sia could not relaunch. Try again.')),
     );
   };
   const requestRow = async (row: AccessRow) => {
@@ -337,8 +338,7 @@ export function SetupMacAccess({
       await row.request(() => mounted.current);
       await latest.current.api.refreshComputerPermissions();
     } catch (cause) {
-      if (mounted.current)
-        setError(cause instanceof Error ? cause.message : 'Setup needs another try.');
+      if (mounted.current) setError(errorMessage(cause, 'Setup needs another try.'));
     } finally {
       requesting.current = false;
       if (mounted.current) setRowPending(undefined);

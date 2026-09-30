@@ -3,7 +3,8 @@ import { ArrowLeft, Key, LockKey } from '@phosphor-icons/react';
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
 import type { RendererSnapshot } from '../../types';
 import styles from '../../ui.module.css';
-import { errorMessage, InlineSettingsError } from './SettingsShared';
+import { InlineSettingsError } from './SettingsShared';
+import { errorMessage } from '../../plainErrors';
 
 type CloudAuth = RendererSnapshot['cloudAuth'];
 

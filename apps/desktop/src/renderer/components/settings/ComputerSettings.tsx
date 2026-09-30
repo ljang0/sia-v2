@@ -5,7 +5,8 @@ import { Notebook, ShieldCheck } from '@phosphor-icons/react';
 import { type ReactNode, useState } from 'react';
 import type { RendererSnapshot } from '../../types';
 import styles from '../../ui.module.css';
-import { errorMessage, InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
+import { InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
+import { errorMessage } from '../../plainErrors';
 
 export function ComputerSettings({
   snapshot,

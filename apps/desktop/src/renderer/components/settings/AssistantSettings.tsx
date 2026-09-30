@@ -14,6 +14,7 @@ import type {
 import styles from './AssistantSettings.module.css';
 import { Switch } from '../Switch';
 import { SavedNote, useSavedFlash } from './SettingsShared';
+import { errorMessage } from '../../plainErrors';
 
 const empty: AssistantLibraryView = {
   memories: [],
@@ -59,8 +60,7 @@ export function AssistantSettings({
         }
       })
       .catch((cause) => {
-        if (active)
-          setError(cause instanceof Error ? cause.message : 'Could not load the library.');
+        if (active) setError(errorMessage(cause, 'Could not load the library.'));
       });
     return () => {
       active = false;
@@ -105,7 +105,7 @@ export function AssistantSettings({
         input.operation === 'backgroundReview'
       )
         setLibrary(previous);
-      setError(cause instanceof Error ? cause.message : 'Could not update the library.');
+      setError(errorMessage(cause, 'Could not update the library.'));
       return false;
     } finally {
       setBusy(false);
