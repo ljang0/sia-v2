@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { OpenAiCompatibleMetaProvider, SecretsManagerProvider } from '../src/aws.js';
-import { CloudError } from '../src/domain.js';
-import type { MetaConfig } from '../src/ports.js';
+import { OpenAiCompatibleMetaProvider } from '../../src/aws/meta-provider.js';
+import { SecretsManagerProvider } from '../../src/aws/secrets.js';
+import { CloudError } from '../../src/domain.js';
+import type { MetaConfig } from '../../src/ports.js';
 
 const config: MetaConfig = {
   apiKey: 'meta-secret-never-returned',

@@ -2,6 +2,22 @@
 
 Typed, dependency-injected services for the Sia alpha control plane. Domain tests use only in-memory adapters; production composition lives in `src/aws.ts`.
 
+## Layout
+
+- `src/router.ts` and `src/*lambda.ts` — HTTP routing and the four Lambda entry points bundled by
+  `scripts/build-lambdas.mjs`.
+- `src/services.ts` — `ServiceDependencies` and `createServices`; each service lives in
+  `src/services/` (access checks, accounts, actions, connections, connector files, hosted models,
+  voice, research, research admin, release manifests, background workers).
+- `src/ports.ts` — interfaces the services depend on. `src/memory.ts` implements them in memory for
+  tests; `src/aws.ts` wires the AWS implementations in `src/aws/` (one module per backing service).
+- `src/google-workspace.ts`, `src/google-workspace/`, `src/hybrid-connector.ts`, and
+  `src/connector-contract.ts` — the Google OAuth connector, the Composio contract, and routing
+  between them.
+- `src/responses-relay.ts` — the Responses-compatible stream for the desktop's Codex proxy.
+- `src/contracts.ts` and `src/domain.ts` — request contracts, errors, and validation helpers.
+- `test/` mirrors `src/`; run `pnpm --filter @sia/cloud test`.
+
 Routes:
 
 - `GET /v1/session` — authenticated operator feature policy for research uploads/archive,

@@ -1,5 +1,4 @@
 import { createHash, randomBytes } from 'node:crypto';
-
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -7,25 +6,50 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-
-import type { AppId, GoogleAccessLevel, ToolName } from './contracts.js';
+import type { GoogleAccessLevel, ToolName } from './contracts.js';
 import { CloudError, isRecord } from './domain.js';
 import { ConnectorReconnectRequiredError } from './ports.js';
 import type {
   ConnectorExecution,
   ConnectorFileUploadGrant,
   ConnectorLink,
-  ConnectorProvider,
   ConnectorStatus,
   GoogleCredentialRepository,
   SecretProvider,
   TokenCipher,
 } from './ports.js';
+import {
+  boundedJson,
+  documentEndIndex,
+  extractDocumentTabs,
+  extractDocumentText,
+  gmailRawMessage,
+  googleUrl,
+  idsFromArray,
+  markdownToPlainText,
+  numberInput,
+  optionalStringField,
+  parseSlides,
+  recordId,
+  requiredStringField,
+  stringInput,
+} from './google-workspace/payloads.js';
+import {
+  googleAccessLevel,
+  missingRequiredScopes,
+  scopeIsGranted,
+  scopesForAccess,
+  toolScopeRequirements,
+} from './google-workspace/scopes.js';
 
 const GOOGLE_CONNECTION_PREFIX = 'gw_';
+
 const OAUTH_STATE_TTL_SECONDS = 10 * 60;
+
 const UPLOAD_URL_TTL_SECONDS = 15 * 60;
+
 const MAX_GOOGLE_RESPONSE_BYTES = 10 * 1024 * 1024;
+
 const GOOGLE_API_ORIGINS = new Set([
   'https://gmail.googleapis.com',
   'https://www.googleapis.com',
@@ -33,30 +57,6 @@ const GOOGLE_API_ORIGINS = new Set([
   'https://sheets.googleapis.com',
   'https://slides.googleapis.com',
 ]);
-
-/** The first connection is deliberately read-only. Mutations use a separate upgrade grant. */
-export const GOOGLE_WORKSPACE_READ_SCOPES = [
-  'openid',
-  'email',
-  'https://www.googleapis.com/auth/gmail.readonly',
-  'https://www.googleapis.com/auth/drive.readonly',
-  'https://www.googleapis.com/auth/documents.readonly',
-  'https://www.googleapis.com/auth/spreadsheets.readonly',
-  'https://www.googleapis.com/auth/presentations.readonly',
-] as const;
-
-/** Full editor access is requested only after a person explicitly chooses to enable writes. */
-export const GOOGLE_WORKSPACE_WRITE_SCOPES = [
-  'openid',
-  'email',
-  'https://www.googleapis.com/auth/gmail.readonly',
-  'https://www.googleapis.com/auth/gmail.compose',
-  'https://www.googleapis.com/auth/drive.readonly',
-  'https://www.googleapis.com/auth/drive.file',
-  'https://www.googleapis.com/auth/documents',
-  'https://www.googleapis.com/auth/spreadsheets',
-  'https://www.googleapis.com/auth/presentations',
-] as const;
 
 /** Backward-compatible name for the legacy all-at-once grant. */
 interface AccessTokenCacheEntry {
@@ -831,92 +831,6 @@ export class GoogleWorkspaceConnector {
   }
 }
 
-export class HybridConnector implements ConnectorProvider {
-  constructor(
-    private readonly google: GoogleWorkspaceConnector,
-    private readonly composio: ConnectorProvider,
-  ) {}
-
-  async beginConnection(
-    userId: string,
-    app: AppId,
-    callbackUrl?: string,
-    access?: GoogleAccessLevel,
-  ): Promise<ConnectorLink> {
-    return app === 'google_workspace'
-      ? this.google.beginConnection(userId, access)
-      : this.composio.beginConnection(userId, app, callbackUrl);
-  }
-
-  async validateAccess(userId: string, connectionId: string, tool: ToolName): Promise<void> {
-    if (this.google.owns(connectionId)) {
-      await this.google.validateAccess(userId, connectionId, tool);
-      return;
-    }
-    await this.composio.validateAccess?.(userId, connectionId, tool);
-  }
-
-  async connectionStatus(connectionId: string): Promise<ConnectorStatus> {
-    return this.google.owns(connectionId)
-      ? this.google.connectionStatus(connectionId)
-      : this.composio.connectionStatus(connectionId);
-  }
-
-  async disconnect(connectionId: string): Promise<void> {
-    return this.google.owns(connectionId)
-      ? this.google.disconnect(connectionId)
-      : this.composio.disconnect(connectionId);
-  }
-
-  async retireSuperseded(connectionId: string): Promise<void> {
-    if (!this.google.owns(connectionId)) {
-      throw new CloudError(
-        400,
-        'unsupported_connection_retirement',
-        'Only a superseded Google Workspace credential can be retired',
-      );
-    }
-    await this.google.retireSuperseded(connectionId);
-  }
-
-  async requestFileUpload(
-    connectionId: string,
-    tool: 'drive.upload',
-    fileName: string,
-    mimeType: string,
-    md5: string,
-  ): Promise<ConnectorFileUploadGrant> {
-    return this.google.owns(connectionId)
-      ? this.google.requestFileUpload(connectionId, fileName, mimeType)
-      : this.composio.requestFileUpload(connectionId, tool, fileName, mimeType, md5);
-  }
-
-  async execute(
-    userId: string,
-    connectionId: string,
-    tool: ToolName,
-    input: Record<string, unknown>,
-    idempotencyKey: string,
-  ): Promise<ConnectorExecution> {
-    return this.google.owns(connectionId)
-      ? this.google.execute(userId, connectionId, tool, input, idempotencyKey)
-      : this.composio.execute(userId, connectionId, tool, input, idempotencyKey);
-  }
-
-  async completeGoogleOAuth(request: {
-    state: string;
-    code?: string;
-    error?: string;
-  }): Promise<{
-    connectionId: string;
-    userId: string;
-    connected: boolean;
-    accountLabel?: string;
-  }> {
-    return this.google.completeOAuth(request);
-  }
-}
-
 function oauthStateContext(connectionId: string, userId: string): Record<string, string> {
   return { purpose: 'google-oauth-state', connectionId, userId };
 }
@@ -927,297 +841,4 @@ function tokenContext(connectionId: string, userId: string): Record<string, stri
 
 function sha256(value: string): string {
   return createHash('sha256').update(value).digest('base64url');
-}
-
-function scopesForAccess(access: GoogleAccessLevel): readonly string[] {
-  return access === 'read_write' ? GOOGLE_WORKSPACE_WRITE_SCOPES : GOOGLE_WORKSPACE_READ_SCOPES;
-}
-
-function missingRequiredScopes(scopes: string[], access: GoogleAccessLevel): string[] {
-  return scopesForAccess(access).filter((scope) => !scopeIsGranted(scopes, scope));
-}
-
-function scopeIsGranted(scopes: readonly string[], required: string): boolean {
-  const granted = new Set(scopes);
-  // Google's token endpoint may canonicalize the OpenID Connect `email` alias.
-  if (required === 'email') {
-    return (
-      granted.has('email') || granted.has('https://www.googleapis.com/auth/userinfo.email')
-    );
-  }
-  // A full editor scope includes its read-only counterpart. No other neighboring scope is
-  // accepted, so the desktop never claims a capability the grant cannot actually perform.
-  const fullScope =
-    {
-      'https://www.googleapis.com/auth/documents.readonly':
-        'https://www.googleapis.com/auth/documents',
-      'https://www.googleapis.com/auth/spreadsheets.readonly':
-        'https://www.googleapis.com/auth/spreadsheets',
-      'https://www.googleapis.com/auth/presentations.readonly':
-        'https://www.googleapis.com/auth/presentations',
-    }[required] ?? required;
-  return granted.has(required) || granted.has(fullScope);
-}
-
-function googleAccessLevel(scopes: readonly string[]): GoogleAccessLevel {
-  return missingRequiredScopes([...scopes], 'read_write').length === 0
-    ? 'read_write'
-    : 'read_only';
-}
-
-function toolScopeRequirements(tool: ToolName): readonly (readonly string[])[] {
-  switch (tool) {
-    case 'mail.search':
-    case 'mail.read_thread':
-      return [['https://www.googleapis.com/auth/gmail.readonly']];
-    case 'mail.create_draft':
-    case 'mail.send':
-      return [['https://www.googleapis.com/auth/gmail.compose']];
-    case 'drive.search':
-    case 'drive.read':
-      return [['https://www.googleapis.com/auth/drive.readonly']];
-    case 'drive.upload':
-    case 'drive.share':
-      return [['https://www.googleapis.com/auth/drive.file']];
-    case 'docs.read':
-      return [
-        [
-          'https://www.googleapis.com/auth/documents.readonly',
-          'https://www.googleapis.com/auth/documents',
-        ],
-      ];
-    case 'docs.create':
-      return [
-        ['https://www.googleapis.com/auth/documents'],
-        ['https://www.googleapis.com/auth/drive.file'],
-      ];
-    case 'docs.append':
-      return [['https://www.googleapis.com/auth/documents']];
-    case 'sheets.read':
-      return [
-        [
-          'https://www.googleapis.com/auth/spreadsheets.readonly',
-          'https://www.googleapis.com/auth/spreadsheets',
-        ],
-      ];
-    case 'sheets.create':
-      return [
-        ['https://www.googleapis.com/auth/spreadsheets'],
-        ['https://www.googleapis.com/auth/drive.file'],
-      ];
-    case 'sheets.update':
-    case 'sheets.append':
-      return [['https://www.googleapis.com/auth/spreadsheets']];
-    case 'slides.read':
-      return [
-        [
-          'https://www.googleapis.com/auth/presentations.readonly',
-          'https://www.googleapis.com/auth/presentations',
-        ],
-      ];
-    case 'slides.create':
-    case 'slides.append':
-      return [['https://www.googleapis.com/auth/presentations']];
-    default:
-      return [];
-  }
-}
-
-async function boundedJson(
-  response: Response,
-  maximumBytes: number,
-): Promise<Record<string, unknown>> {
-  const length = Number(response.headers.get('content-length'));
-  if (Number.isFinite(length) && length > maximumBytes) {
-    throw new CloudError(
-      502,
-      'google_response_too_large',
-      'Google response exceeded the safe limit',
-    );
-  }
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength > maximumBytes) {
-    throw new CloudError(
-      502,
-      'google_response_too_large',
-      'Google response exceeded the safe limit',
-    );
-  }
-  if (bytes.byteLength === 0) return {};
-  try {
-    const value: unknown = JSON.parse(new TextDecoder().decode(bytes));
-    return isRecord(value) ? value : { data: value };
-  } catch {
-    throw new CloudError(
-      502,
-      'google_response_invalid',
-      'Google returned an invalid response',
-      true,
-    );
-  }
-}
-
-function requiredStringField(record: Record<string, unknown>, key: string): string {
-  const value = record[key];
-  if (typeof value !== 'string' || value.length === 0) {
-    throw new CloudError(
-      502,
-      'google_response_invalid',
-      'Google returned an incomplete response',
-    );
-  }
-  return value;
-}
-
-function optionalStringField(record: Record<string, unknown>, key: string): string | undefined {
-  return typeof record[key] === 'string' ? record[key] : undefined;
-}
-
-function stringInput(input: Record<string, unknown>, key: string): string {
-  const value = input[key];
-  if (typeof value !== 'string')
-    throw new CloudError(400, 'invalid_connector_input', `${key} is invalid`);
-  return value;
-}
-
-function numberInput(input: Record<string, unknown>, key: string): number {
-  const value = input[key];
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    throw new CloudError(400, 'invalid_connector_input', `${key} is invalid`);
-  }
-  return value;
-}
-
-function googleUrl(
-  endpoint: string,
-  parameters: Record<string, string | number | boolean>,
-): string {
-  const url = new URL(endpoint);
-  for (const [key, value] of Object.entries(parameters))
-    url.searchParams.set(key, String(value));
-  return url.toString();
-}
-
-function gmailRawMessage(input: Record<string, unknown>): string {
-  const recipient = stringInput(input, 'recipient_email');
-  const extra = Array.isArray(input.extra_recipients)
-    ? input.extra_recipients.filter((value): value is string => typeof value === 'string')
-    : [];
-  const cc = Array.isArray(input.cc)
-    ? input.cc.filter((value): value is string => typeof value === 'string')
-    : [];
-  const subject = stringInput(input, 'subject');
-  if (/\r|\n/.test(subject))
-    throw new CloudError(400, 'invalid_connector_input', 'subject is invalid');
-  const encodedSubject = /^[\x20-\x7e]*$/.test(subject)
-    ? subject
-    : `=?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`;
-  const headers = [
-    `To: ${[recipient, ...extra].join(', ')}`,
-    ...(cc.length ? [`Cc: ${cc.join(', ')}`] : []),
-    `Subject: ${encodedSubject}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=UTF-8',
-    'Content-Transfer-Encoding: 8bit',
-  ];
-  return Buffer.from(`${headers.join('\r\n')}\r\n\r\n${stringInput(input, 'body')}`).toString(
-    'base64url',
-  );
-}
-
-function recordId(record: Record<string, unknown>): string[] {
-  return typeof record.id === 'string' ? [record.id] : [];
-}
-
-function idsFromArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.flatMap((entry) =>
-        isRecord(entry) && typeof entry.id === 'string'
-          ? [entry.id]
-          : isRecord(entry) && typeof entry.objectId === 'string'
-            ? [entry.objectId]
-            : [],
-      )
-    : [];
-}
-
-function markdownToPlainText(markdown: string): string {
-  return markdown
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/^\s*[-*+]\s+/gm, '• ')
-    .replace(/^\s*\d+\.\s+/gm, '• ')
-    .replace(/\[([^\]]+)]\([^)]+\)/g, '$1')
-    .replace(/`{1,3}([^`]+)`{1,3}/g, '$1')
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/__([^_]+)__/g, '$1')
-    .trim();
-}
-
-function extractDocumentText(document: Record<string, unknown>): string {
-  const fragments: string[] = [];
-  collectText(document.body, fragments);
-  if (Array.isArray(document.tabs)) {
-    for (const tab of document.tabs) if (isRecord(tab)) collectText(tab.documentTab, fragments);
-  }
-  return fragments.join('');
-}
-
-function extractDocumentTabs(document: Record<string, unknown>): unknown[] {
-  if (!Array.isArray(document.tabs)) return [];
-  return document.tabs.flatMap((tab) => {
-    if (!isRecord(tab)) return [];
-    const properties = isRecord(tab.tabProperties) ? tab.tabProperties : {};
-    const fragments: string[] = [];
-    collectText(tab.documentTab, fragments);
-    return [{ tabId: properties.tabId, title: properties.title, text: fragments.join('') }];
-  });
-}
-
-function collectText(value: unknown, output: string[]): void {
-  if (Array.isArray(value)) {
-    for (const item of value) collectText(item, output);
-    return;
-  }
-  if (!isRecord(value)) return;
-  const textContent = typeof value.content === 'string';
-  if (textContent) output.push(value.content as string);
-  for (const [key, child] of Object.entries(value)) {
-    if (key !== 'content' || !textContent) collectText(child, output);
-  }
-}
-
-function documentEndIndex(document: Record<string, unknown>): number {
-  let maximum = 1;
-  const visit = (value: unknown): void => {
-    if (Array.isArray(value)) {
-      for (const item of value) visit(item);
-      return;
-    }
-    if (!isRecord(value)) return;
-    if (typeof value.endIndex === 'number' && value.endIndex > maximum)
-      maximum = value.endIndex;
-    for (const child of Object.values(value)) visit(child);
-  };
-  visit(document.body);
-  return maximum;
-}
-
-function parseSlides(markdown: string): Array<{ title: string; body: string }> {
-  const chunks = markdown
-    .split(/^\s*---+\s*$/m)
-    .map((chunk) => chunk.trim())
-    .filter(Boolean);
-  const slides = chunks.map((chunk, index) => {
-    const lines = chunk.split('\n');
-    const headingIndex = lines.findIndex((line) => /^#{1,6}\s+/.test(line));
-    const title =
-      headingIndex >= 0
-        ? lines[headingIndex]!.replace(/^#{1,6}\s+/, '').trim()
-        : `Slide ${index + 1}`;
-    const body = markdownToPlainText(
-      lines.filter((_, lineIndex) => lineIndex !== headingIndex).join('\n'),
-    );
-    return { title: title || `Slide ${index + 1}`, body };
-  });
-  return slides.length ? slides : [{ title: 'Untitled', body: '' }];
 }

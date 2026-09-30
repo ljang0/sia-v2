@@ -4,7 +4,7 @@ Public-download preparation for the next candidate is tracked in
 [`public-release.md`](./public-release.md). Its status is separate from the prior pilot approval.
 
 The current signed-artifact evidence and remaining release gates are recorded in
-[`release-evidence-2026-08-28-alpha.24.md`](./release-evidence-2026-08-28-alpha.24.md). Signing and
+[`release-evidence.md`](./release-evidence.md). Signing and
 private publication authorize operator/internal QA only; they do not establish recipient or
 research approval.
 Named research, privacy, security, support, and release approval is recorded in
@@ -95,7 +95,8 @@ establish clean-install behavior for the distributed app. Do not rename the rele
 clear Keychain entries, or disable encryption to suppress an authorization prompt.
 
 Before distribution, install the signed artifact on both a clean macOS account and an account that
-has run the previous Sia build. Complete `docs/manual-acceptance.md`, prepare release notes, confirm
+has run the previous Sia build. Complete [`manual-acceptance.md`](./manual-acceptance.md), update
+[`release-notes.md`](./release-notes.md), confirm
 the support path, and keep the prior signed artifact available for rollback.
 
 The control-plane stack includes a separate private, encrypted, versioned release-artifact bucket.

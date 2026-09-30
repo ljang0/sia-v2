@@ -14,7 +14,7 @@ SIA_FAKE_SERVICES=1 pnpm dev
 ```
 
 Use `pnpm test:pilot` before handing off a pilot-facing change. It runs the build, formatting,
-quality, type, unit, and deterministic desktop E2E gates. See
+quality, type, unit, deterministic desktop E2E, and renderer gates. See
 [`docs/ra-onboarding.md`](./docs/ra-onboarding.md) for the first-day walkthrough.
 
 ## Product contract

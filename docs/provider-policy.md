@@ -4,7 +4,8 @@ Provider availability is a legal and product boundary as well as an engineering 
 
 - **Codex:** official app-server ChatGPT OAuth only. This uses the person's existing Codex
   entitlement rather than importing a plan or credential into Sia. The external alpha accepts CLI
-  versions `>=0.147.0 <0.154.0` and treats the personal-plan path as unavailable until `codex login status`
+  versions `>=0.147.0 <0.154.0` plus the exact builds listed in `CODEX_SUPPORTED_VERSIONS`
+  (`packages/runtime/src/providers/codex-versions.ts`) and treats the personal-plan path as unavailable until `codex login status`
   confirms ChatGPT authentication; API-billed sessions fail closed. Never inspect or copy Codex auth files.
   Sia selects the newest supported installed Codex from PATH or the official macOS app bundle,
   then uses that exact executable for sign-in checks, the live model catalog and every turn.

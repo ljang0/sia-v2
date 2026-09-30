@@ -5,8 +5,8 @@ import { ConditionalCheckFailedException } from '@aws-sdk/client-dynamodb';
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 
-import { DynamoMetaQuota } from '../src/aws.js';
-import { CloudError } from '../src/domain.js';
+import { DynamoMetaQuota } from '../../src/aws/meta-quota.js';
+import { CloudError } from '../../src/domain.js';
 
 describe('Dynamo hosted-service quotas', () => {
   it('reserves concurrency and a UTC-day request before admitting a model turn', async () => {
