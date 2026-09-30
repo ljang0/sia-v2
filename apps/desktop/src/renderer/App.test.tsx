@@ -208,6 +208,32 @@ describe('app privacy routing', () => {
     expect(screen.queryByRole('button', { name: 'Access' })).toBeNull();
   });
 
+  it('lists every schedule on the Scheduled page and opens a schedule’s conversation', async () => {
+    const api = createDemoRendererApi(structuredClone(demoSnapshot));
+    const selectThread = vi.spyOn(api, 'selectThread');
+    render(<App api={api} />);
+    fireEvent.click(await screen.findByTestId('scheduled-open'));
+
+    const page = await screen.findByRole('main', { name: 'Scheduled' });
+    expect(within(page).getAllByTestId('schedule-row')).toHaveLength(
+      demoSnapshot.schedules.length,
+    );
+    expect(within(page).getByText('Personal admin · Triage today’s inbox')).toBeTruthy();
+    expect(within(page).getByText(/Weekdays at 8:00.AM/)).toBeTruthy();
+    expect(within(page).getByText(/Mondays and Thursdays at 4:00.PM/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Scheduled' }).getAttribute('aria-current')).toBe(
+      'page',
+    );
+
+    fireEvent.click(
+      within(page).getByRole('button', {
+        name: 'Summarize my inbox and tell me what needs a reply',
+      }),
+    );
+    await waitFor(() => expect(selectThread).toHaveBeenCalledWith('thread-inbox'));
+    expect(screen.queryByRole('main', { name: 'Scheduled' })).toBeNull();
+  });
+
   it('keeps existing local work locked while signed out', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),

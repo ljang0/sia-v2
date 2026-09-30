@@ -295,6 +295,7 @@ test('navigation stays stable, previews do not select, and the compact rail keep
     'Search conversations',
     'Create agent',
     'Activity',
+    'Scheduled',
     'Open settings',
   ]) {
     await expect(nav.getByRole('button', { name, exact: true })).toBeVisible();
@@ -309,6 +310,12 @@ test('navigation stays stable, previews do not select, and the compact rail keep
     'aria-current',
     'page',
   );
+  await nav.getByRole('button', { name: 'Scheduled', exact: true }).click();
+  await expect(nav.getByRole('button', { name: 'Scheduled', exact: true })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await expect(page.getByRole('main', { name: 'Scheduled' })).toBeVisible();
 });
 
 test('Connections stays optional in Use my Mac and primary in Connected apps', async ({

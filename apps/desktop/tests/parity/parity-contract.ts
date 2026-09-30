@@ -41,6 +41,7 @@ export const parityContract = {
       'schedule-next-run',
       'schedule-time-input',
       'schedule-cadence',
+      'scheduled-open',
     ],
   },
   gitChanges: {

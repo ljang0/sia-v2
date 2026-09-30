@@ -17,6 +17,7 @@ import {
   Copy,
   PushPin,
   Pulse,
+  CalendarDots,
 } from '@phosphor-icons/react';
 import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { AgentSummary, ThreadSummary } from '../types';
@@ -36,7 +37,7 @@ interface SidebarProps {
   selectedAgentId?: string | undefined;
   selectedThreadId?: string | undefined;
   collapsed: boolean;
-  activePage?: 'conversation' | 'activity' | 'settings';
+  activePage?: 'conversation' | 'activity' | 'scheduled' | 'settings';
   onToggle(): void;
   onSelectAgent(agentId: string): void;
   onSelectThread(threadId: string): void;
@@ -55,6 +56,8 @@ interface SidebarProps {
   onDuplicateAgent?(agentId: string): Promise<void>;
   onSetThreadUnread?(threadId: string, unread: boolean): Promise<void>;
   onOpenActivity?(): void;
+  /** Every schedule across agents; absent when schedules are turned off. */
+  onOpenScheduled?: (() => void) | undefined;
   onOpenSettings(): void;
   onOpenQuickSwitcher?(): void;
 }
@@ -82,6 +85,7 @@ export function Sidebar({
   onDuplicateAgent,
   onSetThreadUnread,
   onOpenActivity,
+  onOpenScheduled,
   onOpenSettings,
   onOpenQuickSwitcher,
 }: SidebarProps) {
@@ -269,6 +273,18 @@ export function Sidebar({
             title="Activity"
           >
             <Pulse size={18} />
+          </button>
+        )}
+        {onOpenScheduled && (
+          <button
+            className={styles.iconButton}
+            type="button"
+            onClick={onOpenScheduled}
+            aria-label="Scheduled"
+            aria-current={activePage === 'scheduled' ? 'page' : undefined}
+            title="Scheduled"
+          >
+            <CalendarDots size={18} />
           </button>
         )}
         <button
@@ -562,6 +578,18 @@ export function Sidebar({
           >
             <Pulse size={17} aria-hidden="true" />
             <span>Activity</span>
+          </button>
+        ) : null}
+        {onOpenScheduled ? (
+          <button
+            className={styles.settingsButton}
+            type="button"
+            onClick={onOpenScheduled}
+            data-testid="scheduled-open"
+            aria-current={activePage === 'scheduled' ? 'page' : undefined}
+          >
+            <CalendarDots size={17} aria-hidden="true" />
+            <span>Scheduled</span>
           </button>
         ) : null}
         <button

@@ -430,6 +430,15 @@ time. Settings → More → Assistant has separate General, Memory, Workflows,
 Skills and Suggestions sections with per-agent counts. Suggestions still require review before
 changing memory or saving a skill.
 
+**Scheduled** in the sidebar lists every schedule across agents and conversations: its plain cadence
+("Weekdays at 8:00 AM"), next run, last result, Pause/Resume, Run now, Edit and Delete. Select a
+schedule's name to open its conversation. Schedules repeat once, every day, on weekdays, on chosen
+days of the week, or every few hours (1–24). Create one from a conversation's **Tools → Schedules**
+or by asking the agent. Editing counts only the runs still to come; editing a finished schedule
+starts it again. **Run now** is an extra run and leaves the next scheduled time in place. Schedules
+run only while Sia is open and the Mac is awake; after the Mac sleeps through run times, Sia runs
+the schedule once when it wakes and skips the rest.
+
 Computer tools can discover and launch ordinary installed apps, including Preview, TextEdit,
 Calendar, Reminders and Finder when present in the standard application directories. Accessibility
 controls remain preferred. A fresh unprotected screenshot also permits window-local clicks and

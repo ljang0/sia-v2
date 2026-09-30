@@ -290,6 +290,13 @@ test('goals and schedules persist with a deterministic next-run time', async ({}
       harness.page.getByTestId(parityContract.goalsAndSchedules.testIds[9]),
     ).toContainText([/^Once$/, /Weekdays at 9:00/]);
 
+    // Every schedule also appears on the Scheduled page.
+    await harness.page.getByRole('button', { name: 'Close thread tool' }).click();
+    await harness.page.getByTestId(parityContract.goalsAndSchedules.testIds[10]).click();
+    const scheduled = harness.page.getByRole('main', { name: 'Scheduled' });
+    await expect(
+      scheduled.getByTestId(parityContract.goalsAndSchedules.testIds[9]),
+    ).toHaveCount(2);
     expect(harness.rendererErrors).toEqual([]);
   } finally {
     await harness.close();

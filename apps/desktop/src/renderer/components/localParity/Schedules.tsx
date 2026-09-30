@@ -17,7 +17,8 @@ import {
   MAX_EVERY_HOURS,
   normalizeScheduleDays,
 } from '../../../shared/schedule-cadence';
-import type { ScheduleChanges, ScheduleRun } from '../../types';
+import type { RendererApi, RendererSnapshot, ScheduleChanges, ScheduleRun } from '../../types';
+import { threadDisplayTitle } from '../../threadTitle';
 import styles from '../../ui.module.css';
 import { useConfirmDialog } from '../ConfirmDialog';
 import { StartupSettings } from '../settings/StartupSettings';
@@ -664,6 +665,180 @@ export function ScheduleControls({
   );
 }
 
+export interface ScheduledEntry extends ScheduleItem {
+  threadId: string;
+  /** "Agent · Conversation". */
+  context: string;
+}
+
+interface ScheduledOverviewProps {
+  schedules: readonly ScheduledEntry[];
+  busy?: boolean | undefined;
+  openAtLogin?: boolean | undefined;
+  onSetOpenAtLogin?: ((enabled: boolean) => Promise<void>) | undefined;
+  onOpenThread(threadId: string): void;
+  onSave(scheduleId: string, changes: ScheduleChanges): Promise<void> | void;
+  onSetEnabled(scheduleId: string, enabled: boolean): Promise<void> | void;
+  onRunNow(scheduleId: string): Promise<void> | void;
+  onDelete(scheduleId: string): Promise<void> | void;
+}
+
+/** Every schedule across agents and conversations, soonest first. */
+export function ScheduledOverview({
+  schedules,
+  busy,
+  openAtLogin = false,
+  onSetOpenAtLogin,
+  onOpenThread,
+  onSave,
+  onSetEnabled,
+  onRunNow,
+  onDelete,
+}: ScheduledOverviewProps) {
+  const [confirm, confirmDialog] = useConfirmDialog();
+  const titleId = useId();
+  const ordered = [...schedules].sort(
+    (left, right) =>
+      scheduleRank(left) - scheduleRank(right) || left.nextRunAt.localeCompare(right.nextRunAt),
+  );
+  const counts = [
+    [schedules.filter((schedule) => scheduleRank(schedule) === 0).length, 'active'],
+    [schedules.filter((schedule) => scheduleRank(schedule) === 1).length, 'paused'],
+    [schedules.filter((schedule) => scheduleRank(schedule) === 2).length, 'finished'],
+  ] as const;
+  const summary = counts
+    .filter(([count]) => count > 0)
+    .map(([count, label]) => `${count.toLocaleString()} ${label}`)
+    .join(' · ');
+
+  return (
+    <section className={styles.scheduledOverview} aria-labelledby={titleId}>
+      {confirmDialog}
+      <div className={styles.localSurfaceHeader}>
+        <h2 id={titleId}>{summary || 'No schedules'}</h2>
+      </div>
+      {onSetOpenAtLogin ? (
+        <StartupSettings
+          compact
+          openAtLogin={openAtLogin}
+          onSetOpenAtLogin={onSetOpenAtLogin}
+        />
+      ) : null}
+      <div className={styles.scheduleList}>
+        {ordered.length ? (
+          ordered.map((schedule) => (
+            <ScheduleRow
+              key={schedule.id}
+              schedule={schedule}
+              busy={busy}
+              context={schedule.context}
+              onOpen={() => onOpenThread(schedule.threadId)}
+              onSetEnabled={onSetEnabled}
+              onRunNow={onRunNow}
+              onDelete={onDelete}
+              onSave={onSave}
+              confirm={confirm}
+            />
+          ))
+        ) : (
+          <div className={styles.scheduleEmpty}>
+            <p>
+              <strong>Nothing scheduled yet.</strong> Ask any agent to do something later or on
+              repeat — “Every weekday at 8, summarize my inbox” — or open a conversation and
+              choose Tools → Schedules.
+            </p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+interface ScheduledPageProps {
+  snapshot: RendererSnapshot;
+  api: RendererApi;
+  run(action: () => Promise<unknown>): Promise<void>;
+  /** Like run, but rejects after reporting so an edit can keep what the person typed. */
+  attempt(action: () => Promise<unknown>): Promise<void>;
+  onOpenThread(threadId: string, archived: boolean): void;
+  onClose(): void;
+}
+
+/** The Scheduled page: one place for every schedule, reached from the sidebar. */
+export function ScheduledPage({
+  snapshot,
+  api,
+  run,
+  attempt,
+  onOpenThread,
+  onClose,
+}: ScheduledPageProps) {
+  const threads = new Map<string, { title: string; agentName: string; archived: boolean }>();
+  for (const agent of snapshot.agents) {
+    for (const thread of agent.threads)
+      threads.set(thread.id, {
+        title: threadDisplayTitle(thread.title),
+        agentName: agent.name,
+        archived: false,
+      });
+  }
+  for (const thread of snapshot.archivedThreads) {
+    threads.set(thread.id, {
+      title: threadDisplayTitle(thread.title),
+      agentName: snapshot.agents.find(({ id }) => id === thread.agentId)?.name ?? 'Agent',
+      archived: true,
+    });
+  }
+  const entries: ScheduledEntry[] = snapshot.schedules.map((schedule) => {
+    const thread = threads.get(schedule.threadId);
+    return {
+      ...schedule,
+      label: schedule.prompt,
+      enabled: schedule.enabled !== false,
+      context: thread
+        ? `${thread.agentName} · ${thread.title}${thread.archived ? ' (archived)' : ''}`
+        : 'Conversation removed',
+    };
+  });
+
+  return (
+    <main className={styles.activityPage} aria-labelledby="scheduled-page-title">
+      <header className={styles.activityPageHeader}>
+        <div>
+          <h1 id="scheduled-page-title">Scheduled</h1>
+          <p>Everything your agents will do on their own, in one place.</p>
+        </div>
+        <button
+          type="button"
+          className={styles.iconButton}
+          onClick={onClose}
+          aria-label="Close scheduled"
+        >
+          <X size={17} aria-hidden="true" />
+        </button>
+      </header>
+      <div className={styles.scheduledPageContent}>
+        <ScheduledOverview
+          schedules={entries}
+          openAtLogin={snapshot.preferences.openAtLogin === true}
+          onSetOpenAtLogin={(enabled) => api.setOpenAtLogin(enabled)}
+          onOpenThread={(threadId) =>
+            onOpenThread(threadId, threads.get(threadId)?.archived === true)
+          }
+          onSave={(scheduleId, changes) =>
+            attempt(() => api.updateSchedule(scheduleId, changes))
+          }
+          onSetEnabled={(scheduleId, enabled) =>
+            run(() => api.setScheduleEnabled(scheduleId, enabled))
+          }
+          onRunNow={(scheduleId) => run(() => api.runScheduleNow(scheduleId))}
+          onDelete={(scheduleId) => run(() => api.deleteSchedule(scheduleId))}
+        />
+      </div>
+    </main>
+  );
+}
+
 interface ScheduleIdea {
   label: string;
   draft(now: Date): ScheduleDraft;
@@ -721,6 +896,12 @@ function scheduleFinished(schedule: ScheduleItem): boolean {
     (schedule.cadence === 'once' && runs > 0) ||
     (schedule.maxRuns !== undefined && runs >= schedule.maxRuns)
   );
+}
+
+/** Active first, then paused, then finished. */
+function scheduleRank(schedule: ScheduleItem): number {
+  if (schedule.enabled) return 0;
+  return scheduleFinished(schedule) ? 2 : 1;
 }
 
 function scheduleNextLabel(schedule: ScheduleItem): string {

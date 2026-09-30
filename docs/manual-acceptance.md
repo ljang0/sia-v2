@@ -196,6 +196,9 @@ The source gate is `pnpm check`; the desktop GUI suite is separate and must not 
 - [ ] Create one bounded schedule. Confirm a one-time schedule stops after one run and a recurring
       schedule has a finite default. Quit Sia across a due time and confirm the UI does not claim it
       ran while the app was closed.
+- [ ] Create a **Weekdays** schedule and one **On certain days** schedule. Open **Scheduled** in the
+      sidebar: both appear with their agent, conversation, plain cadence and next run. Edit one's
+      task and time, confirm the next run moves, and select its name to open the conversation.
 
 ## Optional Google Workspace and Slack pass
 

@@ -10,7 +10,7 @@ import { ArchivedThreadsSection } from './ThreadLifecycle';
 import { ThreadWorkspaceTools } from './ThreadWorkspace';
 import { createDemoRendererApi, demoSnapshot } from '../../demo';
 import { TranscriptSearch } from './TranscriptSearch';
-import { ScheduleControls } from './Schedules';
+import { ScheduleControls, ScheduledOverview } from './Schedules';
 import { GoalControls, ThreadModelControls } from './WorkControls';
 
 afterEach(cleanup);
@@ -466,6 +466,72 @@ describe('local parity renderer contracts', () => {
     await waitFor(() =>
       expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull(),
     );
+  });
+
+  it('lists every schedule with where it runs, soonest first, and opens its conversation', () => {
+    const onOpenThread = vi.fn();
+    const onRunNow = vi.fn();
+    const base = { prompt: '', runCount: 0, maxRuns: 10 };
+    render(
+      <ScheduledOverview
+        schedules={[
+          {
+            ...base,
+            id: 'later',
+            threadId: 'thread-b',
+            label: 'Recap my week',
+            context: 'Research partner · Weekly update',
+            cadence: 'weekly',
+            days: [5],
+            nextRunAt: new Date(2030, 7, 30, 16).toISOString(),
+            enabled: true,
+          },
+          {
+            ...base,
+            id: 'paused',
+            threadId: 'thread-c',
+            label: 'Check prices',
+            context: 'Personal admin · Shopping',
+            cadence: 'hourly',
+            everyHours: 4,
+            nextRunAt: new Date(2030, 7, 20, 16).toISOString(),
+            enabled: false,
+          },
+          {
+            ...base,
+            id: 'sooner',
+            threadId: 'thread-a',
+            label: 'Summarize my inbox',
+            context: 'Personal admin · Inbox',
+            cadence: 'weekdays',
+            nextRunAt: new Date(2030, 7, 26, 8).toISOString(),
+            enabled: true,
+          },
+        ]}
+        onOpenThread={onOpenThread}
+        onSave={vi.fn()}
+        onSetEnabled={vi.fn()}
+        onRunNow={onRunNow}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: '2 active · 1 paused' })).toBeTruthy();
+    const rows = screen.getAllByTestId('schedule-row');
+    expect(rows.map((row) => row.querySelector('strong')?.textContent)).toEqual([
+      'Summarize my inbox',
+      'Recap my week',
+      'Check prices',
+    ]);
+    expect(rows[0]?.textContent).toContain('Personal admin · Inbox');
+    expect(rows[0]?.textContent).toMatch(/Weekdays at 8:00.AM/);
+    expect(rows[1]?.textContent).toMatch(/Fridays at 4:00.PM/);
+    expect(rows[2]?.textContent).toContain('Every 4 hours');
+    expect(rows[2]?.textContent).toContain('Paused');
+    fireEvent.click(screen.getByRole('button', { name: 'Recap my week' }));
+    expect(onOpenThread).toHaveBeenCalledWith('thread-b');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Run now' })[0]!);
+    expect(onRunNow).toHaveBeenCalledWith('sooner');
   });
 
   it('stages directly but confirms destructive file restoration', async () => {

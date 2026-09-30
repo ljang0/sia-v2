@@ -5,7 +5,7 @@ import type { AgentSummary, RendererApi, RendererSnapshot } from './types';
 
 const BRIDGE_ERROR =
   'Sia could not load its secure desktop bridge. Quit and reopen Sia; if this continues, reinstall the app.';
-type ActivityTarget = 'activity' | 'archived' | 'search';
+type ActivityTarget = 'activity' | 'archived' | 'search' | 'scheduled';
 /** How long the "Conversation archived" notice keeps its Undo button while not in use. */
 export const ARCHIVE_UNDO_MS = 8000;
 
