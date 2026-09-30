@@ -5572,12 +5572,61 @@ describe('DesktopController', () => {
     expect(openExternal).toHaveBeenCalledWith(
       'https://auth.openai.com/authorize?client_id=sia-test',
     );
-    expect(runtime.waitForCodexChatGptLogin).toHaveBeenCalledWith('login-1');
+    expect(runtime.waitForCodexChatGptLogin).toHaveBeenCalledWith(
+      'login-1',
+      expect.any(AbortSignal),
+    );
     expect(result.snapshot.providers.find(({ id }) => id === 'codex')).toMatchObject({
       status: 'ready',
       account: 'Connected to ChatGPT',
     });
     expect(runtime.cancelCodexChatGptLogin).not.toHaveBeenCalled();
+    await controller.shutdown();
+  });
+
+  it('cancels a waiting ChatGPT sign-in into a plain Try again state', async () => {
+    const providerProbe = async (providerId?: Parameters<typeof probeProviders>[0]) =>
+      (await deterministicProviderProbe(providerId)).map((provider) =>
+        provider.id === 'codex' ? { ...provider, status: 'needs_login' as const } : provider,
+      );
+    const runtime = {
+      startCodexChatGptLogin: vi.fn(async () => ({
+        loginId: 'stalled-login',
+        authUrl: 'https://auth.openai.com/authorize?client_id=sia-test',
+      })),
+      waitForCodexChatGptLogin: vi.fn(
+        (_loginId: string, signal?: AbortSignal) =>
+          new Promise<void>((_resolve, reject) =>
+            signal?.addEventListener('abort', () => reject(signal.reason), { once: true }),
+          ),
+      ),
+      cancelCodexChatGptLogin: vi.fn(async () => undefined),
+      listModels: vi.fn(async () => []),
+      resetSessions: vi.fn(async () => undefined),
+      dispose: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({
+      fakeServices: false,
+      providerProbe,
+      openExternal: vi.fn(async () => undefined),
+      runtime,
+    });
+    const login = controller.invoke('providers.login', { providerId: 'codex' });
+    await vi.waitFor(() => expect(runtime.waitForCodexChatGptLogin).toHaveBeenCalledOnce());
+    expect(controller.snapshot().providers.find(({ id }) => id === 'codex')?.setup?.phase).toBe(
+      'signing-in',
+    );
+    await controller.invoke('providers.cancelLogin', { providerId: 'codex' });
+    await expect(login).resolves.toMatchObject({ opened: false });
+    expect(runtime.cancelCodexChatGptLogin).toHaveBeenCalledWith('stalled-login');
+    expect(controller.snapshot().providers.find(({ id }) => id === 'codex')?.setup).toEqual({
+      phase: 'error',
+      message: 'ChatGPT sign-in was cancelled. Choose Try again to start over.',
+    });
+    // Try again starts a fresh sign-in; nothing is left in progress.
+    runtime.waitForCodexChatGptLogin.mockImplementationOnce(async () => undefined);
+    await controller.invoke('providers.login', { providerId: 'codex' }).catch(() => undefined);
+    expect(runtime.startCodexChatGptLogin).toHaveBeenCalledTimes(2);
     await controller.shutdown();
   });
 

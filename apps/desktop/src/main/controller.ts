@@ -449,6 +449,8 @@ export class DesktopController {
   readonly #restartApp: (() => void) | undefined;
   readonly #installCodex: (() => Promise<void>) | undefined;
   #codexSetupPending = false;
+  /** Aborts a ChatGPT browser sign-in that is still waiting on the person. */
+  #codexLoginAbort: AbortController | undefined;
   #codexSetup: ProviderView['setup'];
   #pendingTerminalOperations = 0;
   readonly #chooseDirectory: () => Promise<string | null>;
@@ -1768,7 +1770,11 @@ export class DesktopController {
     method: M,
     input: BridgeRequestMap[M],
   ): Promise<BridgeResultMap[M]> {
-    if (method !== 'bootstrap' && method !== 'voice.capture.release')
+    if (
+      method !== 'bootstrap' &&
+      method !== 'voice.capture.release' &&
+      method !== 'providers.cancelLogin'
+    )
       this.#requireCodexSetupIdle();
     if (this.#accountDeletionInProgress && method !== 'bootstrap') {
       throw new Error('Sia account deletion is in progress. Wait for it to finish.');
@@ -2126,6 +2132,9 @@ export class DesktopController {
         return (await this.#providerLogin(
           (input as BridgeRequestMap['providers.login']).providerId,
         )) as unknown as BridgeResultMap[M];
+      case 'providers.cancelLogin':
+        this.#codexLoginAbort?.abort(new Error('ChatGPT sign-in was cancelled.'));
+        return this.#resultSnapshot() as BridgeResultMap[M];
       case 'settings.openDirectory':
         return { path: await this.#grantChosenDirectory() } as unknown as BridgeResultMap[M];
       case 'settings.setOnboarding': {
@@ -4381,13 +4390,30 @@ export class DesktopController {
           'signing-in',
           'Finish signing in with ChatGPT in your browser. Sia will check the connection automatically.',
         );
-        const login = await this.#runtime.startCodexChatGptLogin();
+        const abort = new AbortController();
+        this.#codexLoginAbort = abort;
         try {
-          await this.#openExternal(login.authUrl);
-          await this.#runtime.waitForCodexChatGptLogin(login.loginId);
+          const login = await this.#runtime.startCodexChatGptLogin(abort.signal);
+          try {
+            abort.signal.throwIfAborted();
+            await this.#openExternal(login.authUrl);
+            abort.signal.throwIfAborted();
+            await this.#runtime.waitForCodexChatGptLogin(login.loginId, abort.signal);
+          } catch (error) {
+            await this.#runtime.cancelCodexChatGptLogin(login.loginId).catch(() => undefined);
+            throw error;
+          }
         } catch (error) {
-          await this.#runtime.cancelCodexChatGptLogin(login.loginId).catch(() => undefined);
-          throw error;
+          if (!abort.signal.aborted) throw error;
+          // The person chose Cancel. Leave a plain Try again state instead of an error.
+          this.#repository.remove('setup', 'codex-login');
+          this.#setCodexSetup(
+            'error',
+            'ChatGPT sign-in was cancelled. Choose Try again to start over.',
+          );
+          return { opened: false, snapshot: this.#resultSnapshot() };
+        } finally {
+          if (this.#codexLoginAbort === abort) this.#codexLoginAbort = undefined;
         }
         this.#requireSignedInReleaseAccount();
         this.#setCodexSetup('checking', 'Checking your ChatGPT connection…');

@@ -622,6 +622,7 @@ export interface RendererApi {
   setCapturePaused(paused: boolean): Promise<void>;
   declineResearchConsent(): Promise<void>;
   openProviderSetup(provider: ProviderId): Promise<void>;
+  cancelProviderSetup(provider: ProviderId): Promise<void>;
   refreshProvider(provider: ProviderId): Promise<void>;
   connectGoogleApps(): Promise<void>;
   connectSelectedApps(apps: ('google' | 'slack')[]): Promise<void>;

@@ -557,6 +557,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onOpenFeedback={() => setFeedbackOpen(true)}
               onProbeProvider={(provider) => api.refreshProvider(provider)}
               onOpenProviderSetup={(provider) => api.openProviderSetup(provider)}
+              onCancelProviderSetup={(provider) => api.cancelProviderSetup(provider)}
               onCheckForUpdates={() => api.checkForUpdates()}
               onOpenUpdateDownload={() => api.openUpdateDownload()}
               onConnectSelectedApps={(apps) => api.connectSelectedApps(apps)}

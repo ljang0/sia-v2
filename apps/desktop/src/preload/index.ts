@@ -162,6 +162,7 @@ const api: DesktopBridgeApi = {
   providers: {
     probe: (providerId) => invoke('providers.probe', providerId ? { providerId } : {}),
     login: (providerId) => invoke('providers.login', { providerId }),
+    cancelLogin: (providerId) => invoke('providers.cancelLogin', { providerId }),
   },
   settings: {
     openDirectory: () => invoke('settings.openDirectory', undefined),

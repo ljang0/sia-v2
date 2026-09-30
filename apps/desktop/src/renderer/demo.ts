@@ -938,6 +938,16 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         if (target && target.status !== 'disabled') target.status = 'ready';
       });
     },
+    async cancelProviderSetup(provider) {
+      mutate((current) => {
+        const target = current.providers.find((item) => item.id === provider);
+        if (target?.setup?.phase === 'signing-in')
+          target.setup = {
+            phase: 'error',
+            message: 'ChatGPT sign-in was cancelled. Choose Try again to start over.',
+          };
+      });
+    },
     async refreshProvider() {
       return Promise.resolve();
     },

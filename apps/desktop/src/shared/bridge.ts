@@ -689,6 +689,7 @@ export interface BridgeRequestMap {
   'approvals.resolve': ResolveApprovalInput;
   'providers.probe': { providerId?: ProviderId };
   'providers.login': { providerId: ProviderId };
+  'providers.cancelLogin': { providerId: ProviderId };
   'settings.openDirectory': undefined;
   'settings.setOnboarding': {
     step: OnboardingStep;
@@ -821,6 +822,7 @@ export interface BridgeResultMap {
   'approvals.resolve': DesktopSnapshot;
   'providers.probe': DesktopSnapshot;
   'providers.login': { opened: boolean; snapshot: DesktopSnapshot };
+  'providers.cancelLogin': DesktopSnapshot;
   'settings.openDirectory': { path: string | null };
   'settings.setOnboarding': DesktopSnapshot;
   'settings.restartForOnboarding': DesktopSnapshot;
@@ -1002,6 +1004,8 @@ export interface DesktopBridgeApi {
   providers: {
     probe(providerId?: ProviderId): Promise<DesktopSnapshot>;
     login(providerId: ProviderId): Promise<BridgeResultMap['providers.login']>;
+    /** Stops a browser sign-in that is still waiting, so setup can start over. */
+    cancelLogin(providerId: ProviderId): Promise<DesktopSnapshot>;
   };
   settings: {
     openDirectory(): Promise<{ path: string | null }>;

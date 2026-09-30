@@ -217,6 +217,7 @@ const inputSchemas = {
     .strict(),
   'providers.probe': z.object({ providerId: providerId.optional() }).strict(),
   'providers.login': z.object({ providerId }).strict(),
+  'providers.cancelLogin': z.object({ providerId }).strict(),
   'settings.openDirectory': z.undefined(),
   'settings.setOnboarding': z
     .object({

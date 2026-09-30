@@ -346,6 +346,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       const result = await bridge.providers.login(provider);
       publish(result.snapshot);
     },
+    async cancelProviderSetup(provider) {
+      publish(await bridge.providers.cancelLogin(provider));
+    },
     async refreshProvider(provider) {
       publish(await bridge.providers.probe(provider));
     },

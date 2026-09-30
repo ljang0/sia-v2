@@ -289,6 +289,7 @@ export function Onboarding({
                     providers={snapshot.providers}
                     onProbe={(id) => api.refreshProvider(id)}
                     onOpenProviderSetup={(id) => api.openProviderSetup(id)}
+                    onCancelProviderSetup={(id) => api.cancelProviderSetup(id)}
                     onOpenCloudSettings={onAccount}
                   />
                 </div>

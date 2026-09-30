@@ -60,6 +60,7 @@ interface SettingsProps {
   onOpenFeedback?: (() => void) | undefined;
   onProbeProvider(provider: ProviderId): Promise<void>;
   onOpenProviderSetup(provider: ProviderId): Promise<void>;
+  onCancelProviderSetup?(provider: ProviderId): Promise<void>;
   onCheckForUpdates(): Promise<void>;
   onOpenUpdateDownload(): Promise<void>;
   onConnectSelectedApps(apps: ('google' | 'slack')[]): Promise<void>;
@@ -118,6 +119,7 @@ export function Settings({
   onOpenFeedback,
   onProbeProvider,
   onOpenProviderSetup,
+  onCancelProviderSetup,
   onCheckForUpdates,
   onOpenUpdateDownload,
   onConnectSelectedApps,
@@ -369,6 +371,7 @@ export function Settings({
               providers={snapshot.providers}
               onProbe={onProbeProvider}
               onOpenProviderSetup={onOpenProviderSetup}
+              {...(onCancelProviderSetup ? { onCancelProviderSetup } : {})}
               onOpenCloudSettings={() => setSection('apps')}
             />
           ) : null}
