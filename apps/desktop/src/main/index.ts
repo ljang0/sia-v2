@@ -49,7 +49,7 @@ import { MessagesService } from './messages-service.js';
 import { CloudClient } from './cloud-client.js';
 import { HostedResponsesProxy } from './hosted-responses-proxy.js';
 import { loadCloudConfiguration } from './cloud-config.js';
-import { DesktopController } from './controller.js';
+import { DesktopController } from './controller/desktop-controller.js';
 import { KeepAwake } from './keep-awake.js';
 import { CuaService } from './cua-service.js';
 import { DesktopActionBackend } from './action-backend.js';

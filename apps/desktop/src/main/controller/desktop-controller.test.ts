@@ -1,7 +1,7 @@
-import { ScottyTasks } from './scotty-state.js';
-import { AssistantLibrary } from './assistant-library.js';
-import { NotchVault } from './notch/vault.js';
-import type { VoiceHelperFactory } from './push-to-talk.js';
+import { ScottyTasks } from '../scotty-state.js';
+import { AssistantLibrary } from '../assistant-library.js';
+import { NotchVault } from '../notch/vault.js';
+import type { VoiceHelperFactory } from '../push-to-talk.js';
 import { generateKeyPairSync, sign, randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -10,20 +10,20 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { ActionGateway, getActionToolDescriptor } from '@sia/action-gateway';
 
-import { CloudClient } from './cloud-client.js';
-import { DesktopController } from './controller.js';
-import { ElevenLabsVoiceService } from './voice-service.js';
-import { MacVoiceService } from './mac-voice-service.js';
-import { probeProviders } from './provider-probe.js';
-import type { RuntimeTurnInput } from './runtime-coordinator.js';
-import { canonicalJson } from './update-manifest.js';
-import type { DesktopSnapshot } from '../shared/bridge.js';
+import { CloudClient } from '../cloud-client.js';
+import { DesktopController } from './desktop-controller.js';
+import { ElevenLabsVoiceService } from '../voice-service.js';
+import { MacVoiceService } from '../mac-voice-service.js';
+import { probeProviders } from '../provider-probe.js';
+import type { RuntimeTurnInput } from '../runtime-coordinator.js';
+import { canonicalJson } from '../update-manifest.js';
+import type { DesktopSnapshot } from '../../shared/bridge.js';
 import {
   EphemeralPayloadCipher,
   PlaintextTestCipher,
   type RecordRepository,
   SqliteRecordRepository,
-} from './persistence.js';
+} from '../persistence.js';
 
 const computer = {
   permissions: async () => ({

@@ -1,23 +1,23 @@
-import { taskRecoveryContext } from './task-recovery.js';
-import type { TaskSnapshot } from './latest-task-turn.js';
-import type { AutomationApp, AutomationPermissions } from '../shared/mac-permissions.js';
+import { taskRecoveryContext } from '../task-recovery.js';
+import type { TaskSnapshot } from '../latest-task-turn.js';
+import type { AutomationApp, AutomationPermissions } from '../../shared/mac-permissions.js';
 import {
   completedJournal,
   MEMORY_REVIEW_PROMPT,
   NATIVE_MEMORY_REVIEW_PROMPT,
-} from './memory-suggestions.js';
-import { NativeSkills } from './native-skills.js';
-import { savePastedAttachment } from './pasted-attachments.js';
-import { activityLabel } from '../shared/activity-label.js';
-import { conversationTitle, UNTITLED_THREAD_TITLE } from '../shared/plain-text.js';
-import { turnFinishedNotice } from './notification-copy.js';
-import { threadPreviews, type ThreadPreviewMemo } from '../shared/thread-previews.js';
-import { skillExecutionMode, skillUnavailableReason } from '../shared/skill-execution.js';
-import { NotchVault } from './notch/vault.js';
-import { notchConsolidationInstructions } from './notch/foreground.js';
-import type { MacTaskResult } from './mac-execution.js';
-import { AssistantLibrary, DESKTOP_EXECUTION_GUIDANCE } from './assistant-library.js';
-import { applyTurnChanges, readTurnChanges, turnFileChanges } from './turn-changes.js';
+} from '../memory-suggestions.js';
+import { NativeSkills } from '../native-skills.js';
+import { savePastedAttachment } from '../pasted-attachments.js';
+import { activityLabel } from '../../shared/activity-label.js';
+import { conversationTitle, UNTITLED_THREAD_TITLE } from '../../shared/plain-text.js';
+import { turnFinishedNotice } from '../notification-copy.js';
+import { threadPreviews, type ThreadPreviewMemo } from '../../shared/thread-previews.js';
+import { skillExecutionMode, skillUnavailableReason } from '../../shared/skill-execution.js';
+import { NotchVault } from '../notch/vault.js';
+import { notchConsolidationInstructions } from '../notch/foreground.js';
+import type { MacTaskResult } from '../mac-execution.js';
+import { AssistantLibrary, DESKTOP_EXECUTION_GUIDANCE } from '../assistant-library.js';
+import { applyTurnChanges, readTurnChanges, turnFileChanges } from '../turn-changes.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, stat } from 'node:fs/promises';
@@ -31,7 +31,7 @@ import {
   type ValidatedActionInvocation,
   type ActionExecutionResult,
 } from '@sia/action-gateway';
-import { runExecutableSkill } from './executable-skills.js';
+import { runExecutableSkill } from '../executable-skills.js';
 import type {
   ActionInvocationObserver,
   ActionResultObserver,
@@ -41,7 +41,7 @@ import type {
 import type { ModelRoute, ProviderAttachment, ThreadEventEnvelope } from '@sia/protocol';
 import { admitHostedRoutes, legacyModelRoute, resolveExecutionTarget } from '@sia/runtime';
 
-import type { CloudClient } from './cloud-client.js';
+import type { CloudClient } from '../cloud-client.js';
 import type {
   ActivityPresentationView,
   AgentView,
@@ -71,16 +71,16 @@ import type {
   WorkspaceDiffView,
   WorkspaceSnapshotView,
   TerminalResultView,
-} from '../shared/bridge.js';
-import type { RecordRepository } from './persistence.js';
-import { probeProviders, providerPlan } from './provider-probe.js';
-import type { RuntimeCoordinator } from './runtime-coordinator.js';
-import type { CloudIdentityStatus } from './identity.js';
-import type { CuaAuthorizationContext } from './cua-service.js';
-import type { VoiceOperations } from './voice-service.js';
-import { PushToTalkService, type VoiceHelperFactory } from './push-to-talk.js';
-import type { TrajectoryRecorder } from './trajectory-recorder.js';
-import { RESEARCH_CONSENT_VERSION, SCHEDULE_RUN_HISTORY_LIMIT } from '../shared/bridge.js';
+} from '../../shared/bridge.js';
+import type { RecordRepository } from '../persistence.js';
+import { probeProviders, providerPlan } from '../provider-probe.js';
+import type { RuntimeCoordinator } from '../runtime-coordinator.js';
+import type { CloudIdentityStatus } from '../identity.js';
+import type { CuaAuthorizationContext } from '../cua-service.js';
+import type { VoiceOperations } from '../voice-service.js';
+import { PushToTalkService, type VoiceHelperFactory } from '../push-to-talk.js';
+import type { TrajectoryRecorder } from '../trajectory-recorder.js';
+import { RESEARCH_CONSENT_VERSION, SCHEDULE_RUN_HISTORY_LIMIT } from '../../shared/bridge.js';
 import {
   alignScheduleStart,
   defaultFirstScheduleRun,
@@ -88,9 +88,14 @@ import {
   nextScheduleRun,
   normalizeScheduleDays,
   type ScheduleRule,
-} from '../shared/schedule-cadence.js';
-import { verifyUpdateManifestResponse } from './update-manifest.js';
-import { isTextSize, isTheme, type TextSize, type ThemePreference } from '../shared/display.js';
+} from '../../shared/schedule-cadence.js';
+import { verifyUpdateManifestResponse } from '../update-manifest.js';
+import {
+  isTextSize,
+  isTheme,
+  type TextSize,
+  type ThemePreference,
+} from '../../shared/display.js';
 import {
   browserAttachmentError,
   chromeDebugPortOwnerPid,
@@ -99,19 +104,19 @@ import {
   findBrowserTarget,
   findChromeCandidates,
   preferredChromeWindows,
-} from './chrome-discovery.js';
-import { isRecord, stringArray } from './records.js';
+} from '../chrome-discovery.js';
+import { isRecord, stringArray } from '../records.js';
 import {
   computerApprovalPresentation,
   safeResourceLabel,
   summarizeActionTarget,
   summarizeDataLeaving,
-} from './approval-copy.js';
+} from '../approval-copy.js';
 import {
   humanizeToolName,
   mapRuntimePresentation,
   runtimeToolTitle,
-} from './runtime-activity.js';
+} from '../runtime-activity.js';
 
 interface ComputerAutomation {
   permissions(): Promise<ComputerPermissionsView>;
@@ -599,7 +604,7 @@ export class DesktopController {
   constructor(options: ControllerOptions) {
     this.#notchHelperPath =
       options.notchHelperPath ??
-      resolve(import.meta.dirname, '../../build/native/SiaVoiceHelper');
+      resolve(import.meta.dirname, '../../../build/native/SiaVoiceHelper');
     this.#repository = options.repository;
     this.#assistantLibrary = new AssistantLibrary(options.repository);
     this.#cloud = options.cloud;
@@ -877,13 +882,13 @@ export class DesktopController {
     return true;
   }
 
-  #scotty: import('../shared/scotty.js').ScottySettingsApi | undefined;
-  attachScotty(handler: import('../shared/scotty.js').ScottySettingsApi): void {
+  #scotty: import('../../shared/scotty.js').ScottySettingsApi | undefined;
+  attachScotty(handler: import('../../shared/scotty.js').ScottySettingsApi): void {
     this.#scotty = handler;
   }
 
-  #phoneRemote: import('../shared/phone-remote.js').PhoneRemoteApi | undefined;
-  attachPhoneRemote(handler: import('../shared/phone-remote.js').PhoneRemoteApi): void {
+  #phoneRemote: import('../../shared/phone-remote.js').PhoneRemoteApi | undefined;
+  attachPhoneRemote(handler: import('../../shared/phone-remote.js').PhoneRemoteApi): void {
     this.#phoneRemote = handler;
   }
   remoteAccessAllowed(): boolean {
@@ -8663,7 +8668,7 @@ function requireReleaseProvider(provider: ProviderId): void {
 
 function legacyHarnessForProvider(
   provider: ProviderId,
-): import('../shared/bridge.js').HarnessId {
+): import('../../shared/bridge.js').HarnessId {
   if (provider === 'codex') return 'codex_app_server';
   if (provider === 'claude') return 'claude_code';
   if (provider === 'meta') return 'sia_direct';

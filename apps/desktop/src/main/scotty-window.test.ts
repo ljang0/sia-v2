@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import type { DesktopController } from './controller.js';
+import type { DesktopController } from './controller/desktop-controller.js';
 import type { RecordRepository } from './persistence.js';
 const electron = vi.hoisted(() => ({
   handlers: new Map<string, (...args: any[]) => Promise<unknown>>(),
