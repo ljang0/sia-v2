@@ -4,6 +4,9 @@ export default defineConfig({
   testDir: './tests',
   // Browser-only checks run through test:renderer and test:remote with their own configs.
   testIgnore: ['**/renderer/**', '**/remote/**'],
+  testMatch: '**/visual-polish.spec.ts',
+  updateSnapshots: 'all',
+  globalTeardown: './tests/support/baseline-dump.ts',
   timeout: 30_000,
   expect: { timeout: 5_000 },
   retries: process.env.CI ? 2 : 0,
