@@ -8,7 +8,7 @@
     "bundle": "node scripts/build-lambdas.mjs",
     "check": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test test/**/*.test.ts"
+    "test": "node --import tsx --test 'test/**/*.test.ts'"
   },
   "dependencies": {
     "@sia/protocol": "workspace:*",

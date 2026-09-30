@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { ElevenLabsHttpProvider } from '../src/aws.js';
-import type { ElevenLabsConfig } from '../src/ports.js';
+import { ElevenLabsHttpProvider } from '../../src/aws/elevenlabs-voice.js';
+import type { ElevenLabsConfig } from '../../src/ports.js';
 
 const config: ElevenLabsConfig = {
   apiKey: 'elevenlabs-secret-never-returned',

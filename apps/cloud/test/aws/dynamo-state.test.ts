@@ -4,7 +4,7 @@ import { ConditionalCheckFailedException } from '@aws-sdk/client-dynamodb';
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { BatchWriteCommand, GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 
-import { DynamoState } from '../src/aws.js';
+import { DynamoState } from '../../src/aws/dynamo-state.js';
 
 const TABLE_NAME = 'state-table';
 const USER_PK = 'USER#person-1';
