@@ -7675,7 +7675,8 @@ button.agentAvatar {
 }
 
 .settingsNav {
-  flex-wrap: nowrap;
+  /* Compact tiers keep one row; wrapping is only a last resort so no tab is ever clipped. */
+  flex-wrap: wrap;
   padding-right: calc(var(--settings-inset) - 8px);
   /* Tab buttons have 8px of their own padding, so their icons meet the same edge. */
   padding-left: calc(var(--settings-inset) - 8px);

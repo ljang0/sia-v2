@@ -163,6 +163,8 @@ export function Settings({
   const nav = useRef<HTMLElement>(null);
   // In a narrow pane the tabs stay on one row: Scotty and Phone remote move into More.
   const compactNav = useNarrowerThan(nav, COMPACT_SETTINGS_NAV_WIDTH);
+  // Narrower still (a zoomed minimum window), Voice moves into More as well.
+  const narrowNav = useNarrowerThan(nav, NARROW_SETTINGS_NAV_WIDTH);
   const usesMac = snapshot.computer.accessMode === 'mac';
   const canReviewRelease = Boolean(snapshot.cloudAuth.admin && snapshot.cloudAuth.adminMfa);
   const canViewResearchArchive = Boolean(
@@ -217,12 +219,14 @@ export function Settings({
             label="Computer"
             onClick={() => setSection('computer')}
           />
-          <SettingsNavButton
-            active={section === 'voice'}
-            icon={<SpeakerHigh size={17} aria-hidden="true" />}
-            label="Voice"
-            onClick={() => setSection('voice')}
-          />
+          {!narrowNav && (
+            <SettingsNavButton
+              active={section === 'voice'}
+              icon={<SpeakerHigh size={17} aria-hidden="true" />}
+              label="Voice"
+              onClick={() => setSection('voice')}
+            />
+          )}
           {scottyApi && !compactNav && (
             <SettingsNavButton
               active={section === 'scotty'}
@@ -259,6 +263,7 @@ export function Settings({
                     'research',
                   ].includes(section) ||
                   (compactNav && (section === 'scotty' || section === 'phone')) ||
+                  (narrowNav && section === 'voice') ||
                   (usesMac && section === 'apps')
                     ? styles.settingsNavActive
                     : undefined
@@ -274,6 +279,13 @@ export function Settings({
                 align="end"
                 sideOffset={6}
               >
+                {narrowNav && (
+                  <SettingsMenuItem
+                    icon={<SpeakerHigh size={17} />}
+                    label="Voice"
+                    onSelect={() => setSection('voice')}
+                  />
+                )}
                 {compactNav && scottyApi && (
                   <SettingsMenuItem
                     icon={<PawPrint size={17} />}
@@ -499,6 +511,9 @@ function SettingsNavButton({
 
 /** Below this nav width, the full set of tabs would wrap onto a second row. */
 const COMPACT_SETTINGS_NAV_WIDTH = 760;
+/** Below this width even the compact tabs are within a few pixels of the edge (font metrics
+    differ by platform), so Voice joins the More menu too. */
+const NARROW_SETTINGS_NAV_WIDTH = 600;
 
 /** True while an element is laid out narrower than `width` (false before it has a size). */
 function useNarrowerThan(ref: RefObject<HTMLElement | null>, width: number): boolean {
