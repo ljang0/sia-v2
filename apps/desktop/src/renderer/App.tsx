@@ -49,6 +49,7 @@ import {
 import './tokens.css';
 import companion from './companion.module.css';
 import styles from './ui.module.css';
+import { useTextSize } from './textSize';
 
 const AuditGallery = lazy(() => import('./audit/AuditGallery'));
 
@@ -78,6 +79,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     workspace,
   );
   useInstantThemeSwitch();
+  useTextSize(app.snapshot?.preferences.textSize);
   const [reveal, setReveal] = useState(0);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -598,6 +600,8 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 })
               }
               onSetAppearance={(appearance) => api.setAppearance(appearance)}
+              onSetTheme={(theme) => api.setTheme(theme)}
+              onSetTextSize={(textSize) => api.setTextSize(textSize)}
               onSetCompletionSound={(enabled) => api.setCompletionSound(enabled)}
               onSetOpenAtLogin={(enabled) => api.setOpenAtLogin(enabled)}
               onSetDeveloperTools={(enabled) => api.setDeveloperTools(enabled)}

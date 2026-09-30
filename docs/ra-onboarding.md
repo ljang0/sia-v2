@@ -305,6 +305,10 @@ floating panel; **Review in Sia** opens the full conversation for approvals. No 
 needed to type. If another app owns
 Cmd+E, use **Sia → Ask Sia**; Settings → More → Assistant shows shortcut availability.
 
+**Settings → More → Appearance** chooses the theme (System, Light, or Dark), the text size
+(Small to Larger; ⌘+, ⌘− and ⌘0 change it too), and Calm or Expressive. They apply to the
+main window, Scotty, and the launcher.
+
 The desktop conversation and launcher share the phone's aurora field and metallic action buttons.
 The background softens during conversations; focusing the message box keeps the layout stable.
 Effects respect **System Settings → Accessibility → Display → Reduce motion** and pause when
