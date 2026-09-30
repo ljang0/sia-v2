@@ -284,6 +284,10 @@ async function performApplicationCreation(): Promise<void> {
   window.on('move', saveWindowState);
   window.on('maximize', saveWindowState);
   window.on('unmaximize', saveWindowState);
+  // The open conversation that finished while Sia was out of sight is read once it shows.
+  const conversationShown = () => controller?.conversationShown();
+  window.on('show', conversationShown);
+  window.on('restore', conversationShown);
   window.on('close', () => {
     saveWindowState();
     windowStateSaver?.flushNow();
@@ -493,6 +497,13 @@ async function performApplicationCreation(): Promise<void> {
             updateManifestPublicKey: cloudConfiguration.updateManifestPublicKey,
           }
         : {}),
+      isConversationVisible: () =>
+        Boolean(
+          mainWindow &&
+          !mainWindow.isDestroyed() &&
+          mainWindow.isVisible() &&
+          !mainWindow.isMinimized(),
+        ),
       notify: ({ threadId, title, body }) => {
         if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()) return;
         if (!Notification.isSupported()) return;

@@ -88,6 +88,7 @@ async function createHarness(
     defaultWorkspaceRoot?: string;
     createDirectory?: (path: string) => Promise<void>;
     notify?: ConstructorParameters<typeof DesktopController>[0]['notify'];
+    isConversationVisible?: () => boolean;
     keepAwake?: ConstructorParameters<typeof DesktopController>[0]['keepAwake'];
     notchHelperPath?: string;
     pastedAttachmentRoot?: string;
@@ -150,6 +151,9 @@ async function createHarness(
         : {}),
     ...(options.trajectory ? { trajectory: options.trajectory } : {}),
     ...(options.notify ? { notify: options.notify } : {}),
+    ...(options.isConversationVisible
+      ? { isConversationVisible: options.isConversationVisible }
+      : {}),
     ...(options.keepAwake ? { keepAwake: options.keepAwake } : {}),
     ...(options.notchHelperPath ? { notchHelperPath: options.notchHelperPath } : {}),
     ...(options.pastedAttachmentRoot
@@ -2478,6 +2482,79 @@ describe('DesktopController', () => {
       release.resolve();
       await controller.shutdown();
     }
+  });
+
+  it('reads the open conversation as it finishes and when Sia shows again', async () => {
+    let visible = true;
+    const notify = vi.fn();
+    const { controller, repository } = await createHarness({
+      notify,
+      isConversationVisible: () => visible,
+    });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Juniper',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const thread = (threadId: string) =>
+      controller.snapshot().threads.find(({ id }) => id === threadId);
+    // A finished turn notifies (the app shows it only when Sia is not focused).
+    const finish = async (threadId: string, text: string) => {
+      const finished = notify.mock.calls.length + 1;
+      await controller.invoke('threads.send', { threadId, text });
+      await vi.waitFor(() => expect(notify).toHaveBeenCalledTimes(finished));
+    };
+
+    const other = await controller.invoke('threads.create', { agentId: agent.agentId });
+    await finish(other.threadId, 'Plan the week.');
+    expect(thread(other.threadId)?.unread).toBe(false);
+    const open = await controller.invoke('threads.create', { agentId: agent.agentId });
+    await finish(open.threadId, 'Summarize the alpha review.');
+    expect(thread(open.threadId)?.unread).toBe(false);
+    // Work that finishes in another conversation is still unread.
+    await finish(other.threadId, 'Add Friday.');
+    expect(thread(other.threadId)?.unread).toBe(true);
+
+    // Out of sight, the open conversation waits as unread until the window shows again.
+    visible = false;
+    await finish(open.threadId, 'Now list the risks.');
+    expect(thread(open.threadId)?.unread).toBe(true);
+    visible = true;
+    controller.conversationShown();
+    expect(thread(open.threadId)?.unread).toBe(false);
+    // Saved, so a restart does not bring the dot back.
+    expect(
+      repository
+        .get<{ threads: { id: string; unread?: boolean }[] }>('desktop', 'state')
+        ?.threads.find(({ id }) => id === open.threadId)?.unread,
+    ).toBe(false);
+    await controller.shutdown();
+  });
+
+  it('keeps a conversation the person marked unread after Sia shows again', async () => {
+    let visible = false;
+    const notify = vi.fn();
+    const { controller } = await createHarness({
+      notify,
+      isConversationVisible: () => visible,
+    });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Juniper',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId: agent.agentId });
+    await controller.invoke('threads.send', { threadId, text: 'Plan the week.' });
+    await vi.waitFor(() => expect(notify).toHaveBeenCalledOnce());
+    visible = true;
+    await controller.invoke('threads.setUnread', { threadId, unread: true });
+    controller.conversationShown();
+    expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.unread).toBe(true);
+    await controller.shutdown();
   });
 
   it('notifies when a Sia action waits for approval', async () => {
