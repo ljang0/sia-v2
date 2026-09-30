@@ -3,6 +3,7 @@ import { phoneRemoteCommand } from '../shared/phone-remote.js';
 import { automationAppSchema } from '../shared/mac-permissions.js';
 import type { BrowserWindow, IpcMain } from 'electron';
 import { z } from 'zod';
+import { TEXT_SIZES, THEMES } from '../shared/display.js';
 import { assistantLibraryCommand } from '../shared/assistant-library.js';
 
 import type { DesktopController } from './controller.js';
@@ -255,6 +256,8 @@ const inputSchemas = {
     })
     .strict(),
   'settings.setAppearance': z.object({ appearance: z.enum(['calm', 'expressive']) }).strict(),
+  'settings.setTheme': z.object({ theme: z.enum(THEMES) }).strict(),
+  'settings.setTextSize': z.object({ textSize: z.enum(TEXT_SIZES) }).strict(),
   'settings.setCompletionSound': z.object({ enabled: z.boolean() }).strict(),
   'settings.setOpenAtLogin': z.object({ enabled: z.boolean() }).strict(),
   'settings.setDeveloperTools': z.object({ enabled: z.boolean() }).strict(),

@@ -963,6 +963,36 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('saves theme and text size, drops defaults, and ignores unreadable stored values', async () => {
+    const { controller, repository } = await createHarness();
+    expect(controller.displayPreferences()).toEqual({});
+    await controller.invoke('settings.setTheme', { theme: 'dark' });
+    const updated = await controller.invoke('settings.setTextSize', { textSize: 'larger' });
+    expect(updated.preferences).toMatchObject({ theme: 'dark', textSize: 'larger' });
+    expect(controller.displayPreferences()).toEqual({ theme: 'dark', textSize: 'larger' });
+    await expect(
+      controller.invoke('settings.setTheme', { theme: 'neon' } as never),
+    ).rejects.toThrow('Choose System, Light, or Dark.');
+    await expect(
+      controller.invoke('settings.setTextSize', { textSize: 'huge' } as never),
+    ).rejects.toThrow('Choose a text size');
+    const restored = await createHarness({ repository });
+    expect(restored.controller.displayPreferences()).toEqual({
+      theme: 'dark',
+      textSize: 'larger',
+    });
+    await restored.controller.invoke('settings.setTheme', { theme: 'system' });
+    await restored.controller.invoke('settings.setTextSize', { textSize: 'default' });
+    const saved = repository.get<{ preferences: Record<string, unknown> }>('desktop', 'state')!;
+    expect(saved.preferences).not.toHaveProperty('theme');
+    expect(saved.preferences).not.toHaveProperty('textSize');
+    repository.put('desktop', 'state', {
+      ...saved,
+      preferences: { ...saved.preferences, theme: 'neon', textSize: 3 },
+    });
+    expect((await createHarness({ repository })).controller.displayPreferences()).toEqual({});
+  });
+
   it('persists the local completion-sound preference', async () => {
     const { controller, repository } = await createHarness();
 

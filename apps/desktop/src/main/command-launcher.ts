@@ -1,8 +1,10 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, nativeTheme, screen } from 'electron';
 import { join } from 'node:path';
 import { z } from 'zod';
 import type { DesktopController } from './controller.js';
 import { LauncherSession } from './launcher-state.js';
+import { launcherBackgroundColor } from './display-preferences.js';
+import { TEXT_SCALE } from '../shared/display.js';
 
 export const launcherInput = z.discriminatedUnion('kind', [
   z
@@ -40,11 +42,14 @@ export function createCommandLauncher(
     if (disposed || !window || window.isDestroyed()) return;
     const next = state();
     const area = screen.getDisplayMatching(window.getBounds()).workArea;
+    // Larger text sizes get a taller panel so the prompt and its answer still fit.
+    const scale = TEXT_SCALE[next.textSize ?? 'default'];
     const height = Math.min(
-      next.task ? (next.task.response.length > 700 ? 440 : 340) : 208,
+      Math.round((next.task ? (next.task.response.length > 700 ? 440 : 340) : 208) * scale),
       area.height - 40,
     );
     if (window.getSize()[1] !== height) window.setSize(560, height);
+    window.setBackgroundColor(launcherBackgroundColor(nativeTheme.shouldUseDarkColors));
     window.webContents.send('sia:launcher:changed', next);
   };
   // A hidden panel is refreshed by show(); skip rebuilding its state on every streamed token.
@@ -134,7 +139,7 @@ export function createCommandLauncher(
           show: false,
           alwaysOnTop: true,
           skipTaskbar: true,
-          backgroundColor: '#f8f9f8',
+          backgroundColor: launcherBackgroundColor(nativeTheme.shouldUseDarkColors),
           roundedCorners: true,
           webPreferences: {
             preload: join(import.meta.dirname, '../preload/launcher.js'),

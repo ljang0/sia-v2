@@ -44,11 +44,24 @@ phone header, welcome screen, favicon, and iOS Home Screen icon all load the sam
 The original image is preserved, and the Home Screen name remains **Sia**.
 An existing iOS Home Screen shortcut may need to be removed and added again to refresh its cached icon.
 
-Settings → More → Appearance offers **Expressive** (the default aurora, drifting gradients, and reflective
-buttons) and **Calm** (still decorative surfaces). The choice persists in the existing encrypted
-profile and applies to the desktop and ⌘E launcher; it does not alter phone appearance. Both respect
-macOS Reduce Motion. Calm disposes decorative GPU effects, rather than only hiding their output.
-Task progress and essential status indicators remain visible in either mode.
+Settings → More → Appearance has three choices, all saved in the existing encrypted profile and
+applied to the main window, Scotty, and the ⌘E launcher (not the phone):
+
+- **Theme**: System (default, follows the Mac), Light, or Dark. Main sets
+  `nativeTheme.themeSource`, so every window's `prefers-color-scheme` and first-paint background
+  follow it. A plain `appearance.json` in the app data folder mirrors only the theme name, because
+  the first window paints before the encrypted profile unlocks; launch therefore never flashes the
+  other scheme.
+- **Text size**: Small, Default, Large, or Larger (0.92×, 1×, 1.1×, 1.22×). It scales the type tokens
+  in `tokens.css` through `--text-scale`, so layouts reflow instead of magnifying; Larger still keeps
+  primary actions on screen at 960×640. Brand wordmarks and hero headings keep their size.
+  `uiPolicy.test.ts` rejects new bare px font sizes. The View menu's ⌘+ / ⌘− / ⌘0 (Make Text
+  Bigger, Make Text Smaller, Actual Size) step this same setting instead of page zoom; Actual Size
+  also clears any leftover page zoom. The launcher panel grows with the larger sizes.
+- **Atmosphere**: **Expressive** (the default aurora, drifting gradients, and reflective buttons) or
+  **Calm** (still decorative surfaces). Both respect macOS Reduce Motion. Calm disposes decorative
+  GPU effects, rather than only hiding their output. Task progress and essential status indicators
+  remain visible in either mode.
 
 Scotty and Phone remote are directly visible in Settings. Appearance and About live under More,
 alongside Assistant and eligible administrator pages. Use my Mac also puts optional Connections

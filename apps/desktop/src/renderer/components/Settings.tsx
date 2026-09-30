@@ -31,6 +31,7 @@ import { ProvidersSettings } from './settings/ProvidersSettings';
 import { PhoneRemoteSettings } from './settings/PhoneRemoteSettings';
 import { ScottySettings } from './settings/ScottySettings';
 import { AppearanceSettings } from './settings/AppearanceSettings';
+import type { TextSize, ThemePreference } from '../../shared/display';
 import { VoiceSettings } from './settings/VoiceSettings';
 import { StartupSettings } from './settings/StartupSettings';
 
@@ -95,6 +96,8 @@ interface SettingsProps {
     ((enabled: boolean, agentId?: string, speakReplies?: boolean) => Promise<void>) | undefined;
   onStartSetup?: (() => void) | undefined;
   onSetAppearance?: ((appearance: 'calm' | 'expressive') => Promise<void>) | undefined;
+  onSetTheme?: ((theme: ThemePreference) => Promise<void>) | undefined;
+  onSetTextSize?: ((textSize: TextSize) => Promise<void>) | undefined;
   onSetCompletionSound(enabled: boolean): Promise<void>;
   onSetOpenAtLogin?: ((enabled: boolean) => Promise<void>) | undefined;
   onSetDeveloperTools?: ((enabled: boolean) => Promise<void>) | undefined;
@@ -147,6 +150,8 @@ export function Settings({
   onSelectVoice,
   onDisconnectVoice,
   onSetAppearance,
+  onSetTheme,
+  onSetTextSize,
   onSetCompletionSound,
   onSetOpenAtLogin,
   onSetDeveloperTools,
@@ -347,6 +352,10 @@ export function Settings({
             <AppearanceSettings
               value={snapshot.preferences.appearance ?? 'expressive'}
               onChange={onSetAppearance}
+              theme={snapshot.preferences.theme}
+              onSetTheme={onSetTheme}
+              textSize={snapshot.preferences.textSize}
+              onSetTextSize={onSetTextSize}
             />
           )}
           {section === 'scotty' && scottyApi && <ScottySettings api={scottyApi} />}

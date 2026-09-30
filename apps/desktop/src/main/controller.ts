@@ -83,6 +83,7 @@ import { PushToTalkService, type VoiceHelperFactory } from './push-to-talk.js';
 import type { TrajectoryRecorder } from './trajectory-recorder.js';
 import { RESEARCH_CONSENT_VERSION, SCHEDULE_RUN_HISTORY_LIMIT } from '../shared/bridge.js';
 import { verifyUpdateManifestResponse } from './update-manifest.js';
+import { isTextSize, isTheme, type TextSize, type ThemePreference } from '../shared/display.js';
 
 interface ComputerAutomation {
   permissions(): Promise<ComputerPermissionsView>;
@@ -221,6 +222,8 @@ interface PersistedState {
     completionSound: boolean;
     openAtLogin?: boolean;
     appearance?: 'calm' | 'expressive';
+    theme?: ThemePreference;
+    textSize?: TextSize;
     /** Workspace Command tool (arbitrary shell in the agent folder). Off unless set to true. */
     developerTools?: boolean;
     onboarding?: NonNullable<DesktopSnapshot['preferences']['onboarding']>;
@@ -1121,6 +1124,15 @@ export class DesktopController {
   }
 
   /** Settings → Developer tools (Command tool, worktree duplicates, View → Reload). */
+  /**
+   * Theme and text size. They hold nothing private, so they apply before sign-in too and main
+   * mirrors them for the next launch's first frame.
+   */
+  displayPreferences(): { theme?: ThemePreference; textSize?: TextSize } {
+    const { theme, textSize } = this.#state.preferences;
+    return { ...(theme ? { theme } : {}), ...(textSize ? { textSize } : {}) };
+  }
+
   developerToolsEnabled(): boolean {
     return this.#state.preferences.developerTools === true;
   }
@@ -1558,7 +1570,7 @@ export class DesktopController {
         threads: [],
         timeline: [],
         approvals: [],
-        preferences: { completionSound: false },
+        preferences: { completionSound: false, ...this.displayPreferences() },
       };
     const lastRequest = new Map<string, TimelineItemView>();
     for (const item of this.#state.timeline)
@@ -1630,7 +1642,7 @@ export class DesktopController {
         },
         browser: { status: 'detached', grantedOrigins: [] },
         voice: { status: 'disconnected', voices: [] },
-        preferences: { completionSound: false },
+        preferences: { completionSound: false, ...this.displayPreferences() },
         providerUsage: [],
         schedules: [],
         cloud: {
@@ -2240,6 +2252,22 @@ export class DesktopController {
         ).appearance;
         this.#commit();
         return this.#resultSnapshot() as BridgeResultMap[M];
+      case 'settings.setTheme': {
+        const { theme } = input as BridgeRequestMap['settings.setTheme'];
+        if (!isTheme(theme)) throw new Error('Choose System, Light, or Dark.');
+        if (theme === 'system') delete this.#state.preferences.theme;
+        else this.#state.preferences.theme = theme;
+        this.#commit();
+        return this.#resultSnapshot() as BridgeResultMap[M];
+      }
+      case 'settings.setTextSize': {
+        const { textSize } = input as BridgeRequestMap['settings.setTextSize'];
+        if (!isTextSize(textSize)) throw new Error('Choose a text size from the list.');
+        if (textSize === 'default') delete this.#state.preferences.textSize;
+        else this.#state.preferences.textSize = textSize;
+        this.#commit();
+        return this.#resultSnapshot() as BridgeResultMap[M];
+      }
       case 'settings.setCompletionSound':
         this.#state.preferences.completionSound = (
           input as BridgeRequestMap['settings.setCompletionSound']
@@ -8245,6 +8273,13 @@ export class DesktopController {
     recovered.cloudFeatures =
       recovered.cloudFeatures ?? structuredClone(INITIAL_STATE.cloudFeatures);
     recovered.preferences = recovered.preferences ?? { completionSound: false };
+    if (recovered.preferences.theme !== undefined && !isTheme(recovered.preferences.theme))
+      delete recovered.preferences.theme;
+    if (
+      recovered.preferences.textSize !== undefined &&
+      !isTextSize(recovered.preferences.textSize)
+    )
+      delete recovered.preferences.textSize;
     if (recovered.preferences.onboarding?.restartPending) {
       recovered.preferences.onboarding = {
         ...recovered.preferences.onboarding,

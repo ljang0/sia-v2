@@ -1310,6 +1310,16 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         current.preferences.appearance = appearance;
       });
     },
+    async setTheme(theme) {
+      mutate((current) => {
+        current.preferences.theme = theme;
+      });
+    },
+    async setTextSize(textSize) {
+      mutate((current) => {
+        current.preferences.textSize = textSize;
+      });
+    },
     async setCompletionSound(enabled) {
       mutate((current) => {
         current.preferences.completionSound = enabled;

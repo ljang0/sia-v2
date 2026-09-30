@@ -1,3 +1,5 @@
+import type { TextSize } from './display.js';
+
 export type ScottySize = 'small' | 'medium' | 'large';
 export type ScottyStatus = 'idle' | 'working' | 'input' | 'ready' | 'blocked';
 export interface ScottySettings {
@@ -47,6 +49,8 @@ export interface ScottyState {
   agentId?: string;
   tasks: ScottyTask[];
   moreTasks: boolean;
+  /** Settings → Appearance → Text size; Default when unset. */
+  textSize?: TextSize;
 }
 export type ScottyAction =
   | { kind: 'new'; agentId: string; text: string }

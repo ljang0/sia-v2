@@ -434,7 +434,7 @@
   background: var(--bg-subtle);
   color: var(--text-tertiary);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--text-2xs);
 }
 
 .quickSwitcherResults {

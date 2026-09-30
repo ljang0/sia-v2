@@ -1,3 +1,5 @@
+import type { TextSize, ThemePreference } from './display.js';
+
 export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude';
 
 /** Safe catalog id. Executability still requires an audited runtime registration. */
@@ -521,6 +523,10 @@ export interface DesktopSnapshot {
     completionSound: boolean;
     openAtLogin?: boolean;
     appearance?: 'calm' | 'expressive';
+    /** Light or dark follows the Mac unless set. Applies to every Sia window. */
+    theme?: ThemePreference;
+    /** Scales Sia's type. Default when unset. */
+    textSize?: TextSize;
     /** Shows the workspace Command tool. Off unless turned on in Settings; main enforces it. */
     developerTools?: boolean;
     onboarding?: OnboardingProgress;
@@ -719,6 +725,8 @@ export interface BridgeRequestMap {
   'settings.restartForOnboarding': undefined;
   'computer.setupMessages': undefined;
   'settings.setAppearance': { appearance: 'calm' | 'expressive' };
+  'settings.setTheme': { theme: ThemePreference };
+  'settings.setTextSize': { textSize: TextSize };
   'settings.setCompletionSound': { enabled: boolean };
   'settings.setOpenAtLogin': { enabled: boolean };
   'settings.setDeveloperTools': { enabled: boolean };
@@ -853,6 +861,8 @@ export interface BridgeResultMap {
   'settings.restartForOnboarding': DesktopSnapshot;
   'computer.setupMessages': DesktopSnapshot;
   'settings.setAppearance': DesktopSnapshot;
+  'settings.setTheme': DesktopSnapshot;
+  'settings.setTextSize': DesktopSnapshot;
   'settings.setCompletionSound': DesktopSnapshot;
   'settings.setOpenAtLogin': DesktopSnapshot;
   'settings.setDeveloperTools': DesktopSnapshot;
@@ -1047,6 +1057,8 @@ export interface DesktopBridgeApi {
     ): Promise<DesktopSnapshot>;
     restartForOnboarding(): Promise<DesktopSnapshot>;
     setAppearance(appearance: 'calm' | 'expressive'): Promise<DesktopSnapshot>;
+    setTheme(theme: ThemePreference): Promise<DesktopSnapshot>;
+    setTextSize(textSize: TextSize): Promise<DesktopSnapshot>;
     setCompletionSound(enabled: boolean): Promise<DesktopSnapshot>;
     setOpenAtLogin(enabled: boolean): Promise<DesktopSnapshot>;
     setDeveloperTools(enabled: boolean): Promise<DesktopSnapshot>;

@@ -281,3 +281,12 @@ it('says whether a working Mac task is on the screen or in the background', () =
   // A finished task never shows a screen status, even with a stale entry.
   expect(view({}).find((task) => task.id === idle.threads[0]!.id)).not.toHaveProperty('screen');
 });
+
+it('carries the saved text size, even while Scotty is unavailable', () => {
+  const tasks = new ScottyTasks();
+  const state = snapshot();
+  expect(tasks.view(state, settings, true)).not.toHaveProperty('textSize');
+  state.preferences = { completionSound: false, textSize: 'larger' };
+  expect(tasks.view(state, settings, true).textSize).toBe('larger');
+  expect(tasks.view(state, settings, false).textSize).toBe('larger');
+});

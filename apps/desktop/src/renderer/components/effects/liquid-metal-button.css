@@ -82,7 +82,7 @@
 .liquid-metal-button[data-size='compact'] {
   min-height: 36px;
   padding-inline: 14px;
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 .liquid-metal-button[data-size='compact'][data-view='icon'] {
   width: 36px;
