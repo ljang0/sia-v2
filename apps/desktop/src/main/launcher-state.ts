@@ -21,6 +21,7 @@ export class LauncherSession {
   view(snapshot: TaskSnapshot): LauncherState {
     const result: LauncherState = {
       appearance: snapshot.preferences?.appearance ?? 'expressive',
+      ...(snapshot.preferences?.textSize ? { textSize: snapshot.preferences.textSize } : {}),
       agents: snapshot.agents.map(({ id, name }) => ({ id, name })),
       ...(snapshot.activeAgentId ? { agentId: snapshot.activeAgentId } : {}),
     };

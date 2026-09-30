@@ -1,5 +1,8 @@
+import type { TextSize } from './display.js';
+
 export interface LauncherState {
   appearance?: 'calm' | 'expressive';
+  textSize?: TextSize;
   agents: { id: string; name: string }[];
   agentId?: string;
   task?: {

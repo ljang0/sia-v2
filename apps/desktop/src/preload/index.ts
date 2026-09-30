@@ -48,6 +48,7 @@ const api: DesktopBridgeApi = {
     archive: (threadId) => invoke('threads.archive', { threadId }),
     unarchive: (threadId) => invoke('threads.unarchive', { threadId }),
     setUnread: (threadId, unread) => invoke('threads.setUnread', { threadId, unread }),
+    setPinned: (threadId, pinned) => invoke('threads.setPinned', { threadId, pinned }),
     fork: (threadId, isolated, title) =>
       invoke('threads.fork', {
         threadId,
@@ -137,6 +138,9 @@ const api: DesktopBridgeApi = {
         snapshotId,
         confirmation: 'DELETE SNAPSHOT',
       }),
+    readTurn: (threadId, eventId) => invoke('changes.turn.read', { threadId, eventId }),
+    applyTurn: (threadId, eventId, direction) =>
+      invoke('changes.turn.apply', { threadId, eventId, direction }),
   },
   terminal: {
     run: (threadId, command) => invoke('terminal.run', { threadId, command }),
@@ -151,6 +155,7 @@ const api: DesktopBridgeApi = {
   },
   schedules: {
     create: (input) => invoke('schedules.create', input),
+    update: (input) => invoke('schedules.update', input),
     setEnabled: (scheduleId, enabled) =>
       invoke('schedules.setEnabled', { scheduleId, enabled }),
     delete: (scheduleId) => invoke('schedules.delete', { scheduleId }),
@@ -162,6 +167,7 @@ const api: DesktopBridgeApi = {
   providers: {
     probe: (providerId) => invoke('providers.probe', providerId ? { providerId } : {}),
     login: (providerId) => invoke('providers.login', { providerId }),
+    cancelLogin: (providerId) => invoke('providers.cancelLogin', { providerId }),
   },
   settings: {
     openDirectory: () => invoke('settings.openDirectory', undefined),
@@ -172,6 +178,8 @@ const api: DesktopBridgeApi = {
       }),
     restartForOnboarding: () => invoke('settings.restartForOnboarding', undefined),
     setAppearance: (appearance) => invoke('settings.setAppearance', { appearance }),
+    setTheme: (theme) => invoke('settings.setTheme', { theme }),
+    setTextSize: (textSize) => invoke('settings.setTextSize', { textSize }),
     setCompletionSound: (enabled) => invoke('settings.setCompletionSound', { enabled }),
     setOpenAtLogin: (enabled) => invoke('settings.setOpenAtLogin', { enabled }),
     setDeveloperTools: (enabled) => invoke('settings.setDeveloperTools', { enabled }),
@@ -190,7 +198,8 @@ const api: DesktopBridgeApi = {
   },
   computer: {
     permissions: () => invoke('computer.permissions', undefined),
-    requestPermissions: () => invoke('computer.requestPermissions', undefined),
+    requestPermissions: (permission) =>
+      invoke('computer.requestPermissions', permission ? { permission } : undefined),
     requestAutomation: (app) => invoke('computer.requestAutomation', { app }),
     openMessages: () => invoke('computer.openMessages', undefined),
     setupMessages: () => invoke('computer.setupMessages', undefined),

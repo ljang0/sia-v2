@@ -24,8 +24,12 @@ if (location.hash === '#scotty' || location.hash === '#scotty-panel') {
     </StrictMode>,
   );
 } else if (import.meta.env.DEV && location.hash === '#demo') {
-  void import('./demo').then(({ createDemoRendererApi, demoSnapshot }) => {
-    const api = createDemoRendererApi(structuredClone(demoSnapshot));
+  void import('./demo').then(({ createDemoRendererApi, demoSetupSnapshot, demoSnapshot }) => {
+    const api = createDemoRendererApi(
+      new URLSearchParams(location.search).has('setup')
+        ? demoSetupSnapshot(new URLSearchParams(location.search).get('setup'))
+        : structuredClone(demoSnapshot),
+    );
     const loadDelay = Math.min(
       5000,
       Math.max(0, Number(new URLSearchParams(location.search).get('startup-delay')) || 0),

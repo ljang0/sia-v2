@@ -244,6 +244,48 @@ describe('curated tool surface', () => {
     expect(() =>
       parseActionArguments('schedule_update', { schedule_id: 'schedule-1' }),
     ).toThrow();
+    expect(
+      parseActionArguments('schedule_create', {
+        task: 'Summarize my inbox',
+        cadence: 'weekly',
+        days: ['monday', 'thursday'],
+        first_run_at: '2026-10-05T08:00:00-04:00',
+      }),
+    ).toMatchObject({ cadence: 'weekly', days: ['monday', 'thursday'] });
+    expect(
+      parseActionArguments('schedule_create', {
+        task: 'Check the price',
+        cadence: 'hourly',
+        every_hours: 3,
+      }),
+    ).toMatchObject({ every_hours: 3 });
+    expect(
+      parseActionArguments('schedule_update', {
+        schedule_id: 'schedule-1',
+        cadence: 'weekdays',
+      }),
+    ).toEqual({ schedule_id: 'schedule-1', cadence: 'weekdays' });
+    expect(() =>
+      parseActionArguments('schedule_create', {
+        task: 'Mixed rule',
+        cadence: 'daily',
+        days: ['monday'],
+      }),
+    ).toThrow();
+    expect(() =>
+      parseActionArguments('schedule_create', {
+        task: 'Too often',
+        cadence: 'hourly',
+        every_hours: 0,
+      }),
+    ).toThrow();
+    expect(() =>
+      parseActionArguments('schedule_create', {
+        task: 'Not a day',
+        cadence: 'weekly',
+        days: ['someday'],
+      }),
+    ).toThrow();
   });
 
   it('bounds Google editor reads and writes without exposing raw batch requests', () => {

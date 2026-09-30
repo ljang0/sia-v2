@@ -146,9 +146,9 @@ it.each([
       </Onboarding>,
     );
     expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1);
-    expect(api.restartForOnboarding).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole('button', { name: 'Start using Sia' }));
+    // A finished pass opens the conversation directly; no restart is part of setup.
     await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('complete'));
+    expect(api.restartForOnboarding).not.toHaveBeenCalled();
   },
 );
 
@@ -250,7 +250,7 @@ it.each([true, false])(
         expect(api.requestAutomationPermission).toHaveBeenCalledExactlyOnceWith('safari'),
       );
     else {
-      expect(screen.getByRole('button', { name: 'Set up permissions' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Grant all' })).toBeTruthy();
       expect(api.requestAutomationPermission).not.toHaveBeenCalled();
     }
     expect(api.requestComputerPermissions).not.toHaveBeenCalled();
@@ -321,19 +321,33 @@ it('shows connections only when expanded and does not request unavailable cloud 
   expect(api.connectSelectedApps).not.toHaveBeenCalled();
 });
 
-it('offers restart as optional troubleshooting and locks navigation during it', async () => {
+it('offers one Relaunch button only when a grant waits for it, saving the step first', async () => {
   const { snapshot, api, props } = setup('verify');
   const view = render(
     <Onboarding {...props}>
       <div />
     </Onboarding>,
   );
-  expect(screen.getByRole('button', { name: 'Restart Sia' }).closest('details')!.open).toBe(
-    false,
+  expect(screen.queryByRole('button', { name: /Relaunch|Restart/ })).toBeNull();
+  expect(screen.queryByText('Permission not updating?')).toBeNull();
+  snapshot.computer.screenRecording = 'not-requested';
+  snapshot.computer.relaunchFor = ['screenRecording'];
+  view.rerender(
+    <Onboarding {...props}>
+      <div />
+    </Onboarding>,
   );
-  fireEvent.click(screen.getByText('Permission not updating?'));
-  fireEvent.click(screen.getByRole('button', { name: 'Restart Sia' }));
+  expect(screen.getByRole('alert').textContent).toContain('See your screen is turned on');
+  expect(screen.getAllByRole('button', { name: /Relaunch/ })).toHaveLength(1);
+  fireEvent.click(screen.getByRole('button', { name: 'Relaunch Sia' }));
   await waitFor(() => expect(api.restartForOnboarding).toHaveBeenCalledTimes(1));
+  expect(api.setOnboarding).toHaveBeenCalledWith(
+    'verify',
+    expect.objectContaining({ active: true, skipped: [] }),
+  );
+  expect(api.setOnboarding.mock.invocationCallOrder[0]).toBeLessThan(
+    api.restartForOnboarding.mock.invocationCallOrder[0]!,
+  );
   snapshot.preferences.onboarding!.restartPending = true;
   view.rerender(
     <Onboarding {...props}>
@@ -430,7 +444,7 @@ it('keeps existing profiles out of first-run and recovers a deleted starter', ()
   expect(onboardingStep(snapshot)).toBeUndefined();
 });
 
-it('restarts only after access is verified and finishes the authorized pass after restart', async () => {
+it('finishes a verified pass without restarting Sia', async () => {
   const { snapshot, api, props } = setup('voice');
   snapshot.computer.accessibility = 'not-requested';
   snapshot.computer.screenRecording = 'allowed';
@@ -453,28 +467,61 @@ it('restarts only after access is verified and finishes the authorized pass afte
     </StrictMode>
   );
   const view = render(content());
-  fireEvent.click(screen.getByRole('button', { name: 'Set up permissions' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Grant all' }));
   await waitFor(() => expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1));
   expect(api.restartForOnboarding).not.toHaveBeenCalled();
   expect(api.setOnboarding).not.toHaveBeenCalledWith('complete');
   snapshot.computer.accessibility = 'allowed';
   view.rerender(content());
-  await waitFor(() => expect(api.restartForOnboarding).toHaveBeenCalledTimes(1));
-  expect(api.setOnboarding).not.toHaveBeenCalledWith('complete');
-  view.unmount();
-  snapshot.preferences.onboarding = {
-    step: 'verify',
-    agentId: snapshot.agents[0]!.id,
-    restarted: true,
-  };
-  const resumed = render(content());
   await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('complete'));
   fireEvent.focus(window);
-  resumed.rerender(content());
+  view.rerender(content());
+  expect(api.restartForOnboarding).not.toHaveBeenCalled();
   expect(api.setOnboarding.mock.calls.filter(([step]) => step === 'complete')).toHaveLength(1);
   expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1);
   expect(api.createThread.mock.calls.length + api.selectThread.mock.calls.length).toBe(1);
   expect(api.startRealtimeVoice).not.toHaveBeenCalled();
+});
+
+it('resumes an active pass after the relaunch without asking again for skipped or granted rows', async () => {
+  const { snapshot, api, props } = setup('verify');
+  snapshot.preferences.onboarding = {
+    step: 'verify',
+    agentId: snapshot.agents[0]!.id,
+    restarted: true,
+    permissionSetup: { includeApps: true, active: true, skipped: ['safari'] },
+  };
+  snapshot.computer.accessMode = 'mac';
+  snapshot.voice.dictationAvailable = false;
+  snapshot.computer.accessibility = 'allowed';
+  snapshot.computer.screenRecording = 'allowed';
+  snapshot.computer.automation = Object.fromEntries(
+    automationApps.map(({ id }) => [id, id === 'finder' ? 'ready' : 'needs_permission']),
+  ) as typeof snapshot.computer.automation;
+  const content = () => (
+    <Onboarding {...props}>
+      <div>Conversation</div>
+    </Onboarding>
+  );
+  api.requestAutomationPermission.mockImplementation(async (...args: unknown[]) => {
+    await Promise.resolve();
+    snapshot.computer.automation = {
+      ...snapshot.computer.automation!,
+      [args[0] as string]: 'ready',
+    };
+    view.rerender(content());
+  });
+  const view = render(content());
+  await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('complete'));
+  const asked = api.requestAutomationPermission.mock.calls.map(
+    (call) => (call as unknown[])[0],
+  );
+  expect(asked).not.toContain('safari');
+  expect(asked).not.toContain('finder');
+  expect(new Set(asked).size).toBe(asked.length);
+  expect(api.requestComputerPermissions).not.toHaveBeenCalled();
+  expect(api.setupMessages).not.toHaveBeenCalled();
+  expect(api.restartForOnboarding).not.toHaveBeenCalled();
 });
 
 it('does not auto-finish a resumed guide just because access is already ready', async () => {

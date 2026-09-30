@@ -153,6 +153,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async setThreadUnread(threadId, unread) {
       publish(await bridge.threads.setUnread(threadId, unread));
     },
+    async setThreadPinned(threadId, pinned) {
+      publish(await bridge.threads.setPinned(threadId, pinned));
+    },
     async forkThread(threadId, isolated, title) {
       const result = await bridge.threads.fork(threadId, isolated, title);
       selectedAgentOverride = undefined;
@@ -266,6 +269,12 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       const result = await bridge.changes.deleteSnapshot(threadId, snapshotId);
       return structuredClone(result.snapshots);
     },
+    async readTurnChanges(threadId, eventId) {
+      return structuredClone(await bridge.changes.readTurn(threadId, eventId));
+    },
+    async applyTurnChanges(threadId, eventId, direction) {
+      return structuredClone(await bridge.changes.applyTurn(threadId, eventId, direction));
+    },
     async runTerminal(threadId, command) {
       return structuredClone(await bridge.terminal.run(threadId, command));
     },
@@ -286,16 +295,20 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       const result = await bridge.reviews.start({ threadId, target });
       publish(result.snapshot);
     },
-    async createSchedule(threadId, prompt, cadence, nextRunAt, maxRuns) {
+    async createSchedule(threadId, prompt, cadence, nextRunAt, maxRuns, rule) {
       publish(
         await bridge.schedules.create({
           threadId,
           prompt,
           cadence,
+          ...definedScheduleFields({ ...rule }),
           nextRunAt,
           ...(maxRuns === undefined ? {} : { maxRuns }),
         }),
       );
+    },
+    async updateSchedule(scheduleId, changes) {
+      publish(await bridge.schedules.update({ scheduleId, ...definedScheduleFields(changes) }));
     },
     async setScheduleEnabled(scheduleId, enabled) {
       publish(await bridge.schedules.setEnabled(scheduleId, enabled));
@@ -345,6 +358,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async openProviderSetup(provider) {
       const result = await bridge.providers.login(provider);
       publish(result.snapshot);
+    },
+    async cancelProviderSetup(provider) {
+      publish(await bridge.providers.cancelLogin(provider));
     },
     async refreshProvider(provider) {
       publish(await bridge.providers.probe(provider));
@@ -427,8 +443,8 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async requestAutomationPermission(app) {
       publish(await bridge.computer.requestAutomation(app));
     },
-    async requestComputerPermissions() {
-      publish(await bridge.computer.requestPermissions());
+    async requestComputerPermissions(permission) {
+      publish(await bridge.computer.requestPermissions(permission));
     },
     async openMessages() {
       publish(await bridge.computer.openMessages());
@@ -472,6 +488,12 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     },
     async setAppearance(appearance) {
       publish(await bridge.settings.setAppearance(appearance));
+    },
+    async setTheme(theme) {
+      publish(await bridge.settings.setTheme(theme));
+    },
+    async setTextSize(textSize) {
+      publish(await bridge.settings.setTextSize(textSize));
     },
     async setCompletionSound(enabled) {
       publish(await bridge.settings.setCompletionSound(enabled));
@@ -601,6 +623,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         archivedAt: thread.archivedAt,
         sourceThreadId: thread.sourceThreadId,
         unread: thread.unread,
+        pinned: thread.pinned,
         draft: thread.draft,
         worktree: thread.worktree ? structuredClone(thread.worktree) : undefined,
       })),
@@ -780,6 +803,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
     computer: {
       accessibility: source.computer.accessibility ? 'allowed' : 'not-requested',
       screenRecording: source.computer.screenRecording ? 'allowed' : 'not-requested',
+      relaunchFor: source.computer.relaunchFor,
       windows: [],
       accessMode: source.computer.accessMode,
       backgroundControl: source.computer.backgroundControl,
@@ -1120,4 +1144,13 @@ function initialsFor(name: string) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join('');
+}
+
+/** The bridge's strict schemas reject explicit undefined, so only present fields cross it. */
+function definedScheduleFields<T extends object>(
+  fields: T,
+): { [K in keyof T]-?: Exclude<T[K], undefined> } {
+  return Object.fromEntries(
+    Object.entries(fields).filter(([, value]) => value !== undefined),
+  ) as { [K in keyof T]-?: Exclude<T[K], undefined> };
 }

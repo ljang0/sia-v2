@@ -126,3 +126,23 @@ it('uses the bundled sprite and can render a still frame', () => {
   expect(container.firstChild).toHaveProperty('dataset.animated', 'false');
   expect((container.firstChild as HTMLElement).style.backgroundImage).toContain('scotty.png');
 });
+
+it('says whether a working Mac task is on the screen or quietly in the background', async () => {
+  const { api, state, task } = fixture();
+  Object.assign(task, {
+    status: 'working',
+    progress: 'Working in the app',
+    screen: 'background',
+    canReply: false,
+  });
+  delete task.question;
+  state.status = 'working';
+  render(<ScottyPanel api={api} />);
+  fireEvent.click(await screen.findByRole('button', { name: /Plan my week/ }));
+  expect(screen.getByText('Working quietly in the background')).toBeTruthy();
+  cleanup();
+  task.screen = 'foreground';
+  render(<ScottyPanel api={api} />);
+  fireEvent.click(await screen.findByRole('button', { name: /Plan my week/ }));
+  expect(screen.getByText('Using your screen · Press Esc to stop')).toBeTruthy();
+});

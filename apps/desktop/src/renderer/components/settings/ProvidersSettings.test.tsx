@@ -120,6 +120,39 @@ describe('AI access settings', () => {
     ).toBe(true);
   });
 
+  it('lets a stalled ChatGPT sign-in be cancelled and then tried again', async () => {
+    const onCancelProviderSetup = vi.fn().mockResolvedValue(undefined);
+    const codex = (setup: { phase: 'signing-in' | 'error'; message: string }) =>
+      demoSnapshot.providers.map((provider) =>
+        provider.id === 'codex'
+          ? { ...provider, status: 'needs-login' as const, setup }
+          : provider,
+      );
+    const view = renderSettings({
+      providers: codex({ phase: 'signing-in', message: 'Finish signing in with ChatGPT.' }),
+      onCancelProviderSetup,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(onCancelProviderSetup).toHaveBeenCalledWith('codex'));
+    const onOpenProviderSetup = vi.fn().mockResolvedValue(undefined);
+    view.rerender(
+      <ProvidersSettings
+        providers={codex({
+          phase: 'error',
+          message: 'ChatGPT sign-in was cancelled. Choose Try again to start over.',
+        })}
+        onProbe={vi.fn().mockResolvedValue(undefined)}
+        onOpenProviderSetup={onOpenProviderSetup}
+        onCancelProviderSetup={onCancelProviderSetup}
+        onOpenCloudSettings={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/sign-in was cancelled/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(onOpenProviderSetup).toHaveBeenCalledWith('codex'));
+  });
+
   it('offers one Codex setup button when both access choices need its installation', () => {
     renderSettings({
       providers: demoSnapshot.providers.map((provider) => ({

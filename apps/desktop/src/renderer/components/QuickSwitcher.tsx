@@ -5,6 +5,7 @@ import companion from '../companion.module.css';
 import type { AgentSummary, TranscriptSearchResult } from '../types';
 import styles from '../ui.module.css';
 import { AgentForm } from './AgentForm';
+import { sidebarAgentOrder, sidebarThreadOrder } from '../shortcuts';
 
 export interface QuickSwitcherAction {
   id: string;
@@ -46,6 +47,7 @@ type SwitcherEntry =
       label: string;
       detail: string;
       updatedAt: string;
+      pinned: boolean;
       run(): void;
     }
   | {
@@ -120,13 +122,15 @@ export function QuickSwitcher({
       hue: agent.hue,
       run: () => onSelectAgent(agent.id),
     }));
-    const threadEntries: ThreadSwitcherEntry[] = agents.flatMap((agent) =>
-      agent.threads.map((thread) => ({
+    // Sidebar order, so equally good matches list as the sidebar does (pinned first).
+    const threadEntries: ThreadSwitcherEntry[] = sidebarAgentOrder(agents).flatMap((agent) =>
+      sidebarThreadOrder(agent.threads).map((thread) => ({
         kind: 'thread' as const,
         id: `thread-${thread.id}`,
         label: thread.title,
         detail: `${agent.name}${thread.id === selectedThreadId ? ' · open now' : ''}`,
         updatedAt: thread.updatedAt,
+        pinned: Boolean(thread.pinned),
         run: () => onSelectThread(thread.id),
       })),
     );
@@ -149,13 +153,15 @@ export function QuickSwitcher({
     );
 
     if (!normalized) {
+      const recent = threadEntries.toSorted((left, right) =>
+        right.updatedAt.localeCompare(left.updatedAt),
+      );
       return [
         { label: 'Quick actions', entries: actionEntries },
+        { label: 'Pinned', entries: recent.filter(({ pinned }) => pinned).slice(0, 6) },
         {
           label: 'Recent conversations',
-          entries: threadEntries
-            .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-            .slice(0, 6),
+          entries: recent.filter(({ pinned }) => !pinned).slice(0, 6),
         },
         {
           label: 'Other agents',

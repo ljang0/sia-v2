@@ -135,6 +135,60 @@ test('first-run actions and the Access surface remain usable by keyboard at 200%
   }
 });
 
+test('theme and text size apply to the window at once and at the next launch', async () => {
+  const testRoot = await mkdtemp(join(tmpdir(), 'sia-electron-appearance-'));
+  const userData = join(testRoot, 'user-data');
+  const workspace = join(testRoot, 'workspace');
+  await Promise.all([mkdir(userData), mkdir(workspace)]);
+  let electronApp: ElectronApplication | undefined;
+  const themeSource = () => electronApp!.evaluate(({ nativeTheme }) => nativeTheme.themeSource);
+  try {
+    electronApp = await launchSia(userData, workspace);
+    let page = await readyPage(electronApp);
+    // Playwright emulates a light scheme by default; let the window follow nativeTheme.
+    await page.emulateMedia({ colorScheme: null });
+    expect(await themeSource()).toBe('system');
+    await page.evaluate(async () => {
+      await window.sia.settings.setTheme('dark');
+      await window.sia.settings.setTextSize('larger');
+    });
+    await expect.poll(themeSource).toBe('dark');
+    expect(
+      await electronApp.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()[0]!.getBackgroundColor(),
+      ),
+    ).toBe('#0D1915');
+    await expect
+      .poll(() => page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches))
+      .toBe(true);
+    await expect(page.locator('html')).toHaveAttribute('data-text-size', 'larger');
+    // ⌘− is View → Make Text Smaller: it steps the saved setting, not page zoom.
+    await electronApp.evaluate(({ Menu }) => {
+      const view = Menu.getApplicationMenu()!.items.find((item) => item.label === 'View')!;
+      view.submenu!.items.find((item) => item.label === 'Make Text Smaller')!.click();
+    });
+    await expect(page.locator('html')).toHaveAttribute('data-text-size', 'large');
+    expect(
+      await electronApp.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()[0]!.webContents.getZoomFactor(),
+      ),
+    ).toBe(1);
+    await electronApp.close();
+    electronApp = undefined;
+
+    electronApp = await launchSia(userData, workspace);
+    // Dark is in force before the renderer loads, so launch paints no light frame.
+    expect(await themeSource()).toBe('dark');
+    page = await readyPage(electronApp);
+    await expect(page.locator('html')).toHaveAttribute('data-text-size', 'large');
+    await page.evaluate(() => window.sia.settings.setTheme('system'));
+    await expect.poll(themeSource).toBe('system');
+  } finally {
+    await electronApp?.close();
+    await rm(testRoot, { recursive: true, force: true });
+  }
+});
+
 async function launchSia(userData: string, workspace: string): Promise<ElectronApplication> {
   return electron.launch({
     args: [desktopRoot],

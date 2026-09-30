@@ -4,6 +4,7 @@ import { developmentRelaunchArguments } from './development-relaunch.js';
 import { PhoneRemote } from './phone-remote.js';
 import { remoteQR, advertiseRemote } from './phone-remote-native.js';
 import { createScottyCompanion } from './scotty-window.js';
+import { createScreenControlIndicator } from './screen-control-indicator.js';
 import { createCommandLauncher } from './command-launcher.js';
 import { runMacAutomation } from './mac-automation.js';
 import { installedApplications, launchInstalledApplication } from './application-catalog.js';
@@ -12,8 +13,11 @@ import { join } from 'node:path';
 import { openApplicationRepository } from './application-repository.js';
 import { showStorageStartup } from './storage-startup.js';
 import { requestMicrophonePermission } from './microphone-permission.js';
+import { freshPermissionProbe } from './fresh-permissions.js';
 import { contextMenuTemplate } from './context-menu.js';
 import { viewMenu } from './app-menu.js';
+import { readLaunchTheme, ThemeSync, writeLaunchTheme } from './display-preferences.js';
+import { stepTextSize } from '../shared/display.js';
 import { quitConfirmation, RendererRecovery } from './app-lifecycle.js';
 import {
   readWindowState,
@@ -88,6 +92,7 @@ const PRODUCTION_HEADER_CSP = PRODUCTION_CSP.replace(
 );
 let phoneRemote: PhoneRemote | undefined;
 let scotty: ReturnType<typeof createScottyCompanion> | undefined;
+let screenIndicator: ReturnType<typeof createScreenControlIndicator> | undefined;
 let commandLauncher: ReturnType<typeof createCommandLauncher> | undefined;
 let mainWindow: BrowserWindow | undefined;
 let controller: DesktopController | undefined;
@@ -139,6 +144,8 @@ if (!gotLock) {
     phoneRemote = undefined;
     scotty?.dispose();
     scotty = undefined;
+    screenIndicator?.dispose();
+    screenIndicator = undefined;
     commandLauncher?.dispose();
     commandLauncher = undefined;
     unsubscribeDockBadge?.();
@@ -213,6 +220,16 @@ function createApplication(): Promise<void> {
 }
 
 async function performApplicationCreation(): Promise<void> {
+  // Settings → Appearance → Theme, applied before anything awaits (the Mac PATH lookup can take
+  // a moment) so the saved theme is in force from the first instant, never after a light flash.
+  const launchThemePath = join(app.getPath('userData'), 'appearance.json');
+  themeSync ??= new ThemeSync(
+    readLaunchTheme(launchThemePath),
+    (theme) => {
+      nativeTheme.themeSource = theme;
+    },
+    (theme) => writeLaunchTheme(launchThemePath, theme),
+  );
   installApplicationMenu(controller?.developerToolsEnabled() ?? false);
   configureSessionSecurity();
   await configureProviderPath();
@@ -371,7 +388,13 @@ async function performApplicationCreation(): Promise<void> {
       {
         authorize: (request, context) => activeController.authorizeComputer(request, context),
       },
-      { fakePermissions: fakeServices },
+      {
+        fakePermissions: fakeServices,
+        freshPermissions: freshPermissionProbe({
+          executable: process.execPath,
+          entryPath: join(import.meta.dirname, 'permission-probe.js'),
+        }),
+      },
     );
     const fakeTurnDelayMs = fakeServices
       ? testFakeTurnDelay(process.env.SIA_TEST_FAKE_TURN_DELAY_MS)
@@ -670,6 +693,7 @@ async function performApplicationCreation(): Promise<void> {
       rendererDevUrl,
     );
     activeController.attachScotty(scotty.configure);
+    screenIndicator = createScreenControlIndicator(activeController);
     let voiceAsleep = false;
     let voiceScreenLocked =
       process.platform === 'darwin' && powerMonitor.getSystemIdleState(1) === 'locked';
@@ -681,6 +705,7 @@ async function performApplicationCreation(): Promise<void> {
       commandLauncher?.suspend(voiceAsleep || voiceScreenLocked);
       phoneRemote?.suspend(voiceAsleep || voiceScreenLocked);
       scotty?.suspend(voiceAsleep || voiceScreenLocked);
+      screenIndicator?.suspend(voiceAsleep || voiceScreenLocked);
     };
     // Waking the Mac must not re-enable capture while its screen remains locked.
     powerMonitor.on('suspend', () => {
@@ -705,9 +730,11 @@ async function performApplicationCreation(): Promise<void> {
     controller = activeController;
     // Reload appears in the View menu while Settings → Developer tools is on.
     installApplicationMenu(activeController.developerToolsEnabled());
-    activeController.subscribe(() =>
-      installApplicationMenu(activeController.developerToolsEnabled()),
-    );
+    themeSync?.update(activeController.displayPreferences().theme);
+    activeController.subscribe(() => {
+      installApplicationMenu(activeController.developerToolsEnabled());
+      themeSync?.update(activeController.displayPreferences().theme);
+    });
   }
   const activeController = controller;
   commandLauncher ??= createCommandLauncher(
@@ -840,6 +867,17 @@ function configureSessionSecurity(): void {
 }
 
 let menuDeveloperTools: boolean | undefined;
+let themeSync: ThemeSync | undefined;
+
+/** ⌘+ / ⌘− / ⌘0 step Settings → Appearance → Text size (see viewMenu). */
+function changeTextSize(step: -1 | 0 | 1): void {
+  if (step === 0)
+    for (const window of BrowserWindow.getAllWindows()) window.webContents.setZoomLevel(0);
+  const activeController = controller;
+  if (!activeController) return;
+  const textSize = stepTextSize(activeController.displayPreferences().textSize, step);
+  void activeController.invoke('settings.setTextSize', { textSize }).catch(() => undefined);
+}
 
 function installApplicationMenu(developerTools = false): void {
   if (menuDeveloperTools === developerTools) return;
@@ -881,7 +919,7 @@ function installApplicationMenu(developerTools = false): void {
         ],
       },
       { role: 'editMenu' },
-      viewMenu({ packaged: app.isPackaged, developerTools }),
+      viewMenu({ packaged: app.isPackaged, developerTools, onTextSize: changeTextSize }),
       { role: 'windowMenu' },
     ]),
   );

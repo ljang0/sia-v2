@@ -57,6 +57,7 @@ import { RowErrorBoundary } from './ErrorBoundary';
 import { NoticeText, ThreadErrorText } from './PlainErrorText';
 import { usageWarningText } from '../plainErrors';
 import { ReplyFeedbackButtons, type ReplyRating } from './ReplyFeedback';
+import { TurnChangesBar, turnChangeSummaries, type TurnChangeActions } from './TurnChanges';
 import { DitherAurora as Aurora } from './effects/DitherAurora';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
 
@@ -106,6 +107,8 @@ interface ConversationProps {
   /** Edit (new text) or Try again (no text) on the last exchange once the task has ended. */
   onRedo?: ((text?: string) => Promise<void>) | undefined;
   onResolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
+  /** Undo changes: where the files a reply changed stand, and putting them back or forward. */
+  turnChanges?: TurnChangeActions | undefined;
   /** Thumbs up or down on a reply opens a feedback draft about it. */
   onRateReply?: ((rating: ReplyRating, reply: string) => void) | undefined;
   onCreateThread?: (() => void) | undefined;
@@ -155,6 +158,7 @@ export function Conversation({
   onRetry,
   onRedo,
   onResolveApproval,
+  turnChanges,
   onRateReply,
   onCreateThread,
   onCreateAgent,
@@ -469,8 +473,20 @@ export function Conversation({
     }),
     [],
   );
+  const latestTurnChanges = useRef(turnChanges);
+  useLayoutEffect(() => {
+    latestTurnChanges.current = turnChanges;
+  });
+  const turnChangeActions = useMemo<TurnChangeActions>(
+    () => ({
+      read: (eventId) => latestTurnChanges.current!.read(eventId),
+      apply: (eventId, direction) => latestTurnChanges.current!.apply(eventId, direction),
+    }),
+    [],
+  );
   const events = thread?.events ?? [];
   const blocks = useMemo(() => conversationBlocks(events), [events]);
+  const changedTurns = useMemo(() => turnChangeSummaries(events), [events]);
   // What the thread held when it opened. Rows added after that (a sent message, a new step,
   // the reply) ease in; reopening a thread shows its history still.
   const openedEventIds = useMemo(
@@ -544,6 +560,11 @@ export function Conversation({
       ? thread.events[lastAssistantEventIndex]?.id
       : undefined;
   const outlineAvailable = hasConversationOutline(thread.events);
+  const sentMessages = thread.events.flatMap((event) =>
+    event.type === 'message' && event.role === 'user' && event.content.trim()
+      ? [event.content]
+      : [],
+  );
   const resultId = completedReplyId(thread);
   // Edit and Try again change only the last exchange, and only once nothing is in flight.
   const redoable =
@@ -609,6 +630,21 @@ export function Conversation({
         rateable={Boolean(onRateReply)}
         editable={event.id === editableEventId}
         retryable={event.id === tryAgainEventId}
+      />
+    );
+  };
+
+  // Undo changes sits under a finished reply that changed files; the running reply has none yet.
+  const renderTurnChanges = (end: number) => {
+    const summary = turnChanges ? changedTurns.get(end) : undefined;
+    if (!summary || !turnChanges || (turnActive && end > lastUserEventIndex)) return null;
+    return (
+      <TurnChangesBar
+        key={`changes:${summary.eventId}`}
+        eventId={summary.eventId}
+        fileCount={summary.fileCount}
+        busy={running || waiting || queued}
+        actions={turnChangeActions}
       />
     );
   };
@@ -743,7 +779,7 @@ export function Conversation({
             />
           ) : (
             <div className={styles.eventList}>
-              {blocks.map((block) =>
+              {blocks.map((block) => [
                 block.kind === 'event' ? (
                   renderEvent(block.event, block.index)
                 ) : (
@@ -764,7 +800,8 @@ export function Conversation({
                     renderStep={(event, position) => renderEvent(event, block.start + position)}
                   />
                 ),
-              )}
+                renderTurnChanges(block.kind === 'event' ? block.index : block.end),
+              ])}
               {running ? (
                 <WorkingStatus
                   since={eventTime(thread.events[lastUserEventIndex])}
@@ -922,6 +959,7 @@ export function Conversation({
           setVoiceConversation(active);
         }}
         onDraftChange={onDraftChange}
+        history={sentMessages}
         placeholder={
           pendingQuestion
             ? `Reply to ${agentName ?? 'Sia'}’s question`

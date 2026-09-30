@@ -17,9 +17,11 @@ import { NotchVault } from './notch/vault.js';
 import { notchConsolidationInstructions } from './notch/foreground.js';
 import type { MacTaskResult } from './mac-execution.js';
 import { AssistantLibrary, DESKTOP_EXECUTION_GUIDANCE } from './assistant-library.js';
+import { applyTurnChanges, readTurnChanges, turnFileChanges } from './turn-changes.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, stat } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { basename, extname, isAbsolute, join, normalize, resolve } from 'node:path';
 
 import {
@@ -80,11 +82,22 @@ import type { VoiceOperations } from './voice-service.js';
 import { PushToTalkService, type VoiceHelperFactory } from './push-to-talk.js';
 import type { TrajectoryRecorder } from './trajectory-recorder.js';
 import { RESEARCH_CONSENT_VERSION, SCHEDULE_RUN_HISTORY_LIMIT } from '../shared/bridge.js';
+import {
+  alignScheduleStart,
+  defaultFirstScheduleRun,
+  everyHoursOf,
+  nextScheduleRun,
+  normalizeScheduleDays,
+  type ScheduleRule,
+} from '../shared/schedule-cadence.js';
 import { verifyUpdateManifestResponse } from './update-manifest.js';
+import { isTextSize, isTheme, type TextSize, type ThemePreference } from '../shared/display.js';
 
 interface ComputerAutomation {
   permissions(): Promise<ComputerPermissionsView>;
-  requestPermissions(): Promise<ComputerPermissionsView>;
+  requestPermissions(
+    permission?: 'accessibility' | 'screenRecording',
+  ): Promise<ComputerPermissionsView>;
   call(
     tool: string,
     args: Record<string, unknown>,
@@ -217,6 +230,8 @@ interface PersistedState {
     completionSound: boolean;
     openAtLogin?: boolean;
     appearance?: 'calm' | 'expressive';
+    theme?: ThemePreference;
+    textSize?: TextSize;
     /** Workspace Command tool (arbitrary shell in the agent folder). Off unless set to true. */
     developerTools?: boolean;
     onboarding?: NonNullable<DesktopSnapshot['preferences']['onboarding']>;
@@ -449,6 +464,8 @@ export class DesktopController {
   readonly #restartApp: (() => void) | undefined;
   readonly #installCodex: (() => Promise<void>) | undefined;
   #codexSetupPending = false;
+  /** Aborts a ChatGPT browser sign-in that is still waiting on the person. */
+  #codexLoginAbort: AbortController | undefined;
   #codexSetup: ProviderView['setup'];
   #pendingTerminalOperations = 0;
   readonly #chooseDirectory: () => Promise<string | null>;
@@ -478,6 +495,8 @@ export class DesktopController {
   readonly #keepAwake: ControllerOptions['keepAwake'];
   /** Mac turns currently keeping the display awake; a turn waiting on the person does not. */
   readonly #awakeTurns = new Set<string>();
+  /** Mac turns that started with On my screen: they show the on-screen indicator and Esc. */
+  readonly #foregroundTurns = new Set<string>();
   #macUnavailable: 'locked' | 'asleep' | undefined;
   readonly #phoneTurns = new Set<string>();
   readonly #turnTasks = new Map<string, Promise<void>>();
@@ -1113,6 +1132,15 @@ export class DesktopController {
   }
 
   /** Settings → Developer tools (Command tool, worktree duplicates, View → Reload). */
+  /**
+   * Theme and text size. They hold nothing private, so they apply before sign-in too and main
+   * mirrors them for the next launch's first frame.
+   */
+  displayPreferences(): { theme?: ThemePreference; textSize?: TextSize } {
+    const { theme, textSize } = this.#state.preferences;
+    return { ...(theme ? { theme } : {}), ...(textSize ? { textSize } : {}) };
+  }
+
   developerToolsEnabled(): boolean {
     return this.#state.preferences.developerTools === true;
   }
@@ -1155,19 +1183,24 @@ export class DesktopController {
     input: {
       task: string;
       cadence: ScheduleView['cadence'];
+      days?: number[];
+      everyHours?: number;
       firstRunAt?: string;
       maxRuns?: number;
     },
   ): ScheduleView {
     const firstRunAt =
       input.firstRunAt ??
-      new Date(
-        Date.now() + (input.cadence === 'once' ? 0 : scheduleIntervalMs(input.cadence)),
+      defaultFirstScheduleRun(
+        { cadence: input.cadence, days: input.days, everyHours: input.everyHours },
+        new Date(),
       ).toISOString();
     const schedule = this.#insertSchedule({
       threadId,
       prompt: input.task,
       cadence: input.cadence,
+      ...(input.days === undefined ? {} : { days: input.days }),
+      ...(input.everyHours === undefined ? {} : { everyHours: input.everyHours }),
       nextRunAt: firstRunAt,
       ...(input.maxRuns === undefined ? {} : { maxRuns: input.maxRuns }),
     });
@@ -1187,6 +1220,8 @@ export class DesktopController {
       scheduleId: string;
       task?: string;
       cadence?: ScheduleView['cadence'];
+      days?: number[];
+      everyHours?: number;
       nextRunAt?: string;
       enabled?: boolean;
       maxRuns?: number;
@@ -1195,19 +1230,11 @@ export class DesktopController {
     const schedule = this.#requireSchedule(input.scheduleId);
     if (schedule.threadId !== threadId)
       throw new Error('Scheduled task not found in this thread.');
-    if (input.task !== undefined) {
-      const task = input.task.trim();
-      if (!task) throw new Error('A scheduled task cannot be empty.');
-      schedule.prompt = task;
-    }
-    if (input.cadence !== undefined) schedule.cadence = input.cadence;
-    if (input.nextRunAt !== undefined) {
-      schedule.nextRunAt = validScheduleTime(input.nextRunAt);
-    }
-    if (input.enabled !== undefined) schedule.enabled = input.enabled;
-    if (input.maxRuns !== undefined) schedule.maxRuns = validScheduleRunLimit(input.maxRuns);
-    this.#commit();
-    if (schedule.enabled) void this.#runDueSchedules();
+    const { task, ...changes } = input;
+    this.#applyScheduleUpdate(schedule, {
+      ...changes,
+      ...(task === undefined ? {} : { prompt: task }),
+    });
     return structuredClone(schedule);
   }
 
@@ -1526,6 +1553,22 @@ export class DesktopController {
   }
 
   /** Task metadata and each thread's latest turn, without cloning every thread's history. */
+  /**
+   * Use my Mac turns that are actively working (not paused or waiting on the person), and
+   * whether each controls the screen or works in the background.
+   */
+  screenControl(): Record<string, 'foreground' | 'background'> {
+    const result: Record<string, 'foreground' | 'background'> = {};
+    if (this.#releaseAccessLocked() || this.#macUnavailable) return result;
+    for (const threadId of this.#macTurns.keys()) {
+      const running = this.#runningTurns.get(threadId);
+      const thread = this.#state.threads.find(({ id }) => id === threadId);
+      if (!running || running.signal.aborted || thread?.status !== 'running') continue;
+      result[threadId] = this.#foregroundTurns.has(threadId) ? 'foreground' : 'background';
+    }
+    return result;
+  }
+
   taskSnapshot(): TaskSnapshot {
     if (this.#releaseAccessLocked())
       return {
@@ -1534,7 +1577,7 @@ export class DesktopController {
         threads: [],
         timeline: [],
         approvals: [],
-        preferences: { completionSound: false },
+        preferences: { completionSound: false, ...this.displayPreferences() },
       };
     const lastRequest = new Map<string, TimelineItemView>();
     for (const item of this.#state.timeline)
@@ -1551,6 +1594,7 @@ export class DesktopController {
       ),
       approvals: structuredClone(this.#state.approvals),
       preferences: structuredClone(this.#state.preferences),
+      screenControl: this.screenControl(),
       ...(this.#state.activeAgentId ? { activeAgentId: this.#state.activeAgentId } : {}),
     };
   }
@@ -1605,7 +1649,7 @@ export class DesktopController {
         },
         browser: { status: 'detached', grantedOrigins: [] },
         voice: { status: 'disconnected', voices: [] },
-        preferences: { completionSound: false },
+        preferences: { completionSound: false, ...this.displayPreferences() },
         providerUsage: [],
         schedules: [],
         cloud: {
@@ -1768,7 +1812,11 @@ export class DesktopController {
     method: M,
     input: BridgeRequestMap[M],
   ): Promise<BridgeResultMap[M]> {
-    if (method !== 'bootstrap' && method !== 'voice.capture.release')
+    if (
+      method !== 'bootstrap' &&
+      method !== 'voice.capture.release' &&
+      method !== 'providers.cancelLogin'
+    )
       this.#requireCodexSetupIdle();
     if (this.#accountDeletionInProgress && method !== 'bootstrap') {
       throw new Error('Sia account deletion is in progress. Wait for it to finish.');
@@ -1961,6 +2009,10 @@ export class DesktopController {
         return this.#setThreadUnread(
           input as BridgeRequestMap['threads.setUnread'],
         ) as BridgeResultMap[M];
+      case 'threads.setPinned':
+        return this.#setThreadPinned(
+          input as BridgeRequestMap['threads.setPinned'],
+        ) as BridgeResultMap[M];
       case 'threads.fork':
         return (await this.#forkThread(
           input as BridgeRequestMap['threads.fork'],
@@ -2074,6 +2126,14 @@ export class DesktopController {
         return (await this.#deleteWorkspaceSnapshot(
           input as BridgeRequestMap['changes.snapshots.delete'],
         )) as BridgeResultMap[M];
+      case 'changes.turn.read':
+        return (await this.#readTurnChanges(
+          input as BridgeRequestMap['changes.turn.read'],
+        )) as BridgeResultMap[M];
+      case 'changes.turn.apply':
+        return (await this.#applyTurnChanges(
+          input as BridgeRequestMap['changes.turn.apply'],
+        )) as BridgeResultMap[M];
       case 'terminal.run':
         return (await this.#runTerminal(
           input as BridgeRequestMap['terminal.run'],
@@ -2102,6 +2162,12 @@ export class DesktopController {
         return this.#createSchedule(
           input as BridgeRequestMap['schedules.create'],
         ) as BridgeResultMap[M];
+      case 'schedules.update':
+        this.#applyScheduleUpdate(
+          this.#requireSchedule((input as BridgeRequestMap['schedules.update']).scheduleId),
+          input as BridgeRequestMap['schedules.update'],
+        );
+        return this.#resultSnapshot() as BridgeResultMap[M];
       case 'schedules.setEnabled':
         return this.#setScheduleEnabled(
           input as BridgeRequestMap['schedules.setEnabled'],
@@ -2126,6 +2192,9 @@ export class DesktopController {
         return (await this.#providerLogin(
           (input as BridgeRequestMap['providers.login']).providerId,
         )) as unknown as BridgeResultMap[M];
+      case 'providers.cancelLogin':
+        this.#codexLoginAbort?.abort(new Error('ChatGPT sign-in was cancelled.'));
+        return this.#resultSnapshot() as BridgeResultMap[M];
       case 'settings.openDirectory':
         return { path: await this.#grantChosenDirectory() } as unknown as BridgeResultMap[M];
       case 'settings.setOnboarding': {
@@ -2196,6 +2265,22 @@ export class DesktopController {
         ).appearance;
         this.#commit();
         return this.#resultSnapshot() as BridgeResultMap[M];
+      case 'settings.setTheme': {
+        const { theme } = input as BridgeRequestMap['settings.setTheme'];
+        if (!isTheme(theme)) throw new Error('Choose System, Light, or Dark.');
+        if (theme === 'system') delete this.#state.preferences.theme;
+        else this.#state.preferences.theme = theme;
+        this.#commit();
+        return this.#resultSnapshot() as BridgeResultMap[M];
+      }
+      case 'settings.setTextSize': {
+        const { textSize } = input as BridgeRequestMap['settings.setTextSize'];
+        if (!isTextSize(textSize)) throw new Error('Choose a text size from the list.');
+        if (textSize === 'default') delete this.#state.preferences.textSize;
+        else this.#state.preferences.textSize = textSize;
+        this.#commit();
+        return this.#resultSnapshot() as BridgeResultMap[M];
+      }
       case 'settings.setCompletionSound':
         this.#state.preferences.completionSound = (
           input as BridgeRequestMap['settings.setCompletionSound']
@@ -2228,7 +2313,10 @@ export class DesktopController {
       case 'computer.permissions':
         return (await this.#refreshComputer(false)) as unknown as BridgeResultMap[M];
       case 'computer.requestPermissions':
-        return (await this.#refreshComputer(true)) as unknown as BridgeResultMap[M];
+        return (await this.#refreshComputer(
+          true,
+          (input as BridgeRequestMap['computer.requestPermissions'])?.permission,
+        )) as unknown as BridgeResultMap[M];
       case 'computer.requestAutomation': {
         if (!this.#capabilitySetup?.automationPermissions)
           throw new Error('Mac app permission setup is unavailable in this build.');
@@ -2906,6 +2994,7 @@ export class DesktopController {
       agentNameSnapshot: agent.name,
       status: 'idle',
       unread: false,
+      pinned: false,
       worktree: { kind: 'primary', sourceWorkspace: agent.workspace },
       createdAt: now,
       updatedAt: now,
@@ -2995,6 +3084,14 @@ export class DesktopController {
     return this.#resultSnapshot();
   }
 
+  #setThreadPinned(input: BridgeRequestMap['threads.setPinned']): DesktopSnapshot {
+    const thread = this.#requireThread(input.threadId);
+    // Pinning only reorders the sidebar; it is not activity, so updatedAt stays.
+    thread.pinned = input.pinned;
+    this.#commit();
+    return this.#resultSnapshot();
+  }
+
   async #forkThread(
     input: BridgeRequestMap['threads.fork'],
     primary = false,
@@ -3034,6 +3131,7 @@ export class DesktopController {
       status: 'idle',
       sourceThreadId: source.id,
       unread: false,
+      pinned: false,
       createdAt: now,
       updatedAt: now,
     };
@@ -3962,6 +4060,35 @@ export class DesktopController {
     return { snapshots: await operations.deleteSnapshot(thread.workspace, input.snapshotId) };
   }
 
+  /** Where one reply's file changes stand now; see turn-changes.ts. */
+  async #readTurnChanges(
+    input: BridgeRequestMap['changes.turn.read'],
+  ): Promise<BridgeResultMap['changes.turn.read']> {
+    const thread = this.#requireThread(input.threadId);
+    return await readTurnChanges(this.#turnChanges(thread.id, input.eventId), {
+      workspace: thread.workspace,
+      home: homedir(),
+    });
+  }
+
+  /** Undo or redo one reply's file changes; refused while a task runs in this thread. */
+  async #applyTurnChanges(
+    input: BridgeRequestMap['changes.turn.apply'],
+  ): Promise<BridgeResultMap['changes.turn.apply']> {
+    const thread = this.#requireIdleThread(input.threadId, `${input.direction} changes`);
+    return await applyTurnChanges(
+      this.#turnChanges(thread.id, input.eventId),
+      { workspace: thread.workspace, home: homedir() },
+      input.direction,
+    );
+  }
+
+  #turnChanges(threadId: string, eventId: string) {
+    const changes = turnFileChanges(this.#state.timeline, threadId, eventId);
+    if (!changes) throw new Error('This reply is no longer in the conversation.');
+    return changes;
+  }
+
   /** The renderer's Command tool runs unreviewed shell commands, so it is opt-in. */
   #requireDeveloperTools(): void {
     if (this.#state.preferences.developerTools === true) return;
@@ -4068,17 +4195,71 @@ export class DesktopController {
       id: randomUUID(),
       threadId: thread.id,
       prompt,
-      cadence: input.cadence,
+      ...scheduleRuleFields(
+        { cadence: input.cadence, days: input.days, everyHours: input.everyHours },
+        new Date(validScheduleTime(input.nextRunAt)),
+      ),
       nextRunAt: validScheduleTime(input.nextRunAt),
       enabled: true,
       createdAt: new Date().toISOString(),
       runCount: 0,
       maxRuns: validScheduleRunLimit(input.maxRuns ?? defaultScheduleRunLimit(input.cadence)),
     };
+    schedule.nextRunAt = alignScheduleStart(
+      schedule,
+      new Date(schedule.nextRunAt),
+    ).toISOString();
     this.#state.schedules.push(schedule);
     this.#commit();
     void this.#runDueSchedules();
     return schedule;
+  }
+
+  /** One edit path for the schedule list and the agent's schedule_update tool. */
+  #applyScheduleUpdate(
+    schedule: ScheduleView,
+    input: Omit<BridgeRequestMap['schedules.update'], 'scheduleId'>,
+  ): void {
+    if (!this.#schedulesAvailable()) {
+      throw new Error('Schedules are turned off for this pilot right now.');
+    }
+    const prompt = input.prompt === undefined ? undefined : input.prompt.trim();
+    if (prompt === '') throw new Error('A scheduled task cannot be empty.');
+    const nextRunAt =
+      input.nextRunAt === undefined ? undefined : validScheduleTime(input.nextRunAt);
+    const maxRuns =
+      input.maxRuns === undefined ? undefined : validScheduleRunLimit(input.maxRuns);
+    const ruleChanged =
+      input.cadence !== undefined || input.days !== undefined || input.everyHours !== undefined;
+    if (prompt !== undefined) schedule.prompt = prompt;
+    if (nextRunAt !== undefined) schedule.nextRunAt = nextRunAt;
+    if (ruleChanged) {
+      const cadence = input.cadence ?? schedule.cadence;
+      const rule = scheduleRuleFields(
+        {
+          cadence,
+          // A new cadence starts from its own details rather than the old one's.
+          days: input.days ?? (cadence === schedule.cadence ? schedule.days : undefined),
+          everyHours:
+            input.everyHours ??
+            (cadence === schedule.cadence ? schedule.everyHours : undefined),
+        },
+        new Date(schedule.nextRunAt),
+      );
+      delete schedule.days;
+      delete schedule.everyHours;
+      Object.assign(schedule, rule);
+    }
+    if (ruleChanged || nextRunAt !== undefined) {
+      schedule.nextRunAt = alignScheduleStart(
+        schedule,
+        new Date(schedule.nextRunAt),
+      ).toISOString();
+    }
+    if (maxRuns !== undefined) schedule.maxRuns = maxRuns;
+    if (input.enabled !== undefined) schedule.enabled = input.enabled;
+    this.#commit();
+    if (schedule.enabled) void this.#runDueSchedules();
   }
 
   #setScheduleEnabled(input: BridgeRequestMap['schedules.setEnabled']): DesktopSnapshot {
@@ -4164,15 +4345,15 @@ export class DesktopController {
   }
 
   #advanceSchedule(schedule: ScheduleView, now: Date): void {
-    if (schedule.cadence === 'once') {
+    const due = new Date(schedule.nextRunAt);
+    // Run now leaves the next scheduled run where it was.
+    if (schedule.cadence !== 'once' && due > now) return;
+    const next = nextScheduleRun(schedule, due, now);
+    if (!next) {
       schedule.enabled = false;
       return;
     }
-    const interval = scheduleIntervalMs(schedule.cadence);
-    let next = Date.parse(schedule.nextRunAt);
-    do next += interval;
-    while (next <= now.getTime());
-    schedule.nextRunAt = new Date(next).toISOString();
+    schedule.nextRunAt = next.toISOString();
   }
 
   #dispatchSchedule(schedule: ScheduleView, now: Date): BridgeResultMap['schedules.runNow'] {
@@ -4381,13 +4562,30 @@ export class DesktopController {
           'signing-in',
           'Finish signing in with ChatGPT in your browser. Sia will check the connection automatically.',
         );
-        const login = await this.#runtime.startCodexChatGptLogin();
+        const abort = new AbortController();
+        this.#codexLoginAbort = abort;
         try {
-          await this.#openExternal(login.authUrl);
-          await this.#runtime.waitForCodexChatGptLogin(login.loginId);
+          const login = await this.#runtime.startCodexChatGptLogin(abort.signal);
+          try {
+            abort.signal.throwIfAborted();
+            await this.#openExternal(login.authUrl);
+            abort.signal.throwIfAborted();
+            await this.#runtime.waitForCodexChatGptLogin(login.loginId, abort.signal);
+          } catch (error) {
+            await this.#runtime.cancelCodexChatGptLogin(login.loginId).catch(() => undefined);
+            throw error;
+          }
         } catch (error) {
-          await this.#runtime.cancelCodexChatGptLogin(login.loginId).catch(() => undefined);
-          throw error;
+          if (!abort.signal.aborted) throw error;
+          // The person chose Cancel. Leave a plain Try again state instead of an error.
+          this.#repository.remove('setup', 'codex-login');
+          this.#setCodexSetup(
+            'error',
+            'ChatGPT sign-in was cancelled. Choose Try again to start over.',
+          );
+          return { opened: false, snapshot: this.#resultSnapshot() };
+        } finally {
+          if (this.#codexLoginAbort === abort) this.#codexLoginAbort = undefined;
         }
         this.#requireSignedInReleaseAccount();
         this.#setCodexSetup('checking', 'Checking your ChatGPT connection…');
@@ -4456,9 +4654,12 @@ export class DesktopController {
     this.#chromeConnection = await this.#capabilitySetup.chromeDebugStatus();
   }
 
-  async #refreshComputer(request: boolean): Promise<DesktopSnapshot> {
+  async #refreshComputer(
+    request: boolean,
+    permission?: 'accessibility' | 'screenRecording',
+  ): Promise<DesktopSnapshot> {
     this.#computerState = request
-      ? await this.#computer.requestPermissions()
+      ? await this.#computer.requestPermissions(permission)
       : await this.#computer.permissions();
     await this.#refreshCapabilityStatuses();
     await this.#voice?.refreshPermissions?.().catch(() => undefined);
@@ -5346,6 +5547,7 @@ export class DesktopController {
       for (const threadId of this.#awakeTurns) this.#keepAwake?.release(threadId);
       this.#awakeTurns.clear();
       this.#macTurns.clear();
+      this.#foregroundTurns.clear();
       this.#turnTasks.clear();
       this.#workspaceLeases.clear();
       this.#pendingApprovals.clear();
@@ -6545,6 +6747,7 @@ export class DesktopController {
     this.#workspaceLeases.set(thread.workspace, turn.id);
     if (this.#isMacTurn(thread.id)) {
       this.#macTurns.set(thread.id, turn);
+      if (!this.macBackgroundControl()) this.#foregroundTurns.add(thread.id);
       this.#awakeTurns.add(thread.id);
       this.#keepAwake?.hold(thread.id);
     }
@@ -7777,6 +7980,7 @@ export class DesktopController {
     }
     this.#runningTurns.delete(threadId);
     this.#macTurns.delete(threadId);
+    this.#foregroundTurns.delete(threadId);
     if (this.#awakeTurns.delete(threadId)) this.#keepAwake?.release(threadId);
     if (thread) this.#workspaceLeases.delete(thread.workspace);
     this.#drainQueue();
@@ -8127,8 +8331,11 @@ export class DesktopController {
       const runHistory = (schedule.runHistory ?? (schedule.lastRun ? [schedule.lastRun] : []))
         .filter((run, index, history) => history.findIndex(({ id }) => id === run.id) === index)
         .slice(0, SCHEDULE_RUN_HISTORY_LIMIT);
+      // Weekly schedules saved before chosen days existed keep running on their next run's day.
+      const { days: _days, everyHours: _everyHours, ...rest } = schedule;
       return {
-        ...schedule,
+        ...rest,
+        ...scheduleRuleFields(schedule, new Date(schedule.nextRunAt)),
         runCount: schedule.runCount ?? 0,
         ...(runHistory.length > 0 ? { runHistory } : {}),
       };
@@ -8136,6 +8343,13 @@ export class DesktopController {
     recovered.cloudFeatures =
       recovered.cloudFeatures ?? structuredClone(INITIAL_STATE.cloudFeatures);
     recovered.preferences = recovered.preferences ?? { completionSound: false };
+    if (recovered.preferences.theme !== undefined && !isTheme(recovered.preferences.theme))
+      delete recovered.preferences.theme;
+    if (
+      recovered.preferences.textSize !== undefined &&
+      !isTextSize(recovered.preferences.textSize)
+    )
+      delete recovered.preferences.textSize;
     if (recovered.preferences.onboarding?.restartPending) {
       recovered.preferences.onboarding = {
         ...recovered.preferences.onboarding,
@@ -8206,6 +8420,7 @@ export class DesktopController {
         instructionsSnapshot: thread.instructionsSnapshot ?? agent?.instructions ?? '',
         agentNameSnapshot: thread.agentNameSnapshot ?? agent?.name ?? 'Agent',
         unread: thread.unread ?? false,
+        pinned: thread.pinned ?? false,
         worktree:
           thread.worktree ?? ({ kind: 'primary', sourceWorkspace: thread.workspace } as const),
       };
@@ -8869,7 +9084,14 @@ function summarizeActionTarget(
       typeof argumentsValue.first_run_at === 'string'
         ? ` starting ${argumentsValue.first_run_at}`
         : '';
-    return `${String(argumentsValue.cadence)}: ${String(argumentsValue.task)}${firstRun}`;
+    const days = Array.isArray(argumentsValue.days)
+      ? ` on ${argumentsValue.days.map(String).join(', ')}`
+      : '';
+    const everyHours =
+      typeof argumentsValue.every_hours === 'number'
+        ? ` every ${argumentsValue.every_hours} hours`
+        : '';
+    return `${String(argumentsValue.cadence)}${days}${everyHours}: ${String(argumentsValue.task)}${firstRun}`;
   }
   if (toolName === 'schedule_update' || toolName === 'schedule_delete') {
     return `schedule ${String(argumentsValue.schedule_id)}`;
@@ -8933,11 +9155,19 @@ function defaultScheduleRunLimit(cadence: ScheduleView['cadence']): number {
   return cadence === 'once' ? 1 : 10;
 }
 
-function scheduleIntervalMs(cadence: ScheduleView['cadence']): number {
-  if (cadence === 'hourly') return 60 * 60_000;
-  if (cadence === 'daily') return 24 * 60 * 60_000;
-  if (cadence === 'weekly') return 7 * 24 * 60 * 60_000;
-  return 0;
+/** Keeps only the details a cadence uses, so a saved schedule never carries stale ones. */
+function scheduleRuleFields(
+  rule: ScheduleRule,
+  firstRun: Date,
+): Pick<ScheduleView, 'cadence' | 'days' | 'everyHours'> {
+  if (rule.cadence === 'weekly') {
+    const days = normalizeScheduleDays(rule.days);
+    return { cadence: 'weekly', days: days.length ? days : [firstRun.getDay()] };
+  }
+  if (rule.cadence === 'hourly' && rule.everyHours !== undefined) {
+    return { cadence: 'hourly', everyHours: everyHoursOf(rule) };
+  }
+  return { cadence: rule.cadence };
 }
 
 function textAttachmentPreview(
@@ -9295,7 +9525,15 @@ function worktreeLabel(title: string, id: string): string {
 
 function backgroundControlUnavailable(access: ComputerPermissionsView): string | undefined {
   if (access.status === 'ready') return undefined;
-  if (access.status === 'needs_permission')
-    return 'Sia needs Accessibility and Screen Recording to work in the background. Allow them in Settings → Computer, then press Continue task.';
+  if (access.status === 'needs_permission') {
+    // Only a permission skipped during setup reaches here; name it plainly.
+    if (access.relaunchFor?.length)
+      return 'Mac access is turned on, but Sia needs to reopen before it can use it. Quit and reopen Sia, then press Continue task.';
+    const missing = [
+      access.accessibility ? '' : 'control your Mac (Accessibility)',
+      access.screenRecording ? '' : 'see your screen (Screen Recording)',
+    ].filter(Boolean);
+    return `To work in the background, Sia needs permission to ${missing.join(' and ')}. Allow it in Settings → Computer, then press Continue task.`;
+  }
   return 'Working in the background isn’t available on this Mac right now. Choose On my screen in Settings → Computer, then press Continue task.';
 }

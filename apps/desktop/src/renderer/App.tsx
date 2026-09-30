@@ -1,6 +1,7 @@
 import { BrowserTaskRecovery, browserTaskRequest } from './components/BrowserTaskRecovery';
 import {
   Archive,
+  CalendarDots,
   ChatCircle,
   EnvelopeSimple,
   Keyboard,
@@ -32,6 +33,7 @@ import { SiaSignInDialog } from './components/settings/SiaSignInDialog';
 import {
   ActivityDashboard,
   ArchivedThreadsSection,
+  ScheduledPage,
   ThreadModelControls,
   TranscriptSearch,
   ThreadWorkspaceTools,
@@ -49,6 +51,7 @@ import {
 import './tokens.css';
 import companion from './companion.module.css';
 import styles from './ui.module.css';
+import { useTextSize } from './textSize';
 
 const AuditGallery = lazy(() => import('./audit/AuditGallery'));
 
@@ -69,7 +72,9 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   const viewKey = app.settingsOpen
     ? `settings:${app.settingsSection}`
     : app.activityOpen
-      ? 'activity'
+      ? app.activityTarget === 'scheduled'
+        ? 'scheduled'
+        : 'activity'
       : `thread:${app.snapshot?.selectedThreadId ?? ''}`;
   useViewTransition(
     viewSurface,
@@ -78,6 +83,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     workspace,
   );
   useInstantThemeSwitch();
+  useTextSize(app.snapshot?.preferences.textSize);
   const [reveal, setReveal] = useState(0);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -322,6 +328,14 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
       run: () => app.openActivity('activity'),
     },
     {
+      id: 'scheduled',
+      label: 'Open Scheduled',
+      detail: 'Everything set to run later or on repeat',
+      keywords: 'schedules automations recurring later timer',
+      icon: <CalendarDots size={17} />,
+      run: () => app.openActivity('scheduled'),
+    },
+    {
       id: 'archived',
       label: 'Open archived conversations',
       detail: 'Restore or revisit a conversation',
@@ -349,7 +363,13 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         selectedAgentId={snapshot.selectedAgentId}
         selectedThreadId={snapshot.selectedThreadId}
         activePage={
-          app.settingsOpen ? 'settings' : app.activityOpen ? 'activity' : 'conversation'
+          app.settingsOpen
+            ? 'settings'
+            : app.activityOpen
+              ? app.activityTarget === 'scheduled'
+                ? 'scheduled'
+                : 'activity'
+              : 'conversation'
         }
         collapsed={app.sidebarCollapsed}
         onToggle={app.toggleSidebar}
@@ -396,7 +416,15 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         onSetThreadUnread={(threadId, unread) =>
           app.attempt(() => api.setThreadUnread(threadId, unread)) as Promise<void>
         }
+        onSetThreadPinned={(threadId, pinned) =>
+          app.attempt(() => api.setThreadPinned(threadId, pinned)) as Promise<void>
+        }
         onOpenActivity={() => app.openActivity('activity')}
+        onOpenScheduled={
+          snapshot.cloudAuth.features?.schedules === false
+            ? undefined
+            : () => app.openActivity('scheduled')
+        }
         onOpenSettings={() => app.openSettings()}
         onOpenQuickSwitcher={() => setQuickSwitcherOpen(true)}
       />
@@ -488,7 +516,22 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         {online ? null : <OfflineBanner />}
         <WorkspaceNotice app={app} deviceOffline={!online} />
         <div className={styles.workspaceBody} ref={viewSurface} data-workspace-view={viewKey}>
-          {app.activityOpen ? (
+          {app.activityOpen && app.activityTarget === 'scheduled' ? (
+            <ScheduledPage
+              snapshot={snapshot}
+              api={api}
+              run={run}
+              attempt={app.attempt}
+              onClose={app.closeActivity}
+              onOpenThread={(threadId, archived) => {
+                app.closeActivity();
+                void run(async () => {
+                  if (archived) await api.unarchiveThread(threadId);
+                  await api.selectThread(threadId);
+                });
+              }}
+            />
+          ) : app.activityOpen ? (
             <main className={styles.activityPage}>
               <header className={styles.activityPageHeader}>
                 <div>
@@ -557,6 +600,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onOpenFeedback={() => setFeedbackOpen(true)}
               onProbeProvider={(provider) => api.refreshProvider(provider)}
               onOpenProviderSetup={(provider) => api.openProviderSetup(provider)}
+              onCancelProviderSetup={(provider) => api.cancelProviderSetup(provider)}
               onCheckForUpdates={() => api.checkForUpdates()}
               onOpenUpdateDownload={() => api.openUpdateDownload()}
               onConnectSelectedApps={(apps) => api.connectSelectedApps(apps)}
@@ -598,6 +642,8 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 })
               }
               onSetAppearance={(appearance) => api.setAppearance(appearance)}
+              onSetTheme={(theme) => api.setTheme(theme)}
+              onSetTextSize={(textSize) => api.setTextSize(textSize)}
               onSetCompletionSound={(enabled) => api.setCompletionSound(enabled)}
               onSetOpenAtLogin={(enabled) => api.setOpenAtLogin(enabled)}
               onSetDeveloperTools={(enabled) => api.setDeveloperTools(enabled)}
@@ -780,6 +826,15 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 }}
                 onResolveApproval={(id, decision) =>
                   run(() => api.respondToApproval(id, decision)).then(() => focusComposer())
+                }
+                turnChanges={
+                  activeThread
+                    ? {
+                        read: (eventId) => api.readTurnChanges(activeThread.id, eventId),
+                        apply: (eventId, direction) =>
+                          api.applyTurnChanges(activeThread.id, eventId, direction),
+                      }
+                    : undefined
                 }
                 onDraftChange={
                   activeThread

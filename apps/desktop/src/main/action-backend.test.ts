@@ -2143,6 +2143,20 @@ describe('DesktopActionBackend schedule boundary', () => {
     await backend.invoke(
       request('schedule_update', { schedule_id: 'schedule-1', enabled: false }),
     );
+    await backend.invoke(
+      request('schedule_create', {
+        task: 'Recap my week.',
+        cadence: 'weekly',
+        days: ['monday', 'friday'],
+      }),
+    );
+    await backend.invoke(
+      request('schedule_update', {
+        schedule_id: 'schedule-1',
+        cadence: 'hourly',
+        every_hours: 3,
+      }),
+    );
     await backend.invoke(request('schedule_delete', { schedule_id: 'schedule-1' }));
 
     expect(schedules.create).toHaveBeenCalledWith('thread-1', {
@@ -2153,6 +2167,16 @@ describe('DesktopActionBackend schedule boundary', () => {
     expect(schedules.update).toHaveBeenCalledWith('thread-1', {
       scheduleId: 'schedule-1',
       enabled: false,
+    });
+    expect(schedules.create).toHaveBeenCalledWith('thread-1', {
+      task: 'Recap my week.',
+      cadence: 'weekly',
+      days: [1, 5],
+    });
+    expect(schedules.update).toHaveBeenCalledWith('thread-1', {
+      scheduleId: 'schedule-1',
+      cadence: 'hourly',
+      everyHours: 3,
     });
     expect(schedules.delete).toHaveBeenCalledWith('thread-1', 'schedule-1');
   });

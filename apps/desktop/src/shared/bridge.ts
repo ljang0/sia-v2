@@ -1,3 +1,6 @@
+import type { TextSize, ThemePreference } from './display.js';
+import type { ScheduleCadence } from './schedule-cadence.js';
+
 export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude';
 
 /** Safe catalog id. Executability still requires an audited runtime registration. */
@@ -100,6 +103,8 @@ export interface ThreadView {
   archivedAt?: string;
   sourceThreadId?: string;
   unread?: boolean;
+  /** Listed first in its agent's conversations. Older saved state has none: unpinned. */
+  pinned?: boolean;
   /** Local encrypted composer text that has not been sent. */
   draft?: string;
   interruptedTurnId?: string;
@@ -269,6 +274,19 @@ export interface WorkspaceSnapshotView {
   createdAt: string;
 }
 
+/**
+ * The files one reply changed, checked against the disk. `ready`: they still hold the reply's
+ * changes, so they can go back. `undone`: they are back as before, so the changes can be redone.
+ * `changed`: some were edited since, so neither is safe. `unavailable`: Sia has no complete
+ * record to put them back.
+ */
+export interface TurnChangesView {
+  state: 'ready' | 'undone' | 'changed' | 'unavailable';
+  files: Array<{ path: string; change: 'added' | 'edited' | 'deleted' | 'renamed' }>;
+  /** Files edited since, or ones Sia may not touch; they block undo and redo. */
+  blocked: string[];
+}
+
 export interface TerminalResultView {
   command: string;
   cwd: string;
@@ -302,7 +320,11 @@ export interface ScheduleView {
   id: string;
   threadId: string;
   prompt: string;
-  cadence: 'once' | 'hourly' | 'daily' | 'weekly';
+  cadence: ScheduleCadence;
+  /** Weekly only: 0 = Sunday … 6 = Saturday. */
+  days?: number[];
+  /** Hourly only: hours between runs; missing means every hour. */
+  everyHours?: number;
   nextRunAt: string;
   enabled: boolean;
   createdAt: string;
@@ -416,6 +438,8 @@ export interface ComputerPermissionsView {
   status: 'unavailable' | 'needs_permission' | 'ready' | 'error';
   accessibility: boolean;
   screenRecording: boolean;
+  /** Granted in System Settings, but macOS applies it to Sia only after one relaunch. */
+  relaunchFor?: ('accessibility' | 'screenRecording')[];
   detail?: string;
 }
 
@@ -504,6 +528,10 @@ export interface DesktopSnapshot {
     completionSound: boolean;
     openAtLogin?: boolean;
     appearance?: 'calm' | 'expressive';
+    /** Light or dark follows the Mac unless set. Applies to every Sia window. */
+    theme?: ThemePreference;
+    /** Scales Sia's type. Default when unset. */
+    textSize?: TextSize;
     /** Shows the workspace Command tool. Off unless turned on in Settings; main enforces it. */
     developerTools?: boolean;
     onboarding?: OnboardingProgress;
@@ -556,7 +584,8 @@ export interface OnboardingProgress {
   agentId?: string;
   restartPending?: boolean;
   restarted?: boolean;
-  permissionSetup?: { includeApps: boolean; active: boolean };
+  /** `skipped` lists optional checklist rows the person skipped, so a relaunch does not re-ask. */
+  permissionSetup?: { includeApps: boolean; active: boolean; skipped?: string[] };
 }
 
 export interface SaveAgentInput {
@@ -602,8 +631,22 @@ export interface CreateScheduleInput {
   threadId: string;
   prompt: string;
   cadence: ScheduleView['cadence'];
+  days?: number[];
+  everyHours?: number;
   nextRunAt: string;
   maxRuns?: number;
+}
+
+/** An edit from the schedule list; each field that is present replaces the saved one. */
+export interface UpdateScheduleInput {
+  scheduleId: string;
+  prompt?: string;
+  cadence?: ScheduleView['cadence'];
+  days?: number[];
+  everyHours?: number;
+  nextRunAt?: string;
+  maxRuns?: number;
+  enabled?: boolean;
 }
 
 export interface StartReviewInput {
@@ -638,6 +681,7 @@ export interface BridgeRequestMap {
   'threads.archive': { threadId: string };
   'threads.unarchive': { threadId: string };
   'threads.setUnread': { threadId: string; unread: boolean };
+  'threads.setPinned': { threadId: string; pinned: boolean };
   'threads.fork': { threadId: string; title?: string; isolated: boolean };
   'threads.handoff': {
     threadId: string;
@@ -676,6 +720,8 @@ export interface BridgeRequestMap {
     snapshotId: string;
     confirmation: 'DELETE SNAPSHOT';
   };
+  'changes.turn.read': { threadId: string; eventId: string };
+  'changes.turn.apply': { threadId: string; eventId: string; direction: 'undo' | 'redo' };
   'terminal.run': { threadId: string; command: string };
   'terminal.start': { threadId: string; command: string };
   'terminal.list': { threadId: string };
@@ -683,12 +729,14 @@ export interface BridgeRequestMap {
   'terminal.stop': { threadId: string; terminalId: string };
   'reviews.start': StartReviewInput;
   'schedules.create': CreateScheduleInput;
+  'schedules.update': UpdateScheduleInput;
   'schedules.setEnabled': { scheduleId: string; enabled: boolean };
   'schedules.delete': { scheduleId: string };
   'schedules.runNow': { scheduleId: string };
   'approvals.resolve': ResolveApprovalInput;
   'providers.probe': { providerId?: ProviderId };
   'providers.login': { providerId: ProviderId };
+  'providers.cancelLogin': { providerId: ProviderId };
   'settings.openDirectory': undefined;
   'settings.setOnboarding': {
     step: OnboardingStep;
@@ -697,6 +745,8 @@ export interface BridgeRequestMap {
   'settings.restartForOnboarding': undefined;
   'computer.setupMessages': undefined;
   'settings.setAppearance': { appearance: 'calm' | 'expressive' };
+  'settings.setTheme': { theme: ThemePreference };
+  'settings.setTextSize': { textSize: TextSize };
   'settings.setCompletionSound': { enabled: boolean };
   'settings.setOpenAtLogin': { enabled: boolean };
   'settings.setDeveloperTools': { enabled: boolean };
@@ -704,7 +754,8 @@ export interface BridgeRequestMap {
   'updates.check': undefined;
   'updates.openDownload': undefined;
   'computer.permissions': undefined;
-  'computer.requestPermissions': undefined;
+  'computer.requestPermissions':
+    { permission?: 'accessibility' | 'screenRecording' } | undefined;
   'computer.requestAutomation': { app: import('./mac-permissions.js').AutomationApp };
   'computer.openMessages': undefined;
   'computer.setAccessMode': {
@@ -777,6 +828,7 @@ export interface BridgeResultMap {
   'threads.archive': DesktopSnapshot;
   'threads.unarchive': DesktopSnapshot;
   'threads.setUnread': DesktopSnapshot;
+  'threads.setPinned': DesktopSnapshot;
   'threads.fork': { threadId: string; snapshot: DesktopSnapshot };
   'threads.handoff': { threadId: string; snapshot: DesktopSnapshot };
   'worktrees.cleanup': DesktopSnapshot;
@@ -808,6 +860,8 @@ export interface BridgeResultMap {
     diff: WorkspaceDiffView;
   };
   'changes.snapshots.delete': { snapshots: WorkspaceSnapshotView[] };
+  'changes.turn.read': TurnChangesView;
+  'changes.turn.apply': TurnChangesView;
   'terminal.run': TerminalResultView;
   'terminal.start': BackgroundTerminalView;
   'terminal.list': { sessions: BackgroundTerminalView[] };
@@ -815,17 +869,21 @@ export interface BridgeResultMap {
   'terminal.stop': BackgroundTerminalView;
   'reviews.start': { turnId: string; snapshot: DesktopSnapshot };
   'schedules.create': DesktopSnapshot;
+  'schedules.update': DesktopSnapshot;
   'schedules.setEnabled': DesktopSnapshot;
   'schedules.delete': DesktopSnapshot;
   'schedules.runNow': { turnId: string; snapshot: DesktopSnapshot };
   'approvals.resolve': DesktopSnapshot;
   'providers.probe': DesktopSnapshot;
   'providers.login': { opened: boolean; snapshot: DesktopSnapshot };
+  'providers.cancelLogin': DesktopSnapshot;
   'settings.openDirectory': { path: string | null };
   'settings.setOnboarding': DesktopSnapshot;
   'settings.restartForOnboarding': DesktopSnapshot;
   'computer.setupMessages': DesktopSnapshot;
   'settings.setAppearance': DesktopSnapshot;
+  'settings.setTheme': DesktopSnapshot;
+  'settings.setTextSize': DesktopSnapshot;
   'settings.setCompletionSound': DesktopSnapshot;
   'settings.setOpenAtLogin': DesktopSnapshot;
   'settings.setDeveloperTools': DesktopSnapshot;
@@ -920,6 +978,7 @@ export interface DesktopBridgeApi {
     archive(threadId: string): Promise<DesktopSnapshot>;
     unarchive(threadId: string): Promise<DesktopSnapshot>;
     setUnread(threadId: string, unread: boolean): Promise<DesktopSnapshot>;
+    setPinned(threadId: string, pinned: boolean): Promise<DesktopSnapshot>;
     fork(
       threadId: string,
       isolated: boolean,
@@ -979,6 +1038,12 @@ export interface DesktopBridgeApi {
       threadId: string,
       snapshotId: string,
     ): Promise<{ snapshots: WorkspaceSnapshotView[] }>;
+    readTurn(threadId: string, eventId: string): Promise<TurnChangesView>;
+    applyTurn(
+      threadId: string,
+      eventId: string,
+      direction: 'undo' | 'redo',
+    ): Promise<TurnChangesView>;
   };
   terminal: {
     run(threadId: string, command: string): Promise<TerminalResultView>;
@@ -992,6 +1057,7 @@ export interface DesktopBridgeApi {
   };
   schedules: {
     create(input: CreateScheduleInput): Promise<DesktopSnapshot>;
+    update(input: UpdateScheduleInput): Promise<DesktopSnapshot>;
     setEnabled(scheduleId: string, enabled: boolean): Promise<DesktopSnapshot>;
     delete(scheduleId: string): Promise<DesktopSnapshot>;
     runNow(scheduleId: string): Promise<BridgeResultMap['schedules.runNow']>;
@@ -1002,6 +1068,8 @@ export interface DesktopBridgeApi {
   providers: {
     probe(providerId?: ProviderId): Promise<DesktopSnapshot>;
     login(providerId: ProviderId): Promise<BridgeResultMap['providers.login']>;
+    /** Stops a browser sign-in that is still waiting, so setup can start over. */
+    cancelLogin(providerId: ProviderId): Promise<DesktopSnapshot>;
   };
   settings: {
     openDirectory(): Promise<{ path: string | null }>;
@@ -1011,6 +1079,8 @@ export interface DesktopBridgeApi {
     ): Promise<DesktopSnapshot>;
     restartForOnboarding(): Promise<DesktopSnapshot>;
     setAppearance(appearance: 'calm' | 'expressive'): Promise<DesktopSnapshot>;
+    setTheme(theme: ThemePreference): Promise<DesktopSnapshot>;
+    setTextSize(textSize: TextSize): Promise<DesktopSnapshot>;
     setCompletionSound(enabled: boolean): Promise<DesktopSnapshot>;
     setOpenAtLogin(enabled: boolean): Promise<DesktopSnapshot>;
     setDeveloperTools(enabled: boolean): Promise<DesktopSnapshot>;
@@ -1028,7 +1098,9 @@ export interface DesktopBridgeApi {
   };
   computer: {
     permissions(): Promise<DesktopSnapshot>;
-    requestPermissions(): Promise<DesktopSnapshot>;
+    requestPermissions(
+      permission?: 'accessibility' | 'screenRecording',
+    ): Promise<DesktopSnapshot>;
     requestAutomation(
       app: import('./mac-permissions.js').AutomationApp,
     ): Promise<DesktopSnapshot>;

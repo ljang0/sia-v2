@@ -5,8 +5,10 @@ import styles from './CommandLauncher.module.css';
 import { AppearanceContext } from './effects/appearance';
 import { DitherAurora as Aurora } from './effects/DitherAurora';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
+import { useTextSize } from '../textSize';
 export function CommandLauncher() {
   const [state, setState] = useState<LauncherState>({ agents: [] });
+  useTextSize(state.textSize);
   const [agentId, setAgentId] = useState('');
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);

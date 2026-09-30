@@ -6,6 +6,7 @@ import {
 import { MacWindowHistory } from './mac-window-history.js';
 import { macExecutionTools } from './mac-execution.js';
 import { workspaceFileAction } from './background-files.js';
+import { SCHEDULE_DAY_NAMES, type ScheduleCadence } from '../shared/schedule-cadence.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
@@ -53,7 +54,9 @@ export interface ScheduleActionHost {
     threadId: string,
     input: {
       task: string;
-      cadence: 'once' | 'hourly' | 'daily' | 'weekly';
+      cadence: ScheduleCadence;
+      days?: number[];
+      everyHours?: number;
       firstRunAt?: string;
       maxRuns?: number;
     },
@@ -64,7 +67,9 @@ export interface ScheduleActionHost {
     input: {
       scheduleId: string;
       task?: string;
-      cadence?: 'once' | 'hourly' | 'daily' | 'weekly';
+      cadence?: ScheduleCadence;
+      days?: number[];
+      everyHours?: number;
       nextRunAt?: string;
       enabled?: boolean;
       maxRuns?: number;
@@ -656,10 +661,11 @@ export class DesktopActionBackend implements ActionBackend {
     const args = request.arguments;
     switch (request.name) {
       case 'schedule_create': {
-        const cadence = args.cadence as 'once' | 'hourly' | 'daily' | 'weekly';
+        const cadence = args.cadence as ScheduleCadence;
         const schedule = schedules.create(request.context.threadId, {
           task: String(args.task),
           cadence,
+          ...scheduleRuleArguments(args),
           ...(typeof args.first_run_at === 'string' ? { firstRunAt: args.first_run_at } : {}),
           ...(typeof args.max_runs === 'number' ? { maxRuns: args.max_runs } : {}),
         });
@@ -684,10 +690,9 @@ export class DesktopActionBackend implements ActionBackend {
           scheduleId: String(args.schedule_id),
           ...(typeof args.task === 'string' ? { task: args.task } : {}),
           ...(typeof args.cadence === 'string'
-            ? {
-                cadence: args.cadence as 'once' | 'hourly' | 'daily' | 'weekly',
-              }
+            ? { cadence: args.cadence as ScheduleCadence }
             : {}),
+          ...scheduleRuleArguments(args),
           ...(typeof args.next_run_at === 'string' ? { nextRunAt: args.next_run_at } : {}),
           ...(typeof args.enabled === 'boolean' ? { enabled: args.enabled } : {}),
           ...(typeof args.max_runs === 'number' ? { maxRuns: args.max_runs } : {}),
@@ -2639,6 +2644,22 @@ function terminalWithoutVerification(result: ActionExecutionResult): boolean {
     result.outcome === 'stale' ||
     result.outcome === 'needs_foreground'
   );
+}
+
+/** Maps the tool's day names and every_hours onto the controller's schedule fields. */
+function scheduleRuleArguments(args: Readonly<Record<string, unknown>>): {
+  days?: number[];
+  everyHours?: number;
+} {
+  const days = Array.isArray(args.days)
+    ? args.days
+        .map((day) => SCHEDULE_DAY_NAMES.indexOf(day as (typeof SCHEDULE_DAY_NAMES)[number]))
+        .filter((day) => day >= 0)
+    : undefined;
+  return {
+    ...(days?.length ? { days } : {}),
+    ...(typeof args.every_hours === 'number' ? { everyHours: args.every_hours } : {}),
+  };
 }
 
 function refused(reason: string): ActionExecutionResult {

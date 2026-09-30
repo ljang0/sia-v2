@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ScottyAction, ScottyApi, ScottyState, ScottyStatus } from '../../shared/scotty';
 import { ScottySprite, type ScottyPose } from './ScottySprite';
 import styles from './Scotty.module.css';
+import { useTextSize } from '../textSize';
 const empty: ScottyState = {
   revision: -1,
   settings: { enabled: false, size: 'medium', motion: true },
@@ -67,6 +68,7 @@ function useScotty(api: ScottyApi) {
       unsubscribe();
     };
   }, [api]);
+  useTextSize(state.textSize);
   return { state, error, setError };
 }
 export function ScottyPet({ api = window.siaScotty }: { api?: ScottyApi }) {
@@ -355,6 +357,13 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
                   <span className={styles.dot} />
                   {task.progress}
                 </p>
+                {task.screen && (
+                  <small className={styles.screen}>
+                    {task.screen === 'foreground'
+                      ? 'Using your screen · Press Esc to stop'
+                      : 'Working quietly in the background'}
+                  </small>
+                )}
                 {task.response && (
                   <div className={styles.response}>
                     {task.truncated && (

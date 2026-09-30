@@ -11,6 +11,7 @@ const electron = vi.hoisted(() => {
 });
 vi.mock('electron', () => ({
   app: { isPackaged: true },
+  nativeTheme: { shouldUseDarkColors: false },
   globalShortcut: { register: electron.register, unregister: electron.unregister },
   ipcMain: {
     handle: (name: string, handler: (...args: any[]) => Promise<unknown>) =>
@@ -47,7 +48,8 @@ vi.mock('electron', () => ({
     getSize() {
       return [560, 208];
     }
-    setSize() {}
+    setSize = vi.fn();
+    setBackgroundColor = vi.fn();
     setPosition() {}
     setVisibleOnAllWorkspaces() {}
     on() {}
@@ -172,4 +174,28 @@ it('keeps the panel recoverable until the main window opens successfully', async
   } finally {
     launcher.dispose();
   }
+});
+
+it('grows the panel for larger text and paints it in the current theme', async () => {
+  const snapshot = {
+    agents: [{ id: 'agent', name: 'Sia' }],
+    threads: [],
+    timeline: [],
+    preferences: { completionSound: false, textSize: 'larger' },
+  } as unknown as DesktopSnapshot;
+  const controller = {
+    captureLauncherContext: vi.fn(async () => undefined),
+    taskSnapshot: () => snapshot,
+    subscribe: () => vi.fn(),
+  } as unknown as DesktopController;
+  electron.register.mockReturnValue(true);
+  const launcher = createCommandLauncher(controller, vi.fn());
+  electron.register.mock.calls[0]![1]();
+  await vi.waitFor(() => expect(electron.windows[0]?.show).toHaveBeenCalledOnce());
+  const window = electron.windows[0];
+  expect(window.options.backgroundColor).toBe('#f8f9f8');
+  // 208px at Default; Larger (1.22x) needs 254px to keep the prompt and buttons in view.
+  expect(window.setSize).toHaveBeenCalledWith(560, 254);
+  expect(window.setBackgroundColor).toHaveBeenCalledWith('#f8f9f8');
+  launcher.dispose();
 });

@@ -29,7 +29,7 @@ export const parityContract = {
     testIds: ['turn-running', 'interrupted-turn-banner', 'interrupted-turn-retry'],
   },
   goalsAndSchedules: {
-    bridge: ['threads.setGoal', 'schedules.create', 'schedules.runNow'],
+    bridge: ['threads.setGoal', 'schedules.create', 'schedules.update', 'schedules.runNow'],
     testIds: [
       'goal-title-input',
       'goal-save',
@@ -39,6 +39,9 @@ export const parityContract = {
       'schedule-first-run-input',
       'schedule-save',
       'schedule-next-run',
+      'schedule-time-input',
+      'schedule-cadence',
+      'scheduled-open',
     ],
   },
   gitChanges: {

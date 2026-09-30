@@ -203,6 +203,12 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   with no CUA tools. Its foreground operating prompt comes from the pinned Notch source, followed
   by the Codex tool-name, screenshot-coordinate, presentation and permission adapters. It does not
   append the separate background window-control recipe or a hardcoded Canvas investigation plan.
+  While an On my screen turn is running (not waiting on the person, paused, or ended),
+  `screen-control-indicator.ts` shows one click-through, non-focusable, content-protected panel
+  per display and registers a global `Escape` that cancels those turns; both are released as soon
+  as no such turn runs, on lock/sleep, and at quit. The panels live in Sia's own process, which the
+  host-pid exclusion already keeps out of window control. The route is pinned when the turn starts.
+  Background turns show no overlay, only a Scotty/Dock status.
   Matching saved skills can use the already signed-in apps; an explicit UI-only/no-API request
   takes precedence. Private account data and observed email addresses must not go to public search.
   A separately installed, reviewed `canvas-api` skill reads active CMU courses/teachers or a course's
@@ -451,7 +457,9 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   Permission steps are optional and use the typed bridge.
   The guide waits for observed grants before advancing and never treats a request returning as consent.
   Passive focus/poll checks do not replay prompts. A persisted `permissionSetup` records the app
-  choice and whether an authorized pass should resume after the setup restart; pausing prevents
+  choice, skipped optional rows, and whether an authorized pass should resume after the one
+  **Relaunch Sia** (offered only when a short-lived child process reads a grant the running app
+  cannot see yet); pausing prevents
   further steps even if an outstanding native request completes. Accessibility and Screen Recording
   are requested separately so one Settings pane cannot hide the other. Protected macOS approval
   dialogs remain user-operated, with no credential entry or model turn in setup. Explicit Fn setup
@@ -484,6 +492,13 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   environment, deadline, and output cap. Git operations use validated argv/path boundaries and
   disable repository hooks and file-system monitors. Neither surface is model-visible through Sia's
   added gateway.
+- **Undo changes** under a finished reply plays back the `fileChange` items Codex reported for that
+  reply (an added file's content, a deleted file's content, or an edit's line diff), which the
+  thread already stores; no folder copy or Git snapshot is taken. `main/turn-changes.ts` applies the
+  record backwards or forwards only when every file still matches it exactly, writes all files or
+  none, stays inside the thread's folder or the home folder (never through a symlink, into `.git`,
+  `~/.ssh`, `~/.gnupg` or `~/Library/Keychains`), and refuses while a task runs in that thread.
+  Changes made by shell commands, and anything sent or done in other apps, are not undone.
 
 ## Concurrency
 

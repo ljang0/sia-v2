@@ -264,10 +264,10 @@ test('goals and schedules persist with a deterministic next-run time', async ({}
     await harness.page.getByTestId(parityContract.goalsAndSchedules.testIds[2]).click();
     await harness.page
       .getByTestId(parityContract.goalsAndSchedules.testIds[3])
-      .fill('Run the weekday parity check.');
+      .fill('Run the one-time parity check.');
     await harness.page
       .getByTestId(parityContract.goalsAndSchedules.testIds[4])
-      .selectOption('daily');
+      .selectOption('once');
     await harness.page
       .getByTestId(parityContract.goalsAndSchedules.testIds[5])
       .fill('2030-01-01T09:00');
@@ -275,6 +275,28 @@ test('goals and schedules persist with a deterministic next-run time', async ({}
     await expect(
       harness.page.getByTestId(parityContract.goalsAndSchedules.testIds[7]),
     ).toContainText(/Jan 1.*9:00/i);
+
+    // Weekday schedules take a time of day; the list names the cadence plainly.
+    await harness.page.getByTestId(parityContract.goalsAndSchedules.testIds[2]).click();
+    await harness.page
+      .getByTestId(parityContract.goalsAndSchedules.testIds[3])
+      .fill('Run the weekday parity check.');
+    await harness.page
+      .getByTestId(parityContract.goalsAndSchedules.testIds[4])
+      .selectOption('weekdays');
+    await harness.page.getByTestId(parityContract.goalsAndSchedules.testIds[8]).fill('09:00');
+    await harness.page.getByTestId(parityContract.goalsAndSchedules.testIds[6]).click();
+    await expect(
+      harness.page.getByTestId(parityContract.goalsAndSchedules.testIds[9]),
+    ).toContainText([/^Once$/, /Weekdays at 9:00/]);
+
+    // Every schedule also appears on the Scheduled page.
+    await harness.page.getByRole('button', { name: 'Close thread tool' }).click();
+    await harness.page.getByTestId(parityContract.goalsAndSchedules.testIds[10]).click();
+    const scheduled = harness.page.getByRole('main', { name: 'Scheduled' });
+    await expect(
+      scheduled.getByTestId(parityContract.goalsAndSchedules.testIds[9]),
+    ).toHaveCount(2);
     expect(harness.rendererErrors).toEqual([]);
   } finally {
     await harness.close();

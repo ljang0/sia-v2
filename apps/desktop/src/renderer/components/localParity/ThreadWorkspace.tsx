@@ -21,7 +21,7 @@ import type {
 import styles from '../../ui.module.css';
 import { ChangesReview, type ChangedFile } from './ChangesReview';
 import { GoalControls } from './WorkControls';
-import { ScheduleControls } from './WorkControls';
+import { ScheduleControls } from './Schedules';
 import { TerminalDrawer, type TerminalRunState } from './TerminalDrawer';
 
 type Tool = 'goal' | 'changes' | 'terminal' | 'schedules';
@@ -239,8 +239,12 @@ export function ThreadWorkspaceTools({
                     draft.cadence,
                     new Date(draft.runAt).toISOString(),
                     draft.maxRuns,
+                    { days: draft.days, everyHours: draft.everyHours },
                   ),
                 )
+              }
+              onSave={(scheduleId, changes) =>
+                attempt(() => api.updateSchedule(scheduleId, changes))
               }
               onSetEnabled={(scheduleId, enabled) =>
                 run(() => api.setScheduleEnabled(scheduleId, enabled))

@@ -97,9 +97,7 @@ export function Onboarding({
   const [permissionBusy, setPermissionBusy] = useState(false);
   const [startPermissions, setStartPermissions] = useState(false);
   const [accessReady, setAccessReady] = useState(false);
-  const [permissionPassComplete, setPermissionPassComplete] = useState(
-    Boolean(snapshot.preferences.onboarding?.restarted),
-  );
+  const [permissionPassComplete, setPermissionPassComplete] = useState(false);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [prepareApps, setPrepareApps] = useState(
     snapshot.preferences.onboarding?.permissionSetup?.includeApps ?? starting,
@@ -237,7 +235,8 @@ export function Onboarding({
         {celebrate ? <SetupDoneToast onDone={() => setCelebrate(false)} /> : null}
       </>
     );
-  const done = !starting && !restarting && accessReady;
+  // Stay on Mac access while a Grant all pass is still walking optional rows.
+  const done = !starting && !restarting && accessReady && !permissionBusy;
   return (
     <main className={styles.setup} aria-label="Welcome to Sia">
       <section className={styles.stage}>
@@ -266,7 +265,7 @@ export function Onboarding({
               ? 'A few quick steps, then Sia can help with everyday tasks in the apps you already use.'
               : done
                 ? 'Sia is ready to help. Connect more apps below, or jump right in.'
-                : 'Sia needs a few macOS permissions to see and use your screen. It only takes a few minutes.'}
+                : 'Turn these on once, here, and Sia won’t need to ask again. Only the first two are needed; skip anything else.'}
           </p>
           {starting ? (
             <>
@@ -289,6 +288,7 @@ export function Onboarding({
                     providers={snapshot.providers}
                     onProbe={(id) => api.refreshProvider(id)}
                     onOpenProviderSetup={(id) => api.openProviderSetup(id)}
+                    onCancelProviderSetup={(id) => api.cancelProviderSetup(id)}
                     onOpenCloudSettings={onAccount}
                   />
                 </div>
@@ -464,7 +464,7 @@ export function Onboarding({
           ) : (
             <>
               {restarting ? (
-                <p role="status">Restarting Sia…</p>
+                <p role="status">Relaunching Sia…</p>
               ) : (
                 <SetupMacAccess
                   snapshot={snapshot}
@@ -492,14 +492,17 @@ export function Onboarding({
                         setError('Setup paused. Its saved progress could not update.'),
                       );
                   }}
-                  onRestart={async () => {
+                  // The one relaunch: saves this step and resumes the pass after reopening.
+                  onRestart={async (skipped) => {
                     await api.setOnboarding('verify', {
                       includeApps: setupRoute === 'mac-bypass' && prepareApps,
                       active: true,
+                      skipped,
                     });
                     await api.restartForOnboarding();
                   }}
                   includeApps={setupRoute === 'mac-bypass' && prepareApps}
+                  initialSkipped={snapshot.preferences.onboarding?.permissionSetup?.skipped}
                   onComplete={async () => {
                     setStartPermissions(false);
                     await run(async () => {
@@ -507,9 +510,7 @@ export function Onboarding({
                         includeApps: setupRoute === 'mac-bypass' && prepareApps,
                         active: false,
                       });
-                      if (!snapshot.preferences.onboarding?.restarted)
-                        await api.restartForOnboarding();
-                      else setPermissionPassComplete(true);
+                      setPermissionPassComplete(true);
                     });
                   }}
                 />
@@ -532,24 +533,6 @@ export function Onboarding({
                   Connect Google or Slack <span>Optional</span>
                 </summary>
                 <SetupConnections snapshot={snapshot} api={api} pending={busy} run={run} />
-              </details>
-              <details className={styles.details}>
-                <summary>Permission not updating?</summary>
-                <p className={styles.note}>
-                  If macOS asks you to restart Sia, use this button. Your setup is saved.
-                </p>
-                <button
-                  className={ui.secondaryButton}
-                  disabled={busy || connecting}
-                  onClick={() =>
-                    void run(async () => {
-                      await api.setOnboarding('verify');
-                      await api.restartForOnboarding();
-                    })
-                  }
-                >
-                  {restarting ? 'Restarting…' : 'Restart Sia'}
-                </button>
               </details>
             </>
           )}

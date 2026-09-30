@@ -57,6 +57,23 @@ describe('desktop IPC dispatch', () => {
     expect(String(error)).toContain('Request failed');
   });
 
+  it('accepts only the listed theme and text size choices', async () => {
+    const ipc = register();
+    await ipc.invoke({ method: 'settings.setTheme', input: { theme: 'dark' } });
+    await ipc.invoke({ method: 'settings.setTextSize', input: { textSize: 'larger' } });
+    expect(ipc.invokeForRenderer).toHaveBeenCalledTimes(2);
+    for (const envelope of [
+      { method: 'settings.setTheme', input: { theme: 'sepia' } },
+      { method: 'settings.setTheme', input: { theme: 'dark', extra: true } },
+      { method: 'settings.setTheme', input: {} },
+      { method: 'settings.setTextSize', input: { textSize: 1.5 } },
+      { method: 'settings.setTextSize', input: { textSize: 'huge' } },
+      { method: 'settings.setTextSize', input: { textSize: 'large', zoom: 2 } },
+    ])
+      await expect(ipc.invoke(envelope)).rejects.toThrow();
+    expect(ipc.invokeForRenderer).toHaveBeenCalledTimes(2);
+  });
+
   it('accepts pasted bytes only as a bounded byte array', async () => {
     const ipc = register();
     const threadId = '00000000-0000-4000-8000-000000000001';

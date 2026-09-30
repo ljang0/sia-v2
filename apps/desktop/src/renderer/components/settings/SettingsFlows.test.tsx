@@ -849,7 +849,7 @@ it('sets up computer, voice and missing app access through one settings action',
     redraw();
   });
   expect(macSetupApi.requestComputerPermissions).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button', { name: 'Set up permissions' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Grant all' }));
   await waitFor(() => expect(macSetupApi.configureVoice).toHaveBeenCalledOnce());
   await waitFor(() => expect(macSetupApi.configurePushToTalk).toHaveBeenCalledOnce());
   await waitFor(() => expect(screen.getByText('Mac access is ready.')).toBeTruthy());
