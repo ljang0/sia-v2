@@ -12,11 +12,14 @@ export function ProvidersSettings({
   providers,
   onProbe,
   onOpenProviderSetup = onProbe,
+  onCancelProviderSetup,
   onOpenCloudSettings,
 }: {
   providers: ProviderSetup[];
   onProbe(provider: ProviderId): Promise<void>;
   onOpenProviderSetup?(provider: ProviderId): Promise<void>;
+  /** Stops a ChatGPT sign-in that is still waiting in the browser. */
+  onCancelProviderSetup?(provider: ProviderId): Promise<void>;
   onOpenCloudSettings(): void;
 }) {
   const [pending, setPending] = useState<ProviderId>();
@@ -125,6 +128,25 @@ export function ProvidersSettings({
               >
                 {pending === provider.id ? 'Checking…' : 'Try again'}
               </button>
+            ) : provider.setup?.phase === 'signing-in' && onCancelProviderSetup ? (
+              // A browser sign-in can stall (closed tab, wrong account). Cancel starts over.
+              <span className={styles.rowTitleLine}>
+                <button type="button" className={styles.primaryButton} disabled>
+                  {pendingAction(provider)}
+                </button>
+                <button
+                  type="button"
+                  className={styles.secondaryButton}
+                  onClick={() => {
+                    setError(undefined);
+                    void onCancelProviderSetup(provider.id).catch((cause: unknown) =>
+                      setError(errorMessage(cause, 'Sign-in could not be cancelled.')),
+                    );
+                  }}
+                >
+                  Cancel
+                </button>
+              </span>
             ) : (
               <button
                 type="button"
@@ -140,7 +162,9 @@ export function ProvidersSettings({
               >
                 {pending === provider.id || (provider.id === 'codex' && setupBusy)
                   ? pendingAction(provider)
-                  : setupAction(provider)}
+                  : provider.setup?.phase === 'error'
+                    ? 'Try again'
+                    : setupAction(provider)}
               </button>
             )}
           </div>

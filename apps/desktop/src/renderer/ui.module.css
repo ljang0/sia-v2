@@ -855,7 +855,7 @@ button.agentAvatar {
   border-radius: var(--radius-tight);
   color: var(--shell-muted);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--text-2xs);
   font-weight: var(--weight-medium);
 }
 
@@ -3937,7 +3937,7 @@ input[type='checkbox'].switch:disabled {
   background: var(--bg-canvas);
   color: var(--text-secondary);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
@@ -5805,14 +5805,14 @@ input[type='checkbox'].switch:disabled {
 }
 
 .starterText strong {
-  font-size: 13px;
+  font-size: var(--text-md);
   font-weight: 600;
   line-height: 18px;
 }
 
 .starterText span {
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--text-sm);
   line-height: 1.45;
 }
 
@@ -8253,7 +8253,7 @@ button.agentAvatar {
 
 .agentSettingsMenu {
   position: relative;
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .agentSettingsMenu > summary {
   display: flex;
@@ -8299,7 +8299,7 @@ button.agentAvatar {
 .workspaceDetails {
   color: var(--text-secondary);
   overflow-wrap: anywhere;
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 .workspaceDetails summary {
   cursor: pointer;
@@ -8316,7 +8316,7 @@ button.agentAvatar {
   border-radius: 8px;
   cursor: pointer;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--text-sm);
   text-align: left;
 }
 .flatThreadList {

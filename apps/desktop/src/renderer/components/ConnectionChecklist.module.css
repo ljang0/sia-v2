@@ -10,11 +10,11 @@
 }
 .checklist legend {
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 .note {
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--text-sm);
   line-height: 1.6;
 }
 .choice {
@@ -34,16 +34,16 @@
   min-width: 0;
 }
 .description strong {
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 .description > span {
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--text-sm);
   line-height: 1.5;
 }
 .ready,
 .status {
-  font-size: 11px;
+  font-size: var(--text-xs);
   max-width: 130px;
   text-align: right;
 }
@@ -53,7 +53,7 @@
 }
 .error {
   color: var(--text-danger);
-  font-size: 12px;
+  font-size: var(--text-sm);
   line-height: 1.6;
 }
 .pending {

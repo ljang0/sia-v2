@@ -51,6 +51,7 @@ import {
 import './tokens.css';
 import companion from './companion.module.css';
 import styles from './ui.module.css';
+import { useTextSize } from './textSize';
 
 const AuditGallery = lazy(() => import('./audit/AuditGallery'));
 
@@ -82,6 +83,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     workspace,
   );
   useInstantThemeSwitch();
+  useTextSize(app.snapshot?.preferences.textSize);
   const [reveal, setReveal] = useState(0);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -414,6 +416,9 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         onSetThreadUnread={(threadId, unread) =>
           app.attempt(() => api.setThreadUnread(threadId, unread)) as Promise<void>
         }
+        onSetThreadPinned={(threadId, pinned) =>
+          app.attempt(() => api.setThreadPinned(threadId, pinned)) as Promise<void>
+        }
         onOpenActivity={() => app.openActivity('activity')}
         onOpenScheduled={
           snapshot.cloudAuth.features?.schedules === false
@@ -595,6 +600,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onOpenFeedback={() => setFeedbackOpen(true)}
               onProbeProvider={(provider) => api.refreshProvider(provider)}
               onOpenProviderSetup={(provider) => api.openProviderSetup(provider)}
+              onCancelProviderSetup={(provider) => api.cancelProviderSetup(provider)}
               onCheckForUpdates={() => api.checkForUpdates()}
               onOpenUpdateDownload={() => api.openUpdateDownload()}
               onConnectSelectedApps={(apps) => api.connectSelectedApps(apps)}
@@ -636,6 +642,8 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 })
               }
               onSetAppearance={(appearance) => api.setAppearance(appearance)}
+              onSetTheme={(theme) => api.setTheme(theme)}
+              onSetTextSize={(textSize) => api.setTextSize(textSize)}
               onSetCompletionSound={(enabled) => api.setCompletionSound(enabled)}
               onSetOpenAtLogin={(enabled) => api.setOpenAtLogin(enabled)}
               onSetDeveloperTools={(enabled) => api.setDeveloperTools(enabled)}
@@ -818,6 +826,15 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 }}
                 onResolveApproval={(id, decision) =>
                   run(() => api.respondToApproval(id, decision)).then(() => focusComposer())
+                }
+                turnChanges={
+                  activeThread
+                    ? {
+                        read: (eventId) => api.readTurnChanges(activeThread.id, eventId),
+                        apply: (eventId, direction) =>
+                          api.applyTurnChanges(activeThread.id, eventId, direction),
+                      }
+                    : undefined
                 }
                 onDraftChange={
                   activeThread

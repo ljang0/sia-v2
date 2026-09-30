@@ -1,6 +1,7 @@
 // @vitest-environment node
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -49,6 +50,36 @@ const home = ['welcome-home', 'motion-list']
   )
   .join('\n');
 const css = `${tokens}\n${styles}\n${companion}\n${aurora}\n${metal}\n${navigation}\n${appearance}\n${startup}\n${results}\n${welcome}\n${home}`;
+
+describe('text size', () => {
+  it('scales every interface font size with Settings → Appearance → Text size', () => {
+    // Brand wordmarks and the hero headings keep their own size; everything else is a token or
+    // calc(Npx * var(--text-scale)), so a bare px font size would ignore the person's choice.
+    const allowed = new Set([
+      'components/navigation.module.css:font-size: 38px',
+      'ui.module.css:font-size: 20px',
+      'components/startup.module.css:font-size: 17px',
+      'components/startup.module.css:font: 650 42px/1 var(--font-brand)',
+    ]);
+    const root = fileURLToPath(new URL('.', import.meta.url));
+    const bare: string[] = [];
+    for (const file of readdirSync(root, { recursive: true, encoding: 'utf8' })) {
+      if (!file.endsWith('.css') || file === 'tokens.css') continue;
+      const source = readFileSync(join(root, file), 'utf8');
+      for (const match of source.matchAll(/(font(?:-size)?:[^;{}]*);/g)) {
+        const declaration = match[1]!.replace(/\s+/g, ' ').trim();
+        const outsideScale = declaration.replace(/calc\([^)]*var\(--text-scale\)\)/g, '');
+        const scaled =
+          /var\(--(text|display)-/.test(outsideScale) || /clamp\(/.test(outsideScale);
+        if (!scaled && /\b\d+(\.\d+)?px/.test(outsideScale))
+          if (!allowed.has(`${file}:${declaration}`)) bare.push(`${file}: ${declaration}`);
+      }
+    }
+    expect(bare).toEqual([]);
+    expect(tokens).toMatch(/--text-scale: 1;/);
+    expect(tokens).toMatch(/--text-sm: calc\(12px \* var\(--text-scale\)\);/);
+  });
+});
 
 describe('renderer accessibility CSS policy', () => {
   it('keeps explicit reduced-motion, increased-contrast, and forced-color modes', () => {

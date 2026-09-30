@@ -58,6 +58,8 @@ interface ComposerProps {
   queued?: boolean | undefined;
   onVoiceConversationChange?: ((active: boolean) => void) | undefined;
   onDraftChange?: ((content: string) => Promise<void> | void) | undefined;
+  /** Messages already sent in this conversation, oldest first; ↑ in an empty box recalls them. */
+  history?: readonly string[] | undefined;
   onSend(content: string, attachmentIds?: readonly string[]): Promise<void> | void;
   onStop(): Promise<void> | void;
 }
@@ -89,10 +91,13 @@ export function Composer({
   queued = false,
   onVoiceConversationChange,
   onDraftChange,
+  history = [],
   onSend,
   onStop,
 }: ComposerProps) {
   const [value, setValue] = useState(initialValue);
+  // Which sent message ↑/↓ is showing, counted back from the newest; unset while typing.
+  const recall = useRef<number | undefined>(undefined);
   const [sending, setSending] = useState(false);
   const [voicePhase, setVoicePhase] = useState<
     'idle' | 'starting' | 'recording' | 'transcribing'
@@ -200,6 +205,8 @@ export function Composer({
   };
 
   const updateValue = (content: string) => {
+    // Editing or clearing a recalled message makes it the person's own draft again.
+    recall.current = undefined;
     setValue(content);
     persistDraftSoon(content);
   };
@@ -253,6 +260,7 @@ export function Composer({
         content,
         attachments.map((attachment) => attachment.id),
       );
+      recall.current = undefined;
       setValue('');
       persistDraftNow('');
     } catch {
@@ -263,7 +271,52 @@ export function Composer({
     }
   };
 
+  /** Show a sent message (0 = newest) with the caret at its end, or the empty draft. */
+  const showRecalled = (index: number | undefined) => {
+    recall.current = index;
+    const content = index === undefined ? '' : (history[history.length - 1 - index] ?? '');
+    setValue(content);
+    requestAnimationFrame(() => {
+      const input = textArea.current;
+      input?.setSelectionRange(content.length, content.length);
+    });
+  };
+
+  // ↑ in an empty box steps back through sent messages, like a terminal. Within a recalled
+  // message, ↑ only leaves its first line and ↓ its last, so multi-line editing still works.
+  const handleRecallKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
+    if (event.nativeEvent.isComposing || disabled) return false;
+    const input = event.currentTarget;
+    const current = recall.current;
+    if (event.key === 'Escape') {
+      if (current === undefined) return false;
+      showRecalled(undefined);
+      return true;
+    }
+    if (event.key === 'ArrowUp') {
+      const atTop = !input.value.slice(0, input.selectionStart).includes('\n');
+      const recalling = current !== undefined && atTop;
+      if (!recalling && (input.value !== '' || attachments.length > 0)) return false;
+      const next = (current ?? -1) + 1;
+      if (next >= history.length) return current !== undefined;
+      showRecalled(next);
+      return true;
+    }
+    if (event.key === 'ArrowDown') {
+      if (current === undefined) return false;
+      if (input.value.slice(input.selectionEnd).includes('\n')) return false;
+      showRecalled(current === 0 ? undefined : current - 1);
+      return true;
+    }
+    return false;
+  };
+
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (handleRecallKey(event)) {
+      event.preventDefault();
+      return;
+    }
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       void submit();

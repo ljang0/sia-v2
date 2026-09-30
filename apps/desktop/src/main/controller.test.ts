@@ -3,7 +3,7 @@ import { AssistantLibrary } from './assistant-library.js';
 import { NotchVault } from './notch/vault.js';
 import type { VoiceHelperFactory } from './push-to-talk.js';
 import { generateKeyPairSync, sign, randomUUID } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -490,6 +490,8 @@ describe('DesktopController', () => {
       expect(requestPermissions).not.toHaveBeenCalled();
       await controller.invoke('computer.requestPermissions', undefined);
       expect(requestPermissions).toHaveBeenCalledTimes(1);
+      await controller.invoke('computer.requestPermissions', { permission: 'screenRecording' });
+      expect(requestPermissions).toHaveBeenLastCalledWith('screenRecording');
     } finally {
       await controller.shutdown();
     }
@@ -959,6 +961,36 @@ describe('DesktopController', () => {
         .preferences.appearance,
     ).toBe('expressive');
     await controller.shutdown();
+  });
+
+  it('saves theme and text size, drops defaults, and ignores unreadable stored values', async () => {
+    const { controller, repository } = await createHarness();
+    expect(controller.displayPreferences()).toEqual({});
+    await controller.invoke('settings.setTheme', { theme: 'dark' });
+    const updated = await controller.invoke('settings.setTextSize', { textSize: 'larger' });
+    expect(updated.preferences).toMatchObject({ theme: 'dark', textSize: 'larger' });
+    expect(controller.displayPreferences()).toEqual({ theme: 'dark', textSize: 'larger' });
+    await expect(
+      controller.invoke('settings.setTheme', { theme: 'neon' } as never),
+    ).rejects.toThrow('Choose System, Light, or Dark.');
+    await expect(
+      controller.invoke('settings.setTextSize', { textSize: 'huge' } as never),
+    ).rejects.toThrow('Choose a text size');
+    const restored = await createHarness({ repository });
+    expect(restored.controller.displayPreferences()).toEqual({
+      theme: 'dark',
+      textSize: 'larger',
+    });
+    await restored.controller.invoke('settings.setTheme', { theme: 'system' });
+    await restored.controller.invoke('settings.setTextSize', { textSize: 'default' });
+    const saved = repository.get<{ preferences: Record<string, unknown> }>('desktop', 'state')!;
+    expect(saved.preferences).not.toHaveProperty('theme');
+    expect(saved.preferences).not.toHaveProperty('textSize');
+    repository.put('desktop', 'state', {
+      ...saved,
+      preferences: { ...saved.preferences, theme: 'neon', textSize: 3 },
+    });
+    expect((await createHarness({ repository })).controller.displayPreferences()).toEqual({});
   });
 
   it('persists the local completion-sound preference', async () => {
@@ -3713,6 +3745,97 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('undoes and redoes the files one reply changed, only once the task ends', async () => {
+    // The harness grants only this folder; a unique file keeps the test independent.
+    const workspace = '/tmp/sia-workspace';
+    await mkdir(workspace, { recursive: true });
+    const name = `undo-${randomUUID()}.md`;
+    const notes = join(workspace, name);
+    await writeFile(notes, 'after\n');
+    let runtimeThreadId = '';
+    const runtime = {
+      async *runTurn(input: { turnId: string }) {
+        const base = {
+          threadId: runtimeThreadId,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        yield {
+          ...base,
+          id: 'edit-notes',
+          sequence: 1,
+          type: 'tool' as const,
+          payload: {
+            callId: 'patch-1',
+            name: 'fileChange',
+            phase: 'completed' as const,
+            native: true,
+            presentation: {
+              kind: 'file_change' as const,
+              files: [
+                { path: notes, change: 'update', diff: '@@ -1 +1 @@\n-before\n+after\n' },
+              ],
+            },
+          },
+        };
+        yield {
+          ...base,
+          id: crypto.randomUUID(),
+          sequence: 2,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    try {
+      const created = await controller.invoke('agents.save', {
+        name: 'Notes',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace,
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: created.agentId,
+      });
+      runtimeThreadId = threadId;
+      await controller.invoke('threads.send', { threadId, text: 'Tidy my notes' });
+      await vi.waitFor(() =>
+        expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+          'idle',
+        ),
+      );
+
+      const eventId = 'edit-notes';
+      await expect(
+        controller.invoke('changes.turn.read', { threadId, eventId }),
+      ).resolves.toEqual({
+        state: 'ready',
+        files: [{ path: name, change: 'edited' }],
+        blocked: [],
+      });
+      await expect(
+        controller.invoke('changes.turn.apply', { threadId, eventId, direction: 'undo' }),
+      ).resolves.toMatchObject({ state: 'undone' });
+      expect(await readFile(notes, 'utf8')).toBe('before\n');
+      await expect(
+        controller.invoke('changes.turn.apply', { threadId, eventId, direction: 'redo' }),
+      ).resolves.toMatchObject({ state: 'ready' });
+      expect(await readFile(notes, 'utf8')).toBe('after\n');
+      await expect(
+        controller.invoke('changes.turn.read', { threadId, eventId: 'missing' }),
+      ).rejects.toThrow('no longer in the conversation');
+    } finally {
+      await controller.shutdown();
+      await rm(notes, { force: true });
+    }
+  });
+
   it('excludes an entire Google Workspace action turn from research capture', async () => {
     let runtimeThreadId = '';
     let gateway!: ActionGateway;
@@ -5677,12 +5800,61 @@ describe('DesktopController', () => {
     expect(openExternal).toHaveBeenCalledWith(
       'https://auth.openai.com/authorize?client_id=sia-test',
     );
-    expect(runtime.waitForCodexChatGptLogin).toHaveBeenCalledWith('login-1');
+    expect(runtime.waitForCodexChatGptLogin).toHaveBeenCalledWith(
+      'login-1',
+      expect.any(AbortSignal),
+    );
     expect(result.snapshot.providers.find(({ id }) => id === 'codex')).toMatchObject({
       status: 'ready',
       account: 'Connected to ChatGPT',
     });
     expect(runtime.cancelCodexChatGptLogin).not.toHaveBeenCalled();
+    await controller.shutdown();
+  });
+
+  it('cancels a waiting ChatGPT sign-in into a plain Try again state', async () => {
+    const providerProbe = async (providerId?: Parameters<typeof probeProviders>[0]) =>
+      (await deterministicProviderProbe(providerId)).map((provider) =>
+        provider.id === 'codex' ? { ...provider, status: 'needs_login' as const } : provider,
+      );
+    const runtime = {
+      startCodexChatGptLogin: vi.fn(async () => ({
+        loginId: 'stalled-login',
+        authUrl: 'https://auth.openai.com/authorize?client_id=sia-test',
+      })),
+      waitForCodexChatGptLogin: vi.fn(
+        (_loginId: string, signal?: AbortSignal) =>
+          new Promise<void>((_resolve, reject) =>
+            signal?.addEventListener('abort', () => reject(signal.reason), { once: true }),
+          ),
+      ),
+      cancelCodexChatGptLogin: vi.fn(async () => undefined),
+      listModels: vi.fn(async () => []),
+      resetSessions: vi.fn(async () => undefined),
+      dispose: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({
+      fakeServices: false,
+      providerProbe,
+      openExternal: vi.fn(async () => undefined),
+      runtime,
+    });
+    const login = controller.invoke('providers.login', { providerId: 'codex' });
+    await vi.waitFor(() => expect(runtime.waitForCodexChatGptLogin).toHaveBeenCalledOnce());
+    expect(controller.snapshot().providers.find(({ id }) => id === 'codex')?.setup?.phase).toBe(
+      'signing-in',
+    );
+    await controller.invoke('providers.cancelLogin', { providerId: 'codex' });
+    await expect(login).resolves.toMatchObject({ opened: false });
+    expect(runtime.cancelCodexChatGptLogin).toHaveBeenCalledWith('stalled-login');
+    expect(controller.snapshot().providers.find(({ id }) => id === 'codex')?.setup).toEqual({
+      phase: 'error',
+      message: 'ChatGPT sign-in was cancelled. Choose Try again to start over.',
+    });
+    // Try again starts a fresh sign-in; nothing is left in progress.
+    runtime.waitForCodexChatGptLogin.mockImplementationOnce(async () => undefined);
+    await controller.invoke('providers.login', { providerId: 'codex' }).catch(() => undefined);
+    expect(runtime.startCodexChatGptLogin).toHaveBeenCalledTimes(2);
     await controller.shutdown();
   });
 
@@ -7612,6 +7784,57 @@ it('works in the background by default, including profiles saved before the sett
   await onScreen.controller.shutdown();
 });
 
+it('pins conversations, keeps copies unpinned, and reads older saved threads as unpinned', async () => {
+  const { controller, repository } = await createHarness();
+  const created = await controller.invoke('agents.save', {
+    name: 'Pinned room',
+    instructions: 'Keep things tidy.',
+    provider: 'codex',
+    model: 'gpt-5.6-sol',
+    workspace: '/tmp/sia-workspace',
+  });
+  const first = await controller.invoke('threads.create', { agentId: created.agentId });
+  const second = await controller.invoke('threads.create', { agentId: created.agentId });
+  const before = controller.snapshot().threads.find(({ id }) => id === first.threadId)!;
+  expect(before.pinned).toBe(false);
+
+  await controller.invoke('threads.setPinned', { threadId: first.threadId, pinned: true });
+  const pinned = controller.snapshot().threads.find(({ id }) => id === first.threadId)!;
+  expect(pinned.pinned).toBe(true);
+  // Pinning is not activity: it does not move the conversation in recency order.
+  expect(pinned.updatedAt).toBe(before.updatedAt);
+
+  const copy = await controller.invoke('threads.fork', {
+    threadId: first.threadId,
+    isolated: false,
+  });
+  expect(copy.snapshot.threads.find(({ id }) => id === copy.threadId)?.pinned).toBe(false);
+
+  const reopened = await createHarness({ repository });
+  expect(
+    reopened.controller.snapshot().threads.find(({ id }) => id === first.threadId)?.pinned,
+  ).toBe(true);
+  await reopened.controller.invoke('threads.setPinned', {
+    threadId: first.threadId,
+    pinned: false,
+  });
+  expect(
+    reopened.controller.snapshot().threads.find(({ id }) => id === first.threadId)?.pinned,
+  ).toBe(false);
+
+  const stored = repository.get<{ threads: { id: string; pinned?: boolean }[] }>(
+    'desktop',
+    'state',
+  )!;
+  for (const thread of stored.threads) delete thread.pinned;
+  repository.put('desktop', 'state', stored);
+  const legacy = await createHarness({ repository });
+  expect(
+    legacy.controller.snapshot().threads.find(({ id }) => id === second.threadId)?.pinned,
+  ).toBe(false);
+  await legacy.controller.shutdown();
+});
+
 it('preserves connected mode for existing profiles, including profiles predating the mode setting', async () => {
   const { controller, repository } = await createHarness();
   await controller.invoke('computer.setAccessMode', { mode: 'connected' });
@@ -8089,6 +8312,39 @@ describe('Use my Mac power and lock handling', () => {
     await failing.controller.shutdown();
   });
 
+  it('reports which working Mac tasks use the screen and clears them on stop or lock', async () => {
+    const quiet = await macThread({ runtime: holdingRuntime().runtime });
+    await quiet.controller.invoke('threads.send', {
+      threadId: quiet.threadId,
+      text: 'Tidy my desktop',
+    });
+    await vi.waitFor(() =>
+      expect(quiet.controller.screenControl()).toEqual({ [quiet.threadId]: 'background' }),
+    );
+    expect(quiet.controller.taskSnapshot().screenControl).toEqual({
+      [quiet.threadId]: 'background',
+    });
+    await quiet.controller.invoke('threads.cancel', { threadId: quiet.threadId });
+    await vi.waitFor(() => expect(quiet.status()).toBe('idle'));
+    expect(quiet.controller.screenControl()).toEqual({});
+    await quiet.controller.shutdown();
+
+    const { runtime } = holdingRuntime();
+    const { controller, threadId, status } = await macThread({ runtime });
+    await controller.invoke('computer.setAccessMode', { mode: 'mac', background: false });
+    await controller.invoke('threads.send', { threadId, text: 'File my receipts' });
+    await vi.waitFor(() =>
+      expect(controller.screenControl()).toEqual({ [threadId]: 'foreground' }),
+    );
+    // Switching modes mid-task applies to the next task, not the one on screen.
+    await controller.invoke('computer.setAccessMode', { mode: 'mac', background: true });
+    expect(controller.screenControl()).toEqual({ [threadId]: 'foreground' });
+    controller.setMacAvailability('locked');
+    expect(status()).toBe('failed');
+    expect(controller.screenControl()).toEqual({});
+    await controller.shutdown();
+  });
+
   it('lets the display sleep while a Mac task waits on an approval', async () => {
     const gate = Promise.withResolvers<void>();
     const runtime = {
@@ -8124,6 +8380,8 @@ describe('Use my Mac power and lock handling', () => {
     await vi.waitFor(() => expect(status()).toBe('waiting'));
     expect(keepAwake.hold).toHaveBeenCalledTimes(1);
     expect(keepAwake.release).toHaveBeenCalledWith(threadId);
+    // Waiting on the person hides the screen cue and releases Esc.
+    expect(controller.screenControl()).toEqual({});
     const approval = controller
       .snapshot()
       .approvals.find((item) => item.threadId === threadId)!;
@@ -8132,6 +8390,7 @@ describe('Use my Mac power and lock handling', () => {
       decision: 'approve',
     });
     expect(status()).toBe('running');
+    expect(controller.screenControl()).toEqual({ [threadId]: 'background' });
     expect(keepAwake.hold).toHaveBeenCalledTimes(2);
     gate.resolve();
     await vi.waitFor(() => expect(status()).toBe('idle'));
@@ -8337,8 +8596,8 @@ describe('Use my Mac power and lock handling', () => {
     await controller.invoke('threads.send', { threadId, text: 'Tidy my desktop' });
     await vi.waitFor(() => expect(status()).toBe('failed'));
     expect(requests).toEqual([]);
-    expect(controller.snapshot().timeline.at(-1)?.text).toContain(
-      'Sia needs Accessibility and Screen Recording to work in the background.',
+    expect(controller.snapshot().timeline.at(-1)?.text).toBe(
+      'To work in the background, Sia needs permission to see your screen (Screen Recording). Allow it in Settings → Computer, then press Continue task.',
     );
     await controller.shutdown();
   });

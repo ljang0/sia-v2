@@ -7,12 +7,12 @@
 }
 
 .row strong {
-  font-size: 14px;
+  font-size: var(--text-base);
 }
 
 .row p {
   margin: 8px 0 0;
-  font-size: 13px;
+  font-size: var(--text-md);
   line-height: 1.6;
   color: var(--text-secondary);
 }
@@ -41,7 +41,7 @@
 
 .controls legend {
   margin-bottom: 12px;
-  font-size: 14px;
+  font-size: var(--text-base);
   font-weight: 600;
 }
 
@@ -84,14 +84,14 @@
 
 .choice strong {
   display: block;
-  font-size: 14px;
+  font-size: var(--text-base);
 }
 
 .choice span span {
   display: block;
   margin-top: 6px;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--text-sm);
   line-height: 1.6;
 }
 

@@ -63,8 +63,23 @@ interface DriverLike {
   uniffiDestroy?: () => void;
 }
 
+export type CorePermission = 'accessibility' | 'screenRecording';
+export interface CorePermissionStatus {
+  accessibility: boolean;
+  screenRecording: boolean;
+}
+
 interface CuaServiceOptions {
   readonly fakePermissions?: boolean;
+  readonly platform?: NodeJS.Platform;
+  /** Test seam for this process's own TCC view; production reads the Cua driver. */
+  readonly readPermissions?: () => Promise<CorePermissionStatus>;
+  /**
+   * Reads the same grants from a brand-new process. macOS applies some grants (notably Screen
+   * Recording) to a running app only after it reopens, so a fresh "yes" next to a stale "no"
+   * means one relaunch finishes setup. Undefined when the check could not run.
+   */
+  readonly freshPermissions?: () => Promise<CorePermissionStatus | undefined>;
   readonly callTimeoutMs?: number;
   /** Test seam; receives the same authorization callback the native driver would use. */
   readonly driverFactory?: (
@@ -99,6 +114,9 @@ export class CuaService {
   readonly #fakePermissions: boolean;
   readonly #callTimeoutMs: number;
   readonly #driverFactory: CuaServiceOptions['driverFactory'];
+  readonly #platform: NodeJS.Platform;
+  readonly #readPermissions: () => Promise<CorePermissionStatus>;
+  readonly #freshPermissions: CuaServiceOptions['freshPermissions'];
   #driver: DriverLike | undefined;
   #driverGeneration = 0;
   #permissionRequest: Promise<ComputerView> | undefined;
@@ -116,6 +134,18 @@ export class CuaService {
     }
     this.#callTimeoutMs = callTimeoutMs;
     this.#driverFactory = options.driverFactory;
+    this.#platform = options.platform ?? process.platform;
+    this.#readPermissions =
+      options.readPermissions ??
+      (async () => {
+        const cua = await import('@trycua/cua-driver');
+        const status = cua.currentMacOsPermissionStatus();
+        return {
+          accessibility: Boolean(status.accessibility),
+          screenRecording: Boolean(status.screenRecording),
+        };
+      });
+    this.#freshPermissions = options.freshPermissions;
   }
 
   async permissions(): Promise<ComputerView> {
@@ -126,7 +156,7 @@ export class CuaService {
         screenRecording: true,
         detail: 'Simulated permissions for development.',
       };
-    if (process.platform !== 'darwin') {
+    if (this.#platform !== 'darwin') {
       return {
         status: 'unavailable',
         accessibility: false,
@@ -135,16 +165,27 @@ export class CuaService {
       };
     }
     try {
-      const cua = await import('@trycua/cua-driver');
-      const status = cua.currentMacOsPermissionStatus();
-      const accessibility = Boolean(status.accessibility);
-      const screenRecording = Boolean(status.screenRecording);
+      const { accessibility, screenRecording } = await this.#readPermissions();
+      const fresh =
+        accessibility && screenRecording
+          ? undefined
+          : await this.#freshPermissions?.().catch(() => undefined);
+      const relaunchFor = fresh
+        ? (['accessibility', 'screenRecording'] as const).filter(
+            (name) => fresh[name] && !{ accessibility, screenRecording }[name],
+          )
+        : [];
       return {
         status: accessibility && screenRecording ? 'ready' : 'needs_permission',
         accessibility,
         screenRecording,
+        ...(relaunchFor.length ? { relaunchFor: [...relaunchFor] } : {}),
         ...(!accessibility || !screenRecording
-          ? { detail: 'Accessibility and Screen Recording are both required.' }
+          ? {
+              detail: relaunchFor.length
+                ? 'Reopen Sia to finish turning on Mac access.'
+                : 'Accessibility and Screen Recording are both required.',
+            }
           : {}),
       };
     } catch (error) {
@@ -157,28 +198,35 @@ export class CuaService {
     }
   }
 
-  requestPermissions(): Promise<ComputerView> {
+  /**
+   * Asks macOS for one missing grant: the named one, or Accessibility then Screen Recording.
+   * A grant that only waits for a relaunch is not requested again.
+   */
+  requestPermissions(permission?: CorePermission): Promise<ComputerView> {
     // Setup and the inspector can request access together. Keep one OS prompt
     // sequence in flight; subsequent clicks share its result and can retry later.
-    this.#permissionRequest ??= this.#requestPermissions().finally(() => {
+    this.#permissionRequest ??= this.#requestPermissions(permission).finally(() => {
       this.#permissionRequest = undefined;
     });
     return this.#permissionRequest;
   }
 
-  async #requestPermissions(): Promise<ComputerView> {
+  async #requestPermissions(permission?: CorePermission): Promise<ComputerView> {
     const current = await this.permissions();
     if (current.status === 'ready' || current.status === 'unavailable') return current;
-    if (process.platform === 'darwin') {
+    const missing = (name: CorePermission) =>
+      !current[name] && !current.relaunchFor?.includes(name);
+    const target = permission ?? (['accessibility', 'screenRecording'] as const).find(missing);
+    if (this.#platform === 'darwin' && target && missing(target)) {
       const { systemPreferences, shell, desktopCapturer } = await import('electron');
       // Request one permission at a time. Opening Screen Recording while the
       // Accessibility prompt is still pending hides the first step on macOS.
-      if (!current.accessibility) {
+      if (target === 'accessibility') {
         systemPreferences.isTrustedAccessibilityClient(true);
         await shell.openExternal(
           'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
         );
-      } else if (!current.screenRecording) {
+      } else {
         // Register the responsible, signed Electron app with TCC. This explicit
         // setup request retains no image and sends nothing to the agent.
         await desktopCapturer
@@ -188,7 +236,8 @@ export class CuaService {
             fetchWindowIcons: false,
           })
           .catch(() => undefined);
-        if (!(await this.permissions()).screenRecording)
+        const after = await this.permissions();
+        if (!after.screenRecording && !after.relaunchFor?.includes('screenRecording'))
           await shell.openExternal(
             'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
           );

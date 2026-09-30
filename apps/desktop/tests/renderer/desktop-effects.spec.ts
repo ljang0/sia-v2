@@ -338,6 +338,47 @@ test('Connections stays optional in Use my Mac and primary in Connected apps', a
   await expect(page.getByRole('heading', { name: 'Connections', exact: true })).toBeVisible();
 });
 
+test('the launcher follows the saved text size and still fits its taller panel', async ({
+  page,
+}) => {
+  // Main grows the 208px panel by the Larger scale (1.22).
+  await page.setViewportSize({ width: 560, height: 254 });
+  await page.addInitScript(() => {
+    Object.assign(window, {
+      siaLauncher: {
+        state: async () => ({ textSize: 'larger', agents: [{ id: 'work', name: 'Work' }] }),
+        onState: () => () => {},
+      },
+    });
+  });
+  await page.goto('/#launcher');
+  await expect(page.locator('html')).toHaveAttribute('data-text-size', 'larger');
+  await expect(page.getByRole('button', { name: 'Send request' })).toBeVisible();
+  expect(await page.locator('main').evaluate((el) => el.scrollHeight)).toBeLessThanOrEqual(254);
+});
+
+test('text size scales Sia and keeps primary actions on screen at 960x640', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 960, height: 640 });
+  await page.goto('/#demo');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await openAppearance(page);
+  const body = page.locator('body');
+  await expect(body).toHaveCSS('font-size', '14px');
+  await page.getByRole('radio', { name: 'Larger', exact: true }).check();
+  await expect(page.locator('html')).toHaveAttribute('data-text-size', 'larger');
+  await expect(body).toHaveCSS('font-size', '17.08px');
+  await page.getByRole('button', { name: 'Close settings', exact: true }).click();
+  await page.getByRole('button', { name: 'New conversation', exact: true }).click();
+  const send = page.getByRole('button', { name: 'Send message' });
+  await expect(send).toBeInViewport({ ratio: 1 });
+  await page.keyboard.press('ControlOrMeta+,');
+  await openAppearance(page);
+  await page.getByRole('radio', { name: 'Default', exact: true }).check();
+  await expect(body).toHaveCSS('font-size', '14px');
+});
+
 test('appearance stops and restores decorative graphics across settings and conversation', async ({
   page,
 }, info) => {

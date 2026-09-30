@@ -3,6 +3,7 @@ import { phoneRemoteCommand } from '../shared/phone-remote.js';
 import { automationAppSchema } from '../shared/mac-permissions.js';
 import type { BrowserWindow, IpcMain } from 'electron';
 import { z } from 'zod';
+import { TEXT_SIZES, THEMES } from '../shared/display.js';
 import { assistantLibraryCommand } from '../shared/assistant-library.js';
 import { MAX_EVERY_HOURS, SCHEDULE_CADENCES } from '../shared/schedule-cadence.js';
 
@@ -81,6 +82,7 @@ const inputSchemas = {
   'threads.archive': z.object({ threadId: identifier }).strict(),
   'threads.unarchive': z.object({ threadId: identifier }).strict(),
   'threads.setUnread': z.object({ threadId: identifier, unread: z.boolean() }).strict(),
+  'threads.setPinned': z.object({ threadId: identifier, pinned: z.boolean() }).strict(),
   'threads.fork': z
     .object({
       threadId: identifier,
@@ -172,6 +174,14 @@ const inputSchemas = {
       confirmation: z.literal('DELETE SNAPSHOT'),
     })
     .strict(),
+  'changes.turn.read': z.object({ threadId: identifier, eventId: identifier }).strict(),
+  'changes.turn.apply': z
+    .object({
+      threadId: identifier,
+      eventId: identifier,
+      direction: z.enum(['undo', 'redo']),
+    })
+    .strict(),
   'terminal.run': z
     .object({ threadId: identifier, command: z.string().trim().min(1).max(20_000) })
     .strict(),
@@ -235,11 +245,19 @@ const inputSchemas = {
     .strict(),
   'providers.probe': z.object({ providerId: providerId.optional() }).strict(),
   'providers.login': z.object({ providerId }).strict(),
+  'providers.cancelLogin': z.object({ providerId }).strict(),
   'settings.openDirectory': z.undefined(),
   'settings.setOnboarding': z
     .object({
       permissionSetup: z
-        .object({ includeApps: z.boolean(), active: z.boolean() })
+        .object({
+          includeApps: z.boolean(),
+          active: z.boolean(),
+          skipped: z
+            .array(z.string().regex(/^[a-z_]{1,40}$/))
+            .max(20)
+            .optional(),
+        })
         .strict()
         .optional(),
       step: z.enum([
@@ -256,6 +274,8 @@ const inputSchemas = {
     })
     .strict(),
   'settings.setAppearance': z.object({ appearance: z.enum(['calm', 'expressive']) }).strict(),
+  'settings.setTheme': z.object({ theme: z.enum(THEMES) }).strict(),
+  'settings.setTextSize': z.object({ textSize: z.enum(TEXT_SIZES) }).strict(),
   'settings.setCompletionSound': z.object({ enabled: z.boolean() }).strict(),
   'settings.setOpenAtLogin': z.object({ enabled: z.boolean() }).strict(),
   'settings.setDeveloperTools': z.object({ enabled: z.boolean() }).strict(),
@@ -269,7 +289,10 @@ const inputSchemas = {
   'updates.check': z.undefined(),
   'updates.openDownload': z.undefined(),
   'computer.permissions': z.undefined(),
-  'computer.requestPermissions': z.undefined(),
+  'computer.requestPermissions': z
+    .object({ permission: z.enum(['accessibility', 'screenRecording']).optional() })
+    .strict()
+    .optional(),
   'computer.requestAutomation': z.object({ app: automationAppSchema }).strict(),
   'computer.openMessages': z.undefined(),
   'computer.setupMessages': z.undefined(),

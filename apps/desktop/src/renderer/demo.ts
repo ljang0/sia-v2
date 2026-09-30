@@ -70,6 +70,59 @@ const planningEvents: ThreadEvent[] = [
   },
 ];
 
+/** A finished reply that edited files, so the demo can show Undo changes. */
+const tripEvents: ThreadEvent[] = [
+  {
+    id: 'trip-request',
+    type: 'message',
+    role: 'user',
+    content: 'Clean up my Lisbon trip notes and start a packing list.',
+    timestamp: iso(300),
+  },
+  {
+    id: 'trip-read',
+    type: 'activity',
+    kind: 'command',
+    title: 'Read Lisbon trip.md',
+    status: 'complete',
+    timestamp: iso(299),
+  },
+  {
+    id: 'trip-edit',
+    type: 'activity',
+    kind: 'other',
+    toolName: 'fileChange',
+    title: 'Changed 2 files',
+    status: 'complete',
+    timestamp: iso(298),
+    presentation: {
+      kind: 'file_change',
+      files: [
+        {
+          path: '/Users/lawrencejang/Documents/Lisbon trip.md',
+          change: 'update',
+          diff: '@@ -1,3 +1,4 @@\n # Lisbon\n-flight fri 9am??\n+## Flights\n+- Friday, 9:00 AM\n hotel: Alfama\n',
+        },
+        {
+          path: '/Users/lawrencejang/Documents/Packing list.md',
+          change: 'add',
+          diff: '# Packing list\n- Passport\n- Walking shoes\n',
+        },
+      ],
+    },
+  },
+  {
+    id: 'trip-reply',
+    type: 'message',
+    role: 'assistant',
+    provider: 'codex',
+    content:
+      'I tidied **Lisbon trip.md** into sections and started **Packing list.md** with the basics.',
+    timestamp: iso(297),
+  },
+];
+const demoTurnChanges = new Map<string, 'ready' | 'undone'>();
+
 const threads: Record<string, ThreadDetail> = {
   'thread-research': {
     id: 'thread-research',
@@ -131,6 +184,17 @@ const threads: Record<string, ThreadDetail> = {
       },
     ],
   },
+  'thread-trip': {
+    id: 'thread-trip',
+    agentId: 'agent-personal',
+    title: 'Lisbon trip notes',
+    updatedAt: iso(297),
+    status: 'idle',
+    provider: 'codex',
+    model: 'gpt-5.6-sol',
+    workspace: '/Users/lawrencejang/Documents',
+    events: tripEvents,
+  },
 };
 
 const agents: AgentSummary[] = [
@@ -178,23 +242,25 @@ const agents: AgentSummary[] = [
     provider: 'meta',
     model: 'Sia Meta',
     workspace: '/Users/lawrencejang/Documents',
-    threads: [threads['thread-inbox']!].map(({ events, ...thread }) => {
-      const message = events.findLast((event) => event.type === 'message');
-      return {
-        ...thread,
-        ...(message?.type === 'message'
-          ? {
-              preview: {
-                label:
-                  message.role === 'assistant'
-                    ? ('Latest reply' as const)
-                    : ('Request' as const),
-                text: message.content.slice(0, 420),
-              },
-            }
-          : {}),
-      };
-    }),
+    threads: [threads['thread-trip']!, threads['thread-inbox']!].map(
+      ({ events, ...thread }) => {
+        const message = events.findLast((event) => event.type === 'message');
+        return {
+          ...thread,
+          ...(message?.type === 'message'
+            ? {
+                preview: {
+                  label:
+                    message.role === 'assistant'
+                      ? ('Latest reply' as const)
+                      : ('Request' as const),
+                  text: message.content.slice(0, 420),
+                },
+              }
+            : {}),
+        };
+      },
+    ),
   },
 ];
 
@@ -457,6 +523,48 @@ function demoNextRunAt(hour: number, days: readonly number[]): string {
 
 const clone = <T>(value: T): T => structuredClone(value);
 
+/** `#demo?setup`: first-run Mac access with a realistic mix of granted and missing permissions. */
+export function demoSetupSnapshot(variant?: string | null): RendererSnapshot {
+  const snapshot = structuredClone(demoSnapshot);
+  snapshot.preferences.onboarding = {
+    step: 'verify',
+    agentId: snapshot.selectedAgentId!,
+    permissionSetup: { includeApps: true, active: false },
+  };
+  snapshot.computer = {
+    ...snapshot.computer,
+    accessMode: 'mac',
+    trust: 'auto',
+    accessibility: 'allowed',
+    screenRecording: 'not-requested',
+    ...(variant === 'relaunch' ? { relaunchFor: ['screenRecording' as const] } : {}),
+    messagesAccess: 'needs_full_disk_access',
+    automation: {
+      system_events: 'ready',
+      safari: 'needs_permission',
+      chrome: 'unavailable',
+      calendar: 'ready',
+      reminders: 'needs_permission',
+      finder: 'ready',
+      messages: 'denied',
+    },
+  };
+  snapshot.voice = {
+    ...snapshot.voice,
+    engine: 'macos',
+    dictationAvailable: true,
+    speechRecognition: 'not-requested',
+    pushToTalk: {
+      available: true,
+      enabled: false,
+      accessibility: true,
+      microphone: false,
+      phase: 'idle',
+    },
+  };
+  return snapshot;
+}
+
 export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
   let snapshot = clone(seed);
   const listeners = new Set<(next: RendererSnapshot) => void>();
@@ -601,6 +709,14 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         for (const agent of current.agents) {
           const thread = agent.threads.find(({ id }) => id === threadId);
           if (thread) thread.unread = unread;
+        }
+      });
+    },
+    async setThreadPinned(threadId, pinned) {
+      mutate((current) => {
+        for (const agent of current.agents) {
+          const thread = agent.threads.find(({ id }) => id === threadId);
+          if (thread) thread.pinned = pinned;
         }
       });
     },
@@ -842,6 +958,14 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
     async deleteWorkspaceSnapshot() {
       return [];
     },
+    async readTurnChanges(threadId, eventId) {
+      return demoTurnChangesView(demoTurnChanges.get(`${threadId}:${eventId}`) ?? 'ready');
+    },
+    async applyTurnChanges(threadId, eventId, direction) {
+      const state = direction === 'undo' ? 'undone' : 'ready';
+      demoTurnChanges.set(`${threadId}:${eventId}`, state);
+      return demoTurnChangesView(state);
+    },
     async runTerminal(_threadId, command) {
       return {
         command,
@@ -1019,6 +1143,16 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
         if (target && target.status !== 'disabled') target.status = 'ready';
       });
     },
+    async cancelProviderSetup(provider) {
+      mutate((current) => {
+        const target = current.providers.find((item) => item.id === provider);
+        if (target?.setup?.phase === 'signing-in')
+          target.setup = {
+            phase: 'error',
+            message: 'ChatGPT sign-in was cancelled. Choose Try again to start over.',
+          };
+      });
+    },
     async refreshProvider() {
       return Promise.resolve();
     },
@@ -1179,10 +1313,10 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
     },
     async revealTrajectories() {},
     async refreshComputerPermissions() {},
-    async requestComputerPermissions() {
+    async requestComputerPermissions(permission) {
       mutate((current) => {
-        current.computer.accessibility = 'allowed';
-        current.computer.screenRecording = 'allowed';
+        if (permission !== 'screenRecording') current.computer.accessibility = 'allowed';
+        if (permission !== 'accessibility') current.computer.screenRecording = 'allowed';
       });
     },
     async openMessages() {
@@ -1255,6 +1389,16 @@ export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
     async setAppearance(appearance) {
       mutate((current) => {
         current.preferences.appearance = appearance;
+      });
+    },
+    async setTheme(theme) {
+      mutate((current) => {
+        current.preferences.theme = theme;
+      });
+    },
+    async setTextSize(textSize) {
+      mutate((current) => {
+        current.preferences.textSize = textSize;
       });
     },
     async setCompletionSound(enabled) {
@@ -1350,5 +1494,16 @@ export function agentToDraft(agent: AgentSummary): AgentDraft {
     model: agent.model,
     workspace: agent.workspace,
     ...(agent.voiceId ? { voiceId: agent.voiceId } : {}),
+  };
+}
+
+function demoTurnChangesView(state: 'ready' | 'undone') {
+  return {
+    state,
+    files: [
+      { path: 'Lisbon trip.md', change: 'edited' as const },
+      { path: 'Packing list.md', change: 'added' as const },
+    ],
+    blocked: [],
   };
 }

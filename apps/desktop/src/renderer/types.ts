@@ -1,4 +1,10 @@
-import type { OnboardingProgress, OnboardingStep, PushToTalkView } from '../shared/bridge';
+import type {
+  OnboardingProgress,
+  OnboardingStep,
+  PushToTalkView,
+  TurnChangesView,
+} from '../shared/bridge';
+import type { TextSize, ThemePreference } from '../shared/display';
 import type { ScheduleCadence } from '../shared/schedule-cadence';
 export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude';
 /** Safe catalog id. The main process decides whether the corresponding adapter is admitted. */
@@ -42,6 +48,8 @@ export interface ThreadSummary {
   archivedAt?: string | undefined;
   sourceThreadId?: string | undefined;
   unread?: boolean | undefined;
+  /** Listed first among its agent's conversations. */
+  pinned?: boolean | undefined;
   draft?: string | undefined;
   worktree?:
     | { kind: 'primary'; sourceWorkspace: string; branch?: string | undefined }
@@ -247,6 +255,8 @@ export interface WorkspaceSnapshot {
   createdAt: string;
 }
 
+export type TurnChanges = TurnChangesView;
+
 export interface TerminalResult {
   command: string;
   cwd: string;
@@ -371,6 +381,8 @@ export interface ComputerInspectorState {
   backgroundFallback?: 'pause' | 'foreground' | undefined;
   accessibility: 'allowed' | 'denied' | 'not-requested';
   screenRecording: 'allowed' | 'denied' | 'not-requested';
+  /** Turned on in System Settings; macOS applies it after Sia reopens once. */
+  relaunchFor?: ('accessibility' | 'screenRecording')[] | undefined;
   windows: ComputerWindow[];
   /** 'auto' runs eligible actions without in-app approval. */
   trust: 'auto' | 'ask';
@@ -476,6 +488,8 @@ export interface RendererSnapshot {
     /** Sia opens when the person logs in to their Mac. Off unless they turn it on. */
     openAtLogin?: boolean;
     appearance?: 'calm' | 'expressive';
+    theme?: ThemePreference;
+    textSize?: TextSize;
     /** Shows the workspace Command tool. Off unless turned on in Settings. */
     developerTools?: boolean;
     onboarding?: OnboardingProgress;
@@ -569,6 +583,7 @@ export interface RendererApi {
   archiveThread(threadId: string): Promise<void>;
   unarchiveThread(threadId: string): Promise<void>;
   setThreadUnread(threadId: string, unread: boolean): Promise<void>;
+  setThreadPinned(threadId: string, pinned: boolean): Promise<void>;
   forkThread(threadId: string, isolated: boolean, title?: string): Promise<string>;
   handoffThread(
     threadId: string,
@@ -603,6 +618,14 @@ export interface RendererApi {
     snapshotId: string,
   ): Promise<{ snapshots: WorkspaceSnapshot[]; diff: WorkspaceDiff }>;
   deleteWorkspaceSnapshot(threadId: string, snapshotId: string): Promise<WorkspaceSnapshot[]>;
+  /** Where the files one reply changed stand now. `eventId` is any event of that reply. */
+  readTurnChanges(threadId: string, eventId: string): Promise<TurnChanges>;
+  /** Puts one reply's files back (undo) or brings its changes back (redo). */
+  applyTurnChanges(
+    threadId: string,
+    eventId: string,
+    direction: 'undo' | 'redo',
+  ): Promise<TurnChanges>;
   runTerminal(threadId: string, command: string): Promise<TerminalResult>;
   startBackgroundTerminal(threadId: string, command: string): Promise<BackgroundTerminal>;
   listBackgroundTerminals(threadId: string): Promise<BackgroundTerminal[]>;
@@ -643,6 +666,7 @@ export interface RendererApi {
   setCapturePaused(paused: boolean): Promise<void>;
   declineResearchConsent(): Promise<void>;
   openProviderSetup(provider: ProviderId): Promise<void>;
+  cancelProviderSetup(provider: ProviderId): Promise<void>;
   refreshProvider(provider: ProviderId): Promise<void>;
   connectGoogleApps(): Promise<void>;
   connectSelectedApps(apps: ('google' | 'slack')[]): Promise<void>;
@@ -665,7 +689,7 @@ export interface RendererApi {
   openBrowserSite(url: string): Promise<void>;
   detachBrowser(): Promise<void>;
   refreshComputerPermissions(): Promise<void>;
-  requestComputerPermissions(): Promise<void>;
+  requestComputerPermissions(permission?: 'accessibility' | 'screenRecording'): Promise<void>;
   requestAutomationPermission(
     app: import('../shared/mac-permissions').AutomationApp,
   ): Promise<void>;
@@ -692,11 +716,13 @@ export interface RendererApi {
   disconnectVoice(): Promise<void>;
   setOnboarding(
     step: OnboardingStep,
-    permissionSetup?: { includeApps: boolean; active: boolean },
+    permissionSetup?: { includeApps: boolean; active: boolean; skipped?: string[] },
   ): Promise<void>;
   restartForOnboarding(): Promise<void>;
   setupMessages(): Promise<void>;
   setAppearance(appearance: 'calm' | 'expressive'): Promise<void>;
+  setTheme(theme: ThemePreference): Promise<void>;
+  setTextSize(textSize: TextSize): Promise<void>;
   setCompletionSound(enabled: boolean): Promise<void>;
   setOpenAtLogin(enabled: boolean): Promise<void>;
   setDeveloperTools(enabled: boolean): Promise<void>;
