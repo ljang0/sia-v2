@@ -1,7 +1,5 @@
-import type { TaskSnapshot } from '../latest-task-turn.js';
 import type { PhoneRemoteApi } from '../../shared/phone-remote.js';
 import type { ScottySettingsApi } from '../../shared/scotty.js';
-import { threadPreviews, type ThreadPreviewMemo } from '../../shared/thread-previews.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { isAbsolute } from 'node:path';
 
@@ -15,12 +13,10 @@ import type {
   ProviderView,
   ThreadView,
   TimelineItemView,
-  VoiceView,
 } from '../../shared/bridge.js';
 import { probeProviders, providerPlan } from '../provider-probe.js';
 import type { RuntimeCoordinator } from '../runtime-coordinator.js';
 import { settleBeforeShutdown } from './async-utils.js';
-import { EMPTY_CONNECTIONS } from './connection-ids.js';
 import {
   INITIAL_STATE,
   type PersistedState,
@@ -51,6 +47,7 @@ import type { MacSession } from './mac-session.js';
 import type { AppSettings } from './settings.js';
 import type { AppSupport } from './support.js';
 import type { ActionHost } from './action-host.js';
+import type { Snapshots } from './snapshots.js';
 
 const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
   'bootstrap',
@@ -88,7 +85,8 @@ type ServiceName =
   | 'mac'
   | 'settings'
   | 'support'
-  | 'actions';
+  | 'actions'
+  | 'snapshots';
 
 /**
  * Everything the desktop controller knows and does. DesktopController is the public facade;
@@ -119,9 +117,9 @@ export class ControllerContext {
   declare readonly settings: AppSettings;
   declare readonly support: AppSupport;
   declare readonly actions: ActionHost;
+  declare readonly snapshots: Snapshots;
   readonly listeners = new Set<(event: DesktopPushEvent) => void>();
   readonly rendererCall = new AsyncLocalStorage<true>();
-  readonly previewMemo: ThreadPreviewMemo = new WeakMap();
   readonly workspaceGrants = new Set<string>();
   streamCommitTimer: NodeJS.Timeout | undefined;
   streamPersistTimer: NodeJS.Timeout | undefined;
@@ -240,51 +238,6 @@ export class ControllerContext {
     void this.schedules.runDueSchedules();
   }
 
-  /** The complete state, including every thread's history, for in-process callers and tests. */
-  snapshot(): DesktopSnapshot {
-    return this.buildSnapshot(false);
-  }
-
-  /**
-   * What the renderer draws: the active thread's history, one preview per thread and the active
-   * thread's approvals. Pushing every thread's history on each streamed token made the app slow
-   * down as history grew.
-   */
-  rendererSnapshot(): DesktopSnapshot {
-    return this.buildSnapshot(true);
-  }
-
-  /** Task metadata and each thread's latest turn, without cloning every thread's history. */
-  taskSnapshot(): TaskSnapshot {
-    if (this.releaseAccessLocked())
-      return {
-        revision: this.revision,
-        agents: [],
-        threads: [],
-        timeline: [],
-        approvals: [],
-        preferences: { completionSound: false, ...this.settings.displayPreferences() },
-      };
-    const lastRequest = new Map<string, TimelineItemView>();
-    for (const item of this.state.timeline)
-      if (item.kind === 'user') lastRequest.set(item.threadId, item);
-    return {
-      revision: this.revision,
-      agents: structuredClone(this.state.agents),
-      threads: structuredClone(this.state.threads),
-      timeline: structuredClone(
-        this.state.timeline.filter((item) => {
-          const request = lastRequest.get(item.threadId);
-          return request !== undefined && item.sequence >= request.sequence;
-        }),
-      ),
-      approvals: structuredClone(this.state.approvals),
-      preferences: structuredClone(this.state.preferences),
-      screenControl: this.mac.screenControl(),
-      ...(this.state.activeAgentId ? { activeAgentId: this.state.activeAgentId } : {}),
-    };
-  }
-
   /** Runs a renderer bridge call so that any snapshot it returns is the renderer's scoped view. */
   invokeForRenderer<M extends BridgeMethod>(
     method: M,
@@ -294,133 +247,7 @@ export class ControllerContext {
   }
 
   resultSnapshot(): DesktopSnapshot {
-    return this.buildSnapshot(this.rendererCall.getStore() === true);
-  }
-
-  buildSnapshot(scoped: boolean): DesktopSnapshot {
-    const identity = this.deps.identity.status();
-    const cloud: DesktopSnapshot['cloud'] = {
-      status:
-        this.deps.cloud.configured &&
-        identity.state === 'signed_in' &&
-        !this.account.signOutInProgress
-          ? 'online'
-          : 'offline',
-      auth: this.deps.cloud.configured
-        ? this.account.signOutInProgress || identity.state === 'unconfigured'
-          ? 'signed_out'
-          : identity.state
-        : 'unconfigured',
-      ...(identity.email ? { account: identity.email } : {}),
-      ...(identity.admin ? { admin: true } : {}),
-      ...(this.account.cloudParticipant ? { participant: true } : {}),
-      ...(identity.adminMfa ? { adminMfa: true } : {}),
-      features: structuredClone(this.state.cloudFeatures),
-    };
-    if (this.releaseAccessLocked()) {
-      return {
-        revision: this.revision,
-        agents: [],
-        threads: [],
-        timeline: [],
-        approvals: [],
-        providers: [],
-        connections: structuredClone(EMPTY_CONNECTIONS),
-        capture: { status: 'not_consented', pendingCount: 0 },
-        computer: {
-          status: 'unavailable',
-          accessibility: false,
-          screenRecording: false,
-          trust: 'auto',
-          trajectoryLog: false,
-          detail: 'Sign in to Sia to use computer access.',
-        },
-        browser: { status: 'detached', grantedOrigins: [] },
-        voice: { status: 'disconnected', voices: [] },
-        preferences: { completionSound: false, ...this.settings.displayPreferences() },
-        providerUsage: [],
-        schedules: [],
-        cloud: {
-          status: 'offline',
-          auth: cloud.auth,
-          ...(cloud.account ? { account: cloud.account } : {}),
-        },
-      };
-    }
-    return {
-      revision: this.revision,
-      agents: structuredClone(this.state.agents),
-      threads: structuredClone(this.state.threads),
-      ...(scoped
-        ? {
-            timeline: structuredClone(
-              this.state.timeline.filter(
-                ({ threadId }) => threadId === this.state.activeThreadId,
-              ),
-            ),
-            previews: structuredClone(
-              Object.fromEntries(threadPreviews(this.state.timeline, this.previewMemo)),
-            ),
-            approvals: structuredClone(
-              this.state.approvals.filter(
-                ({ threadId }) => threadId === this.state.activeThreadId,
-              ),
-            ),
-          }
-        : {
-            timeline: structuredClone(this.state.timeline),
-            approvals: structuredClone(this.state.approvals),
-          }),
-      providers: this.providers.views.map((provider) => ({
-        ...structuredClone(provider),
-        ...(this.providers.usageLimits.has(provider.id)
-          ? { limits: { ...this.providers.usageLimits.get(provider.id)! } }
-          : {}),
-        ...(provider.id === 'codex' && this.providers.codexSetup
-          ? { setup: { ...this.providers.codexSetup } }
-          : {}),
-      })),
-      connections: structuredClone(this.state.connections),
-      capture: structuredClone(this.state.capture),
-      computer: {
-        ...structuredClone(this.computerAccess.state),
-        ...(this.computerAccess.automationPermissions
-          ? { automation: this.computerAccess.automationPermissions }
-          : {}),
-        ...(this.computerAccess.messagesAccess
-          ? { messagesAccess: this.computerAccess.messagesAccess }
-          : {}),
-        ...(this.computerAccess.chromeConnection
-          ? { chromeConnection: this.computerAccess.chromeConnection }
-          : {}),
-        accessMode: this.computerAccess.accessMode(),
-        backgroundControl: this.computerAccess.backgroundControl(),
-        backgroundFallback: this.computerAccess.backgroundFallback(),
-        trust: this.computerAccess.trust(),
-        trajectoryLog: this.computerAccess.trajectoryLogEnabled(),
-        ...(this.deps.trajectory
-          ? { trajectoryDirectory: this.deps.trajectory.rootDirectory }
-          : {}),
-      },
-      browser: structuredClone(this.state.browser),
-      voice: {
-        ...structuredClone(
-          this.deps.voice?.view() ??
-            ({ status: 'disconnected', voices: [] } satisfies VoiceView),
-        ),
-        ...(this.speech.pushToTalk ? { pushToTalk: this.speech.pushToTalk.view() } : {}),
-      },
-      preferences: structuredClone(this.state.preferences),
-      providerUsage: this.providers.providerUsage(),
-      updates: structuredClone(this.support.updates),
-      schedules: structuredClone(this.state.schedules),
-      ...(this.state.activeAgentId ? { activeAgentId: this.state.activeAgentId } : {}),
-      ...(this.state.activeThreadId ? { activeThreadId: this.state.activeThreadId } : {}),
-      cloud,
-      ...(this.deps.startupNotice
-        ? { startupNotice: structuredClone(this.deps.startupNotice) }
-        : {}),
-    };
+    return this.snapshots.build(this.rendererCall.getStore() === true);
   }
 
   subscribe(listener: (event: DesktopPushEvent) => void): () => void {
@@ -738,7 +565,7 @@ export class ControllerContext {
   emit(): void {
     this.speech.pushToTalk?.syncAccess();
     this.speech.pushToTalk?.syncTasks();
-    const event: DesktopPushEvent = { type: 'snapshot', snapshot: this.rendererSnapshot() };
+    const event: DesktopPushEvent = { type: 'snapshot', snapshot: this.snapshots.renderer() };
     for (const listener of this.listeners) listener(event);
   }
 }

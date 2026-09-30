@@ -45,6 +45,7 @@ import { MacSession } from './mac-session.js';
 import { AppSettings } from './settings.js';
 import { AppSupport } from './support.js';
 import { ActionHost } from './action-host.js';
+import { Snapshots } from './snapshots.js';
 
 /**
  * The desktop app's single entry point for the main process, IPC bridge, launcher, phone
@@ -77,6 +78,7 @@ export class DesktopController {
       settings: new AppSettings(ctx),
       support: new AppSupport(ctx),
       actions: new ActionHost(ctx),
+      snapshots: new Snapshots(ctx),
     }));
   }
 
@@ -253,7 +255,7 @@ export class DesktopController {
 
   /** The complete state, including every thread's history, for in-process callers and tests. */
   snapshot(): DesktopSnapshot {
-    return this.#ctx.snapshot();
+    return this.#ctx.snapshots.full();
   }
 
   /**
@@ -262,7 +264,7 @@ export class DesktopController {
    * down as history grew.
    */
   rendererSnapshot(): DesktopSnapshot {
-    return this.#ctx.rendererSnapshot();
+    return this.#ctx.snapshots.renderer();
   }
 
   /**
@@ -275,7 +277,7 @@ export class DesktopController {
 
   /** Task metadata and each thread's latest turn, without cloning every thread's history. */
   taskSnapshot(): TaskSnapshot {
-    return this.#ctx.taskSnapshot();
+    return this.#ctx.snapshots.tasks();
   }
 
   /** Runs a renderer bridge call so that any snapshot it returns is the renderer's scoped view. */
