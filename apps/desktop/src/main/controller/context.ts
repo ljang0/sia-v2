@@ -129,19 +129,7 @@ import {
   type PersistedState,
   recoverPersistedState,
 } from './persisted-state.js';
-import {
-  containsSecretShapedText,
-  expandRawResearchEvents,
-  jsonSafeValue,
-  LOCAL_RESEARCH_IDENTITY,
-  MAX_LOCAL_RESEARCH_BATCH_BYTES,
-  MAX_RESEARCH_SCREENSHOT_BASE64_BYTES,
-  partitionRawResearchEvents,
-  type ResearchBatchRecord,
-  type ResearchEventRecord,
-  SAFE_RESEARCH_ACTIONS,
-  type StagedResearchTurn,
-} from './research-records.js';
+import { LOCAL_RESEARCH_IDENTITY, SAFE_RESEARCH_ACTIONS } from './research-records.js';
 import { isStreamingDelta } from './runtime-events.js';
 import {
   defaultScheduleRunLimit,
@@ -163,6 +151,7 @@ import { type ControllerDeps, resolveControllerDeps } from './deps.js';
 import { compareVersions, isCleanHttpsUrl } from './update-feed.js';
 import { normalizeWorkspace, workspaceSlug, worktreeLabel } from './workspace-paths.js';
 import type { ResearchOutbox } from './research-outbox.js';
+import type { ResearchCapture } from './research-capture.js';
 
 const SIGN_IN_BRIDGE_METHODS: ReadonlySet<BridgeMethod> = new Set([
   'bootstrap',
@@ -178,7 +167,7 @@ type BridgeHandlers = { [M in BridgeMethod]?: BridgeHandler<M> };
 
 /** The domain collaborators a context is wired with. */
 export type ControllerServices = Pick<ControllerContext, ServiceName>;
-type ServiceName = 'researchOutbox';
+type ServiceName = 'researchOutbox' | 'researchCapture';
 
 /**
  * Everything the desktop controller knows and does. DesktopController is the public facade;
@@ -188,6 +177,7 @@ export class ControllerContext {
   readonly deps: ControllerDeps;
   // Domain collaborators, created by DesktopController right after this context.
   declare readonly researchOutbox: ResearchOutbox;
+  declare readonly researchCapture: ResearchCapture;
   readonly assistantLibrary: AssistantLibrary;
   codexSetupPending = false;
   /** Aborts a ChatGPT browser sign-in that is still waiting on the person. */
@@ -216,12 +206,6 @@ export class ControllerContext {
   readonly connectorGenerations = new Map<ConnectionView['id'], number>();
   readonly connectorLinkExpiries = new Map<string, number>();
   readonly pendingQuestions = new Map<string, { requestId: string; turnId: string }>();
-  readonly researchStaging = new Map<string, StagedResearchTurn>();
-  /**
-   * A Google Workspace action excludes its entire turn from research capture. The set lets us
-   * discard events staged before the action was invoked and reject events that arrive afterwards.
-   */
-  readonly researchExcludedTurns = new Set<string>();
   readonly workspaceGrants = new Set<string>();
   readonly attachmentGrants = new Map<string, AttachmentGrant>();
   readonly failedTurnAttachments = new Map<string, readonly ProviderAttachment[]>();
@@ -448,7 +432,7 @@ export class ControllerContext {
   actionInvocationObserver(): ActionInvocationObserver {
     return (invocation) => {
       if (GOOGLE_WORKSPACE_ACTION.test(invocation.name)) {
-        this.excludeResearchTurn(invocation.context.turnId);
+        this.researchCapture.excludeResearchTurn(invocation.context.turnId);
         this.deps.trajectory?.excludeTurn(
           invocation.context.threadId,
           invocation.context.turnId,
@@ -456,9 +440,9 @@ export class ControllerContext {
         return;
       }
       if (SAFE_RESEARCH_ACTIONS.has(invocation.name)) {
-        this.markSafeResearchAction(invocation.context.turnId, invocation.name);
+        this.researchCapture.markSafeResearchAction(invocation.context.turnId, invocation.name);
       } else {
-        this.taintResearchTurn(invocation.context.turnId);
+        this.researchCapture.taintResearchTurn(invocation.context.turnId);
       }
     };
   }
@@ -484,7 +468,7 @@ export class ControllerContext {
       }
       this.recordActionResult(notice);
       if (GOOGLE_WORKSPACE_ACTION.test(notice.name)) return;
-      this.stageRawResearchEvent({
+      this.researchCapture.stageRawResearchEvent({
         threadId: notice.context.threadId,
         turnId: notice.context.turnId,
         eventType: 'sia.action_result',
@@ -494,7 +478,7 @@ export class ControllerContext {
           result: notice.result,
         },
       });
-      this.stageResearchActionResult(notice);
+      this.researchCapture.stageResearchActionResult(notice);
     };
   }
 
@@ -1464,7 +1448,7 @@ export class ControllerContext {
       });
     }
     this.commit();
-    this.recordLifecycleEvent('connector.setup.failed', {
+    this.researchCapture.recordLifecycleEvent('connector.setup.failed', {
       app,
       connectionId,
       reason: 'connection_reconnect_required',
@@ -2044,7 +2028,7 @@ export class ControllerContext {
         riskClass: request.riskClass,
         summary: request.humanSummary,
       });
-      this.stageRawResearchEvent({
+      this.researchCapture.stageRawResearchEvent({
         threadId: context.threadId,
         turnId: context.turnId,
         eventType: 'computer.authorization',
@@ -2077,7 +2061,7 @@ export class ControllerContext {
       status: 'pending',
       ...(taskGrant ? { allowForTask: true } : {}),
     });
-    this.stageRawResearchEvent({
+    this.researchCapture.stageRawResearchEvent({
       threadId: context.threadId,
       turnId: context.turnId,
       eventType: 'computer.authorization_request',
@@ -2869,7 +2853,7 @@ export class ControllerContext {
     if (
       this.researchOutbox.requiredForCurrentAccount() &&
       (this.state.capture.consentVersion !== RESEARCH_CONSENT_VERSION ||
-        !this.researchCaptureActive())
+        !this.researchCapture.researchCaptureActive())
     ) {
       throw new Error(
         'Review and accept the current raw research consent, or sign out, before starting a task.',
@@ -2912,7 +2896,7 @@ export class ControllerContext {
         status: 'complete',
         timestamp,
       });
-      this.stageResearchText({
+      this.researchCapture.stageResearchText({
         turnId: pendingQuestion.turnId,
         eventId,
         occurredAt: timestamp,
@@ -2970,7 +2954,7 @@ export class ControllerContext {
       timestamp,
       ...(scheduleRunId ? { scheduleRunId } : {}),
     });
-    this.stageResearchText({
+    this.researchCapture.stageResearchText({
       turnId,
       eventId,
       occurredAt: timestamp,
@@ -3133,7 +3117,7 @@ export class ControllerContext {
       throw new Error('There is no failed user turn to retry in this thread.');
     }
 
-    this.stageResearchText({
+    this.researchCapture.stageResearchText({
       turnId: failed.turnId,
       eventId: userMessage.id,
       occurredAt: userMessage.timestamp,
@@ -3196,8 +3180,8 @@ export class ControllerContext {
       .map((turn) => turn.id);
     this.queuedTurns = this.queuedTurns.filter((turn) => turn.threadId !== threadId);
     this.heldThreads.delete(threadId);
-    if (activeTurnId) this.discardResearchTurn(activeTurnId);
-    for (const turnId of queuedTurnIds) this.discardResearchTurn(turnId);
+    if (activeTurnId) this.researchCapture.discardResearchTurn(activeTurnId);
+    for (const turnId of queuedTurnIds) this.researchCapture.discardResearchTurn(turnId);
     // Stop cancels queued follow-ups too; their unsent messages leave the thread.
     const removedFollowUps = this.removeQueuedMessages(threadId, new Set(queuedTurnIds));
     const question = this.pendingQuestions.get(threadId);
@@ -3249,7 +3233,7 @@ export class ControllerContext {
       throw new Error('This message has already started or was removed.');
     }
     this.queuedTurns = this.queuedTurns.filter((turn) => turn.id !== turnId);
-    this.discardResearchTurn(turnId);
+    this.researchCapture.discardResearchTurn(turnId);
     this.removeQueuedMessages(threadId, new Set([turnId]));
     if (
       thread.status === 'queued' &&
@@ -3317,8 +3301,8 @@ export class ControllerContext {
           candidate.threadId === threadId ? Math.max(highest, candidate.sequence) : highest,
         0,
       ) + 1;
-    this.discardResearchTurn(queued.id);
-    this.stageResearchText({
+    this.researchCapture.discardResearchTurn(queued.id);
+    this.researchCapture.stageResearchText({
       turnId: activeTurnId,
       eventId: item.id,
       occurredAt: item.timestamp,
@@ -4530,7 +4514,7 @@ export class ControllerContext {
     const url = new URL(started.redirectUrl);
     if (url.protocol !== 'https:') throw new Error('Connector authorization must use HTTPS.');
     await this.deps.openExternal(url.toString());
-    this.recordLifecycleEvent('connector.google_access.upgrade_started', {
+    this.researchCapture.recordLifecycleEvent('connector.google_access.upgrade_started', {
       app: 'gmail',
       connectionId: started.connectionId,
     });
@@ -4574,7 +4558,7 @@ export class ControllerContext {
     );
     this.updateConnection(connectionId, { enabled });
     this.commit();
-    this.recordLifecycleEvent(
+    this.researchCapture.recordLifecycleEvent(
       enabled ? 'connector.service.enabled' : 'connector.service.disabled',
       { app: connectionId, connectionId: connection.connectionId },
     );
@@ -4629,13 +4613,17 @@ export class ControllerContext {
       )
       .map((connection) => connection.id);
     if (pending.length === 0) return { opened: false, snapshot: this.resultSnapshot() };
-    this.recordLifecycleEvent('connector.guided_setup.started', { apps: pending });
+    this.researchCapture.recordLifecycleEvent('connector.guided_setup.started', {
+      apps: pending,
+    });
 
     if (this.deps.fakeServices) {
       for (const connectionId of pending) {
         await this.startConnection(connectionId, { partOfBundle: true });
       }
-      this.recordLifecycleEvent('connector.guided_setup.completed', { apps: pending });
+      this.researchCapture.recordLifecycleEvent('connector.guided_setup.completed', {
+        apps: pending,
+      });
       return { opened: false, snapshot: this.resultSnapshot() };
     }
 
@@ -4672,7 +4660,7 @@ export class ControllerContext {
       const nextId = ordered[index];
       if (!nextId || signal.aborted) {
         if (!signal.aborted && index >= ordered.length) {
-          this.recordLifecycleEvent('connector.guided_setup.completed', {
+          this.researchCapture.recordLifecycleEvent('connector.guided_setup.completed', {
             apps: ordered,
           });
         }
@@ -4720,7 +4708,7 @@ export class ControllerContext {
     if (!this.deps.fakeServices && !owner) {
       throw new Error('Sign in to Sia cloud before connecting an app.');
     }
-    this.recordLifecycleEvent('connector.setup.started', {
+    this.researchCapture.recordLifecycleEvent('connector.setup.started', {
       app: connectionId,
       guided: Boolean(options.partOfBundle),
     });
@@ -4742,7 +4730,7 @@ export class ControllerContext {
         });
       }
       this.commit();
-      this.recordLifecycleEvent('connector.connected', {
+      this.researchCapture.recordLifecycleEvent('connector.connected', {
         app: connectionId,
         account: connectedAccount,
         connectionId: connectedId,
@@ -4766,7 +4754,7 @@ export class ControllerContext {
       const url = new URL(started.redirectUrl);
       if (url.protocol !== 'https:') throw new Error('Connector authorization must use HTTPS.');
       await this.deps.openExternal(url.toString());
-      this.recordLifecycleEvent('connector.authorization.opened', {
+      this.researchCapture.recordLifecycleEvent('connector.authorization.opened', {
         app: connectionId,
         connectionId: started.connectionId,
       });
@@ -4780,7 +4768,7 @@ export class ControllerContext {
         });
       }
       this.commit();
-      this.recordLifecycleEvent('connector.setup.failed', {
+      this.researchCapture.recordLifecycleEvent('connector.setup.failed', {
         app: connectionId,
         reason: 'Connection setup failed.',
       });
@@ -4899,7 +4887,7 @@ export class ControllerContext {
     const queuedTurnIds = this.queuedTurns.map(({ id }) => id);
     const affectedThreadIds = new Set(this.queuedTurns.map(({ threadId }) => threadId));
     this.queuedTurns = [];
-    for (const turnId of queuedTurnIds) this.discardResearchTurn(turnId);
+    for (const turnId of queuedTurnIds) this.researchCapture.discardResearchTurn(turnId);
 
     for (const [threadId, running] of this.runningTurns) {
       affectedThreadIds.add(threadId);
@@ -4961,7 +4949,7 @@ export class ControllerContext {
       const queuedTurnIds = this.queuedTurns.map(({ id }) => id);
       const affectedThreadIds = new Set(this.queuedTurns.map(({ threadId }) => threadId));
       this.queuedTurns = [];
-      for (const turnId of queuedTurnIds) this.discardResearchTurn(turnId);
+      for (const turnId of queuedTurnIds) this.researchCapture.discardResearchTurn(turnId);
 
       for (const [threadId, running] of this.runningTurns) {
         affectedThreadIds.add(threadId);
@@ -5021,7 +5009,7 @@ export class ControllerContext {
       this.browserSessionId = undefined;
       await this.runtime?.resetSessions();
 
-      this.researchStaging.clear();
+      this.researchCapture.staging.clear();
       this.workspaceGrants.clear();
       this.approvedConnectorBindings.clear();
       this.runningTurns.clear();
@@ -5234,7 +5222,7 @@ export class ControllerContext {
       delete this.state.connectionOwners[id];
     }
     this.commit();
-    this.recordLifecycleEvent('connector.disconnected', {
+    this.researchCapture.recordLifecycleEvent('connector.disconnected', {
       app: connectionId,
       ...(current?.connectionId ? { connectionId: current.connectionId } : {}),
     });
@@ -5288,7 +5276,7 @@ export class ControllerContext {
             });
           }
           this.commit();
-          this.recordLifecycleEvent('connector.connected', {
+          this.researchCapture.recordLifecycleEvent('connector.connected', {
             app: connectionId,
             connectionId: expectedId,
             ...(remote.accountLabel ? { account: remote.accountLabel } : {}),
@@ -5306,7 +5294,7 @@ export class ControllerContext {
             });
           }
           this.commit();
-          this.recordLifecycleEvent('connector.setup.failed', {
+          this.researchCapture.recordLifecycleEvent('connector.setup.failed', {
             app: connectionId,
             connectionId: expectedId,
             reason: 'The connected-app provider declined setup.',
@@ -5339,7 +5327,7 @@ export class ControllerContext {
       });
     }
     this.commit();
-    this.recordLifecycleEvent('connector.setup.timed_out', {
+    this.researchCapture.recordLifecycleEvent('connector.setup.timed_out', {
       app: connectionId,
       connectionId: expectedId,
     });
@@ -5397,7 +5385,7 @@ export class ControllerContext {
           }
           this.connectorLinkExpiries.delete(expectedId);
           this.commit();
-          this.recordLifecycleEvent('connector.google_access.upgraded', {
+          this.researchCapture.recordLifecycleEvent('connector.google_access.upgraded', {
             app: 'gmail',
             connectionId: expectedId,
           });
@@ -5405,7 +5393,7 @@ export class ControllerContext {
         }
         if (remote?.status === 'failed') {
           clearPending();
-          this.recordLifecycleEvent('connector.google_access.upgrade_failed', {
+          this.researchCapture.recordLifecycleEvent('connector.google_access.upgrade_failed', {
             app: 'gmail',
             connectionId: expectedId,
           });
@@ -5416,377 +5404,6 @@ export class ControllerContext {
       }
     }
     clearPending();
-  }
-
-  stageResearchText(input: {
-    turnId: string;
-    eventId: string;
-    occurredAt: string;
-    role: 'user' | 'assistant';
-    text: string;
-    provider: ProviderId;
-    messageId?: string;
-    append?: boolean;
-  }): void {
-    if (
-      !this.researchCaptureActive() ||
-      !input.text ||
-      this.researchExcludedTurns.has(input.turnId)
-    )
-      return;
-    let staged = this.researchStaging.get(input.turnId);
-    if (!staged && input.role === 'assistant') return;
-    if (!staged) {
-      staged = {
-        tainted: false,
-        events: [],
-        rawEvents: [],
-        eventByMessageId: new Map(),
-        safeActionNames: [],
-      };
-      this.researchStaging.set(input.turnId, staged);
-    }
-    if (staged.tainted) return;
-    if (containsSecretShapedText(input.text)) {
-      staged.tainted = true;
-      staged.events = [];
-      staged.eventByMessageId.clear();
-      return;
-    }
-    const existingId = input.messageId
-      ? staged.eventByMessageId.get(input.messageId)
-      : undefined;
-    const existing = existingId
-      ? staged.events.find((event) => event.id === existingId)
-      : undefined;
-    if (existing?.kind === 'conversation.text') {
-      existing.payload.text = input.append
-        ? `${existing.payload.text}${input.text}`
-        : input.text;
-      if (!existing.sourceEventIds.includes(input.eventId)) {
-        existing.sourceEventIds.push(input.eventId);
-      }
-      if (containsSecretShapedText(existing.payload.text)) {
-        staged.tainted = true;
-        staged.events = [];
-        staged.eventByMessageId.clear();
-      }
-      return;
-    }
-    const event: ResearchEventRecord = {
-      id: randomUUID(),
-      occurredAt: input.occurredAt,
-      classification: 'research_allowed',
-      taints: [],
-      kind: 'conversation.text',
-      payload: { role: input.role, text: input.text, provider: input.provider },
-      sourceEventIds: [input.eventId],
-    };
-    staged.events.push(event);
-    if (input.messageId) staged.eventByMessageId.set(input.messageId, event.id);
-  }
-
-  taintResearchTurn(turnId: string): void {
-    if (this.researchExcludedTurns.has(turnId)) return;
-    const staged = this.researchStaging.get(turnId) ?? {
-      tainted: false,
-      events: [],
-      rawEvents: [],
-      eventByMessageId: new Map<string, string>(),
-      safeActionNames: [],
-    };
-    staged.tainted = true;
-    staged.events = [];
-    staged.eventByMessageId.clear();
-    this.researchStaging.set(turnId, staged);
-  }
-
-  excludeResearchTurn(turnId: string): void {
-    this.researchExcludedTurns.add(turnId);
-    this.researchStaging.delete(turnId);
-  }
-
-  discardResearchTurn(turnId: string): void {
-    if (this.researchExcludedTurns.delete(turnId)) {
-      this.researchStaging.delete(turnId);
-      return;
-    }
-    if (this.rawResearchEnabled()) {
-      this.persistRawResearchTurn(turnId, 'discarded');
-      return;
-    }
-    this.researchStaging.delete(turnId);
-  }
-
-  rawResearchEnabled(): boolean {
-    return (
-      this.researchCaptureActive() &&
-      this.state.capture.consentVersion === RESEARCH_CONSENT_VERSION
-    );
-  }
-
-  /**
-   * Records non-turn product activity without ever retaining an OAuth URL, code, or token.
-   * Research is optional; lifecycle telemetry is copied only while capture is active.
-   */
-  recordLifecycleEvent(eventType: string, data: Record<string, unknown>): void {
-    const occurredAt = new Date().toISOString();
-    const threadId = 'app-lifecycle';
-    const turnId = `lifecycle-${randomUUID()}`;
-    this.deps.trajectory?.record({
-      type: eventType,
-      threadId,
-      turnId,
-      data: jsonSafeValue(data),
-    });
-
-    if (!this.rawResearchEnabled()) {
-      return;
-    }
-
-    this.stageRawResearchEvent({
-      threadId,
-      turnId,
-      eventType,
-      data,
-      occurredAt,
-    });
-    this.persistRawResearchTurn(turnId, 'completed');
-  }
-
-  stageRawResearchEvent(input: {
-    threadId: string;
-    turnId: string;
-    eventType: string;
-    sequence?: number;
-    data: unknown;
-    occurredAt?: string;
-    sourceEventId?: string;
-  }): void {
-    if (!this.rawResearchEnabled() || this.researchExcludedTurns.has(input.turnId)) return;
-    const staged = this.researchStaging.get(input.turnId) ?? {
-      tainted: false,
-      events: [],
-      rawEvents: [],
-      eventByMessageId: new Map<string, string>(),
-      safeActionNames: [],
-    };
-    staged.rawEvents.push({
-      id: randomUUID(),
-      occurredAt: input.occurredAt ?? new Date().toISOString(),
-      classification: 'research_allowed',
-      taints: [],
-      kind: 'raw.event',
-      payload: {
-        schemaVersion: 1,
-        threadId: input.threadId,
-        turnId: input.turnId,
-        eventType: input.eventType,
-        ...(input.sequence === undefined ? {} : { sequence: input.sequence }),
-        data: jsonSafeValue(input.data),
-      },
-      sourceEventIds: input.sourceEventId ? [input.sourceEventId] : [],
-    });
-    this.researchStaging.set(input.turnId, staged);
-  }
-
-  markSafeResearchAction(turnId: string, name: string): void {
-    if (!this.researchCaptureActive()) return;
-    const staged = this.researchStaging.get(turnId);
-    if (!staged || staged.tainted) return;
-    staged.safeActionNames.push(name);
-  }
-
-  consumeSafeResearchAction(turnId: string, name: string): boolean {
-    const staged = this.researchStaging.get(turnId);
-    if (!staged || staged.tainted) return false;
-    const index = staged.safeActionNames.indexOf(name);
-    if (index < 0) return false;
-    staged.safeActionNames.splice(index, 1);
-    return true;
-  }
-
-  stageResearchTrajectory(input: {
-    turnId: string;
-    eventId: string;
-    occurredAt: string;
-    payload: Extract<ResearchEventRecord['payload'], { source: string; type: string }>;
-  }): void {
-    if (!this.researchCaptureActive() || this.researchExcludedTurns.has(input.turnId)) return;
-    const staged = this.researchStaging.get(input.turnId);
-    if (!staged || staged.tainted) return;
-    staged.events.push({
-      id: randomUUID(),
-      occurredAt: input.occurredAt,
-      classification: 'research_allowed',
-      taints: [],
-      kind: 'trajectory.step',
-      payload: input.payload,
-      sourceEventIds: [input.eventId],
-    });
-  }
-
-  stageResearchActionResult(notice: Parameters<ActionResultObserver>[0]): void {
-    if (!SAFE_RESEARCH_ACTIONS.has(notice.name) || !this.researchCaptureActive()) return;
-    const staged = this.researchStaging.get(notice.context.turnId);
-    if (!staged || staged.tainted) return;
-    const occurredAt = new Date().toISOString();
-    this.stageResearchTrajectory({
-      turnId: notice.context.turnId,
-      eventId: randomUUID(),
-      occurredAt,
-      payload: {
-        source: 'sia_action',
-        type: 'action_result',
-        name: notice.name,
-        outcome: notice.result.outcome,
-      },
-    });
-    if (
-      notice.name !== 'computer_snapshot' ||
-      notice.result.outcome !== 'verified' ||
-      staged.events.some(({ kind }) => kind === 'trajectory.screenshot')
-    ) {
-      return;
-    }
-    const image = notice.result.images?.find(
-      (candidate) =>
-        /^(?:image\/png|image\/jpeg|image\/webp)$/.test(candidate.mimeType) &&
-        Buffer.byteLength(candidate.dataBase64, 'utf8') <= MAX_RESEARCH_SCREENSHOT_BASE64_BYTES,
-    );
-    if (!image) return;
-    staged.events.push({
-      id: randomUUID(),
-      occurredAt,
-      classification: 'research_allowed',
-      taints: [],
-      kind: 'trajectory.screenshot',
-      payload: {
-        source: 'sia_action',
-        tool: 'computer_snapshot',
-        mimeType: image.mimeType as 'image/png' | 'image/jpeg' | 'image/webp',
-        dataBase64: image.dataBase64,
-      },
-      sourceEventIds: [],
-    });
-  }
-
-  completeResearchTurn(turnId: string): void {
-    if (this.researchExcludedTurns.delete(turnId)) {
-      this.researchStaging.delete(turnId);
-      return;
-    }
-    if (this.rawResearchEnabled()) {
-      this.persistRawResearchTurn(turnId, 'completed');
-      return;
-    }
-    const staged = this.researchStaging.get(turnId);
-    this.researchStaging.delete(turnId);
-    if (!staged || staged.tainted || staged.events.length === 0) return;
-    const version = this.state.capture.consentVersion;
-    const acceptedAt = this.state.capture.consentAcceptedAt;
-    if (!version || !acceptedAt) return;
-    const batch: ResearchBatchRecord = {
-      batchId: randomUUID(),
-      syncEligible: this.state.researchIdentity !== LOCAL_RESEARCH_IDENTITY,
-      consent: {
-        version,
-        acceptedAt,
-        purpose: 'research_evaluation_debugging',
-      },
-      events: staged.events,
-    };
-    const batchBytes = Buffer.byteLength(JSON.stringify(batch), 'utf8');
-    if (batchBytes > MAX_LOCAL_RESEARCH_BATCH_BYTES) {
-      this.researchOutbox.blockCapture(
-        "A research bundle exceeded Sia's durable batch limit. Sign out and contact the alpha team before continuing.",
-      );
-      return;
-    }
-    this.researchOutbox.prepareLocalStorage(batchBytes);
-    if (!this.researchOutbox.storeBatch(batch)) return;
-    this.researchOutbox.refreshPendingCount();
-    this.researchOutbox.scheduleSync();
-  }
-
-  persistRawResearchTurn(turnId: string, outcome: 'completed' | 'discarded'): void {
-    if (this.researchExcludedTurns.has(turnId)) {
-      this.researchStaging.delete(turnId);
-      return;
-    }
-    const staged = this.researchStaging.get(turnId);
-    if (!staged?.rawEvents.length) return;
-    const version = this.state.capture.consentVersion;
-    const acceptedAt = this.state.capture.consentAcceptedAt;
-    if (version !== RESEARCH_CONSENT_VERSION || !acceptedAt) return;
-    const first = staged.rawEvents[0]!;
-    const threadId = first.payload.threadId;
-    const expanded = expandRawResearchEvents([
-      ...staged.rawEvents,
-      {
-        id: randomUUID(),
-        occurredAt: new Date().toISOString(),
-        classification: 'research_allowed',
-        taints: [],
-        kind: 'raw.event',
-        payload: {
-          schemaVersion: 1,
-          threadId,
-          turnId,
-          eventType: 'turn.capture_finished',
-          data: { outcome },
-        },
-        sourceEventIds: [],
-      },
-    ]);
-    for (const events of partitionRawResearchEvents(expanded)) {
-      const sequences = events
-        .map(({ payload }) => payload.sequence)
-        .filter((value): value is number => typeof value === 'number');
-      const batch: ResearchBatchRecord = {
-        batchId: randomUUID(),
-        syncEligible: this.state.researchIdentity !== LOCAL_RESEARCH_IDENTITY,
-        format: 'raw_v1',
-        scope: {
-          threadId,
-          turnId,
-          ...(sequences.length ? { sequenceStart: Math.min(...sequences) } : {}),
-          ...(sequences.length ? { sequenceEnd: Math.max(...sequences) } : {}),
-          eventKinds: [...new Set(events.map(({ payload }) => payload.eventType))],
-        },
-        consent: {
-          version,
-          acceptedAt,
-          purpose: 'research_evaluation_debugging',
-        },
-        events,
-      };
-      const batchBytes = Buffer.byteLength(JSON.stringify(batch), 'utf8');
-      if (batchBytes > MAX_LOCAL_RESEARCH_BATCH_BYTES) {
-        this.researchOutbox.blockCapture(
-          "A raw research bundle exceeded Sia's durable batch limit. Sign out and contact the alpha team before continuing.",
-        );
-        return;
-      }
-      this.researchOutbox.prepareLocalStorage(batchBytes);
-      if (!this.researchOutbox.storeBatch(batch)) return;
-    }
-    this.researchStaging.delete(turnId);
-    this.researchOutbox.refreshPendingCount();
-    this.researchOutbox.scheduleSync();
-  }
-
-  researchCaptureActive(): boolean {
-    if (
-      this.deps.cloud.configured &&
-      this.deps.identity.status().state === 'signed_in' &&
-      this.state.cloudFeatures.researchUploads === false
-    ) {
-      return false;
-    }
-    return (
-      this.state.capture.status === 'recording' || this.state.capture.status === 'sync_pending'
-    );
   }
 
   startTurn(turn: QueuedTurn): void {
@@ -5825,7 +5442,7 @@ export class ControllerContext {
     if (unavailable) {
       thread.status = 'failed';
       delete thread.queueReason;
-      this.discardResearchTurn(turn.id);
+      this.researchCapture.discardResearchTurn(turn.id);
       this.appendTimeline(thread.id, {
         id: randomUUID(),
         turnId: turn.id,
@@ -5930,7 +5547,7 @@ export class ControllerContext {
           timestamp: assistantTimestamp,
         });
         const thread = this.requireThread(turn.threadId);
-        this.stageResearchText({
+        this.researchCapture.stageResearchText({
           turnId: turn.id,
           eventId: assistantEventId,
           occurredAt: assistantTimestamp,
@@ -5938,7 +5555,7 @@ export class ControllerContext {
           text: assistantText,
           provider: thread.provider,
         });
-        this.completeResearchTurn(turn.id);
+        this.researchCapture.completeResearchTurn(turn.id);
         this.settleFinishedTurn(thread);
         delete thread.interruptedTurnId;
         this.markTurnFinished(thread, turn, 'complete');
@@ -5950,7 +5567,7 @@ export class ControllerContext {
         // Native Mac commands may observe private apps without a connector event.
         // Keep those turns out of optional research capture just like private gateway actions.
         if (this.computerAccessMode() === 'mac' && !this.assistantLibrary.isReview(thread.id))
-          this.taintResearchTurn(turn.id);
+          this.researchCapture.taintResearchTurn(turn.id);
         if (this.computerAccessMode() === 'mac' && !this.assistantLibrary.isReview(thread.id)) {
           macTask = { request: turn.text };
           recordVault = new NotchVault(thread.workspace, thread.agentId);
@@ -6154,7 +5771,7 @@ export class ControllerContext {
         this.completeRunningActivities(turn.threadId, turn.id);
         if (thread.status === 'running' || thread.status === 'waiting') {
           this.settleFinishedTurn(thread);
-          this.completeResearchTurn(turn.id);
+          this.researchCapture.completeResearchTurn(turn.id);
         }
         delete thread.interruptedTurnId;
         this.markTurnFinished(
@@ -6166,7 +5783,7 @@ export class ControllerContext {
         thread.updatedAt = new Date().toISOString();
       }
     } catch (error) {
-      this.discardResearchTurn(turn.id);
+      this.researchCapture.discardResearchTurn(turn.id);
       if (!signal.aborted) {
         if (macTask && !macTask.result)
           macTask.result = {
@@ -6197,7 +5814,7 @@ export class ControllerContext {
       );
       if (signal.aborted) {
         this.completeRunningActivities(turn.threadId, turn.id);
-        this.discardResearchTurn(turn.id);
+        this.researchCapture.discardResearchTurn(turn.id);
         this.markScheduleRunFinished(turn, 'cancelled');
         if (macTask) {
           try {
@@ -6342,7 +5959,7 @@ export class ControllerContext {
 
   applyRuntimeEvent(event: ThreadEventEnvelope): void {
     const thread = this.requireThread(event.threadId);
-    this.stageRawResearchEvent({
+    this.researchCapture.stageRawResearchEvent({
       threadId: event.threadId,
       turnId: event.turnId,
       eventType: `provider.${event.type}`,
@@ -6352,7 +5969,7 @@ export class ControllerContext {
       sourceEventId: event.id,
     });
     if (event.type === 'approval' || event.type === 'question') {
-      this.taintResearchTurn(event.turnId);
+      this.researchCapture.taintResearchTurn(event.turnId);
     }
     if (event.type === 'message') {
       const text = event.payload.parts
@@ -6361,7 +5978,7 @@ export class ControllerContext {
         .join('');
       if (!text) return;
       if (event.payload.role === 'assistant') {
-        this.stageResearchText({
+        this.researchCapture.stageResearchText({
           turnId: event.turnId,
           eventId: event.id,
           occurredAt: event.timestamp,
@@ -6422,7 +6039,7 @@ export class ControllerContext {
     }
     if (event.type === 'tool') {
       if (event.payload.native) {
-        this.stageResearchTrajectory({
+        this.researchCapture.stageResearchTrajectory({
           turnId: event.turnId,
           eventId: event.id,
           occurredAt: event.timestamp,
@@ -6436,8 +6053,10 @@ export class ControllerContext {
               : {}),
           },
         });
-      } else if (!this.consumeSafeResearchAction(event.turnId, event.payload.name)) {
-        this.taintResearchTurn(event.turnId);
+      } else if (
+        !this.researchCapture.consumeSafeResearchAction(event.turnId, event.payload.name)
+      ) {
+        this.researchCapture.taintResearchTurn(event.turnId);
       }
       const activity = mapRuntimePresentation(event.payload.presentation);
       const running = this.state.timeline.findLast(
@@ -6488,7 +6107,7 @@ export class ControllerContext {
       return;
     }
     if (event.type === 'approval' && event.payload.phase === 'requested') {
-      this.taintResearchTurn(event.turnId);
+      this.researchCapture.taintResearchTurn(event.turnId);
       void this.authorizeProviderRequest(event);
       thread.status = 'waiting';
       return;
@@ -6515,7 +6134,7 @@ export class ControllerContext {
       return;
     }
     if (event.type === 'plan') {
-      this.stageResearchTrajectory({
+      this.researchCapture.stageResearchTrajectory({
         turnId: event.turnId,
         eventId: event.id,
         occurredAt: event.timestamp,
@@ -6563,7 +6182,7 @@ export class ControllerContext {
       return;
     }
     if (event.type === 'subagent') {
-      this.stageResearchTrajectory({
+      this.researchCapture.stageResearchTrajectory({
         turnId: event.turnId,
         eventId: event.id,
         occurredAt: event.timestamp,
@@ -6647,7 +6266,7 @@ export class ControllerContext {
         cachedInputTokens: event.payload.cachedInputTokens ?? 0,
         updatedAt: event.timestamp,
       };
-      this.stageResearchTrajectory({
+      this.researchCapture.stageResearchTrajectory({
         turnId: event.turnId,
         eventId: event.id,
         occurredAt: event.timestamp,
@@ -6666,7 +6285,7 @@ export class ControllerContext {
       return;
     }
     if (event.type === 'error') {
-      this.discardResearchTurn(event.turnId);
+      this.researchCapture.discardResearchTurn(event.turnId);
       thread.status = 'failed';
       const previous = this.state.timeline.findLast(
         (item) => item.threadId === event.threadId && item.kind === 'error',
@@ -6706,8 +6325,9 @@ export class ControllerContext {
           timestamp: event.timestamp,
         });
       }
-      if (event.payload.status === 'completed') this.completeResearchTurn(event.turnId);
-      else this.discardResearchTurn(event.turnId);
+      if (event.payload.status === 'completed')
+        this.researchCapture.completeResearchTurn(event.turnId);
+      else this.researchCapture.discardResearchTurn(event.turnId);
     }
   }
 
@@ -6721,7 +6341,7 @@ export class ControllerContext {
       });
       return;
     }
-    this.taintResearchTurn(event.turnId);
+    this.researchCapture.taintResearchTurn(event.turnId);
     const alreadyRequested = [...this.pendingApprovals.values()].some(
       (pending) =>
         pending.kind === 'provider' &&
@@ -6778,7 +6398,7 @@ export class ControllerContext {
     request: GatewayApprovalRequest,
     signal?: AbortSignal,
   ): Promise<{ approved: boolean }> {
-    this.taintResearchTurn(request.turnId);
+    this.researchCapture.taintResearchTurn(request.turnId);
     const approvalId = randomUUID();
     const connector = /^(mail|drive|docs|sheets|slides|slack)_/.test(request.tool.name);
     const upload = /upload/.test(request.tool.name);
@@ -6862,7 +6482,7 @@ export class ControllerContext {
           ? 'Google Workspace'
           : automaticTarget,
       });
-      this.stageRawResearchEvent({
+      this.researchCapture.stageRawResearchEvent({
         threadId: request.threadId,
         turnId: request.turnId,
         eventType: 'action.authorization',
@@ -7043,7 +6663,7 @@ export class ControllerContext {
     decision: 'approved' | 'denied' | 'expired',
   ): void {
     const approval = this.state.approvals.find(({ id }) => id === approvalId);
-    this.stageRawResearchEvent({
+    this.researchCapture.stageRawResearchEvent({
       threadId: context.threadId,
       turnId: context.turnId,
       eventType: 'approval.decision',
@@ -7133,7 +6753,7 @@ export class ControllerContext {
         0,
       ) + 1;
     if (item.turnId) {
-      this.stageRawResearchEvent({
+      this.researchCapture.stageRawResearchEvent({
         threadId,
         turnId: item.turnId,
         eventType: `timeline.${item.kind}`,

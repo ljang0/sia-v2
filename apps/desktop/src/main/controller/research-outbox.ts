@@ -85,14 +85,14 @@ export class ResearchOutbox {
         pendingCount: this.ctx.state.capture.pendingCount,
         promptReviewedVersion: input.consentVersion,
       };
-      for (const staged of this.ctx.researchStaging.values()) {
+      for (const staged of this.ctx.researchCapture.staging.values()) {
         staged.tainted = true;
         staged.events = [];
         staged.eventByMessageId.clear();
       }
     } else {
       this.ctx.state.capture.status = 'paused';
-      for (const staged of this.ctx.researchStaging.values()) {
+      for (const staged of this.ctx.researchCapture.staging.values()) {
         staged.tainted = true;
         staged.events = [];
         staged.eventByMessageId.clear();
@@ -134,7 +134,7 @@ export class ResearchOutbox {
     this.ctx.commit();
     try {
       const inFlightResearchSync = this.inFlightSync;
-      for (const staged of this.ctx.researchStaging.values()) {
+      for (const staged of this.ctx.researchCapture.staging.values()) {
         staged.tainted = true;
         staged.events = [];
         staged.eventByMessageId.clear();
@@ -158,7 +158,7 @@ export class ResearchOutbox {
           'Sign in to Sia cloud to delete local research batches and any previously synced copy.',
         );
       }
-      this.ctx.researchStaging.clear();
+      this.ctx.researchCapture.staging.clear();
       for (const record of this.ctx.deps.repository.list<Record<string, unknown>>('research')) {
         const id =
           typeof record.batchId === 'string'
@@ -395,13 +395,13 @@ export class ResearchOutbox {
       clearTimeout(this.retryTimer);
       this.retryTimer = undefined;
     }
-    for (const staged of this.ctx.researchStaging.values()) {
+    for (const staged of this.ctx.researchCapture.staging.values()) {
       staged.tainted = true;
       staged.events = [];
       staged.rawEvents = [];
       staged.eventByMessageId.clear();
     }
-    this.ctx.researchStaging.clear();
+    this.ctx.researchCapture.staging.clear();
     for (const batch of this.batches()) {
       if (batch.syncEligible === false || this.batchSynced(batch.batchId)) continue;
       this.ctx.deps.repository.put('research', batch.batchId, {
@@ -427,13 +427,13 @@ export class ResearchOutbox {
       clearTimeout(this.retryTimer);
       this.retryTimer = undefined;
     }
-    for (const staged of this.ctx.researchStaging.values()) {
+    for (const staged of this.ctx.researchCapture.staging.values()) {
       staged.tainted = true;
       staged.events = [];
       staged.eventByMessageId.clear();
     }
     await inFlight?.catch(() => undefined);
-    this.ctx.researchStaging.clear();
+    this.ctx.researchCapture.staging.clear();
     for (const batch of this.ctx.deps.repository.list<ResearchBatchRecord>('research')) {
       if (batch.batchId) this.ctx.deps.repository.remove('research', batch.batchId);
     }
