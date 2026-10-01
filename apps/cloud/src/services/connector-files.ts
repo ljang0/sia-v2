@@ -1,5 +1,5 @@
+import type { TOOL_POLICIES } from '../contracts.js';
 import {
-  TOOL_POLICIES,
   type AuthContext,
   type ConnectorUploadDescriptor,
   type ConnectorUploadRequest,

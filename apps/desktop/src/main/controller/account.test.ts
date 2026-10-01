@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { CloudClient } from '../cloud-client.js';
 import { PlaintextTestCipher, SqliteRecordRepository } from '../persistence.js';
 import { ElevenLabsVoiceService } from '../voice-service.js';
-import { DesktopController } from './desktop-controller.js';
+import type { DesktopController } from './desktop-controller.js';
 import { createController, createHarness } from './test-support.js';
 
 describe('DesktopController', () => {

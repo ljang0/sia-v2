@@ -7,7 +7,7 @@ import type { DesktopSnapshot } from '../../shared/bridge.js';
 import { PlaintextTestCipher, SqliteRecordRepository } from '../persistence.js';
 import type { RuntimeTurnInput } from '../runtime-coordinator.js';
 import { ScottyTasks } from '../scotty-state.js';
-import { DesktopController } from './desktop-controller.js';
+import type { DesktopController } from './desktop-controller.js';
 import { CountingRepository, createController, createHarness } from './test-support.js';
 
 describe('DesktopController', () => {

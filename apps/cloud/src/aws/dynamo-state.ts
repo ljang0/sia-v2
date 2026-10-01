@@ -1,8 +1,8 @@
 import { ConditionalCheckFailedException } from '@aws-sdk/client-dynamodb';
+import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import {
   BatchWriteCommand,
   DeleteCommand,
-  DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
   QueryCommand,

@@ -1,4 +1,5 @@
-import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
+import type { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
+import { GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import {
   harnessIdSchema,
   hostedCatalogRouteSchema,
