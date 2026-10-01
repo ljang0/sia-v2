@@ -1,7 +1,8 @@
 import { WarningCircle } from '@phosphor-icons/react';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import buttons from '../styles/buttons.module.css';
-import styles from '../ui.module.css';
+import primitives from '../styles/primitives.module.css';
+import styles from './ErrorBoundary.module.css';
 import { FeedbackDialog } from './FeedbackDialog';
 
 interface BoundaryState {
@@ -151,7 +152,7 @@ export class RowErrorBoundary extends Component<
   override render() {
     if (!this.state.failed) return this.props.children;
     return (
-      <div className={styles.notice} role="status" data-testid="row-error-boundary">
+      <div className={primitives.notice} role="status" data-testid="row-error-boundary">
         <WarningCircle size={17} aria-hidden="true" />
         <div>
           <strong>This message couldn’t be shown</strong>

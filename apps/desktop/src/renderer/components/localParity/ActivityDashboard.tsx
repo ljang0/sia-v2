@@ -11,7 +11,7 @@ import {
 } from '@phosphor-icons/react';
 import { useId, useState } from 'react';
 import surface from './localParity.module.css';
-import ui from '../../ui.module.css';
+import primitives from '../../styles/primitives.module.css';
 import styles from './ActivityDashboard.module.css';
 
 type DashboardActivityStatus =
@@ -76,12 +76,12 @@ export function ActivityDashboard({ activities, onOpenThread }: ActivityDashboar
       <div className={surface.localSurfaceHeader}>
         <h2 id={titleId}>Your agents’ work</h2>
         <div
-          className={`${ui.segmentedControl} ${surface.surfaceSegments}`}
+          className={`${primitives.segmentedControl} ${surface.surfaceSegments}`}
           aria-label="Activity filter"
         >
           <button
             type="button"
-            className={filter === 'active' ? ui.segmentActive : undefined}
+            className={filter === 'active' ? primitives.segmentActive : undefined}
             aria-pressed={filter === 'active'}
             onClick={() => setFilter('active')}
           >
@@ -89,7 +89,7 @@ export function ActivityDashboard({ activities, onOpenThread }: ActivityDashboar
           </button>
           <button
             type="button"
-            className={filter === 'all' ? ui.segmentActive : undefined}
+            className={filter === 'all' ? primitives.segmentActive : undefined}
             aria-pressed={filter === 'all'}
             onClick={() => setFilter('all')}
           >
@@ -122,7 +122,7 @@ export function ActivityDashboard({ activities, onOpenThread }: ActivityDashboar
             >
               <span data-testid="background-task-status">
                 <ActivityStatusIcon status={activity.status} />
-                <span className={ui.visuallyHidden}>
+                <span className={primitives.visuallyHidden}>
                   {activity.status === 'unread' ? 'complete, unread' : activity.status}
                 </span>
               </span>
@@ -152,7 +152,7 @@ export function ActivityDashboard({ activities, onOpenThread }: ActivityDashboar
 
 function ActivityStatusIcon({ status }: { status: DashboardActivityStatus }) {
   const props = { size: 17, 'aria-hidden': true as const };
-  if (status === 'running') return <SpinnerGap className={ui.spin} {...props} />;
+  if (status === 'running') return <SpinnerGap className={primitives.spin} {...props} />;
   if (status === 'queued') return <Clock {...props} />;
   if (status === 'waiting') return <HandPalm {...props} />;
   if (status === 'unread') return <Bell weight="fill" {...props} />;

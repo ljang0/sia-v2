@@ -1,0 +1,95 @@
+.offlineBanner,
+.actionError {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+  animation: statusEnter var(--motion-standard) var(--ease-out-soft) both;
+}
+
+.offlineBanner {
+  background: var(--surface-warning);
+  color: var(--text-warning);
+}
+
+.actionError {
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+
+.actionError > svg {
+  color: var(--text-danger);
+}
+
+.actionError.undoNotice > svg {
+  color: var(--text-secondary);
+}
+
+.actionError button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-weight: var(--weight-semibold);
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.actionErrorCopy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.actionErrorCopy > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actionErrorCopy small {
+  opacity: 0.78;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.actionErrorActions {
+  display: flex;
+  flex: none;
+  gap: 3px;
+  margin-left: auto;
+}
+
+.actionError button:hover {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.actionError button:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+@keyframes statusEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .offlineBanner,
+  .actionError {
+    animation: none;
+  }
+}

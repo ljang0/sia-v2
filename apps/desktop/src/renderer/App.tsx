@@ -61,7 +61,8 @@ import './tokens.css';
 import companion from './companion.module.css';
 import layout from './styles/layout.module.css';
 import buttons from './styles/buttons.module.css';
-import styles from './ui.module.css';
+import errorBoundary from './components/ErrorBoundary.module.css';
+import styles from './App.module.css';
 import { useTextSize } from './textSize';
 
 const AuditGallery = lazy(() => import('./audit/AuditGallery'));
@@ -252,13 +253,13 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   }
   if (app.fatalError) {
     return (
-      <div className={styles.fatalState} role="alert">
+      <div className={errorBoundary.fatalState} role="alert">
         <WarningCircle size={26} aria-hidden="true" />
         <h1>Sia needs to reconnect</h1>
         <p>{app.fatalError}</p>
         <button
           type="button"
-          className={`${buttons.primaryButton} ${styles.fatalAction}`}
+          className={`${buttons.primaryButton} ${errorBoundary.fatalAction}`}
           onClick={app.retry}
         >
           Try again

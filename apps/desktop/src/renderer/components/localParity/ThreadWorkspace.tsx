@@ -19,7 +19,7 @@ import type {
   WorkspaceSnapshot,
 } from '../../types';
 import surface from './localParity.module.css';
-import ui from '../../ui.module.css';
+import primitives from '../../styles/primitives.module.css';
 import styles from './ThreadWorkspace.module.css';
 import { ChangesReview, type ChangedFile } from './ChangesReview';
 import { GoalControls } from './WorkControls';
@@ -143,7 +143,7 @@ export function ThreadWorkspaceTools({
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content
-              className={ui.threadMenuContent}
+              className={primitives.threadMenuContent}
               side="top"
               align="end"
               sideOffset={6}
@@ -153,11 +153,14 @@ export function ThreadWorkspaceTools({
                 if (tool !== 'terminal') panel.current?.focus();
               }}
             >
-              <DropdownMenu.Item className={ui.threadMenuItem} onSelect={() => setTool('goal')}>
+              <DropdownMenu.Item
+                className={primitives.threadMenuItem}
+                onSelect={() => setTool('goal')}
+              >
                 <Flag size={14} aria-hidden="true" /> Goal
               </DropdownMenu.Item>
               <DropdownMenu.Item
-                className={ui.threadMenuItem}
+                className={primitives.threadMenuItem}
                 onSelect={() => void openChanges()}
                 data-testid="changes-panel-toggle"
               >
@@ -165,7 +168,7 @@ export function ThreadWorkspaceTools({
               </DropdownMenu.Item>
               {developerTools ? (
                 <DropdownMenu.Item
-                  className={ui.threadMenuItem}
+                  className={primitives.threadMenuItem}
                   onSelect={() => setTool('terminal')}
                   data-testid="terminal-open"
                 >
@@ -174,7 +177,7 @@ export function ThreadWorkspaceTools({
               ) : null}
               {schedulesAvailable ? (
                 <DropdownMenu.Item
-                  className={ui.threadMenuItem}
+                  className={primitives.threadMenuItem}
                   onSelect={() => setTool('schedules')}
                 >
                   <CalendarDots size={14} aria-hidden="true" /> Schedules
@@ -182,7 +185,7 @@ export function ThreadWorkspaceTools({
               ) : null}
               {thread.worktree?.kind === 'linked' ? (
                 <DropdownMenu.Item
-                  className={ui.threadMenuItem}
+                  className={primitives.threadMenuItem}
                   onSelect={() => void run(() => api.handoffThread(thread.id, 'primary'))}
                   data-testid="worktree-handoff-primary"
                 >

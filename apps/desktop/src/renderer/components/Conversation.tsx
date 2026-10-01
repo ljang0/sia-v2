@@ -42,7 +42,7 @@ import { WelcomeRecents } from './WelcomeRecents';
 import { ReplyReadyMark, ReplySurface } from './ResultCard';
 import layout from '../styles/layout.module.css';
 import buttons from '../styles/buttons.module.css';
-import ui from '../ui.module.css';
+import primitives from '../styles/primitives.module.css';
 import styles from './Conversation.module.css';
 import { ActivityRow } from './ActivityRow';
 import { planProgress, WorkGroup, WorkingStatus } from './WorkGroup';
@@ -1169,7 +1169,10 @@ function EventViewContent({
   }
   if (event.type === 'notice') {
     return (
-      <div className={`${ui.notice} ${ui[`notice_${event.tone}`]}`} role="status">
+      <div
+        className={`${primitives.notice} ${primitives[`notice_${event.tone}`]}`}
+        role="status"
+      >
         <WarningCircle size={17} aria-hidden="true" />
         <div>
           <NoticeText
@@ -1185,7 +1188,7 @@ function EventViewContent({
   }
   if (event.type === 'question') {
     return (
-      <div className={ui.notice} role="status">
+      <div className={primitives.notice} role="status">
         <ChatCircle size={17} aria-hidden="true" />
         <div>
           <strong>{agentName} has a question</strong>
@@ -1257,7 +1260,7 @@ function EventViewContent({
             data-testid="message-read-aloud"
           >
             {speechPhase === 'loading' ? (
-              <SpinnerGap className={ui.spin} size={14} aria-hidden="true" />
+              <SpinnerGap className={primitives.spin} size={14} aria-hidden="true" />
             ) : speechPhase === 'playing' ? (
               <StopCircle size={14} weight="fill" aria-hidden="true" />
             ) : (

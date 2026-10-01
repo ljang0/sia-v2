@@ -6,7 +6,7 @@ import {
   WarningCircle,
   XCircle,
 } from '@phosphor-icons/react';
-import ui from '../ui.module.css';
+import primitives from '../styles/primitives.module.css';
 import styles from './StatusMark.module.css';
 
 interface StatusMarkProps {
@@ -17,7 +17,7 @@ interface StatusMarkProps {
 export function StatusMark({ status, label }: StatusMarkProps) {
   const icon = {
     idle: <PauseCircle aria-hidden="true" />,
-    running: <CircleNotch className={ui.spin} aria-hidden="true" />,
+    running: <CircleNotch className={primitives.spin} aria-hidden="true" />,
     queued: <Clock aria-hidden="true" />,
     waiting: <WarningCircle aria-hidden="true" />,
     error: <XCircle aria-hidden="true" />,
@@ -28,7 +28,7 @@ export function StatusMark({ status, label }: StatusMarkProps) {
   return (
     <span className={`${styles.statusMark} ${toneClass}`}>
       {icon}
-      <span className={label ? undefined : ui.visuallyHidden}>
+      <span className={label ? undefined : primitives.visuallyHidden}>
         {label ?? statusLabel(status)}
       </span>
     </span>

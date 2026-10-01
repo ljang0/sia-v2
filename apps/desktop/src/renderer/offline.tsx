@@ -1,7 +1,7 @@
 import { WifiSlash } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import type { MessageEvent, RendererAttachment } from './types';
-import styles from './ui.module.css';
+import styles from './components/AppStates.module.css';
 
 /** Whether this Mac has a network connection, kept current by the browser's online events. */
 export function useOnline(): boolean {

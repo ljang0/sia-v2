@@ -15,7 +15,7 @@ import type { WorkspaceSnapshot } from '../../types';
 import buttons from '../../styles/buttons.module.css';
 import dialogs from '../../styles/dialogs.module.css';
 import surface from './localParity.module.css';
-import ui from '../../ui.module.css';
+import primitives from '../../styles/primitives.module.css';
 import styles from './ChangesReview.module.css';
 import { shortDateTime } from '../../format';
 
@@ -70,7 +70,7 @@ export function ChangesReview({
     <section className={surface.changesReview} aria-labelledby={titleId}>
       <div className={surface.localSurfaceHeader}>
         <div>
-          <span className={ui.sectionLabel} title={workspace}>
+          <span className={primitives.sectionLabel} title={workspace}>
             Workspace · {workspace.split('/').filter(Boolean).at(-1) ?? workspace}
           </span>
           <h2 id={titleId}>Changes</h2>

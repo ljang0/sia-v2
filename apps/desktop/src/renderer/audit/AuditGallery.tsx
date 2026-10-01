@@ -4,7 +4,7 @@ import { ApprovalCard } from '../components/ApprovalCard';
 import { Composer } from '../components/Composer';
 import { StatusMark } from '../components/StatusMark';
 import type { ApprovalEvent } from '../types';
-import styles from '../ui.module.css';
+import styles from './audit.module.css';
 import { AccountAuditMatrix } from './AccountAuditMatrix';
 
 const foregroundApproval: ApprovalEvent = {

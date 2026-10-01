@@ -14,7 +14,7 @@ import type { RendererSnapshot } from '../../types';
 import buttons from '../../styles/buttons.module.css';
 import dialogs from '../../styles/dialogs.module.css';
 import settings from './SettingsShared.module.css';
-import ui from '../../ui.module.css';
+import primitives from '../../styles/primitives.module.css';
 import styles from './PrivacySettings.module.css';
 import { InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
 import { ResearchConsentDialog } from './ResearchConsentDialog';
@@ -172,7 +172,7 @@ export function PrivacySettings({
       </details>
 
       {blocked ? (
-        <div className={ui.inlineError} role="alert">
+        <div className={primitives.inlineError} role="alert">
           <WarningCircle size={15} aria-hidden="true" />
           <div>
             <strong>Research capture is blocked</strong>

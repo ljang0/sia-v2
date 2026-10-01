@@ -132,7 +132,7 @@ identity/display face, and a four-step radius rule: `--radius-tight` 6px for chi
 10px for controls and rows, `--radius-surface` 14px for the few contained surfaces that need an
 edge, `--radius-dialog` 20px for floating dialogs, `--radius-round` only for true circles, and a
 square workspace edge (`--radius-room: 0`). Type uses the `--text-*` / `--display-*` scale and the
-`--weight-*` weights; do not introduce literal sizes, weights, or radii in `ui.module.css`.
+`--weight-*` weights; do not introduce literal sizes, weights, or radii in the style modules.
 
 Elevation is semantic rather than decorative: rows remain flat, fields use the quiet
 `--bg-field` inset surface, raised controls use `--shadow-control`, and only the composer,
@@ -163,8 +163,9 @@ use whitespace and a hairline divider before adding another box.
   canvas, GenUI, or visualization affordance. A restrained monochrome grain and broad ambient
   color mixing are permitted when they make the room feel tactile without reducing contrast.
 - No `!important`, and no unexplained design token. New identity and shell work belongs in
-  `companion.module.css`; feature-heavy legacy styles remain in `ui.module.css` until migrated.
-  New component surfaces must not exceed 400 lines.
+  `companion.module.css`. Each component keeps its styles in a `.module.css` beside it; buttons,
+  dialogs, the app frame, and small shared pieces live in `renderer/styles/`. New component
+  surfaces must not exceed 400 lines.
 - The development audit matrix (`#audit` in DEV) and the real Electron E2E both pass before visual baselines are accepted.
 
 ## Surface checks

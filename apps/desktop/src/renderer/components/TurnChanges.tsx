@@ -5,7 +5,7 @@ import { reversibleFileChange } from '../../shared/turn-changes';
 import type { ThreadEvent, TurnChanges } from '../types';
 import buttons from '../styles/buttons.module.css';
 import dialogs from '../styles/dialogs.module.css';
-import styles from '../ui.module.css';
+import primitives from '../styles/primitives.module.css';
 import local from './TurnChanges.module.css';
 
 export interface TurnChangeActions {
@@ -124,7 +124,7 @@ export const TurnChangesBar = memo(function TurnChangesBar({
         data-testid={undone ? 'turn-changes-redo' : 'turn-changes-undo'}
       >
         {pending ? (
-          <SpinnerGap size={13} className={styles.spin} aria-hidden="true" />
+          <SpinnerGap size={13} className={primitives.spin} aria-hidden="true" />
         ) : undone ? (
           <ArrowArcRight size={13} aria-hidden="true" />
         ) : (

@@ -19,7 +19,7 @@ import {
 import { type RefObject, useEffect, useRef, useState } from 'react';
 import type { AppConnection, ProviderId, RendererApi, RendererSnapshot } from '../types';
 import buttons from '../styles/buttons.module.css';
-import ui from '../ui.module.css';
+import primitives from '../styles/primitives.module.css';
 import styles from './Settings.module.css';
 import { AssistantSettings } from './settings/AssistantSettings';
 import { AboutSettings } from './settings/AboutSettings';
@@ -283,7 +283,11 @@ export function Settings({
               </button>
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>
-              <DropdownMenu.Content className={ui.threadMenuContent} align="end" sideOffset={6}>
+              <DropdownMenu.Content
+                className={primitives.threadMenuContent}
+                align="end"
+                sideOffset={6}
+              >
                 {narrowNav && (
                   <SettingsMenuItem
                     icon={<SpeakerHigh size={17} />}
@@ -553,7 +557,7 @@ function SettingsMenuItem({
   onSelect(): void;
 }) {
   return (
-    <DropdownMenu.Item className={ui.threadMenuItem} onSelect={onSelect}>
+    <DropdownMenu.Item className={primitives.threadMenuItem} onSelect={onSelect}>
       <span aria-hidden="true">{icon}</span>
       {label}
     </DropdownMenu.Item>

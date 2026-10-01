@@ -8,7 +8,7 @@ import { useState } from 'react';
 import type { RendererSnapshot } from '../../types';
 import buttons from '../../styles/buttons.module.css';
 import settings from './SettingsShared.module.css';
-import styles from '../../ui.module.css';
+import primitives from '../../styles/primitives.module.css';
 import { SettingsSectionHeader } from './SettingsShared';
 
 type Updates = RendererSnapshot['updates'];
@@ -65,7 +65,7 @@ export function AboutSettings({
             {updates.status === 'current' ? (
               <CheckCircle size={18} />
             ) : (
-              <ArrowClockwise size={18} className={checking ? styles.spin : undefined} />
+              <ArrowClockwise size={18} className={checking ? primitives.spin : undefined} />
             )}
           </div>
           <div className={settings.settingsRowBody}>

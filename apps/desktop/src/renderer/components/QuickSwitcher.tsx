@@ -5,7 +5,7 @@ import companion from '../companion.module.css';
 import type { AgentSummary, TranscriptSearchResult } from '../types';
 import buttons from '../styles/buttons.module.css';
 import dialogs from '../styles/dialogs.module.css';
-import styles from '../ui.module.css';
+import primitives from '../styles/primitives.module.css';
 import { AgentForm } from './AgentForm';
 import { sidebarAgentOrder, sidebarThreadOrder } from '../shortcuts';
 
@@ -233,7 +233,7 @@ export function QuickSwitcher({
           }}
         >
           <Dialog.Title>Move through Sia</Dialog.Title>
-          <Dialog.Description className={styles.visuallyHidden}>
+          <Dialog.Description className={primitives.visuallyHidden}>
             Search conversations, agents, and common actions.
           </Dialog.Description>
           <Dialog.Close asChild>

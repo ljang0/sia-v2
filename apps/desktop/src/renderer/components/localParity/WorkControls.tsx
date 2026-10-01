@@ -4,7 +4,7 @@ import type { ThreadGoal } from '../../types';
 import buttons from '../../styles/buttons.module.css';
 import dialogs from '../../styles/dialogs.module.css';
 import surface from './localParity.module.css';
-import ui from '../../ui.module.css';
+import primitives from '../../styles/primitives.module.css';
 import styles from './WorkControls.module.css';
 
 interface SelectOption {
@@ -144,7 +144,7 @@ export function GoalControls({
       <section className={surface.goalControl} aria-labelledby={`${inputId}-title`}>
         <div className={surface.localSurfaceHeader}>
           <div>
-            <span className={ui.sectionLabel}>Goal for this conversation</span>
+            <span className={primitives.sectionLabel}>Goal for this conversation</span>
             <h2 id={`${inputId}-title`}>{goal.text}</h2>
           </div>
           <span className={styles.goalStatus} data-status={goal.status}>
@@ -206,7 +206,7 @@ export function GoalControls({
     >
       <div className={surface.localSurfaceHeader}>
         <div>
-          <span className={ui.sectionLabel}>Goal for this conversation</span>
+          <span className={primitives.sectionLabel}>Goal for this conversation</span>
           <h2 id={`${inputId}-title`}>Keep a long task on course</h2>
           <p className={styles.goalIntro}>
             Name the finish line and Sia keeps it in view while it works.

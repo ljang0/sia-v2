@@ -18,7 +18,7 @@ import {
   useState,
 } from 'react';
 import layout from '../styles/layout.module.css';
-import ui from '../ui.module.css';
+import primitives from '../styles/primitives.module.css';
 import styles from './Composer.module.css';
 import { SiaPresence, type SiaPresenceState } from './SiaPresence';
 import { VoiceWave } from './VoiceWave';
@@ -795,7 +795,7 @@ export function Composer({
                   data-testid="composer-voice-input"
                 >
                   {voicePhase === 'transcribing' && !voiceConversation ? (
-                    <SpinnerGap className={ui.spin} size={15} aria-hidden="true" />
+                    <SpinnerGap className={primitives.spin} size={15} aria-hidden="true" />
                   ) : voicePhase === 'recording' ? (
                     <Stop size={15} weight="fill" aria-hidden="true" />
                   ) : (

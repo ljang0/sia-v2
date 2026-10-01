@@ -26,7 +26,7 @@ import {
 } from '@phosphor-icons/react';
 import { useRef, useState } from 'react';
 import type { ActivityEvent } from '../types';
-import ui from '../ui.module.css';
+import primitives from '../styles/primitives.module.css';
 import styles from './ActivityRow.module.css';
 
 interface ActivityRowProps {
@@ -105,7 +105,7 @@ export function ActivityRow({ event }: ActivityRowProps) {
             </span>
           ) : null}
         </span>
-        <span className={ui.visuallyHidden}>Status: {event.status}</span>
+        <span className={primitives.visuallyHidden}>Status: {event.status}</span>
         <StatusIcon size={15} className={statusIconClass} aria-hidden="true" />
         {hasDetail ? (
           <CaretDown
@@ -270,7 +270,7 @@ function RichActivityDetail({ event }: { event: ActivityEvent }) {
               ) : null}
             </span>
             <span className={styles.planText}>{step.text}</span>
-            <span className={ui.visuallyHidden}>
+            <span className={primitives.visuallyHidden}>
               {step.status === 'completed'
                 ? ' (done)'
                 : step.status === 'in_progress'

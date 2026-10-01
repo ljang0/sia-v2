@@ -23,7 +23,7 @@ import layout from '../../styles/layout.module.css';
 import buttons from '../../styles/buttons.module.css';
 import dialogs from '../../styles/dialogs.module.css';
 import surface from './localParity.module.css';
-import ui from '../../ui.module.css';
+import primitives from '../../styles/primitives.module.css';
 import styles from './Schedules.module.css';
 import { useConfirmDialog } from '../ConfirmDialog';
 import { StartupSettings } from '../settings/StartupSettings';
@@ -609,7 +609,7 @@ export function ScheduleControls({
       {confirmDialog}
       <div className={surface.localSurfaceHeader}>
         <div>
-          <span className={ui.sectionLabel}>Runs while Sia is open</span>
+          <span className={primitives.sectionLabel}>Runs while Sia is open</span>
           <h2 id={titleId}>Schedules</h2>
         </div>
         <button

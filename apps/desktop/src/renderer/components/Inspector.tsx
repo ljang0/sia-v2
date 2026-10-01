@@ -20,7 +20,7 @@ import type {
   ResearchSettings,
 } from '../types';
 import buttons from '../styles/buttons.module.css';
-import ui from '../ui.module.css';
+import primitives from '../styles/primitives.module.css';
 import styles from './Inspector.module.css';
 import { BrowserWindowPicker } from './BrowserWindowPicker';
 
@@ -111,19 +111,23 @@ export function Inspector({
           aria-describedby={descriptionId}
           aria-modal="true"
         >
-          <Dialog.Title className={ui.visuallyHidden}>Access</Dialog.Title>
-          <Dialog.Description className={ui.visuallyHidden} id={descriptionId}>
+          <Dialog.Title className={primitives.visuallyHidden}>Access</Dialog.Title>
+          <Dialog.Description className={primitives.visuallyHidden} id={descriptionId}>
             Review and manage browser, computer, data, and optional cloud access.
           </Dialog.Description>
 
           <header className={styles.inspectorHeader}>
-            <div className={ui.segmentedControl} aria-label="Access view" role="tablist">
+            <div
+              className={primitives.segmentedControl}
+              aria-label="Access view"
+              role="tablist"
+            >
               <button
                 type="button"
                 id={browserTabId}
                 ref={browserTabRef}
                 role="tab"
-                className={tab === 'browser' ? ui.segmentActive : ''}
+                className={tab === 'browser' ? primitives.segmentActive : ''}
                 onClick={() => setTab('browser')}
                 onKeyDown={handleTabKeyDown}
                 aria-selected={tab === 'browser'}
@@ -138,7 +142,7 @@ export function Inspector({
                 id={computerTabId}
                 ref={computerTabRef}
                 role="tab"
-                className={tab === 'computer' ? ui.segmentActive : ''}
+                className={tab === 'computer' ? primitives.segmentActive : ''}
                 onClick={() => setTab('computer')}
                 onKeyDown={handleTabKeyDown}
                 aria-selected={tab === 'computer'}
@@ -153,7 +157,7 @@ export function Inspector({
                 id={dataTabId}
                 ref={dataTabRef}
                 role="tab"
-                className={tab === 'data' ? ui.segmentActive : ''}
+                className={tab === 'data' ? primitives.segmentActive : ''}
                 onClick={() => setTab('data')}
                 onKeyDown={handleTabKeyDown}
                 aria-selected={tab === 'data'}
@@ -251,7 +255,7 @@ function BrowserPanel({
             </div>
           </section>
           {browser.status === 'error' && browser.snapshotLabel ? (
-            <p className={ui.inlineError} role="alert">
+            <p className={primitives.inlineError} role="alert">
               {browser.snapshotLabel}
             </p>
           ) : null}
@@ -284,7 +288,7 @@ function BrowserPanel({
           one.
         </p>
         {browser.status === 'error' && browser.snapshotLabel ? (
-          <p className={`${ui.inlineError} ${styles.emptyError}`} role="alert">
+          <p className={`${primitives.inlineError} ${styles.emptyError}`} role="alert">
             {browser.snapshotLabel}
           </p>
         ) : null}
@@ -305,7 +309,7 @@ function BrowserPanel({
     <div className={styles.inspectorBody} id={id} role="tabpanel" aria-labelledby={labelledBy}>
       <section className={styles.inspectorSummary}>
         <div>
-          <span className={ui.sectionLabel}>Attached profile</span>
+          <span className={primitives.sectionLabel}>Attached profile</span>
           <strong>{browser.profileName}</strong>
         </div>
         <button type="button" className={buttons.textButtonDanger} onClick={onDetach}>

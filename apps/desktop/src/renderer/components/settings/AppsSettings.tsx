@@ -11,7 +11,7 @@ import { useConfirmDialog } from '../ConfirmDialog';
 import type { AppConnection, RendererSnapshot } from '../../types';
 import buttons from '../../styles/buttons.module.css';
 import settings from './SettingsShared.module.css';
-import ui from '../../ui.module.css';
+import primitives from '../../styles/primitives.module.css';
 import styles from './AppsSettings.module.css';
 import { ConnectionChecklist } from '../ConnectionChecklist';
 import { BrowserWindowPicker } from '../BrowserWindowPicker';
@@ -240,7 +240,7 @@ export function AppsSettings({
                     }
                   >
                     {pending === 'connect-google' || setupActive ? (
-                      <CircleNotch className={ui.spin} size={16} aria-hidden="true" />
+                      <CircleNotch className={primitives.spin} size={16} aria-hidden="true" />
                     ) : (
                       <GoogleLogo size={16} weight="bold" aria-hidden="true" />
                     )}
@@ -329,7 +329,7 @@ export function AppsSettings({
                     }
                   >
                     {pending === 'connect-slack' || setupActive ? (
-                      <CircleNotch className={ui.spin} size={16} aria-hidden="true" />
+                      <CircleNotch className={primitives.spin} size={16} aria-hidden="true" />
                     ) : (
                       <ChatsCircle size={16} aria-hidden="true" />
                     )}
