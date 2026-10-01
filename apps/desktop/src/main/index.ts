@@ -45,7 +45,7 @@ import {
 } from 'electron';
 
 import { ActionGateway, DefaultActionAuthorizationPolicy } from '@sia/action-gateway';
-import { TrajectoryRecorder } from './trajectory-recorder.js';
+import { TrajectoryRecorder } from './research/trajectory-recorder.js';
 import { chromeRemoteDebuggingStatus } from './mac/chrome-debug-setup.js';
 import { MessagesService } from './mac/messages-service.js';
 

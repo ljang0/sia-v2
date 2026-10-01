@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import type { CloudClient } from '../cloud/cloud-client.js';
 import type { RecordRepository } from '../storage/persistence.js';
 import { probeProviders } from '../providers/provider-probe.js';
-import type { TrajectoryRecorder } from '../trajectory-recorder.js';
+import type { TrajectoryRecorder } from '../research/trajectory-recorder.js';
 import type { VoiceOperations } from '../voice/voice-service.js';
 import { defaultRunCommand } from './async-utils.js';
 import type { ComputerAutomation, ControllerOptions } from './types.js';

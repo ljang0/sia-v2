@@ -20,7 +20,7 @@ import type { CuaAuthorizationContext } from '../mac/cua-service.js';
 import type { CloudIdentityStatus } from '../cloud/identity.js';
 import type { RecordRepository } from '../storage/persistence.js';
 import type { probeProviders } from '../providers/provider-probe.js';
-import type { TrajectoryRecorder } from '../trajectory-recorder.js';
+import type { TrajectoryRecorder } from '../research/trajectory-recorder.js';
 import type { VoiceOperations } from '../voice/voice-service.js';
 
 export interface ComputerAutomation {
