@@ -2,7 +2,6 @@
   "name": "sia-v2",
   "version": "0.1.0-alpha.25",
   "private": true,
-  "type": "module",
   "description": "A local-first personal computer assistant for macOS.",
   "author": "Lawrence Jang",
   "packageManager": "pnpm@11.6.0",
