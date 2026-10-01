@@ -248,6 +248,7 @@ export function Conversation({
       block: 'center',
       behavior: 'instant',
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- scroll only when the matches change, not on every new event.
   }, [findIndex, findOpen, findQuery, matchingEventIds.join(':'), openWorkGroups]);
 
   const stopSpeech = () => {
@@ -327,6 +328,7 @@ export function Conversation({
       releaseSpeech(speechSource, speechContext);
       if (completionTimer.current) clearTimeout(completionTimer.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset per thread; the status read here is the starting point.
   }, [thread?.id, voiceEnabled]);
 
   useEffect(() => {
@@ -360,6 +362,7 @@ export function Conversation({
     if (!reply || lastNarratedEvent.current === reply.id) return;
     lastNarratedEvent.current = reply.id;
     void toggleSpeech(reply.id, reply.content);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toggleSpeech is recreated every render.
   }, [onSpeak, thread, thread?.events, thread?.status, voiceConversation]);
 
   useLayoutEffect(() => {
@@ -488,17 +491,19 @@ export function Conversation({
     }),
     [],
   );
-  const events = thread?.events ?? [];
+  const events = useMemo(() => thread?.events ?? [], [thread?.events]);
   const blocks = useMemo(() => conversationBlocks(events), [events]);
   const changedTurns = useMemo(() => turnChangeSummaries(events), [events]);
   // What the thread held when it opened. Rows added after that (a sent message, a new step,
   // the reply) ease in; reopening a thread shows its history still.
   const openedEventIds = useMemo(
     () => new Set((thread?.events ?? []).map(({ id }) => id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- snapshot the rows present when the thread opened.
     [thread?.id],
   );
   const matchingEventIdSet = useMemo(
     () => new Set(matchingEventIds),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keep the set's identity while the matches are unchanged.
     [matchingEventIds.join(':')],
   );
   if (loading) return <ConversationSkeleton />;

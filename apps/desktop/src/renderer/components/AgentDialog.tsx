@@ -93,6 +93,7 @@ export function AgentDialog({
     setError(undefined);
     setConfirmingDelete(false);
     setModelChosen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset only on open or agent change; provider refreshes keep edits.
   }, [agent, open]);
 
   useEffect(() => {

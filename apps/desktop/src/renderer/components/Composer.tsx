@@ -239,6 +239,7 @@ export function Composer({
       if (voiceRestartTimer.current) clearTimeout(voiceRestartTimer.current);
       voiceRestartTimer.current = undefined;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- beginRecording is recreated every render.
   }, [
     disabled,
     running,

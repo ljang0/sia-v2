@@ -225,7 +225,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
         setReveal((current) => current + 1);
         focusComposer();
       }),
-    [app.api, app.closeSettings, app.closeActivity],
+    [app],
   );
   useLayoutEffect(() => {
     if (
