@@ -1,5 +1,6 @@
 // @ts-check
 import js from '@eslint/js';
+import { defineConfig } from 'eslint/config';
 import prettier from 'eslint-config-prettier/flat';
 import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
@@ -8,7 +9,7 @@ import tseslint from 'typescript-eslint';
 const TS_FILES = ['**/*.{ts,tsx,mts,cts}'];
 const RENDERER_FILES = ['apps/desktop/src/{renderer,mobile}/**/*.{ts,tsx}'];
 
-export default tseslint.config(
+export default defineConfig(
   {
     ignores: [
       '**/node_modules/**',
