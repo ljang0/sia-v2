@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Electron is mocked with loose window and IPC shapes. */
 import { beforeEach, expect, it, vi } from 'vitest';
 
 const electron = vi.hoisted(() => ({
