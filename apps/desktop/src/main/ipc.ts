@@ -7,7 +7,7 @@ import { TEXT_SIZES, THEMES } from '../shared/display.js';
 import { assistantLibraryCommand } from '../shared/assistant-library.js';
 import { MAX_EVERY_HOURS, SCHEDULE_CADENCES } from '../shared/schedule-cadence.js';
 
-import type { DesktopController } from './controller.js';
+import type { DesktopController } from './controller/desktop-controller.js';
 import type {
   BridgeInvokeEnvelope,
   BridgeMethod,

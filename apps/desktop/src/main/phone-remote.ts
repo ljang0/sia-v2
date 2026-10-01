@@ -12,7 +12,7 @@ import { constants } from 'node:fs';
 import { open, readFile, realpath } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
 import { z } from 'zod';
-import type { DesktopController } from './controller.js';
+import type { DesktopController } from './controller/desktop-controller.js';
 import type { RecordRepository } from './persistence.js';
 import {
   phoneAssistantBlocker,

@@ -242,8 +242,8 @@ do not establish transport secrecy or real Wi-Fi reliability.
   collapse them into one dialog. Test each denial and cancellation on a fresh account, status changes
   after returning from Settings, and restart mid-setup. Verify Codex install/update with no existing
   binary, interrupted network and browser login cancelled/expired. Use the pinned admitted release.
-- **Schedules/goals:** schedules persist a claim before dispatch, keep stable run IDs and finite
-  limits, but require Sia open and the Mac awake (`controller.ts`). Test wake across a due time,
+- **Schedules/goals:** schedules persist a claim before dispatch, keep stable run IDs and optional
+  run limits, but require Sia open and the Mac awake (`controller/schedules.ts`). Test wake across a due time,
   timezone/DST changes, overlapping long tasks and crashes on each side of dispatch. Day-based
   cadences (daily, weekdays, chosen days) step local calendar days, so 8:00 AM stays 8:00 AM across
   DST (`shared/schedule-cadence.ts`). A run missed while the Mac slept runs once on wake, then later
@@ -270,7 +270,7 @@ do not establish transport secrecy or real Wi-Fi reliability.
 | Foreground/background desktop and browser     | CUA queue, action backend and native exact-window matching; bounded-call and synthetic geometry tests                                 | Chrome/Slack across Spaces, minimized/full-screen windows, no-op clicks and recovery             |
 | Google, Slack and Messages                    | Controller connection polling/ownership, cloud services and typed action gateway; OAuth and scope fixtures                            | Disposable-account reconnect/revoke, Slack multiple workspaces, Messages Full Disk Access        |
 | Files, attachments, Git and commands          | `workspace-operations.ts`; real Git fixtures, path/symlink guards, snapshots, bounded output and process-group cancellation           | Interrupted large file operations, disk pressure and packaged helper behavior                    |
-| Schedules, goals and activity                 | Persisted schedule claims/history, finite limits, thread completion and notification paths                                            | Sleep, restart, DST and long-running overlap                                                     |
+| Schedules, goals and activity                 | Persisted schedule claims/history, optional run limits, thread completion and notification paths                                      | Sleep, restart, DST and long-running overlap                                                     |
 | Phone remote                                  | `phone-remote.ts`; replay, stale-command, rotation, lock and path tests                                                               | Encrypted transport and physical-phone/network acceptance                                        |
 | Memory, skills and Scotty                     | Controller/shared task routes and existing assistant/Scotty suites; no separate authority path                                        | Stale tray controls, multiple displays and fullscreen interactions on the packaged app           |
 | Research export/deletion and account deletion | Controller generation-bound sync, cloud services; retryable outbox and deletion/export fixtures                                       | Partial AWS failures, actual alarms, operator-reviewed production evidence                       |

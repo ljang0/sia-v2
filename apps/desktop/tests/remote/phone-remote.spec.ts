@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { DesktopSnapshot } from '../../src/shared/bridge';
-import type { DesktopController } from '../../src/main/controller';
+import type { DesktopController } from '../../src/main/controller/desktop-controller';
 import type { RecordRepository } from '../../src/main/persistence';
 import { PhoneRemote } from '../../src/main/phone-remote';
 

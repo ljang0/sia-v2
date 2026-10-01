@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp, mkdir, writeFile, symlink, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import type { DesktopController } from './controller.js';
+import type { DesktopController } from './controller/desktop-controller.js';
 import type { DesktopSnapshot } from '../shared/bridge.js';
 import type { RecordRepository } from './persistence.js';
 import { PhoneRemote } from './phone-remote.js';

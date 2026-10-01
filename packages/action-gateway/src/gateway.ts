@@ -7,12 +7,11 @@ import type { ProviderId, ToolDescriptor } from '@sia/protocol';
 import { actionTargetDigest } from './grants.js';
 import type { LeaseResource, TurnLease } from './leases.js';
 import {
-  ACTION_TOOL_DESCRIPTORS,
-  getActionToolDescriptor,
   isActionToolName,
   parseActionArguments,
   type ActionToolName,
-} from './tools.js';
+} from './tool-input-schemas.js';
+import { ACTION_TOOL_DESCRIPTORS, getActionToolDescriptor } from './tools.js';
 
 export const actionOutcomeSchema = z.enum([
   'verified',
