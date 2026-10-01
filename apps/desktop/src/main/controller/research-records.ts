@@ -2,7 +2,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { ProviderId } from '../../shared/bridge.js';
-import { isRecord } from '../records.js';
+import { isRecord } from '../actions/records.js';
 
 export interface ResearchEventBase {
   id: string;

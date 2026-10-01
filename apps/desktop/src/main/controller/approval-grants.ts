@@ -1,4 +1,4 @@
-import { stringArray } from '../records.js';
+import { stringArray } from '../actions/records.js';
 
 /**
  * What "Allow for this task" covers for a Sia-hosted action: the same kind of action on the same

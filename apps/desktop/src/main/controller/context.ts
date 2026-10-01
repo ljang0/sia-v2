@@ -9,8 +9,8 @@ import type {
 } from '../../shared/bridge.js';
 import type { PhoneRemoteApi } from '../../shared/phone-remote.js';
 import type { ScottySettingsApi } from '../../shared/scotty.js';
-import { probeProviders } from '../provider-probe.js';
-import type { RuntimeCoordinator } from '../runtime-coordinator.js';
+import { probeProviders } from '../providers/provider-probe.js';
+import type { RuntimeCoordinator } from '../providers/runtime-coordinator.js';
 import type { CloudAccount } from './account.js';
 import type { ActionHost } from './action-host.js';
 import type { Agents } from './agents.js';

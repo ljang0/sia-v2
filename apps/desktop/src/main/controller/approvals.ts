@@ -12,9 +12,9 @@ import {
   safeResourceLabel,
   summarizeActionTarget,
   summarizeDataLeaving,
-} from '../approval-copy.js';
-import type { CuaAuthorizationContext } from '../cua-service.js';
-import { humanizeToolName, runtimeToolTitle } from '../runtime-activity.js';
+} from '../actions/approval-copy.js';
+import type { CuaAuthorizationContext } from '../mac/cua-service.js';
+import { humanizeToolName, runtimeToolTitle } from '../providers/runtime-activity.js';
 import { gatewayTaskGrant } from './approval-grants.js';
 import { connectorAppForTool, GOOGLE_WORKSPACE_ACTION } from './connection-ids.js';
 import type { ControllerContext } from './context.js';

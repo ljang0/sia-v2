@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { VoiceHelperFactory } from '../push-to-talk.js';
+import type { VoiceHelperFactory } from '../voice/push-to-talk.js';
 import { createHarness } from './test-support.js';
 
 describe('global voice routing', () => {

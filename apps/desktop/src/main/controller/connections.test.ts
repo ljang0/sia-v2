@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { CloudClient } from '../cloud-client.js';
+import type { CloudClient } from '../cloud/cloud-client.js';
 import type { DesktopController } from './desktop-controller.js';
 import { createController, createHarness } from './test-support.js';
 

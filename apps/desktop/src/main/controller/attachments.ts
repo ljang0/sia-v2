@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { basename, extname, isAbsolute, normalize } from 'node:path';
 import type { AttachmentView, BridgeRequestMap, BridgeResultMap } from '../../shared/bridge.js';
-import { savePastedAttachment } from '../pasted-attachments.js';
+import { savePastedAttachment } from '../workspace/pasted-attachments.js';
 import {
   attachmentKind,
   previewImageMimeType,

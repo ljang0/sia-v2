@@ -1,5 +1,5 @@
 import type { BridgeRequestMap, BridgeResultMap, UpdateView } from '../../shared/bridge.js';
-import { verifyUpdateManifestResponse } from '../update-manifest.js';
+import { verifyUpdateManifestResponse } from '../cloud/update-manifest.js';
 import type { ControllerContext } from './context.js';
 import { compareVersions, isCleanHttpsUrl } from './update-feed.js';
 

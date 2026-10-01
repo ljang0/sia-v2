@@ -8,7 +8,7 @@ import {
   type ThreadView,
 } from '../../shared/bridge.js';
 import { conversationTitle, UNTITLED_THREAD_TITLE } from '../../shared/plain-text.js';
-import { taskRecoveryContext } from '../task-recovery.js';
+import { taskRecoveryContext } from './task-recovery.js';
 import type { ControllerContext } from './context.js';
 import type { QueuedTurn } from './types.js';
 

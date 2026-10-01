@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { DesktopSnapshot } from '../../shared/bridge.js';
-import { PlaintextTestCipher, SqliteRecordRepository } from '../persistence.js';
-import type { RuntimeTurnInput } from '../runtime-coordinator.js';
-import { ScottyTasks } from '../scotty-state.js';
+import { PlaintextTestCipher, SqliteRecordRepository } from '../storage/persistence.js';
+import type { RuntimeTurnInput } from '../providers/runtime-coordinator.js';
+import { ScottyTasks } from '../window/scotty-state.js';
 import type { DesktopController } from './desktop-controller.js';
 import { CountingRepository, createController, createHarness } from './test-support.js';
 
