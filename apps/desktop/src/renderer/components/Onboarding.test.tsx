@@ -3,7 +3,7 @@ import { StrictMode } from 'react';
 import { automationApps } from '../../shared/mac-permissions';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { demoSnapshot } from '../demo';
+import { demoSnapshot } from '../demo/snapshot';
 import type { RendererApi } from '../types';
 import type { OnboardingStep } from '../../shared/bridge';
 import { Onboarding, onboardingStep } from './Onboarding';

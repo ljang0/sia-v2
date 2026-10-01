@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { BrowserTaskRecovery, browserTaskRequest } from './BrowserTaskRecovery';
-import { demoSnapshot } from '../demo';
+import { demoSnapshot } from '../demo/snapshot';
 import type { ThreadDetail } from '../types';
 afterEach(cleanup);
 function fixture() {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { executionLabel } from './agentModels';
-import { demoSnapshot } from './demo';
+import { demoSnapshot } from './demo/snapshot';
 import type { ProviderSetup } from './types';
 
 describe('executionLabel', () => {

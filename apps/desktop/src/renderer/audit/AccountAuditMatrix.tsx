@@ -1,7 +1,7 @@
 import { CloudAccountSettings } from '../components/settings/CloudAccountSettings';
 import { PrivacySettings } from '../components/settings/PrivacySettings';
 import { ReleaseReviewSettings } from '../components/settings/ReleaseReviewSettings';
-import { demoSnapshot } from '../demo';
+import { demoSnapshot } from '../demo/snapshot';
 import styles from './audit.module.css';
 
 const noop = async () => undefined;

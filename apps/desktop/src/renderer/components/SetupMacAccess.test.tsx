@@ -3,7 +3,7 @@ import { StrictMode } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { macAccessRows, SetupMacAccess } from './SetupMacAccess';
-import { demoSnapshot } from '../demo';
+import { demoSnapshot } from '../demo/snapshot';
 
 afterEach(() => {
   cleanup();

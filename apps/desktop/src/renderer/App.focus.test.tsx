@@ -4,7 +4,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { cancelComposerFocus, focusComposer } from './composerFocus';
-import { createDemoRendererApi, demoSnapshot } from './demo';
+import { createDemoRendererApi } from './demo/api';
+import { demoSnapshot } from './demo/snapshot';
 import { conversationForShortcut } from './shortcuts';
 import type { RendererApi, RendererSnapshot } from './types';
 

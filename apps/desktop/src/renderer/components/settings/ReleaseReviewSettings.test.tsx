@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { demoSnapshot } from '../../demo';
+import { demoSnapshot } from '../../demo/snapshot';
 import type { RendererSnapshot } from '../../types';
 import { ReleaseReviewSettings } from './ReleaseReviewSettings';
 
