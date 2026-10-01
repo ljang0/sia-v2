@@ -8,7 +8,7 @@ import {
   EphemeralPayloadCipher,
   PlaintextTestCipher,
   SqliteRecordRepository,
-} from './persistence.js';
+} from '../persistence.js';
 
 afterEach(() => vi.unstubAllGlobals());
 

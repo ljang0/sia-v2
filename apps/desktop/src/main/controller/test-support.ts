@@ -1,6 +1,6 @@
 /** Shared harness and fakes for the DesktopController tests. */
 
-import { CloudClient } from '../cloud-client.js';
+import { CloudClient } from '../cloud/cloud-client.js';
 import {
   EphemeralPayloadCipher,
   PlaintextTestCipher,

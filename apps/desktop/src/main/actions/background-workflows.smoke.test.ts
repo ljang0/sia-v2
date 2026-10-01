@@ -5,7 +5,7 @@ import { expect, it } from 'vitest';
 import { ActionGateway, DefaultActionAuthorizationPolicy } from '@sia/action-gateway';
 import { DesktopController } from '../controller/desktop-controller.js';
 import { DesktopActionBackend } from './desktop-action-backend.js';
-import { CloudClient } from '../cloud-client.js';
+import { CloudClient } from '../cloud/cloud-client.js';
 import { EphemeralPayloadCipher, SqliteRecordRepository } from '../persistence.js';
 import { RuntimeCoordinator } from '../providers/runtime-coordinator.js';
 import { discoverCodexInstallation } from '../providers/codex-installation.js';

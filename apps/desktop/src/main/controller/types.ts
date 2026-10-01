@@ -15,9 +15,9 @@ import type {
   WorkspaceSnapshotView,
 } from '../../shared/bridge.js';
 import type { AutomationApp, AutomationPermissions } from '../../shared/mac-permissions.js';
-import type { CloudClient } from '../cloud-client.js';
+import type { CloudClient } from '../cloud/cloud-client.js';
 import type { CuaAuthorizationContext } from '../mac/cua-service.js';
-import type { CloudIdentityStatus } from '../identity.js';
+import type { CloudIdentityStatus } from '../cloud/identity.js';
 import type { RecordRepository } from '../persistence.js';
 import type { probeProviders } from '../providers/provider-probe.js';
 import type { TrajectoryRecorder } from '../trajectory-recorder.js';

@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import type { CloudClient } from '../cloud-client.js';
+import type { CloudClient } from '../cloud/cloud-client.js';
 import type { RecordRepository } from '../persistence.js';
 import { probeProviders } from '../providers/provider-probe.js';
 import type { TrajectoryRecorder } from '../trajectory-recorder.js';

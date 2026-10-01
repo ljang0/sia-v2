@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import WebSocket from 'ws';
 
 import type { RecordRepository } from './persistence.js';
-import type { ManagedVoiceTokenType } from './cloud-client.js';
+import type { ManagedVoiceTokenType } from './cloud/cloud-client.js';
 import type { VoiceView } from '../shared/bridge.js';
 
 const API_ORIGIN = 'https://api.elevenlabs.io';

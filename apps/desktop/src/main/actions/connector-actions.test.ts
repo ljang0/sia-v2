@@ -2,7 +2,7 @@ import { mkdtemp, rm, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { CloudRequestError } from '../cloud-client.js';
+import { CloudRequestError } from '../cloud/cloud-client.js';
 import { DesktopActionBackend } from './desktop-action-backend.js';
 import { dataRecord, fakeCua, request } from './test-support.js';
 import type { CloudActionClient } from './types.js';

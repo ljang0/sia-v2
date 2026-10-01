@@ -8,7 +8,7 @@ import type {
   MetaTurnRequest,
 } from '@sia/runtime';
 
-import type { CloudFeatureFlags, ConnectionId } from '../shared/bridge.js';
+import type { CloudFeatureFlags, ConnectionId } from '../../shared/bridge.js';
 
 export interface IdTokenSource {
   read(): Promise<string | undefined>;

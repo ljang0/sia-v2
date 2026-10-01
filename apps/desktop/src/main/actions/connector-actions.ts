@@ -8,7 +8,10 @@ import {
   type ActionExecutionResult,
   type ValidatedActionInvocation,
 } from '@sia/action-gateway';
-import { isConnectionReconnectRequired, type PreparedActionResult } from '../cloud-client.js';
+import {
+  isConnectionReconnectRequired,
+  type PreparedActionResult,
+} from '../cloud/cloud-client.js';
 import { refused } from './action-results.js';
 import { requiredString, withoutKey } from './arguments.js';
 import type { ActionBackendContext } from './context.js';

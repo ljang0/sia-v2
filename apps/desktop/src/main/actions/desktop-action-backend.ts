@@ -4,7 +4,7 @@ import type {
   ValidatedActionInvocation,
 } from '@sia/action-gateway';
 import { workspaceFileAction } from './background-files.js';
-import { isConnectionReconnectRequired } from '../cloud-client.js';
+import { isConnectionReconnectRequired } from '../cloud/cloud-client.js';
 import { macExecutionTools } from './mac-execution.js';
 import { MacWindowHistory } from './mac-window-history.js';
 import { classifyFailure, refused } from './action-results.js';

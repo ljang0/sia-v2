@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
-import { CloudClient } from '../cloud-client.js';
+import { CloudClient } from '../cloud/cloud-client.js';
 import { PlaintextTestCipher, SqliteRecordRepository } from '../persistence.js';
 import type { probeProviders } from '../providers/provider-probe.js';
 import type { RuntimeTurnInput } from '../providers/runtime-coordinator.js';
