@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import type { DesktopController } from './controller.js';
+import type { DesktopController } from './controller/desktop-controller.js';
 import type { DesktopSnapshot } from '../shared/bridge.js';
 import type {
   ScottySettings,
