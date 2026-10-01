@@ -38,7 +38,9 @@ describe('MotionList', () => {
       [...view.container.firstElementChild!.children].map((row) => row.textContent),
     ).toEqual(['c', 'a', 'b']);
 
-    act(() => vi.advanceTimersByTime(250));
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
     expect(screen.queryByText('b')).toBeNull();
   });
 

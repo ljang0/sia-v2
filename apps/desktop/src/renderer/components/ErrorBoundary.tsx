@@ -36,6 +36,7 @@ export class AppErrorBoundary extends Component<AppBoundaryProps, AppBoundarySta
   }
 
   override componentDidCatch(error: unknown, info: ErrorInfo) {
+    // eslint-disable-next-line no-console -- render crashes are reported to the developer console.
     console.error('Sia could not show this window', error, info.componentStack);
     this.setState({ details: errorDetails(error, info.componentStack) });
   }
@@ -146,6 +147,7 @@ export class RowErrorBoundary extends Component<
   }
 
   override componentDidCatch(error: unknown, info: ErrorInfo) {
+    // eslint-disable-next-line no-console -- render crashes are reported to the developer console.
     console.error('Sia could not show a conversation row', error, info.componentStack);
   }
 

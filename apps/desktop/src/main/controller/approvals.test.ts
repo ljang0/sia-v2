@@ -613,6 +613,7 @@ describe('DesktopController', () => {
   it('keeps a computer approval open until the driver deadline instead of two minutes', async () => {
     const gate = Promise.withResolvers<void>();
     const runtime = {
+      // eslint-disable-next-line require-yield -- a turn that blocks without emitting events.
       async *runTurn() {
         await gate.promise;
       },

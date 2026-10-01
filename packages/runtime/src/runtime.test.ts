@@ -94,7 +94,7 @@ const isolatedCodexConfig = {
   mcp_servers: { inherited: { command: 'do-not-run' } },
 };
 
-function codexIsolationResponse(method: string, params: unknown): unknown {
+function codexIsolationResponse(method: string, _params: unknown): unknown {
   if (method === 'config/read') return { config: isolatedCodexConfig };
   if (method === 'skills/list')
     return {
@@ -1796,9 +1796,9 @@ describe('Notch-style native Mac sessions', () => {
     'retains native tools, replaces the coding persona, and honors %s approval',
     async (nativeApproval) => {
       const peers = linkedPeers();
-      let start: any;
+      let start: unknown;
       let approvalDecision: unknown;
-      let turnParams: any;
+      let turnParams: { outputSchema?: unknown } | undefined;
       const finalText = JSON.stringify({
         type: 'action',
         steps: ['Open app'],
@@ -1825,7 +1825,7 @@ describe('Notch-style native Mac sessions', () => {
             nextCursor: null,
           };
         if (method === 'turn/start') {
-          turnParams = params;
+          turnParams = params as typeof turnParams;
           setImmediate(() => {
             void (async () => {
               approvalDecision = await peers.server.request(
@@ -1943,7 +1943,7 @@ describe('Notch-style native Mac sessions', () => {
             }),
           ]),
         );
-        expect(turnParams.outputSchema).toEqual({ type: 'object' });
+        expect(turnParams?.outputSchema).toEqual({ type: 'object' });
       } finally {
         await adapter.dispose();
       }
@@ -2425,9 +2425,9 @@ describe('Codex turn resilience', () => {
     const dir = await mkdtemp(join(tmpdir(), 'sia-attach-'));
     await writeFile(join(dir, 'notes.txt'), 'quarterly numbers');
     await writeFile(join(dir, 'report.pdf'), Buffer.from([0x25, 0x50, 0x44, 0x46, 0, 1]));
-    let turnParams: any;
+    let turnParams!: { input: [{ text: string }, ...unknown[]] };
     const peers = codexServer(async (p, params) => {
-      turnParams = params;
+      turnParams = params as typeof turnParams;
       setTimeout(() => {
         void p.server.notify('turn/completed', {
           threadId: 'native-thread',

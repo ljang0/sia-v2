@@ -504,7 +504,7 @@ describe('DesktopController', () => {
 
 describe('connect Chrome and continue', () => {
   async function recoveryHarness(options: { fail?: boolean; pause?: Promise<void> } = {}) {
-    const nativeCall = vi.fn(async (tool: string, args: Record<string, unknown>) => {
+    const nativeCall = vi.fn(async (tool: string, _args: Record<string, unknown>) => {
       if (tool === 'list_apps')
         return { apps: [{ pid: 42, name: 'Google Chrome', bundle_id: 'com.google.Chrome' }] };
       if (tool === 'list_windows')

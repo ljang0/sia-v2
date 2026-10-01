@@ -153,9 +153,9 @@ export function Onboarding({
   }, [inSetup]);
   // Resuming setup only checks status. The shared checklist handles focus refreshes.
   useEffect(() => {
-    if (!step || starting || restarting) return;
+    if (!inSetup || starting || restarting) return;
     void api.refreshComputerPermissions().catch(() => undefined);
-  }, [api, Boolean(step), starting, restarting]);
+  }, [api, inSetup, starting, restarting]);
 
   const run = async (action: () => Promise<unknown>) => {
     if (working.current) return;
@@ -218,6 +218,7 @@ export function Onboarding({
       return;
     autoFinished.current = true;
     finish();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- finish is recreated every render.
   }, [
     step,
     starting,

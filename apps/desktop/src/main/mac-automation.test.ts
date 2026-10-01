@@ -2,7 +2,7 @@ import { expect, it, vi } from 'vitest';
 import { runMacAutomation, MAC_AUTOMATION_SCRIPT } from './mac-automation.js';
 it('passes native automation values only as JSON argv and reads back the result', async () => {
   const run = vi.fn(async (_input: string) => '{"id":"event-1"}');
-  const title = '\"); do shell script "bad"';
+  const title = '"); do shell script "bad"';
   const result = await runMacAutomation(
     {
       operation: 'calendar_create',

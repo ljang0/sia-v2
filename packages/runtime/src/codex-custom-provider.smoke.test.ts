@@ -1,4 +1,9 @@
-import { createServer, type Server } from 'node:http';
+import {
+  createServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from 'node:http';
 import { describe, expect, it } from 'vitest';
 import { CodexAppServerAdapter } from './providers/codex.js';
 
@@ -114,7 +119,7 @@ describe('Codex custom Responses provider smoke', () => {
 async function startFakeResponsesServer(
   requests: Array<{ url: string; authorization?: string; body: string }>,
 ): Promise<Server> {
-  const server = createServer(async (request, response) => {
+  const respond = async (request: IncomingMessage, response: ServerResponse) => {
     const chunks: Buffer[] = [];
     for await (const chunk of request) chunks.push(Buffer.from(chunk));
     const body = Buffer.concat(chunks).toString('utf8');
@@ -299,7 +304,8 @@ async function startFakeResponsesServer(
       response.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
     }
     response.end('data: [DONE]\n\n');
-  });
+  };
+  const server = createServer((request, response) => void respond(request, response));
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', resolve);

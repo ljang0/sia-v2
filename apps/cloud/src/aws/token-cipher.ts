@@ -1,4 +1,5 @@
-import { DecryptCommand, EncryptCommand, KMSClient } from '@aws-sdk/client-kms';
+import type { KMSClient } from '@aws-sdk/client-kms';
+import { DecryptCommand, EncryptCommand } from '@aws-sdk/client-kms';
 import { CloudError } from '../domain.js';
 import type { TokenCipher } from '../ports.js';
 

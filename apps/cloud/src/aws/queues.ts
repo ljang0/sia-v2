@@ -1,4 +1,5 @@
-import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
+import type { SQSClient } from '@aws-sdk/client-sqs';
+import { SendMessageCommand } from '@aws-sdk/client-sqs';
 import type { DeletionScope } from '../contracts.js';
 import type { DeletionQueue, ResearchExportQueue } from '../ports.js';
 

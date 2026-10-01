@@ -1,10 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
-import {
-  DeleteObjectCommand,
-  GetObjectCommand,
-  PutObjectCommand,
-  S3Client,
-} from '@aws-sdk/client-s3';
+import type { S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { GoogleAccessLevel, ToolName } from './contracts.js';
 import { CloudError, isRecord } from './domain.js';

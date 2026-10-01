@@ -2,7 +2,7 @@ import { ActionGateway } from '@sia/action-gateway';
 import { describe, expect, it, vi } from 'vitest';
 import { CloudClient } from '../cloud-client.js';
 import { PlaintextTestCipher, SqliteRecordRepository } from '../persistence.js';
-import { DesktopController } from './desktop-controller.js';
+import type { DesktopController } from './desktop-controller.js';
 import { createController, createHarness, type ResearchBatchView } from './test-support.js';
 
 describe('DesktopController', () => {

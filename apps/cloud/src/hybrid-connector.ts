@@ -7,7 +7,7 @@ import type {
   ConnectorProvider,
   ConnectorStatus,
 } from './ports.js';
-import { GoogleWorkspaceConnector } from './google-workspace.js';
+import type { GoogleWorkspaceConnector } from './google-workspace.js';
 
 export class HybridConnector implements ConnectorProvider {
   constructor(

@@ -1,9 +1,9 @@
+import type { CognitoIdentityProviderClient } from '@aws-sdk/client-cognito-identity-provider';
 import {
   AdminAddUserToGroupCommand,
   AdminCreateUserCommand,
   AdminDeleteUserCommand,
   AdminGetUserCommand,
-  CognitoIdentityProviderClient,
   ListUsersCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { CloudError } from '../domain.js';

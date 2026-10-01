@@ -565,7 +565,7 @@ export function demoSetupSnapshot(variant?: string | null): RendererSnapshot {
 }
 
 export function createDemoRendererApi(seed = demoSnapshot): RendererApi {
-  let snapshot = clone(seed);
+  const snapshot = clone(seed);
   const listeners = new Set<(next: RendererSnapshot) => void>();
 
   const emit = () => {

@@ -19,7 +19,7 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import {
   DesktopActionBackend,
   sweepStaleBrowserVaults,
@@ -60,9 +60,9 @@ function request(
   };
 }
 
-function fakeCua(
-  implementation: (tool: string, args: Record<string, unknown>) => Promise<unknown>,
-): CuaToolCaller & { call: ReturnType<typeof vi.fn> } {
+type CuaCall = (tool: string, args: Record<string, unknown>) => Promise<unknown>;
+
+function fakeCua(implementation: CuaCall): CuaToolCaller & { call: Mock<CuaCall> } {
   return { call: vi.fn(implementation) };
 }
 
@@ -1530,7 +1530,7 @@ describe('DesktopActionBackend browser boundary', () => {
     const uploadLink = join(directory, 'harmless.txt');
     await Promise.all([writeFile(upload, 'approved report'), writeFile(sensitive, 'secret')]);
     await symlink(sensitive, uploadLink);
-    const cua = fakeCua(async (tool, args) => {
+    const cua = fakeCua(async (tool) => {
       if (tool === 'get_browser_state') {
         return {
           target_id: 'target-1',

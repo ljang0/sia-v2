@@ -91,7 +91,9 @@ describe('archive feedback', () => {
       fireEvent.click(archive);
     });
     expect(screen.getByText('Conversation archived')).toBeTruthy();
-    act(() => vi.advanceTimersByTime(ARCHIVE_UNDO_MS));
+    act(() => {
+      vi.advanceTimersByTime(ARCHIVE_UNDO_MS);
+    });
     expect(screen.queryByText('Conversation archived')).toBeNull();
   });
 });
@@ -111,18 +113,28 @@ describe('archive undo notice', () => {
   it('pauses its countdown while hovered or focused', async () => {
     await archive();
     const notice = screen.getByText('Conversation archived').closest('[role="status"]')!;
-    act(() => vi.advanceTimersByTime(ARCHIVE_UNDO_MS - 1000));
+    act(() => {
+      vi.advanceTimersByTime(ARCHIVE_UNDO_MS - 1000);
+    });
     fireEvent.pointerEnter(notice);
-    act(() => vi.advanceTimersByTime(ARCHIVE_UNDO_MS * 2));
+    act(() => {
+      vi.advanceTimersByTime(ARCHIVE_UNDO_MS * 2);
+    });
     expect(screen.getByText('Conversation archived')).toBeTruthy();
     fireEvent.pointerLeave(notice);
     act(() => screen.getByRole('button', { name: 'Undo' }).focus());
-    act(() => vi.advanceTimersByTime(ARCHIVE_UNDO_MS * 2));
+    act(() => {
+      vi.advanceTimersByTime(ARCHIVE_UNDO_MS * 2);
+    });
     expect(screen.getByText('Conversation archived')).toBeTruthy();
     act(() => screen.getByRole('button', { name: 'Undo' }).blur());
-    act(() => vi.advanceTimersByTime(999));
+    act(() => {
+      vi.advanceTimersByTime(999);
+    });
     expect(screen.getByText('Conversation archived')).toBeTruthy();
-    act(() => vi.advanceTimersByTime(2));
+    act(() => {
+      vi.advanceTimersByTime(2);
+    });
     expect(screen.queryByText('Conversation archived')).toBeNull();
   });
 

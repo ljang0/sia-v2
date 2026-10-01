@@ -322,7 +322,7 @@ export class ConnectorConnections {
       throw new Error('Finish or cancel the guided work-app setup first.');
     }
     const googleConnection = isGoogleConnection(connectionId);
-    let existing = this.ctx.state.connections.find(({ id }) => id === connectionId);
+    const existing = this.ctx.state.connections.find(({ id }) => id === connectionId);
     if (existing?.connectionId) {
       if (existing.status !== 'error') {
         throw new Error('Disconnect the existing or pending grant before connecting again.');
@@ -331,7 +331,6 @@ export class ConnectorConnections {
         connectionId,
         expectedConnectionId: existing.connectionId,
       });
-      existing = this.ctx.state.connections.find(({ id }) => id === connectionId);
     }
     const owner = this.ctx.account.currentIdentityKey();
     if (!this.ctx.deps.fakeServices && !owner) {

@@ -239,6 +239,7 @@ export function SetupMacAccess({
     mounted.current = true;
     return () => {
       mounted.current = false;
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- a counter, not a DOM ref; unmount must bump the latest value.
       generation.current++;
     };
   }, []);

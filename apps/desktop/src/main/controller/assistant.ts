@@ -325,7 +325,7 @@ export class AssistantFeatures {
           vault.write(
             'lessons.md',
             lessons.text +
-              `\n- [[${args.title.replace(/[\[\]\r\n]/g, ' ')}]]: ${args.lesson.replace(/[\r\n]/g, ' ')}\n`,
+              `\n- [[${args.title.replace(/[[\]\r\n]/g, ' ')}]]: ${args.lesson.replace(/[\r\n]/g, ' ')}\n`,
             lessons.revision,
           );
           return {

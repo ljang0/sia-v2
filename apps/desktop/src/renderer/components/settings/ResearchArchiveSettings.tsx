@@ -93,6 +93,7 @@ export function ResearchArchiveSettings({
   useEffect(() => {
     void refreshInvites();
     void refreshParticipants();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once when the archive opens.
   }, []);
 
   const submitInvite = async (event: FormEvent<HTMLFormElement>) => {

@@ -1,3 +1,4 @@
+import type { S3Client } from '@aws-sdk/client-s3';
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
@@ -6,7 +7,6 @@ import {
   GetObjectCommand,
   ListObjectVersionsCommand,
   PutObjectCommand,
-  S3Client,
   UploadPartCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -222,7 +222,7 @@ export class S3ResearchObjects implements ResearchObjectStore {
     const objects: Array<{ Key: string; VersionId: string }> = [];
     let keyMarker: string | undefined;
     let versionIdMarker: string | undefined;
-    do {
+    while (true) {
       const versions = await this.client.send(
         new ListObjectVersionsCommand({
           Bucket: this.bucketName,
@@ -249,7 +249,7 @@ export class S3ResearchObjects implements ResearchObjectStore {
       }
       keyMarker = versions.NextKeyMarker;
       versionIdMarker = versions.NextVersionIdMarker;
-    } while (true);
+    }
     return objects;
   }
 

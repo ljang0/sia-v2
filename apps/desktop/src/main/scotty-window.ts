@@ -50,7 +50,7 @@ export function createScottyCompanion(
   rendererDevUrl?: string,
 ) {
   const parsed = savedSettings.safeParse(repository.get('scotty', 'settings'));
-  let config: z.infer<typeof savedSettings> = parsed.success
+  const config: z.infer<typeof savedSettings> = parsed.success
     ? parsed.data
     : { ...defaultSettings };
   let pet: BrowserWindow | undefined;
