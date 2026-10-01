@@ -1530,7 +1530,7 @@ describe('DesktopActionBackend browser boundary', () => {
     const uploadLink = join(directory, 'harmless.txt');
     await Promise.all([writeFile(upload, 'approved report'), writeFile(sensitive, 'secret')]);
     await symlink(sensitive, uploadLink);
-    const cua = fakeCua(async (tool, args) => {
+    const cua = fakeCua(async (tool) => {
       if (tool === 'get_browser_state') {
         return {
           target_id: 'target-1',

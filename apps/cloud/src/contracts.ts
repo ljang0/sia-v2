@@ -63,8 +63,7 @@ export const TOOL_POLICIES = {
 
 export type ToolName = keyof typeof TOOL_POLICIES;
 
-const GOOGLE_ACCESS_LEVELS = ['read_only', 'read_write'] as const;
-export type GoogleAccessLevel = (typeof GOOGLE_ACCESS_LEVELS)[number];
+export type GoogleAccessLevel = 'read_only' | 'read_write';
 
 export interface AuthContext {
   subject: string;

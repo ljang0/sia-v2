@@ -2219,7 +2219,7 @@ export class DesktopActionBackend implements ActionBackend {
     }
     const bytes = Buffer.alloc(fileInfo.size);
     let readResult;
-    let finalFileInfo = fileInfo;
+    let finalFileInfo: typeof fileInfo;
     try {
       readResult = await source.read(bytes, 0, bytes.length, 0);
       finalFileInfo = await source.stat();

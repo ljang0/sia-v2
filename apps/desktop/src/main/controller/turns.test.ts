@@ -742,7 +742,7 @@ describe('DesktopController', () => {
         yield {
           ...base,
           id: crypto.randomUUID(),
-          sequence: (sequence += 1),
+          sequence: sequence + 1,
           type: 'completion' as const,
           payload: { status: 'completed' as const },
         };

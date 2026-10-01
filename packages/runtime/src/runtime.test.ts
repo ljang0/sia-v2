@@ -94,7 +94,7 @@ const isolatedCodexConfig = {
   mcp_servers: { inherited: { command: 'do-not-run' } },
 };
 
-function codexIsolationResponse(method: string, params: unknown): unknown {
+function codexIsolationResponse(method: string, _params: unknown): unknown {
   if (method === 'config/read') return { config: isolatedCodexConfig };
   if (method === 'skills/list')
     return {
