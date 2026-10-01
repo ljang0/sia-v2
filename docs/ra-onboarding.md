@@ -414,7 +414,7 @@ and scripts are local plaintext files with private filesystem permissions.
 To validate native learning with real Codex turns and disposable local files, opt in explicitly:
 
 ```sh
-SIA_CODEX_REAL_SMOKE=1 SIA_NATIVE_LEARNING_SMOKE=1 pnpm --filter @sia/desktop exec vitest run src/main/native-learning.smoke.test.ts
+SIA_CODEX_REAL_SMOKE=1 SIA_NATIVE_LEARNING_SMOKE=1 pnpm --filter @sia/desktop exec vitest run src/main/assistant/native-learning.smoke.test.ts
 ```
 
 Set `SIA_SMOKE_MODEL=gpt-6-astra` to run this check with Astra. The test resolves the same
@@ -592,7 +592,7 @@ work, a course absent from dashboard favorites, and an inaccessible course. It n
 reads a real account or runs native commands; it is skipped by normal checks and never runs at startup:
 
 ```sh
-SIA_CODEX_REAL_SMOKE=1 SIA_COURSE_INVESTIGATION_SMOKE=1 pnpm --filter @sia/desktop exec vitest run src/main/course-investigation.smoke.test.ts
+SIA_CODEX_REAL_SMOKE=1 SIA_COURSE_INVESTIGATION_SMOKE=1 pnpm --filter @sia/desktop exec vitest run src/main/actions/course-investigation.smoke.test.ts
 ```
 
 GPT-6 Astra is available in the model picker when the connected Codex account lists it. Use my

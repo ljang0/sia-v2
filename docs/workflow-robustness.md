@@ -211,7 +211,7 @@ activation and verification status are recorded below.
 ### P1 — Background computer use and uncertain writes
 
 `cua-service.ts` bounds driver calls, cancels queued work, retires hung drivers, and renews only
-unscoped read-only inventory. `action-backend.ts` checks exact window identity, supported delivery
+unscoped read-only inventory. The action backend (`main/actions/`) checks exact window identity, supported delivery
 routes and explicit foreground fallback. Preserve these restrictions.
 
 The remaining gap is live acceptance across Spaces, minimized windows and multiple Slack/browser
@@ -269,7 +269,7 @@ do not establish transport secrecy or real Wi-Fi reliability.
 | Dictation, voice conversation and read aloud  | Renderer voice lifecycle, `voice-service.ts`, factory, push-to-talk/native helper; new lifecycle regressions                          | Physical audio devices and sleep/wake; authenticated synthetic shared-voice round trip passed    |
 | Foreground/background desktop and browser     | CUA queue, action backend and native exact-window matching; bounded-call and synthetic geometry tests                                 | Chrome/Slack across Spaces, minimized/full-screen windows, no-op clicks and recovery             |
 | Google, Slack and Messages                    | Controller connection polling/ownership, cloud services and typed action gateway; OAuth and scope fixtures                            | Disposable-account reconnect/revoke, Slack multiple workspaces, Messages Full Disk Access        |
-| Files, attachments, Git and commands          | `workspace-operations.ts`; real Git fixtures, path/symlink guards, snapshots, bounded output and process-group cancellation           | Interrupted large file operations, disk pressure and packaged helper behavior                    |
+| Files, attachments, Git and commands          | `main/workspace/`; real Git fixtures, path/symlink guards, snapshots, bounded output and process-group cancellation                   | Interrupted large file operations, disk pressure and packaged helper behavior                    |
 | Schedules, goals and activity                 | Persisted schedule claims/history, optional run limits, thread completion and notification paths                                      | Sleep, restart, DST and long-running overlap                                                     |
 | Phone remote                                  | `phone-remote.ts`; replay, stale-command, rotation, lock and path tests                                                               | Encrypted transport and physical-phone/network acceptance                                        |
 | Memory, skills and Scotty                     | Controller/shared task routes and existing assistant/Scotty suites; no separate authority path                                        | Stale tray controls, multiple displays and fullscreen interactions on the packaged app           |
