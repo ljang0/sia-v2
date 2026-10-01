@@ -2,12 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
-import type { TimelineItemView, TurnChangesView } from '../shared/bridge.js';
+import type { TimelineItemView, TurnChangesView } from '../../shared/bridge.js';
 import {
   onlyMoved,
   reversibleFileChange,
   type RecordedFileChange,
-} from '../shared/turn-changes.js';
+} from '../../shared/turn-changes.js';
 
 /**
  * Undo and redo for the files one reply changed.
