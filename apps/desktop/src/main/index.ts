@@ -62,7 +62,7 @@ import { configureMetaCloudAvailability, probeProviders } from './provider-probe
 import { discoverCodexInstallation } from './codex-installation.js';
 import { installManagedCodex, managedCodexCommand } from './codex-installer.js';
 import { macProviderPath } from './provider-path.js';
-import { WorkspaceOperationsService } from './workspace-operations.js';
+import { WorkspaceOperationsService } from './workspace/workspace-operations.js';
 import { createMacSpeechTransport } from './mac-voice-service.js';
 import { createVoiceService } from './voice-factory.js';
 import {
