@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { TaskPreviewButton } from './TaskPreviewButton';
-import { demoSnapshot } from '../demo';
+import { demoSnapshot } from '../demo/snapshot';
 afterEach(cleanup);
 it('previews the existing result on keyboard focus without selecting or marking a task read', () => {
   const onSelect = vi.fn();

@@ -296,7 +296,7 @@ interface ThreadSchedule {
   runHistory?: ScheduleRun[];
 }
 
-interface ScheduleRuleOptions {
+export interface ScheduleRuleOptions {
   days?: number[] | undefined;
   everyHours?: number | undefined;
 }

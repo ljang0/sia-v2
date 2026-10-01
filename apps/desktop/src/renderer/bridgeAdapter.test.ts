@@ -1,10 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DesktopBridgeApi, DesktopSnapshot } from '../shared/bridge';
-import {
-  createBridgeRendererApi,
-  mapDesktopSnapshot,
-  reasoningHeadline,
-} from './bridgeAdapter';
+import { createBridgeRendererApi } from './bridgeAdapter';
+import { mapDesktopSnapshot, reasoningHeadline } from './desktopSnapshot';
 import type { RendererSnapshot } from './types';
 
 function snapshot(timeline: DesktopSnapshot['timeline']): DesktopSnapshot {

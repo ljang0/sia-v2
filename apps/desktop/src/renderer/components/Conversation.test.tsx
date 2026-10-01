@@ -3,7 +3,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MessageEvent, ThreadDetail } from '../types';
-import { Conversation, findCountLabel } from './Conversation';
+import { Conversation } from './Conversation';
+import { findCountLabel } from './conversation/conversationModel';
 
 afterEach(cleanup);
 

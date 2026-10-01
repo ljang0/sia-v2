@@ -2,7 +2,8 @@
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createDemoRendererApi, demoSnapshot } from '../demo';
+import { createDemoRendererApi } from '../demo/api';
+import { demoSnapshot } from '../demo/snapshot';
 import type { ProviderId, RendererApi } from '../types';
 import { ARCHIVE_UNDO_MS, useAppController } from '../useAppController';
 import { WorkspaceNotice } from './AppStates';

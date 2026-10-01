@@ -1,31 +1,5 @@
-import {
-  ArrowDown,
-  ArrowClockwise,
-  ChatCircle,
-  CaretDown,
-  CaretUp,
-  Check,
-  Clock,
-  Copy,
-  MagnifyingGlass,
-  Paperclip,
-  PencilSimple,
-  SpeakerHigh,
-  SpinnerGap,
-  StopCircle,
-  User,
-  WarningCircle,
-  X,
-} from '@phosphor-icons/react';
-import {
-  memo,
-  type ReactNode,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { ArrowClockwise, ArrowDown, Clock, WarningCircle } from '@phosphor-icons/react';
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type {
   ActivityEvent,
   ApprovalDecision,
@@ -35,35 +9,34 @@ import type {
   ThreadEvent,
   ThreadSummary,
 } from '../types';
-import { timeGreeting, type StarterPrompt } from '../welcome';
+import type { StarterPrompt } from '../welcome';
 import { completedReplyId } from '../task-result';
 import { WelcomeHome } from './WelcomeHome';
-import { WelcomeRecents } from './WelcomeRecents';
-import { ReplyReadyMark, ReplySurface } from './ResultCard';
 import layout from '../styles/layout.module.css';
 import buttons from '../styles/buttons.module.css';
-import primitives from '../styles/primitives.module.css';
 import styles from './Conversation.module.css';
-import { ActivityRow } from './ActivityRow';
 import { planProgress, WorkGroup, WorkingStatus } from './WorkGroup';
-import { AgentForm } from './AgentForm';
-import {
-  AttachmentChip,
-  AttachmentPreviewDialog,
-  attachmentPreviewFailure,
-} from './ConversationAttachments';
-import { ApprovalCard } from './ApprovalCard';
+import { AttachmentPreviewDialog, attachmentPreviewFailure } from './ConversationAttachments';
 import { Composer } from './Composer';
 import { QueuedMessages } from './QueuedMessages';
 import { ConversationOutline, hasConversationOutline } from './ConversationOutline';
-import { SafeMarkdown } from './SafeMarkdown';
-import { RowErrorBoundary } from './ErrorBoundary';
-import { NoticeText, ThreadErrorText } from './PlainErrorText';
-import { errorMessage, usageWarningText } from '../plainErrors';
-import { ReplyFeedbackButtons, type ReplyRating } from './ReplyFeedback';
+import { ThreadErrorText } from './PlainErrorText';
+import { usageWarningText } from '../plainErrors';
+import type { ReplyRating } from './ReplyFeedback';
 import { TurnChangesBar, turnChangeSummaries, type TurnChangeActions } from './TurnChanges';
 import { DitherAurora as Aurora } from './effects/DitherAurora';
-import { LiquidMetalButton } from './effects/liquid-metal-button';
+import { ConversationFind } from './conversation/ConversationFind';
+import { ConversationRow, type RowActions } from './conversation/ConversationRow';
+import { ConversationSkeleton, ConversationWelcome } from './conversation/ConversationStates';
+import { playCompletionChime, useReadAloud } from './conversation/conversationAudio';
+import {
+  conversationBlocks,
+  eventTime,
+  waitingOnPerson,
+  workGroupIdFor,
+} from './conversation/conversationModel';
+import { FileDropOverlay, useFileDrop } from './conversation/fileDrop';
+import { useThreadFind } from './conversation/useThreadFind';
 
 interface ConversationProps {
   /** What runs this thread, in the person's words: the model or provider display name. */
@@ -176,37 +149,36 @@ export function Conversation({
   const previousThreadIdRef = useRef<string | undefined>(undefined);
   const lastSentMessageRef = useRef<string | undefined>(undefined);
   const attentionRef = useRef<string | undefined>(undefined);
-  const speechGeneration = useRef(0);
-  const speechSource = useRef<AudioBufferSourceNode | undefined>(undefined);
-  const speechContext = useRef<AudioContext | undefined>(undefined);
   const previousVoiceStatus = useRef<ThreadDetail['status'] | undefined>(thread?.status);
   const previousPresenceStatus = useRef<ThreadDetail['status'] | undefined>(thread?.status);
   const completionTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastNarratedEvent = useRef<string | undefined>(undefined);
   const [busyApprovalId, setBusyApprovalId] = useState<string>();
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
-  const [speech, setSpeech] = useState<{
-    eventId?: string;
-    phase: 'idle' | 'loading' | 'playing';
-    error?: string;
-  }>({ phase: 'idle' });
+  const { speech, toggleSpeech, stopSpeech, cancelSpeech } = useReadAloud(onSpeak);
   const [voiceConversation, setVoiceConversation] = useState(false);
   useEffect(() => {
     if (globalVoiceActive) {
       setVoiceConversation(false);
       stopSpeech();
     }
-  }, [globalVoiceActive]);
+  }, [globalVoiceActive, stopSpeech]);
   const [justCompleted, setJustCompleted] = useState(false);
-  const [findQuery, setFindQuery] = useState('');
-  const [findIndex, setFindIndex] = useState(0);
   const [openWorkGroups, setOpenWorkGroups] = useState<ReadonlySet<string>>(() => new Set());
-  const [draggingFiles, setDraggingFiles] = useState(false);
+  const { draggingFiles, dropTargetProps } = useFileDrop(onDropAttachments);
   const [preview, setPreview] = useState<{
     attachment: RendererAttachment;
     result?: AttachmentPreview;
   }>();
   const eventRefs = useRef(new Map<string, HTMLDivElement>());
+  const {
+    findQuery,
+    setFindQuery,
+    findIndex,
+    setFindIndex,
+    matchingEventIds,
+    matchingEventIdSet,
+  } = useThreadFind(thread, findOpen, openWorkGroups, setOpenWorkGroups, eventRefs);
 
   const lastAssistant = thread?.events.findLast(
     (event) => event.type === 'message' && event.role === 'assistant',
@@ -226,97 +198,8 @@ export function Conversation({
         )?.id
       : undefined;
 
-  const findNeedle = findQuery.trim().toLocaleLowerCase();
-  const matchingEventIds = findNeedle
-    ? (thread?.events ?? [])
-        .filter((event) => eventSearchText(event).includes(findNeedle))
-        .map(({ id }) => id)
-    : [];
-
   useEffect(() => {
-    setFindIndex(0);
-  }, [findQuery, thread?.id]);
-
-  useEffect(() => {
-    if (!findOpen || !findQuery || matchingEventIds.length === 0) return;
-    const groupId = workGroupIdFor(thread?.events ?? [], matchingEventIds[findIndex]!);
-    if (groupId && !openWorkGroups.has(groupId)) {
-      setOpenWorkGroups((current) => new Set(current).add(groupId));
-      return;
-    }
-    eventRefs.current.get(matchingEventIds[findIndex]!)?.scrollIntoView({
-      block: 'center',
-      behavior: 'instant',
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- scroll only when the matches change, not on every new event.
-  }, [findIndex, findOpen, findQuery, matchingEventIds.join(':'), openWorkGroups]);
-
-  const stopSpeech = () => {
-    speechGeneration.current += 1;
-    releaseSpeech(speechSource, speechContext);
-    setSpeech({ phase: 'idle' });
-  };
-
-  const toggleSpeech = async (eventId: string, text: string) => {
-    if (speech.eventId === eventId && speech.phase !== 'idle') {
-      stopSpeech();
-      return;
-    }
-    if (!onSpeak) return;
-
-    speechGeneration.current += 1;
-    const generation = speechGeneration.current;
-    releaseSpeech(speechSource, speechContext);
-    setSpeech({ eventId, phase: 'loading' });
-    try {
-      const result = await onSpeak(text);
-      if (generation !== speechGeneration.current) return;
-      const bytes = base64Bytes(result.audioBase64);
-      const context = new AudioContext();
-      speechContext.current = context;
-      await context.resume();
-      const buffer = await context.decodeAudioData(
-        bytes.buffer.slice(
-          bytes.byteOffset,
-          bytes.byteOffset + bytes.byteLength,
-        ) as ArrayBuffer,
-      );
-      if (generation !== speechGeneration.current) {
-        void context.close();
-        return;
-      }
-      const source = context.createBufferSource();
-      source.buffer = buffer;
-      source.connect(context.destination);
-      source.addEventListener(
-        'ended',
-        () => {
-          if (generation !== speechGeneration.current) return;
-          speechSource.current = undefined;
-          speechContext.current = undefined;
-          setSpeech({ phase: 'idle' });
-          void context.close();
-        },
-        { once: true },
-      );
-      speechSource.current = source;
-      setSpeech({ eventId, phase: 'playing' });
-      source.start();
-    } catch (cause) {
-      if (generation !== speechGeneration.current) return;
-      releaseSpeech(speechSource, speechContext);
-      setSpeech({
-        eventId,
-        phase: 'idle',
-        error: errorMessage(cause, 'Speech could not be played.'),
-      });
-    }
-  };
-
-  useEffect(() => {
-    speechGeneration.current += 1;
-    releaseSpeech(speechSource, speechContext);
-    setSpeech({ phase: 'idle' });
+    stopSpeech();
     setVoiceConversation(false);
     setJustCompleted(false);
     previousVoiceStatus.current = thread?.status;
@@ -324,8 +207,7 @@ export function Conversation({
     lastNarratedEvent.current = undefined;
     if (completionTimer.current) clearTimeout(completionTimer.current);
     return () => {
-      speechGeneration.current += 1;
-      releaseSpeech(speechSource, speechContext);
+      cancelSpeech();
       if (completionTimer.current) clearTimeout(completionTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset per thread; the status read here is the starting point.
@@ -501,53 +383,19 @@ export function Conversation({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- snapshot the rows present when the thread opened.
     [thread?.id],
   );
-  const matchingEventIdSet = useMemo(
-    () => new Set(matchingEventIds),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keep the set's identity while the matches are unchanged.
-    [matchingEventIds.join(':')],
-  );
   if (loading) return <ConversationSkeleton />;
 
   if (!thread) {
     return (
-      <main className={layout.mainPane} data-companion-conversation data-scene="welcome">
-        <Aurora className={layout.conversationAurora} pauseWhenUnfocused />
-        <div className={styles.emptyState} data-companion-empty>
-          <AgentForm identity={agentHue ?? 0} size="large" />
-          <span className={styles.emptyStateKicker}>
-            {agentName ? `${timeGreeting()} · ${agentName} is ready` : 'Start here'}
-          </span>
-          <h1 className={layout.gradientHeading}>
-            {agentName ? `Start a conversation with ${agentName}.` : 'Create your first agent.'}
-          </h1>
-          <p>
-            {agentName
-              ? recentThreads.length
-                ? 'Pick up a recent conversation, or start with something you want off your list.'
-                : 'Start with something you want off your list.'
-              : 'Give it a name and one short instruction. Sia chooses a model, color, and private folder.'}
-          </p>
-          {onCreateThread ? (
-            <LiquidMetalButton tone="sage" onClick={onCreateThread}>
-              New conversation
-            </LiquidMetalButton>
-          ) : onCreateAgent ? (
-            <LiquidMetalButton tone="sage" onClick={onCreateAgent}>
-              Create your first agent
-            </LiquidMetalButton>
-          ) : null}
-          {onOpenApps ? (
-            <button
-              className={`${buttons.textButton} ${styles.emptyStateLink}`}
-              type="button"
-              onClick={onOpenApps}
-            >
-              Connect work apps later
-            </button>
-          ) : null}
-          <WelcomeRecents threads={recentThreads} onOpen={onOpenThread} />
-        </div>
-      </main>
+      <ConversationWelcome
+        agentName={agentName}
+        agentHue={agentHue}
+        recentThreads={recentThreads}
+        onOpenThread={onOpenThread}
+        onCreateThread={onCreateThread}
+        onCreateAgent={onCreateAgent}
+        onOpenApps={onOpenApps}
+      />
     );
   }
 
@@ -668,27 +516,7 @@ export function Conversation({
       data-companion-conversation
       data-scene={thread.events.length ? 'conversation' : 'welcome'}
       data-file-dragging={draggingFiles ? 'true' : undefined}
-      onDragEnter={(event) => {
-        if (!onDropAttachments || !hasFiles(event.dataTransfer)) return;
-        event.preventDefault();
-        setDraggingFiles(true);
-      }}
-      onDragOver={(event) => {
-        if (!onDropAttachments || !hasFiles(event.dataTransfer)) return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = 'copy';
-      }}
-      onDragLeave={(event) => {
-        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-        setDraggingFiles(false);
-      }}
-      onDrop={(event) => {
-        if (!onDropAttachments || !hasFiles(event.dataTransfer)) return;
-        event.preventDefault();
-        setDraggingFiles(false);
-        const files = [...event.dataTransfer.files].slice(0, 20);
-        if (files.length) void onDropAttachments(files);
-      }}
+      {...dropTargetProps}
     >
       <Aurora
         className={layout.conversationAurora}
@@ -696,71 +524,16 @@ export function Conversation({
         pauseWhenUnfocused
       />
       {findOpen ? (
-        <div className={styles.conversationFind} role="search">
-          <MagnifyingGlass size={15} aria-hidden="true" />
-          <input
-            autoFocus
-            type="search"
-            value={findQuery}
-            onChange={(event) => setFindQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') onFindOpenChange?.(false);
-              if (event.key === 'Enter' && matchingEventIds.length) {
-                event.preventDefault();
-                setFindIndex((current) =>
-                  event.shiftKey
-                    ? (current - 1 + matchingEventIds.length) % matchingEventIds.length
-                    : (current + 1) % matchingEventIds.length,
-                );
-              }
-            }}
-            placeholder="Find in this thread"
-            aria-label="Find in this thread"
-          />
-          <span className={styles.findCount} aria-live="polite">
-            {findCountLabel(findQuery, findIndex, matchingEventIds.length)}
-          </span>
-          <button
-            type="button"
-            className={buttons.iconButtonSmall}
-            disabled={!matchingEventIds.length}
-            onClick={() =>
-              setFindIndex(
-                (current) => (current - 1 + matchingEventIds.length) % matchingEventIds.length,
-              )
-            }
-            aria-label="Previous match"
-          >
-            <CaretUp size={14} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className={buttons.iconButtonSmall}
-            disabled={!matchingEventIds.length}
-            onClick={() => setFindIndex((current) => (current + 1) % matchingEventIds.length)}
-            aria-label="Next match"
-          >
-            <CaretDown size={14} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className={buttons.iconButtonSmall}
-            onClick={() => onFindOpenChange?.(false)}
-            aria-label="Close find"
-          >
-            <X size={14} aria-hidden="true" />
-          </button>
-        </div>
+        <ConversationFind
+          query={findQuery}
+          onQueryChange={setFindQuery}
+          index={findIndex}
+          onIndexChange={setFindIndex}
+          matchCount={matchingEventIds.length}
+          onClose={() => onFindOpenChange?.(false)}
+        />
       ) : null}
-      {draggingFiles ? (
-        <div className={styles.attachmentDropOverlay} role="status">
-          <span className={styles.attachmentDropCard}>
-            <Paperclip size={22} aria-hidden="true" />
-            <strong>Drop to attach</strong>
-            <small>Up to 20 files or images</small>
-          </span>
-        </div>
-      ) : null}
+      {draggingFiles ? <FileDropOverlay /> : null}
       <div
         className={styles.threadScroll}
         ref={scrollRef}
@@ -997,530 +770,10 @@ export function Conversation({
   );
 }
 
-/** What in this thread is waiting on the person, if anything, and how to say so briefly. */
-function waitingOnPerson(thread: ThreadDetail): { key: string; label: string } | undefined {
-  const approvals = thread.events.filter(
-    (event) => event.type === 'approval' && event.status === 'pending',
-  );
-  if (approvals.length)
-    return {
-      key: `approval:${approvals.map(({ id }) => id).join(',')}`,
-      label:
-        approvals.length === 1 ? '1 approval waiting' : `${approvals.length} approvals waiting`,
-    };
-  const question =
-    thread.status === 'waiting'
-      ? thread.events.findLast(
-          (event) => event.type === 'question' && event.status === 'pending',
-        )
-      : undefined;
-  if (question) return { key: `question:${question.id}`, label: '1 question waiting' };
-  if (thread.error) return { key: `error:${thread.error}`, label: 'Task needs attention' };
-  return undefined;
-}
-
 function isNearLatest(scroller: HTMLDivElement) {
   return scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 72;
 }
 
 function scrollToLatest(scroller: HTMLDivElement, behavior: ScrollBehavior) {
   scroller.scrollTo?.({ top: scroller.scrollHeight, behavior });
-}
-
-interface EventViewProps {
-  agentName?: string | undefined;
-  completed?: boolean | undefined;
-  noticeExplained?: boolean;
-  /** When the thread's plan usage window resets, for a usage-limit failure. */
-  usageResetsAt?: string | undefined;
-  event: ThreadEvent;
-  agentHue?: number | undefined;
-  busyApprovalId?: string | undefined;
-  speechPhase: 'idle' | 'loading' | 'playing';
-  speechError?: string | undefined;
-  streaming?: boolean | undefined;
-  justCompleted?: boolean | undefined;
-  onToggleSpeech?: ((text: string) => Promise<void>) | undefined;
-  onRateReply?: ((rating: ReplyRating, reply: string) => void) | undefined;
-  /** Replaces the last message with new text and asks again. */
-  onEditMessage?: ((text: string) => Promise<void>) | undefined;
-  /** Asks the last message again for a new reply. */
-  onTryAgain?: (() => Promise<void>) | undefined;
-  onPreviewAttachment?: ((attachment: RendererAttachment) => void) | undefined;
-  onLoadThumbnail?:
-    ((attachment: RendererAttachment) => Promise<string | undefined>) | undefined;
-  onResolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
-}
-
-interface RowActions {
-  registerRow(eventId: string, node: HTMLDivElement | null): void;
-  toggleSpeech(eventId: string, text: string): Promise<void>;
-  previewAttachment(attachment: RendererAttachment): void;
-  loadThumbnail(attachment: RendererAttachment): Promise<string | undefined>;
-  rateReply(rating: ReplyRating, reply: string): void;
-  redo(text?: string): Promise<void>;
-  resolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
-}
-
-interface ConversationRowProps extends Omit<
-  EventViewProps,
-  | 'onToggleSpeech'
-  | 'onPreviewAttachment'
-  | 'onLoadThumbnail'
-  | 'onResolveApproval'
-  | 'onRateReply'
-  | 'onEditMessage'
-  | 'onTryAgain'
-> {
-  actions: RowActions;
-  findMatch: boolean;
-  findCurrent: boolean;
-  /** Added after the thread opened; the row eases in once when it mounts. */
-  entering: boolean;
-  speakable: boolean;
-  previewable: boolean;
-  rateable: boolean;
-  editable: boolean;
-  retryable: boolean;
-}
-
-/** One transcript row. Memoized so streaming into the last reply leaves earlier rows alone. */
-const ConversationRow = memo(function ConversationRow({
-  actions,
-  findMatch,
-  findCurrent,
-  entering,
-  speakable,
-  previewable,
-  rateable,
-  editable,
-  retryable,
-  ...view
-}: ConversationRowProps) {
-  const { event } = view;
-  return (
-    <div
-      ref={(node) => actions.registerRow(event.id, node)}
-      className={styles.eventSearchAnchor}
-      tabIndex={-1}
-      data-entering={entering ? 'true' : undefined}
-      data-find-match={findMatch ? 'true' : undefined}
-      data-find-current={findCurrent ? 'true' : undefined}
-    >
-      <EventView
-        {...view}
-        onToggleSpeech={speakable ? (text) => actions.toggleSpeech(event.id, text) : undefined}
-        onPreviewAttachment={previewable ? actions.previewAttachment : undefined}
-        onLoadThumbnail={previewable ? actions.loadThumbnail : undefined}
-        onRateReply={rateable ? actions.rateReply : undefined}
-        onEditMessage={editable ? (text) => actions.redo(text) : undefined}
-        onTryAgain={retryable ? () => actions.redo() : undefined}
-        onResolveApproval={actions.resolveApproval}
-      />
-    </div>
-  );
-});
-
-/** One conversation row; a rendering failure stays inside the row. */
-function EventView(props: EventViewProps) {
-  return (
-    <RowErrorBoundary resetKey={props.event}>
-      <EventViewContent {...props} />
-    </RowErrorBoundary>
-  );
-}
-
-function EventViewContent({
-  agentName = 'Sia',
-  completed,
-  event,
-  noticeExplained,
-  usageResetsAt,
-  agentHue,
-  busyApprovalId,
-  speechPhase,
-  speechError,
-  streaming,
-  justCompleted,
-  onToggleSpeech,
-  onRateReply,
-  onEditMessage,
-  onTryAgain,
-  onPreviewAttachment,
-  onLoadThumbnail,
-  onResolveApproval,
-}: EventViewProps) {
-  const [editDraft, setEditDraft] = useState<string>();
-  const [redoing, setRedoing] = useState(false);
-  const editing = editDraft !== undefined && Boolean(onEditMessage);
-  const redo = (action: () => Promise<void>) => {
-    setRedoing(true);
-    void action()
-      .then(
-        () => setEditDraft(undefined),
-        () => undefined,
-      )
-      .finally(() => setRedoing(false));
-  };
-  if (event.type === 'activity') return <ActivityRow event={event} />;
-  if (event.type === 'approval') {
-    return (
-      <ApprovalCard
-        event={event}
-        busy={busyApprovalId === event.id}
-        onResolve={(approvalId, decision) => void onResolveApproval(approvalId, decision)}
-      />
-    );
-  }
-  if (event.type === 'notice') {
-    return (
-      <div
-        className={`${primitives.notice} ${primitives[`notice_${event.tone}`]}`}
-        role="status"
-      >
-        <WarningCircle size={17} aria-hidden="true" />
-        <div>
-          <NoticeText
-            title={event.title}
-            detail={event.detail}
-            tone={event.tone}
-            explained={noticeExplained}
-            usageResetsAt={usageResetsAt}
-          />
-        </div>
-      </div>
-    );
-  }
-  if (event.type === 'question') {
-    return (
-      <div className={primitives.notice} role="status">
-        <ChatCircle size={17} aria-hidden="true" />
-        <div>
-          <strong>{agentName} has a question</strong>
-          <SafeMarkdown content={event.prompt} />
-        </div>
-      </div>
-    );
-  }
-
-  const message = (
-    <article
-      className={`${styles.message} ${
-        event.role === 'user' ? styles.userMessage : styles.assistantMessage
-      } ${justCompleted ? styles.messageSettled : ''}`}
-      data-message-role={event.role}
-      data-completed={justCompleted ? 'true' : undefined}
-    >
-      <span className={styles.messageAvatar} aria-hidden="true">
-        {event.role === 'user' ? (
-          <User size={14} weight="bold" />
-        ) : (
-          <AgentForm identity={agentHue} size="small" />
-        )}
-      </span>
-      <header>
-        <span>{event.role === 'user' ? 'You' : agentName}</span>
-        {event.role === 'assistant' ? <ReplyReadyMark ready={Boolean(completed)} /> : null}
-        <time dateTime={event.timestamp}>{formatTime(event.timestamp)}</time>
-        {/* A reply still being written has nothing whole to copy, read, or rate yet. */}
-        {streaming ? null : <CopyMessageButton content={event.content} />}
-        {event.role === 'user' && onEditMessage && !editing ? (
-          <button
-            type="button"
-            className={styles.messageActionButton}
-            onClick={() => setEditDraft(event.content)}
-            aria-label="Edit message"
-            title="Edit message"
-            data-testid="message-edit"
-          >
-            <PencilSimple size={14} aria-hidden="true" />
-          </button>
-        ) : null}
-        {event.role === 'assistant' && onTryAgain && !streaming ? (
-          <button
-            type="button"
-            className={styles.messageActionButton}
-            onClick={() => redo(onTryAgain)}
-            disabled={redoing}
-            aria-label="Try again"
-            title="Ask again for a new reply"
-            data-testid="message-try-again"
-          >
-            <ArrowClockwise size={14} aria-hidden="true" />
-          </button>
-        ) : null}
-        {event.role === 'assistant' && onToggleSpeech && !streaming ? (
-          <button
-            type="button"
-            className={styles.messageActionButton}
-            onClick={() => void onToggleSpeech(event.content)}
-            aria-label={
-              speechPhase === 'playing'
-                ? 'Stop reading reply'
-                : speechPhase === 'loading'
-                  ? 'Cancel read aloud'
-                  : 'Read reply aloud'
-            }
-            title={speechPhase === 'idle' ? 'Read aloud' : 'Stop reading'}
-            data-testid="message-read-aloud"
-          >
-            {speechPhase === 'loading' ? (
-              <SpinnerGap className={primitives.spin} size={14} aria-hidden="true" />
-            ) : speechPhase === 'playing' ? (
-              <StopCircle size={14} weight="fill" aria-hidden="true" />
-            ) : (
-              <SpeakerHigh size={14} aria-hidden="true" />
-            )}
-          </button>
-        ) : null}
-        {event.role === 'assistant' && onRateReply && !streaming ? (
-          <ReplyFeedbackButtons onRate={(rating) => onRateReply(rating, event.content)} />
-        ) : null}
-      </header>
-      <div
-        className={`${styles.messageContent} ${streaming ? styles.streamingContent : ''}`}
-        data-streaming={streaming ? 'true' : undefined}
-      >
-        {editing ? (
-          <form
-            className={styles.messageEditor}
-            onSubmit={(submit) => {
-              submit.preventDefault();
-              const text = editDraft.trim();
-              if (text) redo(() => onEditMessage!(text));
-            }}
-          >
-            <textarea
-              aria-label="Edit message"
-              value={editDraft}
-              autoFocus
-              rows={Math.min(8, Math.max(2, editDraft.split('\n').length))}
-              onChange={(change) => setEditDraft(change.target.value)}
-              onKeyDown={(key) => {
-                if (key.key === 'Escape') {
-                  key.preventDefault();
-                  key.stopPropagation();
-                  setEditDraft(undefined);
-                } else if (
-                  key.key === 'Enter' &&
-                  !key.shiftKey &&
-                  !key.nativeEvent.isComposing
-                ) {
-                  key.preventDefault();
-                  key.currentTarget.form?.requestSubmit();
-                }
-              }}
-            />
-            <div>
-              <button
-                type="button"
-                className={buttons.secondaryButton}
-                onClick={() => setEditDraft(undefined)}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className={buttons.primaryButton}
-                disabled={redoing || !editDraft.trim()}
-              >
-                {redoing ? 'Sending…' : 'Send'}
-              </button>
-            </div>
-          </form>
-        ) : event.role === 'user' ? (
-          // What the person typed is shown verbatim; snake_case must not become italics.
-          <p>{event.content}</p>
-        ) : (
-          <SafeMarkdown content={event.content} />
-        )}
-        {event.attachments?.length ? (
-          <div className={styles.messageAttachments} aria-label="Message attachments">
-            {event.attachments.map((attachment) => (
-              <AttachmentChip
-                key={attachment.id}
-                attachment={attachment}
-                onPreview={onPreviewAttachment}
-                onLoadThumbnail={onLoadThumbnail}
-              />
-            ))}
-          </div>
-        ) : null}
-        {speechError ? (
-          <p className={styles.messageVoiceError} role="alert">
-            {speechError}
-          </p>
-        ) : null}
-      </div>
-    </article>
-  );
-  // Every reply keeps the same frame, so it never moves when it becomes (or stops being) the
-  // result; only the card's paint changes.
-  return event.role === 'assistant' ? (
-    <ReplySurface ready={Boolean(completed)}>{message}</ReplySurface>
-  ) : (
-    message
-  );
-}
-
-function CopyMessageButton({ content }: { content: string }) {
-  const [copied, setCopied] = useState(false);
-  const resetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  useEffect(
-    () => () => {
-      if (resetTimer.current) clearTimeout(resetTimer.current);
-    },
-    [],
-  );
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(content);
-      setCopied(true);
-      if (resetTimer.current) clearTimeout(resetTimer.current);
-      resetTimer.current = setTimeout(() => setCopied(false), 1_600);
-    } catch {
-      setCopied(false);
-    }
-  };
-
-  return (
-    <button
-      type="button"
-      className={styles.messageActionButton}
-      onClick={() => void copy()}
-      aria-label={copied ? 'Message copied' : 'Copy message'}
-      title={copied ? undefined : 'Copy message'}
-      data-copied={copied ? 'true' : undefined}
-    >
-      {copied ? (
-        <Check size={14} weight="bold" className={styles.copiedCheck} aria-hidden="true" />
-      ) : (
-        <Copy size={14} aria-hidden="true" />
-      )}
-      {copied ? (
-        <span className={styles.copiedTip} aria-hidden="true">
-          Copied
-        </span>
-      ) : null}
-    </button>
-  );
-}
-
-/** Where find stands: “2 of 5”, “No matches”, or a prompt before anything is typed. */
-export function findCountLabel(query: string, index: number, total: number): string {
-  if (!query.trim()) return 'Type to find';
-  if (!total) return 'No matches';
-  return `${Math.min(index, total - 1) + 1} of ${total}`;
-}
-
-function eventSearchText(event: ThreadEvent): string {
-  if (event.type === 'message') {
-    return `${event.content} ${(event.attachments ?? []).map(({ name }) => name).join(' ')}`.toLocaleLowerCase();
-  }
-  if (event.type === 'activity') return event.title.toLocaleLowerCase();
-  if (event.type === 'notice') return `${event.title} ${event.detail}`.toLocaleLowerCase();
-  if (event.type === 'question') return event.prompt.toLocaleLowerCase();
-  return `${event.request.title} ${'summary' in event.request ? event.request.summary : ''}`.toLocaleLowerCase();
-}
-
-function hasFiles(dataTransfer: DataTransfer): boolean {
-  return [...dataTransfer.types].includes('Files');
-}
-
-type ConversationBlock =
-  | { kind: 'event'; event: ThreadEvent; index: number }
-  | { kind: 'work'; id: string; events: ActivityEvent[]; start: number; end: number };
-
-/** Consecutive tool steps render as one work group; everything else renders as is. */
-export function conversationBlocks(events: readonly ThreadEvent[]): ConversationBlock[] {
-  const blocks: ConversationBlock[] = [];
-  events.forEach((event, index) => {
-    const previous = blocks.at(-1);
-    if (event.type !== 'activity') blocks.push({ kind: 'event', event, index });
-    else if (previous?.kind === 'work' && previous.end === index - 1) {
-      previous.events.push(event);
-      previous.end = index;
-    } else
-      blocks.push({ kind: 'work', id: event.id, events: [event], start: index, end: index });
-  });
-  return blocks;
-}
-
-function eventTime(event: ThreadEvent | undefined): string | undefined {
-  return event && 'timestamp' in event ? event.timestamp : undefined;
-}
-
-function workGroupIdFor(events: readonly ThreadEvent[], eventId: string): string | undefined {
-  for (const block of conversationBlocks(events))
-    if (block.kind === 'work' && block.events.some(({ id }) => id === eventId)) return block.id;
-  return undefined;
-}
-
-function ConversationSkeleton() {
-  return (
-    <main className={layout.mainPane} aria-label="Loading conversation" aria-busy="true">
-      <div className={styles.threadScroll}>
-        <div className={styles.conversationColumn}>
-          <div className={styles.skeletonMessage} />
-          <div className={`${styles.skeletonMessage} ${styles.skeletonShort}`} />
-          <div className={styles.skeletonActivity} />
-          <div className={styles.skeletonMessage} />
-        </div>
-      </div>
-      <div className={styles.skeletonComposer} />
-    </main>
-  );
-}
-
-function base64Bytes(value: string): Uint8Array {
-  const binary = atob(value);
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-}
-
-function releaseSpeech(
-  sourceRef: { current: AudioBufferSourceNode | undefined },
-  contextRef: { current: AudioContext | undefined },
-) {
-  const source = sourceRef.current;
-  const context = contextRef.current;
-  sourceRef.current = undefined;
-  contextRef.current = undefined;
-  try {
-    source?.stop();
-  } catch {
-    // A source may already have ended.
-  }
-  if (context) void context.close();
-}
-
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(new Date(value));
-}
-
-function playCompletionChime() {
-  if (typeof AudioContext === 'undefined') return;
-  try {
-    const context = new AudioContext();
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    const start = context.currentTime;
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(587, start);
-    oscillator.frequency.exponentialRampToValueAtTime(784, start + 0.12);
-    gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(0.035, start + 0.025);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.28);
-    oscillator.connect(gain).connect(context.destination);
-    oscillator.addEventListener('ended', () => void context.close(), { once: true });
-    oscillator.start(start);
-    oscillator.stop(start + 0.3);
-    void context.resume().catch(() => context.close());
-  } catch {
-    // Sound is optional; visual completion feedback remains available.
-  }
 }

@@ -1,18 +1,5 @@
 import { BrowserTaskRecovery, browserTaskRequest } from './components/BrowserTaskRecovery';
-import {
-  Archive,
-  CalendarDots,
-  ChatCircle,
-  EnvelopeSimple,
-  Keyboard,
-  GearSix,
-  MagnifyingGlass,
-  Plus,
-  Pulse,
-  SlidersHorizontal,
-  X,
-  WarningCircle,
-} from '@phosphor-icons/react';
+import { SlidersHorizontal, WarningCircle } from '@phosphor-icons/react';
 import {
   lazy,
   Suspense,
@@ -31,25 +18,21 @@ import { FeedbackDialog } from './components/FeedbackDialog';
 import { replyFeedbackDraft } from './components/ReplyFeedback';
 import { Inspector } from './components/Inspector';
 import { RoomHeader } from './components/RoomHeader';
-import { QuickSwitcher, type QuickSwitcherAction } from './components/QuickSwitcher';
+import { QuickSwitcher } from './components/QuickSwitcher';
 import { KeyboardShortcuts } from './components/KeyboardShortcuts';
 import { useReadOnScreen, useWindowVisible } from './readOnScreen';
-import { conversationForShortcut } from './shortcuts';
 import { Settings } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
 import { AppearanceContext } from './components/effects/appearance';
 import { SiaSignInDialog } from './components/settings/SiaSignInDialog';
 import {
-  ActivityDashboard,
-  ArchivedThreadsSection,
   ScheduledPage,
   ThreadModelControls,
-  TranscriptSearch,
   ThreadWorkspaceTools,
 } from './components/localParity';
-import type { AgentDraft, ProviderId, RendererApi, RendererSnapshot } from './types';
+import type { AgentDraft, RendererApi, RendererSnapshot } from './types';
 import { useAppController } from './useAppController';
-import { executionLabel, friendlyModelName } from './agentModels';
+import { executionLabel } from './agentModels';
 import { cancelComposerFocus, focusComposer } from './composerFocus';
 import { heldAsQueued, OfflineBanner, useOfflineOutbox, useOnline } from './offline';
 import { recentThreads, welcomePrompts } from './welcome';
@@ -64,6 +47,10 @@ import buttons from './styles/buttons.module.css';
 import errorBoundary from './components/ErrorBoundary.module.css';
 import styles from './App.module.css';
 import { useTextSize } from './textSize';
+import { ActivityPage } from './app/ActivityPage';
+import { quickSwitcherActions as buildQuickSwitcherActions } from './app/quickSwitcherActions';
+import { defaultReasoning, modelOptions, reasoningOptions } from './app/threadModelOptions';
+import { useAppShortcuts } from './app/useAppShortcuts';
 
 const AuditGallery = lazy(() => import('./audit/AuditGallery'));
 
@@ -127,94 +114,15 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   const signInRequired =
     app.snapshot !== undefined && requiresSiaSignIn(app.snapshot.cloudAuth.state);
 
-  useEffect(() => {
-    if (auditMode || signInRequired) return undefined;
-    // macOS text fields use Control+B/F/N/K for cursor movement, so only Command is ours there.
-    const mac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform);
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (
-        event.key === 'Escape' &&
-        (app.activityOpen || app.settingsOpen) &&
-        !event.defaultPrevented
-      ) {
-        const target = event.target as HTMLElement | null;
-        const clearingField =
-          (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) &&
-          target.value !== '';
-        if (!clearingField && !document.querySelector('[role="dialog"], [role="menu"]')) {
-          if (app.activityOpen) app.closeActivity();
-          else app.closeSettings();
-          return;
-        }
-      }
-      // Esc stops the running task, unless it is closing something else first.
-      const running = app.snapshot?.activeThread;
-      if (
-        event.key === 'Escape' &&
-        !event.defaultPrevented &&
-        running?.status === 'running' &&
-        !app.activityOpen &&
-        !app.settingsOpen &&
-        !conversationFindOpen &&
-        !document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]')
-      ) {
-        event.preventDefault();
-        void app.run(() => app.api.cancelTurn(running.id)).then(() => focusComposer());
-        return;
-      }
-      const modifier = mac ? event.metaKey && !event.ctrlKey : event.metaKey || event.ctrlKey;
-      if (!modifier || event.altKey) return;
-      const key = event.key.toLocaleLowerCase();
-      // ⌘1–9 open the conversations listed in the sidebar, in order.
-      const digit = /^Digit([1-9])$/.exec(event.code)?.[1] ?? /^[1-9]$/.exec(key)?.[0];
-      if (digit && !event.shiftKey && app.snapshot) {
-        const threadId = conversationForShortcut(app.snapshot.agents, Number(digit));
-        if (!threadId) return;
-        event.preventDefault();
-        setQuickSwitcherOpen(false);
-        setShortcutsOpen(false);
-        app.closeSettings();
-        app.closeActivity();
-        void app.run(() => app.api.selectThread(threadId)).then(() => focusComposer());
-        return;
-      }
-      if (key === '/' || event.code === 'Slash') {
-        event.preventDefault();
-        setQuickSwitcherOpen(false);
-        setShortcutsOpen((current) => !current);
-        return;
-      }
-      if (key === 'k') {
-        event.preventDefault();
-        setQuickSwitcherOpen((current) => !current);
-      } else if (key === 'f') {
-        event.preventDefault();
-        setQuickSwitcherOpen(false);
-        if (app.snapshot?.activeThread && !app.settingsOpen && !app.activityOpen) {
-          setConversationFindOpen(true);
-        } else {
-          app.openActivity('search');
-        }
-      } else if (key === 'b') {
-        event.preventDefault();
-        setQuickSwitcherOpen(false);
-        app.toggleSidebar();
-      } else if (key === ',') {
-        event.preventDefault();
-        setQuickSwitcherOpen(false);
-        app.openSettings();
-      } else if (key === 'n' && app.snapshot?.selectedAgentId) {
-        event.preventDefault();
-        setQuickSwitcherOpen(false);
-        const agentId = app.snapshot.selectedAgentId;
-        app.closeSettings();
-        app.closeActivity();
-        void app.run(() => app.api.createThread(agentId)).then(() => focusComposer());
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [app, auditMode, signInRequired, conversationFindOpen]);
+  useAppShortcuts({
+    app,
+    auditMode,
+    signInRequired,
+    conversationFindOpen,
+    setQuickSwitcherOpen,
+    setShortcutsOpen,
+    setConversationFindOpen,
+  });
   useEffect(
     () =>
       app.api.onOpenConversation?.(() => {
@@ -291,93 +199,12 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   const roomAgent =
     (activeThread && snapshot.agents.find((agent) => agent.id === activeThread.agentId)) ??
     selectedAgent;
-  const quickSwitcherActions: QuickSwitcherAction[] = [
-    ...(selectedAgent
-      ? [
-          {
-            id: 'new-thread',
-            label: 'New conversation',
-            detail: `Start in ${selectedAgent.name}`,
-            keywords: 'new chat task thread',
-            icon: <ChatCircle size={17} />,
-            opensConversation: true,
-            run: () => {
-              app.closeSettings();
-              app.closeActivity();
-              void run(() => api.createThread(selectedAgent.id)).then(() => focusComposer());
-            },
-          },
-        ]
-      : []),
-    {
-      id: 'keyboard-shortcuts',
-      label: 'Keyboard shortcuts',
-      detail: '⌘/',
-      keywords: 'keys hotkeys help',
-      icon: <Keyboard size={17} />,
-      run: () => setShortcutsOpen(true),
-    },
-    {
-      id: 'feedback',
-      label: 'Send feedback',
-      detail: 'Review a note in your mail app',
-      keywords: 'bug issue suggestion support',
-      icon: <EnvelopeSimple size={17} />,
-      run: () => setFeedbackOpen(true),
-    },
-    {
-      id: 'new-agent',
-      label: 'New agent',
-      detail: 'Start another kind of work',
-      keywords: 'new room assistant',
-      icon: <Plus size={17} />,
-      run: () => {
-        app.closeSettings();
-        app.closeActivity();
-        app.openNewAgent();
-      },
-    },
-    {
-      id: 'search-transcripts',
-      label: 'Search all conversations',
-      detail: 'Every message, including archived ones',
-      keywords: 'find messages history transcripts',
-      icon: <MagnifyingGlass size={17} />,
-      run: () => app.openActivity('search'),
-    },
-    {
-      id: 'activity',
-      label: 'Open Activity',
-      detail: 'Running and unread work',
-      keywords: 'tasks status',
-      icon: <Pulse size={17} />,
-      run: () => app.openActivity('activity'),
-    },
-    {
-      id: 'scheduled',
-      label: 'Open Scheduled',
-      detail: 'Everything set to run later or on repeat',
-      keywords: 'schedules automations recurring later timer',
-      icon: <CalendarDots size={17} />,
-      run: () => app.openActivity('scheduled'),
-    },
-    {
-      id: 'archived',
-      label: 'Open archived conversations',
-      detail: 'Restore or revisit a conversation',
-      keywords: 'history old threads',
-      icon: <Archive size={17} />,
-      run: () => app.openActivity('archived'),
-    },
-    {
-      id: 'settings',
-      label: 'Open Settings',
-      detail: 'AI, connections, computer, voice, privacy',
-      keywords: 'preferences configuration',
-      icon: <GearSix size={17} />,
-      run: () => app.openSettings(),
-    },
-  ];
+  const quickSwitcherActions = buildQuickSwitcherActions({
+    app,
+    selectedAgent,
+    openShortcuts: () => setShortcutsOpen(true),
+    openFeedback: () => setFeedbackOpen(true),
+  });
 
   const content = (
     <div
@@ -558,58 +385,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               }}
             />
           ) : app.activityOpen ? (
-            <main className={layout.activityPage}>
-              <header className={layout.activityPageHeader}>
-                <div>
-                  <h1>Activity</h1>
-                  <p>What your agents are doing, and anything waiting for you.</p>
-                </div>
-                <button
-                  type="button"
-                  className={buttons.iconButton}
-                  onClick={app.closeActivity}
-                  aria-label="Close activity"
-                >
-                  <X size={17} aria-hidden="true" />
-                </button>
-              </header>
-              <div className={styles.activityPageContent}>
-                <ActivityDashboard
-                  activities={activityItems(snapshot)}
-                  onOpenThread={(threadId) => {
-                    app.closeActivity();
-                    void run(() => api.selectThread(threadId));
-                  }}
-                />
-                <TranscriptSearch
-                  focusOnMount={app.activityTarget === 'search'}
-                  search={(query) => api.searchThreads(query)}
-                  onOpen={(threadId, archived) => {
-                    app.closeActivity();
-                    void run(async () => {
-                      if (archived) await api.unarchiveThread(threadId);
-                      await api.selectThread(threadId);
-                    });
-                  }}
-                />
-                <ArchivedThreadsSection
-                  focusOnMount={app.activityTarget === 'archived'}
-                  threads={snapshot.archivedThreads.map((thread) => ({
-                    id: thread.id,
-                    title: thread.title,
-                    agentName:
-                      snapshot.agents.find((agent) => agent.id === thread.agentId)?.name ??
-                      'Unknown agent',
-                    archivedAt: thread.archivedAt ?? thread.updatedAt,
-                  }))}
-                  onOpen={(threadId) => {
-                    app.closeActivity();
-                    void run(() => api.selectThread(threadId));
-                  }}
-                  onRestore={(threadId) => run(() => api.unarchiveThread(threadId))}
-                />
-              </div>
-            </main>
+            <ActivityPage app={app} snapshot={snapshot} />
           ) : app.settingsOpen ? (
             <Settings
               assistantApi={api}
@@ -980,78 +756,4 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
 
 function requiresSiaSignIn(state: RendererSnapshot['cloudAuth']['state']): boolean {
   return state !== 'signed-in' && state !== 'unconfigured';
-}
-function providerModels(snapshot: RendererSnapshot, provider: string) {
-  return snapshot.providers.find((candidate) => candidate.id === provider)?.models ?? [];
-}
-
-function modelOptions(snapshot: RendererSnapshot, provider: string, selectedModel: string) {
-  const models = providerModels(snapshot, provider);
-  return models.length
-    ? models.map((model) => ({ id: model.id, label: model.label, detail: model.description }))
-    : [
-        {
-          id: selectedModel,
-          label: friendlyModelName(provider as ProviderId, selectedModel),
-        },
-      ];
-}
-
-function reasoningOptions(
-  snapshot: RendererSnapshot,
-  provider: string,
-  modelId: string,
-  selected?: string,
-) {
-  const efforts =
-    providerModels(snapshot, provider).find((model) => model.id === modelId)
-      ?.reasoningEfforts ?? [];
-  const values = efforts.length ? efforts : selected ? [selected] : [''];
-  return values.map((effort) => ({
-    id: effort,
-    label: effort ? effort[0]!.toUpperCase() + effort.slice(1) : 'Default',
-  }));
-}
-
-function defaultReasoning(snapshot: RendererSnapshot, provider: string, modelId: string) {
-  return providerModels(snapshot, provider).find((model) => model.id === modelId)
-    ?.defaultReasoningEffort;
-}
-
-function activityItems(snapshot: RendererSnapshot) {
-  return snapshot.agents.flatMap((agent) =>
-    agent.threads
-      .filter((thread) => thread.status !== 'idle' || thread.unread)
-      .map((thread) => ({
-        id: `activity-${thread.id}`,
-        threadId: thread.id,
-        title: thread.title,
-        detail:
-          thread.queueReason ??
-          (thread.status === 'running'
-            ? 'Working in the background'
-            : thread.status === 'queued'
-              ? 'Queued'
-              : thread.status === 'waiting'
-                ? 'Waiting for your input'
-                : thread.status === 'error'
-                  ? 'Stopped before it finished'
-                  : 'New activity is ready to review'),
-        agentName: agent.name,
-        // Live state outranks the unread flag: a running thread that has unread output is running.
-        status:
-          thread.status === 'running'
-            ? ('running' as const)
-            : thread.status === 'queued'
-              ? ('queued' as const)
-              : thread.status === 'waiting'
-                ? ('waiting' as const)
-                : thread.status === 'error'
-                  ? ('failed' as const)
-                  : thread.unread
-                    ? ('unread' as const)
-                    : ('background' as const),
-        updatedAt: thread.updatedAt,
-      })),
-  );
 }

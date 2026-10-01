@@ -11,7 +11,8 @@ import {
 } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
-import { createDemoRendererApi, demoSnapshot } from './demo';
+import { createDemoRendererApi } from './demo/api';
+import { demoSnapshot } from './demo/snapshot';
 import type { RendererApi, RendererSnapshot } from './types';
 
 afterEach(cleanup);

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { demoSnapshot } from '../demo';
+import { demoSnapshot } from '../demo/snapshot';
 import { ComputerAccessMode } from './ComputerAccessMode';
 
 afterEach(cleanup);

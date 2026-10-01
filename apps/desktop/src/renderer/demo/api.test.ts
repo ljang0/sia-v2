@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createDemoRendererApi, demoSnapshot } from './demo';
+import { createDemoRendererApi } from './api';
+import { demoSnapshot } from './snapshot';
 
 describe('demo renderer API', () => {
   it('returns copies so callers cannot mutate the backing state', async () => {

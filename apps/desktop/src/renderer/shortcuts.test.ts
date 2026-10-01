@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { demoSnapshot } from './demo';
+import { demoSnapshot } from './demo/snapshot';
 import { conversationForShortcut, sidebarAgentOrder, sidebarThreadOrder } from './shortcuts';
 
 describe('sidebar order', () => {
