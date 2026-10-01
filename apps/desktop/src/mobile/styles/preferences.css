@@ -1,0 +1,15 @@
+/* Document-wide motion and focus preferences. Loaded before tokens.css so its
+   :focus-visible ring still wins over the forced-colors focus outline. */
+
+@media (prefers-reduced-motion: reduce) {
+  :where(button, a, input, textarea, select, summary) {
+    transition-duration: 0.01ms;
+  }
+}
+
+@media (forced-colors: active) {
+  :focus {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+}

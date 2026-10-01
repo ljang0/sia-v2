@@ -1,0 +1,268 @@
+/* The conversation: turns, replies, task steps, live status, and errors. */
+
+.conversation-heading {
+  padding: 8px 22px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.conversation-heading > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.conversation-heading strong {
+  display: block;
+  font: 550 17px var(--font-brand);
+  overflow-wrap: anywhere;
+}
+.conversation-heading small {
+  display: block;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+.assistant-avatar {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  background: var(--bg-selected);
+  border-radius: 14px;
+  flex: none;
+}
+.assistant-avatar > span {
+  font-size: 28px;
+}
+.turns {
+  padding: 22px 22px 12px;
+}
+.remote-turn {
+  margin-bottom: 30px;
+  scroll-margin-top: 16px;
+  animation: arrive 0.4s var(--phone-ease);
+}
+.user-message {
+  background: var(--bg-selected);
+  border-radius: 19px 19px 5px 19px;
+  padding: 13px 17px;
+  font-size: 14px;
+  line-height: 1.6;
+  width: fit-content;
+  max-width: calc(100% - 28px);
+  margin: 0 0 24px auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.assistant-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.assistant-heading > span:first-child {
+  width: 23px;
+  height: 23px;
+}
+.assistant-heading strong {
+  font: 560 17px var(--font-brand);
+  overflow-wrap: anywhere;
+}
+.assistant-heading .turn-status {
+  margin-left: auto;
+}
+.turn-status {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.turn-status[data-status='done'],
+.turn-status[data-status='working'] {
+  color: var(--text-success);
+}
+.turn-status[data-status='waiting'] {
+  color: var(--text-warning);
+}
+.turn-status[data-status='error'] {
+  color: var(--text-danger);
+}
+.status-disc,
+.working-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  display: inline-block;
+  background: currentColor;
+}
+.remote-response {
+  font-size: 14px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+.remote-response p {
+  margin: 10px 0;
+}
+.remote-response a,
+.note-body a {
+  color: var(--text-link);
+  text-underline-offset: 3px;
+}
+.remote-response pre,
+.remote-response table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.remote-response pre {
+  padding: 12px;
+  background: var(--bg-subtle);
+  border-radius: 10px;
+  font-size: 12px;
+}
+.remote-response h1,
+.remote-response h2,
+.remote-response h3 {
+  font-family: var(--font-brand);
+  line-height: 1.2;
+}
+.task-steps {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  margin: 4px 0 12px;
+  background: var(--bg-subtle);
+  border-radius: 12px;
+}
+.task-steps summary {
+  cursor: pointer;
+  padding: 14px 12px;
+  min-height: 44px;
+}
+.task-steps ol {
+  margin: 0;
+  padding: 0 18px 14px 30px;
+  line-height: 1.9;
+}
+.result-file {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: 15px;
+  color: var(--text-primary);
+  padding: 17px 14px;
+  text-decoration: none;
+  margin: 16px 0;
+  font-size: 12px;
+}
+.result-file svg {
+  flex: none;
+  color: var(--text-success);
+}
+.result-file span:first-of-type {
+  overflow-wrap: anywhere;
+}
+.result-file span:last-child {
+  margin-left: auto;
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+.connection-banner,
+.waiting-note {
+  font-size: 12px;
+  padding: 12px 18px;
+  background: var(--surface-info);
+  color: var(--text-secondary);
+  margin: 0;
+}
+.waiting-note {
+  border-radius: 12px;
+  margin-top: 15px;
+}
+.remote-error,
+.task-error {
+  color: var(--text-danger);
+  background: var(--surface-danger);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 12px;
+  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  overflow-wrap: anywhere;
+}
+.remote-error .icon {
+  margin-left: auto;
+}
+.live-task-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 3px 10px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+.live-task-line > span:last-child {
+  margin-left: auto;
+  font-size: 9px;
+  color: var(--text-tertiary);
+}
+.activity-light {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-success);
+}
+.activity-light.working {
+  animation: breathe 2s ease-in-out infinite;
+}
+/* Paused on the person: the same warm tone as the reply's "Needs you". */
+.activity-light.waiting {
+  background: var(--text-warning);
+}
+.jump-latest {
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 10px 14px;
+  min-height: 44px;
+  border-radius: 25px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-raised);
+  font-size: 11px;
+  box-shadow: var(--shadow-raised);
+}
+.jump-latest:active:not(:disabled) {
+  transform: translateX(-50%) scale(0.97);
+}
+.thinking-dots {
+  display: flex;
+  gap: 5px;
+  padding: 12px 0;
+}
+.thinking-dots i {
+  display: inline-block;
+  background: var(--text-success);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  animation: breathe 1.4s ease-in-out infinite;
+}
+.thinking-dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.thinking-dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+.spin {
+  animation: spin 1s linear infinite;
+}

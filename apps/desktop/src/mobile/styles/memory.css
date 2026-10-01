@@ -1,0 +1,207 @@
+/* The memory room: graph, legend, list, notes, and search. */
+
+.memory-room {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.graph-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 20px 0;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.memory-svg {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  touch-action: none;
+}
+.memory-svg line {
+  stroke: var(--border-strong);
+  opacity: 0.3;
+}
+.memory-svg text {
+  fill: var(--text-secondary);
+  font-size: 11px;
+  font-family: var(--font-brand);
+  pointer-events: none;
+}
+.memory-svg g[data-node] {
+  cursor: pointer;
+}
+[data-kind='memory'] {
+  --kind: var(--hue-0);
+}
+[data-kind='skill'] {
+  --kind: var(--hue-3);
+}
+[data-kind='workflow'] {
+  --kind: var(--hue-2);
+}
+[data-kind='journal'] {
+  --kind: var(--hue-1);
+}
+[data-kind='topic'] {
+  --kind: #a28eb8;
+}
+.graph-node {
+  fill: var(--kind);
+  stroke: var(--bg-canvas);
+  stroke-width: 3;
+}
+.graph-legend {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  padding: 14px 10px calc(env(safe-area-inset-bottom) + 16px);
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+.graph-legend i,
+.memory-list i {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--kind);
+  border-radius: 50%;
+  margin-right: 5px;
+}
+.graph-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.graph-reset {
+  border: 0;
+  background: transparent;
+  height: 44px;
+  padding: 0 16px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.note-body {
+  overflow: auto;
+  padding: 10px 22px calc(env(safe-area-inset-bottom) + 24px);
+  overflow-wrap: anywhere;
+}
+.note-body pre {
+  white-space: pre-wrap;
+}
+.memory-empty {
+  margin: auto;
+  padding: 30px;
+  text-align: center;
+}
+.memory-empty h2 {
+  font: 500 27px var(--font-brand);
+  letter-spacing: -0.035em;
+}
+.memory-empty p {
+  color: var(--text-secondary);
+}
+.memory-list {
+  overflow: auto;
+  flex: 1;
+  padding: 12px 20px;
+}
+.memory-list button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 16px 8px;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  background: transparent;
+  text-align: left;
+}
+.memory-list small {
+  margin-left: auto;
+  color: var(--text-tertiary);
+}
+.memory-room {
+  background-image: radial-gradient(var(--border-subtle) 0.7px, transparent 0.7px);
+  background-size: 20px 20px;
+}
+.graph-toolbar {
+  padding: 4px 24px;
+  background: var(--bg-canvas);
+}
+.graph-controls {
+  gap: 5px;
+}
+.graph-controls .icon,
+.graph-reset {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+}
+.graph-reset {
+  border-radius: 24px;
+}
+.graph-legend {
+  padding-bottom: 18px;
+  flex-wrap: wrap;
+}
+.memory-list {
+  background: var(--bg-canvas);
+}
+.memory-list button {
+  border: 1px solid var(--border-subtle);
+  border-radius: 15px;
+  margin-bottom: 8px;
+  padding: 17px 13px;
+  background: var(--bg-raised);
+  font-size: 12px;
+}
+.memory-list button span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.memory-list small {
+  font-size: 10px;
+}
+.note-body {
+  padding: 0 0 12px;
+}
+.note-body p {
+  font-size: 14px;
+  line-height: 1.75;
+}
+.note-body pre {
+  max-width: 100%;
+  overflow: auto;
+  font-size: 11px;
+  padding: 10px;
+  background: var(--bg-subtle);
+  border-radius: 10px;
+}
+.memory-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 8px 20px;
+  padding: 0 13px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--bg-raised);
+}
+.memory-search input {
+  min-width: 0;
+  width: 100%;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  font-size: 16px;
+}
+.memory-search:focus-within {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.memory-search input:focus-visible {
+  outline: none;
+}
