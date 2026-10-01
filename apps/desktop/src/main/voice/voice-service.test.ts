@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { PlaintextTestCipher, SqliteRecordRepository } from './persistence.js';
+import { PlaintextTestCipher, SqliteRecordRepository } from '../persistence.js';
 import {
   ElevenLabsVoiceService,
   type ManagedVoiceGateway,

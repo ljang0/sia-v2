@@ -13,8 +13,8 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import type { PayloadCipher } from './persistence.js';
-import type { ManagedVoiceTokenType } from './cloud/cloud-client.js';
+import type { PayloadCipher } from '../persistence.js';
+import type { ManagedVoiceTokenType } from '../cloud/cloud-client.js';
 import type { ManagedVoiceGateway } from './voice-service.js';
 
 const ORIGIN = 'https://api.elevenlabs.io';

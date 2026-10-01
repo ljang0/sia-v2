@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PlaintextTestCipher, SqliteRecordRepository } from './persistence.js';
+import { PlaintextTestCipher, SqliteRecordRepository } from '../persistence.js';
 import { createVoiceService } from './voice-factory.js';
 import type { ManagedVoiceGateway } from './voice-service.js';
 

@@ -19,7 +19,7 @@ export default defineConfig({
           index: resolve(import.meta.dirname, 'src/main/index.ts'),
           'configure-personal-voice': resolve(
             import.meta.dirname,
-            'src/main/configure-personal-voice.ts',
+            'src/main/voice/configure-personal-voice.ts',
           ),
           'tool-bridge': resolve(import.meta.dirname, 'src/main/actions/tool-bridge-entry.ts'),
           'permission-probe': resolve(

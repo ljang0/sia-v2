@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { EphemeralPayloadCipher, SqliteRecordRepository } from './persistence.js';
+import { EphemeralPayloadCipher, SqliteRecordRepository } from '../persistence.js';
 import { ElevenLabsVoiceService, type ManagedVoiceGateway } from './voice-service.js';
 
 /** Explicit opt-in only: synthetic speech, no microphone, user audio, or model turn. */

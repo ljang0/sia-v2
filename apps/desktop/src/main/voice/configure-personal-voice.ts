@@ -1,5 +1,5 @@
 import { app } from 'electron';
-import { ElectronPayloadCipher } from './persistence.js';
+import { ElectronPayloadCipher } from '../persistence.js';
 import { verifyPersonalVoice } from './personal-voice-smoke.js';
 import {
   PersonalVoiceCredential,

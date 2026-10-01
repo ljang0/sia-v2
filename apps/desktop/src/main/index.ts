@@ -66,14 +66,14 @@ import { discoverCodexInstallation } from './providers/codex-installation.js';
 import { installManagedCodex, managedCodexCommand } from './providers/codex-installer.js';
 import { macProviderPath } from './providers/provider-path.js';
 import { WorkspaceOperationsService } from './workspace/workspace-operations.js';
-import { createMacSpeechTransport } from './mac-voice-service.js';
-import { createVoiceService } from './voice-factory.js';
+import { createMacSpeechTransport } from './voice/mac-voice-service.js';
+import { createVoiceService } from './voice/voice-factory.js';
 import {
   PersonalVoiceCredential,
   PersonalVoiceGateway,
   personalVoicePath,
-} from './personal-voice.js';
-import { nativeVoiceHelperFactory } from './push-to-talk.js';
+} from './voice/personal-voice.js';
+import { nativeVoiceHelperFactory } from './voice/push-to-talk.js';
 import { dockBadgeText } from './dock-badge.js';
 
 const WINDOW_SIZE = { width: 1220, height: 780, minWidth: 960, minHeight: 640 };

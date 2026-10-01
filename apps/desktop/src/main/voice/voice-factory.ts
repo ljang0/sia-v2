@@ -1,4 +1,4 @@
-import type { RecordRepository } from './persistence.js';
+import type { RecordRepository } from '../persistence.js';
 import { MacVoiceService, type MacSpeechTransport } from './mac-voice-service.js';
 import {
   ElevenLabsVoiceService,
