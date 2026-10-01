@@ -2,7 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useState } from 'react';
 import buttons from '../styles/buttons.module.css';
 import dialogs from '../styles/dialogs.module.css';
-import styles from '../ui.module.css';
+import styles from './FeedbackDialog.module.css';
 
 interface FeedbackDialogProps {
   open: boolean;

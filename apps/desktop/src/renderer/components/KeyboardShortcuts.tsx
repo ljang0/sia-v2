@@ -2,7 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { KEYBOARD_SHORTCUTS } from '../shortcuts';
 import buttons from '../styles/buttons.module.css';
 import dialogs from '../styles/dialogs.module.css';
-import styles from '../ui.module.css';
+import styles from './KeyboardShortcuts.module.css';
 
 interface KeyboardShortcutsProps {
   open: boolean;

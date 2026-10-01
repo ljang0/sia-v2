@@ -10,7 +10,7 @@ import type {
 } from '../types';
 import buttons from '../styles/buttons.module.css';
 import dialogs from '../styles/dialogs.module.css';
-import styles from '../ui.module.css';
+import styles from './AgentDialog.module.css';
 import { modelChoices, firstReadyModel } from '../agentModels';
 import { voiceOptionLabel } from '../voiceReadiness';
 import { errorMessage } from '../plainErrors';
