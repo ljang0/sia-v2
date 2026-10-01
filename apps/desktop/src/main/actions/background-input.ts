@@ -1,3 +1,8 @@
+/**
+ * Which background input routes Cua Driver reports for one exact window, and what to do when
+ * one is refused.
+ */
+
 import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/action-gateway';
 import { stale } from './action-results.js';
 import type { ComputerWindowBinding } from './computer-grants.js';

@@ -1,3 +1,5 @@
+/** Builds the ActionExecutionResult shapes the backend returns, and classifies driver refusals. */
+
 import type { ActionExecutionResult } from '@sia/action-gateway';
 import { isCuaCallResult } from '../mac/cua-service.js';
 import { asRecord, compact, findNestedString, findString } from './driver-records.js';

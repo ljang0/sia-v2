@@ -1,3 +1,5 @@
+/** WorkspaceOperationError and the path and number guards every workspace service shares. */
+
 import { realpath, stat } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 

@@ -1,3 +1,5 @@
+/** URL and origin checks that keep authentication pages and private URLs away from the model. */
+
 import { collectTabRecords, findString, firstString } from './driver-records.js';
 
 const SENSITIVE_BROWSER_HOST =

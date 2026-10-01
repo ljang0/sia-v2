@@ -1,3 +1,5 @@
+/** Runs one child process with bounded output, a timeout and abort, without a shell. */
+
 import { spawn, type ChildProcess } from 'node:child_process';
 
 export interface CapturedProcessResult {
