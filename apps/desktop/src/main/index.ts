@@ -52,7 +52,7 @@ import { loadCloudConfiguration } from './cloud-config.js';
 import { DesktopController } from './controller/desktop-controller.js';
 import { KeepAwake } from './keep-awake.js';
 import { CuaService } from './cua-service.js';
-import { DesktopActionBackend } from './action-backend.js';
+import { DesktopActionBackend } from './actions/desktop-action-backend.js';
 import { CapabilitySocketHost } from './capability-host.js';
 import { registerDesktopIpc } from './ipc.js';
 import { ElectronPayloadCipher, SecureStorageUnavailableError } from './persistence.js';

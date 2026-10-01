@@ -3,7 +3,7 @@ import { mkdtemp, readFile, writeFile, symlink, link, rm } from 'node:fs/promise
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ActionGateway, DefaultActionAuthorizationPolicy } from '@sia/action-gateway';
-import { DesktopActionBackend } from './action-backend.js';
+import { DesktopActionBackend } from './actions/desktop-action-backend.js';
 
 describe('background workspace files through the action gateway', () => {
   let root: string;

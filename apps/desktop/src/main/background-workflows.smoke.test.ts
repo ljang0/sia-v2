@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { ActionGateway, DefaultActionAuthorizationPolicy } from '@sia/action-gateway';
 import { DesktopController } from './controller/desktop-controller.js';
-import { DesktopActionBackend } from './action-backend.js';
+import { DesktopActionBackend } from './actions/desktop-action-backend.js';
 import { CloudClient } from './cloud-client.js';
 import { EphemeralPayloadCipher, SqliteRecordRepository } from './persistence.js';
 import { RuntimeCoordinator } from './runtime-coordinator.js';
