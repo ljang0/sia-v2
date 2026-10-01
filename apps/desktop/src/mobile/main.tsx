@@ -138,7 +138,7 @@ function App() {
       } finally {
         clearTimeout(timeout);
         if (!disposed && active === requestController)
-          timer = setTimeout(poll, document.hidden ? 5000 : working ? 500 : 1400);
+          timer = setTimeout(() => void poll(), document.hidden ? 5000 : working ? 500 : 1400);
       }
     };
     void poll();

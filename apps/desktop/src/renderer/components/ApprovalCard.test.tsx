@@ -191,10 +191,14 @@ describe('ApprovalCard', () => {
     render(<ApprovalCard event={event} onResolve={vi.fn()} />);
     expect(screen.getByText('Preview expires in 2 minutes')).toBeTruthy();
 
-    act(() => vi.advanceTimersByTime(30_000));
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
     expect(screen.getByText('Preview expires in 1 minute')).toBeTruthy();
 
-    act(() => vi.advanceTimersByTime(60_000));
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
     expect(screen.getByText('Preview expired')).toBeTruthy();
     expect(screen.getByText('expired')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
