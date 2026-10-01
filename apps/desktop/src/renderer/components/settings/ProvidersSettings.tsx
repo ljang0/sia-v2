@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react';
 import { errorMessage, usageLeftText } from '../../plainErrors';
 import { providerStatusLabel } from '../../providerSetup';
 import type { ProviderId, ProviderSetup } from '../../types';
-import styles from '../../ui.module.css';
+import buttons from '../../styles/buttons.module.css';
+import settings from './SettingsShared.module.css';
+import styles from './ProvidersSettings.module.css';
 import { InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
 
 const RELEASE_PROVIDERS: ProviderId[] = ['codex', 'meta'];
@@ -60,19 +62,19 @@ export function ProvidersSettings({
       <InlineSettingsError
         message={error ?? (setup?.phase === 'error' ? setup.message : undefined)}
       />
-      <div className={styles.settingsList}>
+      <div className={settings.settingsList}>
         {visibleProviders.map((provider) => (
-          <div className={styles.settingsRow} key={provider.id}>
+          <div className={settings.settingsRow} key={provider.id}>
             <div
-              className={styles.providerGlyph}
+              className={settings.providerGlyph}
               data-provider={provider.id}
               data-ready={provider.status === 'ready'}
               aria-hidden="true"
             >
               <ProviderIcon provider={provider.id} />
             </div>
-            <div className={styles.settingsRowBody}>
-              <div className={styles.rowTitleLine}>
+            <div className={settings.settingsRowBody}>
+              <div className={settings.rowTitleLine}>
                 <strong>{providerName(provider)}</strong>
                 <ProviderStatusLabel provider={provider} />
               </div>
@@ -92,7 +94,7 @@ export function ProvidersSettings({
             {provider.id === 'meta' && provider.status === 'needs-login' ? (
               <button
                 type="button"
-                className={styles.primaryButton}
+                className={buttons.primaryButton}
                 disabled={busy}
                 onClick={onOpenCloudSettings}
               >
@@ -103,7 +105,7 @@ export function ProvidersSettings({
               visibleProviders.some(({ id }) => id === 'codex') ? null : (
                 <button
                   type="button"
-                  className={styles.primaryButton}
+                  className={buttons.primaryButton}
                   disabled={busy}
                   onClick={() =>
                     void run(
@@ -120,7 +122,7 @@ export function ProvidersSettings({
               provider.status === 'disabled' ? null : provider.status === 'unavailable' ? (
               <button
                 type="button"
-                className={styles.secondaryButton}
+                className={buttons.secondaryButton}
                 disabled={busy}
                 onClick={() =>
                   void run(provider, onProbe, `${providerName(provider)} could not be checked.`)
@@ -130,13 +132,13 @@ export function ProvidersSettings({
               </button>
             ) : provider.setup?.phase === 'signing-in' && onCancelProviderSetup ? (
               // A browser sign-in can stall (closed tab, wrong account). Cancel starts over.
-              <span className={styles.rowTitleLine}>
-                <button type="button" className={styles.primaryButton} disabled>
+              <span className={settings.rowTitleLine}>
+                <button type="button" className={buttons.primaryButton} disabled>
                   {pendingAction(provider)}
                 </button>
                 <button
                   type="button"
-                  className={styles.secondaryButton}
+                  className={buttons.secondaryButton}
                   onClick={() => {
                     setError(undefined);
                     void onCancelProviderSetup(provider.id).catch((cause: unknown) =>
@@ -150,7 +152,7 @@ export function ProvidersSettings({
             ) : (
               <button
                 type="button"
-                className={styles.primaryButton}
+                className={buttons.primaryButton}
                 disabled={busy}
                 onClick={() =>
                   void run(
@@ -239,7 +241,7 @@ function ProviderStatusLabel({ provider }: { provider: ProviderSetup }) {
           : 'Connected'
         : providerStatusLabel(provider);
   return (
-    <span className={`${styles.stateLabel} ${styles[`state_${provider.status}`]}`}>
+    <span className={`${settings.stateLabel} ${settings[`state_${provider.status}`]}`}>
       {provider.status === 'ready' ? <CheckCircle size={14} aria-hidden="true" /> : null}
       {label}
     </span>

@@ -1,0 +1,177 @@
+/* Shared buttons: primary, secondary, danger, text, and icon buttons. */
+
+.iconButton,
+.iconButtonSmall {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.iconButton,
+.iconButtonSmall {
+  width: 32px;
+  height: 32px;
+}
+
+.iconButton:hover,
+.iconButtonSmall:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.iconButton:active,
+.iconButtonSmall:active,
+.primaryButton:active,
+.secondaryButton:active,
+.dangerButton:active,
+.textButtonDanger:active {
+  transform: scale(0.985);
+}
+
+.iconButton:disabled,
+.iconButtonSmall:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.primaryButton,
+.secondaryButton,
+.dangerButton,
+.textButtonDanger {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
+}
+
+.primaryButton,
+.dangerButton {
+  padding: 0 16px;
+  border: 1px solid transparent;
+  background: var(--bg-accent);
+  color: var(--text-on-accent);
+  box-shadow: none;
+}
+
+.primaryButton:hover {
+  background: var(--bg-accent-hover);
+  box-shadow: none;
+}
+
+.secondaryButton {
+  padding: 0 14px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+.secondaryButton:hover {
+  border-color: color-mix(in srgb, var(--border-strong) 52%, var(--border-subtle));
+  background: var(--bg-hover);
+  box-shadow: none;
+}
+
+.dangerButton {
+  background: var(--bg-danger);
+  color: var(--text-on-danger);
+}
+
+.dangerButton:hover {
+  background: var(--bg-danger-hover);
+}
+
+.textButtonDanger {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text-danger);
+}
+
+.textButtonDanger:hover {
+  background: var(--surface-danger);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.dangerButton:disabled {
+  cursor: default;
+  opacity: 0.45;
+  transform: none;
+}
+
+.textButton {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-link);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  transition: background-color var(--motion-fast) var(--ease-standard);
+}
+
+.textButton:hover {
+  background: var(--bg-hover);
+}
+
+.textButton:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.primaryButton:active,
+.secondaryButton:active,
+.dangerButton:active {
+  box-shadow: none;
+  transform: scale(0.985);
+}
+
+@media (prefers-contrast: more) {
+  .primaryButton,
+  .secondaryButton,
+  .dangerButton {
+    border-width: 2px;
+  }
+}
+
+@media (forced-colors: active) {
+  .primaryButton,
+  .secondaryButton,
+  .dangerButton {
+    border: 1px solid ButtonText;
+    forced-color-adjust: auto;
+  }
+}

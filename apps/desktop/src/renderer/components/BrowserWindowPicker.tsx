@@ -1,6 +1,6 @@
 import { ArrowRight, Browser } from '@phosphor-icons/react';
 import type { BrowserWindowChoice } from '../types';
-import styles from '../ui.module.css';
+import styles from './BrowserWindowPicker.module.css';
 
 export function BrowserWindowPicker({
   windows,

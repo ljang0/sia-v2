@@ -1,0 +1,87 @@
+.starterPrompts {
+  display: grid;
+  width: 100%;
+  gap: 8px;
+  margin-top: 24px;
+  text-align: left;
+}
+
+.starterPrompts button {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px 10px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-surface);
+  background: color-mix(in srgb, var(--bg-raised) 94%, transparent);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 200ms var(--ease-standard),
+    border-color 200ms var(--ease-standard),
+    transform 220ms var(--ease-out-soft),
+    box-shadow 220ms var(--ease-out-soft);
+}
+
+.starterPrompts button:hover {
+  border-color: var(--border-control);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-raised);
+  transform: translateY(-1px);
+}
+
+.starterPrompts button:active {
+  transform: translateY(0);
+}
+
+.starterIcon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-control);
+  background: var(--agent-soft);
+  color: var(--text-primary);
+}
+
+.starterText {
+  display: grid;
+  gap: 1px;
+}
+
+.starterText strong {
+  font-size: var(--text-md);
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.starterText span {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.starterArrow {
+  color: var(--text-tertiary);
+  transition:
+    transform 220ms var(--ease-out-soft),
+    color 220ms ease;
+}
+
+.starterPrompts button:hover .starterArrow {
+  color: var(--text-primary);
+  transform: translate(2px, -2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .starterPrompts button,
+  .starterArrow {
+    transition: none;
+  }
+  .starterPrompts button:hover {
+    transform: none;
+  }
+}

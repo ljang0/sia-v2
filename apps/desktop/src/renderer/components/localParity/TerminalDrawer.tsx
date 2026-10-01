@@ -1,7 +1,9 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { CaretRight, Command, Play, SpinnerGap, Stop, X } from '@phosphor-icons/react';
 import { useEffect, useId, useRef, useState, type FormEvent, type RefObject } from 'react';
-import styles from '../../ui.module.css';
+import buttons from '../../styles/buttons.module.css';
+import primitives from '../../styles/primitives.module.css';
+import styles from './TerminalDrawer.module.css';
 import type { BackgroundTerminal } from '../../types';
 
 interface TerminalRunRequest {
@@ -86,7 +88,7 @@ export function TerminalDrawer({
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
-              <button type="button" className={styles.iconButton} aria-label="Close terminal">
+              <button type="button" className={buttons.iconButton} aria-label="Close terminal">
                 <X size={17} aria-hidden="true" />
               </button>
             </Dialog.Close>
@@ -95,7 +97,7 @@ export function TerminalDrawer({
           <form className={styles.terminalForm} onSubmit={submit}>
             <label>
               <Command size={16} aria-hidden="true" />
-              <span className={styles.visuallyHidden}>Command</span>
+              <span className={primitives.visuallyHidden}>Command</span>
               <input
                 ref={commandInput}
                 value={command}
@@ -109,12 +111,12 @@ export function TerminalDrawer({
             </label>
             <button
               type="submit"
-              className={styles.primaryButton}
+              className={buttons.primaryButton}
               disabled={run.status === 'running' || !command.trim()}
               data-testid="terminal-run"
             >
               {run.status === 'running' ? (
-                <SpinnerGap className={styles.spin} size={14} aria-hidden="true" />
+                <SpinnerGap className={primitives.spin} size={14} aria-hidden="true" />
               ) : (
                 <Play size={14} aria-hidden="true" />
               )}
@@ -123,7 +125,7 @@ export function TerminalDrawer({
             {onStartBackground ? (
               <button
                 type="button"
-                className={styles.secondaryButton}
+                className={buttons.secondaryButton}
                 disabled={run.status === 'running' || backgroundStarting || !command.trim()}
                 onClick={() => {
                   const value = command.trim();
@@ -132,7 +134,7 @@ export function TerminalDrawer({
                 data-testid="terminal-start-background"
               >
                 {backgroundStarting ? (
-                  <SpinnerGap className={styles.spin} size={14} aria-hidden="true" />
+                  <SpinnerGap className={primitives.spin} size={14} aria-hidden="true" />
                 ) : (
                   <Play size={14} aria-hidden="true" />
                 )}
@@ -179,7 +181,7 @@ export function TerminalDrawer({
                     {session.status === 'running' && onStopBackground ? (
                       <button
                         type="button"
-                        className={styles.iconButtonSmall}
+                        className={buttons.iconButtonSmall}
                         onClick={() => void onStopBackground(session.id)}
                         aria-label={`Stop ${session.command}`}
                         data-testid="background-terminal-stop"
@@ -209,7 +211,7 @@ export function TerminalDrawer({
                         aria-label={`Input for ${session.command}`}
                         data-testid="background-terminal-input"
                       />
-                      <button type="submit" className={styles.secondaryButton}>
+                      <button type="submit" className={buttons.secondaryButton}>
                         Send
                       </button>
                     </form>

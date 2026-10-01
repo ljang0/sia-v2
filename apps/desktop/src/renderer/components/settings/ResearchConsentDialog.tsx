@@ -1,7 +1,10 @@
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { CheckCircle, ShieldCheck, WarningCircle } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
-import styles from '../../ui.module.css';
+import buttons from '../../styles/buttons.module.css';
+import dialogs from '../../styles/dialogs.module.css';
+import settings from './SettingsShared.module.css';
+import styles from './ResearchConsentDialog.module.css';
 import {} from './SettingsShared';
 import { errorMessage } from '../../plainErrors';
 
@@ -60,14 +63,16 @@ export function ResearchConsentDialog({
     >
       {showTrigger ? (
         <AlertDialog.Trigger asChild>
-          <button type="button" className={styles.primaryButton}>
+          <button type="button" className={buttons.primaryButton}>
             Review & enable
           </button>
         </AlertDialog.Trigger>
       ) : null}
       <AlertDialog.Portal>
-        <AlertDialog.Overlay className={styles.dialogOverlay} />
-        <AlertDialog.Content className={styles.alertDialogContent}>
+        <AlertDialog.Overlay className={dialogs.dialogOverlay} />
+        <AlertDialog.Content
+          className={`${dialogs.alertDialogContent} ${styles.consentDialog}`}
+        >
           {researchRequired ? (
             <span className={styles.onboardingStep}>Sia research alpha</span>
           ) : null}
@@ -129,16 +134,16 @@ export function ResearchConsentDialog({
           </div>
 
           {error ? (
-            <div ref={errorRef} className={styles.dialogError} role="alert" tabIndex={-1}>
+            <div ref={errorRef} className={settings.dialogError} role="alert" tabIndex={-1}>
               <WarningCircle size={16} aria-hidden="true" />
               {error}
             </div>
           ) : null}
 
-          <div className={styles.dialogActions}>
+          <div className={dialogs.dialogActions}>
             <button
               type="button"
-              className={styles.secondaryButton}
+              className={buttons.secondaryButton}
               disabled={Boolean(saving)}
               onClick={() => void decide('decline')}
             >
@@ -150,7 +155,7 @@ export function ResearchConsentDialog({
             </button>
             <button
               type="button"
-              className={styles.primaryButton}
+              className={buttons.primaryButton}
               disabled={Boolean(saving)}
               onClick={() => void decide('accept')}
             >

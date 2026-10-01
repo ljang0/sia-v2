@@ -1,4 +1,4 @@
-import styles from '../ui.module.css';
+import styles from './SiaMark.module.css';
 import { SiaMark, type SiaMarkState } from './SiaMark';
 
 export type SiaPresenceState = SiaMarkState;

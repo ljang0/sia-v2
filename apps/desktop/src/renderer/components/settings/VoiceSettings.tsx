@@ -1,7 +1,9 @@
 import { ArrowClockwise, CheckCircle, ShieldCheck, SpeakerHigh } from '@phosphor-icons/react';
 import { useState } from 'react';
 import type { VoiceSettingsState } from '../../types';
-import styles from '../../ui.module.css';
+import buttons from '../../styles/buttons.module.css';
+import settings from './SettingsShared.module.css';
+import styles from './VoiceSettings.module.css';
 import {
   InlineSettingsError,
   SavedNote,
@@ -72,7 +74,7 @@ export function VoiceSettings({
     >
       <InlineSettingsError message={error} />
       {onStartSetup && voice.status !== 'connected' ? (
-        <button className={styles.secondaryButton} onClick={onStartSetup}>
+        <button className={buttons.secondaryButton} onClick={onStartSetup}>
           Walk me through setup
         </button>
       ) : null}
@@ -91,7 +93,7 @@ export function VoiceSettings({
             </div>
           </div>
 
-          <label className={styles.voiceSelect}>
+          <label className={settings.voiceSelect}>
             <span>
               Voice <SavedNote show={voiceSaved} />
             </span>
@@ -112,12 +114,12 @@ export function VoiceSettings({
             </select>
           </label>
 
-          <details className={styles.settingsDisclosure}>
+          <details className={settings.settingsDisclosure}>
             <summary>Manage voices</summary>
             <div className={styles.voiceActions}>
               <button
                 type="button"
-                className={styles.secondaryButton}
+                className={buttons.secondaryButton}
                 disabled={Boolean(pending)}
                 onClick={() => void run('refresh', onRefresh)}
               >
@@ -126,7 +128,7 @@ export function VoiceSettings({
               </button>
               <button
                 type="button"
-                className={styles.textButtonDanger}
+                className={buttons.textButtonDanger}
                 disabled={Boolean(pending)}
                 onClick={() => void run('disconnect', onDisconnect)}
               >
@@ -149,7 +151,7 @@ export function VoiceSettings({
             </p>
             <button
               type="button"
-              className={styles.primaryButton}
+              className={buttons.primaryButton}
               disabled={Boolean(pending)}
               onClick={() => void run('connect', onConfigure)}
             >
@@ -164,14 +166,14 @@ export function VoiceSettings({
         </div>
       )}
       {pushToTalk && (pushToTalk.available || pushToTalk.enabled) && onConfigurePushToTalk ? (
-        <div className={styles.voiceShortcut}>
+        <div className={settings.voiceShortcut}>
           <div className={styles.voiceSetupBody}>
             {voice.dictationDetail ? (
               <p className={styles.voicePrivacyNote} role="status">
                 {voice.dictationDetail}
               </p>
             ) : null}
-            <label className={styles.voicePreference}>
+            <label className={settings.voicePreference}>
               <span>
                 <strong>Hold Fn to talk to Sia</strong>
                 <small>
@@ -194,7 +196,7 @@ export function VoiceSettings({
                 }}
               />
             </label>
-            <label className={styles.voicePreference}>
+            <label className={settings.voicePreference}>
               <span>
                 <strong>Speak Fn replies</strong>
                 <small>
@@ -212,7 +214,7 @@ export function VoiceSettings({
                 }}
               />
             </label>
-            <label className={styles.voiceSelect}>
+            <label className={settings.voiceSelect}>
               <span>Voice agent when Sia is in the background</span>
               <select
                 value={agentId ?? ''}
@@ -246,7 +248,7 @@ export function VoiceSettings({
           </div>
         </div>
       ) : null}
-      <label className={styles.voicePreference}>
+      <label className={settings.voicePreference}>
         <span>
           <strong>
             Completion sound <SavedNote show={soundSaved} />

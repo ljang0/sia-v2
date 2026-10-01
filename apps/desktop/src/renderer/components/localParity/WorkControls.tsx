@@ -1,7 +1,11 @@
 import { CaretDown, CheckCircle, Flag, Pause, Play } from '@phosphor-icons/react';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { ThreadGoal } from '../../types';
-import styles from '../../ui.module.css';
+import buttons from '../../styles/buttons.module.css';
+import dialogs from '../../styles/dialogs.module.css';
+import surface from './localParity.module.css';
+import primitives from '../../styles/primitives.module.css';
+import styles from './WorkControls.module.css';
 
 interface SelectOption {
   id: string;
@@ -137,10 +141,10 @@ export function GoalControls({
 
   if (goal) {
     return (
-      <section className={styles.goalControl} aria-labelledby={`${inputId}-title`}>
-        <div className={styles.localSurfaceHeader}>
+      <section className={surface.goalControl} aria-labelledby={`${inputId}-title`}>
+        <div className={surface.localSurfaceHeader}>
           <div>
-            <span className={styles.sectionLabel}>Goal for this conversation</span>
+            <span className={primitives.sectionLabel}>Goal for this conversation</span>
             <h2 id={`${inputId}-title`}>{goal.text}</h2>
           </div>
           <span className={styles.goalStatus} data-status={goal.status}>
@@ -156,7 +160,7 @@ export function GoalControls({
           {goal.status === 'running' ? (
             <button
               type="button"
-              className={styles.secondaryButton}
+              className={buttons.secondaryButton}
               disabled={busy}
               onClick={() => void onPauseGoal()}
             >
@@ -166,7 +170,7 @@ export function GoalControls({
           ) : (
             <button
               type="button"
-              className={styles.secondaryButton}
+              className={buttons.secondaryButton}
               disabled={busy}
               onClick={() => void onResumeGoal()}
             >
@@ -176,7 +180,7 @@ export function GoalControls({
           )}
           <button
             type="button"
-            className={styles.textButtonDanger}
+            className={buttons.textButtonDanger}
             disabled={busy}
             onClick={() => void onClearGoal()}
           >
@@ -195,10 +199,14 @@ export function GoalControls({
   };
 
   return (
-    <form className={styles.goalControl} onSubmit={submit} aria-labelledby={`${inputId}-title`}>
-      <div className={styles.localSurfaceHeader}>
+    <form
+      className={surface.goalControl}
+      onSubmit={submit}
+      aria-labelledby={`${inputId}-title`}
+    >
+      <div className={surface.localSurfaceHeader}>
         <div>
-          <span className={styles.sectionLabel}>Goal for this conversation</span>
+          <span className={primitives.sectionLabel}>Goal for this conversation</span>
           <h2 id={`${inputId}-title`}>Keep a long task on course</h2>
           <p className={styles.goalIntro}>
             Name the finish line and Sia keeps it in view while it works.
@@ -206,7 +214,7 @@ export function GoalControls({
         </div>
         <Flag size={18} aria-hidden="true" />
       </div>
-      <label className={styles.localField} htmlFor={inputId}>
+      <label className={dialogs.localField} htmlFor={inputId}>
         <span>Goal</span>
         <input
           data-testid="goal-title-input"
@@ -218,7 +226,7 @@ export function GoalControls({
         />
       </label>
       <button
-        className={styles.primaryButton}
+        className={`${buttons.primaryButton} ${surface.goalSubmit}`}
         type="submit"
         disabled={busy || !draft.trim()}
         data-testid="goal-save"

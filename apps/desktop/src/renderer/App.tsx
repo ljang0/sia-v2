@@ -59,7 +59,10 @@ import {
 } from './components/effects/use-view-transition';
 import './tokens.css';
 import companion from './companion.module.css';
-import styles from './ui.module.css';
+import layout from './styles/layout.module.css';
+import buttons from './styles/buttons.module.css';
+import errorBoundary from './components/ErrorBoundary.module.css';
+import styles from './App.module.css';
 import { useTextSize } from './textSize';
 
 const AuditGallery = lazy(() => import('./audit/AuditGallery'));
@@ -250,11 +253,15 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   }
   if (app.fatalError) {
     return (
-      <div className={styles.fatalState} role="alert">
+      <div className={errorBoundary.fatalState} role="alert">
         <WarningCircle size={26} aria-hidden="true" />
         <h1>Sia needs to reconnect</h1>
         <p>{app.fatalError}</p>
-        <button type="button" className={styles.primaryButton} onClick={app.retry}>
+        <button
+          type="button"
+          className={`${buttons.primaryButton} ${errorBoundary.fatalAction}`}
+          onClick={app.retry}
+        >
           Try again
         </button>
       </div>
@@ -375,7 +382,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   const content = (
     <div
       data-appearance={snapshot.preferences.appearance ?? 'expressive'}
-      className={`${styles.appShell} ${companion.companionShell}`}
+      className={`${layout.appShell} ${companion.companionShell}`}
     >
       <Sidebar
         agents={snapshot.agents}
@@ -551,15 +558,15 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               }}
             />
           ) : app.activityOpen ? (
-            <main className={styles.activityPage}>
-              <header className={styles.activityPageHeader}>
+            <main className={layout.activityPage}>
+              <header className={layout.activityPageHeader}>
                 <div>
                   <h1>Activity</h1>
                   <p>What your agents are doing, and anything waiting for you.</p>
                 </div>
                 <button
                   type="button"
-                  className={styles.iconButton}
+                  className={buttons.iconButton}
                   onClick={app.closeActivity}
                   aria-label="Close activity"
                 >

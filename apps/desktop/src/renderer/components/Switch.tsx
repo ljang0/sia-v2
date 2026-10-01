@@ -1,5 +1,5 @@
 import type { InputHTMLAttributes } from 'react';
-import styles from '../ui.module.css';
+import styles from './Switch.module.css';
 
 /**
  * The one on/off control for settings. It is a native checkbox with the switch role, so labels,

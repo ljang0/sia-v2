@@ -2,7 +2,7 @@ import { Archive, Check, CloudSlash, Copy, WarningCircle } from '@phosphor-icons
 import { useEffect, useRef, useState } from 'react';
 import { ARCHIVE_UNDO_MS, type useAppController } from '../useAppController';
 import { plainError } from '../plainErrors';
-import styles from '../ui.module.css';
+import styles from './AppStates.module.css';
 
 type AppController = ReturnType<typeof useAppController>;
 

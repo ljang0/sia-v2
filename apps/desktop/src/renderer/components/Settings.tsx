@@ -18,7 +18,9 @@ import {
 } from '@phosphor-icons/react';
 import { type RefObject, useEffect, useRef, useState } from 'react';
 import type { AppConnection, ProviderId, RendererApi, RendererSnapshot } from '../types';
-import styles from '../ui.module.css';
+import buttons from '../styles/buttons.module.css';
+import primitives from '../styles/primitives.module.css';
+import styles from './Settings.module.css';
 import { AssistantSettings } from './settings/AssistantSettings';
 import { AboutSettings } from './settings/AboutSettings';
 import { AdvancedSettings } from './settings/AdvancedSettings';
@@ -195,7 +197,7 @@ export function Settings({
         </div>
         <button
           type="button"
-          className={styles.iconButton}
+          className={buttons.iconButton}
           onClick={onClose}
           aria-label="Close settings"
           title="Close settings"
@@ -282,7 +284,7 @@ export function Settings({
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>
               <DropdownMenu.Content
-                className={styles.threadMenuContent}
+                className={primitives.threadMenuContent}
                 align="end"
                 sideOffset={6}
               >
@@ -555,7 +557,7 @@ function SettingsMenuItem({
   onSelect(): void;
 }) {
   return (
-    <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onSelect}>
+    <DropdownMenu.Item className={primitives.threadMenuItem} onSelect={onSelect}>
       <span aria-hidden="true">{icon}</span>
       {label}
     </DropdownMenu.Item>

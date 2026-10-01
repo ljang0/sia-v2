@@ -1,0 +1,63 @@
+.consentSummary {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0 14px;
+}
+
+.consentSummary > div {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+}
+
+.consentSummary svg {
+  margin-top: 1px;
+  color: var(--text-secondary);
+}
+
+.consentSummary strong {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--text-primary);
+  font-size: var(--text-md);
+}
+
+.consentDialog .consentFootnote {
+  padding-top: 13px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+}
+
+.consentFacts {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 14px;
+  padding-left: 16px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.consentFacts li::marker {
+  color: var(--text-tertiary);
+}
+
+.consentDialog .consentFactsLabel {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.onboardingStep {
+  display: block;
+  margin-bottom: 12px;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}

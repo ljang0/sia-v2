@@ -1,0 +1,34 @@
+.statusMark {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.statusMark svg {
+  width: 14px;
+  height: 14px;
+}
+
+.status_running {
+  color: var(--text-primary);
+}
+
+.status_queued,
+.status_waiting {
+  color: var(--text-warning);
+}
+
+.status_error {
+  color: var(--text-secondary);
+}
+
+.status_error > svg {
+  color: var(--text-danger);
+}
+
+.status_complete {
+  color: var(--text-success);
+}

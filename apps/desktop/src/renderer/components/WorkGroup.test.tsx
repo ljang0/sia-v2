@@ -6,7 +6,7 @@ import type { ActivityEvent, ThreadEvent } from '../types';
 import { ActivityRow } from './ActivityRow';
 import { conversationBlocks } from './Conversation';
 import { elapsed, planProgress, WorkGroup, WorkingStatus } from './WorkGroup';
-import styles from '../ui.module.css';
+import activityRow from './ActivityRow.module.css';
 
 afterEach(cleanup);
 
@@ -105,7 +105,7 @@ describe('work groups', () => {
 
   it('marks a failed step with the danger icon', () => {
     const { container } = render(<ActivityRow event={step('failed', { status: 'error' })} />);
-    expect(container.querySelector(`svg.${styles.activityErrorIcon}`)).not.toBeNull();
+    expect(container.querySelector(`svg.${activityRow.activityErrorIcon}`)).not.toBeNull();
   });
 });
 

@@ -2,7 +2,10 @@ import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { ArrowLeft, Key, LockKey } from '@phosphor-icons/react';
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
 import type { RendererSnapshot } from '../../types';
-import styles from '../../ui.module.css';
+import buttons from '../../styles/buttons.module.css';
+import dialogs from '../../styles/dialogs.module.css';
+import settings from './SettingsShared.module.css';
+import styles from './CloudAccountSettings.module.css';
 import { InlineSettingsError } from './SettingsShared';
 import { errorMessage } from '../../plainErrors';
 
@@ -94,7 +97,7 @@ export function CloudAccountSettings({
 
   return (
     <div
-      className={styles.cloudIdentity}
+      className={settings.cloudIdentity}
       aria-labelledby={
         !autoFocusEmail || cloudAuth.state === 'signed-in' ? `${formId}-title` : undefined
       }
@@ -103,7 +106,7 @@ export function CloudAccountSettings({
       }
     >
       {!autoFocusEmail || cloudAuth.state === 'signed-in' ? (
-        <div className={styles.cloudIdentityHeader}>
+        <div className={settings.cloudIdentityHeader}>
           <div>
             <strong id={`${formId}-title`}>Sia cloud account</strong>
             <p>{accountDescription(cloudAuth)}</p>
@@ -111,7 +114,7 @@ export function CloudAccountSettings({
           {cloudAuth.state === 'signed-in' ? (
             <button
               type="button"
-              className={styles.secondaryButton}
+              className={buttons.secondaryButton}
               disabled={Boolean(pending)}
               onClick={() =>
                 void run('sign-out', onSignOutCloud, 'Sia could not sign out safely.')
@@ -125,7 +128,7 @@ export function CloudAccountSettings({
 
       {cloudAuth.state === 'signed-out' ? (
         <form className={styles.cloudIdentityForm} onSubmit={start}>
-          <label className={styles.field}>
+          <label className={dialogs.field}>
             <span>Email</span>
             <input
               type="email"
@@ -139,7 +142,11 @@ export function CloudAccountSettings({
               required
             />
           </label>
-          <button type="submit" className={styles.primaryButton} disabled={Boolean(pending)}>
+          <button
+            type="submit"
+            className={`${buttons.primaryButton} ${styles.formSubmit}`}
+            disabled={Boolean(pending)}
+          >
             {pending === 'auth-start' ? 'Sending...' : 'Email me a sign-in code'}
           </button>
           <p className={styles.accountTerms}>
@@ -164,7 +171,7 @@ export function CloudAccountSettings({
       cloudAuth.state === 'password-required' ||
       cloudAuth.state === 'mfa-required' ? (
         <form className={styles.cloudIdentityForm} onSubmit={verify}>
-          <div className={styles.field}>
+          <div className={dialogs.field}>
             <label htmlFor={`${formId}-code`}>
               {cloudAuth.state === 'password-required'
                 ? 'Administrator password'
@@ -222,7 +229,11 @@ export function CloudAccountSettings({
                   : `Sent to ${cloudAuth.email ?? email}. Codes contain 6-10 digits.`}
             </small>
           </div>
-          <button type="submit" className={styles.primaryButton} disabled={Boolean(pending)}>
+          <button
+            type="submit"
+            className={`${buttons.primaryButton} ${styles.formSubmit}`}
+            disabled={Boolean(pending)}
+          >
             {pending === 'auth-complete'
               ? 'Checking...'
               : cloudAuth.state === 'password-required'
@@ -234,7 +245,7 @@ export function CloudAccountSettings({
           {cloudAuth.state === 'code-sent' ? (
             <button
               type="button"
-              className={styles.textButton}
+              className={`${buttons.textButton} ${styles.formLink}`}
               disabled={Boolean(pending)}
               onClick={() => {
                 setCode('');
@@ -250,7 +261,7 @@ export function CloudAccountSettings({
           ) : null}
           <button
             type="button"
-            className={styles.textButton}
+            className={`${buttons.textButton} ${styles.formLink}`}
             disabled={Boolean(pending)}
             onClick={() => void run('sign-out', onSignOutCloud, 'Sia could not reset sign-in.')}
           >
@@ -261,7 +272,7 @@ export function CloudAccountSettings({
       ) : null}
 
       {cloudAuth.state === 'unconfigured' ? (
-        <div className={styles.cloudUnavailable} role="status">
+        <div className={settings.cloudUnavailable} role="status">
           Local mode is ready. No Sia account or cloud credits are required.
         </div>
       ) : null}
@@ -338,11 +349,11 @@ function AdminMfaSetup({
               .finally(() => setPending(false));
           }}
         >
-          <label className={styles.field}>
+          <label className={dialogs.field}>
             <span>Manual setup key</span>
             <code className={styles.mfaSecret}>{secret}</code>
           </label>
-          <label className={styles.field}>
+          <label className={dialogs.field}>
             <span>6-digit authenticator code</span>
             <input
               inputMode="numeric"
@@ -358,7 +369,7 @@ function AdminMfaSetup({
             />
           </label>
           <button
-            className={styles.primaryButton}
+            className={buttons.primaryButton}
             type="submit"
             disabled={pending || code.length !== 6}
           >
@@ -368,7 +379,7 @@ function AdminMfaSetup({
       ) : (
         <button
           type="button"
-          className={styles.primaryButton}
+          className={buttons.primaryButton}
           disabled={pending}
           onClick={() => {
             setPending(true);
@@ -423,13 +434,13 @@ function DeleteCloudAccountDialog({
         }}
       >
         <AlertDialog.Trigger asChild>
-          <button type="button" className={styles.textButtonDanger}>
+          <button type="button" className={buttons.textButtonDanger}>
             Delete account
           </button>
         </AlertDialog.Trigger>
         <AlertDialog.Portal>
-          <AlertDialog.Overlay className={styles.dialogOverlay} />
-          <AlertDialog.Content className={styles.alertDialogContent}>
+          <AlertDialog.Overlay className={dialogs.dialogOverlay} />
+          <AlertDialog.Content className={dialogs.alertDialogContent}>
             <AlertDialog.Title>Delete your Sia cloud account?</AlertDialog.Title>
             <AlertDialog.Description>
               Sia first waits for the cloud deletion job to remove synced research, staged
@@ -453,19 +464,19 @@ function DeleteCloudAccountDialog({
               />
             </label>
             {error ? (
-              <div ref={errorRef} className={styles.dialogError} role="alert" tabIndex={-1}>
+              <div ref={errorRef} className={settings.dialogError} role="alert" tabIndex={-1}>
                 {error}
               </div>
             ) : null}
-            <div className={styles.dialogActions}>
+            <div className={dialogs.dialogActions}>
               <AlertDialog.Cancel asChild>
-                <button type="button" className={styles.secondaryButton} disabled={deleting}>
+                <button type="button" className={buttons.secondaryButton} disabled={deleting}>
                   Cancel
                 </button>
               </AlertDialog.Cancel>
               <button
                 type="button"
-                className={styles.dangerButton}
+                className={buttons.dangerButton}
                 disabled={deleting || confirmation !== 'DELETE ACCOUNT'}
                 onClick={async () => {
                   if (confirmation !== 'DELETE ACCOUNT') return;

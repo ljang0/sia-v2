@@ -12,7 +12,11 @@ import {
 } from '@phosphor-icons/react';
 import { useEffect, useId, useState } from 'react';
 import type { WorkspaceSnapshot } from '../../types';
-import styles from '../../ui.module.css';
+import buttons from '../../styles/buttons.module.css';
+import dialogs from '../../styles/dialogs.module.css';
+import surface from './localParity.module.css';
+import primitives from '../../styles/primitives.module.css';
+import styles from './ChangesReview.module.css';
 import { shortDateTime } from '../../format';
 
 export interface ChangedFile {
@@ -63,10 +67,10 @@ export function ChangesReview({
   }, [files, selected]);
 
   return (
-    <section className={styles.changesReview} aria-labelledby={titleId}>
-      <div className={styles.localSurfaceHeader}>
+    <section className={surface.changesReview} aria-labelledby={titleId}>
+      <div className={surface.localSurfaceHeader}>
         <div>
-          <span className={styles.sectionLabel} title={workspace}>
+          <span className={primitives.sectionLabel} title={workspace}>
             Workspace · {workspace.split('/').filter(Boolean).at(-1) ?? workspace}
           </span>
           <h2 id={titleId}>Changes</h2>
@@ -79,7 +83,7 @@ export function ChangesReview({
           {onReview && files.length ? (
             <button
               type="button"
-              className={styles.secondaryButton}
+              className={buttons.secondaryButton}
               onClick={() => void onReview()}
               disabled={reviewing}
               data-testid="code-review-start"
@@ -91,7 +95,7 @@ export function ChangesReview({
           {onCreateSnapshot && files.length ? (
             <button
               type="button"
-              className={styles.secondaryButton}
+              className={buttons.secondaryButton}
               onClick={() => void onCreateSnapshot()}
               disabled={Boolean(snapshotBusy)}
               data-testid="workspace-snapshot-create"
@@ -115,7 +119,7 @@ export function ChangesReview({
                 <span>
                   <button
                     type="button"
-                    className={styles.textButton}
+                    className={`${buttons.textButton} ${styles.snapshotAction}`}
                     disabled={Boolean(snapshotBusy) || files.length > 0}
                     title={files.length ? 'Restore into a clean workspace' : 'Restore snapshot'}
                     onClick={() => void onRestoreSnapshot?.(snapshot.id)}
@@ -125,7 +129,7 @@ export function ChangesReview({
                   </button>
                   <button
                     type="button"
-                    className={styles.textButtonDanger}
+                    className={`${buttons.textButtonDanger} ${styles.snapshotAction}`}
                     disabled={Boolean(snapshotBusy)}
                     aria-label={`Delete snapshot from ${shortDateTime(snapshot.createdAt)}`}
                     onClick={() => void onDeleteSnapshot?.(snapshot.id)}
@@ -169,7 +173,7 @@ export function ChangesReview({
                 {!selected.staged ? (
                   <button
                     type="button"
-                    className={styles.secondaryButton}
+                    className={buttons.secondaryButton}
                     disabled={busyPath === selected.path}
                     onClick={() => void onStage(selected.path)}
                     data-testid="git-stage"
@@ -184,7 +188,7 @@ export function ChangesReview({
                 )}
                 <button
                   type="button"
-                  className={styles.textButtonDanger}
+                  className={buttons.textButtonDanger}
                   disabled={busyPath === selected.path}
                   onClick={() => setRestorePath(selected.path)}
                   data-testid="git-restore"
@@ -198,7 +202,7 @@ export function ChangesReview({
           </div>
         </div>
       ) : (
-        <p className={styles.localEmpty}>
+        <p className={surface.localEmpty}>
           No file changes yet. When Sia edits files in this folder, you can review them here.
         </p>
       )}
@@ -208,9 +212,9 @@ export function ChangesReview({
         onOpenChange={(open) => !open && setRestorePath(undefined)}
       >
         <AlertDialog.Portal>
-          <AlertDialog.Overlay className={styles.dialogOverlay} />
-          <AlertDialog.Content className={styles.alertDialogContent}>
-            <div className={styles.dialogIconDanger}>
+          <AlertDialog.Overlay className={dialogs.dialogOverlay} />
+          <AlertDialog.Content className={dialogs.alertDialogContent}>
+            <div>
               <ArrowCounterClockwise size={20} aria-hidden="true" />
             </div>
             <AlertDialog.Title>Discard changes to this file?</AlertDialog.Title>
@@ -218,16 +222,16 @@ export function ChangesReview({
               This restores {restorePath} from the workspace baseline. Uncommitted edits in this
               file cannot be recovered by Sia.
             </AlertDialog.Description>
-            <div className={styles.dialogActions}>
+            <div className={dialogs.dialogActions}>
               <AlertDialog.Cancel asChild>
-                <button type="button" className={styles.secondaryButton}>
+                <button type="button" className={buttons.secondaryButton}>
                   Cancel
                 </button>
               </AlertDialog.Cancel>
               <AlertDialog.Action asChild>
                 <button
                   type="button"
-                  className={styles.dangerButton}
+                  className={buttons.dangerButton}
                   onClick={() => {
                     if (restorePath) void onRestore(restorePath);
                     setRestorePath(undefined);

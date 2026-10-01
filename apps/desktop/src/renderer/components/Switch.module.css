@@ -1,0 +1,71 @@
+/* Settings on/off switch (components/Switch.tsx). */
+input[type='checkbox'].switch {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 20px;
+  flex: none;
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 70%, var(--border-subtle));
+  border-radius: var(--radius-round);
+  appearance: none;
+  background: var(--bg-subtle);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard);
+}
+
+input[type='checkbox'].switch::before {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  content: '';
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+input[type='checkbox'].switch:checked {
+  border-color: var(--bg-accent);
+  background: var(--bg-accent);
+}
+
+input[type='checkbox'].switch:checked::before {
+  background: var(--bg-canvas);
+  transform: translateX(14px);
+}
+
+input[type='checkbox'].switch:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+input[type='checkbox'].switch:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  input[type='checkbox'].switch,
+  input[type='checkbox'].switch::before {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  input[type='checkbox'].switch {
+    border-color: CanvasText;
+    background: Canvas;
+  }
+
+  input[type='checkbox'].switch::before {
+    background: CanvasText;
+  }
+
+  input[type='checkbox'].switch:checked {
+    background: Highlight;
+  }
+}

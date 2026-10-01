@@ -1,0 +1,104 @@
+.markdownCodeBlock {
+  max-width: 100%;
+  margin: 10px 0;
+  overflow: auto;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 52%, var(--border-subtle));
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--bg-subtle) 84%, var(--bg-canvas));
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+  line-height: 1.52;
+  white-space: pre;
+}
+
+.markdownCodeBlock code {
+  padding: 0;
+  background: transparent;
+  font-size: inherit;
+}
+
+.markdownList {
+  margin: 7px 0 10px;
+  padding-left: 24px;
+}
+
+.markdownList li + li {
+  margin-top: 3px;
+}
+
+.markdownHeading {
+  margin: 14px 0 6px;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  line-height: 1.4;
+}
+
+.markdownQuote {
+  margin: 9px 0;
+  padding-left: 11px;
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-secondary);
+}
+
+.markdownRule {
+  height: 1px;
+  margin: 16px 0;
+  border: 0;
+  background: var(--border-subtle);
+}
+
+.markdownTableWrap {
+  max-width: 100%;
+  margin: 10px 0 12px;
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+}
+
+.markdownTable {
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-md);
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+
+.markdownTable th,
+.markdownTable td {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: normal;
+}
+
+.markdownTable th {
+  background: var(--bg-subtle);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.markdownTable tr:last-child td {
+  border-bottom: 0;
+}
+
+.markdownTable [data-align='right'] {
+  text-align: right;
+}
+
+.markdownTable [data-align='center'] {
+  text-align: center;
+}
+
+.markdownList:has(> li > .markdownTaskBox) {
+  padding-left: 4px;
+  list-style: none;
+}
+
+.markdownTaskBox {
+  margin: 0 8px 0 0;
+  vertical-align: -1px;
+  accent-color: var(--text-success);
+}

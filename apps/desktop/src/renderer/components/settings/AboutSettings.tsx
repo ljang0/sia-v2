@@ -6,7 +6,9 @@ import {
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 import type { RendererSnapshot } from '../../types';
-import styles from '../../ui.module.css';
+import buttons from '../../styles/buttons.module.css';
+import settings from './SettingsShared.module.css';
+import primitives from '../../styles/primitives.module.css';
 import { SettingsSectionHeader } from './SettingsShared';
 
 type Updates = RendererSnapshot['updates'];
@@ -53,23 +55,23 @@ export function AboutSettings({
       title="About Sia"
       description="Your version of Sia, updates, and a quick way to tell us what you think."
     >
-      <div className={styles.settingsList}>
-        <div className={styles.settingsRow}>
+      <div className={settings.settingsList}>
+        <div className={settings.settingsRow}>
           <div
-            className={styles.providerGlyph}
+            className={settings.providerGlyph}
             data-ready={updates.status === 'current'}
             aria-hidden="true"
           >
             {updates.status === 'current' ? (
               <CheckCircle size={18} />
             ) : (
-              <ArrowClockwise size={18} className={checking ? styles.spin : undefined} />
+              <ArrowClockwise size={18} className={checking ? primitives.spin : undefined} />
             )}
           </div>
-          <div className={styles.settingsRowBody}>
-            <div className={styles.rowTitleLine}>
+          <div className={settings.settingsRowBody}>
+            <div className={settings.rowTitleLine}>
               <strong>Sia for Mac</strong>
-              <span className={styles.stateLabel}>Version {updates.currentVersion}</span>
+              <span className={settings.stateLabel}>Version {updates.currentVersion}</span>
             </div>
             <p role="status" aria-live="polite">
               {updateSummary(updates)}
@@ -78,7 +80,7 @@ export function AboutSettings({
           {updates.status === 'available' ? (
             <button
               type="button"
-              className={styles.primaryButton}
+              className={buttons.primaryButton}
               onClick={() => void onOpenUpdateDownload()}
             >
               <DownloadSimple size={15} aria-hidden="true" />
@@ -87,7 +89,7 @@ export function AboutSettings({
           ) : updates.status === 'unconfigured' ? null : (
             <button
               type="button"
-              className={styles.secondaryButton}
+              className={buttons.secondaryButton}
               disabled={checking}
               onClick={() => {
                 setPending(true);
@@ -99,17 +101,17 @@ export function AboutSettings({
           )}
         </div>
         {onOpenFeedback ? (
-          <div className={styles.settingsRow}>
-            <div className={styles.providerGlyph} aria-hidden="true">
+          <div className={settings.settingsRow}>
+            <div className={settings.providerGlyph} aria-hidden="true">
               <ChatCircleText size={18} />
             </div>
-            <div className={styles.settingsRowBody}>
-              <div className={styles.rowTitleLine}>
+            <div className={settings.settingsRowBody}>
+              <div className={settings.rowTitleLine}>
                 <strong>Feedback</strong>
               </div>
               <p>Something confusing, broken, or delightful? We read every note.</p>
             </div>
-            <button type="button" className={styles.secondaryButton} onClick={onOpenFeedback}>
+            <button type="button" className={buttons.secondaryButton} onClick={onOpenFeedback}>
               Send feedback
             </button>
           </div>

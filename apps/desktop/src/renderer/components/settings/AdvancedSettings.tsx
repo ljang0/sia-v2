@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import styles from '../../ui.module.css';
+import settings from './SettingsShared.module.css';
 import {
   InlineSettingsError,
   SavedNote,
@@ -27,7 +27,7 @@ export function AdvancedSettings({
       description="Options for people who build software. Most people can leave these off."
     >
       <InlineSettingsError message={error} />
-      <label className={styles.voicePreference}>
+      <label className={settings.voicePreference}>
         <span>
           <strong>
             Developer tools <SavedNote show={saved} />

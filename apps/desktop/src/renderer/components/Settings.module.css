@@ -1,0 +1,237 @@
+.settingsPage {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  animation: pageEnter var(--motion-standard) var(--ease-out-soft) both;
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.settingsTopbar {
+  display: flex;
+  min-height: 70px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 10px 20px 10px 28px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 74%, transparent);
+  -webkit-app-region: drag;
+}
+
+.settingsTopbar button {
+  -webkit-app-region: no-drag;
+}
+
+.settingsTopbar h1,
+.settingsTopbar p {
+  margin: 0;
+}
+
+.settingsTopbar h1 {
+  font-family: var(--font-display);
+  font-size: var(--display-sm);
+  font-weight: var(--weight-display);
+  font-variation-settings: 'opsz' 24;
+  letter-spacing: -0.02em;
+}
+
+.settingsTopbar p {
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.settingsLayout {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.settingsNav {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px clamp(16px, 2.5vw, 32px);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 76%, transparent);
+  background: var(--bg-canvas);
+}
+
+.settingsNav button {
+  display: flex;
+  min-height: 32px;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--text-md);
+  text-align: left;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.settingsNav button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.settingsNav button:active {
+  opacity: 0.72;
+  transform: none;
+}
+
+.settingsNav .settingsNavActive {
+  background: var(--bg-selected);
+  color: var(--text-primary);
+  font-weight: var(--weight-semibold);
+}
+
+.settingsContent {
+  min-height: 0;
+  container-type: inline-size;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding: 24px clamp(24px, 4vw, 48px) 40px;
+}
+
+/* Each section fades in as it opens; the content is keyed by section, so this runs per switch.
+   Backwards fill leaves no transform behind, so fixed-position children still use the viewport. */
+.settingsContent > * {
+  animation: sectionEnter var(--motion-surface) var(--ease-out-soft) backwards;
+}
+
+@keyframes sectionEnter {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.settingsTopbar {
+  min-height: var(--titlebar-height);
+  padding-right: 28px;
+  padding-left: clamp(28px, 5vw, 58px);
+  background: color-mix(in srgb, var(--hue-0) 5%, var(--bg-canvas));
+}
+
+.settingsTopbar h1 {
+  font-size: var(--display-md);
+  letter-spacing: -0.04em;
+}
+
+.settingsNav {
+  background: color-mix(in srgb, var(--hue-0) 3%, var(--bg-canvas));
+}
+
+.settingsContent {
+  max-width: 1040px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* The title, the tabs, and each section share one left edge: the section column is 900px wide,
+   centered in the pane, and never closer to the edge than the content padding. */
+.settingsPage {
+  --settings-inset: max(clamp(24px, 4vw, 48px), calc((100% - 900px) / 2));
+}
+
+.settingsTopbar {
+  padding-left: var(--settings-inset);
+}
+
+.settingsNav {
+  /* Compact tiers keep one row; wrapping is only a last resort so no tab is ever clipped. */
+  flex-wrap: wrap;
+  padding-right: calc(var(--settings-inset) - 8px);
+  /* Tab buttons have 8px of their own padding, so their icons meet the same edge. */
+  padding-left: calc(var(--settings-inset) - 8px);
+}
+
+@media (max-width: 920px) {
+  .settingsContent {
+    padding-right: 28px;
+    padding-left: 28px;
+  }
+}
+
+@media (max-width: 860px) {
+  .settingsNav {
+    padding-right: 7px;
+    padding-left: 7px;
+  }
+
+  .settingsContent {
+    padding: 24px 20px 44px;
+  }
+}
+
+@media (max-width: 600px) {
+  .settingsLayout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .settingsNav {
+    max-height: 90px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 7px;
+  }
+
+  .settingsNav button {
+    flex: none;
+    padding: 0 9px;
+  }
+
+  .settingsContent {
+    padding: 18px 16px 36px;
+  }
+
+  .settingsTopbar {
+    min-height: 68px;
+    padding: 11px 12px 10px 16px;
+  }
+
+  .settingsTopbar p {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settingsPage,
+  .settingsContent {
+    animation: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .settingsNavActive {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}

@@ -14,7 +14,9 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 're
 import { activityLabel } from '../../shared/activity-label';
 import { clipText, plainText } from '../../shared/plain-text';
 import type { ActivityEvent, ThreadEvent } from '../types';
-import styles from '../ui.module.css';
+import buttons from '../styles/buttons.module.css';
+import primitives from '../styles/primitives.module.css';
+import styles from './ConversationOutline.module.css';
 
 type OutlineStatus = ActivityEvent['status'];
 
@@ -186,7 +188,7 @@ export function ConversationOutline({
             </div>
             <button
               type="button"
-              className={styles.iconButtonSmall}
+              className={buttons.iconButtonSmall}
               onClick={() => {
                 setOpen(false);
                 requestAnimationFrame(() => triggerRef.current?.focus());
@@ -250,7 +252,9 @@ function OutlineEntry({
                   )}
                 </span>
                 <span>{step.text}</span>
-                <span className={styles.visuallyHidden}>{stepStatusLabel(step.status)}</span>
+                <span className={primitives.visuallyHidden}>
+                  {stepStatusLabel(step.status)}
+                </span>
               </button>
             </li>
           ))}
@@ -273,7 +277,7 @@ function OutlineStatus({ status }: { status: OutlineStatus }) {
       ) : (
         <Circle size={8} aria-hidden="true" />
       )}
-      <span className={styles.visuallyHidden}>{label}</span>
+      <span className={primitives.visuallyHidden}>{label}</span>
     </span>
   );
 }

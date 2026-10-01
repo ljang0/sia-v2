@@ -1,6 +1,8 @@
 import { WarningCircle } from '@phosphor-icons/react';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import styles from '../ui.module.css';
+import buttons from '../styles/buttons.module.css';
+import primitives from '../styles/primitives.module.css';
+import styles from './ErrorBoundary.module.css';
 import { FeedbackDialog } from './FeedbackDialog';
 
 interface BoundaryState {
@@ -63,14 +65,14 @@ export class AppErrorBoundary extends Component<AppBoundaryProps, AppBoundarySta
         <div className={styles.fatalActions}>
           <button
             type="button"
-            className={styles.primaryButton}
+            className={`${buttons.primaryButton} ${styles.fatalAction}`}
             onClick={() => (this.props.onReload ?? (() => window.location.reload()))()}
           >
             Reload
           </button>
           <button
             type="button"
-            className={styles.secondaryButton}
+            className={buttons.secondaryButton}
             onClick={() => void this.#copy()}
           >
             {this.state.copied ? 'Details copied' : 'Copy details'}
@@ -78,7 +80,7 @@ export class AppErrorBoundary extends Component<AppBoundaryProps, AppBoundarySta
           {onSendFeedback ? (
             <button
               type="button"
-              className={styles.secondaryButton}
+              className={buttons.secondaryButton}
               onClick={() => this.setState({ feedbackOpen: true })}
             >
               Send feedback
@@ -150,7 +152,7 @@ export class RowErrorBoundary extends Component<
   override render() {
     if (!this.state.failed) return this.props.children;
     return (
-      <div className={styles.notice} role="status" data-testid="row-error-boundary">
+      <div className={primitives.notice} role="status" data-testid="row-error-boundary">
         <WarningCircle size={17} aria-hidden="true" />
         <div>
           <strong>This message couldn’t be shown</strong>

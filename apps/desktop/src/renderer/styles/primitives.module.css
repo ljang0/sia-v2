@@ -1,0 +1,226 @@
+/* Small shared pieces (menus, notices, segmented controls, spinners) and document-wide
+   focus and motion preferences. */
+
+.threadMenuContent {
+  z-index: var(--layer-dialog);
+  min-width: 140px;
+  padding: 4px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-menu);
+}
+
+.threadMenuContent[data-state='open'] {
+  animation: menuEnter var(--motion-standard) var(--ease-standard);
+}
+
+.threadMenuContent[data-state='closed'] {
+  animation: menuExit var(--motion-fast) ease-in;
+}
+
+.threadMenuItem {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border-radius: var(--radius-tight);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: var(--text-md);
+  outline: 0;
+  transition: background-color var(--motion-fast) var(--ease-standard);
+}
+
+.threadMenuItem[data-highlighted] {
+  background: var(--bg-hover);
+}
+
+.threadMenuItem[data-disabled] {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.spin {
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.notice {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0;
+  border-left: 3px solid color-mix(in srgb, var(--text-secondary) 48%, transparent);
+  border-radius: var(--radius-control);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+
+.notice > div > strong {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--text-primary);
+  font-size: var(--text-md);
+}
+
+.notice p {
+  display: block;
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.notice_info {
+  border-left-color: var(--text-link);
+  background: var(--surface-info);
+}
+
+.notice_warning {
+  border-left-color: var(--text-warning);
+  background: var(--surface-warning);
+  color: var(--text-warning);
+}
+
+.notice_error {
+  border-left-color: var(--border-strong);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+
+.notice_error > svg {
+  color: var(--text-danger);
+}
+
+.segmentedControl {
+  display: flex;
+  padding: 3px;
+  border-radius: var(--radius-control);
+  background: var(--bg-subtle);
+}
+
+.segmentedControl button {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: var(--radius-tight);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.segmentedControl button:hover {
+  color: var(--text-primary);
+}
+
+.segmentedControl .segmentActive {
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--text-primary) 12%, transparent);
+}
+
+.sectionLabel {
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+}
+
+@keyframes menuExit {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes menuEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes statusEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.inlineError {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 10px 11px;
+  border: 0;
+  border-left: 3px solid var(--text-danger);
+  border-radius: var(--radius-control);
+  background: var(--surface-danger);
+  color: var(--text-danger);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  animation: statusEnter var(--motion-standard) var(--ease-out-soft) both;
+}
+
+.inlineError svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.inlineError p {
+  margin: 2px 0 0;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(button, a, input, textarea, select, summary) {
+    transition-duration: 0.01ms;
+  }
+
+  .threadMenuContent,
+  .spin,
+  .inlineError {
+    animation: none;
+  }
+}
+
+/* Bundled ahead of the Settings and Sidebar modules and tokens.css, so their
+   selected-state outlines and the :focus-visible ring still win over this fallback. */
+@media (forced-colors: active) {
+  :focus {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+}

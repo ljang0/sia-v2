@@ -1,0 +1,80 @@
+.fatalState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  text-align: center;
+}
+
+.fatalActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.fatalState .fatalActions .fatalAction {
+  margin-top: 0;
+}
+
+.fatalIcon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border-radius: 18px;
+  background: var(--surface-danger);
+  color: var(--text-danger);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .fatalState > * {
+    animation: statusEnter var(--motion-surface) var(--ease-out-soft) both;
+  }
+}
+
+.fatalState h1 {
+  margin: 18px 0 8px;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: var(--display-lg);
+  font-weight: var(--weight-display);
+  font-variation-settings: 'opsz' 60;
+  letter-spacing: var(--tracking-display);
+  line-height: 1.12;
+  text-wrap: balance;
+}
+
+.fatalState p {
+  max-width: 400px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.fatalState .fatalAction {
+  margin-top: 22px;
+}
+
+.fatalState {
+  width: 100%;
+  height: 100%;
+  padding: 32px;
+  background: var(--bg-canvas);
+  color: var(--text-danger);
+}
+
+@keyframes statusEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

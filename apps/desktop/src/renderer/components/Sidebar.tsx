@@ -29,7 +29,10 @@ import {
   useState,
 } from 'react';
 import type { AgentSummary, ThreadSummary } from '../types';
-import styles from '../ui.module.css';
+import buttons from '../styles/buttons.module.css';
+import dialogs from '../styles/dialogs.module.css';
+import primitives from '../styles/primitives.module.css';
+import styles from './Sidebar.module.css';
 import { focusComposer } from '../composerFocus';
 import { sidebarAgentOrder, sidebarThreadOrder } from '../shortcuts';
 import { AgentForm } from './AgentForm';
@@ -216,7 +219,7 @@ export function Sidebar({
       >
         <div className={styles.sidebarCollapsedTitlebar} aria-hidden="true" />
         <button
-          className={styles.iconButton}
+          className={`${buttons.iconButton} ${styles.shellIconButton}`}
           type="button"
           onClick={onToggle}
           aria-label="Expand sidebar"
@@ -226,7 +229,7 @@ export function Sidebar({
         </button>
         {selectedAgent && (
           <button
-            className={styles.iconButton}
+            className={`${buttons.iconButton} ${styles.shellIconButton}`}
             type="button"
             onClick={() => onCreateThread(selectedAgent.id)}
             aria-label="New conversation"
@@ -237,7 +240,7 @@ export function Sidebar({
         )}
         {onOpenQuickSwitcher && (
           <button
-            className={styles.iconButton}
+            className={`${buttons.iconButton} ${styles.shellIconButton}`}
             type="button"
             onClick={onOpenQuickSwitcher}
             aria-label="Search conversations"
@@ -265,7 +268,7 @@ export function Sidebar({
           ))}
         </div>
         <button
-          className={styles.iconButton}
+          className={`${buttons.iconButton} ${styles.shellIconButton}`}
           type="button"
           onClick={onCreateAgent}
           aria-label="Create agent"
@@ -275,7 +278,7 @@ export function Sidebar({
         </button>
         {onOpenActivity && (
           <button
-            className={styles.iconButton}
+            className={`${buttons.iconButton} ${styles.shellIconButton}`}
             type="button"
             onClick={onOpenActivity}
             aria-label="Activity"
@@ -287,7 +290,7 @@ export function Sidebar({
         )}
         {onOpenScheduled && (
           <button
-            className={styles.iconButton}
+            className={`${buttons.iconButton} ${styles.shellIconButton}`}
             type="button"
             onClick={onOpenScheduled}
             aria-label="Scheduled"
@@ -298,7 +301,7 @@ export function Sidebar({
           </button>
         )}
         <button
-          className={styles.iconButton}
+          className={`${buttons.iconButton} ${styles.shellIconButton}`}
           type="button"
           aria-current={activePage === 'settings' ? 'page' : undefined}
           onClick={onOpenSettings}
@@ -322,7 +325,7 @@ export function Sidebar({
           <SiaLogo />
         </div>
         <button
-          className={styles.iconButton}
+          className={`${buttons.iconButton} ${styles.shellIconButton}`}
           type="button"
           onClick={onToggle}
           aria-label="Collapse sidebar"
@@ -363,7 +366,7 @@ export function Sidebar({
       >
         <span>{agents.length === 1 ? 'Conversations' : 'Your agents'}</span>
         <button
-          className={styles.iconButtonSmall}
+          className={`${buttons.iconButtonSmall} ${styles.shellIconButton}`}
           type="button"
           onClick={onCreateAgent}
           aria-label="Create agent"
@@ -623,9 +626,9 @@ export function Sidebar({
         onOpenChange={(open) => !open && !pendingThreadAction && setDeletingThread(undefined)}
       >
         <AlertDialog.Portal>
-          <AlertDialog.Overlay className={styles.dialogOverlay} />
+          <AlertDialog.Overlay className={dialogs.dialogOverlay} />
           <AlertDialog.Content
-            className={styles.alertDialogContent}
+            className={dialogs.alertDialogContent}
             onCloseAutoFocus={restoreDialogFocus}
           >
             <AlertDialog.Title>Delete this conversation?</AlertDialog.Title>
@@ -636,11 +639,11 @@ export function Sidebar({
                 ? ', including its separate working copy.'
                 : '.'}
             </AlertDialog.Description>
-            <div className={styles.dialogActions}>
+            <div className={dialogs.dialogActions}>
               <AlertDialog.Cancel asChild>
                 <button
                   type="button"
-                  className={styles.secondaryButton}
+                  className={buttons.secondaryButton}
                   disabled={pendingThreadAction}
                 >
                   Cancel
@@ -648,7 +651,7 @@ export function Sidebar({
               </AlertDialog.Cancel>
               <button
                 type="button"
-                className={styles.dangerButton}
+                className={buttons.dangerButton}
                 disabled={pendingThreadAction}
                 onClick={() => {
                   if (!deletingThread) return;
@@ -667,7 +670,7 @@ export function Sidebar({
               {deletingThread?.worktree?.kind === 'linked' && onCleanupWorktree ? (
                 <button
                   type="button"
-                  className={styles.dangerButton}
+                  className={buttons.dangerButton}
                   disabled={pendingThreadAction}
                   onClick={() => {
                     setPendingThreadAction(true);
@@ -692,16 +695,16 @@ export function Sidebar({
         onOpenChange={(open) => !open && !pendingThreadAction && setForkingThread(undefined)}
       >
         <Dialog.Portal>
-          <Dialog.Overlay className={styles.dialogOverlay} />
+          <Dialog.Overlay className={dialogs.dialogOverlay} />
           <Dialog.Content
-            className={styles.alertDialogContent}
+            className={dialogs.alertDialogContent}
             onCloseAutoFocus={restoreDialogFocus}
           >
             <Dialog.Title>Duplicate conversation</Dialog.Title>
             <Dialog.Description>
               Make a copy you can take in a new direction. The original stays as it is.
             </Dialog.Description>
-            <label className={styles.localField}>
+            <label className={dialogs.localField}>
               <span>Name</span>
               <input
                 value={forkTitle}
@@ -710,7 +713,7 @@ export function Sidebar({
               />
             </label>
             {worktreeForks ? (
-              <label className={styles.forkIsolationOption}>
+              <label className={dialogs.forkIsolationOption}>
                 <input
                   type="checkbox"
                   checked={forkIsolated}
@@ -723,15 +726,15 @@ export function Sidebar({
                 </span>
               </label>
             ) : null}
-            <div className={styles.dialogActions}>
+            <div className={dialogs.dialogActions}>
               <Dialog.Close asChild>
-                <button type="button" className={styles.secondaryButton}>
+                <button type="button" className={buttons.secondaryButton}>
                   Cancel
                 </button>
               </Dialog.Close>
               <button
                 type="button"
-                className={styles.primaryButton}
+                className={buttons.primaryButton}
                 disabled={!forkTitle.trim() || pendingThreadAction}
                 onClick={() => {
                   if (!forkingThread || !onForkThread) return;
@@ -895,10 +898,14 @@ function ThreadMenu({
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
-        <DropdownMenu.Content className={styles.threadMenuContent} sideOffset={4} align="start">
+        <DropdownMenu.Content
+          className={primitives.threadMenuContent}
+          sideOffset={4}
+          align="start"
+        >
           {onSetPinned ? (
             <DropdownMenu.Item
-              className={styles.threadMenuItem}
+              className={primitives.threadMenuItem}
               onSelect={onSetPinned}
               data-testid="thread-pin"
             >
@@ -906,13 +913,13 @@ function ThreadMenu({
               {thread.pinned ? 'Unpin' : 'Pin'}
             </DropdownMenu.Item>
           ) : null}
-          <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onRename}>
+          <DropdownMenu.Item className={primitives.threadMenuItem} onSelect={onRename}>
             <PencilSimple size={14} aria-hidden="true" />
             Rename
           </DropdownMenu.Item>
           {onFork ? (
             <DropdownMenu.Item
-              className={styles.threadMenuItem}
+              className={primitives.threadMenuItem}
               onSelect={() => onFork(trigger.current)}
               data-testid="thread-fork"
               disabled={busy}
@@ -924,7 +931,7 @@ function ThreadMenu({
           ) : null}
           {onArchive ? (
             <DropdownMenu.Item
-              className={styles.threadMenuItem}
+              className={primitives.threadMenuItem}
               onSelect={onArchive}
               data-testid="thread-archive"
               disabled={
@@ -938,7 +945,7 @@ function ThreadMenu({
             </DropdownMenu.Item>
           ) : null}
           {onSetUnread ? (
-            <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onSetUnread}>
+            <DropdownMenu.Item className={primitives.threadMenuItem} onSelect={onSetUnread}>
               {thread.unread ? (
                 <BellSlash size={14} aria-hidden="true" />
               ) : (
@@ -948,7 +955,7 @@ function ThreadMenu({
             </DropdownMenu.Item>
           ) : null}
           <DropdownMenu.Item
-            className={`${styles.threadMenuItem} ${styles.threadMenuDanger}`}
+            className={`${primitives.threadMenuItem} ${styles.threadMenuDanger}`}
             disabled={busy}
             title={busy ? deleteBlockedReason(thread) : undefined}
             onSelect={() => onDelete(trigger.current)}
@@ -999,23 +1006,30 @@ function AgentMenu({
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
-        <DropdownMenu.Content className={styles.threadMenuContent} sideOffset={4} align="end">
-          <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onOpen}>
+        <DropdownMenu.Content
+          className={primitives.threadMenuContent}
+          sideOffset={4}
+          align="end"
+        >
+          <DropdownMenu.Item className={primitives.threadMenuItem} onSelect={onOpen}>
             <ChatCircle size={14} aria-hidden="true" />
             Open agent
           </DropdownMenu.Item>
-          <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onEdit}>
+          <DropdownMenu.Item className={primitives.threadMenuItem} onSelect={onEdit}>
             <NotePencil size={14} aria-hidden="true" />
             Edit agent
           </DropdownMenu.Item>
           {onSetPinned ? (
-            <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onSetPinned}>
+            <DropdownMenu.Item className={primitives.threadMenuItem} onSelect={onSetPinned}>
               <PushPin size={14} aria-hidden="true" />
               {agent.pinned ? 'Unpin agent' : 'Pin agent'}
             </DropdownMenu.Item>
           ) : null}
           {onSetNotifications ? (
-            <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onSetNotifications}>
+            <DropdownMenu.Item
+              className={primitives.threadMenuItem}
+              onSelect={onSetNotifications}
+            >
               {agent.notificationsEnabled ? (
                 <BellSlash size={14} aria-hidden="true" />
               ) : (
@@ -1025,7 +1039,7 @@ function AgentMenu({
             </DropdownMenu.Item>
           ) : null}
           {onDuplicate ? (
-            <DropdownMenu.Item className={styles.threadMenuItem} onSelect={onDuplicate}>
+            <DropdownMenu.Item className={primitives.threadMenuItem} onSelect={onDuplicate}>
               <Copy size={14} aria-hidden="true" />
               Duplicate agent
             </DropdownMenu.Item>

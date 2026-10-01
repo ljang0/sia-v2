@@ -3,7 +3,10 @@ import { FolderSimple, ImageSquare, SpinnerGap } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { errorMessage } from '../plainErrors';
 import type { AttachmentPreview, RendererAttachment } from '../types';
-import styles from '../ui.module.css';
+import buttons from '../styles/buttons.module.css';
+import dialogs from '../styles/dialogs.module.css';
+import primitives from '../styles/primitives.module.css';
+import styles from './Conversation.module.css';
 
 // Thumbnails of sent images, kept for the session so scrolling back does not reload them.
 const thumbnailCache = new Map<string, string>();
@@ -72,15 +75,15 @@ export function AttachmentPreviewDialog({
   return (
     <Dialog.Root open={Boolean(preview)} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className={styles.dialogOverlay} />
-        <Dialog.Content className={`${styles.alertDialogContent} ${styles.attachmentPreview}`}>
+        <Dialog.Overlay className={dialogs.dialogOverlay} />
+        <Dialog.Content className={`${dialogs.alertDialogContent} ${styles.attachmentPreview}`}>
           <Dialog.Title>{preview?.attachment.name}</Dialog.Title>
           <Dialog.Description>
             This local preview uses a short-lived file grant that expires after one hour.
           </Dialog.Description>
           <div className={styles.attachmentPreviewBody}>
             {!preview?.result ? (
-              <SpinnerGap className={styles.spin} size={22} aria-label="Loading preview" />
+              <SpinnerGap className={primitives.spin} size={22} aria-label="Loading preview" />
             ) : preview.result.kind === 'image' ? (
               <img src={preview.result.dataUrl} alt={preview.attachment.name} />
             ) : preview.result.kind === 'text' ? (
@@ -103,11 +106,11 @@ export function AttachmentPreviewDialog({
               <p>{preview.result.detail}</p>
             )}
           </div>
-          <div className={styles.dialogActions}>
+          <div className={dialogs.dialogActions}>
             {onRevealAttachment && preview ? (
               <button
                 type="button"
-                className={styles.secondaryButton}
+                className={buttons.secondaryButton}
                 onClick={() => void onRevealAttachment(preview.attachment.id)}
               >
                 Reveal in Finder
@@ -116,7 +119,7 @@ export function AttachmentPreviewDialog({
             {onOpenAttachment && preview ? (
               <button
                 type="button"
-                className={styles.primaryButton}
+                className={buttons.primaryButton}
                 onClick={() => void onOpenAttachment(preview.attachment.id)}
               >
                 Open file

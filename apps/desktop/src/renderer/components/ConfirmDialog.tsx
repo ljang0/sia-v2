@@ -1,6 +1,7 @@
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
-import styles from '../ui.module.css';
+import buttons from '../styles/buttons.module.css';
+import dialogs from '../styles/dialogs.module.css';
 
 export interface ConfirmRequest {
   title: string;
@@ -28,20 +29,20 @@ function ConfirmDialog({
   return (
     <AlertDialog.Root open={Boolean(request)} onOpenChange={(open) => !open && onClose()}>
       <AlertDialog.Portal>
-        <AlertDialog.Overlay className={styles.dialogOverlay} />
-        <AlertDialog.Content className={styles.alertDialogContent}>
+        <AlertDialog.Overlay className={dialogs.dialogOverlay} />
+        <AlertDialog.Content className={dialogs.alertDialogContent}>
           <AlertDialog.Title>{content?.title}</AlertDialog.Title>
           <AlertDialog.Description>{content?.description}</AlertDialog.Description>
-          <div className={styles.dialogActions}>
+          <div className={dialogs.dialogActions}>
             <AlertDialog.Cancel asChild>
-              <button type="button" className={styles.secondaryButton}>
+              <button type="button" className={buttons.secondaryButton}>
                 {content?.cancelLabel ?? 'Cancel'}
               </button>
             </AlertDialog.Cancel>
             <AlertDialog.Action asChild>
               <button
                 type="button"
-                className={styles.dangerButton}
+                className={buttons.dangerButton}
                 onClick={() => {
                   const action = request?.onConfirm;
                   onClose();

@@ -8,7 +8,7 @@ import { phoneAssistantBlocker } from '../../../shared/phone-remote';
 import type { AgentView } from '../../../shared/bridge';
 import type { ProviderSetup } from '../../types';
 import { SettingsSectionHeader, InlineSettingsError } from './SettingsShared';
-import styles from '../../ui.module.css';
+import buttons from '../../styles/buttons.module.css';
 import phone from './PhoneRemoteSettings.module.css';
 import { errorMessage } from '../../plainErrors';
 
@@ -105,7 +105,7 @@ export function PhoneRemoteSettings({
               </p>
             )}
             <button
-              className={styles.primaryButton}
+              className={buttons.primaryButton}
               disabled={pending || !agentId || !state}
               onClick={() => void run('enable')}
             >
@@ -140,7 +140,7 @@ export function PhoneRemoteSettings({
             {agentId !== state.agentId && (
               <>
                 <button
-                  className={styles.secondaryButton}
+                  className={buttons.secondaryButton}
                   disabled={pending || !agentId}
                   onClick={() => void run('enable')}
                 >
@@ -180,7 +180,7 @@ export function PhoneRemoteSettings({
               <div className={phone.link}>
                 <code>{new URL(state.url).host}</code>
                 <button
-                  className={styles.secondaryButton}
+                  className={buttons.secondaryButton}
                   onClick={() => {
                     void api({ operation: 'copy' })
                       .then(() => setCopied(true))
@@ -197,7 +197,7 @@ export function PhoneRemoteSettings({
             <p className={phone.note}>{state.detail}</p>
             <div className={phone.actions}>
               <button
-                className={styles.secondaryButton}
+                className={buttons.secondaryButton}
                 disabled={pending}
                 onClick={() => void run('rotate')}
               >
@@ -205,7 +205,7 @@ export function PhoneRemoteSettings({
                 Create a new link
               </button>
               <button
-                className={styles.textButtonDanger}
+                className={buttons.textButtonDanger}
                 disabled={pending}
                 onClick={() => void run('disable')}
               >

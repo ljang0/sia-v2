@@ -19,7 +19,12 @@ import {
 } from '../../../shared/schedule-cadence';
 import type { RendererApi, RendererSnapshot, ScheduleChanges, ScheduleRun } from '../../types';
 import { threadDisplayTitle } from '../../threadTitle';
-import styles from '../../ui.module.css';
+import layout from '../../styles/layout.module.css';
+import buttons from '../../styles/buttons.module.css';
+import dialogs from '../../styles/dialogs.module.css';
+import surface from './localParity.module.css';
+import primitives from '../../styles/primitives.module.css';
+import styles from './Schedules.module.css';
 import { useConfirmDialog } from '../ConfirmDialog';
 import { StartupSettings } from '../settings/StartupSettings';
 import {
@@ -175,7 +180,7 @@ function ScheduleForm({
 
   return (
     <form className={styles.scheduleForm} onSubmit={submit}>
-      <label className={styles.localField}>
+      <label className={dialogs.localField}>
         <span>Task</span>
         <input
           autoFocus
@@ -192,7 +197,7 @@ function ScheduleForm({
         data-once={cadence === 'once'}
         data-hourly={cadence === 'hourly'}
       >
-        <label className={styles.localField}>
+        <label className={dialogs.localField}>
           <span>Repeat</span>
           <select
             data-testid="schedule-cadence-select"
@@ -215,7 +220,7 @@ function ScheduleForm({
           </select>
         </label>
         {cadence === 'hourly' ? (
-          <label className={styles.localField}>
+          <label className={dialogs.localField}>
             <span>Every</span>
             <span className={styles.scheduleRunsInput}>
               <input
@@ -235,7 +240,7 @@ function ScheduleForm({
           </label>
         ) : null}
         {isDayBased(cadence) ? (
-          <label className={styles.localField}>
+          <label className={dialogs.localField}>
             <span>At</span>
             <input
               data-testid="schedule-time-input"
@@ -248,7 +253,7 @@ function ScheduleForm({
             />
           </label>
         ) : (
-          <label className={styles.localField}>
+          <label className={dialogs.localField}>
             <span>
               {cadence === 'once' ? 'When' : 'Starting'}{' '}
               <small aria-hidden="true">optional</small>
@@ -264,7 +269,7 @@ function ScheduleForm({
           </label>
         )}
         {cadence === 'once' ? null : (
-          <label className={styles.localField}>
+          <label className={dialogs.localField}>
             <span>
               {runsLabel} <small aria-hidden="true">optional</small>
             </span>
@@ -328,7 +333,7 @@ function ScheduleForm({
           {onCancel ? (
             <button
               type="button"
-              className={styles.secondaryButton}
+              className={buttons.secondaryButton}
               onClick={onCancel}
               disabled={busy}
             >
@@ -337,7 +342,7 @@ function ScheduleForm({
           ) : null}
           <button
             type="submit"
-            className={styles.primaryButton}
+            className={buttons.primaryButton}
             disabled={busy || !values.prompt.trim() || needsDays}
             data-testid="schedule-save"
           >
@@ -493,7 +498,7 @@ function ScheduleRow({
         {schedule.enabled || !finished ? (
           <button
             type="button"
-            className={styles.secondaryButton}
+            className={buttons.secondaryButton}
             disabled={busy}
             onClick={() => void onSetEnabled(schedule.id, !schedule.enabled)}
           >
@@ -503,7 +508,7 @@ function ScheduleRow({
         {onRunNow ? (
           <button
             type="button"
-            className={styles.secondaryButton}
+            className={buttons.secondaryButton}
             disabled={busy}
             onClick={() => void onRunNow(schedule.id)}
           >
@@ -515,7 +520,7 @@ function ScheduleRow({
         {onSave ? (
           <button
             type="button"
-            className={styles.iconButtonSmall}
+            className={buttons.iconButtonSmall}
             disabled={busy}
             onClick={() => setEditing(true)}
             aria-label={`Edit ${schedule.label}`}
@@ -526,7 +531,7 @@ function ScheduleRow({
         ) : null}
         <button
           type="button"
-          className={styles.iconButtonSmall}
+          className={buttons.iconButtonSmall}
           disabled={busy}
           onClick={() =>
             confirm({
@@ -600,16 +605,16 @@ export function ScheduleControls({
   };
 
   return (
-    <section className={styles.scheduleControl} aria-labelledby={titleId}>
+    <section className={surface.scheduleControl} aria-labelledby={titleId}>
       {confirmDialog}
-      <div className={styles.localSurfaceHeader}>
+      <div className={surface.localSurfaceHeader}>
         <div>
-          <span className={styles.sectionLabel}>Runs while Sia is open</span>
+          <span className={primitives.sectionLabel}>Runs while Sia is open</span>
           <h2 id={titleId}>Schedules</h2>
         </div>
         <button
           type="button"
-          className={styles.secondaryButton}
+          className={buttons.secondaryButton}
           onClick={() => (expanded ? setExpanded(false) : openForm(blankValues()))}
           aria-expanded={expanded}
           data-testid="schedule-create"
@@ -641,7 +646,7 @@ export function ScheduleControls({
         />
       ) : null}
 
-      <div className={styles.scheduleList}>
+      <div className={surface.scheduleList}>
         {schedules.length ? (
           schedules.map((schedule) => (
             <ScheduleRow
@@ -728,9 +733,9 @@ export function ScheduledOverview({
     .join(' · ');
 
   return (
-    <section className={styles.scheduledOverview} aria-labelledby={titleId}>
+    <section className={surface.scheduledOverview} aria-labelledby={titleId}>
       {confirmDialog}
-      <div className={styles.localSurfaceHeader}>
+      <div className={surface.localSurfaceHeader}>
         <h2 id={titleId}>{summary || 'No schedules'}</h2>
       </div>
       {onSetOpenAtLogin ? (
@@ -740,7 +745,7 @@ export function ScheduledOverview({
           onSetOpenAtLogin={onSetOpenAtLogin}
         />
       ) : null}
-      <div className={styles.scheduleList}>
+      <div className={surface.scheduleList}>
         {ordered.length ? (
           ordered.map((schedule) => (
             <ScheduleRow
@@ -818,15 +823,15 @@ export function ScheduledPage({
   });
 
   return (
-    <main className={styles.activityPage} aria-labelledby="scheduled-page-title">
-      <header className={styles.activityPageHeader}>
+    <main className={layout.activityPage} aria-labelledby="scheduled-page-title">
+      <header className={layout.activityPageHeader}>
         <div>
           <h1 id="scheduled-page-title">Scheduled</h1>
           <p>Everything your agents will do on their own, in one place.</p>
         </div>
         <button
           type="button"
-          className={styles.iconButton}
+          className={buttons.iconButton}
           onClick={onClose}
           aria-label="Close scheduled"
         >

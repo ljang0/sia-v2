@@ -1,0 +1,138 @@
+/* Bottom sheets: actions, device card, and connection facts. */
+
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(10 28 22 / 30%);
+  backdrop-filter: blur(5px);
+  z-index: 10;
+  animation: fade 0.2s ease both;
+}
+.phone-sheet {
+  position: fixed;
+  bottom: var(--phone-bottom, 0px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, 600px);
+  max-height: calc(var(--phone-height, 100dvh) - 30px);
+  padding: 10px 23px calc(env(safe-area-inset-bottom) + 24px);
+  overflow: auto;
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 30px 30px 0 0;
+  z-index: 11;
+  box-shadow: var(--shadow-dialog);
+  animation: sheet-enter 240ms var(--phone-ease);
+}
+.phone-sheet[data-state='closed'] {
+  animation: sheet-exit 140ms ease-in both;
+}
+.sheet-overlay[data-state='closed'] {
+  animation: fade 0.18s ease reverse both;
+}
+.sheet-handle {
+  width: 32px;
+  height: 4px;
+  background: var(--border-subtle);
+  border-radius: 10px;
+  margin: 0 auto 22px;
+}
+.phone-sheet header {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin-bottom: 22px;
+}
+.phone-sheet header > div {
+  flex: 1;
+  min-width: 0;
+}
+.phone-sheet header h2 {
+  font: 500 29px/1.1 var(--font-brand);
+  letter-spacing: -0.045em;
+  margin: 0 0 10px;
+  overflow-wrap: anywhere;
+}
+.phone-sheet header p {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0;
+}
+.sheet-actions {
+  display: grid;
+  gap: 8px;
+}
+.sheet-actions button {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 76px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border-subtle);
+  border-radius: 17px;
+  background: var(--bg-raised);
+  padding: 14px;
+}
+.sheet-actions button > span {
+  flex: 1;
+}
+.sheet-actions svg {
+  flex: none;
+  color: var(--text-success);
+}
+.sheet-actions strong,
+.connection-facts strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 550;
+}
+.sheet-actions small,
+.connection-facts small {
+  display: block;
+  font-size: 11px;
+  line-height: 1.6;
+  margin-top: 4px;
+  color: var(--text-secondary);
+}
+.device-card {
+  background: var(--shell-bg);
+  color: var(--shell-text);
+  border-radius: 23px;
+  padding: 25px;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 12px;
+}
+.device-icon {
+  padding: 10px;
+  border-radius: 20px;
+  background: var(--shell-hover);
+  color: #b9d8c5;
+}
+.device-card strong {
+  font: 500 21px var(--font-brand);
+}
+.device-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--shell-dim);
+}
+.device-status.online i {
+  background: #a6d3b7;
+}
+.connection-facts p {
+  display: flex;
+  gap: 13px;
+  align-items: center;
+  margin: 24px 4px 0;
+}
+.connection-facts svg {
+  flex: none;
+  color: var(--text-success);
+}

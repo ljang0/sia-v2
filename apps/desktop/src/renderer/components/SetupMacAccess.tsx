@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { RendererApi, RendererSnapshot } from '../types';
 import { dictationReady } from '../voiceReadiness';
 import { automationApps, type AutomationStatus } from '../../shared/mac-permissions';
-import ui from '../ui.module.css';
+import buttons from '../styles/buttons.module.css';
 import styles from './Onboarding.module.css';
 import { errorMessage } from '../plainErrors';
 
@@ -369,7 +369,7 @@ export function SetupMacAccess({
           {row.request && row.state !== 'ready' && row.state !== 'relaunch' ? (
             <button
               type="button"
-              className={ui.secondaryButton}
+              className={buttons.secondaryButton}
               disabled={disabled || busy}
               aria-label={`${action}: ${row.name}`}
               onClick={() => void requestRow(row)}
@@ -410,7 +410,7 @@ export function SetupMacAccess({
             {onRestart ? ' Setup picks up right here.' : ' Quit and reopen Sia.'}
           </p>
           {onRestart ? (
-            <button className={ui.primaryButton} disabled={disabled} onClick={relaunchNow}>
+            <button className={buttons.primaryButton} disabled={disabled} onClick={relaunchNow}>
               Relaunch Sia
             </button>
           ) : null}
@@ -429,7 +429,7 @@ export function SetupMacAccess({
           </p>
           <div className={styles.siteButtons}>
             <button
-              className={ui.secondaryButton}
+              className={buttons.secondaryButton}
               disabled={pending}
               onClick={() => {
                 requested.current.delete(current.id);
@@ -440,7 +440,7 @@ export function SetupMacAccess({
             </button>
             {current.optional ? (
               <button
-                className={ui.secondaryButton}
+                className={buttons.secondaryButton}
                 disabled={pending}
                 onClick={() => {
                   setSkipped((ids) => [...ids, current.id]);
@@ -469,7 +469,7 @@ export function SetupMacAccess({
       )}
       {!active && current && (
         <button
-          className={`${ui.primaryButton} ${styles.grantAll}`}
+          className={`${buttons.primaryButton} ${styles.grantAll}`}
           disabled={disabled || busy}
           onClick={start}
         >

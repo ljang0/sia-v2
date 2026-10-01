@@ -18,7 +18,9 @@ import type {
   WorkspaceDiff,
   WorkspaceSnapshot,
 } from '../../types';
-import styles from '../../ui.module.css';
+import surface from './localParity.module.css';
+import primitives from '../../styles/primitives.module.css';
+import styles from './ThreadWorkspace.module.css';
 import { ChangesReview, type ChangedFile } from './ChangesReview';
 import { GoalControls } from './WorkControls';
 import { ScheduleControls } from './Schedules';
@@ -141,7 +143,7 @@ export function ThreadWorkspaceTools({
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content
-              className={styles.threadMenuContent}
+              className={primitives.threadMenuContent}
               side="top"
               align="end"
               sideOffset={6}
@@ -152,13 +154,13 @@ export function ThreadWorkspaceTools({
               }}
             >
               <DropdownMenu.Item
-                className={styles.threadMenuItem}
+                className={primitives.threadMenuItem}
                 onSelect={() => setTool('goal')}
               >
                 <Flag size={14} aria-hidden="true" /> Goal
               </DropdownMenu.Item>
               <DropdownMenu.Item
-                className={styles.threadMenuItem}
+                className={primitives.threadMenuItem}
                 onSelect={() => void openChanges()}
                 data-testid="changes-panel-toggle"
               >
@@ -166,7 +168,7 @@ export function ThreadWorkspaceTools({
               </DropdownMenu.Item>
               {developerTools ? (
                 <DropdownMenu.Item
-                  className={styles.threadMenuItem}
+                  className={primitives.threadMenuItem}
                   onSelect={() => setTool('terminal')}
                   data-testid="terminal-open"
                 >
@@ -175,7 +177,7 @@ export function ThreadWorkspaceTools({
               ) : null}
               {schedulesAvailable ? (
                 <DropdownMenu.Item
-                  className={styles.threadMenuItem}
+                  className={primitives.threadMenuItem}
                   onSelect={() => setTool('schedules')}
                 >
                   <CalendarDots size={14} aria-hidden="true" /> Schedules
@@ -183,7 +185,7 @@ export function ThreadWorkspaceTools({
               ) : null}
               {thread.worktree?.kind === 'linked' ? (
                 <DropdownMenu.Item
-                  className={styles.threadMenuItem}
+                  className={primitives.threadMenuItem}
                   onSelect={() => void run(() => api.handoffThread(thread.id, 'primary'))}
                   data-testid="worktree-handoff-primary"
                 >
@@ -198,7 +200,7 @@ export function ThreadWorkspaceTools({
       {tool && tool !== 'terminal' ? (
         <aside
           ref={panel}
-          className={styles.threadToolPanel}
+          className={surface.threadToolPanel}
           aria-label="Thread tool"
           tabIndex={-1}
           onKeyDown={(event) => {
@@ -255,11 +257,11 @@ export function ThreadWorkspaceTools({
               onSetOpenAtLogin={(enabled) => api.setOpenAtLogin(enabled)}
             />
           ) : changesLoading ? (
-            <p className={styles.localEmpty} role="status">
+            <p className={surface.localEmpty} role="status">
               Reading workspace changes…
             </p>
           ) : changesError ? (
-            <p className={styles.localEmpty} role="alert" data-testid="changes-error">
+            <p className={surface.localEmpty} role="alert" data-testid="changes-error">
               {changesError}
             </p>
           ) : (

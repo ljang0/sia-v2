@@ -4,7 +4,9 @@ import { SetupMacAccess, type MacSetupApi } from '../SetupMacAccess';
 import { Notebook, ShieldCheck } from '@phosphor-icons/react';
 import { type ReactNode, useState } from 'react';
 import type { RendererSnapshot } from '../../types';
-import styles from '../../ui.module.css';
+import buttons from '../../styles/buttons.module.css';
+import settings from './SettingsShared.module.css';
+import styles from './ComputerSettings.module.css';
 import { InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
 import { errorMessage } from '../../plainErrors';
 
@@ -69,13 +71,13 @@ export function ComputerSettings({
           }
         />
       ) : null}
-      <div className={styles.accessGroup}>
+      <div className={settings.accessGroup}>
         <div className={styles.accessRow}>
           <ShieldCheck size={20} aria-hidden="true" />
           <div>
-            <div className={styles.rowTitleLine}>
+            <div className={settings.rowTitleLine}>
               <strong>Bypass action approvals</strong>
-              {trusted ? <span className={styles.stateLabel}>Enabled</span> : null}
+              {trusted ? <span className={settings.stateLabel}>Enabled</span> : null}
             </div>
             <p>
               {trusted
@@ -93,7 +95,7 @@ export function ComputerSettings({
             role="switch"
             aria-checked={trusted}
             aria-label="Bypass action approvals"
-            className={styles.secondaryButton}
+            className={buttons.secondaryButton}
             disabled={busy}
             onClick={() =>
               trusted
@@ -128,19 +130,19 @@ export function ComputerSettings({
         includeApps
       />
       {snapshot.computer.accessMode !== 'mac' && (
-        <p className={styles.settingsNote}>
+        <p className={settings.settingsNote}>
           Browser and work app connections are in{' '}
-          <button type="button" className={styles.textButton} onClick={onReviewConnections}>
+          <button type="button" className={buttons.textButton} onClick={onReviewConnections}>
             Connections
           </button>
           .
         </p>
       )}
-      <details className={styles.settingsDisclosure}>
+      <details className={settings.settingsDisclosure}>
         <summary>
           <span>Diagnostics</span>
         </summary>
-        <div className={styles.accessGroup}>
+        <div className={settings.accessGroup}>
           <div className={styles.accessRow}>
             <Notebook size={20} aria-hidden="true" />
             <div>
@@ -154,7 +156,7 @@ export function ComputerSettings({
                     {' '}
                     <button
                       type="button"
-                      className={styles.textButton}
+                      className={buttons.textButton}
                       onClick={() => void onRevealTrajectories()}
                     >
                       Show in Finder
@@ -168,7 +170,7 @@ export function ComputerSettings({
               role="switch"
               aria-checked={snapshot.computer.trajectoryLog}
               aria-label="Keep a full local log"
-              className={styles.secondaryButton}
+              className={buttons.secondaryButton}
               disabled={busy}
               onClick={() =>
                 void run('log', () => onSetTrajectoryLog(!snapshot.computer.trajectoryLog))

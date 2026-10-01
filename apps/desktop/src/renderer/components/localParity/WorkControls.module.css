@@ -1,0 +1,144 @@
+.threadControls {
+  display: flex;
+  height: 32px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-tight);
+  background: var(--bg-subtle);
+  transition:
+    border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.threadControls:hover,
+.threadControls:focus-within {
+  border-color: var(--border-subtle);
+  background: var(--bg-raised);
+}
+
+.threadControls label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.threadControls select {
+  max-width: 150px;
+  padding: 0 16px 0 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.threadControls label:last-child select {
+  max-width: 88px;
+  color: var(--text-secondary);
+}
+
+.threadControlDivider {
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+}
+
+.goalStatus {
+  display: inline-flex;
+  height: 26px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  border-radius: var(--radius-control);
+  background: var(--surface-success);
+  color: var(--text-success);
+  font-size: var(--text-sm);
+  text-transform: capitalize;
+}
+
+.goalStatus[data-status='paused'] {
+  background: var(--surface-warning);
+  color: var(--text-warning);
+}
+
+.localActionRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.goalIntro {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.agentSettingsMenu {
+  position: relative;
+  font-size: var(--text-sm);
+}
+
+.agentSettingsMenu > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-secondary);
+}
+
+.agentSettingsMenu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.agentSettingsMenu .threadControls {
+  height: auto;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 30;
+  width: 280px;
+  max-width: calc(100vw - 40px);
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px #0002;
+}
+
+.agentSettingsMenu .threadControls label {
+  display: grid;
+  gap: 6px;
+}
+
+.agentSettingsMenu .threadControls select {
+  max-width: 100%;
+  width: 100%;
+}
+
+.agentSettingsMenu .threadControlDivider {
+  display: none;
+}
+
+.workspaceDetails {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+  font-size: var(--text-xs);
+}
+
+.workspaceDetails summary {
+  cursor: pointer;
+}
+
+.agentSettingsMenu .threadControls select:focus-visible {
+  outline: 2px solid var(--border-strong);
+  outline-offset: 3px;
+  border-radius: 3px;
+}

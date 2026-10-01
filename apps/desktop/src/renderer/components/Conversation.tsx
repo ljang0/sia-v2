@@ -40,7 +40,10 @@ import { completedReplyId } from '../task-result';
 import { WelcomeHome } from './WelcomeHome';
 import { WelcomeRecents } from './WelcomeRecents';
 import { ReplyReadyMark, ReplySurface } from './ResultCard';
-import styles from '../ui.module.css';
+import layout from '../styles/layout.module.css';
+import buttons from '../styles/buttons.module.css';
+import primitives from '../styles/primitives.module.css';
+import styles from './Conversation.module.css';
 import { ActivityRow } from './ActivityRow';
 import { planProgress, WorkGroup, WorkingStatus } from './WorkGroup';
 import { AgentForm } from './AgentForm';
@@ -502,14 +505,14 @@ export function Conversation({
 
   if (!thread) {
     return (
-      <main className={styles.mainPane} data-companion-conversation data-scene="welcome">
-        <Aurora className={styles.conversationAurora} pauseWhenUnfocused />
+      <main className={layout.mainPane} data-companion-conversation data-scene="welcome">
+        <Aurora className={layout.conversationAurora} pauseWhenUnfocused />
         <div className={styles.emptyState} data-companion-empty>
           <AgentForm identity={agentHue ?? 0} size="large" />
           <span className={styles.emptyStateKicker}>
             {agentName ? `${timeGreeting()} · ${agentName} is ready` : 'Start here'}
           </span>
-          <h1 className={styles.gradientHeading}>
+          <h1 className={layout.gradientHeading}>
             {agentName ? `Start a conversation with ${agentName}.` : 'Create your first agent.'}
           </h1>
           <p>
@@ -529,7 +532,11 @@ export function Conversation({
             </LiquidMetalButton>
           ) : null}
           {onOpenApps ? (
-            <button className={styles.textButton} type="button" onClick={onOpenApps}>
+            <button
+              className={`${buttons.textButton} ${styles.emptyStateLink}`}
+              type="button"
+              onClick={onOpenApps}
+            >
               Connect work apps later
             </button>
           ) : null}
@@ -652,7 +659,7 @@ export function Conversation({
 
   return (
     <main
-      className={styles.mainPane}
+      className={layout.mainPane}
       data-companion-conversation
       data-scene={thread.events.length ? 'conversation' : 'welcome'}
       data-file-dragging={draggingFiles ? 'true' : undefined}
@@ -679,7 +686,7 @@ export function Conversation({
       }}
     >
       <Aurora
-        className={styles.conversationAurora}
+        className={layout.conversationAurora}
         still={thread.events.length > 0}
         pauseWhenUnfocused
       />
@@ -710,7 +717,7 @@ export function Conversation({
           </span>
           <button
             type="button"
-            className={styles.iconButtonSmall}
+            className={buttons.iconButtonSmall}
             disabled={!matchingEventIds.length}
             onClick={() =>
               setFindIndex(
@@ -723,7 +730,7 @@ export function Conversation({
           </button>
           <button
             type="button"
-            className={styles.iconButtonSmall}
+            className={buttons.iconButtonSmall}
             disabled={!matchingEventIds.length}
             onClick={() => setFindIndex((current) => (current + 1) % matchingEventIds.length)}
             aria-label="Next match"
@@ -732,7 +739,7 @@ export function Conversation({
           </button>
           <button
             type="button"
-            className={styles.iconButtonSmall}
+            className={buttons.iconButtonSmall}
             onClick={() => onFindOpenChange?.(false)}
             aria-label="Close find"
           >
@@ -832,7 +839,7 @@ export function Conversation({
               </div>
               <button
                 type="button"
-                className={styles.secondaryButton}
+                className={`${buttons.secondaryButton} ${styles.bannerAction}`}
                 onClick={() => void onRetry()}
                 data-testid="interrupted-turn-retry"
               >
@@ -1162,7 +1169,10 @@ function EventViewContent({
   }
   if (event.type === 'notice') {
     return (
-      <div className={`${styles.notice} ${styles[`notice_${event.tone}`]}`} role="status">
+      <div
+        className={`${primitives.notice} ${primitives[`notice_${event.tone}`]}`}
+        role="status"
+      >
         <WarningCircle size={17} aria-hidden="true" />
         <div>
           <NoticeText
@@ -1178,7 +1188,7 @@ function EventViewContent({
   }
   if (event.type === 'question') {
     return (
-      <div className={styles.notice} role="status">
+      <div className={primitives.notice} role="status">
         <ChatCircle size={17} aria-hidden="true" />
         <div>
           <strong>{agentName} has a question</strong>
@@ -1250,7 +1260,7 @@ function EventViewContent({
             data-testid="message-read-aloud"
           >
             {speechPhase === 'loading' ? (
-              <SpinnerGap className={styles.spin} size={14} aria-hidden="true" />
+              <SpinnerGap className={primitives.spin} size={14} aria-hidden="true" />
             ) : speechPhase === 'playing' ? (
               <StopCircle size={14} weight="fill" aria-hidden="true" />
             ) : (
@@ -1299,14 +1309,14 @@ function EventViewContent({
             <div>
               <button
                 type="button"
-                className={styles.secondaryButton}
+                className={buttons.secondaryButton}
                 onClick={() => setEditDraft(undefined)}
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className={styles.primaryButton}
+                className={buttons.primaryButton}
                 disabled={redoing || !editDraft.trim()}
               >
                 {redoing ? 'Sending…' : 'Send'}
@@ -1445,7 +1455,7 @@ function workGroupIdFor(events: readonly ThreadEvent[], eventId: string): string
 
 function ConversationSkeleton() {
   return (
-    <main className={styles.mainPane} aria-label="Loading conversation" aria-busy="true">
+    <main className={layout.mainPane} aria-label="Loading conversation" aria-busy="true">
       <div className={styles.threadScroll}>
         <div className={styles.conversationColumn}>
           <div className={styles.skeletonMessage} />

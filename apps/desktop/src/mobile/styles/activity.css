@@ -1,0 +1,144 @@
+/* Page headings and the activity page with its task cards and empty state. */
+
+.page-heading {
+  padding: 23px 24px 18px;
+  flex: none;
+  animation: arrive 0.4s var(--phone-ease);
+}
+.page-heading h1 {
+  font: 500 clamp(31px, 8vw, 40px)/1.1 var(--font-brand);
+  letter-spacing: -0.055em;
+  margin: 12px 0 9px;
+}
+.page-heading p {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0;
+}
+.activity-page {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.activity-filters {
+  display: flex;
+  gap: 8px;
+  padding: 0 24px 20px;
+}
+.activity-filters button {
+  border-radius: 30px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  padding: 0 15px;
+  min-height: 44px;
+  font-size: 12px;
+}
+.activity-filters [aria-pressed='true'] {
+  background: var(--shell-bg);
+  color: var(--shell-text);
+  border-color: transparent;
+}
+.activity-filters span {
+  margin-left: 7px;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+.activity-scroll {
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
+  overscroll-behavior: contain;
+}
+.task-list {
+  padding: 0 20px 24px;
+  display: grid;
+  gap: 12px;
+}
+.task-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: 21px;
+  padding: 18px;
+  background: var(--bg-raised);
+  text-align: left;
+  min-width: 0;
+  animation: arrive 0.4s var(--phone-ease);
+}
+.task-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-tertiary);
+}
+.task-card h2 {
+  font: 520 20px/1.25 var(--font-brand);
+  letter-spacing: -0.03em;
+  margin: 18px 0 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.task-card p {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.task-file-count {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 15px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  font-size: 10px;
+  background: var(--bg-subtle);
+}
+.activity-empty {
+  text-align: center;
+  padding: 50px 36px 30px;
+  max-width: 400px;
+  margin: auto;
+}
+.empty-symbol {
+  width: 74px;
+  height: 74px;
+  margin: auto;
+  background: var(--bg-selected);
+  color: var(--text-success);
+  display: grid;
+  place-items: center;
+  border-radius: 26px;
+  transform: rotate(-6deg);
+}
+.activity-empty h2 {
+  font: 500 27px/1.12 var(--font-brand);
+  letter-spacing: -0.04em;
+  margin: 24px 0 12px;
+}
+.activity-empty p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.65;
+}
+.text-action {
+  background: var(--shell-bg);
+  color: var(--shell-text);
+  display: inline-flex;
+  align-items: center;
+  gap: 15px;
+  border: 0;
+  padding: 13px 20px;
+  border-radius: 30px;
+  min-height: 48px;
+  font-size: 12px;
+  margin-top: 15px;
+}

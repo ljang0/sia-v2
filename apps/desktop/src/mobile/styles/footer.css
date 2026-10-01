@@ -1,0 +1,143 @@
+/* The footer: composer, caption, and bottom navigation. */
+
+.phone-footer {
+  position: relative;
+  padding: 6px 18px 4px;
+  background: var(--bg-canvas);
+  flex: none;
+  transition: padding-bottom var(--typing-duration) var(--phone-ease);
+}
+.phone-shell[data-scene='welcome'] .phone-footer::before {
+  content: '';
+  position: absolute;
+  inset: -32px 0 100%;
+  background: linear-gradient(transparent, var(--bg-canvas));
+  z-index: -1;
+  pointer-events: none;
+}
+.remote-composer {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: 23px;
+  box-shadow: 0 4px 18px rgb(26 31 28 / 5%);
+  padding: 6px 7px 7px;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.remote-composer:focus-within,
+.remote-composer.listening {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 3px var(--focus-halo);
+}
+.remote-composer textarea {
+  width: 100%;
+  resize: none;
+  display: block;
+  border: 0;
+  background: transparent;
+  padding: 10px 9px 4px;
+  line-height: 23px;
+  font-size: 16px;
+  min-height: 42px;
+  max-height: 130px;
+  border-radius: 12px;
+}
+.remote-composer textarea:focus-visible {
+  outline: none;
+}
+.remote-composer textarea::placeholder {
+  color: var(--text-tertiary);
+  font-size: 14px;
+}
+.composer-controls {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.composer-context {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: 9px;
+  margin-right: auto;
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+.footer-caption {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  text-align: center;
+  margin: 8px 0 6px;
+  max-height: 40px;
+  overflow: hidden;
+  transition:
+    max-height var(--typing-duration) var(--phone-ease),
+    margin var(--typing-duration) var(--phone-ease),
+    opacity 220ms ease;
+}
+.footer-caption:empty {
+  max-height: 0;
+  margin-block: 0;
+}
+.composer-hint {
+  font-size: 12px;
+  margin: 0 8px 8px;
+  color: var(--text-secondary);
+}
+.phone-nav {
+  display: flex;
+  gap: 8px;
+  padding: 2px 22px calc(env(safe-area-inset-bottom) + 2px);
+  flex: none;
+  background: var(--bg-canvas);
+  border-top: 1px solid color-mix(in srgb, var(--border-subtle) 50%, transparent);
+  height: calc(49px + env(safe-area-inset-bottom));
+  overflow: hidden;
+  transition:
+    height var(--typing-duration) var(--phone-ease),
+    padding var(--typing-duration) var(--phone-ease),
+    opacity 220ms ease,
+    border-color 220ms ease,
+    visibility 0s;
+}
+.phone-nav button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  line-height: 12px;
+  font-weight: 550;
+  padding: 3px 4px;
+  border-radius: 18px;
+}
+.nav-icon {
+  display: grid;
+  place-items: center;
+  position: relative;
+  width: 52px;
+  height: 24px;
+  border-radius: 20px;
+  transition: background 0.25s;
+}
+.phone-nav [aria-current] {
+  color: var(--text-success);
+}
+.phone-nav [aria-current] .nav-icon {
+  background: var(--bg-selected);
+}
+.nav-dot {
+  width: 5px;
+  height: 5px;
+  position: absolute;
+  right: 13px;
+  top: 3px;
+  background: var(--text-success);
+  border-radius: 50%;
+}

@@ -5,51 +5,25 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-const styles = readFileSync(fileURLToPath(new URL('./ui.module.css', import.meta.url)), 'utf8');
-const companion = readFileSync(
-  fileURLToPath(new URL('./companion.module.css', import.meta.url)),
-  'utf8',
+const root = fileURLToPath(new URL('.', import.meta.url));
+const read = (path: string) => readFileSync(join(root, path), 'utf8');
+const cssFiles = readdirSync(root, { recursive: true, encoding: 'utf8' }).filter((file) =>
+  file.endsWith('.css'),
 );
-const tokens = readFileSync(fileURLToPath(new URL('./tokens.css', import.meta.url)), 'utf8');
-const aurora = readFileSync(
-  fileURLToPath(new URL('./components/effects/aurora.css', import.meta.url)),
-  'utf8',
+// Component and shared style modules (companion.module.css is checked on its own).
+const moduleFiles = cssFiles.filter(
+  (file) => file.endsWith('.module.css') && file !== 'companion.module.css',
 );
-const metal = readFileSync(
-  fileURLToPath(new URL('./components/effects/liquid-metal-button.css', import.meta.url)),
-  'utf8',
-);
-const navigation = readFileSync(
-  fileURLToPath(new URL('./components/navigation.module.css', import.meta.url)),
-  'utf8',
-);
-const appearance = readFileSync(
-  fileURLToPath(
-    new URL('./components/settings/AppearanceSettings.module.css', import.meta.url),
-  ),
-  'utf8',
-);
-const startup = readFileSync(
-  fileURLToPath(new URL('./components/startup.module.css', import.meta.url)),
-  'utf8',
-);
-const results = readFileSync(
-  fileURLToPath(new URL('./components/result-card.module.css', import.meta.url)),
-  'utf8',
-);
-const welcome = readFileSync(
-  fileURLToPath(new URL('./components/welcome-recents.module.css', import.meta.url)),
-  'utf8',
-);
-const home = ['welcome-home', 'motion-list']
-  .map((name) =>
-    readFileSync(
-      fileURLToPath(new URL(`./components/${name}.module.css`, import.meta.url)),
-      'utf8',
-    ),
-  )
-  .join('\n');
-const css = `${tokens}\n${styles}\n${companion}\n${aurora}\n${metal}\n${navigation}\n${appearance}\n${startup}\n${results}\n${welcome}\n${home}`;
+const styles = moduleFiles.map(read).join('\n');
+const companion = read('companion.module.css');
+const tokens = read('tokens.css');
+const aurora = read('components/effects/aurora.css');
+const metal = read('components/effects/liquid-metal-button.css');
+const startup = read('components/startup.module.css');
+const css = `${tokens}\n${styles}\n${companion}\n${aurora}\n${metal}`;
+// The first rule matching `pattern` in any style module, wherever the rule lives.
+const find = (pattern: RegExp) =>
+  moduleFiles.map((file) => read(file).match(pattern)?.[0]).find(Boolean);
 
 describe('text size', () => {
   it('scales every interface font size with Settings → Appearance → Text size', () => {
@@ -57,15 +31,14 @@ describe('text size', () => {
     // calc(Npx * var(--text-scale)), so a bare px font size would ignore the person's choice.
     const allowed = new Set([
       'components/navigation.module.css:font-size: 38px',
-      'ui.module.css:font-size: 20px',
+      'components/Sidebar.module.css:font-size: 20px',
       'components/startup.module.css:font-size: 17px',
       'components/startup.module.css:font: 650 42px/1 var(--font-brand)',
     ]);
-    const root = fileURLToPath(new URL('.', import.meta.url));
     const bare: string[] = [];
-    for (const file of readdirSync(root, { recursive: true, encoding: 'utf8' })) {
-      if (!file.endsWith('.css') || file === 'tokens.css') continue;
-      const source = readFileSync(join(root, file), 'utf8');
+    for (const file of cssFiles) {
+      if (file === 'tokens.css') continue;
+      const source = read(file);
       for (const match of source.matchAll(/(font(?:-size)?:[^;{}]*);/g)) {
         const declaration = match[1]!.replace(/\s+/g, ' ').trim();
         const outsideScale = declaration.replace(/calc\([^)]*var\(--text-scale\)\)/g, '');
@@ -98,23 +71,29 @@ describe('renderer accessibility CSS policy', () => {
   it('keeps the supported 960px window usable at 200% browser text scaling', () => {
     expect(tokens).toMatch(/body\s*{[\s\S]*?min-width:\s*0/);
     expect(tokens).not.toMatch(/min-width:\s*640px/);
-    expect(styles).toMatch(
-      /@media \(max-width: 600px\)[\s\S]*?\.settingsLayout[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/,
-    );
+    expect(
+      find(
+        /@media \(max-width: 600px\)[\s\S]*?\.settingsLayout[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/,
+      ),
+    ).toBeTruthy();
     expect(styles).not.toMatch(/\.workspaceLabel|\.cloudStatus|\.captureControl/);
-    expect(styles).toMatch(/\.threadControls\s*{[\s\S]*?border:\s*1px/);
-    expect(styles).toMatch(
-      /@media \(max-width: 1120px\)[\s\S]*?\.inspectorButton > span[\s\S]*?display:\s*none/,
-    );
-    expect(styles).toMatch(
-      /@media \(max-width: 1120px\)[\s\S]*?\.activityPageContent[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/,
-    );
+    expect(find(/\.threadControls\s*{[\s\S]*?border:\s*1px/)).toBeTruthy();
+    expect(
+      find(
+        /@media \(max-width: 1120px\)[\s\S]*?\.inspectorButton > span[\s\S]*?display:\s*none/,
+      ),
+    ).toBeTruthy();
+    expect(
+      find(
+        /@media \(max-width: 1120px\)[\s\S]*?\.activityPageContent[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/,
+      ),
+    ).toBeTruthy();
     // The labelled Tools menu replaces icon-only buttons. Its viewport and
     // keyboard behavior are exercised in the real renderer by ux-layout.spec.ts.
   });
 
   it('keeps utility controls in document flow and gives transient surfaces real exits', () => {
-    expect(styles).toMatch(/\.threadWorkspaceBar\s*{[\s\S]*?display:\s*flex/);
+    expect(find(/\.threadWorkspaceBar\s*{[\s\S]*?display:\s*flex/)).toBeTruthy();
     expect(styles).not.toMatch(/\.threadToolNav\s*{[^}]*position:\s*absolute/);
     expect(styles).toMatch(/\.dialogOverlay\[data-state='closed'\]/);
     expect(styles).toMatch(/\.dialogContent\[data-state='closed'\]/);
@@ -122,7 +101,12 @@ describe('renderer accessibility CSS policy', () => {
   });
 
   it('defines every CSS custom property it uses', () => {
-    const definitions = new Set([...css.matchAll(/(--[\w-]+)\s*:/g)].map((match) => match[1]));
+    // Components set these per element (ScottySprite, VoiceWave).
+    const inline = ['--sprite-size', '--sprite-row', '--voice-level'];
+    const definitions = new Set([
+      ...inline,
+      ...[...css.matchAll(/(--[\w-]+)\s*:/g)].map((match) => match[1]),
+    ]);
     const uses = [...css.matchAll(/var\((--[\w-]+)/g)].map((match) => match[1]);
 
     expect([...new Set(uses.filter((name) => !definitions.has(name)))]).toEqual([]);
@@ -134,6 +118,12 @@ describe('renderer accessibility CSS policy', () => {
     expect(`${tokens}\n${companion}`).not.toMatch(gradient);
     // Shared effects own their palettes; the core UI only opts in on its welcome
     // heading, background mask, and composer. Transcript and settings stay plain.
+    const effectModules = new Set([
+      'components/CommandLauncher.module.css',
+      'components/navigation.module.css',
+      'components/result-card.module.css',
+      'components/settings/AppearanceSettings.module.css',
+    ]);
     const decorativeSurfaces = new Set([
       '.conversationAurora',
       '.gradientHeading',
@@ -141,13 +131,19 @@ describe('renderer accessibility CSS policy', () => {
       // Text shimmer on the working status, like Codex and Claude; still under reduced motion.
       '.workingLabel',
     ]);
-    const rules = styles.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+){([^}]*)}/g);
-    for (const rule of rules) {
-      if (!gradient.test(rule[2]!)) continue;
-      for (const selector of rule[1]!.split(',').map((part) => part.trim())) {
-        expect(decorativeSurfaces.has(selector), `Unexpected gradient on ${selector}`).toBe(
-          true,
-        );
+    for (const file of moduleFiles) {
+      if (effectModules.has(file)) continue;
+      const rules = read(file)
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .matchAll(/([^{}]+){([^}]*)}/g);
+      for (const rule of rules) {
+        if (!gradient.test(rule[2]!)) continue;
+        for (const selector of rule[1]!.split(',').map((part) => part.trim())) {
+          expect(
+            decorativeSurfaces.has(selector),
+            `Unexpected gradient on ${selector} in ${file}`,
+          ).toBe(true);
+        }
       }
     }
   });
@@ -162,13 +158,14 @@ describe('renderer accessibility CSS policy', () => {
     // Controls, form fields, and body copy never borrow the display face.
     const controlRules = [
       /\.primaryButton,[\s\S]*?\.textButtonDanger\s*{[\s\S]*?}/,
-      /\.field input,[\s\S]*?\.workspacePicker input\s*{[\s\S]*?}/,
+      /\.field input,[\s\S]*?\.field select\s*{[\s\S]*?}/,
+      /\.workspacePicker input\s*{[\s\S]*?}/,
       /\.composer textarea\s*{[\s\S]*?}/,
       /\.messageContent\s*{[\s\S]*?}/,
       /\.settingsNav button\s*{[\s\S]*?}/,
     ];
     for (const rule of controlRules) {
-      const block = styles.match(rule)?.[0];
+      const block = find(rule);
       expect(block, `${rule} should exist`).toBeTruthy();
       expect(block).not.toContain('var(--font-display)');
     }

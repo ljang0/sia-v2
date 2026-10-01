@@ -8,7 +8,9 @@ import type {
   ProviderSetup,
   VoiceSettingsState,
 } from '../types';
-import styles from '../ui.module.css';
+import buttons from '../styles/buttons.module.css';
+import dialogs from '../styles/dialogs.module.css';
+import styles from './AgentDialog.module.css';
 import { modelChoices, firstReadyModel } from '../agentModels';
 import { voiceOptionLabel } from '../voiceReadiness';
 import { errorMessage } from '../plainErrors';
@@ -164,7 +166,7 @@ export function AgentDialog({
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay
-          className={styles.dialogOverlay}
+          className={dialogs.dialogOverlay}
           {...(closeInstantly ? { 'data-instant-close': '' } : {})}
         />
         <Dialog.Content
@@ -182,7 +184,7 @@ export function AgentDialog({
             <Dialog.Close asChild>
               <button
                 type="button"
-                className={styles.iconButton}
+                className={buttons.iconButton}
                 aria-label="Close"
                 title="Close"
               >
@@ -192,7 +194,7 @@ export function AgentDialog({
           </div>
 
           <form className={styles.agentForm} onSubmit={(event) => void submit(event)}>
-            <label className={styles.field} htmlFor={`${formId}-name`}>
+            <label className={dialogs.field} htmlFor={`${formId}-name`}>
               <span>Name</span>
               <input
                 id={`${formId}-name`}
@@ -205,7 +207,7 @@ export function AgentDialog({
               />
             </label>
 
-            <div className={styles.field}>
+            <div className={dialogs.field}>
               <label htmlFor={`${formId}-instructions`}>Instructions</label>
               <textarea
                 id={`${formId}-instructions`}
@@ -228,7 +230,7 @@ export function AgentDialog({
                 {onOpenModelSettings ? (
                   <button
                     type="button"
-                    className={styles.textButton}
+                    className={buttons.textButton}
                     onClick={onOpenModelSettings}
                   >
                     Open model settings
@@ -246,7 +248,7 @@ export function AgentDialog({
                 </small>
               </summary>
               <div className={styles.agentAdvancedBody}>
-                <label className={styles.field} htmlFor={`${formId}-model`}>
+                <label className={dialogs.field} htmlFor={`${formId}-model`}>
                   <span>Model</span>
                   <select
                     id={`${formId}-model`}
@@ -284,7 +286,7 @@ export function AgentDialog({
                   </select>
                 </label>
 
-                <div className={styles.field}>
+                <div className={dialogs.field}>
                   <label htmlFor={`${formId}-workspace`}>Working folder</label>
                   <div className={styles.workspacePicker}>
                     <input
@@ -295,7 +297,7 @@ export function AgentDialog({
                     />
                     <button
                       type="button"
-                      className={styles.secondaryButton}
+                      className={buttons.secondaryButton}
                       onClick={async () => {
                         setError(undefined);
                         try {
@@ -318,7 +320,7 @@ export function AgentDialog({
                 </div>
 
                 {voice.status === 'connected' ? (
-                  <label className={styles.field}>
+                  <label className={dialogs.field}>
                     <span>Voice</span>
                     <select
                       value={draft.voiceId ?? ''}
@@ -346,12 +348,12 @@ export function AgentDialog({
             ) : null}
             {error ? <p className={styles.formError}>{error}</p> : null}
 
-            <div className={styles.dialogActions}>
+            <div className={dialogs.dialogActions}>
               {agent && onDelete ? (
                 confirmingDelete ? (
                   <button
                     type="button"
-                    className={styles.dangerButton}
+                    className={buttons.dangerButton}
                     disabled={saving}
                     onClick={async () => {
                       setSaving(true);
@@ -375,7 +377,7 @@ export function AgentDialog({
                 ) : (
                   <button
                     type="button"
-                    className={styles.textButtonDanger}
+                    className={buttons.textButtonDanger}
                     onClick={() => setConfirmingDelete(true)}
                   >
                     Delete agent
@@ -384,13 +386,13 @@ export function AgentDialog({
               ) : null}
               <span className={styles.dialogActionSpacer} />
               <Dialog.Close asChild>
-                <button type="button" className={styles.secondaryButton}>
+                <button type="button" className={buttons.secondaryButton}>
                   Cancel
                 </button>
               </Dialog.Close>
               <button
                 type="submit"
-                className={styles.primaryButton}
+                className={buttons.primaryButton}
                 disabled={saving || !selectedChoice?.ready}
               >
                 {saving ? 'Saving...' : agent ? 'Save changes' : 'Create agent'}

@@ -1,0 +1,33 @@
+/* Native Sia typography and mineral surfaces, composed for a phone.
+   Phone motion tokens, the page background, and button feel. */
+
+:root {
+  --phone-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --typing-duration: 440ms;
+}
+body {
+  background: var(--bg-app);
+}
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+button {
+  transition:
+    background 160ms,
+    color 160ms,
+    box-shadow 180ms,
+    transform 180ms var(--phone-ease);
+}
+button:active:not(:disabled) {
+  transform: scale(0.96);
+  transition-duration: 70ms;
+}

@@ -7,7 +7,7 @@ import type {
 } from '../../../shared/scotty';
 import { SettingsSectionHeader, InlineSettingsError } from './SettingsShared';
 import { ScottySprite } from '../ScottySprite';
-import styles from '../../ui.module.css';
+import buttons from '../../styles/buttons.module.css';
 import pet from './ScottySettings.module.css';
 import { Switch } from '../Switch';
 import { errorMessage } from '../../plainErrors';
@@ -64,7 +64,7 @@ export function ScottySettings({ api }: { api: ScottySettingsApi }) {
             Follow your tasks and answer Sia from your desktop. Drag Scotty wherever you like.
           </p>
           <button
-            className={styles.primaryButton}
+            className={buttons.primaryButton}
             disabled={busy || !state}
             onClick={() => void run({ operation: state?.enabled ? 'hide' : 'show' })}
           >
@@ -110,7 +110,7 @@ export function ScottySettings({ api }: { api: ScottySettingsApi }) {
               <p>Bring him back to this screen.</p>
             </div>
             <button
-              className={styles.secondaryButton}
+              className={buttons.secondaryButton}
               disabled={busy || !state}
               onClick={() => void run({ operation: 'resetPosition' })}
             >

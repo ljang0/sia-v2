@@ -11,7 +11,11 @@ import {
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import type { RendererSnapshot } from '../../types';
-import styles from '../../ui.module.css';
+import buttons from '../../styles/buttons.module.css';
+import dialogs from '../../styles/dialogs.module.css';
+import settings from './SettingsShared.module.css';
+import primitives from '../../styles/primitives.module.css';
+import styles from './PrivacySettings.module.css';
 import { InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
 import { ResearchConsentDialog } from './ResearchConsentDialog';
 import { errorMessage } from '../../plainErrors';
@@ -66,7 +70,7 @@ export function PrivacySettings({
     >
       <InlineSettingsError message={error} />
       {uploadsPaused ? (
-        <div className={styles.inlineWarning} role="status">
+        <div className={settings.inlineWarning} role="status">
           <WarningCircle size={15} aria-hidden="true" />
           <div>
             <strong>Research is not enabled for this account</strong>
@@ -77,17 +81,17 @@ export function PrivacySettings({
           </div>
         </div>
       ) : null}
-      <section className={styles.captureSettings} aria-label="Research capture">
+      <section className={settings.captureSettings} aria-label="Research capture">
         <div>
-          <div className={styles.rowTitleLine}>
+          <div className={settings.rowTitleLine}>
             <strong>Research capture</strong>
             <span
-              className={`${styles.stateLabel} ${
+              className={`${settings.stateLabel} ${
                 !snapshot.research.consented
-                  ? styles.state_unavailable
+                  ? settings.state_unavailable
                   : paused || blocked
-                    ? styles.state_paused
-                    : styles.state_ready
+                    ? settings.state_paused
+                    : settings.state_ready
               }`}
             >
               {captureLabel}
@@ -100,7 +104,7 @@ export function PrivacySettings({
           </p>
         </div>
         {uploadsPaused ? (
-          <span className={styles.stateLabel}>Not enabled for this account</span>
+          <span className={settings.stateLabel}>Not enabled for this account</span>
         ) : !snapshot.research.consented ? (
           <ResearchConsentDialog
             cloudAvailable={snapshot.cloudAuth.state !== 'unconfigured'}
@@ -109,7 +113,7 @@ export function PrivacySettings({
         ) : blocked ? (
           <button
             type="button"
-            className={styles.primaryButton}
+            className={buttons.primaryButton}
             disabled={pending === 'capture'}
             onClick={() => void run('capture', () => onSetCapturePaused(false))}
           >
@@ -119,7 +123,7 @@ export function PrivacySettings({
         ) : (
           <button
             type="button"
-            className={paused ? styles.primaryButton : styles.secondaryButton}
+            className={paused ? buttons.primaryButton : buttons.secondaryButton}
             disabled={pending === 'capture'}
             onClick={() => void run('capture', () => onSetCapturePaused(!paused))}
           >
@@ -133,7 +137,7 @@ export function PrivacySettings({
         )}
       </section>
 
-      <details className={styles.settingsDisclosure}>
+      <details className={settings.settingsDisclosure}>
         <summary>How research data is handled</summary>
         <div className={styles.privacyFacts}>
           <div>
@@ -168,7 +172,7 @@ export function PrivacySettings({
       </details>
 
       {blocked ? (
-        <div className={styles.inlineError} role="alert">
+        <div className={primitives.inlineError} role="alert">
           <WarningCircle size={15} aria-hidden="true" />
           <div>
             <strong>Research capture is blocked</strong>
@@ -179,7 +183,7 @@ export function PrivacySettings({
           </div>
         </div>
       ) : snapshot.research.consented && snapshot.research.pendingItems ? (
-        <div className={styles.inlineWarning} role="status">
+        <div className={settings.inlineWarning} role="status">
           <WarningCircle size={15} aria-hidden="true" />
           <div>
             <strong>
@@ -203,7 +207,7 @@ export function PrivacySettings({
       <div className={styles.privacyActions}>
         <button
           type="button"
-          className={styles.secondaryButton}
+          className={buttons.secondaryButton}
           disabled={pending === 'export'}
           onClick={() => void run('export', onExport)}
         >
@@ -245,14 +249,14 @@ function DeleteResearchDialog({
       }}
     >
       <AlertDialog.Trigger asChild>
-        <button type="button" className={styles.dangerButton}>
+        <button type="button" className={buttons.dangerButton}>
           <Trash size={16} aria-hidden="true" />
           Delete research data
         </button>
       </AlertDialog.Trigger>
       <AlertDialog.Portal>
-        <AlertDialog.Overlay className={styles.dialogOverlay} />
-        <AlertDialog.Content className={styles.alertDialogContent}>
+        <AlertDialog.Overlay className={dialogs.dialogOverlay} />
+        <AlertDialog.Content className={dialogs.alertDialogContent}>
           <AlertDialog.Title>Delete your research data?</AlertDialog.Title>
           <AlertDialog.Description>
             {cloudAvailable
@@ -264,15 +268,15 @@ function DeleteResearchDialog({
               <InlineSettingsError message={error} />
             </div>
           ) : null}
-          <div className={styles.dialogActions}>
+          <div className={dialogs.dialogActions}>
             <AlertDialog.Cancel asChild>
-              <button type="button" className={styles.secondaryButton} disabled={deleting}>
+              <button type="button" className={buttons.secondaryButton} disabled={deleting}>
                 Cancel
               </button>
             </AlertDialog.Cancel>
             <button
               type="button"
-              className={styles.dangerButton}
+              className={buttons.dangerButton}
               disabled={deleting}
               onClick={async () => {
                 setDeleting(true);

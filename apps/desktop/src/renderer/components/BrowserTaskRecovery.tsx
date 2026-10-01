@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { RendererSnapshot, ThreadDetail } from '../types';
 import { BrowserWindowPicker } from './BrowserWindowPicker';
 import styles from './BrowserTaskRecovery.module.css';
-import ui from '../ui.module.css';
+import buttons from '../styles/buttons.module.css';
 import { errorMessage } from '../plainErrors';
 
 export function browserTaskRequest(thread: ThreadDetail): string | undefined {
@@ -56,7 +56,7 @@ export function BrowserTaskRecovery({
       </div>
       <button
         type="button"
-        className={ui.secondaryButton}
+        className={buttons.secondaryButton}
         disabled={pending || busy || browser.status === 'attaching'}
         onClick={() => void run()}
       >

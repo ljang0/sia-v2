@@ -1,6 +1,6 @@
 import { ThumbsDown, ThumbsUp } from '@phosphor-icons/react';
 import { plainText, clipText } from '../../shared/plain-text';
-import styles from '../ui.module.css';
+import styles from './Conversation.module.css';
 
 export type ReplyRating = 'up' | 'down';
 

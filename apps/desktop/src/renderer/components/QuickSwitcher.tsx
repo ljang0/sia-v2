@@ -3,7 +3,9 @@ import { ChatCircle, File, LinkSimple, MagnifyingGlass, X } from '@phosphor-icon
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import companion from '../companion.module.css';
 import type { AgentSummary, TranscriptSearchResult } from '../types';
-import styles from '../ui.module.css';
+import buttons from '../styles/buttons.module.css';
+import dialogs from '../styles/dialogs.module.css';
+import primitives from '../styles/primitives.module.css';
 import { AgentForm } from './AgentForm';
 import { sidebarAgentOrder, sidebarThreadOrder } from '../shortcuts';
 
@@ -222,7 +224,7 @@ export function QuickSwitcher({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className={styles.dialogOverlay} />
+        <Dialog.Overlay className={dialogs.dialogOverlay} />
         <Dialog.Content
           className={companion.quickSwitcher}
           onCloseAutoFocus={(event) => {
@@ -231,13 +233,13 @@ export function QuickSwitcher({
           }}
         >
           <Dialog.Title>Move through Sia</Dialog.Title>
-          <Dialog.Description className={styles.visuallyHidden}>
+          <Dialog.Description className={primitives.visuallyHidden}>
             Search conversations, agents, and common actions.
           </Dialog.Description>
           <Dialog.Close asChild>
             <button
               type="button"
-              className={`${styles.iconButton} ${companion.quickSwitcherClose}`}
+              className={`${buttons.iconButton} ${companion.quickSwitcherClose}`}
               aria-label="Close quick switcher"
             >
               <X size={17} aria-hidden="true" />

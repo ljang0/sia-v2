@@ -19,7 +19,9 @@ import type {
   RendererSnapshot,
   ResearchSettings,
 } from '../types';
-import styles from '../ui.module.css';
+import buttons from '../styles/buttons.module.css';
+import primitives from '../styles/primitives.module.css';
+import styles from './Inspector.module.css';
 import { BrowserWindowPicker } from './BrowserWindowPicker';
 
 interface InspectorProps {
@@ -109,19 +111,23 @@ export function Inspector({
           aria-describedby={descriptionId}
           aria-modal="true"
         >
-          <Dialog.Title className={styles.visuallyHidden}>Access</Dialog.Title>
-          <Dialog.Description className={styles.visuallyHidden} id={descriptionId}>
+          <Dialog.Title className={primitives.visuallyHidden}>Access</Dialog.Title>
+          <Dialog.Description className={primitives.visuallyHidden} id={descriptionId}>
             Review and manage browser, computer, data, and optional cloud access.
           </Dialog.Description>
 
           <header className={styles.inspectorHeader}>
-            <div className={styles.segmentedControl} aria-label="Access view" role="tablist">
+            <div
+              className={primitives.segmentedControl}
+              aria-label="Access view"
+              role="tablist"
+            >
               <button
                 type="button"
                 id={browserTabId}
                 ref={browserTabRef}
                 role="tab"
-                className={tab === 'browser' ? styles.segmentActive : ''}
+                className={tab === 'browser' ? primitives.segmentActive : ''}
                 onClick={() => setTab('browser')}
                 onKeyDown={handleTabKeyDown}
                 aria-selected={tab === 'browser'}
@@ -136,7 +142,7 @@ export function Inspector({
                 id={computerTabId}
                 ref={computerTabRef}
                 role="tab"
-                className={tab === 'computer' ? styles.segmentActive : ''}
+                className={tab === 'computer' ? primitives.segmentActive : ''}
                 onClick={() => setTab('computer')}
                 onKeyDown={handleTabKeyDown}
                 aria-selected={tab === 'computer'}
@@ -151,7 +157,7 @@ export function Inspector({
                 id={dataTabId}
                 ref={dataTabRef}
                 role="tab"
-                className={tab === 'data' ? styles.segmentActive : ''}
+                className={tab === 'data' ? primitives.segmentActive : ''}
                 onClick={() => setTab('data')}
                 onKeyDown={handleTabKeyDown}
                 aria-selected={tab === 'data'}
@@ -165,7 +171,7 @@ export function Inspector({
             <Dialog.Close asChild>
               <button
                 type="button"
-                className={styles.iconButton}
+                className={buttons.iconButton}
                 aria-label="Close access"
                 title="Close access"
               >
@@ -249,7 +255,7 @@ function BrowserPanel({
             </div>
           </section>
           {browser.status === 'error' && browser.snapshotLabel ? (
-            <p className={styles.inlineError} role="alert">
+            <p className={primitives.inlineError} role="alert">
               {browser.snapshotLabel}
             </p>
           ) : null}
@@ -282,13 +288,13 @@ function BrowserPanel({
           one.
         </p>
         {browser.status === 'error' && browser.snapshotLabel ? (
-          <p className={styles.inlineError} role="alert">
+          <p className={`${primitives.inlineError} ${styles.emptyError}`} role="alert">
             {browser.snapshotLabel}
           </p>
         ) : null}
         <button
           type="button"
-          className={styles.primaryButton}
+          className={`${buttons.primaryButton} ${styles.emptyAction}`}
           disabled={pending}
           onClick={() => onAttach()}
         >
@@ -303,10 +309,10 @@ function BrowserPanel({
     <div className={styles.inspectorBody} id={id} role="tabpanel" aria-labelledby={labelledBy}>
       <section className={styles.inspectorSummary}>
         <div>
-          <span className={styles.sectionLabel}>Attached profile</span>
+          <span className={primitives.sectionLabel}>Attached profile</span>
           <strong>{browser.profileName}</strong>
         </div>
-        <button type="button" className={styles.textButtonDanger} onClick={onDetach}>
+        <button type="button" className={buttons.textButtonDanger} onClick={onDetach}>
           <LinkBreak size={15} aria-hidden="true" />
           Detach
         </button>
@@ -349,7 +355,7 @@ function BrowserPanel({
           autoComplete="off"
           spellCheck={false}
         />
-        <button type="submit" className={styles.secondaryButton} disabled={!site.trim()}>
+        <button type="submit" className={buttons.secondaryButton} disabled={!site.trim()}>
           Open
         </button>
       </form>
@@ -389,7 +395,7 @@ function ComputerPanel({
         {!permitted ? (
           <button
             type="button"
-            className={styles.secondaryButton}
+            className={`${buttons.secondaryButton} ${styles.permissionAction}`}
             onClick={onRequestPermissions}
           >
             Open system permissions
@@ -474,7 +480,7 @@ function DataPanel({
                 {cloud.label}. {cloud.detail}
               </span>
             </div>
-            <button type="button" className={styles.textButton} onClick={onOpenCloudSettings}>
+            <button type="button" className={buttons.textButton} onClick={onOpenCloudSettings}>
               Settings
             </button>
           </div>
@@ -491,7 +497,7 @@ function DataPanel({
             </div>
             <button
               type="button"
-              className={styles.textButton}
+              className={buttons.textButton}
               onClick={research.consented ? onToggleResearch : onOpenResearchSettings}
             >
               {!research.consented

@@ -8,7 +8,10 @@ import {
 } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { ResearchBatchSummary, ResearchInvite, ResearchParticipant } from '../../types';
-import styles from '../../ui.module.css';
+import buttons from '../../styles/buttons.module.css';
+import dialogs from '../../styles/dialogs.module.css';
+import settings from './SettingsShared.module.css';
+import styles from './ResearchArchiveSettings.module.css';
 import { SettingsSectionHeader } from './SettingsShared';
 import { errorMessage } from '../../plainErrors';
 import { formatBytes } from '../../format';
@@ -184,7 +187,7 @@ export function ResearchArchiveSettings({
           className={styles.archiveInviteForm}
           onSubmit={(event) => void submitInvite(event)}
         >
-          <label className={styles.field}>
+          <label className={dialogs.field}>
             <span>Email address</span>
             <input
               type="email"
@@ -199,7 +202,7 @@ export function ResearchArchiveSettings({
           </label>
           <button
             type="submit"
-            className={styles.primaryButton}
+            className={buttons.primaryButton}
             disabled={
               inviting ||
               !inviteEmail.trim() ||
@@ -236,7 +239,7 @@ export function ResearchArchiveSettings({
         </div>
         <button
           type="button"
-          className={styles.secondaryButton}
+          className={buttons.secondaryButton}
           onClick={() => void refreshParticipants()}
           disabled={Boolean(loading)}
         >
@@ -246,7 +249,7 @@ export function ResearchArchiveSettings({
       </div>
 
       {error ? (
-        <div className={styles.settingsError} role="alert">
+        <div className={settings.settingsError} role="alert">
           {error}
         </div>
       ) : null}
@@ -340,7 +343,7 @@ export function ResearchArchiveSettings({
             {visibleEvents.length > visibleLimit ? (
               <button
                 type="button"
-                className={styles.secondaryButton}
+                className={buttons.secondaryButton}
                 onClick={() => setVisibleLimit((count) => count + EVENT_PAGE_SIZE)}
               >
                 Load {Math.min(EVENT_PAGE_SIZE, visibleEvents.length - visibleLimit)} more

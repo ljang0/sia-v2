@@ -31,8 +31,18 @@ import { LiquidMetalButton } from '../renderer/components/effects/liquid-metal-b
 import { Sheet, Welcome, Activity, statusLabels } from './remote-ui';
 import { Turn } from './turn';
 import { useViewTransition } from '../renderer/components/effects/use-view-transition';
+import './styles/preferences.css';
 import '../renderer/tokens.css';
-import './remote.css';
+import './styles/base.css';
+import './styles/shell.css';
+import './styles/welcome.css';
+import './styles/footer.css';
+import './styles/activity.css';
+import './styles/conversation.css';
+import './styles/sheets.css';
+import './styles/memory.css';
+import './styles/aurora.css';
+import './styles/adaptations.css';
 
 type Recognition = {
   lang: string;

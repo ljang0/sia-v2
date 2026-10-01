@@ -1,0 +1,145 @@
+/* Aurora decoration, the glowing composer, hover lift, and shared keyframes. */
+
+/* Keep decoration above the shell background in Safari's compositing layers. */
+.phone-header,
+.phone-view,
+.phone-nav,
+.connection-banner {
+  position: relative;
+  z-index: 1;
+}
+.phone-aurora {
+  position: absolute;
+  inset: 0 0 auto;
+  height: min(590px, calc(var(--phone-full-height, 100svh) * 0.78));
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 1;
+  transition: opacity 400ms ease;
+  contain: paint;
+  mask-image: linear-gradient(#000 40%, transparent 100%);
+  -webkit-mask-image: linear-gradient(#000 40%, transparent 100%);
+}
+.phone-aurora[data-renderer='dither'] .aurora-fallback {
+  /* Safari may clear a suspended canvas without reporting a lost context. */
+  opacity: 0.6;
+}
+.phone-aurora .dither-aurora-field {
+  opacity: 0.47;
+}
+@media (prefers-color-scheme: dark) {
+  .phone-aurora .dither-aurora-field {
+    opacity: 0.55;
+  }
+}
+.phone-shell[data-scene='workspace'] .phone-aurora {
+  opacity: 0.72;
+}
+.remote-composer {
+  border-color: transparent;
+  background:
+    linear-gradient(
+        115deg,
+        color-mix(in srgb, var(--aurora-emerald) 7%, var(--bg-raised)),
+        var(--bg-raised) 30%,
+        color-mix(in srgb, var(--aurora-cyan) 7%, var(--bg-raised)) 60%,
+        color-mix(in srgb, var(--aurora-violet) 9%, var(--bg-raised))
+      )
+      padding-box,
+    linear-gradient(
+        115deg,
+        color-mix(in srgb, var(--aurora-emerald) 65%, var(--border-subtle)),
+        color-mix(in srgb, var(--aurora-cyan) 55%, var(--border-subtle)) 32%,
+        color-mix(in srgb, var(--aurora-violet) 60%, var(--border-subtle)) 64%,
+        color-mix(in srgb, var(--aurora-emerald) 65%, var(--border-subtle))
+      )
+      border-box;
+  background-size: 260% 100%;
+  animation: gradient-drift 22s ease-in-out infinite alternate;
+}
+.remote-composer:focus-within,
+.remote-composer.listening {
+  border-color: transparent;
+  box-shadow:
+    0 0 0 3px var(--focus-halo),
+    0 4px 20px color-mix(in srgb, var(--aurora-emerald) 10%, transparent);
+}
+.phone-nav [aria-current] .nav-icon {
+  animation: nav-arrive 240ms var(--phone-ease);
+}
+@media (hover: hover) {
+  .idea-card:hover,
+  .task-card:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--aurora-emerald) 60%, var(--border-subtle));
+    box-shadow: 0 6px 18px rgb(23 58 52 / 7%);
+  }
+}
+@keyframes nav-arrive {
+  from {
+    transform: scale(0.87);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+@keyframes gradient-drift {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
+}
+/* Reuse the wave field's visibility/reduced-motion lifecycle for CSS decoration. */
+.phone-shell:has(.phone-aurora[data-paused='true']) .hero-copy h1 span,
+.phone-shell:has(.phone-aurora[data-paused='true']) .remote-composer,
+.phone-shell:has(.phone-aurora[data-paused='true']) .hero-presence {
+  animation-play-state: paused;
+}
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes hover-mark {
+  50% {
+    transform: translateY(-4px);
+  }
+}
+@keyframes breathe {
+  50% {
+    opacity: 0.3;
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes sheet-enter {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 40px);
+  }
+}
+@keyframes sheet-exit {
+  to {
+    opacity: 0;
+    transform: translate(-50%, 40px);
+  }
+}

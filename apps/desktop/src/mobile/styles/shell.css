@@ -1,0 +1,100 @@
+/* The phone frame: header, connection pill, icon buttons, and the scrolling view. */
+
+.phone-shell {
+  position: fixed;
+  top: var(--phone-top, 0px);
+  inset-inline: 0;
+  width: 100%;
+  height: var(--phone-height, 100dvh);
+  max-width: 600px;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-canvas);
+  overflow: hidden;
+  isolation: isolate;
+}
+.phone-header {
+  padding: calc(env(safe-area-inset-top) + 16px) 22px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+.phone-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.welcome-greeting {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.phone-brand {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  flex: none;
+  color: var(--text-primary);
+  font-size: 38px;
+}
+.connection-pill {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 11px;
+  font-weight: 550;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: 30px;
+  color: var(--text-secondary);
+}
+.connection-dot {
+  display: flex;
+}
+.connection-dot i,
+.device-status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+.online .connection-dot i,
+.device-status.online i {
+  background: #548064;
+  box-shadow: 0 0 0 3px rgb(101 160 125 / 12%);
+}
+.icon {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border: 0;
+  background: transparent;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  padding: 0;
+}
+.icon:hover {
+  background: var(--bg-hover);
+}
+.header-more {
+  margin-right: -8px;
+}
+.conversation {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}

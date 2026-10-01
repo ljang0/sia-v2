@@ -19,7 +19,7 @@ import type { RendererApi, RendererSnapshot } from '../types';
 import { SetupConnections } from './OnboardingConnections';
 import { SetupMacAccess } from './SetupMacAccess';
 import { ProvidersSettings } from './settings/ProvidersSettings';
-import ui from '../ui.module.css';
+import buttons from '../styles/buttons.module.css';
 import styles from './Onboarding.module.css';
 import { errorMessage } from '../plainErrors';
 
@@ -357,7 +357,7 @@ export function Onboarding({
               {aiReady ? (
                 <div className={styles.actions}>
                   <button
-                    className={ui.primaryButton}
+                    className={buttons.primaryButton}
                     disabled={
                       busy || connecting || (!agent && (!name.trim() || !choice?.ready))
                     }
@@ -518,7 +518,7 @@ export function Onboarding({
               )}
               <div className={styles.actions}>
                 <button
-                  className={ui.primaryButton}
+                  className={buttons.primaryButton}
                   disabled={busy || connecting}
                   onClick={finish}
                 >

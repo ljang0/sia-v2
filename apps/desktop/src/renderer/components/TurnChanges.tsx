@@ -3,7 +3,9 @@ import { ArrowArcLeft, ArrowArcRight, CheckCircle, SpinnerGap } from '@phosphor-
 import { memo, useState } from 'react';
 import { reversibleFileChange } from '../../shared/turn-changes';
 import type { ThreadEvent, TurnChanges } from '../types';
-import styles from '../ui.module.css';
+import buttons from '../styles/buttons.module.css';
+import dialogs from '../styles/dialogs.module.css';
+import primitives from '../styles/primitives.module.css';
 import local from './TurnChanges.module.css';
 
 export interface TurnChangeActions {
@@ -122,7 +124,7 @@ export const TurnChangesBar = memo(function TurnChangesBar({
         data-testid={undone ? 'turn-changes-redo' : 'turn-changes-undo'}
       >
         {pending ? (
-          <SpinnerGap size={13} className={styles.spin} aria-hidden="true" />
+          <SpinnerGap size={13} className={primitives.spin} aria-hidden="true" />
         ) : undone ? (
           <ArrowArcRight size={13} aria-hidden="true" />
         ) : (
@@ -161,9 +163,9 @@ function TurnChangesDialog({
   return (
     <AlertDialog.Root open={Boolean(review)} onOpenChange={(open) => !open && onClose()}>
       <AlertDialog.Portal>
-        <AlertDialog.Overlay className={styles.dialogOverlay} />
+        <AlertDialog.Overlay className={dialogs.dialogOverlay} />
         <AlertDialog.Content
-          className={styles.alertDialogContent}
+          className={dialogs.alertDialogContent}
           data-testid="turn-changes-dialog"
         >
           <AlertDialog.Title>
@@ -204,9 +206,9 @@ function TurnChangesDialog({
               ) : null}
             </div>
           </AlertDialog.Description>
-          <div className={styles.dialogActions}>
+          <div className={dialogs.dialogActions}>
             <AlertDialog.Cancel asChild>
-              <button type="button" className={styles.secondaryButton}>
+              <button type="button" className={buttons.secondaryButton}>
                 {ready ? 'Cancel' : 'OK'}
               </button>
             </AlertDialog.Cancel>
@@ -214,7 +216,7 @@ function TurnChangesDialog({
               <AlertDialog.Action asChild>
                 <button
                   type="button"
-                  className={styles.primaryButton}
+                  className={buttons.primaryButton}
                   onClick={onConfirm}
                   data-testid="turn-changes-confirm"
                 >

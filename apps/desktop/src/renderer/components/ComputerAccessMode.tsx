@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import type { RendererSnapshot } from '../types';
-import styles from '../ui.module.css';
+import settings from './settings/SettingsShared.module.css';
 import modeStyles from './ComputerAccessMode.module.css';
 
 export function ComputerAccessMode({
@@ -20,7 +20,7 @@ export function ComputerAccessMode({
 }) {
   const controlId = useId();
   return (
-    <div className={styles.accessGroup}>
+    <div className={settings.accessGroup}>
       <div className={modeStyles.row}>
         <div>
           <strong>How Sia uses your apps</strong>
@@ -93,7 +93,7 @@ export function ComputerAccessMode({
           ) : null}
         </div>
       ) : null}
-      <p className={styles.settingsNote}>
+      <p className={settings.settingsNote}>
         {computer.accessMode === 'mac'
           ? computer.backgroundControl
             ? 'Sia works in the background so you can keep using your Mac. Saved native scripts need On my screen. Changes apply to your next task.'

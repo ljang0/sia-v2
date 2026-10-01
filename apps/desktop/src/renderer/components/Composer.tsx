@@ -17,7 +17,9 @@ import {
   useRef,
   useState,
 } from 'react';
-import styles from '../ui.module.css';
+import layout from '../styles/layout.module.css';
+import primitives from '../styles/primitives.module.css';
+import styles from './Composer.module.css';
 import { SiaPresence, type SiaPresenceState } from './SiaPresence';
 import { VoiceWave } from './VoiceWave';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
@@ -678,7 +680,9 @@ export function Composer({
 
   return (
     <div className={styles.composerArea} data-companion-composer>
-      <div className={`${styles.composer} ${disabled ? styles.composerDisabled : ''}`}>
+      <div
+        className={`${styles.composer} ${layout.auroraSurface} ${disabled ? styles.composerDisabled : ''}`}
+      >
         {attachments.length ? (
           <div
             className={styles.composerAttachments}
@@ -791,7 +795,7 @@ export function Composer({
                   data-testid="composer-voice-input"
                 >
                   {voicePhase === 'transcribing' && !voiceConversation ? (
-                    <SpinnerGap className={styles.spin} size={15} aria-hidden="true" />
+                    <SpinnerGap className={primitives.spin} size={15} aria-hidden="true" />
                   ) : voicePhase === 'recording' ? (
                     <Stop size={15} weight="fill" aria-hidden="true" />
                   ) : (

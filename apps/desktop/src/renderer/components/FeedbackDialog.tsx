@@ -1,6 +1,8 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useState } from 'react';
-import styles from '../ui.module.css';
+import buttons from '../styles/buttons.module.css';
+import dialogs from '../styles/dialogs.module.css';
+import styles from './FeedbackDialog.module.css';
 
 interface FeedbackDialogProps {
   open: boolean;
@@ -32,13 +34,13 @@ export function FeedbackDialog({
   return (
     <Dialog.Root open={open} onOpenChange={(next) => !sending && onOpenChange(next)}>
       <Dialog.Portal>
-        <Dialog.Overlay className={styles.dialogOverlay} />
-        <Dialog.Content className={`${styles.alertDialogContent} ${styles.feedbackDialog}`}>
+        <Dialog.Overlay className={dialogs.dialogOverlay} />
+        <Dialog.Content className={`${dialogs.alertDialogContent} ${styles.feedbackDialog}`}>
           <Dialog.Title>Send feedback</Dialog.Title>
           <Dialog.Description>
             Sia opens a draft in your mail app. Nothing is uploaded or sent until you review it.
           </Dialog.Description>
-          <label className={styles.localField}>
+          <label className={`${dialogs.localField} ${styles.feedbackSection}`}>
             <span>What should we improve?</span>
             <textarea
               autoFocus
@@ -49,7 +51,7 @@ export function FeedbackDialog({
               placeholder="Tell us what happened, what you expected, or what felt awkward."
             />
           </label>
-          <label className={styles.forkIsolationOption}>
+          <label className={`${dialogs.forkIsolationOption} ${styles.feedbackOption}`}>
             <input
               type="checkbox"
               checked={includeDiagnostics}
@@ -63,15 +65,15 @@ export function FeedbackDialog({
               </small>
             </span>
           </label>
-          <div className={styles.dialogActions}>
+          <div className={`${dialogs.dialogActions} ${styles.feedbackSection}`}>
             <Dialog.Close asChild>
-              <button type="button" className={styles.secondaryButton} disabled={sending}>
+              <button type="button" className={buttons.secondaryButton} disabled={sending}>
                 Cancel
               </button>
             </Dialog.Close>
             <button
               type="button"
-              className={styles.primaryButton}
+              className={buttons.primaryButton}
               disabled={sending || !message.trim()}
               onClick={() => {
                 setSending(true);

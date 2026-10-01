@@ -1,0 +1,51 @@
+.privacyFacts p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.privacyFacts strong {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.privacyFacts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+  margin: 24px 0;
+}
+
+.privacyFacts > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.privacyFacts > div > svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--text-secondary);
+}
+
+.privacyActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+@container (max-width: 520px) {
+  .privacyFacts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 780px) {
+  .privacyFacts {
+    grid-template-columns: 1fr;
+  }
+}
