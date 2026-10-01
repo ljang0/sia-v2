@@ -178,7 +178,7 @@ test('settings and personal-library surfaces remain readable at supported window
 
 test('conversation tools, access panels and dialogs fit the minimum desktop window', async ({}, info) => {
   const sia = await launchIsolatedSia({ prefix: 'sia-ui-panels-' });
-  let page = sia.page;
+  const page = sia.page;
   try {
     await page.setViewportSize({ width: 960, height: 640 });
     await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
@@ -297,7 +297,7 @@ test('cloud, admin and account settings fit without hiding categories', async ({
       database.close();
     }
     sia = await launchIsolatedSia({ testRoot, environment });
-    let page = sia.page;
+    const page = sia.page;
     await page.setViewportSize({ width: 960, height: 640 });
     await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
     await page.getByRole('button', { name: 'Exit setup', exact: true }).click();

@@ -39,6 +39,8 @@ export default tseslint.config(
       'no-empty-pattern': ['error', { allowObjectPatternsAsParameters: true }],
       // User-facing errors deliberately replace the underlying error (some cross IPC sanitized).
       'preserve-caught-error': 'off',
+      // Late-bound `let` lets callbacks reference a service before it is constructed.
+      'prefer-const': ['error', { ignoreReadBeforeAssign: true }],
       'no-unused-vars': [
         'error',
         {
