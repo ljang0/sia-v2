@@ -77,14 +77,14 @@ Waiting for the expected state must be bounded; a command's exit code or a page 
 verification. Compare equivalent tasks before claiming fewer calls or lower latency; one successful
 run does not establish reliability across every app or model.
 
-The opt-in [native learning smoke](../apps/desktop/src/main/native-learning.smoke.test.ts) uses a real
+The opt-in [native learning smoke](../apps/desktop/src/main/assistant/native-learning.smoke.test.ts) uses a real
 model and disposable files to check saved scripts, bidirectional memory recall between foreground
 and background modes across controller restart, failure
 reporting, continuing an interrupted task without repeating its completed write, and consolidation.
 These checks passed with GPT-5.6-Sol. Existing agents keep their memory preferences: verify
 **Settings → More → Assistant → Memory → Learn from Mac tasks** for the actual agent before expecting
 automatic recall. This is separate from a fresh validation agent's successful memory test.
-The [course investigation smoke](../apps/desktop/src/main/course-investigation.smoke.test.ts)
+The [course investigation smoke](../apps/desktop/src/main/actions/course-investigation.smoke.test.ts)
 uses a real model with **in-memory browser fixtures** to check coursework outside the calendar and
 inaccessible-course reporting. Neither replaces the live GUI checks above. Background
 window control (the Use my Mac default) must be validated separately, including its selected foreground fallback policy.
@@ -157,7 +157,7 @@ when text is insufficient, context menus and screenshot double-clicks where supp
 refusal must stop the affected skill/action without replay. These checks are opt-in; none run when
 Sia launches.
 
-The opt-in [background workflow smoke](../apps/desktop/src/main/background-workflows.smoke.test.ts)
+The opt-in [background workflow smoke](../apps/desktop/src/main/actions/background-workflows.smoke.test.ts)
 uses a real Codex model and real workspace files/sandboxed Bash, with GUI calls denied. Run it with
 `SIA_CODEX_REAL_SMOKE=1 SIA_BACKGROUND_WORKFLOWS_SMOKE=1` and an offered `SIA_SMOKE_MODEL`.
 It checks report creation, saving/running a gateway skill, unchanged reuse after restart, and
@@ -165,7 +165,7 @@ repairing an existing report with a fresh revision.
 This test approves generated skills only inside its disposable fixture; normal exact-source
 approval remains in the app. It does not validate live window input.
 
-The opt-in [background recovery smoke](../apps/desktop/src/main/background-recovery.smoke.test.ts)
+The opt-in [background recovery smoke](../apps/desktop/src/main/actions/background-recovery.smoke.test.ts)
 uses real Codex with an in-memory browser and no real account or host actions. Run it with
 `SIA_CODEX_REAL_SMOKE=1 SIA_BACKGROUND_RECOVERY_SMOKE=1` and an offered `SIA_SMOKE_MODEL`.
 It checks a spoken campus abbreviation against saved institution context, reports an unavailable

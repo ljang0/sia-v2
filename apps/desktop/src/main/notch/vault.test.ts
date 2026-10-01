@@ -15,7 +15,7 @@ import { join, resolve } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import type { AssistantLibraryView } from '../../shared/assistant-library.js';
 import { NotchVault } from './vault.js';
-import { NativeSkills } from '../native-skills.js';
+import { NativeSkills } from '../assistant/native-skills.js';
 import { notchForegroundInstructions, notchConsolidationInstructions } from './foreground.js';
 
 const roots: string[] = [];

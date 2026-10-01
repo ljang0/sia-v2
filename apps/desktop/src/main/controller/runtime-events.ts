@@ -3,7 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import type { ThreadEventEnvelope } from '@sia/protocol';
 import type { ActivityPresentationView } from '../../shared/bridge.js';
-import { mapRuntimePresentation, runtimeToolTitle } from '../runtime-activity.js';
+import { mapRuntimePresentation, runtimeToolTitle } from '../providers/runtime-activity.js';
 import type { ControllerContext } from './context.js';
 
 export function isStreamingDelta(event: ThreadEventEnvelope): boolean {

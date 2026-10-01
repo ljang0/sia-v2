@@ -41,6 +41,29 @@ workspace, voice, research capture and outbox, snapshots and the typed bridge ro
 collaborator declares the context members it uses as a `Pick<ControllerContext, ...>`; pure
 helpers and types sit in their own modules beside them.
 
+The rest of the main process is grouped by domain under `apps/desktop/src/main/`, with `index.ts`
+(app startup and wiring) at the top and each module's tests beside it:
+
+- `actions/` — `DesktopActionBackend` and the Sia-hosted tools it runs after ActionGateway
+  authorization. It delegates to one collaborator per tool family (computer inventory, observation
+  and input; browser; connectors; Messages; schedules) over a shared `ActionBackendContext` that
+  holds the turn's host-minted computer and browser grants. The capability socket host, the
+  tool-bridge entry, approval copy and native Mac execution/automation also live here.
+- `mac/` — macOS integrations: the Cua Driver service, browser-window inspection, Chrome
+  discovery, installed apps, Messages, permissions, keep-awake and the screen-control indicator.
+- `providers/` — the provider runtime coordinator, provider probing, Codex installation and the
+  hosted Responses relay.
+- `cloud/` — the cloud control-plane client, packaged cloud configuration, identity and signed
+  update manifests.
+- `voice/` — voice services, push-to-talk and the personal-voice credential.
+- `window/` — windows, menus, app lifecycle, the command launcher, Scotty and the IPC bridge.
+- `workspace/` — workspace Git, direct-user terminals, turn file changes and pasted attachments.
+- `storage/` — the encrypted record repository and storage startup.
+- `assistant/` — the assistant library, memory suggestions and saved skills.
+- `remote/` — the phone remote.
+- `research/` — the local trajectory recorder.
+- `notch/` — the ported native-learning prompts and vault.
+
 The cloud shown above is a control plane only. The alpha has no remote provider runtime, persistent
 cloud filesystem/browser, or offline cloud scheduler. Local schedules are persisted by the desktop
 app and are evaluated only while Sia is running and the Mac is awake. The acceptance boundary for
@@ -503,7 +526,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   added gateway.
 - **Undo changes** under a finished reply plays back the `fileChange` items Codex reported for that
   reply (an added file's content, a deleted file's content, or an edit's line diff), which the
-  thread already stores; no folder copy or Git snapshot is taken. `main/turn-changes.ts` applies the
+  thread already stores; no folder copy or Git snapshot is taken. `main/workspace/turn-changes.ts` applies the
   record backwards or forwards only when every file still matches it exactly, writes all files or
   none, stays inside the thread's folder or the home folder (never through a symlink, into `.git`,
   `~/.ssh`, `~/.gnupg` or `~/Library/Keychains`), and refuses while a task runs in that thread.

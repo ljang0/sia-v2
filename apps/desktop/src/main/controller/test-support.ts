@@ -1,13 +1,13 @@
 /** Shared harness and fakes for the DesktopController tests. */
 
-import { CloudClient } from '../cloud-client.js';
+import { CloudClient } from '../cloud/cloud-client.js';
 import {
   EphemeralPayloadCipher,
   PlaintextTestCipher,
   type RecordRepository,
   SqliteRecordRepository,
-} from '../persistence.js';
-import { probeProviders } from '../provider-probe.js';
+} from '../storage/persistence.js';
+import { probeProviders } from '../providers/provider-probe.js';
 import { DesktopController } from './desktop-controller.js';
 
 export const computer = {

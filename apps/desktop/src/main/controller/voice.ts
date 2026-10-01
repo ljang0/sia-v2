@@ -4,8 +4,8 @@ import type {
   BridgeResultMap,
   DesktopSnapshot,
 } from '../../shared/bridge.js';
-import { PushToTalkService, type VoiceHelperFactory } from '../push-to-talk.js';
-import type { VoiceOperations } from '../voice-service.js';
+import { PushToTalkService, type VoiceHelperFactory } from '../voice/push-to-talk.js';
+import type { VoiceOperations } from '../voice/voice-service.js';
 import type { ControllerContext } from './context.js';
 
 /** The parts of the controller context VoiceControls uses. */

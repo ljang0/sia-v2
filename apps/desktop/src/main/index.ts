@@ -1,30 +1,33 @@
-import { BrowserWindowService } from './browser-window.js';
-import { AutomationPermissionService } from './automation-permissions.js';
-import { developmentRelaunchArguments } from './development-relaunch.js';
-import { PhoneRemote } from './phone-remote.js';
-import { remoteQR, advertiseRemote } from './phone-remote-native.js';
-import { createScottyCompanion } from './scotty-window.js';
-import { createScreenControlIndicator } from './screen-control-indicator.js';
-import { createCommandLauncher } from './command-launcher.js';
-import { runMacAutomation } from './mac-automation.js';
-import { installedApplications, launchInstalledApplication } from './application-catalog.js';
+import { BrowserWindowService } from './mac/browser-window.js';
+import { AutomationPermissionService } from './mac/automation-permissions.js';
+import { developmentRelaunchArguments } from './window/development-relaunch.js';
+import { PhoneRemote } from './remote/phone-remote.js';
+import { remoteQR, advertiseRemote } from './remote/phone-remote-native.js';
+import { createScottyCompanion } from './window/scotty-window.js';
+import { createScreenControlIndicator } from './mac/screen-control-indicator.js';
+import { createCommandLauncher } from './window/command-launcher.js';
+import { runMacAutomation } from './actions/mac-automation.js';
+import {
+  installedApplications,
+  launchInstalledApplication,
+} from './mac/application-catalog.js';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { openApplicationRepository } from './application-repository.js';
-import { showStorageStartup } from './storage-startup.js';
-import { requestMicrophonePermission } from './microphone-permission.js';
-import { freshPermissionProbe } from './fresh-permissions.js';
-import { contextMenuTemplate } from './context-menu.js';
-import { viewMenu } from './app-menu.js';
-import { readLaunchTheme, ThemeSync, writeLaunchTheme } from './display-preferences.js';
+import { openApplicationRepository } from './storage/application-repository.js';
+import { showStorageStartup } from './storage/storage-startup.js';
+import { requestMicrophonePermission } from './mac/microphone-permission.js';
+import { freshPermissionProbe } from './mac/fresh-permissions.js';
+import { contextMenuTemplate } from './window/context-menu.js';
+import { viewMenu } from './window/app-menu.js';
+import { readLaunchTheme, ThemeSync, writeLaunchTheme } from './window/display-preferences.js';
 import { stepTextSize } from '../shared/display.js';
-import { quitConfirmation, RendererRecovery } from './app-lifecycle.js';
+import { quitConfirmation, RendererRecovery } from './window/app-lifecycle.js';
 import {
   readWindowState,
   restoredBounds,
   windowBackgroundColor,
   WindowStateSaver,
-} from './window-state.js';
+} from './window/window-state.js';
 
 import {
   app,
@@ -42,36 +45,36 @@ import {
 } from 'electron';
 
 import { ActionGateway, DefaultActionAuthorizationPolicy } from '@sia/action-gateway';
-import { TrajectoryRecorder } from './trajectory-recorder.js';
-import { chromeRemoteDebuggingStatus } from './chrome-debug-setup.js';
-import { MessagesService } from './messages-service.js';
+import { TrajectoryRecorder } from './research/trajectory-recorder.js';
+import { chromeRemoteDebuggingStatus } from './mac/chrome-debug-setup.js';
+import { MessagesService } from './mac/messages-service.js';
 
-import { CloudClient } from './cloud-client.js';
-import { HostedResponsesProxy } from './hosted-responses-proxy.js';
-import { loadCloudConfiguration } from './cloud-config.js';
+import { CloudClient } from './cloud/cloud-client.js';
+import { HostedResponsesProxy } from './providers/hosted-responses-proxy.js';
+import { loadCloudConfiguration } from './cloud/cloud-config.js';
 import { DesktopController } from './controller/desktop-controller.js';
-import { KeepAwake } from './keep-awake.js';
-import { CuaService } from './cua-service.js';
-import { DesktopActionBackend } from './action-backend.js';
-import { CapabilitySocketHost } from './capability-host.js';
-import { registerDesktopIpc } from './ipc.js';
-import { ElectronPayloadCipher, SecureStorageUnavailableError } from './persistence.js';
-import { RuntimeCoordinator } from './runtime-coordinator.js';
-import { CognitoIdentityManager } from './identity.js';
-import { configureMetaCloudAvailability, probeProviders } from './provider-probe.js';
-import { discoverCodexInstallation } from './codex-installation.js';
-import { installManagedCodex, managedCodexCommand } from './codex-installer.js';
-import { macProviderPath } from './provider-path.js';
-import { WorkspaceOperationsService } from './workspace-operations.js';
-import { createMacSpeechTransport } from './mac-voice-service.js';
-import { createVoiceService } from './voice-factory.js';
+import { KeepAwake } from './mac/keep-awake.js';
+import { CuaService } from './mac/cua-service.js';
+import { DesktopActionBackend } from './actions/desktop-action-backend.js';
+import { CapabilitySocketHost } from './actions/capability-host.js';
+import { registerDesktopIpc } from './window/ipc.js';
+import { ElectronPayloadCipher, SecureStorageUnavailableError } from './storage/persistence.js';
+import { RuntimeCoordinator } from './providers/runtime-coordinator.js';
+import { CognitoIdentityManager } from './cloud/identity.js';
+import { configureMetaCloudAvailability, probeProviders } from './providers/provider-probe.js';
+import { discoverCodexInstallation } from './providers/codex-installation.js';
+import { installManagedCodex, managedCodexCommand } from './providers/codex-installer.js';
+import { macProviderPath } from './providers/provider-path.js';
+import { WorkspaceOperationsService } from './workspace/workspace-operations.js';
+import { createMacSpeechTransport } from './voice/mac-voice-service.js';
+import { createVoiceService } from './voice/voice-factory.js';
 import {
   PersonalVoiceCredential,
   PersonalVoiceGateway,
   personalVoicePath,
-} from './personal-voice.js';
-import { nativeVoiceHelperFactory } from './push-to-talk.js';
-import { dockBadgeText } from './dock-badge.js';
+} from './voice/personal-voice.js';
+import { nativeVoiceHelperFactory } from './voice/push-to-talk.js';
+import { dockBadgeText } from './window/dock-badge.js';
 
 const WINDOW_SIZE = { width: 1220, height: 780, minWidth: 960, minHeight: 640 };
 const PRODUCTION_CSP =

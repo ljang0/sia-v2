@@ -7,7 +7,11 @@ import type {
   TerminalResultView,
   WorkspaceDiffView,
 } from '../../shared/bridge.js';
-import { applyTurnChanges, readTurnChanges, turnFileChanges } from '../turn-changes.js';
+import {
+  applyTurnChanges,
+  readTurnChanges,
+  turnFileChanges,
+} from '../workspace/turn-changes.js';
 import type { ControllerContext } from './context.js';
 import type { ControllerOptions } from './types.js';
 import { normalizeWorkspace } from './workspace-paths.js';
