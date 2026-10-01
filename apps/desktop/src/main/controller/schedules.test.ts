@@ -400,6 +400,7 @@ describe('DesktopController', () => {
       release = resolve;
     });
     const runtime = {
+      // eslint-disable-next-line require-yield -- a turn that blocks without emitting events.
       async *runTurn() {
         await held;
       },
