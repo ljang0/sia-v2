@@ -5,7 +5,7 @@ import {
   type ActionExecutionResult,
   type ValidatedActionInvocation,
 } from '@sia/action-gateway';
-import { MAC_BROWSER_BUNDLES } from '../browser-window.js';
+import { MAC_BROWSER_BUNDLES } from '../mac/browser-window.js';
 import { refused } from './action-results.js';
 import { requiredString } from './arguments.js';
 import { browserUrlLooksSensitive } from './browser-urls.js';

@@ -1,5 +1,5 @@
 import type { ValidatedActionInvocation } from '@sia/action-gateway';
-import type { CuaAuthorizationContext } from '../cua-service.js';
+import type { CuaAuthorizationContext } from '../mac/cua-service.js';
 import { BrowserGrants } from './browser-grants.js';
 import { ComputerGrants } from './computer-grants.js';
 import type { DesktopActionBackendOptions } from './types.js';

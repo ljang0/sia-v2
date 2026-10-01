@@ -1,4 +1,4 @@
-import { isCuaCallResult } from '../cua-service.js';
+import { isCuaCallResult } from '../mac/cua-service.js';
 
 // Cua Driver payloads are untrusted, loosely shaped JSON. These readers walk them with fixed
 // depth limits and return only the plain fields Sia needs; nothing here mints capabilities.

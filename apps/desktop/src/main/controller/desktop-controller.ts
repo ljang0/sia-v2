@@ -17,7 +17,7 @@ import type {
 import type { TextSize, ThemePreference } from '../../shared/display.js';
 import type { PhoneRemoteApi } from '../../shared/phone-remote.js';
 import type { ScottySettingsApi } from '../../shared/scotty.js';
-import type { CuaAuthorizationContext } from '../cua-service.js';
+import type { CuaAuthorizationContext } from '../mac/cua-service.js';
 import type { TaskSnapshot } from '../latest-task-turn.js';
 import type { VoiceHelperFactory } from '../push-to-talk.js';
 import type { RuntimeCoordinator } from '../runtime-coordinator.js';

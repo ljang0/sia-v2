@@ -1,5 +1,5 @@
 import type { ActionExecutionResult } from '@sia/action-gateway';
-import { isCuaCallResult } from '../cua-service.js';
+import { isCuaCallResult } from '../mac/cua-service.js';
 import { asRecord, compact, findNestedString, findString } from './driver-records.js';
 
 export function refused(reason: string): ActionExecutionResult {

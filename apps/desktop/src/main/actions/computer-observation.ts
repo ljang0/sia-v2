@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/action-gateway';
-import { MAC_BROWSER_BUNDLES, type BrowserWindowState } from '../browser-window.js';
+import { MAC_BROWSER_BUNDLES, type BrowserWindowState } from '../mac/browser-window.js';
 import { actionImages, resultRefusal, screenshotDimensions, stale } from './action-results.js';
 import { requiredString } from './arguments.js';
 import { windowBackgroundInput, windowInputRecovery } from './background-input.js';

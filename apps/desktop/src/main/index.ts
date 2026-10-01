@@ -1,19 +1,22 @@
-import { BrowserWindowService } from './browser-window.js';
-import { AutomationPermissionService } from './automation-permissions.js';
+import { BrowserWindowService } from './mac/browser-window.js';
+import { AutomationPermissionService } from './mac/automation-permissions.js';
 import { developmentRelaunchArguments } from './development-relaunch.js';
 import { PhoneRemote } from './phone-remote.js';
 import { remoteQR, advertiseRemote } from './phone-remote-native.js';
 import { createScottyCompanion } from './scotty-window.js';
-import { createScreenControlIndicator } from './screen-control-indicator.js';
+import { createScreenControlIndicator } from './mac/screen-control-indicator.js';
 import { createCommandLauncher } from './command-launcher.js';
 import { runMacAutomation } from './actions/mac-automation.js';
-import { installedApplications, launchInstalledApplication } from './application-catalog.js';
+import {
+  installedApplications,
+  launchInstalledApplication,
+} from './mac/application-catalog.js';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { openApplicationRepository } from './application-repository.js';
 import { showStorageStartup } from './storage-startup.js';
-import { requestMicrophonePermission } from './microphone-permission.js';
-import { freshPermissionProbe } from './fresh-permissions.js';
+import { requestMicrophonePermission } from './mac/microphone-permission.js';
+import { freshPermissionProbe } from './mac/fresh-permissions.js';
 import { contextMenuTemplate } from './context-menu.js';
 import { viewMenu } from './app-menu.js';
 import { readLaunchTheme, ThemeSync, writeLaunchTheme } from './display-preferences.js';
@@ -43,15 +46,15 @@ import {
 
 import { ActionGateway, DefaultActionAuthorizationPolicy } from '@sia/action-gateway';
 import { TrajectoryRecorder } from './trajectory-recorder.js';
-import { chromeRemoteDebuggingStatus } from './chrome-debug-setup.js';
-import { MessagesService } from './messages-service.js';
+import { chromeRemoteDebuggingStatus } from './mac/chrome-debug-setup.js';
+import { MessagesService } from './mac/messages-service.js';
 
 import { CloudClient } from './cloud-client.js';
 import { HostedResponsesProxy } from './hosted-responses-proxy.js';
 import { loadCloudConfiguration } from './cloud-config.js';
 import { DesktopController } from './controller/desktop-controller.js';
-import { KeepAwake } from './keep-awake.js';
-import { CuaService } from './cua-service.js';
+import { KeepAwake } from './mac/keep-awake.js';
+import { CuaService } from './mac/cua-service.js';
 import { DesktopActionBackend } from './actions/desktop-action-backend.js';
 import { CapabilitySocketHost } from './actions/capability-host.js';
 import { registerDesktopIpc } from './ipc.js';

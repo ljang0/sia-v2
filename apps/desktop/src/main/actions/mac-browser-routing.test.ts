@@ -1,4 +1,4 @@
-import type { BrowserWindowState } from '../browser-window.js';
+import type { BrowserWindowState } from '../mac/browser-window.js';
 import type { ActionToolName } from '@sia/action-gateway';
 import { describe, expect, it, vi } from 'vitest';
 import { DesktopActionBackend } from './desktop-action-backend.js';

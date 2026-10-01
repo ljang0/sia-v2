@@ -1,8 +1,8 @@
 import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/action-gateway';
 import type { ScheduleCadence } from '../../shared/schedule-cadence.js';
-import type { BrowserWindowState, WindowContextState } from '../browser-window.js';
+import type { BrowserWindowState, WindowContextState } from '../mac/browser-window.js';
 import type { CloudClient } from '../cloud-client.js';
-import type { CuaService } from '../cua-service.js';
+import type { CuaService } from '../mac/cua-service.js';
 
 /** Narrow structural boundary used by the desktop host and by unit tests. */
 export type CuaToolCaller = Pick<CuaService, 'call'>;

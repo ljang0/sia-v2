@@ -6,7 +6,7 @@ import {
   automationStatusSchema,
   type AutomationApp,
   type AutomationPermissions,
-} from '../shared/mac-permissions.js';
+} from '../../shared/mac-permissions.js';
 const exec = promisify(execFile);
 const resultSchema = z.object({
   calendar: automationStatusSchema,

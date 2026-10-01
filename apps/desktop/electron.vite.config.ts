@@ -24,7 +24,7 @@ export default defineConfig({
           'tool-bridge': resolve(import.meta.dirname, 'src/main/actions/tool-bridge-entry.ts'),
           'permission-probe': resolve(
             import.meta.dirname,
-            'src/main/permission-probe-entry.ts',
+            'src/main/mac/permission-probe-entry.ts',
           ),
         },
       },

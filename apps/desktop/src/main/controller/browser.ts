@@ -12,7 +12,7 @@ import {
   findBrowserTarget,
   findChromeCandidates,
   preferredChromeWindows,
-} from '../chrome-discovery.js';
+} from '../mac/chrome-discovery.js';
 import type { ControllerContext } from './context.js';
 
 /** The parts of the controller context BrowserSession uses. */
