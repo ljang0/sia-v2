@@ -1,13 +1,13 @@
 import { basename, dirname, resolve } from 'node:path';
-import type { DesktopSnapshot } from '../shared/bridge.js';
-import type { AssistantLibraryView } from '../shared/assistant-library.js';
+import type { DesktopSnapshot } from '../../shared/bridge.js';
+import type { AssistantLibraryView } from '../../shared/assistant-library.js';
 import type {
   RemoteNote,
   RemoteState,
   RemoteTurn,
   RemoteVault,
-} from '../shared/phone-remote.js';
-import { activityLabel } from '../shared/activity-label.js';
+} from '../../shared/phone-remote.js';
+import { activityLabel } from '../../shared/activity-label.js';
 
 /** Notch's remote snapshot, projected from Sia's canonical timeline, never its full IPC state. */
 export function remoteState(

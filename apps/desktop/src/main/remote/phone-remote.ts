@@ -12,13 +12,13 @@ import { constants } from 'node:fs';
 import { open, readFile, realpath } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
 import { z } from 'zod';
-import type { DesktopController } from './controller/desktop-controller.js';
-import type { RecordRepository } from './storage/persistence.js';
+import type { DesktopController } from '../controller/desktop-controller.js';
+import type { RecordRepository } from '../storage/persistence.js';
 import {
   phoneAssistantBlocker,
   type PhoneRemoteCommand,
   type PhoneRemoteSettings,
-} from '../shared/phone-remote.js';
+} from '../../shared/phone-remote.js';
 import { remoteState, remoteVault } from './phone-remote-state.js';
 import { nativeRemoteSkills } from './phone-remote-files.js';
 

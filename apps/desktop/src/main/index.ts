@@ -1,8 +1,8 @@
 import { BrowserWindowService } from './mac/browser-window.js';
 import { AutomationPermissionService } from './mac/automation-permissions.js';
 import { developmentRelaunchArguments } from './window/development-relaunch.js';
-import { PhoneRemote } from './phone-remote.js';
-import { remoteQR, advertiseRemote } from './phone-remote-native.js';
+import { PhoneRemote } from './remote/phone-remote.js';
+import { remoteQR, advertiseRemote } from './remote/phone-remote-native.js';
 import { createScottyCompanion } from './window/scotty-window.js';
 import { createScreenControlIndicator } from './mac/screen-control-indicator.js';
 import { createCommandLauncher } from './window/command-launcher.js';
