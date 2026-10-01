@@ -8,7 +8,7 @@ import type {
   ProviderUsageView,
   ProviderView,
 } from '../../shared/bridge.js';
-import { providerPlan } from '../provider-probe.js';
+import { providerPlan } from '../providers/provider-probe.js';
 import type { ControllerContext } from './context.js';
 import { modelRouteKey } from './execution-routes.js';
 

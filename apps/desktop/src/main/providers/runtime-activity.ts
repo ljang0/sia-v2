@@ -1,6 +1,6 @@
 import type { ThreadEventEnvelope } from '@sia/protocol';
-import type { ActivityPresentationView } from '../shared/bridge.js';
-import { imageActivityTitle } from '../shared/activity-label.js';
+import type { ActivityPresentationView } from '../../shared/bridge.js';
+import { imageActivityTitle } from '../../shared/activity-label.js';
 
 // Maps runtime tool events to the activity titles and presentations the timeline shows.
 

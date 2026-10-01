@@ -9,7 +9,7 @@ import {
   sanitizedEnvironment,
 } from '@sia/runtime';
 
-import type { ProviderId, ProviderView } from '../shared/bridge.js';
+import type { ProviderId, ProviderView } from '../../shared/bridge.js';
 
 interface ProviderCommand {
   executable: string;

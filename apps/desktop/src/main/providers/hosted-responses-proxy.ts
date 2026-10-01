@@ -5,7 +5,7 @@ import {
   type Server,
   type ServerResponse,
 } from 'node:http';
-import { isRecord } from './actions/records.js';
+import { isRecord } from '../actions/records.js';
 
 const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
 const MAX_SCOPES = 256;

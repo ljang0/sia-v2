@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { PlaintextTestCipher, SqliteRecordRepository } from '../persistence.js';
-import type { RuntimeTurnInput } from '../runtime-coordinator.js';
+import type { RuntimeTurnInput } from '../providers/runtime-coordinator.js';
 import { createHarness } from './test-support.js';
 
 describe('follow-up messages while a turn runs', () => {

@@ -7,7 +7,7 @@ import {
   type RecordRepository,
   SqliteRecordRepository,
 } from '../persistence.js';
-import { probeProviders } from '../provider-probe.js';
+import { probeProviders } from '../providers/provider-probe.js';
 import { DesktopController } from './desktop-controller.js';
 
 export const computer = {

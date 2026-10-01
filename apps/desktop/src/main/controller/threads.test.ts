@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { CloudClient } from '../cloud-client.js';
-import type { RuntimeTurnInput } from '../runtime-coordinator.js';
+import type { RuntimeTurnInput } from '../providers/runtime-coordinator.js';
 import type { DesktopController } from './desktop-controller.js';
 import { createController, createHarness } from './test-support.js';
 

@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import type { RuntimeTurnInput } from '../runtime-coordinator.js';
+import type { RuntimeTurnInput } from '../providers/runtime-coordinator.js';
 import { computer, createHarness } from './test-support.js';
 
 describe('Use my Mac power and lock handling', () => {

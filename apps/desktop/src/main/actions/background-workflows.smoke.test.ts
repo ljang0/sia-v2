@@ -7,9 +7,9 @@ import { DesktopController } from '../controller/desktop-controller.js';
 import { DesktopActionBackend } from './desktop-action-backend.js';
 import { CloudClient } from '../cloud-client.js';
 import { EphemeralPayloadCipher, SqliteRecordRepository } from '../persistence.js';
-import { RuntimeCoordinator } from '../runtime-coordinator.js';
-import { discoverCodexInstallation } from '../codex-installation.js';
-import { probeProviders } from '../provider-probe.js';
+import { RuntimeCoordinator } from '../providers/runtime-coordinator.js';
+import { discoverCodexInstallation } from '../providers/codex-installation.js';
+import { probeProviders } from '../providers/provider-probe.js';
 
 // Real Codex and real sandboxed Bash/files, but deliberately no GUI access. This is
 // not evidence for any application's background input support. Never runs on launch.

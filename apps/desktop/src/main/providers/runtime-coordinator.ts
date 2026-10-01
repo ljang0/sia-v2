@@ -26,7 +26,7 @@ import {
   type MetaTransport,
 } from '@sia/runtime';
 import type { ActionGateway, TurnLease } from '@sia/action-gateway';
-import { notchConsolidationInstructions, notchVaultRoot } from './notch/foreground.js';
+import { notchConsolidationInstructions, notchVaultRoot } from '../notch/foreground.js';
 
 import {
   macExecutionTools,
@@ -35,7 +35,7 @@ import {
   presentMacResponse,
   parseMacResponse,
   type MacTaskResult,
-} from './actions/mac-execution.js';
+} from '../actions/mac-execution.js';
 
 export interface RuntimeThreadConfig {
   notchVault?: string;

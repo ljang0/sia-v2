@@ -8,11 +8,11 @@ import { DesktopController } from './controller/desktop-controller.js';
 import { DesktopActionBackend } from './actions/desktop-action-backend.js';
 import { CloudClient } from './cloud-client.js';
 import { EphemeralPayloadCipher, SqliteRecordRepository } from './persistence.js';
-import { RuntimeCoordinator } from './runtime-coordinator.js';
+import { RuntimeCoordinator } from './providers/runtime-coordinator.js';
 import { NativeSkills } from './native-skills.js';
 import { NotchVault } from './notch/vault.js';
-import { discoverCodexInstallation } from './codex-installation.js';
-import { probeProviders } from './provider-probe.js';
+import { discoverCodexInstallation } from './providers/codex-installation.js';
+import { probeProviders } from './providers/provider-probe.js';
 
 // Opt-in real model test. No GUI driver, screen capture, account content or network
 // task is provided. Synthetic files and encrypted state live in a disposable folder.
