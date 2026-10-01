@@ -9,7 +9,7 @@ import {
 } from '../assistant/memory-suggestions.js';
 import { notchConsolidationInstructions } from '../notch/foreground.js';
 import { NotchVault } from '../notch/vault.js';
-import { turnFinishedNotice } from '../notification-copy.js';
+import { turnFinishedNotice } from './notification-copy.js';
 import { abortableDelay } from './async-utils.js';
 import { backgroundControlUnavailable } from './computer-access.js';
 import type { ControllerContext } from './context.js';

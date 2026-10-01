@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import type { TimelineItemView } from '../shared/bridge.js';
+import type { TimelineItemView } from '../../shared/bridge.js';
 import { taskRecoveryContext } from './task-recovery.js';
 
 it('bounds recovery to the failed task and marks past claims as unverified', () => {

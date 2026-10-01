@@ -9,7 +9,7 @@ import type {
   ScottyTask,
 } from '../../shared/scotty.js';
 import { activityLabel } from '../../shared/activity-label.js';
-import { latestTaskTurn, type TaskSnapshot } from '../latest-task-turn.js';
+import { latestTaskTurn, type TaskSnapshot } from '../controller/latest-task-turn.js';
 
 export const scottyCommand = z.discriminatedUnion('operation', [
   z.object({ operation: z.enum(['status', 'show', 'hide', 'resetPosition']) }).strict(),

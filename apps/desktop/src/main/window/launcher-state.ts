@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { LauncherState } from '../../shared/launcher.js';
 import { activityLabel } from '../../shared/activity-label.js';
-import { latestTaskTurn, type TaskSnapshot } from '../latest-task-turn.js';
+import { latestTaskTurn, type TaskSnapshot } from '../controller/latest-task-turn.js';
 
 /** Only main can bind a target. A stale panel cannot reply to or stop a replacement task. */
 export class LauncherSession {

@@ -1,4 +1,4 @@
-import type { DesktopSnapshot, TimelineItemView } from '../shared/bridge.js';
+import type { DesktopSnapshot, TimelineItemView } from '../../shared/bridge.js';
 
 /**
  * What Scotty and the command launcher read: task metadata plus each thread's latest turn.

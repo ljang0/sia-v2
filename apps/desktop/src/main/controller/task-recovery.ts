@@ -1,4 +1,4 @@
-import type { TimelineItemView } from '../shared/bridge.js';
+import type { TimelineItemView } from '../../shared/bridge.js';
 
 /** Rebuilt from the encrypted timeline, so resuming also works after an app restart. */
 export function taskRecoveryContext(

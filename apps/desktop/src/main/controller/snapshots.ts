@@ -1,6 +1,6 @@
 import type { DesktopSnapshot, TimelineItemView, VoiceView } from '../../shared/bridge.js';
 import { type ThreadPreviewMemo, threadPreviews } from '../../shared/thread-previews.js';
-import type { TaskSnapshot } from '../latest-task-turn.js';
+import type { TaskSnapshot } from './latest-task-turn.js';
 import { EMPTY_CONNECTIONS } from './connection-ids.js';
 import type { ControllerContext } from './context.js';
 

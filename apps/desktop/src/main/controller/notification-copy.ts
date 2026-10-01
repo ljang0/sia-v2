@@ -1,4 +1,4 @@
-import { clipText, plainText } from '../shared/plain-text.js';
+import { clipText, plainText } from '../../shared/plain-text.js';
 
 /**
  * What macOS shows when a task ends while Sia is in the background: the conversation's name,
