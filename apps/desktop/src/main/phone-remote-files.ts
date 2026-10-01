@@ -1,6 +1,6 @@
 import { basename } from 'node:path';
 import type { RemoteNote } from '../shared/phone-remote.js';
-import { NativeSkills } from './native-skills.js';
+import { NativeSkills } from './assistant/native-skills.js';
 
 /** The phone vault and native agent share one Notch-format skill registry. */
 export async function nativeRemoteSkills(

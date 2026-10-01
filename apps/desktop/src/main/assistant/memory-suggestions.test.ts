@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { AssistantLibrary } from './assistant-library.js';
-import type { RecordRepository } from './storage/persistence.js';
+import type { RecordRepository } from '../storage/persistence.js';
 function setup() {
   const records = new Map<string, unknown>();
   const repository = {

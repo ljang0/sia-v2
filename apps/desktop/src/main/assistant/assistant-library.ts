@@ -1,8 +1,8 @@
 import { SuggestionStore, completedJournal } from './memory-suggestions.js';
-import type { MacTaskResult } from './actions/mac-execution.js';
+import type { MacTaskResult } from '../actions/mac-execution.js';
 import { parseActionArguments } from '@sia/action-gateway';
 import { createHash, randomUUID } from 'node:crypto';
-import type { RecordRepository } from './storage/persistence.js';
+import type { RecordRepository } from '../storage/persistence.js';
 import {
   assistantLibraryCommand,
   type AssistantLibraryCommand,
@@ -10,7 +10,7 @@ import {
   type AssistantWorkflow,
   type AssistantJournalEntry,
   type AssistantSkill,
-} from '../shared/assistant-library.js';
+} from '../../shared/assistant-library.js';
 
 /** Adapted from Notch's JournalStore, ConsolidationScheduler and SkillLibrary.
  * The journal and script source stay in Sia's encrypted repository. */
@@ -333,7 +333,7 @@ export class AssistantLibrary {
     accept: boolean,
     requireAgent: (id: string) => unknown,
     saveNativeSkill?: (
-      entry: import('../shared/assistant-library.js').AssistantSuggestion,
+      entry: import('../../shared/assistant-library.js').AssistantSuggestion,
     ) => void,
   ): AssistantLibraryView {
     const store = new SuggestionStore(this.repository);

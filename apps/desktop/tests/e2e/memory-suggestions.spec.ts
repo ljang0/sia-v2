@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { launchIsolatedSia } from '../support/electron-harness';
-import { AssistantLibrary } from '../../src/main/assistant-library';
+import { AssistantLibrary } from '../../src/main/assistant/assistant-library';
 import type { RecordRepository } from '../../src/main/storage/persistence';
 
 test('reviews exact memory changes and executable source before accepting', async () => {

@@ -4,15 +4,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { ActionGateway, DefaultActionAuthorizationPolicy } from '@sia/action-gateway';
-import { DesktopController } from './controller/desktop-controller.js';
-import { DesktopActionBackend } from './actions/desktop-action-backend.js';
-import { CloudClient } from './cloud/cloud-client.js';
-import { EphemeralPayloadCipher, SqliteRecordRepository } from './storage/persistence.js';
-import { RuntimeCoordinator } from './providers/runtime-coordinator.js';
+import { DesktopController } from '../controller/desktop-controller.js';
+import { DesktopActionBackend } from '../actions/desktop-action-backend.js';
+import { CloudClient } from '../cloud/cloud-client.js';
+import { EphemeralPayloadCipher, SqliteRecordRepository } from '../storage/persistence.js';
+import { RuntimeCoordinator } from '../providers/runtime-coordinator.js';
 import { NativeSkills } from './native-skills.js';
-import { NotchVault } from './notch/vault.js';
-import { discoverCodexInstallation } from './providers/codex-installation.js';
-import { probeProviders } from './providers/provider-probe.js';
+import { NotchVault } from '../notch/vault.js';
+import { discoverCodexInstallation } from '../providers/codex-installation.js';
+import { probeProviders } from '../providers/provider-probe.js';
 
 // Opt-in real model test. No GUI driver, screen capture, account content or network
 // task is provided. Synthetic files and encrypted state live in a disposable folder.

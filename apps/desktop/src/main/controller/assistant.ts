@@ -5,14 +5,14 @@ import {
 } from '@sia/action-gateway';
 import type { BridgeRequestMap, BridgeResultMap } from '../../shared/bridge.js';
 import { skillExecutionMode, skillUnavailableReason } from '../../shared/skill-execution.js';
-import { AssistantLibrary } from '../assistant-library.js';
-import { runExecutableSkill } from '../executable-skills.js';
+import { AssistantLibrary } from '../assistant/assistant-library.js';
+import { runExecutableSkill } from '../assistant/executable-skills.js';
 import {
   completedJournal,
   MEMORY_REVIEW_PROMPT,
   NATIVE_MEMORY_REVIEW_PROMPT,
-} from '../memory-suggestions.js';
-import { NativeSkills } from '../native-skills.js';
+} from '../assistant/memory-suggestions.js';
+import { NativeSkills } from '../assistant/native-skills.js';
 import { NotchVault } from '../notch/vault.js';
 import type { ControllerContext } from './context.js';
 

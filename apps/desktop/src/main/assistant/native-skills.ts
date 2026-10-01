@@ -15,7 +15,7 @@ import {
   ftruncateSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import type { AssistantSkill } from '../shared/assistant-library.js';
+import type { AssistantSkill } from '../../shared/assistant-library.js';
 
 /** Port of Notch's SkillLibrary.swift: the filesystem is the native skill registry.
  * These scripts are read by the agent and run through the native Codex session,

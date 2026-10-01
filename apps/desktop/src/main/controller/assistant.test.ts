@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { getActionToolDescriptor } from '@sia/action-gateway';
 import { expect, it, vi } from 'vitest';
-import { AssistantLibrary } from '../assistant-library.js';
+import { AssistantLibrary } from '../assistant/assistant-library.js';
 import { NotchVault } from '../notch/vault.js';
 import type { RuntimeTurnInput } from '../providers/runtime-coordinator.js';
 import { createController, createHarness } from './test-support.js';
