@@ -2,7 +2,8 @@
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Composer, microphoneLevel, pcm16Base64 } from './Composer';
+import { Composer } from './Composer';
+import { microphoneLevel, pcm16Base64 } from './composer/voiceAudio';
 
 class TestMediaRecorder extends EventTarget {
   static isTypeSupported() {
