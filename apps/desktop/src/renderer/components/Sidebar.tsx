@@ -1,37 +1,18 @@
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
-  ChatCircle,
-  DotsThree,
   GearSix,
   MagnifyingGlass,
   NotePencil,
-  PencilSimple,
   Plus,
   SidebarSimple,
-  Trash,
-  Archive,
-  Bell,
-  BellSlash,
-  Copy,
-  PushPin,
   Pulse,
   CalendarDots,
 } from '@phosphor-icons/react';
-import {
-  memo,
-  type RefObject,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { AgentSummary, ThreadSummary } from '../types';
 import buttons from '../styles/buttons.module.css';
 import dialogs from '../styles/dialogs.module.css';
-import primitives from '../styles/primitives.module.css';
 import styles from './Sidebar.module.css';
 import { focusComposer } from '../composerFocus';
 import { sidebarAgentOrder, sidebarThreadOrder } from '../shortcuts';
@@ -42,6 +23,9 @@ import { SiaLogo } from './SiaLogo';
 import { MotionList } from './MotionList';
 import { NavigationGroup } from './NavigationGroup';
 import { threadDisplayTitle } from '../threadTitle';
+import { AgentMenu, ThreadMenu } from './sidebar/SidebarMenus';
+import { ThreadLabel } from './sidebar/ThreadLabel';
+import { useScrollEdges } from './sidebar/useScrollEdges';
 
 interface SidebarProps {
   agents: AgentSummary[];
@@ -762,99 +746,6 @@ export function Sidebar({
   );
 }
 
-/** Whether a scroll container has content hidden above or below its fold. */
-function useScrollEdges(ref: RefObject<HTMLElement | null>): {
-  moreAbove: boolean;
-  moreBelow: boolean;
-} {
-  const [moreAbove, setMoreAbove] = useState(false);
-  const [moreBelow, setMoreBelow] = useState(false);
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) return undefined;
-    const update = () => {
-      setMoreAbove(element.scrollTop > 1);
-      setMoreBelow(element.scrollHeight - element.scrollTop - element.clientHeight > 1);
-    };
-    update();
-    element.addEventListener('scroll', update, { passive: true });
-    const observer =
-      typeof ResizeObserver === 'function' ? new ResizeObserver(update) : undefined;
-    observer?.observe(element);
-    if (element.firstElementChild) observer?.observe(element.firstElementChild);
-    return () => {
-      element.removeEventListener('scroll', update);
-      observer?.disconnect();
-    };
-  }, [ref]);
-  return { moreAbove, moreBelow };
-}
-
-/** Snapshots rebuild every thread object, so compare only what the label shows. */
-const ThreadLabel = memo(
-  ThreadLabelContent,
-  ({ thread: a }, { thread: b }) =>
-    a.title === b.title &&
-    a.status === b.status &&
-    a.unread === b.unread &&
-    a.pinned === b.pinned &&
-    Boolean(a.draft?.trim()) === Boolean(b.draft?.trim()),
-);
-
-function ThreadLabelContent({ thread }: { thread: ThreadSummary }) {
-  const draft = Boolean(thread.draft?.trim());
-  const state = threadStateLabel(thread);
-  const signal = threadSignal(thread);
-  return (
-    <span
-      className={styles.threadCopy}
-      data-thread-draft={draft || undefined}
-      data-thread-unread={thread.unread || undefined}
-    >
-      <span className={`${styles.threadTitle} ${navigation.taskTitle}`} title={thread.title}>
-        {thread.pinned ? (
-          <PushPin
-            className={navigation.taskPin}
-            size={11}
-            weight="fill"
-            aria-hidden="true"
-            data-testid="thread-pinned"
-          />
-        ) : null}
-        {thread.title}
-      </span>
-      {draft || state ? (
-        <span className={navigation.taskMeta} data-signal={signal}>
-          {draft ? <strong>Draft</strong> : null}
-          {state ? <span>{state}</span> : null}
-        </span>
-      ) : null}
-      {signal ? (
-        <i className={navigation.taskSignal} data-signal={signal} aria-hidden="true" />
-      ) : null}
-    </span>
-  );
-}
-
-/** The dot at a row's end: what, if anything, the conversation wants from the person. */
-function threadSignal(
-  thread: ThreadSummary,
-): 'working' | 'needs-you' | 'problem' | 'unread' | undefined {
-  if (thread.status === 'running' || thread.status === 'queued') return 'working';
-  if (thread.status === 'waiting') return 'needs-you';
-  if (thread.status === 'error') return 'problem';
-  return thread.unread ? 'unread' : undefined;
-}
-
-function threadStateLabel(thread: ThreadSummary) {
-  if (thread.status === 'running') return 'Working';
-  if (thread.status === 'waiting') return 'Waiting for you';
-  if (thread.status === 'queued') return 'Queued';
-  if (thread.status === 'error') return 'Needs attention';
-  if (thread.unread) return 'Unread';
-  return undefined;
-}
-
 function agentPresence(agent: AgentSummary): 'idle' | 'working' | 'waiting' | 'error' {
   if (agent.threads.some(({ status }) => status === 'running' || status === 'queued')) {
     return 'working';
@@ -862,190 +753,4 @@ function agentPresence(agent: AgentSummary): 'idle' | 'working' | 'waiting' | 'e
   if (agent.threads.some(({ status }) => status === 'waiting')) return 'waiting';
   if (agent.threads.some(({ status }) => status === 'error')) return 'error';
   return 'idle';
-}
-
-function ThreadMenu({
-  thread,
-  onRename,
-  onDelete,
-  onFork,
-  onArchive,
-  onSetUnread,
-  onSetPinned,
-}: {
-  thread: ThreadSummary;
-  onRename(): void;
-  onDelete(opener: HTMLElement | null): void;
-  onFork?: ((opener: HTMLElement | null) => void) | undefined;
-  onArchive?: (() => void) | undefined;
-  onSetUnread?: (() => void) | undefined;
-  onSetPinned?: (() => void) | undefined;
-}) {
-  const trigger = useRef<HTMLButtonElement>(null);
-  const busy =
-    thread.status === 'running' || thread.status === 'queued' || thread.status === 'waiting';
-  return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger asChild>
-        <button
-          ref={trigger}
-          type="button"
-          className={styles.threadMenuButton}
-          aria-label={`Conversation actions for ${thread.title}`}
-          data-testid="thread-actions"
-        >
-          <DotsThree size={16} weight="bold" aria-hidden="true" />
-        </button>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          className={primitives.threadMenuContent}
-          sideOffset={4}
-          align="start"
-        >
-          {onSetPinned ? (
-            <DropdownMenu.Item
-              className={primitives.threadMenuItem}
-              onSelect={onSetPinned}
-              data-testid="thread-pin"
-            >
-              <PushPin size={14} aria-hidden="true" />
-              {thread.pinned ? 'Unpin' : 'Pin'}
-            </DropdownMenu.Item>
-          ) : null}
-          <DropdownMenu.Item className={primitives.threadMenuItem} onSelect={onRename}>
-            <PencilSimple size={14} aria-hidden="true" />
-            Rename
-          </DropdownMenu.Item>
-          {onFork ? (
-            <DropdownMenu.Item
-              className={primitives.threadMenuItem}
-              onSelect={() => onFork(trigger.current)}
-              data-testid="thread-fork"
-              disabled={busy}
-              title={busy ? 'Stop or finish the current task before duplicating.' : undefined}
-            >
-              <Copy size={14} aria-hidden="true" />
-              Duplicate
-            </DropdownMenu.Item>
-          ) : null}
-          {onArchive ? (
-            <DropdownMenu.Item
-              className={primitives.threadMenuItem}
-              onSelect={onArchive}
-              data-testid="thread-archive"
-              disabled={
-                thread.status === 'running' ||
-                thread.status === 'queued' ||
-                thread.status === 'waiting'
-              }
-            >
-              <Archive size={14} aria-hidden="true" />
-              Archive
-            </DropdownMenu.Item>
-          ) : null}
-          {onSetUnread ? (
-            <DropdownMenu.Item className={primitives.threadMenuItem} onSelect={onSetUnread}>
-              {thread.unread ? (
-                <BellSlash size={14} aria-hidden="true" />
-              ) : (
-                <Bell size={14} aria-hidden="true" />
-              )}
-              Mark {thread.unread ? 'read' : 'unread'}
-            </DropdownMenu.Item>
-          ) : null}
-          <DropdownMenu.Item
-            className={`${primitives.threadMenuItem} ${styles.threadMenuDanger}`}
-            disabled={busy}
-            title={busy ? deleteBlockedReason(thread) : undefined}
-            onSelect={() => onDelete(trigger.current)}
-          >
-            <Trash size={14} aria-hidden="true" />
-            <span className={styles.threadMenuItemText}>
-              Delete
-              {busy ? <small>{deleteBlockedReason(thread)}</small> : null}
-            </span>
-          </DropdownMenu.Item>
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
-  );
-}
-
-/** Why Delete is unavailable, in words that say what to do about it. */
-function deleteBlockedReason(thread: ThreadSummary): string {
-  return thread.status === 'waiting'
-    ? 'Answer or stop the task first'
-    : 'Stop or finish the task first';
-}
-
-function AgentMenu({
-  agent,
-  onOpen,
-  onEdit,
-  onSetPinned,
-  onSetNotifications,
-  onDuplicate,
-}: {
-  agent: AgentSummary;
-  onOpen(): void;
-  onEdit(): void;
-  onSetPinned?: (() => void) | undefined;
-  onSetNotifications?: (() => void) | undefined;
-  onDuplicate?: (() => void) | undefined;
-}) {
-  return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger asChild>
-        <button
-          type="button"
-          className={styles.agentEditButton}
-          aria-label={`Agent actions for ${agent.name}`}
-        >
-          <DotsThree size={15} weight="bold" aria-hidden="true" />
-        </button>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          className={primitives.threadMenuContent}
-          sideOffset={4}
-          align="end"
-        >
-          <DropdownMenu.Item className={primitives.threadMenuItem} onSelect={onOpen}>
-            <ChatCircle size={14} aria-hidden="true" />
-            Open agent
-          </DropdownMenu.Item>
-          <DropdownMenu.Item className={primitives.threadMenuItem} onSelect={onEdit}>
-            <NotePencil size={14} aria-hidden="true" />
-            Edit agent
-          </DropdownMenu.Item>
-          {onSetPinned ? (
-            <DropdownMenu.Item className={primitives.threadMenuItem} onSelect={onSetPinned}>
-              <PushPin size={14} aria-hidden="true" />
-              {agent.pinned ? 'Unpin agent' : 'Pin agent'}
-            </DropdownMenu.Item>
-          ) : null}
-          {onSetNotifications ? (
-            <DropdownMenu.Item
-              className={primitives.threadMenuItem}
-              onSelect={onSetNotifications}
-            >
-              {agent.notificationsEnabled ? (
-                <BellSlash size={14} aria-hidden="true" />
-              ) : (
-                <Bell size={14} aria-hidden="true" />
-              )}
-              {agent.notificationsEnabled ? 'Mute notifications' : 'Enable notifications'}
-            </DropdownMenu.Item>
-          ) : null}
-          {onDuplicate ? (
-            <DropdownMenu.Item className={primitives.threadMenuItem} onSelect={onDuplicate}>
-              <Copy size={14} aria-hidden="true" />
-              Duplicate agent
-            </DropdownMenu.Item>
-          ) : null}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
-  );
 }
