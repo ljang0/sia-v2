@@ -14,7 +14,7 @@ SIA_FAKE_SERVICES=1 pnpm dev
 ```
 
 Use `pnpm test:pilot` before handing off a pilot-facing change. It runs the build, formatting,
-quality, type, unit, deterministic desktop E2E, and renderer gates. See
+lint, quality, type, unit, deterministic desktop E2E, and renderer gates. See
 [`docs/ra-onboarding.md`](./docs/ra-onboarding.md) for the first-day walkthrough.
 
 ## Product contract
@@ -80,7 +80,7 @@ admission checks in [`docs/harness-policy.md`](./docs/harness-policy.md).
 ## Verification ladder
 
 1. During development, run the nearest workspace test (`pnpm --filter <workspace> test`).
-2. Before review, run `pnpm check`.
+2. Before review, run `pnpm check`. It includes `pnpm lint` (type-aware ESLint).
 3. For pilot-facing behavior, run `pnpm test:pilot`.
 4. Run real-provider probes only with explicit environment flags and disposable test accounts. The
    no-turn probe must not consume a model turn or mutate a web account.

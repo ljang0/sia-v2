@@ -22,6 +22,8 @@ export default tseslint.config(
       '**/.aws-sam/**',
       'apps/cloud/lambda/**',
       'apps/desktop/build/native/**',
+      // Vendored React Bits component, kept as upstream ships it (see its LICENSE.md).
+      'apps/desktop/src/renderer/components/effects/dither-preview/**',
     ],
   },
   { linterOptions: { reportUnusedDisableDirectives: 'error' } },

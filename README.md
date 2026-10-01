@@ -56,11 +56,12 @@ API key, or paid model turn. The first-day walkthrough is
 
 ## Test
 
-| Command                          | When                                                                   |
-| -------------------------------- | ---------------------------------------------------------------------- |
-| `pnpm --filter <workspace> test` | While developing, for the workspace you changed                        |
-| `pnpm check`                     | Before review: build, formatting, quality guard, types, and unit tests |
-| `pnpm test:pilot`                | Pilot-facing behavior: `check` plus desktop E2E and renderer tests     |
+| Command                          | When                                                                         |
+| -------------------------------- | ---------------------------------------------------------------------------- |
+| `pnpm --filter <workspace> test` | While developing, for the workspace you changed                              |
+| `pnpm lint`                      | ESLint across every workspace (also part of `check`)                         |
+| `pnpm check`                     | Before review: build, formatting, lint, quality guard, types, and unit tests |
+| `pnpm test:pilot`                | Pilot-facing behavior: `check` plus desktop E2E and renderer tests           |
 
 Real provider and connector tests are opt-in, need explicit environment flags, and must use
 disposable accounts; see [`docs/manual-acceptance.md`](./docs/manual-acceptance.md). Packaging and
