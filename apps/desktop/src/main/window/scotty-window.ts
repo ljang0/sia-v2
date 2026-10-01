@@ -1,9 +1,9 @@
 import { app, BrowserWindow, ipcMain, Menu, screen } from 'electron';
 import { join } from 'node:path';
 import { z } from 'zod';
-import type { DesktopController } from './controller/desktop-controller.js';
-import type { RecordRepository } from './persistence.js';
-import type { ScottyCommand, ScottySettings } from '../shared/scotty.js';
+import type { DesktopController } from '../controller/desktop-controller.js';
+import type { RecordRepository } from '../persistence.js';
+import type { ScottyCommand, ScottySettings } from '../../shared/scotty.js';
 import { scottyCommand, ScottyTasks } from './scotty-state.js';
 
 const savedSettings = z.object({

@@ -1,10 +1,10 @@
 import { app, BrowserWindow, globalShortcut, ipcMain, nativeTheme, screen } from 'electron';
 import { join } from 'node:path';
 import { z } from 'zod';
-import type { DesktopController } from './controller/desktop-controller.js';
+import type { DesktopController } from '../controller/desktop-controller.js';
 import { LauncherSession } from './launcher-state.js';
 import { launcherBackgroundColor } from './display-preferences.js';
-import { TEXT_SCALE } from '../shared/display.js';
+import { TEXT_SCALE } from '../../shared/display.js';
 
 const launcherInput = z.discriminatedUnion('kind', [
   z

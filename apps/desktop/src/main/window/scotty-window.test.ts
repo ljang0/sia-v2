@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Electron is mocked with loose window and IPC shapes. */
 import { afterEach, expect, it, vi } from 'vitest';
-import type { DesktopController } from './controller/desktop-controller.js';
-import type { RecordRepository } from './persistence.js';
+import type { DesktopController } from '../controller/desktop-controller.js';
+import type { RecordRepository } from '../persistence.js';
 const electron = vi.hoisted(() => ({
   handlers: new Map<string, (...args: any[]) => Promise<unknown>>(),
   listeners: new Map<string, (...args: any[]) => void>(),

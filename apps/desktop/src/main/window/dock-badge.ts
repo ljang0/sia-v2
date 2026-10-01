@@ -1,4 +1,4 @@
-import type { ThreadView } from '../shared/bridge.js';
+import type { ThreadView } from '../../shared/bridge.js';
 
 /**
  * The Dock badge counts conversations that want the person: a reply they have not read, or a

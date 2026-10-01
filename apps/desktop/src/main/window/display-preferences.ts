@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { isTheme, type ThemePreference } from '../shared/display.js';
+import { isTheme, type ThemePreference } from '../../shared/display.js';
 
 /**
  * The theme lives in Sia's encrypted preferences, which open only after the Keychain unlocks.

@@ -1,15 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import type { DesktopController } from './controller/desktop-controller.js';
-import type { DesktopSnapshot } from '../shared/bridge.js';
+import type { DesktopController } from '../controller/desktop-controller.js';
+import type { DesktopSnapshot } from '../../shared/bridge.js';
 import type {
   ScottySettings,
   ScottyState,
   ScottyStatus,
   ScottyTask,
-} from '../shared/scotty.js';
-import { activityLabel } from '../shared/activity-label.js';
-import { latestTaskTurn, type TaskSnapshot } from './latest-task-turn.js';
+} from '../../shared/scotty.js';
+import { activityLabel } from '../../shared/activity-label.js';
+import { latestTaskTurn, type TaskSnapshot } from '../latest-task-turn.js';
 
 export const scottyCommand = z.discriminatedUnion('operation', [
   z.object({ operation: z.enum(['status', 'show', 'hide', 'resetPosition']) }).strict(),

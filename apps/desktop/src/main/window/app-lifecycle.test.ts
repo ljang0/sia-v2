@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ScheduleView, ThreadView } from '../shared/bridge.js';
+import type { ScheduleView, ThreadView } from '../../shared/bridge.js';
 import { quitConfirmation, RendererRecovery } from './app-lifecycle.js';
 
 const now = Date.parse('2026-09-29T12:00:00.000Z');

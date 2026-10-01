@@ -1,19 +1,19 @@
 import { scottyCommand } from './scotty-state.js';
-import { phoneRemoteCommand } from '../shared/phone-remote.js';
-import { automationAppSchema } from '../shared/mac-permissions.js';
+import { phoneRemoteCommand } from '../../shared/phone-remote.js';
+import { automationAppSchema } from '../../shared/mac-permissions.js';
 import type { BrowserWindow, IpcMain } from 'electron';
 import { z } from 'zod';
-import { TEXT_SIZES, THEMES } from '../shared/display.js';
-import { assistantLibraryCommand } from '../shared/assistant-library.js';
-import { MAX_EVERY_HOURS, SCHEDULE_CADENCES } from '../shared/schedule-cadence.js';
+import { TEXT_SIZES, THEMES } from '../../shared/display.js';
+import { assistantLibraryCommand } from '../../shared/assistant-library.js';
+import { MAX_EVERY_HOURS, SCHEDULE_CADENCES } from '../../shared/schedule-cadence.js';
 
-import type { DesktopController } from './controller/desktop-controller.js';
+import type { DesktopController } from '../controller/desktop-controller.js';
 import type {
   BridgeInvokeEnvelope,
   BridgeMethod,
   BridgeRequestMap,
   DesktopPushEvent,
-} from '../shared/bridge.js';
+} from '../../shared/bridge.js';
 
 const providerId = z.enum(['codex', 'meta', 'grok', 'gemini', 'claude']);
 const connectionId = z.enum(['gmail', 'drive', 'docs', 'sheets', 'slides', 'slack']);

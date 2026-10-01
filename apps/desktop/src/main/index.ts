@@ -1,11 +1,11 @@
 import { BrowserWindowService } from './mac/browser-window.js';
 import { AutomationPermissionService } from './mac/automation-permissions.js';
-import { developmentRelaunchArguments } from './development-relaunch.js';
+import { developmentRelaunchArguments } from './window/development-relaunch.js';
 import { PhoneRemote } from './phone-remote.js';
 import { remoteQR, advertiseRemote } from './phone-remote-native.js';
-import { createScottyCompanion } from './scotty-window.js';
+import { createScottyCompanion } from './window/scotty-window.js';
 import { createScreenControlIndicator } from './mac/screen-control-indicator.js';
-import { createCommandLauncher } from './command-launcher.js';
+import { createCommandLauncher } from './window/command-launcher.js';
 import { runMacAutomation } from './actions/mac-automation.js';
 import {
   installedApplications,
@@ -17,17 +17,17 @@ import { openApplicationRepository } from './application-repository.js';
 import { showStorageStartup } from './storage-startup.js';
 import { requestMicrophonePermission } from './mac/microphone-permission.js';
 import { freshPermissionProbe } from './mac/fresh-permissions.js';
-import { contextMenuTemplate } from './context-menu.js';
-import { viewMenu } from './app-menu.js';
-import { readLaunchTheme, ThemeSync, writeLaunchTheme } from './display-preferences.js';
+import { contextMenuTemplate } from './window/context-menu.js';
+import { viewMenu } from './window/app-menu.js';
+import { readLaunchTheme, ThemeSync, writeLaunchTheme } from './window/display-preferences.js';
 import { stepTextSize } from '../shared/display.js';
-import { quitConfirmation, RendererRecovery } from './app-lifecycle.js';
+import { quitConfirmation, RendererRecovery } from './window/app-lifecycle.js';
 import {
   readWindowState,
   restoredBounds,
   windowBackgroundColor,
   WindowStateSaver,
-} from './window-state.js';
+} from './window/window-state.js';
 
 import {
   app,
@@ -57,7 +57,7 @@ import { KeepAwake } from './mac/keep-awake.js';
 import { CuaService } from './mac/cua-service.js';
 import { DesktopActionBackend } from './actions/desktop-action-backend.js';
 import { CapabilitySocketHost } from './actions/capability-host.js';
-import { registerDesktopIpc } from './ipc.js';
+import { registerDesktopIpc } from './window/ipc.js';
 import { ElectronPayloadCipher, SecureStorageUnavailableError } from './persistence.js';
 import { RuntimeCoordinator } from './providers/runtime-coordinator.js';
 import { CognitoIdentityManager } from './cloud/identity.js';
@@ -74,7 +74,7 @@ import {
   personalVoicePath,
 } from './voice/personal-voice.js';
 import { nativeVoiceHelperFactory } from './voice/push-to-talk.js';
-import { dockBadgeText } from './dock-badge.js';
+import { dockBadgeText } from './window/dock-badge.js';
 
 const WINDOW_SIZE = { width: 1220, height: 780, minWidth: 960, minHeight: 640 };
 const PRODUCTION_CSP =

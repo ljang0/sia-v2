@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { expect, it, vi } from 'vitest';
-import type { DesktopSnapshot, TimelineItemView } from '../shared/bridge.js';
-import type { ScottySettings } from '../shared/scotty.js';
-import type { DesktopController } from './controller/desktop-controller.js';
+import type { DesktopSnapshot, TimelineItemView } from '../../shared/bridge.js';
+import type { ScottySettings } from '../../shared/scotty.js';
+import type { DesktopController } from '../controller/desktop-controller.js';
 import { ScottyTasks } from './scotty-state.js';
 const settings: ScottySettings = { enabled: true, size: 'medium', motion: true };
 const agentId = randomUUID();

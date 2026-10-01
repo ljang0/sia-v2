@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import type { DesktopSnapshot } from '../shared/bridge.js';
+import type { DesktopSnapshot } from '../../shared/bridge.js';
 import { LauncherSession } from './launcher-state.js';
 function snapshot(status = 'idle'): DesktopSnapshot {
   return {
