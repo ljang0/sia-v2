@@ -1,7 +1,7 @@
 import { MagnifyingGlass } from '@phosphor-icons/react';
 import { useEffect, useId, useState } from 'react';
 import type { TranscriptSearchResult } from '../../types';
-import styles from '../../ui.module.css';
+import surface from './localParity.module.css';
 
 interface TranscriptSearchProps {
   search(query: string): Promise<TranscriptSearchResult[]>;
@@ -38,11 +38,11 @@ export function TranscriptSearch({
   }, [query, search]);
 
   return (
-    <section className={styles.transcriptSearch} aria-labelledby={labelId}>
-      <div className={styles.localSurfaceHeader}>
+    <section className={surface.transcriptSearch} aria-labelledby={labelId}>
+      <div className={surface.localSurfaceHeader}>
         <h2 id={labelId}>Search conversations</h2>
       </div>
-      <label className={styles.threadSearch}>
+      <label className={surface.threadSearch}>
         <MagnifyingGlass size={14} aria-hidden="true" />
         <input
           autoFocus={focusOnMount}
@@ -54,7 +54,7 @@ export function TranscriptSearch({
           data-testid="thread-search-input"
         />
       </label>
-      <div className={styles.transcriptSearchResults} data-testid="transcript-search-results">
+      <div className={surface.transcriptSearchResults} data-testid="transcript-search-results">
         {results.flatMap((result) =>
           result.matches.map((match) => (
             <button
@@ -70,11 +70,11 @@ export function TranscriptSearch({
           )),
         )}
         {!query.trim() ? (
-          <p className={styles.localEmpty}>
+          <p className={surface.localEmpty}>
             Finds words in any conversation, including archived ones.
           </p>
         ) : results.length === 0 ? (
-          <p className={styles.localEmpty}>No conversations mention “{query.trim()}”.</p>
+          <p className={surface.localEmpty}>No conversations mention “{query.trim()}”.</p>
         ) : null}
       </div>
     </section>

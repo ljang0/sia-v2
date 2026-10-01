@@ -2,7 +2,8 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { CaretRight, Command, Play, SpinnerGap, Stop, X } from '@phosphor-icons/react';
 import { useEffect, useId, useRef, useState, type FormEvent, type RefObject } from 'react';
 import buttons from '../../styles/buttons.module.css';
-import styles from '../../ui.module.css';
+import ui from '../../ui.module.css';
+import styles from './TerminalDrawer.module.css';
 import type { BackgroundTerminal } from '../../types';
 
 interface TerminalRunRequest {
@@ -96,7 +97,7 @@ export function TerminalDrawer({
           <form className={styles.terminalForm} onSubmit={submit}>
             <label>
               <Command size={16} aria-hidden="true" />
-              <span className={styles.visuallyHidden}>Command</span>
+              <span className={ui.visuallyHidden}>Command</span>
               <input
                 ref={commandInput}
                 value={command}
@@ -115,7 +116,7 @@ export function TerminalDrawer({
               data-testid="terminal-run"
             >
               {run.status === 'running' ? (
-                <SpinnerGap className={styles.spin} size={14} aria-hidden="true" />
+                <SpinnerGap className={ui.spin} size={14} aria-hidden="true" />
               ) : (
                 <Play size={14} aria-hidden="true" />
               )}
@@ -133,7 +134,7 @@ export function TerminalDrawer({
                 data-testid="terminal-start-background"
               >
                 {backgroundStarting ? (
-                  <SpinnerGap className={styles.spin} size={14} aria-hidden="true" />
+                  <SpinnerGap className={ui.spin} size={14} aria-hidden="true" />
                 ) : (
                   <Play size={14} aria-hidden="true" />
                 )}

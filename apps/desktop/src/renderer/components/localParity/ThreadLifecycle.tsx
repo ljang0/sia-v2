@@ -1,7 +1,8 @@
 import { ArrowCounterClockwise, Tray } from '@phosphor-icons/react';
 import { useEffect, useId, useRef } from 'react';
 import buttons from '../../styles/buttons.module.css';
-import styles from '../../ui.module.css';
+import surface from './localParity.module.css';
+import styles from './ThreadLifecycle.module.css';
 
 interface ArchivedThread {
   id: string;
@@ -36,11 +37,11 @@ export function ArchivedThreadsSection({
     <section
       ref={section}
       id="archived-threads"
-      className={styles.archivedThreads}
+      className={surface.archivedThreads}
       aria-labelledby={titleId}
       tabIndex={-1}
     >
-      <div className={styles.localSurfaceHeader}>
+      <div className={surface.localSurfaceHeader}>
         <h2 id={titleId}>Archived</h2>
         <Tray size={16} aria-hidden="true" />
       </div>
@@ -66,7 +67,7 @@ export function ArchivedThreadsSection({
           ))}
         </div>
       ) : (
-        <p className={styles.localEmpty}>
+        <p className={surface.localEmpty}>
           Nothing archived. Conversations you archive will rest here.
         </p>
       )}

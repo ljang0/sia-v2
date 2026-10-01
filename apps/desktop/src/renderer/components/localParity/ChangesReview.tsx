@@ -14,7 +14,9 @@ import { useEffect, useId, useState } from 'react';
 import type { WorkspaceSnapshot } from '../../types';
 import buttons from '../../styles/buttons.module.css';
 import dialogs from '../../styles/dialogs.module.css';
-import styles from '../../ui.module.css';
+import surface from './localParity.module.css';
+import ui from '../../ui.module.css';
+import styles from './ChangesReview.module.css';
 import { shortDateTime } from '../../format';
 
 export interface ChangedFile {
@@ -65,10 +67,10 @@ export function ChangesReview({
   }, [files, selected]);
 
   return (
-    <section className={styles.changesReview} aria-labelledby={titleId}>
-      <div className={styles.localSurfaceHeader}>
+    <section className={surface.changesReview} aria-labelledby={titleId}>
+      <div className={surface.localSurfaceHeader}>
         <div>
-          <span className={styles.sectionLabel} title={workspace}>
+          <span className={ui.sectionLabel} title={workspace}>
             Workspace · {workspace.split('/').filter(Boolean).at(-1) ?? workspace}
           </span>
           <h2 id={titleId}>Changes</h2>
@@ -200,7 +202,7 @@ export function ChangesReview({
           </div>
         </div>
       ) : (
-        <p className={styles.localEmpty}>
+        <p className={surface.localEmpty}>
           No file changes yet. When Sia edits files in this folder, you can review them here.
         </p>
       )}

@@ -22,7 +22,9 @@ import { threadDisplayTitle } from '../../threadTitle';
 import layout from '../../styles/layout.module.css';
 import buttons from '../../styles/buttons.module.css';
 import dialogs from '../../styles/dialogs.module.css';
-import styles from '../../ui.module.css';
+import surface from './localParity.module.css';
+import ui from '../../ui.module.css';
+import styles from './Schedules.module.css';
 import { useConfirmDialog } from '../ConfirmDialog';
 import { StartupSettings } from '../settings/StartupSettings';
 import {
@@ -603,11 +605,11 @@ export function ScheduleControls({
   };
 
   return (
-    <section className={styles.scheduleControl} aria-labelledby={titleId}>
+    <section className={surface.scheduleControl} aria-labelledby={titleId}>
       {confirmDialog}
-      <div className={styles.localSurfaceHeader}>
+      <div className={surface.localSurfaceHeader}>
         <div>
-          <span className={styles.sectionLabel}>Runs while Sia is open</span>
+          <span className={ui.sectionLabel}>Runs while Sia is open</span>
           <h2 id={titleId}>Schedules</h2>
         </div>
         <button
@@ -644,7 +646,7 @@ export function ScheduleControls({
         />
       ) : null}
 
-      <div className={styles.scheduleList}>
+      <div className={surface.scheduleList}>
         {schedules.length ? (
           schedules.map((schedule) => (
             <ScheduleRow
@@ -731,9 +733,9 @@ export function ScheduledOverview({
     .join(' · ');
 
   return (
-    <section className={styles.scheduledOverview} aria-labelledby={titleId}>
+    <section className={surface.scheduledOverview} aria-labelledby={titleId}>
       {confirmDialog}
-      <div className={styles.localSurfaceHeader}>
+      <div className={surface.localSurfaceHeader}>
         <h2 id={titleId}>{summary || 'No schedules'}</h2>
       </div>
       {onSetOpenAtLogin ? (
@@ -743,7 +745,7 @@ export function ScheduledOverview({
           onSetOpenAtLogin={onSetOpenAtLogin}
         />
       ) : null}
-      <div className={styles.scheduleList}>
+      <div className={surface.scheduleList}>
         {ordered.length ? (
           ordered.map((schedule) => (
             <ScheduleRow

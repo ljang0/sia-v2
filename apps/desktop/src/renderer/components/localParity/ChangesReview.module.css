@@ -1,0 +1,238 @@
+.localHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.changeCount {
+  display: inline-flex;
+  height: 26px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  border-radius: var(--radius-control);
+  background: var(--surface-success);
+  color: var(--text-success);
+  font-size: var(--text-sm);
+  text-transform: capitalize;
+}
+
+.changeCount {
+  background: var(--surface-info);
+  color: var(--text-link);
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
+}
+
+.workspaceSnapshots {
+  margin-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.workspaceSnapshots > summary {
+  width: fit-content;
+  padding-top: 9px;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  transition: color var(--motion-fast) var(--ease-standard);
+}
+
+.workspaceSnapshots > summary:hover {
+  color: var(--text-primary);
+}
+
+.workspaceSnapshots > div {
+  margin-top: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--bg-subtle);
+}
+
+.workspaceSnapshots > div > div {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 6px 2px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.workspaceSnapshots > div > div:last-child {
+  border-bottom: 0;
+}
+
+.workspaceSnapshots time {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.workspaceSnapshots span {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.workspaceSnapshots .snapshotAction {
+  min-height: 26px;
+}
+
+.changesLayout {
+  display: grid;
+  min-height: 360px;
+  grid-template-columns: minmax(180px, 0.36fr) minmax(0, 1fr);
+  margin-top: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+}
+
+.changeFileList {
+  min-width: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--bg-subtle);
+}
+
+.changeFileList > button {
+  display: grid;
+  width: 100%;
+  min-height: 42px;
+  grid-template-columns: 18px minmax(0, 1fr) 18px auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.changeFileList > button:hover,
+.changeFileList > .changeFileSelected {
+  background: var(--bg-raised);
+  color: var(--text-primary);
+}
+
+.changeFileList > button:hover {
+  transform: none;
+}
+
+.changeFileList > button > span:nth-child(2) {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changeFileList small {
+  color: var(--text-warning);
+  font-family: var(--font-mono);
+  font-weight: var(--weight-semibold);
+}
+
+.changeStats {
+  display: inline-flex;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.changeStats span:first-child {
+  color: var(--text-success);
+}
+
+.changeStats span:last-child {
+  color: var(--text-danger);
+}
+
+.diffPane {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  background: var(--bg-canvas);
+}
+
+.diffPane > header {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px 6px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.diffPane > header > strong {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diffPane > header > div {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+}
+
+.unifiedDiff {
+  min-height: 0;
+  flex: 1;
+  margin: 0;
+  overflow: auto;
+  padding: 10px 0;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
+.unifiedDiff > span {
+  display: grid;
+  min-width: max-content;
+  grid-template-columns: 20px auto;
+  padding: 0 12px 0 4px;
+}
+
+.unifiedDiff > span > span {
+  display: inline-flex;
+  align-items: center;
+  color: inherit;
+}
+
+.unifiedDiff > span[data-kind='addition'] {
+  background: var(--surface-success);
+  color: var(--text-success);
+}
+
+.unifiedDiff > span[data-kind='deletion'] {
+  background: var(--surface-danger);
+  color: var(--text-danger);
+}
+
+.unifiedDiff > span[data-kind='hunk'] {
+  background: var(--surface-info);
+  color: var(--text-link);
+}
+
+.changeStaged {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: var(--radius-control);
+  background: var(--surface-success);
+  color: var(--text-success);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}

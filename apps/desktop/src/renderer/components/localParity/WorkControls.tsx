@@ -3,7 +3,9 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { ThreadGoal } from '../../types';
 import buttons from '../../styles/buttons.module.css';
 import dialogs from '../../styles/dialogs.module.css';
-import styles from '../../ui.module.css';
+import surface from './localParity.module.css';
+import ui from '../../ui.module.css';
+import styles from './WorkControls.module.css';
 
 interface SelectOption {
   id: string;
@@ -139,10 +141,10 @@ export function GoalControls({
 
   if (goal) {
     return (
-      <section className={styles.goalControl} aria-labelledby={`${inputId}-title`}>
-        <div className={styles.localSurfaceHeader}>
+      <section className={surface.goalControl} aria-labelledby={`${inputId}-title`}>
+        <div className={surface.localSurfaceHeader}>
           <div>
-            <span className={styles.sectionLabel}>Goal for this conversation</span>
+            <span className={ui.sectionLabel}>Goal for this conversation</span>
             <h2 id={`${inputId}-title`}>{goal.text}</h2>
           </div>
           <span className={styles.goalStatus} data-status={goal.status}>
@@ -197,10 +199,14 @@ export function GoalControls({
   };
 
   return (
-    <form className={styles.goalControl} onSubmit={submit} aria-labelledby={`${inputId}-title`}>
-      <div className={styles.localSurfaceHeader}>
+    <form
+      className={surface.goalControl}
+      onSubmit={submit}
+      aria-labelledby={`${inputId}-title`}
+    >
+      <div className={surface.localSurfaceHeader}>
         <div>
-          <span className={styles.sectionLabel}>Goal for this conversation</span>
+          <span className={ui.sectionLabel}>Goal for this conversation</span>
           <h2 id={`${inputId}-title`}>Keep a long task on course</h2>
           <p className={styles.goalIntro}>
             Name the finish line and Sia keeps it in view while it works.
@@ -220,7 +226,7 @@ export function GoalControls({
         />
       </label>
       <button
-        className={`${buttons.primaryButton} ${styles.goalSubmit}`}
+        className={`${buttons.primaryButton} ${surface.goalSubmit}`}
         type="submit"
         disabled={busy || !draft.trim()}
         data-testid="goal-save"

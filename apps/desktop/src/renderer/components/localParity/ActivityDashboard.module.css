@@ -1,0 +1,137 @@
+.activityMetrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin: 2px 0 6px;
+}
+
+.activityMetrics > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 14px 12px 0;
+  border-right: 1px solid var(--border-subtle);
+}
+
+.activityMetrics > div + div {
+  padding-left: 14px;
+}
+
+.activityMetrics > div:last-child {
+  border-right: 0;
+}
+
+.activityMetrics strong {
+  font-family: var(--font-display);
+  font-size: var(--display-lg);
+  font-weight: var(--weight-display);
+  font-variation-settings: 'opsz' 60;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-display);
+  line-height: 1.05;
+}
+
+.activityMetrics span {
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+}
+
+/* Counts at zero step back; the ones that ask something of the person carry its colour. */
+.activityMetrics > [data-empty='true'] strong {
+  color: var(--text-tertiary);
+}
+
+.activityMetrics > [data-status='waiting'][data-empty='false'] strong,
+.activityMetrics > [data-status='failed'][data-empty='false'] strong {
+  color: var(--text-warning);
+}
+
+.activityMetrics > [data-status='running'][data-empty='false'] strong,
+.activityMetrics > [data-status='unread'][data-empty='false'] strong {
+  color: var(--text-success);
+}
+
+.activityAllClear {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 14px 16px;
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--text-success) 7%, transparent);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.activityAllClear svg {
+  flex: none;
+  color: var(--text-success);
+}
+
+.dashboardRow {
+  display: grid;
+  min-height: 58px;
+  grid-template-columns: 22px minmax(0, 1fr) auto 18px;
+  align-items: center;
+  gap: 8px;
+  margin: 0 -8px;
+  padding: 0 8px;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+  border-radius: var(--radius-control);
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.dashboardRow:hover {
+  background: var(--bg-hover);
+}
+
+.dashboardRow > svg:first-child {
+  color: var(--text-secondary);
+}
+
+.dashboardRowText,
+.dashboardRowText > span {
+  display: flex;
+  min-width: 0;
+}
+
+.dashboardRowText {
+  flex-direction: column;
+  gap: 3px;
+}
+
+.dashboardRowText > span:first-child {
+  align-items: baseline;
+  gap: 7px;
+}
+
+.dashboardRowText strong,
+.dashboardRowText > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboardRowText strong {
+  color: var(--text-primary);
+  font-size: var(--text-md);
+}
+
+.dashboardRowText small,
+.dashboardRow time {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
+.dashboardRowText > span:last-child {
+  font-size: var(--text-sm);
+}
