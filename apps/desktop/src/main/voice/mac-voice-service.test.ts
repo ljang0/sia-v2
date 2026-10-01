@@ -4,7 +4,7 @@ import {
   MacVoiceService,
   type MacSpeechTransport,
 } from './mac-voice-service.js';
-import { PlaintextTestCipher, SqliteRecordRepository } from '../persistence.js';
+import { PlaintextTestCipher, SqliteRecordRepository } from '../storage/persistence.js';
 
 function harness(dictationAvailable = true) {
   const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import type { DesktopController } from './controller/desktop-controller.js';
 import type { DesktopSnapshot } from '../shared/bridge.js';
-import type { RecordRepository } from './persistence.js';
+import type { RecordRepository } from './storage/persistence.js';
 import { PhoneRemote } from './phone-remote.js';
 import { remoteState, remoteVault } from './phone-remote-state.js';
 import { nativeRemoteSkills } from './phone-remote-files.js';

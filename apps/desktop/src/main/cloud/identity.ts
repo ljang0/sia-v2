@@ -1,5 +1,5 @@
 import type { IdTokenSource } from './cloud-client.js';
-import type { RecordRepository } from '../persistence.js';
+import type { RecordRepository } from '../storage/persistence.js';
 
 type CloudIdentityState =
   | 'unconfigured'

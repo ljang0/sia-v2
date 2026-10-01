@@ -7,7 +7,7 @@ import { ActionGateway, DefaultActionAuthorizationPolicy } from '@sia/action-gat
 import { DesktopController } from './controller/desktop-controller.js';
 import { DesktopActionBackend } from './actions/desktop-action-backend.js';
 import { CloudClient } from './cloud/cloud-client.js';
-import { EphemeralPayloadCipher, SqliteRecordRepository } from './persistence.js';
+import { EphemeralPayloadCipher, SqliteRecordRepository } from './storage/persistence.js';
 import { RuntimeCoordinator } from './providers/runtime-coordinator.js';
 import { NativeSkills } from './native-skills.js';
 import { NotchVault } from './notch/vault.js';

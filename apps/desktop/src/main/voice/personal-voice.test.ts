@@ -6,7 +6,7 @@ import {
   EphemeralPayloadCipher,
   PlaintextTestCipher,
   SqliteRecordRepository,
-} from '../persistence.js';
+} from '../storage/persistence.js';
 import { PersonalVoiceCredential, PersonalVoiceGateway } from './personal-voice.js';
 import { ElevenLabsVoiceService } from './voice-service.js';
 

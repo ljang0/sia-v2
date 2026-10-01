@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { getActionToolDescriptor } from '@sia/action-gateway';
 import { describe, expect, it, vi } from 'vitest';
-import { PlaintextTestCipher, SqliteRecordRepository } from '../persistence.js';
+import { PlaintextTestCipher, SqliteRecordRepository } from '../storage/persistence.js';
 import { createController, createHarness } from './test-support.js';
 
 describe('DesktopController', () => {

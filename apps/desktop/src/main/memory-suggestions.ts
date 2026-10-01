@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { parseActionArguments } from '@sia/action-gateway';
 import type { AssistantLibraryView, AssistantSuggestion } from '../shared/assistant-library.js';
-import type { RecordRepository } from './persistence.js';
+import type { RecordRepository } from './storage/persistence.js';
 const digest = (value: unknown) =>
   createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const secret =

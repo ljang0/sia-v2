@@ -18,7 +18,7 @@ import type { AutomationApp, AutomationPermissions } from '../../shared/mac-perm
 import type { CloudClient } from '../cloud/cloud-client.js';
 import type { CuaAuthorizationContext } from '../mac/cua-service.js';
 import type { CloudIdentityStatus } from '../cloud/identity.js';
-import type { RecordRepository } from '../persistence.js';
+import type { RecordRepository } from '../storage/persistence.js';
 import type { probeProviders } from '../providers/provider-probe.js';
 import type { TrajectoryRecorder } from '../trajectory-recorder.js';
 import type { VoiceOperations } from '../voice/voice-service.js';

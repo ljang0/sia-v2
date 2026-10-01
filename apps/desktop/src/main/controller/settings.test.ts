@@ -1,7 +1,7 @@
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { MacVoiceService } from '../voice/mac-voice-service.js';
-import { PlaintextTestCipher, SqliteRecordRepository } from '../persistence.js';
+import { PlaintextTestCipher, SqliteRecordRepository } from '../storage/persistence.js';
 import { canonicalJson } from '../cloud/update-manifest.js';
 import { computer, createHarness } from './test-support.js';
 

@@ -6,7 +6,7 @@ import {
   PlaintextTestCipher,
   type RecordRepository,
   SqliteRecordRepository,
-} from '../persistence.js';
+} from '../storage/persistence.js';
 import { probeProviders } from '../providers/provider-probe.js';
 import { DesktopController } from './desktop-controller.js';
 

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { DesktopSnapshot } from '../../src/shared/bridge';
 import type { DesktopController } from '../../src/main/controller/desktop-controller';
-import type { RecordRepository } from '../../src/main/persistence';
+import type { RecordRepository } from '../../src/main/storage/persistence';
 import { PhoneRemote } from '../../src/main/phone-remote';
 
 const agentId = '8f944e7b-c72c-4e4e-8a76-7a681a98e32f';

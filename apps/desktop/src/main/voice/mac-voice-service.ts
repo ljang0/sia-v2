@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { z } from 'zod';
 import type { VoiceView } from '../../shared/bridge.js';
-import type { RecordRepository } from '../persistence.js';
+import type { RecordRepository } from '../storage/persistence.js';
 import { spokenSummary, type VoiceOperations } from './voice-service.js';
 
 const permissionSchema = z.object({

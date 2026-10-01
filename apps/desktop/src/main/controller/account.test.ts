@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CloudClient } from '../cloud/cloud-client.js';
-import { PlaintextTestCipher, SqliteRecordRepository } from '../persistence.js';
+import { PlaintextTestCipher, SqliteRecordRepository } from '../storage/persistence.js';
 import { ElevenLabsVoiceService } from '../voice/voice-service.js';
 import type { DesktopController } from './desktop-controller.js';
 import { createController, createHarness } from './test-support.js';

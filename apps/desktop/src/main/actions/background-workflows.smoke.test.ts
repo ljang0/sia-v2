@@ -6,7 +6,7 @@ import { ActionGateway, DefaultActionAuthorizationPolicy } from '@sia/action-gat
 import { DesktopController } from '../controller/desktop-controller.js';
 import { DesktopActionBackend } from './desktop-action-backend.js';
 import { CloudClient } from '../cloud/cloud-client.js';
-import { EphemeralPayloadCipher, SqliteRecordRepository } from '../persistence.js';
+import { EphemeralPayloadCipher, SqliteRecordRepository } from '../storage/persistence.js';
 import { RuntimeCoordinator } from '../providers/runtime-coordinator.js';
 import { discoverCodexInstallation } from '../providers/codex-installation.js';
 import { probeProviders } from '../providers/provider-probe.js';

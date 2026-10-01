@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { AssistantLibrary } from './assistant-library.js';
-import type { RecordRepository } from './persistence.js';
+import type { RecordRepository } from './storage/persistence.js';
 import { assistantLibraryCommand } from '../shared/assistant-library.js';
 
 function library() {

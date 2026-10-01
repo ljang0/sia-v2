@@ -7,7 +7,7 @@ import {
   type VoiceTask,
 } from './push-to-talk.js';
 import type { VoiceOperations } from './voice-service.js';
-import type { RecordRepository } from '../persistence.js';
+import type { RecordRepository } from '../storage/persistence.js';
 
 const services: PushToTalkService[] = [];
 afterEach(() => {
