@@ -12,7 +12,7 @@ import {
   safeResourceLabel,
   summarizeActionTarget,
   summarizeDataLeaving,
-} from '../approval-copy.js';
+} from '../actions/approval-copy.js';
 import type { CuaAuthorizationContext } from '../cua-service.js';
 import { humanizeToolName, runtimeToolTitle } from '../runtime-activity.js';
 import { gatewayTaskGrant } from './approval-grants.js';

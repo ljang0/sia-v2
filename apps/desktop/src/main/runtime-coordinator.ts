@@ -35,7 +35,7 @@ import {
   presentMacResponse,
   parseMacResponse,
   type MacTaskResult,
-} from './mac-execution.js';
+} from './actions/mac-execution.js';
 
 export interface RuntimeThreadConfig {
   notchVault?: string;

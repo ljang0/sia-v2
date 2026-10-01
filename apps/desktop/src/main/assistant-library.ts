@@ -1,5 +1,5 @@
 import { SuggestionStore, completedJournal } from './memory-suggestions.js';
-import type { MacTaskResult } from './mac-execution.js';
+import type { MacTaskResult } from './actions/mac-execution.js';
 import { parseActionArguments } from '@sia/action-gateway';
 import { createHash, randomUUID } from 'node:crypto';
 import type { RecordRepository } from './persistence.js';

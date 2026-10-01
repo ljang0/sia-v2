@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { LocalLeaseCoordinator, type TurnLease } from '@sia/action-gateway';
 import type { ThreadView } from '../../shared/bridge.js';
 import { DESKTOP_EXECUTION_GUIDANCE } from '../assistant-library.js';
-import type { MacTaskResult } from '../mac-execution.js';
+import type { MacTaskResult } from '../actions/mac-execution.js';
 import { MEMORY_REVIEW_PROMPT, NATIVE_MEMORY_REVIEW_PROMPT } from '../memory-suggestions.js';
 import { notchConsolidationInstructions } from '../notch/foreground.js';
 import { NotchVault } from '../notch/vault.js';

@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { ActionGateway } from '@sia/action-gateway';
-import { RuntimeCoordinator } from './runtime-coordinator.js';
+import { RuntimeCoordinator } from '../runtime-coordinator.js';
 import type { MacTaskResult } from './mac-execution.js';
-import { discoverCodexInstallation } from './codex-installation.js';
+import { discoverCodexInstallation } from '../codex-installation.js';
 
 // Opt-in real-model regression. Every app action ends in this in-memory fixture.
 // Native commands, web search and image tools are disabled by mac-background isolation.

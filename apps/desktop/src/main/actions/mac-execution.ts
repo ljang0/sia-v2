@@ -1,4 +1,4 @@
-import { notchForegroundInstructions, notchVaultRoot } from './notch/foreground.js';
+import { notchForegroundInstructions, notchVaultRoot } from '../notch/foreground.js';
 import type { ThreadEventEnvelope } from '@sia/protocol';
 
 // Ported from romirthedev/notch 6c74c30, Agent/ClaudeCodeInvoker.swift.

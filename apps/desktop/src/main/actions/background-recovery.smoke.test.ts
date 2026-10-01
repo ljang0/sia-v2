@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { ActionGateway } from '@sia/action-gateway';
-import { discoverCodexInstallation } from './codex-installation.js';
+import { discoverCodexInstallation } from '../codex-installation.js';
 import type { MacTaskResult } from './mac-execution.js';
-import { RuntimeCoordinator } from './runtime-coordinator.js';
+import { RuntimeCoordinator } from '../runtime-coordinator.js';
 
 // A real model replays the recorded dictation/observation failure against an
 // in-memory browser. No real browser, calendar, account or host action is exposed.

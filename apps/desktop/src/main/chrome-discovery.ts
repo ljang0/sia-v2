@@ -1,5 +1,5 @@
 import type { BrowserWindowView } from '../shared/bridge.js';
-import { isRecord, stringField } from './records.js';
+import { isRecord, stringField } from './actions/records.js';
 
 // Reads the Cua driver's and Chrome's loosely shaped output to find the person's Chrome,
 // its windows and tabs, and turns attachment failures into plain guidance.

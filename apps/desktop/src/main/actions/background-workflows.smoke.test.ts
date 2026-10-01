@@ -3,13 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { ActionGateway, DefaultActionAuthorizationPolicy } from '@sia/action-gateway';
-import { DesktopController } from './controller/desktop-controller.js';
-import { DesktopActionBackend } from './actions/desktop-action-backend.js';
-import { CloudClient } from './cloud-client.js';
-import { EphemeralPayloadCipher, SqliteRecordRepository } from './persistence.js';
-import { RuntimeCoordinator } from './runtime-coordinator.js';
-import { discoverCodexInstallation } from './codex-installation.js';
-import { probeProviders } from './provider-probe.js';
+import { DesktopController } from '../controller/desktop-controller.js';
+import { DesktopActionBackend } from './desktop-action-backend.js';
+import { CloudClient } from '../cloud-client.js';
+import { EphemeralPayloadCipher, SqliteRecordRepository } from '../persistence.js';
+import { RuntimeCoordinator } from '../runtime-coordinator.js';
+import { discoverCodexInstallation } from '../codex-installation.js';
+import { probeProviders } from '../provider-probe.js';
 
 // Real Codex and real sandboxed Bash/files, but deliberately no GUI access. This is
 // not evidence for any application's background input support. Never runs on launch.

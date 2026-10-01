@@ -1,4 +1,4 @@
-import type { ApprovalView } from '../shared/bridge.js';
+import type { ApprovalView } from '../../shared/bridge.js';
 import { stringArray } from './records.js';
 
 // Plain-language approval card copy for Sia-hosted actions: what the action touches and the
