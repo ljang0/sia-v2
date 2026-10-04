@@ -2,8 +2,48 @@
 
 The demo target is a useful personal assistant from first launch through finished work and
 follow-up. The nine scenarios below use [fictional fixtures](./demo-fixtures/demo-cases.json).
-They are acceptance cases, not claims of successful live runs. Do not present the deterministic
-fake-service reply as completed assistant work.
+The planning steps have recorded real-model fixture results; live account actions remain
+acceptance cases. Do not present the deterministic fake-service reply as completed assistant work.
+
+## Recorded model walkthrough
+
+The October 4, 2026 walkthrough used app code `5d50b33`, admitted Codex 0.153.0,
+GPT-6 Astra, and **Ask before each action** in disposable profiles. The actual desktop
+controller, runtime coordinator, file gateway, result grants and model ran; external tools
+were unavailable. Nine planning scenarios and four follow-up decisions passed across the
+recorded runs. Every final report was checked against its decision oracle and a real generated
+result grant. This establishes fixture analysis and saved drafts, not all nine workflows end to end.
+
+The initial run had ten passes and three incomplete cases. Music monitoring was not available,
+the events scenario saw a mention in an earlier report, and the changed-price scenario paused
+for later approval. The reruns isolate scenario workspaces and explicitly request one-shot
+planning or decisions. A subscription decision filename also collided with its source fixture;
+the corrected harness uses separate report/decision names and asserts source preservation.
+Retain these first attempts alongside the corrected results when presenting the demo.
+
+Run the opt-in suite with an admitted, signed-in Codex installation available:
+
+```sh
+SIA_CODEX_REAL_SMOKE=1 SIA_PERSONAL_DEMOS_SMOKE=1 \
+SIA_SMOKE_MODEL=gpt-6-astra SIA_DEMO_EVIDENCE_DIR=/private/tmp/sia-demo-evidence \
+pnpm --filter @sia/desktop exec vitest run src/main/actions/personal-demos.smoke.test.ts
+```
+
+`SIA_DEMO_CASES=music,local_events` selects cases for a focused rerun. This consumes real model
+turns. Expected-answer fields are removed from model inputs, each case uses its own agent
+workspace, and only local file tools are available. The harness approves those fixture writes;
+it cannot purchase, cancel, send messages, or access another app. It retains sanitized inputs,
+transcripts, reports, decisions, model identity and the current code/harness revision in the
+requested evidence directory. Without that directory, temporary evidence is removed on exit.
+
+The follow-ups check changed ticket terms, an uncertain receipt, an unchanged reading queue,
+and a **simulated** cancellation receipt. No live booking/cancellation occurred. Reminder plans
+were drafted but not scheduled; automated venue/event monitoring and inbox polling remain live
+acceptance gates. The spending check reconciles the fixture arithmetic, and the tax check
+organizes documents without making legal tax determinations.
+
+The accompanying presentation/video should say **real model, fictional data** and preserve this
+scope. A narrated slide walkthrough is not an end-to-end recording of connected accounts.
 
 ## First launch
 

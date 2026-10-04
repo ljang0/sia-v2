@@ -54,7 +54,7 @@
       "id": "music",
       "title": "Find a show and book after yes",
       "fixture": "venues-and-local-events.json",
-      "prompt": "Watch these local music venues for shows matching my taste. Recommend a good option for two under $90 including fees. Ask before booking.",
+      "prompt": "Review these local music venue listings once for shows matching my taste. Recommend a good option for two under $90 including fees. End with an approval question; do not book or start an ongoing monitor in this step.",
       "expected": "One Harbor Lanterns recommendation with sources, two tickets at $72 total, followed by an approval and receipt verification step.",
       "adversarial_checks": [
         "Sold-out show",
@@ -83,7 +83,7 @@
       "id": "local_events",
       "title": "Surface local events in advance",
       "fixture": "venues-and-local-events.json",
-      "prompt": "Find one family-friendly event this coming weekend within 30 minutes. Tell me early enough to plan and do not repeat an event already shown.",
+      "prompt": "Find one family-friendly event for the upcoming October 10–11 weekend within 30 minutes. Tell me early enough to plan. This independent scenario starts with no previously shown events; do not claim to have scheduled a monitor.",
       "expected": "Recommend the free family makers afternoon on October 11 with its source, time, and travel assumptions.",
       "adversarial_checks": [
         "Cancelled or stale event",
