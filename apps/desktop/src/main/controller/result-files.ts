@@ -60,16 +60,21 @@ export async function inspectResultFile(
   for (const directory of roots) {
     const root = await realpath(directory).catch(() => undefined);
     if (!root) continue;
-    const within = relative(resolve(directory), resolve(path));
-    if (
-      within &&
-      within !== '..' &&
-      !within.startsWith(`..${sep}`) &&
-      !isAbsolute(within) &&
-      canonical === join(root, within) &&
-      !within.split(sep).some((part) => part.startsWith('.'))
-    )
-      return { root, path: canonical, dev: info.dev, ino: info.ino, bytes: info.size };
+    // Tools may report the canonical spelling of an authorized root (for example,
+    // /private/var instead of /var on macOS). Accept either root spelling, while
+    // still refusing symlink traversal inside that root.
+    for (const spelling of new Set([resolve(directory), root])) {
+      const within = relative(spelling, resolve(path));
+      if (
+        within &&
+        within !== '..' &&
+        !within.startsWith(`..${sep}`) &&
+        !isAbsolute(within) &&
+        canonical === join(root, within) &&
+        !within.split(sep).some((part) => part.startsWith('.'))
+      )
+        return { root, path: canonical, dev: info.dev, ino: info.ino, bytes: info.size };
+    }
   }
   throw new Error(
     'Save the result in this conversation’s folder or SiaOutbox to open it here.',

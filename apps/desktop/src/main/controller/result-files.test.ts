@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, writeFile, symlink, link, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, symlink, link, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -41,6 +41,23 @@ it('validates result scope, document type, symlinks, and hard links', async () =
   await expect(inspectResultFile(join(root, 'launch.command'), [root])).rejects.toThrow();
 });
 
+it('accepts an authorized root alias without permitting nested symlink traversal', async () => {
+  const parent = await directory();
+  const root = join(parent, 'workspace');
+  const alias = join(parent, 'workspace-alias');
+  await mkdir(root);
+  await symlink(root, alias);
+  await writeFile(join(root, 'report.json'), '{"sum":34}');
+  const canonical = await realpath(join(root, 'report.json'));
+  expect((await inspectResultFile(canonical, [alias])).path).toBe(canonical);
+  expect((await inspectResultFile(join(alias, 'report.json'), [alias])).path).toBe(canonical);
+  await expect(inspectResultFile(join(alias, 'report.json'), [root])).rejects.toThrow();
+  await symlink(root, join(root, 'nested'));
+  await expect(
+    inspectResultFile(join(root, 'nested', 'report.json'), [root]),
+  ).rejects.toThrow();
+});
+
 it('delivers a real result through the controller and reopens its grant after the manager reloads', async () => {
   const root = await directory();
   const opened = vi.fn(async () => {});
@@ -54,7 +71,7 @@ it('delivers a real result through the controller and reopens its grant after th
         success: true,
         response: 'Your report is ready.',
         steps: [],
-        output_file: path,
+        output_file: await realpath(path),
       };
       input.onMacResult?.(result);
       const base = {

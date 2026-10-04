@@ -11,7 +11,8 @@ import {
 } from './development-launch.mjs';
 import { prepareDefaultApplication } from './prepare-dev-bootstrap.mjs';
 import test from 'node:test';
-import { cleanSigningMetadata, prepareDevElectron } from './prepare-dev-electron.mjs';
+import { prepareDevElectron } from './prepare-dev-electron.mjs';
+import { cleanSigningMetadata } from './signing-metadata.mjs';
 import {
   assertSameIdentity,
   selectIdentity,
@@ -123,28 +124,36 @@ test(
 );
 
 test(
-  'staged signing cleanup removes Finder metadata and preserves other attributes',
+  'release staging removes Finder metadata and preserves other attributes',
   { skip: process.platform !== 'darwin' },
-  () => {
+  async () => {
     const directory = mkdtempSync(join(tmpdir(), 'sia-signing-metadata-'));
     try {
-      const file = join(directory, 'fixture.txt');
+      const app = join(directory, 'Sia.app');
+      const contents = join(app, 'Contents');
+      mkdirSync(contents, { recursive: true });
+      writeFileSync(
+        join(contents, 'Info.plist'),
+        '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict/></plist>',
+      );
+      const file = join(contents, 'fixture.txt');
       writeFileSync(file, 'fixture');
       execFileSync('/usr/bin/xattr', [
         '-wx',
         'com.apple.FinderInfo',
         '0000000000000000000000100000000000000000000000000000000000000000',
-        directory,
+        app,
       ]);
       execFileSync('/usr/bin/xattr', ['-w', 'com.apple.ResourceFork', 'test resource', file]);
       const quarantine = '0081;00000000;SiaTest;';
       execFileSync('/usr/bin/xattr', ['-w', 'com.apple.quarantine', quarantine, file]);
-      cleanSigningMetadata(directory);
-      cleanSigningMetadata(directory);
-      assert.equal(
-        spawnSync('/usr/bin/xattr', ['-p', 'com.apple.FinderInfo', directory]).status,
-        1,
-      );
+      const afterPack = createRequire(import.meta.url)('../build/after-pack.cjs');
+      await afterPack({
+        electronPlatformName: 'darwin',
+        appOutDir: directory,
+        packager: { appInfo: { productFilename: 'Sia' } },
+      });
+      assert.equal(spawnSync('/usr/bin/xattr', ['-p', 'com.apple.FinderInfo', app]).status, 1);
       assert.equal(
         spawnSync('/usr/bin/xattr', ['-p', 'com.apple.ResourceFork', file]).status,
         1,
@@ -156,6 +165,7 @@ test(
         quarantine,
       );
       assert.equal(readFileSync(file, 'utf8'), 'fixture');
+      cleanSigningMetadata(app);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

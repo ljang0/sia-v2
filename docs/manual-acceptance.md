@@ -272,9 +272,10 @@ Research recruitment is a separate release. It requires every approval in
 - Choose **Finish later** while a prompt is pending. Complete or dismiss that prompt and confirm
   no subsequent permissions open. Chat remains available with the access already granted.
 - At Screen Recording, choose **Later** in macOS’s quit prompt. Within a few seconds the row must
-  read **Reopen Sia** and one **Relaunch Sia** button must appear (real-Mac check of the fresh-process
-  probe). Relaunch: setup must reopen on Mac access, resume the pass, and not ask again for any
-  permission already granted or skipped. Completing the pass opens the conversation with no restart.
+  read **Reopen Sia** (real-Mac check of the fresh-process probe). Finish or skip the remaining
+  voice/app and optional Full Disk Access steps before one final **Relaunch Sia** action appears.
+  Relaunch: setup must reopen on Mac access, retain grants and skips, and finish without requesting
+  already completed permissions again. Also pause before the last step and verify resume.
 - Skip **Talk with Fn** and one app. Finish setup, then start a task that needs the skipped app and
   confirm macOS asks once, in its own words.
 - Repeat from **Settings → Computer → Grant all**. Verify unavailable apps and existing grants are

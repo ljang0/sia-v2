@@ -10,7 +10,12 @@ anything else or paste an API key.
   Choose On my screen in Settings → Computer if you'd rather watch it work. Sia keeps your display
   awake during a Mac task and pauses if your Mac locks or sleeps; unlock it and press Continue task.
 - **Simpler setup.** One setup flow covers AI access and the Mac permissions Sia needs. Google
-  Workspace, Slack, Chrome, and Messages stay optional and can be added later.
+  Workspace, Slack, Chrome, and Messages stay optional and can be added later. Connected-app
+  setup skips Mac permissions, and ordinary chat remains available before screen access.
+- **Reports you can open.** Generated documents have Preview, Open, and Reveal controls that
+  remain available when you reopen the conversation. Phone remote can download saved results.
+- **Monthly and yearly schedules.** Create schedules directly from Scheduled. Month-end and
+  leap-day dates are preserved, and successful monitoring checks with no new findings stay quiet.
 - **Clearer conversations.** Sia shows what it is doing while it works, folds finished steps,
   formats replies, and lets you queue follow-up messages. Messages you send while offline wait and
   go out when you're back online.
