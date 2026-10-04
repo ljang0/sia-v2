@@ -49,6 +49,10 @@ interface Dependencies {
   network?: () => RemoteNetwork | undefined;
   port?: number;
   outbox?: string;
+  readGeneratedResult?: (
+    threadId: string,
+    attachmentId: string,
+  ) => Promise<{ name: string; data: Buffer }>;
 }
 const ipv4 = (address: string) =>
   address.split('.').reduce((result, part) => (result << 8) | Number(part), 0) >>> 0;
@@ -400,6 +404,34 @@ export class PhoneRemote {
             ? vault.graph
             : (note ?? { error: 'This note is no longer available.' }),
         );
+        return;
+      }
+      if (route.startsWith('results/')) {
+        const id = route.slice('results/'.length);
+        const state = this.#state();
+        if (
+          !state.session ||
+          !this.#deps.readGeneratedResult ||
+          !state.turns.some((turn) => Object.values(turn.fileIds ?? {}).includes(id))
+        ) {
+          unavailable();
+          return;
+        }
+        const result = await this.#deps.readGeneratedResult(state.session.split(':')[0]!, id);
+        if (
+          !this.#available() ||
+          generation !== this.#generation ||
+          this.#state().session !== state.session
+        ) {
+          unavailable();
+          return;
+        }
+        response.setHeader('Content-Security-Policy', "sandbox; default-src 'none'");
+        response.writeHead(200, {
+          'Content-Type': 'application/octet-stream',
+          'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(result.name)}`,
+        });
+        response.end(result.data);
         return;
       }
       if (route.startsWith('outbox/')) {

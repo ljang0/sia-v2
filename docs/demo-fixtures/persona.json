@@ -1,0 +1,19 @@
+{
+  "fictional": true,
+  "as_of": "2026-10-04T09:00:00-04:00",
+  "name": "Avery Morgan",
+  "time_zone": "America/New_York",
+  "city": "Demo City",
+  "children": ["Riley", "Quinn"],
+  "partner": "Sam",
+  "music": ["indie folk", "jazz"],
+  "ticket_budget_total_usd": 90,
+  "travel_radius_minutes": 30,
+  "gift_budget_usd": 75,
+  "quiet_hours": ["21:00", "08:00"],
+  "preferences": [
+    "family-friendly weekend afternoons",
+    "no duplicate recommendations",
+    "ask before any purchase, cancellation, or outbound message"
+  ]
+}

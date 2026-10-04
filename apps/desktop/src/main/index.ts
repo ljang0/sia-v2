@@ -1,4 +1,5 @@
 import { BrowserWindowService } from './mac/browser-window.js';
+import { backgroundControlUnavailable } from './controller/computer-access.js';
 import { AutomationPermissionService } from './mac/automation-permissions.js';
 import { developmentRelaunchArguments } from './window/development-relaunch.js';
 import { PhoneRemote } from './remote/phone-remote.js';
@@ -535,6 +536,8 @@ async function performApplicationCreation(): Promise<void> {
       ...(startupNotice ? { startupNotice } : {}),
     });
     const actionBackend = new DesktopActionBackend({
+      computerUnavailable: async () =>
+        backgroundControlUnavailable(await computer.permissions()),
       macAutomation: runMacAutomation,
       assistantAction: (request) =>
         activeController.assistantAction(request, (name, args, skillSignal) =>
@@ -675,6 +678,8 @@ async function performApplicationCreation(): Promise<void> {
       ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
       : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper');
     phoneRemote = new PhoneRemote({
+      readGeneratedResult: (threadId, attachmentId) =>
+        activeController.readGeneratedResult(threadId, attachmentId),
       controller: activeController,
       repository,
       assets: join(import.meta.dirname, '../remote'),

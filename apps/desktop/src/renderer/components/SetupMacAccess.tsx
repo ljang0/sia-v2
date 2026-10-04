@@ -29,7 +29,7 @@ export type AccessRow = {
   guide: string;
   optional: boolean;
   state: AccessState;
-  /** Rows without a native prompt (Full Disk Access) stay out of the guided pass. */
+  /** A guided step may use a native prompt or direct the person to System Settings. */
   guided: boolean;
   request?(isCurrent: () => boolean): Promise<void>;
 };
@@ -148,10 +148,11 @@ export function macAccessRows(
       id: 'messages_history',
       name: 'Read Messages history',
       why: 'Lets Sia find earlier texts. In Full Disk Access, add Sia and turn it on.',
-      guide: '',
+      guide:
+        'In Full Disk Access, turn on Sia. If it is not listed, use + to add Sia from Applications. This is optional; skip it if you do not want Sia to read earlier texts.',
       optional: true,
       state: messages === 'ready' ? 'ready' : 'needed',
-      guided: false,
+      guided: true,
       request: () => api.setupMessages!(),
     });
   return rows;
@@ -348,8 +349,12 @@ export function SetupMacAccess({
   // Fallback when macOS gives no signal: a core grant asked for here that still reads as off.
   const maybeStale =
     Boolean(onRestart) &&
-    !relaunch.length &&
-    required.some((row) => row.state === 'needed' && asked.includes(row.id));
+    shown.some(
+      (row) =>
+        (!row.optional || row.id === 'messages_history') &&
+        row.state === 'needed' &&
+        asked.includes(row.id),
+    );
   const busy = pending || Boolean(rowPending);
 
   const renderRow = (row: AccessRow) => {
@@ -402,7 +407,7 @@ export function SetupMacAccess({
           />
         </span>
       </p>
-      {relaunch.length ? (
+      {relaunch.length && (!active || !current) ? (
         <div className={styles.permissionGuide} role="alert">
           <h3>Relaunch Sia to finish</h3>
           <p>
@@ -451,7 +456,7 @@ export function SetupMacAccess({
                 Skip
               </button>
             ) : null}
-            {maybeStale && !current.optional && (
+            {maybeStale && (!current.optional || current.id === 'messages_history') && (
               <button className={styles.link} disabled={pending} onClick={relaunchNow}>
                 Turned it on? Relaunch Sia
               </button>
@@ -477,7 +482,7 @@ export function SetupMacAccess({
           Grant all
         </button>
       )}
-      {!active && maybeStale && (
+      {!active && !relaunch.length && maybeStale && (
         <button className={styles.link} disabled={disabled || busy} onClick={relaunchNow}>
           Turned it on? Relaunch Sia
         </button>

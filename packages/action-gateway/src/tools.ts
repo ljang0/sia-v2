@@ -695,12 +695,12 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   schedule_create: {
     name: 'schedule_create',
     description:
-      'Create persisted future or recurring work in the current Sia thread. Use this when the person asks to do, check, monitor, search, or report something later or on a cadence. The task is sent back to the agent verbatim at each run. first_run_at must be an RFC 3339 timestamp with a UTC offset when supplied; for daily, weekdays, and weekly schedules its local time of day is kept for every run. Recurring schedules otherwise begin one interval from now, while a one-time schedule runs as soon as the current turn is idle. A recurring schedule repeats until it is paused or deleted unless max_runs is set.',
+      'Create persisted future or recurring work in the current Sia thread. Use this when the person asks to do, check, monitor, search, or report something later or on a cadence. The task is sent back to the agent verbatim at each run. first_run_at must be an RFC 3339 timestamp with a UTC offset when supplied; for daily, weekdays, weekly, monthly, and yearly schedules its local time of day on this Mac is kept for every run. Monthly and yearly runs keep the original calendar date, using the last day when a month is shorter (including February 29 in non-leap years). Recurring schedules otherwise begin one interval from now, while a one-time schedule runs as soon as the current turn is idle. A recurring schedule repeats until it is paused or deleted unless max_runs is set.',
     inputSchema: object(
       {
         task: string('Exact self-contained task to run each time'),
         cadence: string(
-          'Run frequency. weekdays runs Monday to Friday; weekly runs on the chosen days.',
+          'Run frequency. weekdays runs Monday to Friday; weekly runs on the chosen days; monthly and yearly keep the first-run calendar date.',
           { enum: [...SCHEDULE_CADENCES] },
         ),
         days: scheduleDaysDescriptor('Weekly only: days of the week it runs'),

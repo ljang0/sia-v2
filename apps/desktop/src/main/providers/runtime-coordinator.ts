@@ -55,6 +55,8 @@ export interface RuntimeThreadConfig {
 }
 
 export interface RuntimeTurnInput {
+  /** Scheduled checks return a structured success/no-change verdict even in connected mode. */
+  scheduled?: boolean;
   onMacRawResult?: (text: string) => void;
   onMacResult?: (result: MacTaskResult) => void;
   thread: RuntimeThreadConfig;
@@ -283,6 +285,7 @@ export class RuntimeCoordinator {
   ): AsyncIterable<ThreadEventEnvelope> {
     const mac =
       input.thread.computerAccessMode === 'mac' && input.thread.nativeTools !== 'disabled';
+    const structuredResult = mac || input.scheduled === true;
     // Provider setup does not touch the GUI. Finish it before reserving the
     // screen, then capture foreground context immediately before the turn.
     const state = await this.#sessionFor(input.thread, signal);
@@ -307,7 +310,7 @@ export class RuntimeCoordinator {
               .filter(Boolean)
               .join('\n\n'),
             model: state.target.harnessModelId,
-            ...(mac ? { outputSchema: MAC_RESPONSE_SCHEMA } : {}),
+            ...(structuredResult ? { outputSchema: MAC_RESPONSE_SCHEMA } : {}),
             ...(input.reasoningEffort ? { reasoningEffort: input.reasoningEffort } : {}),
             ...(input.attachments?.length ? { attachments: input.attachments } : {}),
           },
@@ -315,7 +318,7 @@ export class RuntimeCoordinator {
         ),
     )) {
       if (
-        mac &&
+        structuredResult &&
         event.type === 'message' &&
         event.payload.role === 'assistant' &&
         event.payload.phase !== 'commentary' &&
@@ -339,7 +342,7 @@ export class RuntimeCoordinator {
           },
         );
       }
-      yield mac ? presentMacResponse(event) : event;
+      yield structuredResult ? presentMacResponse(event) : event;
     }
   }
 

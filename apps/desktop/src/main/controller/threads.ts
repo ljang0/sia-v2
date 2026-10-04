@@ -469,8 +469,7 @@ export class Threads {
     for (const item of this.ctx.state.timeline)
       if (item.threadId === thread.id && item.turnId)
         this.ctx.turns.failedTurnAttachments.delete(item.turnId);
-    for (const [id, grant] of this.ctx.attachments.grants)
-      if (grant.threadId === thread.id) this.ctx.attachments.grants.delete(id);
+    this.ctx.attachments.forgetThread(thread.id);
     this.ctx.turns.heldThreads.delete(thread.id);
     const runtime = this.ctx.runtime;
     void Promise.resolve()

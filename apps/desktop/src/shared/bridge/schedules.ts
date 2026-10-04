@@ -20,6 +20,8 @@ export interface ScheduleView {
   days?: number[];
   /** Hourly only: hours between runs; missing means every hour. */
   everyHours?: number;
+  /** Keeps the requested calendar day through short months and leap years. */
+  anchorAt?: string;
   nextRunAt: string;
   enabled: boolean;
   createdAt: string;

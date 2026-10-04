@@ -123,6 +123,19 @@ export class DesktopActionBackend implements ActionBackend {
   async #invoke(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
     if (request.context.signal?.aborted) return refused('Action cancelled before execution.');
     if (
+      [
+        'computer_list',
+        'computer_open_app',
+        'computer_open_url',
+        'computer_snapshot',
+        'computer_action',
+      ].includes(request.name)
+    ) {
+      const unavailable = await this.#ctx.options.computerUnavailable?.();
+      if (unavailable) return refused(unavailable);
+      if (request.context.signal?.aborted) return refused('Action cancelled before execution.');
+    }
+    if (
       this.#ctx.macBrowserAccess() &&
       request.name !== 'memory_vault' &&
       !macExecutionTools(this.#ctx.macBackgroundControl()).includes(request.name) &&

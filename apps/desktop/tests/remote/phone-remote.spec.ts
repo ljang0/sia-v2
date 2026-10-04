@@ -60,9 +60,20 @@ const test = base.extend<{
           append(
             'assistant',
             input.text.toLowerCase().includes('report')
-              ? `Your report is ready.\n\n[Open result](<${join(root, 'report.txt')}>)`
+              ? 'Your report is ready.'
               : 'The answer is **42**.',
           );
+          if (input.text.toLowerCase().includes('report')) {
+            state.timeline.at(-1)!.attachments = [
+              {
+                id: randomUUID(),
+                name: 'report.txt',
+                kind: 'file',
+                bytes: 23,
+                generated: true,
+              },
+            ];
+          }
           thread.status = 'idle';
         };
         if (input.text.toLowerCase().includes('quick')) finish();
@@ -127,6 +138,10 @@ const test = base.extend<{
       } as unknown as RecordRepository,
       assets: resolve('out/remote'),
       outbox: root,
+      readGeneratedResult: async () => ({
+        name: 'report.txt',
+        data: await readFile(join(root, 'report.txt')),
+      }),
       qr: async () => '',
       network: () => ({ address: '127.0.0.1', netmask: '255.0.0.0' }),
       port: 0,
@@ -438,9 +453,7 @@ test('a working task preserves the follow-up and a waiting task accepts it', asy
     page.getByRole('button', { name: /Needs you Please keep working/ }),
   ).toBeVisible();
   await page.getByRole('button', { name: /Needs you Please keep working/ }).click();
-  await expect(
-    page.getByText('Reply below if Sia asked a question.', { exact: false }),
-  ).toBeVisible();
+  await expect(page.getByText('Reply below to answer Sia.', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByRole('textbox')).toHaveValue('');
   expect(remote.sends).toEqual(['Please keep working', 'A quick follow-up']);

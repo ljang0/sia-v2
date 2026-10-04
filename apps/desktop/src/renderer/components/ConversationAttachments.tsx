@@ -48,6 +48,7 @@ export function AttachmentChip({
       onClick={() => onPreview?.(attachment)}
       disabled={!onPreview}
       data-thumbnail={thumbnail ? 'true' : undefined}
+      aria-label={attachment.generated ? `Preview result: ${attachment.name}` : undefined}
     >
       {thumbnail ? (
         <img className={styles.attachmentThumbnail} src={thumbnail} alt="" />
@@ -79,7 +80,9 @@ export function AttachmentPreviewDialog({
         <Dialog.Content className={`${dialogs.alertDialogContent} ${styles.attachmentPreview}`}>
           <Dialog.Title>{preview?.attachment.name}</Dialog.Title>
           <Dialog.Description>
-            This local preview uses a short-lived file grant that expires after one hour.
+            {preview?.attachment.generated
+              ? 'Saved result. Preview it here, open it in its app, or show it in Finder.'
+              : 'This local preview uses a short-lived file grant that expires after one hour.'}
           </Dialog.Description>
           <div className={styles.attachmentPreviewBody}>
             {!preview?.result ? (

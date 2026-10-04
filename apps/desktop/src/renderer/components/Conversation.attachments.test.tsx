@@ -76,3 +76,56 @@ it('warns above the composer once most of the plan usage window is used', () => 
     'You’ve used 86% of your plan’s usage limit.',
   );
 });
+
+it('previews and opens generated assistant results through their host grant', async () => {
+  const { fireEvent } = await import('@testing-library/react');
+  const preview = vi.fn(async (): Promise<AttachmentPreview> => ({
+    kind: 'text',
+    content: 'food,25',
+    format: 'csv',
+    language: 'CSV',
+  }));
+  const open = vi.fn(async () => {});
+  const reveal = vi.fn(async () => {});
+  const result: ThreadDetail = {
+    ...thread,
+    events: [
+      {
+        id: 'result',
+        type: 'message',
+        role: 'assistant',
+        content: 'Your report is ready.',
+        timestamp: '2030-01-01',
+        attachments: [
+          {
+            id: 'result-grant',
+            name: 'Family résumé.csv',
+            bytes: 7,
+            kind: 'file',
+            generated: true,
+          },
+        ],
+      },
+    ],
+  };
+  render(
+    <Conversation
+      thread={result}
+      onSend={async () => {}}
+      onStop={async () => {}}
+      onRetry={async () => {}}
+      onResolveApproval={async () => {}}
+      onPreviewAttachment={preview}
+      onOpenAttachment={open}
+      onRevealAttachment={reveal}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Preview result: Family résumé.csv' }));
+  await screen.findByText('food,25');
+  expect(preview).toHaveBeenCalledWith('result-grant');
+  expect(screen.getByText(/Saved result/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Open file' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Reveal in Finder' }));
+  expect(open).toHaveBeenCalledWith('result-grant');
+  expect(reveal).toHaveBeenCalledWith('result-grant');
+});

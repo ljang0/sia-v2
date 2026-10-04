@@ -144,6 +144,10 @@ export class DesktopController {
     return this.#ctx.remoteAccessAllowed();
   }
 
+  readGeneratedResult(threadId: string, attachmentId: string) {
+    return this.#ctx.attachments.readGeneratedResult(threadId, attachmentId);
+  }
+
   setLauncherRegistered(registered: boolean): void {
     this.#ctx.assistant.setLauncherRegistered(registered);
   }

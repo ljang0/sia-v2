@@ -46,6 +46,7 @@ Requirements: macOS 14+, Node 24+, pnpm 11+, and Xcode command-line tools.
 
 ```sh
 pnpm install --frozen-lockfile
+pnpm --filter @sia/desktop signing:setup # once per Mac; keeps permissions across dev launches
 pnpm onboard:check
 SIA_FAKE_SERVICES=1 pnpm dev
 ```
@@ -53,6 +54,7 @@ SIA_FAKE_SERVICES=1 pnpm dev
 `SIA_FAKE_SERVICES=1` runs Sia against fake cloud and model services, so you need no AWS access,
 API key, or paid model turn. The first-day walkthrough is
 [`docs/ra-onboarding.md`](./docs/ra-onboarding.md).
+The dev command builds workspace dependencies before launching; no separate build is needed.
 
 ## Test
 

@@ -165,13 +165,20 @@ export class Schedules {
         : validScheduleRunLimit(input.maxRuns);
     const ruleChanged =
       input.cadence !== undefined || input.days !== undefined || input.everyHours !== undefined;
+    // The UI edits datetimes to the minute; saving a prompt must not reset a clamped date.
+    const dateChanged =
+      nextRunAt !== undefined &&
+      Math.floor(Date.parse(nextRunAt) / 60_000) !==
+        Math.floor(Date.parse(schedule.nextRunAt) / 60_000);
     if (prompt !== undefined) schedule.prompt = prompt;
     if (nextRunAt !== undefined) schedule.nextRunAt = nextRunAt;
-    if (ruleChanged) {
+    if (ruleChanged || nextRunAt !== undefined) {
       const cadence = input.cadence ?? schedule.cadence;
       const rule = scheduleRuleFields(
         {
           cadence,
+          anchorAt:
+            !dateChanged && cadence === schedule.cadence ? schedule.anchorAt : undefined,
           // A new cadence starts from its own details rather than the old one's.
           days: input.days ?? (cadence === schedule.cadence ? schedule.days : undefined),
           everyHours:
@@ -182,6 +189,7 @@ export class Schedules {
       );
       delete schedule.days;
       delete schedule.everyHours;
+      delete schedule.anchorAt;
       Object.assign(schedule, rule);
     }
     if (ruleChanged || nextRunAt !== undefined) {

@@ -372,7 +372,15 @@ const messagesSend = z
   })
   .strict();
 
-export const SCHEDULE_CADENCES = ['once', 'hourly', 'daily', 'weekdays', 'weekly'] as const;
+export const SCHEDULE_CADENCES = [
+  'once',
+  'hourly',
+  'daily',
+  'weekdays',
+  'weekly',
+  'monthly',
+  'yearly',
+] as const;
 
 export const SCHEDULE_DAYS = [
   'sunday',

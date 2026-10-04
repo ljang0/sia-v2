@@ -20,6 +20,7 @@ import type { QueuedTurn } from './types.js';
 type TurnRunnerContext = Pick<
   ControllerContext,
   | 'appendTimeline'
+  | 'attachments'
   | 'approvals'
   | 'assistant'
   | 'commit'
@@ -52,6 +53,8 @@ export class TurnRunner {
     let nativeRawResponse = '';
     let nativeFollowUp = false;
     let recordedNative = false;
+    let attachedResult = false;
+    let taskResult: MacTaskResult | undefined;
     const recordNative = async (outcome: 'complete' | 'failed') => {
       if (recordedNative || !recordVault || !macTask) return;
       recordedNative = true;
@@ -132,12 +135,12 @@ export class TurnRunner {
           macTask = { request: turn.text };
           recordVault = new NotchVault(thread.workspace, thread.agentId);
         }
+        let computerUnavailable: string | undefined;
         if (macTask && this.ctx.computerAccess.backgroundControl()) {
-          // The background driver ships in the app, but it can fail to load or lack access.
-          // Stop with a plain next step instead of letting the first window action fail.
+          // Access is optional for conversation. Check it here for context, and enforce it
+          // at the computer tool boundary if the task actually needs to observe or act.
           this.ctx.computerAccess.state = await this.ctx.deps.computer.permissions();
-          const unavailable = backgroundControlUnavailable(this.ctx.computerAccess.state);
-          if (unavailable) throw new Error(unavailable);
+          computerUnavailable = backgroundControlUnavailable(this.ctx.computerAccess.state);
         }
         const notchReview = this.ctx.assistant.library.isNotchReview(thread.id);
         let nativeRequest: string | undefined;
@@ -232,6 +235,11 @@ export class TurnRunner {
               text: item.text!,
             })),
         };
+        if (computerUnavailable)
+          runtimeThread.instructions += `\nComputer access is currently unavailable: ${computerUnavailable} Answer ordinary questions and do work that does not need computer control normally. Only explain the missing access if this request actually needs it. Do not ask for permissions just to chat, and never claim a computer action succeeded without a verified result.`;
+        if (turn.source === 'schedule')
+          runtimeThread.instructions +=
+            '\nThis is a scheduled task. Return the provided structured result. For a monitoring check with complete source coverage and nothing new or actionable, return type: no_change, success: true, steps: [], output_file: null, and a brief response recording what was checked. That successful check stays in history without a completion alert. Use ordinary answer/action results for a new finding, requested report, reminder, or completed action. Never use no_change when a source is unavailable, a check is incomplete, or the user needs to act. Use saved memory to avoid repeating previously delivered recommendations.';
         // A reset/older thread can omit effort. Use the selected model's advertised
         // default, not an unrelated reasoning override in the user's CLI config.
         const reasoningEffort =
@@ -246,7 +254,9 @@ export class TurnRunner {
               {
                 thread: runtimeThread,
                 turnId: turn.id,
+                scheduled: turn.source === 'schedule',
                 onMacResult: (result) => {
+                  taskResult = result;
                   if (macTask) macTask.result = result;
                 },
                 onMacRawResult: (text) => {
@@ -307,8 +317,7 @@ export class TurnRunner {
           if (
             event.type === 'completion' &&
             event.payload.status === 'completed' &&
-            macTask &&
-            macTask.result?.success === false
+            taskResult?.success === false
           ) {
             // A provider completing its response is not the same as completing the task.
             // Persist the blocker so desktop, phone, schedules and notifications agree.
@@ -318,7 +327,7 @@ export class TurnRunner {
               kind: 'error',
               status: 'failed',
               title: 'Task needs attention',
-              text: macTask.result.response,
+              text: taskResult.response,
               timestamp: event.timestamp,
             });
             this.ctx.runtimeEvents.apply({
@@ -326,6 +335,32 @@ export class TurnRunner {
               payload: { ...event.payload, status: 'failed' },
             });
           } else this.ctx.runtimeEvents.apply(event);
+          if (
+            !stoppedStatus &&
+            !attachedResult &&
+            taskResult?.output_file &&
+            event.type === 'message' &&
+            event.payload.role === 'assistant' &&
+            !event.payload.delta
+          ) {
+            attachedResult = true;
+            try {
+              const attachment = await this.ctx.attachments.grantResult(
+                thread.id,
+                taskResult.output_file,
+              );
+              const message = this.ctx.state.timeline.findLast(
+                (item) =>
+                  item.threadId === thread.id &&
+                  item.turnId === turn.id &&
+                  item.kind === 'assistant',
+              );
+              if (message) message.attachments = [attachment];
+            } catch (cause) {
+              taskResult.success = false;
+              taskResult.response += ` The result file could not be opened here. ${cause instanceof Error ? cause.message : 'Ask Sia to save the result again.'}`;
+            }
+          }
           if (stoppedStatus) {
             thread.status = stoppedStatus.status;
             if (stoppedStatus.queueReason) thread.queueReason = stoppedStatus.queueReason;
@@ -345,6 +380,7 @@ export class TurnRunner {
           turn,
           thread.status === 'failed' ? 'failed' : 'complete',
           macTask,
+          taskResult,
         );
         thread.updatedAt = new Date().toISOString();
       }
@@ -409,6 +445,7 @@ export class TurnRunner {
     turn: QueuedTurn,
     outcome: 'complete' | 'failed',
     macTask?: { request: string; result?: MacTaskResult },
+    taskResult?: MacTaskResult,
   ): void {
     try {
       if (macTask)
@@ -460,6 +497,15 @@ export class TurnRunner {
     }
     // A memory review is Sia's own housekeeping, not work the person is waiting for.
     if (this.ctx.assistant.library.isReview(thread.id)) return;
+    if (
+      turn.source === 'schedule' &&
+      outcome === 'complete' &&
+      taskResult?.success &&
+      taskResult.noChange &&
+      !taskResult.output_file &&
+      taskResult.steps.length === 0
+    )
+      return;
     thread.unread = true;
     const agent = this.ctx.state.agents.find(({ id }) => id === thread.agentId);
     if (agent?.notificationsEnabled !== false) {

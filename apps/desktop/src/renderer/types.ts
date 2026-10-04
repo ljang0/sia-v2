@@ -224,6 +224,7 @@ export interface RendererAttachment {
   name: string;
   kind: 'file' | 'image' | 'audio';
   bytes: number;
+  generated?: boolean;
 }
 
 export type AttachmentPreview =
@@ -286,6 +287,7 @@ interface ThreadSchedule {
   days?: number[] | undefined;
   /** Hourly only: hours between runs; missing means every hour. */
   everyHours?: number | undefined;
+  anchorAt?: string | undefined;
   nextRunAt: string;
   enabled?: boolean | undefined;
   createdAt: string;

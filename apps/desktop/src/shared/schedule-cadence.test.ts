@@ -15,6 +15,23 @@ const at = (year: number, month: number, day: number, hour = 8, minute = 0) =>
 const friday = at(2030, 8, 23);
 
 describe('schedule cadence', () => {
+  it('preserves a monthly day after February and skips missed months', () => {
+    const start = at(2030, 1, 31, 9, 15);
+    const rule = { cadence: 'monthly' as const, anchorAt: start.toISOString() };
+    const february = nextScheduleRun(rule, start, start)!;
+    expect(february).toEqual(at(2030, 2, 28, 9, 15));
+    expect(nextScheduleRun(rule, february, february)).toEqual(at(2030, 3, 31, 9, 15));
+    expect(nextScheduleRun(rule, february, at(2032, 9, 1))).toEqual(at(2032, 9, 30, 9, 15));
+  });
+
+  it('keeps leap-day birthdays anchored across ordinary and leap years', () => {
+    const start = at(2028, 2, 29, 10);
+    const rule = { cadence: 'yearly' as const, anchorAt: start.toISOString() };
+    const next = nextScheduleRun(rule, start, start)!;
+    expect(next).toEqual(at(2029, 2, 28, 10));
+    expect(nextScheduleRun(rule, next, at(2032, 1, 1))).toEqual(at(2032, 2, 29, 10));
+    expect(defaultFirstScheduleRun({ cadence: 'yearly' }, start)).toEqual(at(2029, 2, 28, 10));
+  });
   it('runs weekday schedules Monday to Friday at the same local time', () => {
     const rule = { cadence: 'weekdays' as const };
     expect(nextScheduleRun(rule, friday, friday)).toEqual(at(2030, 8, 26));

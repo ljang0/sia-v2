@@ -30,7 +30,7 @@
     "test:e2e:real:capabilities": "pnpm -w build && playwright test e2e/real-capabilities.spec.ts",
     "typecheck": "tsc --noEmit",
     "native:build": "node scripts/build-voice-helper.mjs",
-    "predev": "pnpm native:build && pnpm remote:build && node scripts/prepare-dev-electron.mjs",
+    "predev": "pnpm --filter '@sia/desktop^...' build && pnpm native:build && pnpm remote:build && node scripts/prepare-dev-electron.mjs",
     "native:test": "node scripts/build-voice-helper.mjs && node scripts/port-notch-prompts.mjs --check && node --test scripts/prepare-dev-electron.test.mjs scripts/release-identity.test.mjs && node scripts/test-voice-helper.mjs",
     "remote:build": "vite build --config vite.remote.config.ts",
     "test:remote": "pnpm remote:build && playwright test --config playwright.remote.config.ts",

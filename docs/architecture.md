@@ -29,7 +29,7 @@ Electron main -------------- Sia cloud API
                          `-- legacy included-model direct adapter (persisted threads only)
 ```
 
-The provider runtime can propose a Sia action, but only the main-process ActionGateway can authorize it. Confirmation mode (`computer.trust === 'ask'`) renders a request tied to the exact action digest. Its card can also answer **Allow for this task**: the controller keeps a per-turn grant for the same action kind on the same app, site, account, recipients, or item (never saved skills or uploads, and never phone turns), and the grant ends with the turn. Hard safety denials run before any grant. Autonomous mode (`computer.trust === 'auto'`) is the default whenever the person has not explicitly chosen confirmations; in it the controller authorizes eligible computer, browser, connector, message, upload, and schedule actions after capability and input validation. Eligible action results, timeline items, and automatic authorizations are appended to the always-on local `TrajectoryRecorder` (`<userData>/trajectories/<threadId>/events.jsonl` plus image files). A Google Workspace invocation atomically removes earlier diagnostic rows for that turn and suppresses later rows; only the normal local user-facing transcript remains. Complete thread directories roll off after 90 days or when the local trajectory store exceeds 128 MiB, oldest first; this is separate from the encrypted consented-research outbox. New `once` schedules are bounded to one run; recurring cadences repeat until paused or deleted unless the person sets an optional run limit (`schedules.update` with `maxRuns: null` clears it). Recurring schedules saved with the old ten-run default are made unlimited once, on the first load after the change (`unlimitedRecurringSchedules` marks it done). The model-visible schedule surface is limited to create/list/update/delete for controller-owned once/hourly/daily/weekly tasks in the current thread; it cannot write an OS crontab or arbitrary shell schedule. Codex provider-native work uses `approvalPolicy: never` inside the verified workspace-write sandbox, while host-side effects still cross the ActionGateway.
+The provider runtime can propose a Sia action, but only the main-process ActionGateway can authorize it. Confirmation mode (`computer.trust === 'ask'`) renders a request tied to the exact action digest. Its card can also answer **Allow for this task**: the controller keeps a per-turn grant for the same action kind on the same app, site, account, recipients, or item (never saved skills or uploads, and never phone turns), and the grant ends with the turn. Hard safety denials run before any grant. Autonomous mode (`computer.trust === 'auto'`) is the default whenever the person has not explicitly chosen confirmations; in it the controller authorizes eligible computer, browser, connector, message, upload, and schedule actions after capability and input validation. Eligible action results, timeline items, and automatic authorizations are appended to the always-on local `TrajectoryRecorder` (`<userData>/trajectories/<threadId>/events.jsonl` plus image files). A Google Workspace invocation atomically removes earlier diagnostic rows for that turn and suppresses later rows; only the normal local user-facing transcript remains. Complete thread directories roll off after 90 days or when the local trajectory store exceeds 128 MiB, oldest first; this is separate from the encrypted consented-research outbox. New `once` schedules are bounded to one run; recurring cadences repeat until paused or deleted unless the person sets an optional run limit (`schedules.update` with `maxRuns: null` clears it). Recurring schedules saved with the old ten-run default are made unlimited once, on the first load after the change (`unlimitedRecurringSchedules` marks it done). The model-visible schedule surface is limited to create/list/update/delete for controller-owned once/hourly/daily/weekdays/weekly/monthly/yearly tasks in the current thread; it cannot write an OS crontab or arbitrary shell schedule. Codex provider-native work uses `approvalPolicy: never` inside the verified workspace-write sandbox, while host-side effects still cross the ActionGateway.
 
 There is no generic renderer IPC, generic connector catalog, raw CUA server, arbitrary CDP/JavaScript route, cookie API, visualization tool, or cross-provider subagent abstraction.
 
@@ -538,3 +538,26 @@ The turn scheduler admits at most four turns. A thread has one active turn; work
 browser tabs, and app windows are exclusive; foreground takeover is one global lane. Conflicts
 remain visible and queued rather than racing. Closing the renderer window does not stop the main
 process on macOS, so admitted work continues and appears in Activity after the window reopens.
+
+## Scheduled outcomes and generated results
+
+Monthly and yearly schedules retain an original calendar anchor in encrypted state. A short
+month uses its last day; later months return to the original day. February 29 returns in leap
+years. Calendar schedules use this Mac's timezone, including after a timezone change. Sia must
+stay open and the Mac awake; this is not an offline cloud scheduler.
+
+Scheduled turns request the structured completion schema on both computer and connected-app
+routes. A successful `no_change` result with no output file or action steps is recorded in run
+history without setting unread or sending a completion notification. Reports, reminders, new
+findings, failed checks, and manual replies retain normal notifications. The model is instructed
+to use `no_change` only after complete source coverage. This is not independent verification of
+coverage or a durable per-source deduplication engine.
+
+Structured `output_file` results receive host-validated attachment controls. Eligible document
+and media files must be ordinary files (maximum 25 MB) inside the conversation workspace or
+`~/SiaOutbox`, excluding sensitive paths, hidden subpaths, symlinks, hard links, and executables.
+The encrypted grant is scoped to its thread and checked again against the saved file identity
+when previewed, opened, revealed, or downloaded. Deleting the conversation removes its grants.
+Markdown remains HTTPS-only. The phone downloads only generated results currently visible in
+its authorized conversation, up to 20 MB, as inert attachments; changing/revoking the phone
+session invalidates access. File controls do not establish that an artifact's contents are correct.

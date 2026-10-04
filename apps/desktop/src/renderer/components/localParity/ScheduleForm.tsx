@@ -256,6 +256,12 @@ export function ScheduleForm({
           </label>
         )}
       </div>
+      {cadence === 'monthly' || cadence === 'yearly' ? (
+        <p className={styles.scheduleSummaryLine}>
+          Repeats on the starting date at the same local time. Short months use their last day;
+          February 29 uses February 28 in other years. Times follow this Mac’s time zone.
+        </p>
+      ) : null}
       {cadence === 'weekly' ? (
         <fieldset className={styles.scheduleDays} disabled={busy}>
           <legend>On</legend>

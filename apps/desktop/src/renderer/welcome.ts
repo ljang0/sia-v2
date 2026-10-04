@@ -125,7 +125,7 @@ const APP_PROMPTS: { apps: AppConnection['id'][]; prompt: StarterPrompt }[] = [
   },
 ];
 
-/** Suggestions that work on any Mac, with nothing connected. */
+/** Suggestions that use Mac access, with nothing connected. */
 const MAC_PROMPTS: StarterPrompt[] = [
   {
     title: 'Summarize a page',
@@ -141,6 +141,20 @@ const MAC_PROMPTS: StarterPrompt[] = [
     title: 'Write a message',
     prompt: 'Help me write a short message. Ask who it is for and what I want to say.',
     icon: 'write',
+  },
+];
+
+const CHAT_PROMPTS: StarterPrompt[] = [
+  {
+    title: 'Write a message',
+    prompt: 'Help me draft a thoughtful message. Ask who it is for and what I want to say.',
+    icon: 'write',
+  },
+  {
+    title: 'Plan a birthday gift',
+    prompt:
+      'Help me choose a birthday gift. Ask about the person, my budget, and the date first.',
+    icon: 'question',
   },
 ];
 
@@ -189,7 +203,12 @@ export function welcomePrompts(
   {
     now = new Date(),
     apps = [],
-  }: { now?: Date | undefined; apps?: readonly AppConnection[] | undefined } = {},
+    macAccess = true,
+  }: {
+    now?: Date | undefined;
+    apps?: readonly AppConnection[] | undefined;
+    macAccess?: boolean;
+  } = {},
 ): StarterPrompt[] {
   if (!agent) return [];
   // Personalize from the person's stated purpose, never from the model/provider or a test-like name.
@@ -203,5 +222,9 @@ export function welcomePrompts(
   const fromApps = APP_PROMPTS.filter((entry) =>
     entry.apps.some((id) => connected.has(id)),
   ).map((entry) => entry.prompt);
-  return [TIME_OF_DAY[partOfDay(now)], ...fromApps, ...MAC_PROMPTS].slice(0, 3);
+  return [
+    TIME_OF_DAY[partOfDay(now)],
+    ...fromApps,
+    ...(macAccess ? MAC_PROMPTS : CHAT_PROMPTS),
+  ].slice(0, 3);
 }

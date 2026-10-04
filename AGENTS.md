@@ -9,6 +9,7 @@ Requirements: macOS 14+, Node 24+, pnpm 11+, and Xcode command-line tools.
 
 ```sh
 pnpm install --frozen-lockfile
+pnpm --filter @sia/desktop signing:setup # once per Mac
 pnpm onboard:check
 SIA_FAKE_SERVICES=1 pnpm dev
 ```
