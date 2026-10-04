@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { AttachmentPreview, ThreadDetail } from '../types';
 import { Conversation } from './Conversation';
+import { AttachmentPreviewDialog } from './ConversationAttachments';
 
 afterEach(cleanup);
 
@@ -128,4 +129,39 @@ it('previews and opens generated assistant results through their host grant', as
   fireEvent.click(screen.getByRole('button', { name: 'Reveal in Finder' }));
   expect(open).toHaveBeenCalledWith('result-grant');
   expect(reveal).toHaveBeenCalledWith('result-grant');
+});
+
+it('renders Markdown results as readable documents without loading HTML or remote images', () => {
+  const close = vi.fn();
+  const { container, rerender } = render(
+    <AttachmentPreviewDialog
+      preview={{
+        attachment: {
+          id: 'report',
+          name: 'Plan.MD',
+          kind: 'file',
+          bytes: 120,
+          generated: true,
+        },
+        result: {
+          kind: 'text',
+          format: 'text',
+          content:
+            '# Family plan\n\nLeave by **4:25**.\n\n| Child | Activity |\n|---|---|\n| Riley | Soccer |\n\n<img src="https://private.example/track">\n\n![tracker](https://private.example/pixel)\n\n[unsafe](javascript:alert(1))',
+        },
+      }}
+      onOpenChange={close}
+    />,
+  );
+  expect(screen.getByRole('heading', { name: 'Family plan' })).toBeTruthy();
+  expect(screen.getByRole('table').textContent).toContain('Riley');
+  expect(screen.getByText('4:25').tagName).toBe('STRONG');
+  expect(document.querySelector('[role="dialog"] img')).toBeNull();
+  expect(document.querySelector('[role="dialog"] a[href^="javascript:"]')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Close preview' }));
+  expect(close).toHaveBeenCalledWith(false);
+  expect(container.querySelector('script')).toBeNull();
+  rerender(<AttachmentPreviewDialog onOpenChange={close} />);
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.queryByLabelText('Loading preview')).toBeNull();
 });
