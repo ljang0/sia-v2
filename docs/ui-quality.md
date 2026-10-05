@@ -142,8 +142,8 @@ use whitespace and a hairline divider before adding another box.
 ## Merge checklist
 
 - One clear primary action per surface; no duplicate controls or provider-specific layout fork.
-- Onboarding places the optional everyday-app access checkbox before the setup button. Keep it a
-  compact, unboxed choice with approval guidance so it does not compete with the primary action.
+- Use my Mac onboarding has one setup button that walks every required macOS permission; there
+  is no separate opt-in for everyday apps.
 - Conversation remains dominant. Tool activity is compact and progressively disclosed.
 - Settings use one horizontal section rail that wraps when space is tight, keeping every category
   visible. The content pane scrolls independently; avoid a second sidebar inside the application shell.

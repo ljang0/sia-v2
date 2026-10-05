@@ -95,7 +95,7 @@ it('an explicitly authorized automatic pass starts once even under StrictMode an
   expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1);
 });
 
-it('moves past a declined optional app, then lets the person retry it from its row', async () => {
+it('keeps a declined app as the current step until the person turns it on', async () => {
   const { snapshot, api, complete, rerender } = setup();
   snapshot.computer.accessibility = 'allowed';
   snapshot.computer.screenRecording = 'allowed';
@@ -103,12 +103,20 @@ it('moves past a declined optional app, then lets the person retry it from its r
   rerender();
   fireEvent.click(screen.getByRole('button', { name: 'Grant all' }));
   await waitFor(() => expect(api.requestAutomationPermission).toHaveBeenCalledTimes(1));
-  // Declining an optional app never holds setup open.
-  await waitFor(() => expect(complete).toHaveBeenCalledOnce());
-  expect(screen.getByText('Turned off')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Open Settings: Safari' }));
+  await waitFor(() =>
+    expect(
+      (screen.getByRole('button', { name: 'Open System Settings' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false),
+  );
+  expect(screen.getByText('In Automation, expand Sia and turn on Safari.')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Skip' })).toBeNull();
+  expect(complete).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Open System Settings' }));
   await waitFor(() => expect(api.requestAutomationPermission).toHaveBeenCalledTimes(2));
-  expect(api.requestComputerPermissions).not.toHaveBeenCalled();
+  snapshot.computer.automation!.safari = 'ready';
+  rerender();
+  await waitFor(() => expect(complete).toHaveBeenCalledOnce());
 });
 
 it('stops the pass while a native request is pending and does not continue after its late result', async () => {
@@ -183,7 +191,7 @@ it('explains unavailable dictation without attempting to configure it', async ()
   expect(api.configureVoice).not.toHaveBeenCalled();
 });
 
-it('lists every permission once, with the two needed ones first and the rest optional', () => {
+it('lists every permission once and requires all of them except voice', () => {
   const snapshot = structuredClone(demoSnapshot);
   snapshot.computer.messagesAccess = 'needs_full_disk_access';
   snapshot.computer.automation = {
@@ -219,14 +227,14 @@ it('lists every permission once, with the two needed ones first and the rest opt
     ['accessibility', false, 'ready', true],
     ['screen', false, 'ready', true],
     ['voice', true, 'needed', true],
-    ['system_events', true, 'ready', true],
-    ['safari', true, 'needed', true],
-    ['calendar', true, 'needed', true],
-    ['reminders', true, 'denied', true],
-    ['finder', true, 'error', true],
-    ['messages', true, 'ready', true],
-    // Full Disk Access is guided through System Settings and remains skippable.
-    ['messages_history', true, 'needed', true],
+    ['system_events', false, 'ready', true],
+    ['safari', false, 'needed', true],
+    ['calendar', false, 'needed', true],
+    ['reminders', false, 'denied', true],
+    ['finder', false, 'error', true],
+    ['messages', false, 'ready', true],
+    // Full Disk Access is guided through System Settings.
+    ['messages_history', false, 'needed', true],
   ]);
   for (const row of rows) expect(row.why.length).toBeGreaterThan(10);
   expect(
@@ -253,12 +261,10 @@ it('each row asks for exactly its own permission without starting a pass', async
   expect(screen.queryByText(/Step \d/)).toBeNull();
 });
 
-it('lets optional steps be skipped, but not the permissions Sia needs', async () => {
+it('lets only voice be skipped; every other permission is required', async () => {
   const { snapshot, api, complete, rerender } = setup();
   snapshot.computer.screenRecording = 'allowed';
   rerender();
-  const prompt = Promise.withResolvers<void>();
-  api.requestAutomationPermission.mockImplementation(() => prompt.promise);
   fireEvent.click(screen.getByRole('button', { name: 'Grant all' }));
   await waitFor(() =>
     expect(api.requestComputerPermissions).toHaveBeenCalledExactlyOnceWith('accessibility'),
@@ -267,13 +273,11 @@ it('lets optional steps be skipped, but not the permissions Sia needs', async ()
   snapshot.computer.accessibility = 'allowed';
   rerender();
   await waitFor(() => expect(api.requestAutomationPermission).toHaveBeenCalledWith('safari'));
-  expect(screen.getByRole('button', { name: 'Skip' })).toBeTruthy();
-  await act(async () => {
-    prompt.resolve();
-    await prompt.promise;
-  });
+  expect(screen.queryByRole('button', { name: 'Skip' })).toBeNull();
+  expect(complete).not.toHaveBeenCalled();
+  snapshot.computer.automation!.safari = 'ready';
+  rerender();
   await waitFor(() => expect(complete).toHaveBeenCalledOnce());
-  expect(api.requestAutomationPermission).toHaveBeenCalledOnce();
   expect(screen.getByText('Mac access is ready.')).toBeTruthy();
 });
 

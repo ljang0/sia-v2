@@ -19,6 +19,10 @@ function setup(step: OnboardingStep = 'welcome') {
   if (step === 'welcome' || step === 'agent') snapshot.agents = [];
   // A new profile starts with bypass, the product default.
   snapshot.computer.trust = 'auto';
+  // Every app permission is required to finish; tests that need one missing set it.
+  snapshot.computer.automation = Object.fromEntries(
+    automationApps.map(({ id }) => [id, 'ready' as const]),
+  ) as NonNullable<typeof snapshot.computer.automation>;
   const api = {
     getSnapshot: vi.fn(async () => structuredClone(snapshot)),
     setComputerAccessMode: vi.fn(async () => {}),
@@ -112,14 +116,8 @@ it.each([
     });
     expect(confirmations.checked).toBe(false);
     if (confirmActions) fireEvent.click(confirmations);
-    if (route === 'mac-bypass') {
-      const apps = screen.getByRole<HTMLInputElement>('checkbox', {
-        name: /Prepare everyday apps now/,
-      });
-      // Everyday-app approvals are an opt-in.
-      expect(apps.checked).toBe(false);
-      fireEvent.click(apps);
-    }
+    // Use my Mac asks for every app permission in the same pass; there is nothing to opt into.
+    expect(screen.queryByRole('checkbox', { name: /Prepare everyday apps now/ })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Set up Sia' }));
     if (route === 'mac-bypass') {
       await waitFor(() => expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1));
@@ -467,14 +465,29 @@ it('keeps existing profiles out of first-run and recovers a deleted starter', ()
   expect(onboardingStep(snapshot)).toBeUndefined();
 });
 
+it('keeps Start using Sia off until every Mac permission is on', async () => {
+  const { snapshot, api, props } = setup('verify');
+  snapshot.computer.accessMode = 'mac';
+  snapshot.computer.automation = { ...snapshot.computer.automation!, calendar: 'denied' };
+  const content = () => (
+    <Onboarding {...props}>
+      <div />
+    </Onboarding>
+  );
+  const view = render(content());
+  await waitFor(() => expect(api.refreshComputerPermissions).toHaveBeenCalled());
+  const start = () =>
+    screen.getByRole<HTMLButtonElement>('button', { name: 'Start using Sia' }).disabled;
+  expect(start()).toBe(true);
+  snapshot.computer.automation = { ...snapshot.computer.automation!, calendar: 'ready' };
+  view.rerender(content());
+  await waitFor(() => expect(start()).toBe(false));
+});
+
 it('finishes a verified pass without restarting Sia', async () => {
   const { snapshot, api, props } = setup('voice');
   snapshot.computer.accessibility = 'not-requested';
   snapshot.computer.screenRecording = 'allowed';
-  snapshot.computer.messagesAccess = 'needs_full_disk_access';
-  snapshot.computer.automation = Object.fromEntries(
-    automationApps.map(({ id }) => [id, 'needs_permission']),
-  ) as typeof snapshot.computer.automation;
   snapshot.voice.pushToTalk = {
     enabled: false,
     available: false,
@@ -506,13 +519,13 @@ it('finishes a verified pass without restarting Sia', async () => {
   expect(api.startRealtimeVoice).not.toHaveBeenCalled();
 });
 
-it('resumes an active pass after the relaunch without asking again for skipped or granted rows', async () => {
+it('resumes an active pass after the relaunch without asking again for granted rows', async () => {
   const { snapshot, api, props } = setup('verify');
   snapshot.preferences.onboarding = {
     step: 'verify',
     agentId: snapshot.agents[0]!.id,
     restarted: true,
-    permissionSetup: { includeApps: true, active: true, skipped: ['safari'] },
+    permissionSetup: { includeApps: true, active: true },
   };
   snapshot.computer.accessMode = 'mac';
   snapshot.voice.dictationAvailable = false;
@@ -539,7 +552,7 @@ it('resumes an active pass after the relaunch without asking again for skipped o
   const asked = api.requestAutomationPermission.mock.calls.map(
     (call) => (call as unknown[])[0],
   );
-  expect(asked).not.toContain('safari');
+  expect(asked).toContain('safari');
   expect(asked).not.toContain('finder');
   expect(new Set(asked).size).toBe(asked.length);
   expect(api.requestComputerPermissions).not.toHaveBeenCalled();

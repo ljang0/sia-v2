@@ -108,6 +108,7 @@ export function macAccessRows(
           why: 'Hold Fn and speak instead of typing. Uses the microphone and Speech Recognition.',
           guide:
             'Allow the microphone and any Speech Recognition prompt. Setup does not record your voice.',
+          // Voice also needs a voice service, which can be briefly unavailable; it never blocks.
           optional: true,
           state: dictationReady(snapshot.voice) ? 'ready' : 'needed',
           guided: true,
@@ -140,7 +141,7 @@ export function macAccessRows(
         state === 'denied'
           ? `In Automation, expand Sia and turn on ${name}.`
           : `Choose Allow when macOS asks if Sia can control ${name}.`,
-      optional: true,
+      optional: false,
       state,
       guided: true,
       request: () => api.requestAutomationPermission(id),
@@ -153,8 +154,8 @@ export function macAccessRows(
       name: 'Read Messages history',
       why: 'Lets Sia find earlier texts. In Full Disk Access, add Sia and turn it on.',
       guide:
-        'In Full Disk Access, turn on Sia. If it is not listed, use + to add Sia from Applications. This is optional; skip it if you do not want Sia to read earlier texts.',
-      optional: true,
+        'In Full Disk Access, turn on Sia. If it is not listed, use + to add Sia from Applications.',
+      optional: false,
       state: messages === 'ready' ? 'ready' : 'needed',
       guided: true,
       request: () => api.setupMessages!(),
@@ -201,8 +202,6 @@ export function SetupMacAccess({
   const [error, setError] = useState<string>();
   const [skipped, setSkipped] = useState<readonly string[]>(initialSkipped ?? []);
   const [asked, setAsked] = useState<readonly string[]>([]);
-  // Optional rows the guided pass already asked about; a decline moves the pass on.
-  const [passed, setPassed] = useState<readonly string[]>([]);
   const requested = useRef(new Set<string>());
   const requesting = useRef(false);
   const refreshing = useRef(false);
@@ -219,15 +218,17 @@ export function SetupMacAccess({
   const shown = rows.filter((row) => row.state !== 'unavailable');
   const readyCount = shown.filter((row) => row.state === 'ready').length;
   const required = rows.filter((row) => !row.optional);
-  const requiredReady = required.every((row) => row.state === 'ready');
+  // A row macOS cannot offer on this Mac (an app that is not installed) never blocks setup.
+  const requiredReady = required.every(
+    (row) => row.state === 'ready' || row.state === 'unavailable',
+  );
   const relaunch = rows.filter((row) => row.state === 'relaunch');
   // The guided pass walks every row with a native prompt that still needs the person.
   const current = rows.find(
     (row) =>
       row.guided &&
       (row.state === 'needed' || row.state === 'denied' || row.state === 'error') &&
-      !skipped.includes(row.id) &&
-      !(row.optional && passed.includes(row.id)),
+      !skipped.includes(row.id),
   );
   const currentRef = useRef(current);
   currentRef.current = current;
@@ -255,7 +256,6 @@ export function SetupMacAccess({
   const start = () => {
     if (requesting.current) return;
     requested.current.clear();
-    setPassed([]);
     setError(undefined);
     setActive(true);
     setRetry((value) => value + 1);
@@ -304,21 +304,9 @@ export function SetupMacAccess({
     void (async () => {
       try {
         if (step) {
-          try {
-            await step.request?.(() => pass === generation.current);
-            if (pass !== generation.current) return;
-            await latest.current.api.refreshComputerPermissions();
-          } finally {
-            // Asked once is enough for an optional prompt: declining it never blocks setup.
-            // Full Disk Access has no prompt; its guide waits while the person uses Settings.
-            if (
-              step.optional &&
-              step.id !== 'messages_history' &&
-              mounted.current &&
-              pass === generation.current
-            )
-              setPassed((ids) => (ids.includes(step.id) ? ids : [...ids, step.id]));
-          }
+          await step.request?.(() => pass === generation.current);
+          if (pass !== generation.current) return;
+          await latest.current.api.refreshComputerPermissions();
         } else {
           setActive(false);
           // A grant waiting for a relaunch finishes with the Relaunch button, not here.
@@ -515,10 +503,14 @@ export function SetupMacAccess({
       <ul className={styles.accessList} aria-label="Needed permissions">
         {required.map(renderRow)}
       </ul>
-      <p className={styles.groupLabel}>Optional — skip anything you won’t use</p>
-      <ul className={styles.accessList} aria-label="Optional permissions">
-        {rows.filter((row) => row.optional).map(renderRow)}
-      </ul>
+      {rows.some((row) => row.optional) ? (
+        <>
+          <p className={styles.groupLabel}>Optional — skip anything you won’t use</p>
+          <ul className={styles.accessList} aria-label="Optional permissions">
+            {rows.filter((row) => row.optional).map(renderRow)}
+          </ul>
+        </>
+      ) : null}
       <button
         className={styles.link}
         disabled={disabled || busy}

@@ -116,10 +116,6 @@ export function Onboarding({
   const [accessReady, setAccessReady] = useState(false);
   const [permissionPassComplete, setPermissionPassComplete] = useState(false);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
-  // Everyday-app approvals are optional; macOS asks for each one the first time a task needs it.
-  const [prepareApps, setPrepareApps] = useState(
-    snapshot.preferences.onboarding?.permissionSetup?.includeApps ?? false,
-  );
   const autoFinished = useRef(false);
   const [error, setError] = useState<string>();
   const [celebrate, setCelebrate] = useState(false);
@@ -205,7 +201,7 @@ export function Onboarding({
           startOnboarding: true,
         });
       await api.setOnboarding(connectedSetup ? 'apps' : 'voice', {
-        includeApps: !connectedSetup && prepareApps,
+        includeApps: !connectedSetup,
         active: !connectedSetup,
       });
       setConnectionsOpen(connectedSetup);
@@ -256,7 +252,7 @@ export function Onboarding({
         {celebrate ? <SetupDoneToast onDone={() => setCelebrate(false)} /> : null}
       </>
     );
-  // Stay on Mac access while a Grant all pass is still walking optional rows.
+  // Stay on Mac access while a Grant all pass is still walking its rows.
   const done = !starting && !restarting && accessReady && !permissionBusy;
   return (
     <main className={styles.setup} aria-label="Welcome to Sia">
@@ -363,23 +359,6 @@ export function Onboarding({
                   Change
                 </button>
               </div>
-              {setupRoute === 'mac-bypass' && aiReady ? (
-                <label className={styles.prepareApps}>
-                  <input
-                    type="checkbox"
-                    checked={prepareApps}
-                    disabled={busy || connecting}
-                    onChange={(event) => setPrepareApps(event.currentTarget.checked)}
-                  />
-                  <span>
-                    <strong>Prepare everyday apps now</strong>
-                    <span>
-                      Browsers, Calendar, Reminders, Finder, and Messages may open for macOS
-                      approval. You can also connect them later.
-                    </span>
-                  </span>
-                </label>
-              ) : null}
               {aiReady ? (
                 <div className={styles.actions}>
                   <button
@@ -512,7 +491,7 @@ export function Onboarding({
                     setStartPermissions(false);
                     void api
                       .setOnboarding(step!, {
-                        includeApps: setupRoute === 'mac-bypass' && prepareApps,
+                        includeApps: setupRoute === 'mac-bypass',
                         active: false,
                       })
                       .catch(() =>
@@ -522,19 +501,19 @@ export function Onboarding({
                   // The one relaunch: saves this step and resumes the pass after reopening.
                   onRestart={async (skipped) => {
                     await api.setOnboarding('verify', {
-                      includeApps: setupRoute === 'mac-bypass' && prepareApps,
+                      includeApps: setupRoute === 'mac-bypass',
                       active: true,
                       skipped,
                     });
                     await api.restartForOnboarding();
                   }}
-                  includeApps={setupRoute === 'mac-bypass' && prepareApps}
+                  includeApps={setupRoute === 'mac-bypass'}
                   initialSkipped={snapshot.preferences.onboarding?.permissionSetup?.skipped}
                   onComplete={async () => {
                     setStartPermissions(false);
                     await run(async () => {
                       await api.setOnboarding('verify', {
-                        includeApps: setupRoute === 'mac-bypass' && prepareApps,
+                        includeApps: setupRoute === 'mac-bypass',
                         active: false,
                       });
                       setPermissionPassComplete(true);
@@ -545,7 +524,8 @@ export function Onboarding({
               <div className={styles.actions}>
                 <button
                   className={buttons.primaryButton}
-                  disabled={busy || connecting}
+                  // Use my Mac needs every permission; the guide above asks for each in turn.
+                  disabled={busy || connecting || (!connectedSetup && !accessReady)}
                   onClick={finish}
                 >
                   Start using Sia

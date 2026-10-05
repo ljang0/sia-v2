@@ -16,8 +16,10 @@ test('one-click setup opens a working conversation and stays complete across rel
       path: 'test-results/onboarding-welcome.png',
       animations: 'disabled',
     });
-    // Exercise setup without the optional app-specific permission pass.
-    await page.getByRole('checkbox', { name: /Prepare everyday apps now/ }).uncheck();
+    // Every Mac permission, app Automation included, is part of the one setup pass.
+    await expect(page.getByRole('checkbox', { name: /Prepare everyday apps now/ })).toHaveCount(
+      0,
+    );
     // SIA_FAKE_SERVICES simulates permission APIs; this cannot prompt the host OS.
     page = await sia.completeSetup();
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
@@ -28,10 +30,8 @@ test('one-click setup opens a working conversation and stays complete across rel
     expect(created.preferences.onboarding?.agentId).toBe(created.activeAgentId);
     expect(created.computer.trust).toBe('auto');
     expect(created.computer.accessMode).toBe('mac');
-    // First run must not request app-specific grants or open their host apps.
-    expect(Object.values(created.computer.automation ?? {})).toEqual(
-      Array(7).fill('needs_permission'),
-    );
+    // The one setup pass asks for every app-specific grant (simulated in fake services).
+    expect(Object.values(created.computer.automation ?? {})).toEqual(Array(7).fill('ready'));
     expect(
       created.connections.every((connection) => connection.status === 'disconnected'),
     ).toBe(true);

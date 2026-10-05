@@ -31,8 +31,11 @@ lint, quality, type, unit, deterministic desktop E2E, and renderer gates. See
   Codex App Server. That key is write-only from the renderer, stored encrypted outside the state
   JSON, and attached only by a loopback proxy; Codex, the renderer, IPC results, and logs never
   receive it.
-- Google Workspace, Slack, signed-in Chrome, Apple Messages, and computer use are optional. They do
-  not block first-run setup.
+- Use my Mac setup requires every macOS permission Sia uses: Accessibility, Screen Recording,
+  Automation for each installed everyday app, and Full Disk Access for Messages history. One **Set
+  up Sia** click walks them in order; macOS still approves each one, and Start using Sia stays off
+  until all are on. Fn voice stays optional because it also needs a voice service. Google
+  Workspace and Slack stay optional, and the Connected apps only route needs no Mac permissions.
 - Bypass (no per-action approvals) is the default for every route, including profiles that never
   chose; confirmations are an explicit opt-in (onboarding's Customize setup → Ask before each
   action, or Settings → Computer). Onboarding's initial selection is Use my Mac with bypass. Use my

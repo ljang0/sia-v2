@@ -217,8 +217,8 @@ After any required email sign-in:
 | Control your Mac                                                     | Accessibility (also covers the Fn key; no Input Monitoring) | Yes      | System prompt, then the Accessibility pane               |
 | See your screen                                                      | Screen & System Audio Recording                             | Yes      | Registers Sia, then the Screen Recording pane            |
 | Talk with Fn                                                         | Microphone and Speech Recognition                           | Optional | Native prompts from the signed app                       |
-| System Events, Safari, Chrome, Calendar, Reminders, Finder, Messages | Automation (Apple Events) for that app                      | Optional | One native prompt per app; apps not installed are hidden |
-| Read Messages history                                                | Full Disk Access                                            | Optional | Opens the Full Disk Access pane (macOS has no prompt)    |
+| System Events, Safari, Chrome, Calendar, Reminders, Finder, Messages | Automation (Apple Events) for that app                      | Yes      | One native prompt per app; apps not installed are hidden |
+| Read Messages history                                                | Full Disk Access                                            | Yes      | Opens the Full Disk Access pane (macOS has no prompt)    |
 
 Not in the checklist: notifications (macOS asks the first time a task-finished notice is sent),
 Local Network (asked only when you turn on Phone remote), and the Keychain prompt at launch. Sia
@@ -227,12 +227,12 @@ Automation. Anything skipped is asked for by macOS the first time a task needs i
 background task that is missing Accessibility or Screen Recording names the missing permission
 in plain words.
 
-In Use my Mac, **Prepare everyday apps now** is off by default; macOS asks for each app the first
-time a task needs it. When it is checked, the same setup pass requests missing Automation grants for
-System Events, Safari, Chrome, Calendar, Reminders, Finder and Messages. Already allowed or
-unavailable apps are skipped; running apps are reused and missing apps open hidden where macOS
-supports it. Each app is asked once per pass: declining one moves the pass on, and its row keeps an
-**Open Settings** button. Connected apps setup does not request these Automation grants.
+In Use my Mac, one **Set up Sia** click walks every required permission in order, including the
+Automation grants for System Events, Safari, Chrome, Calendar, Reminders, Finder and Messages and
+Full Disk Access. Already allowed or unavailable apps are skipped; running apps are reused and
+missing apps open hidden where macOS supports it. A declined grant stays the current step with an
+**Open System Settings** button, and **Start using Sia** stays off until every required row is on.
+Connected apps setup does not request these grants.
 
 Once macOS lists both Accessibility and Screen Recording, Sia confirms they work by reading one
 other app's window (preferring Finder) through the same driver its tools use. The window is
