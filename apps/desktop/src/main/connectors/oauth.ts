@@ -55,13 +55,16 @@ export async function loopbackAuthorization(options: {
           return;
         }
         const code = url.searchParams.get('code');
-        const ok = Boolean(code) && url.searchParams.get('state') === state;
+        const stateMatches = url.searchParams.get('state') === state;
+        const ok = Boolean(code) && stateMatches;
         response
           .writeHead(ok ? 200 : 400, {
             'content-type': 'text/html; charset=utf-8',
             'cache-control': 'no-store',
           })
           .end(CALLBACK_PAGE(ok));
+        // A request without this sign-in's state is not from the provider; keep waiting.
+        if (!stateMatches) return;
         if (ok) resolve(code!);
         else
           reject(
@@ -74,6 +77,8 @@ export async function loopbackAuthorization(options: {
       });
       server.on('error', reject);
     });
+    // Rejections are observed by raceTimeout below; this keeps an early one from going unhandled.
+    received.catch(() => undefined);
     await new Promise<void>((resolve, reject) => {
       server!.once('error', reject);
       server!.listen(0, '127.0.0.1', () => resolve());

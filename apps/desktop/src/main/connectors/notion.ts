@@ -243,12 +243,20 @@ export async function runNotionTool(
       const args = { page_id: input.page_id, command: 'update_content', ...change };
       return client.callTool('notion-update-page', wrapped ? { data: args } : args, signal);
     }
-    case 'notion_comment':
-      return client.callTool(
-        'notion-create-comment',
-        { page_id: input.page_id, text: input.text },
-        signal,
-      );
+    case 'notion_comment': {
+      // Shaped from the advertised schema: newer servers take rich_text, older ones a parent.
+      const schema =
+        (await client.tool('notion-create-comment', signal)).inputSchema?.properties ?? {};
+      const body =
+        'rich_text' in schema
+          ? { rich_text: [{ type: 'text', text: { content: input.text } }] }
+          : { text: input.text };
+      const target =
+        'page_id' in schema || !('parent' in schema)
+          ? { page_id: input.page_id }
+          : { parent: { page_id: input.page_id } };
+      return client.callTool('notion-create-comment', { ...target, ...body }, signal);
+    }
     default:
       throw new ConnectorRequestError(400, `Unknown Notion tool ${tool}.`);
   }
@@ -257,9 +265,12 @@ export async function runNotionTool(
 /** The workspace label Notion's MCP server reports for the signed-in user, when it offers one. */
 export async function notionAccount(client: NotionMcpClient): Promise<string> {
   try {
-    const self = (await client.callTool('notion-get-users', { query: 'self' })) as Input;
+    const properties = (await client.tool('notion-get-users')).inputSchema?.properties ?? {};
+    const key = 'user_id' in properties ? 'user_id' : 'id' in properties ? 'id' : undefined;
+    if (!key) return 'Notion workspace';
+    const self = (await client.callTool('notion-get-users', { [key]: 'self' })) as Input;
     const users = (self.results ?? self.users) as Input[] | undefined;
-    const first = users?.[0];
+    const first = users?.[0] ?? self;
     const label = first?.email ?? first?.name;
     if (typeof label === 'string' && label) return label;
   } catch {

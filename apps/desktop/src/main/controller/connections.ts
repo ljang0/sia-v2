@@ -15,6 +15,9 @@ import {
 } from './connection-ids.js';
 import type { ControllerContext } from './context.js';
 
+/** Owner of a Mac-connected app connected while no Sia cloud account was available. */
+export const LOCAL_DEVICE_OWNER = 'this-mac';
+
 /** The parts of the controller context ConnectorConnections uses. */
 type ConnectorConnectionsContext = Pick<
   ControllerContext,
@@ -428,8 +431,23 @@ export class ConnectorConnections {
 
   /** Whose grant a Mac-connected app is: the signed-in Sia account, or this Mac without cloud. */
   private localOwner(): string | undefined {
-    if (this.ctx.deps.fakeServices) return this.ctx.account.currentIdentityKey() ?? 'this-mac';
-    return this.ctx.deps.cloud.configured ? this.ctx.account.currentIdentityKey() : 'this-mac';
+    if (this.ctx.deps.fakeServices) {
+      return this.ctx.account.currentIdentityKey() ?? LOCAL_DEVICE_OWNER;
+    }
+    return this.ctx.deps.cloud.configured
+      ? this.ctx.account.currentIdentityKey()
+      : LOCAL_DEVICE_OWNER;
+  }
+
+  /** Stops sign-ins still waiting in the browser, for sign-out and account deletion. */
+  cancelLocalSetups(): void {
+    for (const [app, controller] of this.localSetups) {
+      controller.abort();
+      this.generations.set(app, (this.generations.get(app) ?? 0) + 1);
+      this.updateConnection(app, { status: 'disconnected' });
+      this.clearConnectionDetails(app);
+    }
+    this.localSetups.clear();
   }
 
   private async startLocalConnection(
@@ -621,6 +639,7 @@ export class ConnectorConnections {
       !this.ctx.deps.fakeServices &&
       current?.connectionId &&
       owner &&
+      owner !== LOCAL_DEVICE_OWNER &&
       owner !== this.localOwner()
     ) {
       throw new Error(

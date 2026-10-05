@@ -92,6 +92,10 @@ export class LocalCredentialStore {
     }
   }
 
+  clear(): void {
+    rmSync(this.directory, { recursive: true, force: true });
+  }
+
   remove(connectionId: string): void {
     rmSync(this.#path(connectionId), { force: true });
   }

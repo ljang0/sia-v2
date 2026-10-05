@@ -757,7 +757,9 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
         resource_id: string('Event id'),
         calendar_id: string('Optional calendar id; defaults to the primary calendar'),
         summary: string('Replacement title'),
-        start: string('Replacement start: YYYY-MM-DD or RFC 3339 date-time with offset'),
+        start: string(
+          'Replacement start: YYYY-MM-DD or RFC 3339 date-time with offset. Always send start and end together.',
+        ),
         end: string('Replacement end, in the same form as start'),
         description: string('Replacement description'),
         location: string('Replacement location'),

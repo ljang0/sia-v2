@@ -387,7 +387,7 @@ const calendarCreate = z
     calendar_id: optionalId,
   })
   .strict()
-  .refine(({ start, end }) => start.length === end.length, {
+  .refine(({ start, end }) => start.includes('T') === end.includes('T'), {
     path: ['end'],
     message: 'Start and end must both be dates or both be date-times',
   });
@@ -407,6 +407,13 @@ const calendarUpdate = z
     ({ summary, start, end, description, location }) =>
       [summary, start, end, description, location].some((value) => value !== undefined),
     { message: 'Include at least one change' },
+  )
+  .refine(
+    ({ start, end }) =>
+      start === undefined
+        ? end === undefined
+        : end !== undefined && start.includes('T') === end.includes('T'),
+    { path: ['end'], message: 'Change start and end together, both as dates or date-times' },
   );
 
 const calendarDelete = calendarRead;

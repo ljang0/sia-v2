@@ -171,12 +171,42 @@ describe('LocalConnectorService', () => {
     expect(refresh.get('grant_type')).toBe('refresh_token');
     expect(refresh.get('client_id')).toBe('ms-client');
     const graph = new URL(calls[1]!.url);
-    expect(graph.searchParams.get('$filter')).toBe('isRead eq false');
+    expect(graph.searchParams.get('$filter')).toBe(
+      'receivedDateTime ge 1900-01-01T00:00:00Z and isRead eq false',
+    );
+    expect(graph.searchParams.get('$orderby')).toBe('receivedDateTime desc');
     expect((calls[1]!.init.headers as Record<string, string>).authorization).toBe('Bearer new');
     expect(credentials.read(id)).toMatchObject({
       accessToken: 'new',
       refreshToken: 'refresh-2',
     });
+  });
+
+  it('refreshes an expiring GitHub token only with GitHub', async () => {
+    const credentials = store();
+    const id = newLocalConnectionId('github');
+    credentials.save(id, {
+      app: 'github',
+      accessToken: 'old',
+      refreshToken: 'ghr_refresh',
+      expiresAt: Date.now() - 1,
+      clientId: 'Iv1.testclient',
+      account: 'octo',
+    });
+    const { fetch, calls } = fakeFetch((url) =>
+      url === 'https://github.com/login/oauth/access_token'
+        ? json({ access_token: 'ghu_new', expires_in: 28_800 })
+        : json({ total_count: 0, items: [] }),
+    );
+    const service = new LocalConnectorService({
+      store: credentials,
+      clients: { github: 'Iv1.testclient' },
+      openExternal: async () => undefined,
+      fetch,
+    });
+    await service.execute('github', id, 'github_search', { kind: 'issues', query: 'is:open' });
+    expect(calls.map(({ url }) => new URL(url).host)).toEqual(['github.com', 'api.github.com']);
+    expect(calls.some(({ url }) => url.includes('notion'))).toBe(false);
   });
 
   it('sends Outlook mail as plain text to the exact recipients', async () => {
@@ -288,6 +318,24 @@ describe('Notion MCP client', () => {
     expect(calls[2]!.params).toEqual({
       name: 'notion-search',
       arguments: { query: 'roadmap' },
+    });
+  });
+
+  it('sends comments as rich text when the server asks for it', async () => {
+    const server = notionServer({});
+    // Advertise the comment tool's schema instead of the update tool's.
+    const tool = vi.spyOn(server.client, 'tool').mockResolvedValue({
+      name: 'notion-create-comment',
+      inputSchema: { properties: { page_id: {}, rich_text: {} } },
+    });
+    await runNotionTool(server.client, 'notion_comment', { page_id: 'p', text: 'Looks good' });
+    expect(tool).toHaveBeenCalledWith('notion-create-comment', undefined);
+    expect(server.calls.at(-1)!.params).toEqual({
+      name: 'notion-create-comment',
+      arguments: {
+        page_id: 'p',
+        rich_text: [{ type: 'text', text: { content: 'Looks good' } }],
+      },
     });
   });
 

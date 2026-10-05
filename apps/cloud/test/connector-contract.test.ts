@@ -259,8 +259,8 @@ describe('canonical connector input mapping', () => {
         event_id: 'event-1',
         patch: {
           location: '',
-          start: { dateTime: '2026-10-05T15:00:00Z' },
-          end: { dateTime: '2026-10-05T16:00:00Z' },
+          start: { date: null, dateTime: '2026-10-05T15:00:00Z' },
+          end: { date: null, dateTime: '2026-10-05T16:00:00Z' },
         },
       },
     ],
@@ -471,6 +471,7 @@ describe('canonical connector input mapping', () => {
         { summary: 'Guest', start: '2026-10-05', end: '2026-10-06', attendees: ['nobody'] },
       ],
       ['calendar.update_event', { resource_id: 'event-1' }],
+      ['calendar.update_event', { resource_id: 'event-1', start: '2026-10-05T15:00:00Z' }],
       ['calendar.update_event', { resource_id: 'event-1', time_zone: 'UTC', summary: 'x' }],
       ['tasks.list', { show_completed: 'yes' }],
       ['tasks.create', { title: 'Due', due: 'next week' }],

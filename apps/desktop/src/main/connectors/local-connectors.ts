@@ -104,6 +104,21 @@ export class LocalConnectorService {
     }
   }
 
+  /** The account label saved with a connection, or undefined when its sign-in is gone. */
+  savedAccount(connectionId: string): string | undefined {
+    try {
+      return this.options.store.read(connectionId)?.account || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Removes every saved sign-in on this Mac, for account deletion. */
+  forgetAll(): void {
+    this.#notion.clear();
+    this.options.store.clear();
+  }
+
   /** Removes this Mac's saved tokens. Provider-side app access stays listed in the account's own settings. */
   forget(connectionId: string): void {
     this.#notion.delete(connectionId);
@@ -161,21 +176,29 @@ export class LocalConnectorService {
         'This app connection expired. Reconnect it in Settings > Connections.',
       );
     }
+    const base = {
+      grant_type: 'refresh_token',
+      refresh_token: credential.refreshToken,
+      client_id: credential.clientId,
+    };
+    // Each refresh token goes only to the provider that issued it.
+    const [endpoint, form] =
+      credential.app === 'outlook'
+        ? [`${MICROSOFT_AUTHORITY}/token`, { ...base, scope: MICROSOFT_SCOPES.join(' ') }]
+        : credential.app === 'notion'
+          ? [NOTION_OAUTH.token, { ...base, resource: NOTION_MCP_URL }]
+          : credential.app === 'github'
+            ? [GITHUB_TOKEN_URL, base]
+            : [undefined, base];
+    if (!endpoint) {
+      throw new ConnectorRequestError(
+        401,
+        'This app connection expired. Reconnect it in Settings > Connections.',
+      );
+    }
     let refreshed: TokenResponse;
     try {
-      refreshed = await requestToken(
-        this.#fetch,
-        credential.app === 'outlook' ? `${MICROSOFT_AUTHORITY}/token` : NOTION_OAUTH.token,
-        {
-          grant_type: 'refresh_token',
-          refresh_token: credential.refreshToken,
-          client_id: credential.clientId,
-          ...(credential.app === 'outlook'
-            ? { scope: MICROSOFT_SCOPES.join(' ') }
-            : { resource: NOTION_MCP_URL }),
-        },
-        signal,
-      );
+      refreshed = await requestToken(this.#fetch, endpoint, form, signal);
     } catch (error) {
       if (error instanceof OAuthError && error.code === 'invalid_grant') {
         throw new ConnectorRequestError(401, error.message);

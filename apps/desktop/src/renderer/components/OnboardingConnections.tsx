@@ -1,7 +1,7 @@
 import { ConnectionChecklist } from './ConnectionChecklist';
 import type { RendererApi, RendererSnapshot } from '../types';
 import styles from './Onboarding.module.css';
-import { isGoogleConnection } from '../../shared/bridge/connections';
+import { isGoogleConnection, isLocalConnection } from '../../shared/bridge/connections';
 
 type SetupProps = {
   snapshot: RendererSnapshot;
@@ -13,7 +13,9 @@ type SetupProps = {
 export function SetupConnections({ snapshot, api, pending, run }: SetupProps) {
   const google = snapshot.apps.filter(({ id }) => isGoogleConnection(id));
   const googleReady = google.length > 0 && google.every((app) => app.status === 'connected');
-  const connecting = snapshot.apps.some((app) => app.status === 'connecting');
+  const connecting = snapshot.apps.some(
+    (app) => !isLocalConnection(app.id) && app.status === 'connecting',
+  );
   return (
     <>
       <ConnectionChecklist

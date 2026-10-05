@@ -360,12 +360,19 @@ export function mapCanonicalConnectorInput(
           : { summary: boundedString(input.summary, 'summary', 1_024) }),
         ...eventDetails(input),
       };
-      if (input.start !== undefined && input.end !== undefined) {
-        Object.assign(patch, eventTimes(input.start, input.end, undefined));
-      } else if (input.start !== undefined) {
-        patch.start = eventTime(input.start, 'start', undefined);
-      } else if (input.end !== undefined) {
-        patch.end = eventTime(input.end, 'end', undefined);
+      if (input.start !== undefined || input.end !== undefined) {
+        // Google merges a PATCH into the stored event, so a lone start or end can leave an
+        // all-day/timed mix or an end before the start. Times always change together.
+        if (input.start === undefined || input.end === undefined) {
+          invalid('change start and end together');
+        }
+        const times = eventTimes(input.start, input.end, undefined);
+        const clearOther = (time: EventTime) =>
+          'date' in time
+            ? { dateTime: null, timeZone: null, ...time }
+            : { date: null, ...time };
+        patch.start = clearOther(times.start);
+        patch.end = clearOther(times.end);
       }
       if (Object.keys(patch).length === 0) invalid('at least one event change is required');
       return {

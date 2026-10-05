@@ -45,7 +45,10 @@ export async function runOutlookTool(
       if (query) params.set('$search', `"${query.replaceAll('"', '')}"`);
       else {
         params.set('$orderby', 'receivedDateTime desc');
-        if (input.unread_only) params.set('$filter', 'isRead eq false');
+        // Graph requires the $orderby property to lead the $filter for messages.
+        if (input.unread_only) {
+          params.set('$filter', 'receivedDateTime ge 1900-01-01T00:00:00Z and isRead eq false');
+        }
       }
       const folder =
         typeof input.folder === 'string' ? input.folder : query ? undefined : 'inbox';
