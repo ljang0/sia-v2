@@ -7,6 +7,7 @@ import type { DesktopController } from '../controller/desktop-controller.js';
 import type { MessagesService } from '../mac/messages-service.js';
 import type { RecordRepository } from '../storage/persistence.js';
 import type { DesktopSnapshot } from '../../shared/bridge.js';
+import { activityLabel } from '../../shared/activity-label.js';
 import {
   normalizeHandle,
   type MessagesRelayCommand,
@@ -20,6 +21,8 @@ const VOICE_NOTE = /\.(caf|m4a|amr|aac|mp3|wav)$/i;
 export const PEER_PREFIX = 'Sia ⇄ ';
 /** At most this many messages from one person's Sia start work per hour. */
 const PEER_HOURLY_LIMIT = 12;
+/** A long texted task sends a short progress note this often. */
+const CHECK_IN_MS = 10 * 60 * 1000;
 
 /**
  * Converts an iMessage voice note (usually Opus in CAF) to 16 kHz WAV with macOS afconvert and
@@ -57,7 +60,7 @@ export function voiceNoteTranscriber(
 export const REPLY_PREFIX = 'Sia › ';
 const MAX_REPLY = 1800;
 const HELP =
-  'Text me what you need and I will work on it on your Mac. Text STOP to cancel, NEW to start a fresh conversation. When a step needs your OK, reply YES or NO, or answer in Sia on your Mac.';
+  'Text me what you need and I will work on it on your Mac. Text STATUS to see what I am doing, STOP to cancel, NEW to start a fresh conversation. When a step needs your OK, reply YES or NO, or answer in Sia on your Mac.';
 
 interface Config {
   enabled: boolean;
@@ -78,6 +81,8 @@ interface Tracked {
   turnId: string;
   started: number;
   acknowledged: boolean;
+  /** When Sia last texted progress for this task. */
+  checkedIn?: number;
   notified: Set<string>;
   /** Started by a schedule rather than a text; results are labelled with the task title. */
   schedule?: string;
@@ -495,6 +500,27 @@ export class MessagesRelay {
       this.#reply(handle, 'Starting fresh. What should I do?');
       return;
     }
+    if (/^(status|progress|what are you doing\??|what's happening\??)$/.test(command)) {
+      const tracked = thread ? this.#tracked.get(thread.id) : undefined;
+      if (!thread || !tracked || !['running', 'queued', 'waiting'].includes(thread.status)) {
+        this.#reply(handle, 'Nothing is running right now.');
+        return;
+      }
+      const steps = this.#steps(snapshot, thread.id, tracked.turnId).slice(-5);
+      const minutes = Math.max(1, Math.round((this.#now() - tracked.started) / 60000));
+      this.#reply(
+        handle,
+        [
+          thread.status === 'waiting'
+            ? 'Waiting for your OK.'
+            : thread.status === 'queued'
+              ? 'Queued behind other work on your Mac.'
+              : `Working for about ${minutes} min.`,
+          ...steps.map((step) => `• ${step}`),
+        ].join('\n'),
+      );
+      return;
+    }
     if (command === 'help' || command === '?') {
       this.#reply(handle, HELP);
       return;
@@ -672,7 +698,21 @@ export class MessagesRelay {
           this.#now() - tracked.started >= (this.#deps.ackAfterMs ?? 8000)
         ) {
           tracked.acknowledged = true;
+          tracked.checkedIn = this.#now();
           this.#reply(tracked.handle, "Working on it. I'll text you when it's done.");
+        } else if (
+          thread.status === 'running' &&
+          !tracked.peer &&
+          !tracked.schedule &&
+          this.#now() - (tracked.checkedIn ?? tracked.started) >= CHECK_IN_MS
+        ) {
+          // Long tasks stay visible: a short progress note with what Sia is doing now.
+          tracked.checkedIn = this.#now();
+          const steps = this.#steps(snapshot, threadId, tracked.turnId);
+          this.#reply(
+            tracked.handle,
+            `Still working${steps.length ? `: ${steps.at(-1)}` : ''}. Text STATUS for details or STOP to cancel.`,
+          );
         }
         continue;
       }
@@ -725,6 +765,17 @@ export class MessagesRelay {
           this.#detail = `${file.name} could not be sent by text. It is saved in Sia on your Mac.`;
         });
     }
+  }
+
+  /** Plain-language labels for the turn's recent actions, oldest first, without repeats. */
+  #steps(snapshot: DesktopSnapshot, threadId: string, turnId: string): string[] {
+    const labels = snapshot.timeline
+      .filter(
+        (item) =>
+          item.threadId === threadId && item.turnId === turnId && item.kind === 'activity',
+      )
+      .map((item) => activityLabel(item.toolName, item.activity?.kind));
+    return labels.filter((label, index) => label !== labels[index - 1]).slice(-16);
   }
 
   #result(snapshot: DesktopSnapshot, threadId: string, turnId: string): string {

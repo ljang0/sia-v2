@@ -464,6 +464,47 @@ describe('MessagesRelay', () => {
     expect(h.invoke.mock.calls.filter(([m]) => m === 'threads.send')).toHaveLength(1);
   });
 
+  it('answers STATUS with recent steps and checks in on long tasks', async () => {
+    const h = harness();
+    await h.ready();
+    h.text(101, 'Research flights to Tokyo');
+    await h.relay.poll();
+    for (const [index, toolName] of [
+      'browser_action',
+      'browser_action',
+      'mail_search',
+    ].entries())
+      h.snapshot.timeline.push({
+        id: `activity-${index}`,
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        sequence: 10 + index,
+        kind: 'activity',
+        toolName,
+        timestamp: '',
+      } as never);
+    h.advance(6000);
+    h.emit();
+    h.advance(3 * 60000);
+    h.text(102, 'status');
+    await h.relay.poll();
+    h.advance(10 * 60000);
+    h.emit();
+    await h.relay.flush();
+    const texts = h.sent.map(({ text }) => text.slice(REPLY_PREFIX.length));
+    expect(texts[0]).toBe("Working on it. I'll text you when it's done.");
+    expect(texts[1]).toMatch(/^Working for about 3 min\.\n• .+\n• .+$/);
+    expect(texts[2]).toMatch(
+      /^Still working: .+\. Text STATUS for details or STOP to cancel\.$/,
+    );
+    expect(h.invoke.mock.calls.filter(([m]) => m === 'threads.send')).toHaveLength(1);
+    h.finish('thread-1', 'Found three options.');
+    h.text(103, 'status');
+    await h.relay.poll();
+    await h.relay.flush();
+    expect(h.sent.at(-1)!.text).toBe(`${REPLY_PREFIX}Nothing is running right now.`);
+  });
+
   describe('trusted people', () => {
     const ALEX = '+15557654321';
     const withAlex = async () => {
