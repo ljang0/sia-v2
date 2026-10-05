@@ -218,6 +218,7 @@ export class DesktopActionBackend implements ActionBackend {
         case 'notion_search':
         case 'notion_fetch':
         case 'notion_create_page':
+        case 'notion_query_database':
         case 'notion_edit_page':
         case 'notion_comment':
         case 'github_search':

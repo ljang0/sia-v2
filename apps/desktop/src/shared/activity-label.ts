@@ -58,6 +58,7 @@ export function activityLabel(tool: string | undefined, kind?: string): string {
     notion_search: 'Searching Notion',
     notion_fetch: 'Reading a Notion page',
     notion_create_page: 'Creating a Notion page',
+    notion_query_database: 'Reading a Notion database',
     notion_edit_page: 'Editing a Notion page',
     notion_comment: 'Commenting in Notion',
     github_search: 'Searching GitHub',

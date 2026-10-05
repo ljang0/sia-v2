@@ -941,17 +941,55 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   notion_create_page: {
     name: 'notion_create_page',
     description:
-      'Create a Notion page with Markdown content, inside a parent page when one is given, otherwise as a private page.',
+      'Create a Notion page with Markdown content: inside a parent page, as a row in a database (data_source), or otherwise as a private page. For a database row, fetch the database first and use its exact property names.',
     inputSchema: object(
       {
         account_id: accountSelector('notion'),
-        title: string('Page title'),
+        title: string('Page title, or the database row name'),
         content: string('Optional Markdown content'),
         parent_page_id: string('Optional parent page id or URL'),
+        data_source: string(
+          'Optional database data source, the collection:// URL notion_fetch returns for a database',
+        ),
+        properties: {
+          type: 'object',
+          description:
+            'Database rows only: property values by exact property name (text, number, true/false, date as YYYY-MM-DD, or a list of option names)',
+          additionalProperties: {
+            type: ['string', 'number', 'boolean', 'null', 'array'],
+            items: { type: 'string' },
+          },
+        },
       },
       ['account_id', 'title'],
     ),
     annotations: mutation,
+  },
+  notion_query_database: {
+    name: 'notion_query_database',
+    description:
+      'List rows of a Notion database. Fetch the database with notion_fetch first and pass the collection:// data source URL it returns. Filters use property names, for example {"and":[{"property":"Status","equals":"Done"}]}.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('notion'),
+        data_source: string('The collection:// data source URL from notion_fetch'),
+        filter: { type: 'object', description: 'Optional filter by property name' },
+        sort: {
+          type: 'array',
+          maxItems: 10,
+          items: object(
+            {
+              property: string('Property name'),
+              direction: string('Sort direction', { enum: ['ascending', 'descending'] }),
+            },
+            ['property', 'direction'],
+          ),
+        },
+        limit: integer(1, 100),
+      },
+      ['account_id', 'data_source'],
+    ),
+    annotations: readOnly,
   },
   notion_edit_page: {
     name: 'notion_edit_page',

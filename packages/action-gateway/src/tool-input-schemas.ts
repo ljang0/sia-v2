@@ -524,12 +524,59 @@ const notionSearch = z
 
 const notionFetch = z.object({ account_id: z.literal('notion'), id }).strict();
 
+const notionDataSource = z
+  .string()
+  .trim()
+  .regex(
+    /^(?:collection:\/\/)?[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i,
+  );
+
+const notionPropertyValue = z.union([
+  z.string().max(10_000),
+  z.number(),
+  z.boolean(),
+  z.null(),
+  z.array(z.string().max(1_000)).max(100),
+]);
+
 const notionCreatePage = z
   .object({
     account_id: z.literal('notion'),
     title: z.string().trim().min(1).max(2_000),
     content: z.string().max(200_000).optional(),
     parent_page_id: optionalId,
+    data_source: notionDataSource.optional(),
+    properties: z.record(z.string().min(1).max(200), notionPropertyValue).optional(),
+  })
+  .strict()
+  .refine(({ parent_page_id, data_source }) => !(parent_page_id && data_source), {
+    message: 'Choose a parent page or a database, not both',
+  })
+  .refine(({ properties, data_source }) => !properties || data_source, {
+    path: ['properties'],
+    message: 'Properties apply only to a database row',
+  });
+
+const notionQueryDatabase = z
+  .object({
+    account_id: z.literal('notion'),
+    data_source: notionDataSource,
+    filter: z
+      .record(z.string(), z.unknown())
+      .refine((value) => JSON.stringify(value).length <= 10_000, 'Filter is too large')
+      .optional(),
+    sort: z
+      .array(
+        z
+          .object({
+            property: z.string().min(1).max(200),
+            direction: z.enum(['ascending', 'descending']),
+          })
+          .strict(),
+      )
+      .max(10)
+      .optional(),
+    limit: limit,
   })
   .strict();
 
@@ -850,6 +897,7 @@ export const actionInputSchemas = {
   notion_search: notionSearch,
   notion_fetch: notionFetch,
   notion_create_page: notionCreatePage,
+  notion_query_database: notionQueryDatabase,
   notion_edit_page: notionEditPage,
   notion_comment: notionComment,
   github_search: githubSearch,

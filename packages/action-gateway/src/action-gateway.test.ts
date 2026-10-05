@@ -138,7 +138,7 @@ describe('curated tool surface', () => {
 
   it('contains only stable snake_case tools and no raw escape hatches', () => {
     const names = ACTION_TOOL_DESCRIPTORS.map((tool) => tool.name);
-    expect(names).toHaveLength(76);
+    expect(names).toHaveLength(77);
     expect(names.every((name) => /^[a-z][a-z0-9_]*$/.test(name))).toBe(true);
     expect(names.join(' ')).not.toMatch(/visual|canvas|javascript|cdp|cookie|profile|shell/i);
     expect(names).toContain('computer_action');

@@ -321,6 +321,36 @@ describe('Notion MCP client', () => {
     });
   });
 
+  it('reads database rows and adds a row to a database', async () => {
+    const { client, calls } = notionServer({});
+    await runNotionTool(client, 'notion_query_database', {
+      data_source: 'collection://f336d0bc-b841-465b-8045-024475c079dd',
+      filter: { and: [{ property: 'Status', equals: 'Done' }] },
+      limit: 10,
+    });
+    expect(calls.at(-1)!.params).toEqual({
+      name: 'notion-query-data-sources',
+      arguments: {
+        mode: 'rows',
+        data_source_url: 'collection://f336d0bc-b841-465b-8045-024475c079dd',
+        filter: { and: [{ property: 'Status', equals: 'Done' }] },
+        limit: 10,
+      },
+    });
+    await runNotionTool(client, 'notion_create_page', {
+      title: 'Ship connectors',
+      data_source: 'f336d0bc-b841-465b-8045-024475c079dd',
+      properties: { Name: 'Ship connectors', Status: 'In progress' },
+    });
+    expect(calls.at(-1)!.params).toEqual({
+      name: 'notion-create-pages',
+      arguments: {
+        pages: [{ properties: { Name: 'Ship connectors', Status: 'In progress' } }],
+        parent: { data_source_id: 'f336d0bc-b841-465b-8045-024475c079dd' },
+      },
+    });
+  });
+
   it('sends comments as rich text when the server asks for it', async () => {
     const server = notionServer({});
     // Advertise the comment tool's schema instead of the update tool's.

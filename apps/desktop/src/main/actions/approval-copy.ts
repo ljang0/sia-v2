@@ -194,6 +194,7 @@ export function summarizeDataLeaving(
     ['base', 'Into branch'],
     ['page_id', 'Page'],
     ['parent_page_id', 'Inside page'],
+    ['data_source', 'Database'],
     ['task_id', 'Task'],
     ['summary', 'Event'],
     ['start', 'Starts'],
@@ -209,6 +210,10 @@ export function summarizeDataLeaving(
   }
   const attendees = stringArray(argumentsValue.attendees);
   if (attendees.length > 0) lines.push(`Invites: ${attendees.join(', ')}`);
+  const properties = argumentsValue.properties;
+  if (properties && typeof properties === 'object' && !Array.isArray(properties)) {
+    lines.push(`Properties:\n${JSON.stringify(properties, null, 2)}`);
+  }
   const labels = stringArray(argumentsValue.labels);
   if (labels.length > 0) lines.push(`Labels: ${labels.join(', ')}`);
   for (const [key, label] of [

@@ -209,19 +209,43 @@ export async function runNotionTool(
       );
     case 'notion_fetch':
       return client.callTool('notion-fetch', { id: input.id }, signal);
-    case 'notion_create_page':
+    case 'notion_create_page': {
+      const dataSource =
+        typeof input.data_source === 'string' ? dataSourceId(input.data_source) : undefined;
+      const properties = (input.properties ?? {}) as Input;
+      // A database names its title property; when the row's properties already set it, the
+      // title argument is only the row's display name.
+      const titled =
+        dataSource && Object.keys(properties).length > 0
+          ? properties
+          : { title: input.title, ...properties };
       return client.callTool(
         'notion-create-pages',
         {
           pages: [
             {
-              properties: { title: input.title },
+              properties: titled,
               ...(input.content === undefined ? {} : { content: input.content }),
             },
           ],
-          ...(input.parent_page_id === undefined
-            ? {}
-            : { parent: { page_id: input.parent_page_id } }),
+          ...(dataSource
+            ? { parent: { data_source_id: dataSource } }
+            : input.parent_page_id === undefined
+              ? {}
+              : { parent: { page_id: input.parent_page_id } }),
+        },
+        signal,
+      );
+    }
+    case 'notion_query_database':
+      return client.callTool(
+        'notion-query-data-sources',
+        {
+          mode: 'rows',
+          data_source_url: `collection://${dataSourceId(String(input.data_source))}`,
+          ...(input.filter === undefined ? {} : { filter: input.filter }),
+          ...(input.sort === undefined ? {} : { sort: input.sort }),
+          ...(input.limit === undefined ? {} : { limit: input.limit }),
         },
         signal,
       );
@@ -260,6 +284,10 @@ export async function runNotionTool(
     default:
       throw new ConnectorRequestError(400, `Unknown Notion tool ${tool}.`);
   }
+}
+
+function dataSourceId(value: string): string {
+  return value.trim().replace(/^collection:\/\//, '');
 }
 
 /** The workspace label Notion's MCP server reports for the signed-in user, when it offers one. */

@@ -67,6 +67,7 @@ const LOCAL_CONNECTOR_TOOLS = [
   'notion_search',
   'notion_fetch',
   'notion_create_page',
+  'notion_query_database',
   'notion_edit_page',
   'notion_comment',
   'github_search',
