@@ -396,7 +396,7 @@ export function AgentDialog({
                 className={buttons.primaryButton}
                 disabled={saving || !selectedChoice?.ready}
               >
-                {saving ? 'Saving...' : agent ? 'Save changes' : 'Create agent'}
+                {saving ? 'Saving…' : agent ? 'Save changes' : 'Create agent'}
               </button>
             </div>
           </form>

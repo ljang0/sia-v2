@@ -188,7 +188,7 @@ function providerDescription(provider: ProviderSetup): string {
       ? 'One button updates Codex, restarts Sia, and continues to ChatGPT sign-in. No terminal needed.'
       : 'One button downloads Codex, restarts Sia, and continues to ChatGPT sign-in. No terminal needed.';
   if (provider.id === 'meta')
-    return 'Comes with your Sia account, with nothing to set up. Availability may vary during the pilot.';
+    return 'Comes with your Sia account, with nothing to set up. Availability may vary.';
   if (provider.id === 'codex')
     return provider.status === 'needs-login'
       ? 'Sign in with ChatGPT in your browser. Sia checks the connection automatically.'

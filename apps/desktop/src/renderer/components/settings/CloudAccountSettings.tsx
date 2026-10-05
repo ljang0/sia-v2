@@ -131,7 +131,7 @@ export function CloudAccountSettings({
                 void run('sign-out', onSignOutCloud, 'Sia could not sign out safely.')
               }
             >
-              {pending === 'sign-out' ? 'Signing out...' : 'Sign out'}
+              {pending === 'sign-out' ? 'Signing out…' : 'Sign out'}
             </button>
           ) : null}
         </div>
@@ -158,7 +158,7 @@ export function CloudAccountSettings({
             className={`${buttons.primaryButton} ${styles.formSubmit}`}
             disabled={Boolean(pending)}
           >
-            {pending === 'auth-start' ? 'Sending...' : 'Email me a sign-in code'}
+            {pending === 'auth-start' ? 'Sending…' : 'Email me a sign-in code'}
           </button>
           <p className={styles.accountTerms}>
             By continuing, you agree to the{' '}
@@ -246,7 +246,7 @@ export function CloudAccountSettings({
             disabled={Boolean(pending)}
           >
             {pending === 'auth-complete'
-              ? 'Checking...'
+              ? 'Checking…'
               : cloudAuth.state === 'password-required'
                 ? 'Continue'
                 : cloudAuth.state === 'mfa-required'
@@ -514,7 +514,7 @@ function DeleteCloudAccountDialog({
                   }
                 }}
               >
-                {deleting ? 'Deleting account...' : 'Permanently delete account'}
+                {deleting ? 'Deleting account…' : 'Permanently delete account'}
               </button>
             </div>
           </AlertDialog.Content>

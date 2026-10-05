@@ -180,9 +180,9 @@ export class ProviderAccess {
         throw new Error('Included models require a configured Sia cloud deployment.');
       }
       if (provider.status === 'needs_login') {
-        throw new Error('Sign in to Sia to use included lab models.');
+        throw new Error('Sign in to Sia to use included models.');
       }
-      throw new Error('Lab model access is already included with your Sia account.');
+      throw new Error('Included models are already part of your Sia account.');
     }
     const installation =
       provider.status === 'needs_install' || provider.status === 'incompatible';
@@ -280,7 +280,7 @@ export class ProviderAccess {
       claude: 'https://docs.anthropic.com/en/docs/claude-code/getting-started',
     };
     const url = urls[providerId];
-    if (!url) throw new Error('This provider has no supported sign-in flow in the alpha.');
+    if (!url) throw new Error('This provider cannot be signed in from Sia yet.');
     await this.ctx.deps.openExternal(url);
     return { opened: true, snapshot: this.ctx.resultSnapshot() };
   }
@@ -343,7 +343,7 @@ export class ProviderAccess {
       this.views[index] = {
         ...current,
         status: 'needs_login',
-        detail: 'Sign in to Sia before using included lab models.',
+        detail: 'Sign in to Sia before using included models.',
       };
       return;
     }

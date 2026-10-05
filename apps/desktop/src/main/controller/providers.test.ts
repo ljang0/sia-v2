@@ -330,7 +330,7 @@ describe('DesktopController', () => {
       'configured Sia cloud',
     );
     await expect(controller.invoke('providers.login', { providerId: 'grok' })).rejects.toThrow(
-      'external alpha',
+      'Not available yet',
     );
     await controller.shutdown();
   });

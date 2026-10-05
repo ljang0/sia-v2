@@ -161,7 +161,7 @@ export class CuaService {
         status: 'unavailable',
         accessibility: false,
         screenRecording: false,
-        detail: 'The Sia alpha supports computer use on macOS only.',
+        detail: 'Sia supports computer use on macOS only.',
       };
     }
     try {

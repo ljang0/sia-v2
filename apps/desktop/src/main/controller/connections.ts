@@ -316,7 +316,7 @@ export class ConnectorConnections {
     options: { poll?: boolean; partOfBundle?: boolean } = {},
   ): Promise<BridgeResultMap['connections.start']> {
     if (!this.ctx.deps.fakeServices && this.ctx.state.cloudFeatures?.connectors === false) {
-      throw new Error('Connected apps are temporarily disabled by the alpha operator.');
+      throw new Error('Connected apps are temporarily unavailable. Try again later.');
     }
     if (this.setup && !options.partOfBundle) {
       throw new Error('Finish or cancel the guided work-app setup first.');

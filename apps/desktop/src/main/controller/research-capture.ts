@@ -311,7 +311,7 @@ export class ResearchCapture {
     const batchBytes = Buffer.byteLength(JSON.stringify(batch), 'utf8');
     if (batchBytes > MAX_LOCAL_RESEARCH_BATCH_BYTES) {
       this.ctx.researchOutbox.blockCapture(
-        "A research bundle exceeded Sia's durable batch limit. Sign out and contact the alpha team before continuing.",
+        "A research bundle exceeded Sia's durable batch limit. Sign out and contact Sia support before continuing.",
       );
       return;
     }
@@ -376,7 +376,7 @@ export class ResearchCapture {
       const batchBytes = Buffer.byteLength(JSON.stringify(batch), 'utf8');
       if (batchBytes > MAX_LOCAL_RESEARCH_BATCH_BYTES) {
         this.ctx.researchOutbox.blockCapture(
-          "A raw research bundle exceeded Sia's durable batch limit. Sign out and contact the alpha team before continuing.",
+          "A raw research bundle exceeded Sia's durable batch limit. Sign out and contact Sia support before continuing.",
         );
         return;
       }

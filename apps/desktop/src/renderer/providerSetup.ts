@@ -7,6 +7,6 @@ export function providerStatusLabel(provider: ProviderSetup) {
     'needs-login': 'Sign-in required',
     incompatible: 'Incompatible',
     unavailable: 'Unavailable',
-    disabled: 'Not in alpha',
+    disabled: 'Not available yet',
   }[provider.status];
 }

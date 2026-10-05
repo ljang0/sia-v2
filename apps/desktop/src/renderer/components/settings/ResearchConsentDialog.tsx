@@ -148,7 +148,7 @@ export function ResearchConsentDialog({
               onClick={() => void decide('decline')}
             >
               {saving === 'decline'
-                ? 'Saving...'
+                ? 'Saving…'
                 : researchRequired
                   ? 'Decline & sign out'
                   : 'Use without sharing'}
@@ -159,7 +159,7 @@ export function ResearchConsentDialog({
               disabled={Boolean(saving)}
               onClick={() => void decide('accept')}
             >
-              {saving === 'accept' ? 'Joining...' : 'Join research release'}
+              {saving === 'accept' ? 'Joining…' : 'Join research release'}
             </button>
           </div>
         </AlertDialog.Content>

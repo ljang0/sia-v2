@@ -419,8 +419,8 @@ function ComputerPanel({
       <section className={styles.inventorySection}>
         <h2 className={styles.inspectorSectionTitle}>Window access</h2>
         <p className={styles.inventoryNotice}>
-          A complete window inventory is unavailable in this alpha. Sia requests a scoped window
-          grant when a task needs one.
+          A complete window inventory is not available yet. Sia requests a scoped window grant
+          when a task needs one.
         </p>
       </section>
 

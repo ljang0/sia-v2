@@ -57,9 +57,10 @@ const PROVIDERS: Record<ProviderId, ProviderCommand> = {
     model: 'grok-code-fast',
     label: 'Grok',
     billing: 'Uses your eligible xAI subscription or API account.',
-    detail: 'Adapter retained for protocol testing; runtime startup is blocked in this alpha.',
+    detail:
+      'Adapter retained for protocol testing; runtime startup is blocked in this release.',
     restriction:
-      'Not in the external alpha: Grok Build cannot yet exclude inherited plugins, skills, and MCP without replacing its authenticated profile.',
+      'Not available yet: Grok Build cannot yet exclude inherited plugins, skills, and MCP without replacing its authenticated profile.',
     disabled: true,
   },
   gemini: {

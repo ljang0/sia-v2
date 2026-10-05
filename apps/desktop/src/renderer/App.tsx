@@ -154,7 +154,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   }, [reveal, app.snapshot?.preferences.appearance]);
   if (auditMode) {
     return (
-      <Suspense fallback={<div className={styles.auditLoading}>Loading UI audit...</div>}>
+      <Suspense fallback={<div className={styles.auditLoading}>Loading UI audit…</div>}>
         <AuditGallery />
       </Suspense>
     );

@@ -112,7 +112,7 @@ export const demoSnapshot: RendererSnapshot = {
       status: 'disabled',
       billedBy: 'Uses an eligible xAI subscription or API account when enabled.',
       restriction:
-        'Not in the external alpha because inherited plugins, skills, and MCP cannot yet be excluded safely.',
+        'Not available yet because inherited plugins, skills, and MCP cannot yet be excluded safely.',
     },
     {
       id: 'gemini',
