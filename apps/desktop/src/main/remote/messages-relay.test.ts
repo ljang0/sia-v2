@@ -46,6 +46,7 @@ function harness() {
       });
       return { turnId, snapshot };
     }
+    if (method === 'approvals.resolve') return snapshot;
     if (method === 'attachments.drop') {
       return {
         attachments: (input.paths as unknown as string[]).map((path, index) => ({
@@ -261,9 +262,62 @@ describe('MessagesRelay', () => {
     ]);
   });
 
-  it('texts when Sia needs approval on the Mac and relays questions', async () => {
+  it('lets you allow or deny one step by replying YES or NO', async () => {
     const h = harness();
     await h.ready();
+    h.text(101, 'Email Alex the report');
+    await h.relay.poll();
+    const ask = (id: string) => {
+      h.snapshot.threads[0]!.status = 'waiting';
+      h.snapshot.approvals.push({
+        id,
+        threadId: 'thread-1',
+        title: 'Send email to Alex',
+        summary: 'Gmail',
+        status: 'pending',
+      } as never);
+      h.emit();
+      h.emit();
+    };
+    ask('approval-1');
+    await h.relay.flush();
+    expect(h.sent).toHaveLength(1);
+    expect(h.sent[0]!.text).toContain('I need your OK to continue: Send email to Alex. Gmail.');
+    expect(h.sent[0]!.text).toContain('Reply YES to allow this once or NO to deny');
+    h.text(102, 'Yes!');
+    await h.relay.poll();
+    expect(h.invoke).toHaveBeenCalledWith('approvals.resolve', {
+      approvalId: 'approval-1',
+      decision: 'approve',
+    });
+    h.snapshot.approvals[0]!.status = 'approved';
+    ask('approval-2');
+    h.text(103, 'what is this?');
+    await h.relay.poll();
+    h.text(104, 'no');
+    await h.relay.poll();
+    expect(h.invoke).toHaveBeenCalledWith('approvals.resolve', {
+      approvalId: 'approval-2',
+      decision: 'deny',
+    });
+    await h.relay.flush();
+    expect(h.sent.map(({ text }) => text.slice(REPLY_PREFIX.length))).toEqual([
+      expect.stringContaining('Send email to Alex'),
+      'Allowed. Continuing.',
+      expect.stringContaining('Send email to Alex'),
+      'Reply YES to allow this step, NO to deny it, or STOP to cancel.',
+      'Denied.',
+    ]);
+    expect(h.invoke.mock.calls.filter(([m]) => m === 'threads.send')).toHaveLength(1);
+    expect(h.invoke.mock.calls.some(([, input]) => input?.decision === 'approve_task')).toBe(
+      false,
+    );
+  });
+
+  it('keeps approvals on the Mac when replying YES is turned off', async () => {
+    const h = harness();
+    await h.ready();
+    await h.relay.configure({ operation: 'preferences', textApprovals: false });
     h.text(101, 'Email Alex the report');
     await h.relay.poll();
     h.snapshot.threads[0]!.status = 'waiting';
@@ -271,21 +325,36 @@ describe('MessagesRelay', () => {
       id: 'approval-1',
       threadId: 'thread-1',
       title: 'Send email to Alex',
-      summary: 'Gmail',
+      summary: '',
       status: 'pending',
     } as never);
     h.emit();
-    h.emit();
-    await h.relay.flush();
-    expect(h.sent).toHaveLength(1);
-    expect(h.sent[0]!.text).toContain(
-      'I need your OK in Sia on your Mac to continue: Send email',
-    );
     h.text(102, 'yes');
     await h.relay.poll();
     await h.relay.flush();
+    expect(h.sent[0]!.text).toContain('I need your OK in Sia on your Mac to continue');
     expect(h.sent.at(-1)!.text).toContain('Still waiting for your OK in Sia on your Mac');
-    expect(h.invoke.mock.calls.filter(([m]) => m === 'threads.send')).toHaveLength(1);
+    expect(h.invoke.mock.calls.some(([m]) => m === 'approvals.resolve')).toBe(false);
+  });
+
+  it('does not let a YES from another trusted number answer your approval', async () => {
+    const h = harness();
+    await h.ready();
+    await h.relay.configure({ operation: 'trust', handle: 'me@icloud.com', label: '' });
+    h.text(101, 'Email Alex the report');
+    await h.relay.poll();
+    h.snapshot.threads[0]!.status = 'waiting';
+    h.snapshot.approvals.push({
+      id: 'approval-1',
+      threadId: 'thread-1',
+      title: 'Send email',
+      summary: '',
+      status: 'pending',
+    } as never);
+    h.emit();
+    h.text(102, 'yes', 'me@icloud.com');
+    await h.relay.poll();
+    expect(h.invoke.mock.calls.some(([m]) => m === 'approvals.resolve')).toBe(false);
   });
 
   it('forgets a number’s conversation when it is removed and turns off with no numbers', async () => {

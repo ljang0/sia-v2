@@ -447,7 +447,11 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   and sent back with Messages. With "Text me when scheduled tasks finish" on (the default), scheduled
   turns of the texting assistant that start after Sia opens are texted to the first number when
   they finish, ask a question or wait for approval. Settings uses one validated `messages.relay`
-  preload route; the relay exposes no approval by text, generic IPC, shell or credential path.
+  preload route. With "Approve steps by replying YES or NO" on (the default), an approval notice
+  records which pending approval that number was asked about; a later YES or NO from that same
+  number resolves exactly that approval once (`approve` or `deny`, never `approve_task`), and only
+  while it is still pending. Other numbers, stale approvals and replies with attachments do not
+  resolve anything. The relay exposes no generic IPC, shell or credential path.
 
 - **Phone remote** is an optional, separate local web surface built into `out/remote`.
   `PhoneRemote` ports Notch's `/t/<token>/` command/state/cancel/outbox/vault/note flow, with

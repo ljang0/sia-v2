@@ -52,7 +52,7 @@ export function voiceNoteTranscriber(
 export const REPLY_PREFIX = 'Sia › ';
 const MAX_REPLY = 1800;
 const HELP =
-  'Text me what you need and I will work on it on your Mac. Text STOP to cancel, NEW to start a fresh conversation. Anything that changes your Mac or accounts waits for your OK in Sia on your Mac.';
+  'Text me what you need and I will work on it on your Mac. Text STOP to cancel, NEW to start a fresh conversation. When a step needs your OK, reply YES or NO, or answer in Sia on your Mac.';
 
 interface Config {
   enabled: boolean;
@@ -61,6 +61,8 @@ interface Config {
   cursor?: number;
   /** Text the first number when scheduled tasks finish or need the person. */
   proactive?: boolean;
+  /** Allow or deny one texted step by replying YES or NO. */
+  textApprovals?: boolean;
   /** Trusted handle → the thread that continues its conversation. */
   threads: Record<string, string>;
 }
@@ -106,6 +108,8 @@ export class MessagesRelay {
   #disposed = false;
   #since = new Date().toISOString();
   #seenScheduled = new Set<string>();
+  /** Number → the approval it was last asked about by text. */
+  #awaiting = new Map<string, string>();
 
   constructor(deps: Dependencies) {
     this.#deps = deps;
@@ -160,7 +164,11 @@ export class MessagesRelay {
         { handle, label: command.label || handle },
       ];
     } else if (command.operation === 'preferences') {
-      this.#config.proactive = command.proactive;
+      if (command.proactive !== undefined) this.#config.proactive = command.proactive;
+      if (command.textApprovals !== undefined) {
+        this.#config.textApprovals = command.textApprovals;
+        if (!command.textApprovals) this.#awaiting.clear();
+      }
     } else if (command.operation === 'untrust') {
       const handle = normalizeHandle(command.handle) ?? command.handle;
       this.#config.trusted = this.#config.trusted.filter((entry) => entry.handle !== handle);
@@ -205,6 +213,7 @@ export class MessagesRelay {
       ...(this.#config.agentId ? { agentId: this.#config.agentId } : {}),
       trusted: this.#config.trusted.map((entry) => ({ ...entry })),
       proactive: this.#config.proactive ?? true,
+      textApprovals: this.#textApprovals(),
       access,
       detail:
         this.#detail ||
@@ -220,6 +229,10 @@ export class MessagesRelay {
                   ? 'Sign in to Sia on your Mac to resume.'
                   : 'Turn on texting to reach Sia from your phone.'),
     };
+  }
+
+  #textApprovals(): boolean {
+    return this.#config.textApprovals ?? true;
   }
 
   #access(): MessagesRelaySettings['access'] {
@@ -329,13 +342,44 @@ export class MessagesRelay {
       this.#reply(handle, HELP);
       return;
     }
+    const decision = /^(yes|y|allow|approve|ok)$/.test(command)
+      ? 'approve'
+      : /^(no|n|deny|don't|dont)$/.test(command)
+        ? 'deny'
+        : undefined;
+    const awaiting = this.#awaiting.get(handle);
+    const approval = awaiting
+      ? snapshot.approvals.find(({ id, status }) => id === awaiting && status === 'pending')
+      : undefined;
+    if (decision && approval && this.#textApprovals() && !attachments.length) {
+      this.#awaiting.delete(handle);
+      try {
+        // One step only: a texted YES never allows the rest of the task.
+        await this.#deps.controller.invoke('approvals.resolve', {
+          approvalId: approval.id,
+          decision,
+        });
+        this.#reply(handle, decision === 'approve' ? 'Allowed. Continuing.' : 'Denied.');
+      } catch (error) {
+        this.#reply(
+          handle,
+          error instanceof Error ? error.message : 'That approval could not be answered.',
+        );
+      }
+      return;
+    }
     const question = thread ? this.#pendingQuestion(snapshot, thread.id) : undefined;
     if (thread && ['running', 'queued'].includes(thread.status) && !question) {
       this.#reply(handle, 'Still working on your last request. Text STOP to cancel it.');
       return;
     }
     if (thread?.status === 'waiting' && !question) {
-      this.#reply(handle, 'Still waiting for your OK in Sia on your Mac. Text STOP to cancel.');
+      this.#reply(
+        handle,
+        approval && this.#textApprovals()
+          ? 'Reply YES to allow this step, NO to deny it, or STOP to cancel.'
+          : 'Still waiting for your OK in Sia on your Mac. Text STOP to cancel.',
+      );
       return;
     }
     try {
@@ -433,10 +477,15 @@ export class MessagesRelay {
           continue;
         tracked.notified.add(approval.id);
         tracked.acknowledged = true;
-        this.#reply(
-          tracked.handle,
-          `I need your OK in Sia on your Mac to continue: ${approval.title}${approval.summary ? `. ${approval.summary}` : ''}`,
-        );
+        const step = `${approval.title}${approval.summary ? `. ${approval.summary}` : ''}`;
+        if (this.#textApprovals()) {
+          this.#awaiting.set(tracked.handle, approval.id);
+          this.#reply(
+            tracked.handle,
+            `I need your OK to continue: ${step}. Reply YES to allow this once or NO to deny. You can also answer in Sia on your Mac.`,
+          );
+        } else
+          this.#reply(tracked.handle, `I need your OK in Sia on your Mac to continue: ${step}`);
       }
       const question = this.#pendingQuestion(snapshot, threadId);
       if (

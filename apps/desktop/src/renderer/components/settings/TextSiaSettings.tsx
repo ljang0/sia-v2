@@ -152,11 +152,24 @@ export function TextSiaSettings({
           Text me when scheduled tasks finish or need me
         </label>
       )}
+      {state && (
+        <label className={phone.toggle}>
+          <input
+            type="checkbox"
+            checked={state.textApprovals}
+            disabled={pending}
+            onChange={(event) =>
+              void run({ operation: 'preferences', textApprovals: event.target.checked })
+            }
+          />
+          Approve steps by replying YES or NO
+        </label>
+      )}
       {state && <p className={phone.note}>{state.detail}</p>}
       <p className={phone.note}>
         Only iMessages from your numbers reach Sia. Anything that changes your Mac or accounts
-        waits for your OK in Sia on this Mac, even when bypass is on. Text STOP to cancel or NEW
-        to start over. Sia must stay open and your Mac awake.
+        waits for your OK, one step at a time, even when bypass is on. Text STOP to cancel or
+        NEW to start over. Sia must stay open and your Mac awake.
       </p>
     </div>
   );

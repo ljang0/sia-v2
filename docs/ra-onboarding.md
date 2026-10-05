@@ -142,12 +142,13 @@ closes the listener. The listener binds a private LAN address on port 8738 and a
 subnet. It stops on sleep/lock, follows network changes, and resumes when the Mac is available.
 Sia must remain open and the Mac awake and unlocked. Scan again after a Wi-Fi address change.
 
+Guest/campus Wi-Fi that isolates devices may prevent pairing; use a network that permits peers.
+
 **Text Sia from anywhere** is on the same page. Give Sia Full Disk Access, add your own phone
 number or iCloud email, choose an assistant and select **Turn on texting**. Then iMessage the
 Mac's Apple ID from your phone (or text yourself if your phone and Mac share an Apple ID). Sia
-replies in that conversation. Texted tasks always wait for approval in Sia on the Mac, even with
-Full bypass on. Text **STOP** to cancel or **NEW** to start over. SMS and group chats are ignored. Send photos, files or voice notes with a text and Sia receives them (voice notes need Sia's voice service on); saved results come back as attachments. Sia also texts your first number when scheduled tasks finish, unless you turn that off.
-Guest/campus Wi-Fi that isolates devices may prevent pairing; use a network that permits peers.
+replies in that conversation. Texted tasks always wait for your approval, one step at a time, even with
+Full bypass on. Reply **YES** or **NO** when Sia asks, or answer in Sia on the Mac. Text **STOP** to cancel or **NEW** to start over. SMS and group chats are ignored. Send photos, files or voice notes with a text and Sia receives them (voice notes need Sia's voice service on); saved results come back as attachments. Sia also texts your first number when scheduled tasks finish, unless you turn that off.
 
 `pnpm --filter @sia/desktop test:remote` runs the isolated phone-browser checks in Chromium and
 WebKit with simulated tasks. Install their test engines once with
