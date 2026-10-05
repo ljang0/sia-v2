@@ -1,4 +1,5 @@
 import type { BridgeResultMap, DesktopSnapshot } from '../../shared/bridge.js';
+import { CloudRequestError } from '../cloud/cloud-client.js';
 import { isGoogleConnection } from './connection-ids.js';
 import type { ControllerContext } from './context.js';
 import { INITIAL_STATE } from './persisted-state.js';
@@ -39,7 +40,19 @@ export class CloudAccount {
   constructor(private readonly ctx: CloudAccountContext) {}
 
   async startSignIn(email: string): Promise<DesktopSnapshot> {
-    if (this.ctx.deps.cloud.configured) await this.ctx.deps.cloud.registerAccount(email);
+    const current = this.ctx.deps.identity.status();
+    // A resend for the same address does not need another registration, which
+    // the cloud rate-limits per address and per network.
+    const resend =
+      current.state === 'code_sent' &&
+      current.email?.toLowerCase() === email.trim().toLowerCase();
+    if (this.ctx.deps.cloud.configured && !resend) {
+      try {
+        await this.ctx.deps.cloud.registerAccount(email);
+      } catch (error) {
+        throw new Error(signInRegistrationMessage(error));
+      }
+    }
     await this.ctx.deps.identity.startEmailSignIn(email);
     this.ctx.emit();
     return this.ctx.resultSnapshot();
@@ -411,4 +424,18 @@ export class CloudAccount {
   private toolAvailabilitySignature(): string {
     return `${this.ctx.actions.toolAvailable('mail_search')}:${this.ctx.actions.toolAvailable('schedule_list')}`;
   }
+}
+
+function signInRegistrationMessage(error: unknown): string {
+  if (error instanceof CloudRequestError) {
+    if (error.status === 429)
+      return 'Too many sign-in requests. Wait a few minutes and try again.';
+    if (error.status >= 500)
+      return 'Sia sign-in is temporarily unavailable. Try again in a moment.';
+    return error.message;
+  }
+  if (error instanceof Error && /fetch failed|timeout|aborted|network/i.test(error.message)) {
+    return 'Sia could not reach the sign-in service. Check your internet connection and try again.';
+  }
+  return error instanceof Error ? error.message : 'Sia could not start email sign-in.';
 }
