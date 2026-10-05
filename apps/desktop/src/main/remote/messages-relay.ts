@@ -477,15 +477,22 @@ export class MessagesRelay {
           continue;
         tracked.notified.add(approval.id);
         tracked.acknowledged = true;
-        const step = `${approval.title}${approval.summary ? `. ${approval.summary}` : ''}`;
+        const step = `${approval.title}${approval.summary ? `. ${approval.summary}` : ''}.`;
+        // The exact outgoing content, so a texted YES is as informed as the Mac card.
+        const content = approval.dataLeaving
+          ? `\n\n${approval.dataLeaving.slice(0, 600)}${approval.dataLeaving.length > 600 ? '…' : ''}`
+          : '';
         if (this.#textApprovals()) {
           this.#awaiting.set(tracked.handle, approval.id);
           this.#reply(
             tracked.handle,
-            `I need your OK to continue: ${step}. Reply YES to allow this once or NO to deny. You can also answer in Sia on your Mac.`,
+            `I need your OK to continue: ${step}${content}\n\nReply YES to allow this once or NO to deny. You can also answer in Sia on your Mac.`,
           );
         } else
-          this.#reply(tracked.handle, `I need your OK in Sia on your Mac to continue: ${step}`);
+          this.#reply(
+            tracked.handle,
+            `I need your OK in Sia on your Mac to continue: ${step}${content}`,
+          );
       }
       const question = this.#pendingQuestion(snapshot, threadId);
       if (

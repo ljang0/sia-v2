@@ -274,6 +274,7 @@ describe('MessagesRelay', () => {
         threadId: 'thread-1',
         title: 'Send email to Alex',
         summary: 'Gmail',
+        dataLeaving: 'To: alex@example.com\nBody:\nHere is the report.',
         status: 'pending',
       } as never);
       h.emit();
@@ -284,6 +285,7 @@ describe('MessagesRelay', () => {
     expect(h.sent).toHaveLength(1);
     expect(h.sent[0]!.text).toContain('I need your OK to continue: Send email to Alex. Gmail.');
     expect(h.sent[0]!.text).toContain('Reply YES to allow this once or NO to deny');
+    expect(h.sent[0]!.text).toContain('To: alex@example.com\nBody:\nHere is the report.');
     h.text(102, 'Yes!');
     await h.relay.poll();
     expect(h.invoke).toHaveBeenCalledWith('approvals.resolve', {
