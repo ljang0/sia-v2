@@ -402,8 +402,7 @@ export class ProviderAccess {
         for (const [model, routes] of routesByModel) {
           this.allowedModelRoutes.set(modelRouteKey('meta', model), routes);
         }
-        for (const route of admitted.allowedRoutes) {
-          if (route.harnessId !== hostedProvider.execution.defaultHarnessId) continue;
+        for (const route of admitted.defaultRoutes) {
           this.backendModelRoutes.set(modelRouteKey('meta', route.model), route);
         }
       }

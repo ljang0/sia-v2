@@ -1337,6 +1337,14 @@ describe('Meta relay service', () => {
             defaultHarnessId: 'second_lab_harness',
             harnessRoutes: [
               {
+                // Cannot replace the managed Codex baseline route.
+                model: 'second/fast',
+                harnessId: 'codex_app_server',
+                harnessModelId: 'replacement',
+                credentialSource: 'provider_api',
+                apiProtocol: 'openai_responses',
+              },
+              {
                 model: 'second/fast',
                 harnessId: 'second_lab_harness',
                 harnessModelId: 'fast-v2',
