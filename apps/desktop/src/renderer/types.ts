@@ -2,6 +2,7 @@ import type {
   OnboardingProgress,
   OnboardingStep,
   PushToTalkView,
+  ThreadPreview,
   TurnChangesView,
 } from '../shared/bridge';
 import type { TextSize, ThemePreference } from '../shared/display';
@@ -38,7 +39,7 @@ export interface AgentSummary {
 }
 
 export interface ThreadSummary {
-  preview?: { label: 'Request' | 'Latest reply' | 'Latest activity'; text: string } | undefined;
+  preview?: ThreadPreview | undefined;
   id: string;
   agentId: string;
   title: string;

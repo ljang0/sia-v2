@@ -379,6 +379,7 @@ describe('bridge renderer queued follow-ups', () => {
     expect(mapped.agents[0]?.threads[0]?.preview).toEqual({
       label: 'Latest reply',
       text: 'Working on it',
+      active: true,
     });
 
     const unqueue = vi.fn(async () => structuredClone(source));

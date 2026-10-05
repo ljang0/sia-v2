@@ -186,4 +186,6 @@ export interface ThreadSearchResultView {
 export interface ThreadPreview {
   label: 'Request' | 'Latest reply' | 'Latest activity';
   text: string;
+  /** The step is still running, or the reply is still being written. */
+  active?: true;
 }

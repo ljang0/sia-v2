@@ -12,6 +12,7 @@ export const ThreadLabel = memo(
     a.status === b.status &&
     a.unread === b.unread &&
     a.pinned === b.pinned &&
+    threadStateLabel(a) === threadStateLabel(b) &&
     Boolean(a.draft?.trim()) === Boolean(b.draft?.trim()),
 );
 
@@ -61,7 +62,13 @@ function threadSignal(
 }
 
 function threadStateLabel(thread: ThreadSummary) {
-  if (thread.status === 'running') return 'Working';
+  // Say what a running conversation is doing now, so work in the background is never a mystery.
+  if (thread.status === 'running')
+    return thread.preview?.active
+      ? thread.preview.label === 'Latest activity'
+        ? thread.preview.text
+        : 'Writing the reply'
+      : 'Working';
   if (thread.status === 'waiting') return 'Waiting for you';
   if (thread.status === 'queued') return 'Queued';
   if (thread.status === 'error') return 'Needs attention';
