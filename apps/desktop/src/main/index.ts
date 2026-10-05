@@ -3,7 +3,8 @@ import { backgroundControlUnavailable } from './controller/computer-access.js';
 import { AutomationPermissionService } from './mac/automation-permissions.js';
 import { developmentRelaunchArguments } from './window/development-relaunch.js';
 import { PhoneRemote } from './remote/phone-remote.js';
-import { MessagesRelay, voiceNoteTranscriber } from './remote/messages-relay.js';
+import { MessagesRelay, spokenReply, voiceNoteTranscriber } from './remote/messages-relay.js';
+import { DiscordChannel, TelegramChannel } from './remote/bot-channels.js';
 import { remoteQR, advertiseRemote } from './remote/phone-remote-native.js';
 import { createScottyCompanion } from './window/scotty-window.js';
 import { createScreenControlIndicator } from './mac/screen-control-indicator.js';
@@ -714,7 +715,25 @@ async function performApplicationCreation(): Promise<void> {
             sendFile: async () => undefined,
           }
         : messagesService,
-      ...(!fakeServices ? { transcribe: voiceNoteTranscriber(activeController) } : {}),
+      ...(!fakeServices
+        ? {
+            transcribe: voiceNoteTranscriber(activeController),
+            speak: spokenReply(activeController),
+            bot: (kind: 'telegram' | 'discord', token: string) => {
+              const downloads = join(app.getPath('userData'), 'chat-attachments', kind);
+              return kind === 'telegram'
+                ? new TelegramChannel({ token, downloads })
+                : new DiscordChannel({ token, downloads });
+            },
+            // The bot token goes from the clipboard straight to encrypted storage; it never
+            // crosses IPC or reaches the renderer, and the clipboard is cleared afterwards.
+            takeClipboardToken: () => {
+              const token = clipboard.readText();
+              if (token) clipboard.clear();
+              return token;
+            },
+          }
+        : {}),
     });
     activeController.attachMessagesRelay((command) => messagesRelay!.configure(command));
     scotty = createScottyCompanion(

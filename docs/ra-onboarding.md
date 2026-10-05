@@ -155,6 +155,13 @@ can then message each other, for example to find a meeting time. Their messages 
 Full bypass, you hear about each one by text, and every reply your Sia sends them waits for your
 approval. **Pause connections** stops all of it without removing anyone.
 
+Prefer **Telegram or Discord**? Create a bot (Telegram: message @BotFather and send /newbot;
+Discord: Developer Portal → Applications → Bot), copy its token and select **Paste Telegram
+token** or **Paste Discord token**. Sia reads the token from the clipboard, keeps it encrypted on
+the Mac and clears the clipboard. Message the bot the six-digit code Sia shows to link your
+account; after that it works like texting Sia. Send a voice note and Sia answers in text and
+speech.
+
 `pnpm --filter @sia/desktop test:remote` runs the isolated phone-browser checks in Chromium and
 WebKit with simulated tasks. Install their test engines once with
 `pnpm --filter @sia/desktop exec playwright install chromium webkit`. These checks cover sending,

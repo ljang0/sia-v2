@@ -1,8 +1,10 @@
 import { execFile } from 'node:child_process';
+import { randomInt } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
+import type { BotChannel, ChannelMessage } from './bot-channels.js';
 import type { DesktopController } from '../controller/desktop-controller.js';
 import type { MessagesService } from '../mac/messages-service.js';
 import type { RecordRepository } from '../storage/persistence.js';
@@ -16,7 +18,10 @@ import {
   type TrustedPerson,
 } from '../../shared/messages-relay.js';
 
-const VOICE_NOTE = /\.(caf|m4a|amr|aac|mp3|wav)$/i;
+const VOICE_NOTE = /\.(caf|m4a|amr|aac|mp3|wav|ogg|oga)$/i;
+type BotKind = BotChannel['kind'];
+const BOT_KINDS: BotKind[] = ['telegram', 'discord'];
+const BOT_NAMES: Record<BotKind, string> = { telegram: 'Telegram', discord: 'Discord' };
 /** Marks a message from one Sia to another; people see it, and the other Sia recognizes it. */
 export const PEER_PREFIX = 'Sia ⇄ ';
 /** At most this many messages from one person's Sia start work per hour. */
@@ -33,6 +38,16 @@ export function voiceNoteTranscriber(
 ): (path: string) => Promise<string> {
   const run = promisify(execFile);
   return async (path) => {
+    // Telegram voice notes are Ogg Opus, which the voice service accepts as is.
+    if (/\.(ogg|oga)$/i.test(path)) {
+      const audio = await readFile(path);
+      if (audio.length > 10 * 1024 * 1024) throw new Error('This voice note is too long.');
+      const { text } = await controller.invoke('voice.transcribe', {
+        audioBase64: audio.toString('base64'),
+        mimeType: 'audio/ogg',
+      });
+      return text.trim();
+    }
     const folder = await mkdtemp(join(tmpdir(), 'sia-voice-note-'));
     try {
       const wav = join(folder, 'note.wav');
@@ -53,6 +68,33 @@ export function voiceNoteTranscriber(
     } finally {
       await rm(folder, { recursive: true, force: true });
     }
+  };
+}
+
+/**
+ * Speaks a reply with Sia's selected voice and returns a temporary audio file to send back,
+ * so a voice note gets a voice note in return. The caller removes the folder.
+ */
+export function spokenReply(
+  controller: Pick<DesktopController, 'invoke'>,
+): (text: string) => Promise<string> {
+  const run = promisify(execFile);
+  return async (text) => {
+    const { audioBase64, mimeType } = await controller.invoke('voice.speak', {
+      text: text.slice(0, 1500),
+    });
+    const folder = await mkdtemp(join(tmpdir(), 'sia-spoken-'));
+    if (mimeType === 'audio/mpeg') {
+      const path = join(folder, 'Sia reply.mp3');
+      await writeFile(path, Buffer.from(audioBase64, 'base64'), { mode: 0o600 });
+      return path;
+    }
+    const wav = join(folder, 'reply.wav');
+    const path = join(folder, 'Sia reply.m4a');
+    await writeFile(wav, Buffer.from(audioBase64, 'base64'), { mode: 0o600 });
+    await run('/usr/bin/afconvert', ['-f', 'm4af', '-d', 'aac', wav, path], { timeout: 30000 });
+    await rm(wav, { force: true });
+    return path;
   };
 }
 
@@ -88,6 +130,13 @@ interface Tracked {
   schedule?: string;
   /** Answering a trusted person's Sia; the owner hears about it on their first number. */
   peer?: TrustedPerson;
+  /** The request was a voice note, so the answer is also sent as speech. */
+  spoken?: boolean;
+}
+interface ConnectedBot {
+  channel: BotChannel;
+  bot: string;
+  pairing?: { code: string; expires: number } | undefined;
 }
 interface Dependencies {
   controller: Pick<
@@ -98,6 +147,12 @@ interface Dependencies {
   messages: Pick<MessagesService, 'status' | 'latestRowId' | 'inbound' | 'send' | 'sendFile'>;
   /** Turns a voice note into text; absent when this build has no transcription. */
   transcribe?: (path: string) => Promise<string>;
+  /** Speaks a reply to an audio file; absent when this build has no voice. */
+  speak?: (text: string) => Promise<string>;
+  /** Creates a Telegram or Discord connection for a bot token. */
+  bot?: (kind: BotKind, token: string) => BotChannel;
+  /** Reads (and then clears) a bot token the person copied, inside the main process. */
+  takeClipboardToken?: () => string | undefined;
   intervalMs?: number;
   ackAfterMs?: number;
   now?: () => number;
@@ -128,6 +183,9 @@ export class MessagesRelay {
   #peerArrivals = new Map<string, number[]>();
   /** Person → messages that arrived while their thread was busy. */
   #peerBacklog = new Map<string, string[]>();
+  #bots = new Map<BotKind, ConnectedBot>();
+  /** Bot messages are handled one at a time, like a polling pass. */
+  #inbox: Promise<unknown> = Promise.resolve();
 
   constructor(deps: Dependencies) {
     this.#deps = deps;
@@ -143,12 +201,102 @@ export class MessagesRelay {
     });
     this.#timer = setInterval(() => void this.poll(), this.#deps.intervalMs ?? 2000);
     this.#timer.unref();
+    for (const kind of BOT_KINDS) {
+      const saved = this.#deps.repository.get<{ token: string; bot: string }>(
+        'messages-relay',
+        `${kind}-bot`,
+      );
+      if (saved && this.#deps.bot)
+        this.#attachBot(kind, this.#deps.bot(kind, saved.token), saved.bot);
+    }
   }
 
   dispose(): void {
     this.#disposed = true;
     clearInterval(this.#timer);
     this.#unsubscribe?.();
+    for (const { channel } of this.#bots.values()) channel.stop();
+  }
+
+  #attachBot(kind: BotKind, channel: BotChannel, bot: string): ConnectedBot {
+    this.#bots.get(kind)?.channel.stop();
+    const connected: ConnectedBot = { channel, bot };
+    this.#bots.set(kind, connected);
+    channel.start((message) => {
+      this.#inbox = this.#inbox
+        .then(() => this.#receiveBot(kind, message))
+        .catch(() => undefined);
+    });
+    return connected;
+  }
+
+  /**
+   * A direct message to a connected bot. While pairing, the code links that account as one of
+   * the person's own; afterwards only linked accounts reach Sia, under the same rules as iMessage.
+   */
+  async #receiveBot(kind: BotKind, message: ChannelMessage): Promise<void> {
+    const connected = this.#bots.get(kind);
+    if (!connected || this.#disposed) return;
+    const pairing = connected.pairing;
+    const code = message.text.replace(/^\/start\s*/i, '').trim();
+    if (!this.#trusted(message.handle)) {
+      if (pairing && pairing.expires > this.#now() && code === pairing.code) {
+        connected.pairing = undefined;
+        this.#config.trusted = [
+          ...this.#config.trusted,
+          { handle: message.handle, label: `${BOT_NAMES[kind]} ${message.name}` },
+        ];
+        this.#save();
+        this.#reply(
+          message.handle,
+          this.#available()
+            ? `Paired. ${HELP}`
+            : 'Paired. Turn on messaging in Sia on your Mac, then message me here.',
+        );
+      }
+      return;
+    }
+    if (!this.#available() || (!message.text && !message.attachments.length)) return;
+    const contact = this.#trusted(message.handle)!;
+    await this.#receive(contact, message.text, message.attachments);
+    this.#observe(this.#deps.controller.snapshot());
+  }
+
+  async #connectBot(kind: BotKind): Promise<void> {
+    if (!this.#deps.bot || !this.#deps.takeClipboardToken)
+      throw new Error(`${BOT_NAMES[kind]} is unavailable in this build.`);
+    const token = this.#deps.takeClipboardToken()?.trim();
+    if (!token || token.length < 20 || /\s/.test(token))
+      throw new Error(
+        `Copy your ${BOT_NAMES[kind]} bot token first, then choose Paste token again.`,
+      );
+    const channel = this.#deps.bot(kind, token);
+    let bot: string;
+    try {
+      bot = await channel.verify();
+    } catch (error) {
+      throw new Error(
+        `${BOT_NAMES[kind]} did not accept that token. ${error instanceof Error ? error.message : ''}`.trim(),
+      );
+    }
+    this.#deps.repository.put('messages-relay', `${kind}-bot`, { token, bot });
+    const connected = this.#attachBot(kind, channel, bot);
+    connected.pairing = {
+      code: String(randomInt(100000, 1000000)),
+      expires: this.#now() + 10 * 60000,
+    };
+  }
+
+  #disconnectBot(kind: BotKind): void {
+    this.#bots.get(kind)?.channel.stop();
+    this.#bots.delete(kind);
+    this.#deps.repository.remove('messages-relay', `${kind}-bot`);
+    this.#config.trusted = this.#config.trusted.filter(
+      (entry) => !entry.handle.startsWith(`${kind}:`),
+    );
+    for (const [threadId, tracked] of this.#tracked)
+      if (tracked.handle.startsWith(`${kind}:`)) this.#tracked.delete(threadId);
+    if (!this.#config.trusted.length) this.#config.enabled = false;
   }
 
   async configure(command: MessagesRelayCommand): Promise<MessagesRelaySettings> {
@@ -158,16 +306,16 @@ export class MessagesRelay {
     if (command.operation === 'enable') {
       if (!this.#deps.controller.snapshot().agents.some(({ id }) => id === command.agentId))
         throw new Error('Choose an existing agent.');
-      if (this.#access() !== 'ready')
+      if (this.#access() !== 'ready' && !this.#bots.size)
         throw new Error(
-          'Sia needs Full Disk Access to read Messages: System Settings → Privacy & Security → Full Disk Access.',
+          'Sia needs Full Disk Access to read Messages: System Settings → Privacy & Security → Full Disk Access. Or connect Telegram or Discord.',
         );
       if (!this.#config.trusted.length) throw new Error('Add a trusted phone number first.');
       if (this.#config.agentId !== command.agentId) this.#config.threads = {};
       this.#config.agentId = command.agentId;
       this.#config.enabled = true;
       // Only texts that arrive after turning this on are read.
-      this.#config.cursor = this.#deps.messages.latestRowId();
+      if (this.#access() === 'ready') this.#config.cursor = this.#deps.messages.latestRowId();
     } else if (command.operation === 'disable') {
       this.#config.enabled = false;
       this.#tracked.clear();
@@ -206,6 +354,10 @@ export class MessagesRelay {
     } else if (command.operation === 'pausePeople') {
       this.#config.peoplePaused = command.paused;
       if (command.paused) this.#peerBacklog.clear();
+    } else if (command.operation === 'connectBot') {
+      await this.#connectBot(command.kind);
+    } else if (command.operation === 'disconnectBot') {
+      this.#disconnectBot(command.kind);
     } else if (command.operation === 'untrust') {
       const handle = normalizeHandle(command.handle) ?? command.handle;
       this.#config.trusted = this.#config.trusted.filter((entry) => entry.handle !== handle);
@@ -223,7 +375,11 @@ export class MessagesRelay {
     if (this.#polling || !this.#available()) return;
     this.#polling = true;
     try {
-      const { cursor, messages } = this.#deps.messages.inbound(this.#config.cursor ?? 0, 50);
+      // Telegram and Discord deliver on their own; only iMessage is polled.
+      const { cursor, messages } =
+        this.#access() === 'ready'
+          ? this.#deps.messages.inbound(this.#config.cursor ?? 0, 50)
+          : { cursor: this.#config.cursor ?? 0, messages: [] };
       if (cursor !== this.#config.cursor) {
         this.#config.cursor = cursor;
         this.#save();
@@ -254,12 +410,23 @@ export class MessagesRelay {
       textApprovals: this.#textApprovals(),
       people: this.#people().map((entry) => ({ ...entry })),
       peoplePaused: this.#config.peoplePaused ?? false,
+      bots: [...this.#bots].map(([kind, connected]) => {
+        const error = connected.channel.error();
+        return {
+          kind,
+          bot: connected.bot,
+          ...(connected.pairing && connected.pairing.expires > this.#now()
+            ? { pairingCode: connected.pairing.code }
+            : {}),
+          ...(error ? { error } : {}),
+        };
+      }),
       access,
       detail:
         this.#detail ||
-        (access === 'unavailable'
+        (access === 'unavailable' && !this.#bots.size
           ? 'Messages is not set up on this Mac.'
-          : access === 'needs_full_disk_access'
+          : access === 'needs_full_disk_access' && !this.#bots.size
             ? 'Give Sia Full Disk Access so it can read texts from your trusted numbers.'
             : !this.#config.trusted.length
               ? 'Add your phone number to text Sia from anywhere.'
@@ -412,8 +579,23 @@ export class MessagesRelay {
       this.#config.trusted.length > 0 &&
       this.#deps.controller.remoteAccessAllowed() &&
       this.#deps.controller.snapshot().agents.some(({ id }) => id === this.#config.agentId) &&
-      this.#access() === 'ready'
+      (this.#access() === 'ready' || this.#bots.size > 0)
     );
+  }
+
+  /** The connected bot for a `telegram:` or `discord:` handle; iMessage handles have none. */
+  #botFor(handle: string): BotChannel | undefined {
+    const kind = BOT_KINDS.find((entry) => handle.startsWith(`${entry}:`));
+    return kind ? this.#bots.get(kind)?.channel : undefined;
+  }
+
+  #sendFile(handle: string, path: string): Promise<void> {
+    if (/^(telegram|discord):/.test(handle)) {
+      const bot = this.#botFor(handle);
+      if (!bot) return Promise.reject(new Error('That messaging app is disconnected.'));
+      return bot.sendFile(handle, path);
+    }
+    return this.#deps.messages.sendFile(handle, path);
   }
 
   #save(): void {
@@ -598,6 +780,7 @@ export class MessagesRelay {
         started: this.#now(),
         acknowledged: Boolean(question),
         notified: new Set(),
+        ...(notes.length ? { spoken: true } : {}),
       });
     } catch (error) {
       this.#reply(
@@ -727,6 +910,7 @@ export class MessagesRelay {
         tracked.handle,
         tracked.schedule ? `Scheduled task “${tracked.schedule}”: ${result}` : result,
       );
+      if (tracked.spoken) this.#sendSpoken(tracked.handle, result);
       this.#sendResultFiles(snapshot, threadId, tracked);
     }
     this.#flushPeerBacklog(snapshot);
@@ -755,7 +939,7 @@ export class MessagesRelay {
           try {
             const path = join(folder, basename(name));
             await writeFile(path, data, { mode: 0o600 });
-            await this.#deps.messages.sendFile(tracked.handle, path);
+            await this.#sendFile(tracked.handle, path);
           } finally {
             // Give Messages time to copy the file into its own attachment store.
             setTimeout(() => void rm(folder, { recursive: true, force: true }), 60000).unref();
@@ -809,14 +993,39 @@ export class MessagesRelay {
       .trim();
     if (body.length > MAX_REPLY)
       body = `${body.slice(0, MAX_REPLY).trimEnd()}… (the full answer is in Sia on your Mac)`;
-    const message = `${REPLY_PREFIX}${body}`;
+    const isBot = /^(telegram|discord):/.test(handle);
+    // Bots never receive their own messages, so only iMessage needs the self-chat marker.
+    const message = isBot ? body : `${REPLY_PREFIX}${body}`;
     this.#sent = [...this.#sent.slice(-49), message];
     this.#outgoing = this.#outgoing
-      .then(() => this.#deps.messages.send(handle, message))
+      .then(() => {
+        if (!isBot) return this.#deps.messages.send(handle, message);
+        const bot = this.#botFor(handle);
+        if (!bot) throw new Error('That messaging app is disconnected.');
+        return bot.send(handle, message);
+      })
       .catch(() => {
-        this.#detail =
-          'A reply could not be sent. Check that Messages is signed in to iMessage.';
+        this.#detail = isBot
+          ? 'A reply could not be sent through the bot. Check its connection in Settings.'
+          : 'A reply could not be sent. Check that Messages is signed in to iMessage.';
       });
+  }
+
+  /** After the text answer, a voice note request also gets the answer spoken. */
+  #sendSpoken(handle: string, text: string): void {
+    const speak = this.#deps.speak;
+    if (!speak || !text || text === 'Done.') return;
+    this.#outgoing = this.#outgoing
+      .then(async () => {
+        const path = await speak(text);
+        try {
+          await this.#sendFile(handle, path);
+        } finally {
+          const folder = path.slice(0, path.lastIndexOf('/'));
+          setTimeout(() => void rm(folder, { recursive: true, force: true }), 60000).unref();
+        }
+      })
+      .catch(() => undefined);
   }
 
   /** Resolves once queued replies have been handed to Messages; for tests. */

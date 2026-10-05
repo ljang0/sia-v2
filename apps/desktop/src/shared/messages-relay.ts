@@ -32,7 +32,23 @@ export const messagesRelayCommand = z.discriminatedUnion('operation', [
     .object({ operation: z.literal('removePerson'), handle: z.string().trim().min(1).max(100) })
     .strict(),
   z.object({ operation: z.literal('pausePeople'), paused: z.boolean() }).strict(),
+  // The token is read from the clipboard in the main process, never sent over IPC.
+  z
+    .object({ operation: z.literal('connectBot'), kind: z.enum(['telegram', 'discord']) })
+    .strict(),
+  z
+    .object({ operation: z.literal('disconnectBot'), kind: z.enum(['telegram', 'discord']) })
+    .strict(),
 ]);
+
+/** A Telegram or Discord bot the person connected; never includes the token. */
+export interface BotChannelView {
+  kind: 'telegram' | 'discord';
+  bot: string;
+  /** Message this code to the bot to pair your account; present for ten minutes. */
+  pairingCode?: string;
+  error?: string;
+}
 export type MessagesRelayCommand = z.infer<typeof messagesRelayCommand>;
 
 /**
@@ -63,6 +79,7 @@ export interface MessagesRelaySettings {
   people: TrustedPerson[];
   /** Pause all Sia-to-Sia messages without removing anyone. */
   peoplePaused: boolean;
+  bots: BotChannelView[];
   /** Text your first number when scheduled tasks finish or need you. */
   proactive: boolean;
   /** Reply YES or NO from your numbers to allow or deny one pending step (never a whole task). */

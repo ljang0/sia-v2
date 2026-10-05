@@ -1,14 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MessagesRelay, PEER_PREFIX, REPLY_PREFIX } from './messages-relay.js';
 import type { InboundMessage } from '../mac/messages-service.js';
+import type { BotChannel, ChannelMessage } from './bot-channels.js';
 import { normalizeHandle } from '../../shared/messages-relay.js';
 import type { DesktopSnapshot, DesktopPushEvent } from '../../shared/bridge.js';
 
 const AGENT = '11111111-1111-4111-8111-111111111111';
 const ME = '+15551234567';
 
-function harness() {
-  const records = new Map<string, unknown>();
+function harness(
+  options: {
+    bot?: (kind: 'telegram' | 'discord', token: string) => BotChannel;
+    takeClipboardToken?: () => string | undefined;
+    speak?: (text: string) => Promise<string>;
+    records?: Map<string, unknown>;
+  } = {},
+) {
+  const records = options.records ?? new Map<string, unknown>();
   const snapshot = {
     agents: [{ id: AGENT, name: 'Sia' }],
     threads: [],
@@ -81,7 +89,11 @@ function harness() {
       get: (collection: string, id: string) => records.get(`${collection}/${id}`),
       put: (collection: string, id: string, value: unknown) =>
         records.set(`${collection}/${id}`, structuredClone(value)),
+      remove: (collection: string, id: string) => records.delete(`${collection}/${id}`),
     } as never,
+    ...(options.bot ? { bot: options.bot } : {}),
+    ...(options.takeClipboardToken ? { takeClipboardToken: options.takeClipboardToken } : {}),
+    ...(options.speak ? { speak: options.speak } : {}),
     messages: {
       status: () => 'ready',
       latestRowId: () => 100,
@@ -503,6 +515,121 @@ describe('MessagesRelay', () => {
     await h.relay.poll();
     await h.relay.flush();
     expect(h.sent.at(-1)!.text).toBe(`${REPLY_PREFIX}Nothing is running right now.`);
+  });
+
+  describe('Telegram and Discord', () => {
+    const fakeBot = (kind: 'telegram' | 'discord') => {
+      let deliver: ((message: ChannelMessage) => void) | undefined;
+      const sent: { to: string; text: string }[] = [];
+      const files: string[] = [];
+      const channel: BotChannel = {
+        kind,
+        verify: async () => '@sia_test_bot',
+        start: (onMessage) => {
+          deliver = onMessage;
+        },
+        stop: vi.fn(),
+        send: async (to, text) => {
+          sent.push({ to, text });
+        },
+        sendFile: async (_to, path) => {
+          files.push(path);
+        },
+        error: () => undefined,
+      };
+      return {
+        channel,
+        sent,
+        files,
+        message: async (text: string, attachments: string[] = []) => {
+          deliver!({ handle: `${kind}:42`, name: '@lawrence', text, attachments });
+          await new Promise((done) => setTimeout(done, 0));
+        },
+      };
+    };
+    const connected = async (clipboard = '123456:ABCDEFGHIJKLMNOPQRSTUVWXYZ') => {
+      const bot = fakeBot('telegram');
+      const records = new Map<string, unknown>();
+      const h = harness({
+        bot: () => bot.channel,
+        takeClipboardToken: () => clipboard,
+        speak: async () => '/tmp/sia-spoken-1/Sia reply.m4a',
+        records,
+      });
+      const settings = await h.relay.configure({ operation: 'connectBot', kind: 'telegram' });
+      return { h, bot, settings, records };
+    };
+
+    it('connects a bot from the clipboard and pairs your account with a code', async () => {
+      const { h, bot, settings, records } = await connected();
+      expect(settings.bots).toEqual([
+        {
+          kind: 'telegram',
+          bot: '@sia_test_bot',
+          pairingCode: expect.stringMatching(/^\d{6}$/),
+        },
+      ]);
+      expect(JSON.stringify(settings)).not.toContain('ABCDEFGHIJ');
+      expect(records.get('messages-relay/telegram-bot')).toEqual({
+        token: '123456:ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+        bot: '@sia_test_bot',
+      });
+      await bot.message('hello');
+      expect(h.invoke).not.toHaveBeenCalled();
+      await bot.message(`/start ${settings.bots[0]!.pairingCode}`);
+      const paired = await h.relay.configure({ operation: 'status' });
+      expect(paired.trusted).toEqual([{ handle: 'telegram:42', label: 'Telegram @lawrence' }]);
+      expect(paired.bots[0]!.pairingCode).toBeUndefined();
+      await h.relay.flush();
+      expect(bot.sent[0]!.text).toContain('Paired.');
+    });
+
+    it('runs messages from your linked account and replies without the iMessage marker', async () => {
+      const { h, bot, settings } = await connected();
+      await bot.message(settings.bots[0]!.pairingCode!);
+      await h.relay.configure({ operation: 'enable', agentId: AGENT });
+      await bot.message('Summarize my inbox');
+      expect(h.invoke).toHaveBeenCalledWith('threads.send', {
+        threadId: 'thread-1',
+        text: 'Summarize my inbox',
+        fromPhone: true,
+      });
+      h.finish('thread-1', 'Three new emails.');
+      await h.relay.flush();
+      expect(bot.sent.at(-1)).toEqual({ to: 'telegram:42', text: 'Three new emails.' });
+    });
+
+    it('answers a voice note with text and spoken audio', async () => {
+      const { h, bot, settings } = await connected();
+      await bot.message(settings.bots[0]!.pairingCode!);
+      await h.relay.configure({ operation: 'enable', agentId: AGENT });
+      await bot.message('', ['/tmp/chat-attachments/telegram/ab-voice-note.ogg']);
+      expect(h.invoke).toHaveBeenCalledWith(
+        'threads.send',
+        expect.objectContaining({ text: 'Book a table for two at 7' }),
+      );
+      h.finish('thread-1', 'Booked for 7.');
+      await h.relay.flush();
+      expect(bot.sent.at(-1)!.text).toBe('Booked for 7.');
+      expect(bot.files).toEqual(['/tmp/sia-spoken-1/Sia reply.m4a']);
+    });
+
+    it('rejects an empty clipboard and forgets everything on disconnect', async () => {
+      const bad = harness({
+        bot: () => fakeBot('telegram').channel,
+        takeClipboardToken: () => '',
+      });
+      await expect(
+        bad.relay.configure({ operation: 'connectBot', kind: 'telegram' }),
+      ).rejects.toThrow('Copy your Telegram bot token first');
+      const { h, bot, settings, records } = await connected();
+      await bot.message(settings.bots[0]!.pairingCode!);
+      const after = await h.relay.configure({ operation: 'disconnectBot', kind: 'telegram' });
+      expect(after.bots).toEqual([]);
+      expect(after.trusted).toEqual([]);
+      expect(records.has('messages-relay/telegram-bot')).toBe(false);
+      expect(bot.channel.stop).toHaveBeenCalled();
+    });
   });
 
   describe('trusted people', () => {

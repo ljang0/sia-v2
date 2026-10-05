@@ -270,6 +270,9 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
+.channel {
+  margin-top: 12px;
+}
 .people {
   margin-top: 24px;
   padding-top: 18px;

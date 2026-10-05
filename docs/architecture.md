@@ -459,8 +459,19 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   first number is told about it. Any answer is an approved `messages_send`, and texted approvals
   name the person and show the exact text. Unmarked texts, unknown senders and paused connections
   are ignored; each person is limited to 12 messages an hour, and messages that arrive while their
-  thread is busy are combined into the next turn. The relay exposes no generic IPC, shell or
-  credential path.
+  thread is busy are combined into the next turn. **Telegram and Discord** (`bot-channels.ts`)
+  use a bot the person owns. "Paste token" reads the token from the clipboard in the main
+  process, clears the clipboard, verifies it (`getMe` / `/users/@me`) and stores it in the
+  encrypted repository; it never crosses IPC or reaches the renderer, and settings show only the
+  bot's name. Telegram uses `getUpdates` long polling; Discord uses the gateway with only the
+  DIRECT_MESSAGES intent. Private messages only; files up to 20 MB are saved to a private
+  `chat-attachments` folder and pruned after an hour. A six-digit code shown for ten minutes
+  links the sender's account (`telegram:<id>` / `discord:<id>`) as one of the person's own
+  handles; unlinked accounts are ignored, and linked ones follow every iMessage rule above
+  (phone turns, STATUS, YES/NO, STOP/NEW). Disconnecting removes the token and the linked
+  accounts. Telegram voice notes (Ogg Opus) go to `voice.transcribe` unchanged. When a request
+  was a voice note on any channel, the answer is also spoken with `voice.speak` (converted to AAC
+  with `afconvert`) and sent as audio. The relay exposes no generic IPC, shell or credential path.
 
 - **Phone remote** is an optional, separate local web surface built into `out/remote`.
   `PhoneRemote` ports Notch's `/t/<token>/` command/state/cancel/outbox/vault/note flow, with
