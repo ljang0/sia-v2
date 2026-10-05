@@ -1,18 +1,21 @@
 // Connected apps: Google Workspace and Slack through Sia cloud; Outlook, Notion, and GitHub
 // signed in directly from this Mac.
 
-export type ConnectionId =
-  | 'gmail'
-  | 'calendar'
-  | 'drive'
-  | 'docs'
-  | 'sheets'
-  | 'slides'
-  | 'tasks'
-  | 'slack'
-  | 'outlook'
-  | 'notion'
-  | 'github';
+export const CONNECTION_IDS = [
+  'gmail',
+  'calendar',
+  'drive',
+  'docs',
+  'sheets',
+  'slides',
+  'tasks',
+  'slack',
+  'outlook',
+  'notion',
+  'github',
+] as const;
+
+export type ConnectionId = (typeof CONNECTION_IDS)[number];
 
 export const GOOGLE_CONNECTION_IDS: readonly ConnectionId[] = [
   'gmail',

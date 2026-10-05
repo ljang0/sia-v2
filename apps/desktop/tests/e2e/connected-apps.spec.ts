@@ -229,3 +229,47 @@ test('a user can connect only a selected set of work apps later', async () => {
     await harness.close();
   }
 });
+
+test('Outlook, Notion, and GitHub connect and disconnect on their own from More apps', async () => {
+  const harness = await launchIsolatedSia({
+    prefix: 'sia-mac-apps-',
+    environment: {
+      SIA_API_BASE_URL: 'https://cloud.example.test/alpha',
+      SIA_COGNITO_REGION: 'us-east-1',
+      SIA_COGNITO_CLIENT_ID: 'deterministicclientid',
+      SIA_DEV_ID_TOKEN: 'deterministic-development-token',
+    },
+  });
+
+  try {
+    await exitFirstRunSetup(harness.page);
+    await harness.page.getByRole('button', { name: 'Settings' }).click();
+    await harness.page.getByRole('button', { name: 'More settings' }).click();
+    await harness.page.getByRole('menuitem', { name: 'Connections' }).click();
+    await expect(harness.page.getByText('More apps', { exact: true })).toBeVisible();
+
+    for (const name of ['Outlook', 'Notion', 'GitHub']) {
+      await harness.page.getByRole('button', { name: `Connect ${name}` }).click();
+      await expect(
+        harness.page.getByRole('button', { name: `Disconnect ${name}` }),
+      ).toBeVisible();
+    }
+    await expect(harness.page.getByText('demo@notion.test')).toBeVisible();
+    const connected = await harness.page.evaluate(async () => await window.sia.bootstrap());
+    expect(
+      connected.connections.filter(({ status }) => status === 'connected').map(({ id }) => id),
+    ).toEqual(['outlook', 'notion', 'github']);
+
+    await harness.page.getByRole('button', { name: 'Disconnect Notion' }).click();
+    await harness.page.getByRole('button', { name: 'Disconnect', exact: true }).click();
+    await expect(harness.page.getByRole('button', { name: 'Connect Notion' })).toBeVisible();
+    await expect(harness.page.getByRole('button', { name: 'Disconnect GitHub' })).toBeVisible();
+    // Google Workspace and Slack setup is untouched by the Mac-connected apps.
+    await expect(
+      harness.page.getByRole('button', { name: 'Connect selected apps' }),
+    ).toBeEnabled();
+    expect(harness.rendererErrors).toEqual([]);
+  } finally {
+    await harness.close();
+  }
+});
