@@ -23,6 +23,11 @@ Provider availability is a legal and product boundary as well as an engineering 
   Internal model acceptance uses the separate `MetaTesters` Cognito group. That group grants the
   signed release and hosted-model relay only; it must not imply participant, research-upload, schedule,
   connector, or archive access.
+- **Your own API key (`byok`):** optional, in Settings → AI only. One OpenAI Responses-compatible
+  endpoint and model, billed by the person's provider. The key is checked once against
+  `GET /models`, stored encrypted on the Mac, and attached only by Sia's loopback proxy; Codex
+  receives a model-scoped capability, never the key. `https` is required except for a loopback
+  endpoint on the same Mac.
 - **Google Workspace:** use Sia's production Web OAuth client with authorization code + PKCE.
   Connect Google with the fixed read-only Gmail/Drive/Docs/Sheets/Slides scopes first; request the
   fixed editor/sender scopes only after the person chooses **Enable editing**. Encrypt refresh

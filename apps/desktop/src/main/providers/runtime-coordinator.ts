@@ -123,6 +123,8 @@ export class RuntimeCoordinator {
       macContext?: () => Promise<string>;
       metaTransport?: MetaTransport;
       hostedCodexProvider?: CodexCustomModelProviderResolver;
+      /** The person's own API key, reached through a loopback proxy that holds the key. */
+      byokCodexProvider?: CodexCustomModelProviderResolver;
       acpMcpServerFactory?: (
         provider: 'grok' | 'gemini' | 'claude',
         session: ProviderSessionOptions,
@@ -156,32 +158,47 @@ export class RuntimeCoordinator {
       },
     });
     this.#registerAdapter('codex', 'codex_app_server', this.#codexAdapter);
+    const customCodexAdapter = (
+      providerId: 'meta' | 'byok',
+      label: string,
+      billing: 'included' | 'api',
+      customModelProvider: CodexCustomModelProviderResolver,
+    ) =>
+      createCodexAdapter({
+        ...(options.codexCommand ? { command: options.codexCommand } : {}),
+        providerId,
+        accountOverride: { state: 'authenticated', label, billing },
+        customModelProvider,
+        sessionEphemeral: true,
+        dynamicToolHandler: async (call, signal) => {
+          const context = this.#activeByProviderSession.get(call.threadId ?? '');
+          if (!context) {
+            return {
+              success: false,
+              content: { error: 'No active Sia turn owns this tool call.' },
+            };
+          }
+          return this.#invokeTool(context, call.name, call.arguments, signal);
+        },
+      });
     if (options.hostedCodexProvider) {
       this.#registerAdapter(
         'meta',
         'codex_app_server',
-        createCodexAdapter({
-          ...(options.codexCommand ? { command: options.codexCommand } : {}),
-          providerId: 'meta',
-          accountOverride: {
-            state: 'authenticated',
-            label: 'Included with Sia',
-            billing: 'included',
-          },
-          customModelProvider: options.hostedCodexProvider,
-          sessionEphemeral: true,
-          dynamicToolHandler: async (call, signal) => {
-            const context = this.#activeByProviderSession.get(call.threadId ?? '');
-            if (!context) {
-              return {
-                success: false,
-                content: { error: 'No active Sia turn owns this tool call.' },
-              };
-            }
-            return this.#invokeTool(context, call.name, call.arguments, signal);
-          },
-        }),
+        customCodexAdapter(
+          'meta',
+          'Included with Sia',
+          'included',
+          options.hostedCodexProvider,
+        ),
         false,
+      );
+    }
+    if (options.byokCodexProvider) {
+      this.#registerAdapter(
+        'byok',
+        'codex_app_server',
+        customCodexAdapter('byok', 'Your API key', 'api', options.byokCodexProvider),
       );
     }
     this.#registerAdapter(
@@ -504,7 +521,8 @@ export class RuntimeCoordinator {
     if (
       thread.provider !== 'codex' &&
       thread.provider !== 'claude' &&
-      thread.provider !== 'meta'
+      thread.provider !== 'meta' &&
+      thread.provider !== 'byok'
     ) {
       throw new Error(
         'This model is no longer available in Sia. Choose Codex or a model included with Sia.',
@@ -562,7 +580,9 @@ export class RuntimeCoordinator {
           ? 'That beta harness has not passed this release’s conformance and security checks.'
           : thread.provider === 'meta'
             ? 'Included models require a configured Sia cloud relay in this build.'
-            : `Harness ${target.harnessId} is not registered for ${thread.provider}.`,
+            : thread.provider === 'byok'
+              ? 'Add your API key in Settings → AI to use this model.'
+              : `Harness ${target.harnessId} is not registered for ${thread.provider}.`,
       );
     }
     if (!adapter.productionEnabled) {

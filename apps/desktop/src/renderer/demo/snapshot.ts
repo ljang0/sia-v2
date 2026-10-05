@@ -105,6 +105,15 @@ export const demoSnapshot: RendererSnapshot = {
       billedBy: 'Provided by model labs through Sia; shared preview limits apply.',
     },
     {
+      id: 'byok',
+      name: 'Your API key',
+      plan: 'Your API key',
+      model: '',
+      description: 'Add an API key to use your own model.',
+      status: 'needs-login',
+      billedBy: 'Billed by your model provider to your own API key.',
+    },
+    {
       id: 'grok',
       name: 'Grok',
       model: 'grok-code-fast',

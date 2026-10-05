@@ -7,6 +7,7 @@ import buttons from '../../styles/buttons.module.css';
 import settings from './SettingsShared.module.css';
 import styles from './ProvidersSettings.module.css';
 import { InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
+import { ByokSettings, type ApiKeyInput } from './ByokSettings';
 
 const RELEASE_PROVIDERS: ProviderId[] = ['codex', 'meta'];
 
@@ -16,6 +17,8 @@ export function ProvidersSettings({
   onOpenProviderSetup = onProbe,
   onCancelProviderSetup,
   onOpenCloudSettings,
+  onSaveApiKey,
+  onClearApiKey,
 }: {
   providers: ProviderSetup[];
   onProbe(provider: ProviderId): Promise<void>;
@@ -23,6 +26,9 @@ export function ProvidersSettings({
   /** Stops a ChatGPT sign-in that is still waiting in the browser. */
   onCancelProviderSetup?(provider: ProviderId): Promise<void>;
   onOpenCloudSettings(): void;
+  /** Present only in Settings: your own API key is an advanced option, not part of setup. */
+  onSaveApiKey?(input: ApiKeyInput): Promise<void>;
+  onClearApiKey?(): Promise<void>;
 }) {
   const [pending, setPending] = useState<ProviderId>();
   const [error, setError] = useState<string>();
@@ -171,6 +177,17 @@ export function ProvidersSettings({
             )}
           </div>
         ))}
+        {onSaveApiKey && onClearApiKey && providers.some(({ id }) => id === 'byok') ? (
+          <ByokSettings
+            provider={providers.find(({ id }) => id === 'byok')}
+            codexMissing={providers.some(
+              ({ id, status }) =>
+                id === 'codex' && (status === 'needs-install' || status === 'incompatible'),
+            )}
+            onSave={onSaveApiKey}
+            onClear={onClearApiKey}
+          />
+        ) : null}
       </div>
     </SettingsSectionHeader>
   );

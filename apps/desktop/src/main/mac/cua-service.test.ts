@@ -97,7 +97,10 @@ it.each([true, false])(
 describe('confirming granted access through the driver', () => {
   const finderWindow = { pid: 501, window_id: 77, app_name: 'Finder' };
   const service = (
-    callTool: (name: string, args: string) => Promise<{
+    callTool: (
+      name: string,
+      args: string,
+    ) => Promise<{
       rawJson: string;
       errorCode?: string;
       images?: { mimeType: string; dataBase64: string }[];

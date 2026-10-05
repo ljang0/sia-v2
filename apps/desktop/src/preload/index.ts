@@ -168,6 +168,8 @@ const api: DesktopBridgeApi = {
     probe: (providerId) => invoke('providers.probe', providerId ? { providerId } : {}),
     login: (providerId) => invoke('providers.login', { providerId }),
     cancelLogin: (providerId) => invoke('providers.cancelLogin', { providerId }),
+    setApiKey: (input) => invoke('providers.setApiKey', input),
+    clearApiKey: () => invoke('providers.clearApiKey', undefined),
   },
   settings: {
     openDirectory: () => invoke('settings.openDirectory', undefined),

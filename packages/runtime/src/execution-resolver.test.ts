@@ -52,6 +52,7 @@ describe('execution target resolver', () => {
       grok: { harnessId: 'legacy_acp', credentialSource: 'provider_subscription' },
       gemini: { harnessId: 'legacy_acp', credentialSource: 'provider_api' },
       meta: { harnessId: 'sia_direct', credentialSource: 'sia_managed' },
+      byok: { harnessId: 'codex_app_server', credentialSource: 'user_byok' },
     });
     expect(legacyModelRoute('codex', 'gpt-5')).toEqual({
       provider: 'codex',

@@ -6,7 +6,7 @@ import type {
 } from '../shared/bridge';
 import type { TextSize, ThemePreference } from '../shared/display';
 import type { ScheduleCadence } from '../shared/schedule-cadence';
-export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude';
+export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude' | 'byok';
 /** Safe catalog id. The main process decides whether the corresponding adapter is admitted. */
 type HarnessId = string;
 type HarnessPreference = { mode: 'automatic' } | { mode: 'explicit'; harnessId: HarnessId };
@@ -672,6 +672,9 @@ export interface RendererApi {
   declineResearchConsent(): Promise<void>;
   openProviderSetup(provider: ProviderId): Promise<void>;
   cancelProviderSetup(provider: ProviderId): Promise<void>;
+  /** Saves the person's own model API key in the main process; it is never sent back. */
+  saveApiKey(input: { baseUrl?: string; model: string; apiKey: string }): Promise<void>;
+  clearApiKey(): Promise<void>;
   refreshProvider(provider: ProviderId): Promise<void>;
   connectGoogleApps(): Promise<void>;
   connectSelectedApps(apps: ('google' | 'slack')[]): Promise<void>;

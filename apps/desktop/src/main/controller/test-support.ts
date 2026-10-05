@@ -56,6 +56,7 @@ export async function createHarness(
     requestMicrophonePermission?: () => Promise<void>;
     restartApp?: () => void;
     installCodex?: () => Promise<void>;
+    byok?: ConstructorParameters<typeof DesktopController>[0]['byok'];
     workspaceOperations?: ConstructorParameters<
       typeof DesktopController
     >[0]['workspaceOperations'];
@@ -101,6 +102,7 @@ export async function createHarness(
     openMessages: options.openMessages ?? (async () => undefined),
     ...(options.restartApp ? { restartApp: options.restartApp } : {}),
     ...(options.installCodex ? { installCodex: options.installCodex } : {}),
+    ...(options.byok ? { byok: options.byok } : {}),
     ...(options.workspaceOperations
       ? { workspaceOperations: options.workspaceOperations }
       : {}),

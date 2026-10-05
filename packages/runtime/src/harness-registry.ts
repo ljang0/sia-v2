@@ -26,7 +26,7 @@ export const BUILTIN_HARNESS_DEFINITIONS = [
     id: 'codex_app_server',
     name: 'Codex app server',
     modelProtocols: ['openai_responses'],
-    credentialSources: ['provider_subscription', 'provider_api', 'sia_managed'],
+    credentialSources: ['provider_subscription', 'provider_api', 'sia_managed', 'user_byok'],
     productionEnabled: true,
   },
   {

@@ -87,6 +87,12 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   attaches to a signed-in window without copying cookies. Messages read capabilities access bounded
   local `chat.db` rows only with Full Disk Access, and exact sends follow the autonomous/confirmation setting.
 - Provider authentication stays in each official CLI. Sia does not inspect, copy, or store provider API keys or consumer-login files.
+  The one exception is a key the person types into **Settings → AI → Your own API key**: it is
+  validated, checked against the endpoint's `GET /models`, and stored encrypted with
+  `safeStorage` at `<appData>/Sia/models/byok.enc` (mode 0600). Snapshots carry only the model and
+  host. A second loopback Responses proxy issues Codex a model-scoped capability and adds the key
+  while forwarding to `<endpoint>/responses`, so the `byok` provider and its `user_byok` credential
+  source never place the key in Codex configuration, its environment, IPC results, or logs.
 - Local macOS builds without cloud configuration use installed system voices through `AVSpeechSynthesizer`,
   returning bounded WAV audio in memory. Dictation uses `SFSpeechRecognizer` with on-device
   recognition required and checked for the current locale. Read aloud works without cloud setup or

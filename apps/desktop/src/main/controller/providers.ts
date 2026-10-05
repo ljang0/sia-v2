@@ -90,6 +90,84 @@ export class ProviderAccess {
       if (codexIndex >= 0) this.views[codexIndex] = fakeCodex;
       else this.views.push(fakeCodex);
     }
+    this.applyByok();
+  }
+
+  /**
+   * Reflects the saved API key, if any, as the `byok` provider and its single model route. The
+   * key itself never leaves the main process; the view carries only the model and host.
+   */
+  applyByok(): void {
+    for (const routes of [this.allowedModelRoutes, this.backendModelRoutes])
+      for (const key of routes.keys()) if (key.startsWith('byok\u0000')) routes.delete(key);
+    const index = this.views.findIndex(({ id }) => id === 'byok');
+    if (!this.ctx.deps.byok) {
+      if (index >= 0) this.views.splice(index, 1);
+      return;
+    }
+    const base = index >= 0 ? this.views[index]! : undefined;
+    const summary = this.ctx.deps.byok.summary();
+    const view: ProviderView = {
+      id: 'byok',
+      label: 'Your API key',
+      plan: 'Your API key',
+      billing: base?.billing ?? 'Billed by your model provider to your own API key.',
+      ...(summary
+        ? {
+            status: 'ready' as const,
+            model: summary.model,
+            account: summary.host,
+            detail: `Uses ${summary.model} at ${summary.host} through the Codex harness.`,
+            models: [
+              {
+                id: summary.model,
+                label: summary.model,
+                description: `Your own model at ${summary.host}.`,
+                reasoningEfforts: [],
+              },
+            ],
+          }
+        : {
+            status: 'needs_login' as const,
+            model: '',
+            detail: 'Add an API key to use your own model.',
+          }),
+    };
+    if (index >= 0) this.views[index] = view;
+    else this.views.push(view);
+    if (!summary) return;
+    const route: ModelRoute = {
+      provider: 'byok',
+      model: summary.model,
+      harnessId: 'codex_app_server',
+      harnessModelId: summary.model,
+      credentialSource: 'user_byok',
+    };
+    this.allowedModelRoutes.set(modelRouteKey('byok', summary.model), [route]);
+    this.backendModelRoutes.set(modelRouteKey('byok', summary.model), route);
+  }
+
+  /** Saves the person's own key after checking it; the key is never returned. */
+  async saveApiKey(input: {
+    baseUrl?: string;
+    model: string;
+    apiKey: string;
+  }): Promise<DesktopSnapshot> {
+    this.ctx.requireSignedInReleaseAccount();
+    if (!this.ctx.deps.byok)
+      throw new Error('Your own API key is not available in this build.');
+    await this.ctx.deps.byok.save(input);
+    this.applyByok();
+    this.ctx.emit();
+    return this.ctx.resultSnapshot();
+  }
+
+  async clearApiKey(): Promise<DesktopSnapshot> {
+    this.ctx.requireSignedInReleaseAccount();
+    this.ctx.deps.byok?.clear();
+    this.applyByok();
+    this.ctx.emit();
+    return this.ctx.resultSnapshot();
   }
 
   async probeProviders(providerId?: ProviderId): Promise<DesktopSnapshot> {
@@ -106,6 +184,7 @@ export class ProviderAccess {
         else this.views.push(value);
       }
     } else this.views = updated;
+    this.applyByok();
     await this.refreshMetaProviderState();
     await this.refreshProviderModels(providerId);
     if (

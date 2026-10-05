@@ -7,7 +7,7 @@ interface ModelChoice {
   ready: boolean;
 }
 
-const RELEASE_PROVIDER_ORDER: ProviderId[] = ['codex', 'meta'];
+const RELEASE_PROVIDER_ORDER: ProviderId[] = ['codex', 'meta', 'byok'];
 
 export function firstReadyModel(providers: ProviderSetup[]): ModelChoice | undefined {
   return modelChoices(providers).find((choice) => choice.ready);
@@ -19,7 +19,8 @@ export function modelChoices(
 ): ModelChoice[] {
   const choices = RELEASE_PROVIDER_ORDER.flatMap((providerId) => {
     const provider = providers.find((candidate) => candidate.id === providerId);
-    if (!provider) return [];
+    // Your own model appears only once its key is saved.
+    if (!provider || (provider.id === 'byok' && provider.status !== 'ready')) return [];
     const models = provider.models?.length
       ? provider.models.map((model) => ({ id: model.id, label: model.label }))
       : [{ id: provider.model, label: friendlyModelName(provider.id, provider.model) }];
@@ -31,7 +32,9 @@ export function modelChoices(
           ? `${model.label} · Included`
           : provider.id === 'codex'
             ? `${model.label} · Codex plan`
-            : `${model.label} — ${provider.name}`,
+            : provider.id === 'byok'
+              ? `${model.label} · Your API key`
+              : `${model.label} — ${provider.name}`,
       ready: provider.status === 'ready',
     }));
   });

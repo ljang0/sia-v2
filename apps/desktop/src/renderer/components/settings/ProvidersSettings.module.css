@@ -2,3 +2,21 @@
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
 }
+
+.byokForm {
+  display: grid;
+  gap: 10px;
+  max-width: 420px;
+  margin-top: 12px;
+}
+
+.byokForm small {
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
+.byokError {
+  margin: 8px 0 0;
+  color: var(--text-danger);
+  font-size: var(--text-sm);
+}

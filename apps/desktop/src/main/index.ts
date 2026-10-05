@@ -52,6 +52,13 @@ import { MessagesService } from './mac/messages-service.js';
 
 import { CloudClient } from './cloud/cloud-client.js';
 import { HostedResponsesProxy } from './providers/hosted-responses-proxy.js';
+import {
+  ByokCredential,
+  ByokForwarder,
+  byokCredentialPath,
+  checkByokConfig,
+  validateByokConfig,
+} from './providers/byok.js';
 import { loadCloudConfiguration } from './cloud/cloud-config.js';
 import { DesktopController } from './controller/desktop-controller.js';
 import { KeepAwake } from './mac/keep-awake.js';
@@ -383,6 +390,19 @@ async function performApplicationCreation(): Promise<void> {
           })
         : undefined;
     const hostedResponsesProxy = fakeServices ? undefined : new HostedResponsesProxy(cloud);
+    // The person's own API key: encrypted on disk, attached only by this loopback proxy.
+    const byokCredential = fakeServices
+      ? undefined
+      : new ByokCredential(byokCredentialPath(app.getPath('appData')), {
+          encrypt: (value) => new ElectronPayloadCipher().encrypt(value),
+          decrypt: (value) => new ElectronPayloadCipher().decrypt(value),
+        });
+    const byokResponsesProxy = byokCredential
+      ? new HostedResponsesProxy(new ByokForwarder(() => byokCredential.read()), {
+          id: 'sia_byok',
+          name: 'Your API key',
+        })
+      : undefined;
     let activeController!: DesktopController;
     const computer = new CuaService(
       {
@@ -426,6 +446,19 @@ async function performApplicationCreation(): Promise<void> {
         ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
         : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper'),
       installCodex: () => installManagedCodex(codexToolsRoot),
+      ...(byokCredential
+        ? {
+            byok: {
+              summary: () => byokCredential.summary(),
+              save: async (input) => {
+                const config = validateByokConfig(input);
+                await checkByokConfig(config);
+                byokCredential.save(config);
+              },
+              clear: () => byokCredential.clear(),
+            },
+          }
+        : {}),
       providerProbe: (only) =>
         probeProviders(
           only,
@@ -631,6 +664,12 @@ async function performApplicationCreation(): Promise<void> {
               hostedResponsesProxy.issue(providerSession.model),
           }
         : {}),
+      ...(byokResponsesProxy
+        ? {
+            byokCodexProvider: (providerSession) =>
+              byokResponsesProxy.issue(providerSession.model),
+          }
+        : {}),
       ...(capabilityHost
         ? {
             acpMcpServerFactory: (_provider, session) => [
@@ -639,11 +678,12 @@ async function performApplicationCreation(): Promise<void> {
             onSessionsReset: () => capabilityHost!.revokeAll(),
           }
         : {}),
-      ...(hostedResponsesProxy || capabilityHost
+      ...(hostedResponsesProxy || byokResponsesProxy || capabilityHost
         ? {
             onDispose: async () => {
               await Promise.all([
                 hostedResponsesProxy?.dispose() ?? Promise.resolve(),
+                byokResponsesProxy?.dispose() ?? Promise.resolve(),
                 capabilityHost ? capabilityHost.stop() : Promise.resolve(),
               ]);
             },

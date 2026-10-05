@@ -342,6 +342,12 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async cancelProviderSetup(provider) {
       publish(await bridge.providers.cancelLogin(provider));
     },
+    async saveApiKey(input) {
+      publish(await bridge.providers.setApiKey(input));
+    },
+    async clearApiKey() {
+      publish(await bridge.providers.clearApiKey());
+    },
     async refreshProvider(provider) {
       publish(await bridge.providers.probe(provider));
     },

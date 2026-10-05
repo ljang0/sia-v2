@@ -403,6 +403,8 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onProbeProvider={(provider) => api.refreshProvider(provider)}
               onOpenProviderSetup={(provider) => api.openProviderSetup(provider)}
               onCancelProviderSetup={(provider) => api.cancelProviderSetup(provider)}
+              onSaveApiKey={(input) => api.saveApiKey(input)}
+              onClearApiKey={() => api.clearApiKey()}
               onCheckForUpdates={() => api.checkForUpdates()}
               onOpenUpdateDownload={() => api.openUpdateDownload()}
               onConnectSelectedApps={(apps) => api.connectSelectedApps(apps)}

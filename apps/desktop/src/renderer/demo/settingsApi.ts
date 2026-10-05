@@ -41,6 +41,21 @@ export function demoSettingsApi({ mutate }: DemoApiContext) {
     async refreshProvider() {
       return Promise.resolve();
     },
+    async saveApiKey({ baseUrl, model }) {
+      mutate((current) => {
+        const target = current.providers.find((item) => item.id === 'byok');
+        if (!target) return;
+        target.status = 'ready';
+        target.model = model;
+        target.account = new URL(baseUrl || 'https://api.openai.com/v1').host;
+      });
+    },
+    async clearApiKey() {
+      mutate((current) => {
+        const target = current.providers.find((item) => item.id === 'byok');
+        if (target) target.status = 'needs-login';
+      });
+    },
     async connectSelectedApps(selected) {
       mutate((current) => {
         for (const app of current.apps) {

@@ -1,6 +1,6 @@
 // Model providers, their models and plan usage, and the execution route a thread pins.
 
-export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude';
+export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude' | 'byok';
 
 /** Safe catalog id. Executability still requires an audited runtime registration. */
 export type HarnessId = string;
@@ -10,7 +10,7 @@ export interface ResolvedExecutionTargetView {
   model: string;
   harnessId: HarnessId;
   harnessModelId: string;
-  credentialSource: 'provider_subscription' | 'provider_api' | 'sia_managed';
+  credentialSource: 'provider_subscription' | 'provider_api' | 'sia_managed' | 'user_byok';
   resolutionSource: 'user' | 'backend_default' | 'legacy_default';
 }
 

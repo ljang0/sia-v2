@@ -75,6 +75,61 @@ describe('DesktopController', () => {
     }
   });
 
+  it('saves your own API key write-only and pins new threads to its Codex route', async () => {
+    const key = 'sk-test-0123456789abcdefghijklmnop';
+    let saved: { model: string; host: string } | undefined;
+    const save = vi.fn(async (input: { baseUrl?: string; model: string; apiKey: string }) => {
+      saved = { model: input.model, host: new URL(input.baseUrl!).host };
+    });
+    const { controller } = await createHarness({
+      fakeServices: false,
+      providerProbe: deterministicProviderProbe,
+      byok: { summary: () => saved, save, clear: () => (saved = undefined) },
+    });
+    try {
+      expect(controller.snapshot().providers.find(({ id }) => id === 'byok')).toMatchObject({
+        status: 'needs_login',
+      });
+      const snapshot = await controller.invoke('providers.setApiKey', {
+        baseUrl: 'https://lab.example/v1',
+        model: 'lab/spark',
+        apiKey: key,
+      });
+      expect(save).toHaveBeenCalledOnce();
+      expect(JSON.stringify(snapshot)).not.toContain(key);
+      expect(snapshot.providers.find(({ id }) => id === 'byok')).toMatchObject({
+        status: 'ready',
+        model: 'lab/spark',
+        account: 'lab.example',
+      });
+      const created = await controller.invoke('agents.save', {
+        name: 'Own model',
+        instructions: '',
+        provider: 'byok',
+        model: 'lab/spark',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: created.agentId,
+      });
+      expect(
+        controller.snapshot().threads.find(({ id }) => id === threadId)
+          ?.resolvedExecutionTarget,
+      ).toMatchObject({
+        provider: 'byok',
+        model: 'lab/spark',
+        harnessId: 'codex_app_server',
+        credentialSource: 'user_byok',
+      });
+      await controller.invoke('providers.clearApiKey', undefined);
+      expect(controller.snapshot().providers.find(({ id }) => id === 'byok')?.status).toBe(
+        'needs_login',
+      );
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
   it('keeps compatibility providers off new agents and threads but preserves pinned threads', async () => {
     const turns: RuntimeTurnInput[] = [];
     const runtime = {

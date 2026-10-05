@@ -51,6 +51,16 @@ const PROVIDERS: Record<ProviderId, ProviderCommand> = {
     detail:
       'Included Meta access runs through the Codex harness. Lab API keys never enter the desktop app.',
   },
+  byok: {
+    executable: '',
+    versionArgs: [],
+    model: '',
+    label: 'Your API key',
+    plan: 'Your API key',
+    billing: 'Billed by your model provider to your own API key.',
+    detail:
+      'Runs through the Codex harness. Your key stays encrypted on this Mac and is never given to Codex.',
+  },
   grok: {
     executable: 'grok',
     versionArgs: ['--version'],
@@ -122,6 +132,16 @@ async function probeProvider(
 ): Promise<ProviderView> {
   const definition = PROVIDERS[id];
   if (definition.disabled) return view(id, definition, 'disabled');
+
+  // Sia's controller fills in a saved key; the probe has nothing to run.
+  if (id === 'byok')
+    return view(
+      id,
+      definition,
+      'needs_login',
+      undefined,
+      'Add an API key to use your own model.',
+    );
 
   if (id === 'meta') {
     const configured = metaCloudAvailable ?? Boolean(environment.SIA_API_BASE_URL);

@@ -26,7 +26,11 @@ lint, quality, type, unit, deterministic desktop E2E, and renderer gates. See
 
 - A release with cloud configured has no private app access before email sign-in.
 - New agents offer an included model when live-verified or the user's existing Codex plan. Both use
-  the Codex App Server harness. Users never paste model API keys into Sia.
+  the Codex App Server harness. Codex is the default. An optional **Your own API key** in
+  Settings → AI (never in onboarding) adds one OpenAI Responses-compatible model, also run through
+  Codex App Server. That key is write-only from the renderer, stored encrypted outside the state
+  JSON, and attached only by a loopback proxy; Codex, the renderer, IPC results, and logs never
+  receive it.
 - Google Workspace, Slack, signed-in Chrome, Apple Messages, and computer use are optional. They do
   not block first-run setup.
 - Bypass (no per-action approvals) is the default for every route, including profiles that never

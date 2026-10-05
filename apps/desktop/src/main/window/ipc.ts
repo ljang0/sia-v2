@@ -15,7 +15,7 @@ import type {
   DesktopPushEvent,
 } from '../../shared/bridge.js';
 
-const providerId = z.enum(['codex', 'meta', 'grok', 'gemini', 'claude']);
+const providerId = z.enum(['codex', 'meta', 'grok', 'gemini', 'claude', 'byok']);
 const connectionId = z.enum(['gmail', 'drive', 'docs', 'sheets', 'slides', 'slack']);
 const identifier = z.string().uuid();
 const scheduleCadence = z.enum(SCHEDULE_CADENCES);
@@ -246,6 +246,14 @@ const inputSchemas = {
   'providers.probe': z.object({ providerId: providerId.optional() }).strict(),
   'providers.login': z.object({ providerId }).strict(),
   'providers.cancelLogin': z.object({ providerId }).strict(),
+  'providers.setApiKey': z
+    .object({
+      baseUrl: z.string().trim().max(2048).optional(),
+      model: z.string().trim().min(1).max(256),
+      apiKey: z.string().trim().min(8).max(512),
+    })
+    .strict(),
+  'providers.clearApiKey': z.undefined(),
   'settings.openDirectory': z.undefined(),
   'settings.setOnboarding': z
     .object({

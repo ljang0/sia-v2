@@ -1,7 +1,13 @@
 # Model lab and harness integration
 
-Muse Spark is an example catalog entry. Sia's product contract is a catalog of model labs whose
-access is funded by the lab and brokered by Sia. A person never pastes a lab API key into the app.
+Muse Spark is an example catalog entry. Sia's default product contract is a catalog of model labs
+whose access is funded by the lab and brokered by Sia, with no key in the app.
+
+A person or a lab tester can also use **Settings → AI → Your own API key** for any model behind an
+OpenAI Responses-compatible endpoint. That route is the `byok` provider with the `user_byok`
+credential source on Codex App Server; the key stays in Sia's main process (see
+[architecture](./architecture.md)). Chat Completions-only endpoints are not supported on that
+path, because the Chat Completions → Responses conversion lives in Sia cloud.
 
 ## Compatibility contract
 

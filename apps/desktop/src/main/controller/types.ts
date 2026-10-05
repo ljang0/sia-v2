@@ -72,6 +72,15 @@ export interface ControllerOptions {
   requestMicrophonePermission?(): Promise<void>;
   restartApp?(): void;
   installCodex?(): Promise<void>;
+  /**
+   * The person's own model API key. The key is write-only from here on: it is validated,
+   * checked against the endpoint, and stored encrypted; only the model and host come back.
+   */
+  byok?: {
+    summary(): { model: string; host: string } | undefined;
+    save(input: { baseUrl?: string; model: string; apiKey: string }): Promise<void>;
+    clear(): void;
+  };
   /** Always-on local trajectory log; absent in unit tests that do not care about it. */
   trajectory?: TrajectoryRecorder;
   /** Runs a read-only shell command (lsof); injectable for tests. */

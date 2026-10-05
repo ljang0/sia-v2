@@ -122,6 +122,9 @@ export interface BridgeRequestMap {
   'providers.probe': { providerId?: ProviderId };
   'providers.login': { providerId: ProviderId };
   'providers.cancelLogin': { providerId: ProviderId };
+  /** Write-only: the key is never returned, logged, or included in a snapshot. */
+  'providers.setApiKey': { baseUrl?: string; model: string; apiKey: string };
+  'providers.clearApiKey': undefined;
   'settings.openDirectory': undefined;
   'settings.setOnboarding': {
     step: OnboardingStep;
@@ -262,6 +265,8 @@ export interface BridgeResultMap {
   'providers.probe': DesktopSnapshot;
   'providers.login': { opened: boolean; snapshot: DesktopSnapshot };
   'providers.cancelLogin': DesktopSnapshot;
+  'providers.setApiKey': DesktopSnapshot;
+  'providers.clearApiKey': DesktopSnapshot;
   'settings.openDirectory': { path: string | null };
   'settings.setOnboarding': DesktopSnapshot;
   'settings.restartForOnboarding': DesktopSnapshot;
@@ -455,6 +460,9 @@ export interface DesktopBridgeApi {
     login(providerId: ProviderId): Promise<BridgeResultMap['providers.login']>;
     /** Stops a browser sign-in that is still waiting, so setup can start over. */
     cancelLogin(providerId: ProviderId): Promise<DesktopSnapshot>;
+    /** Saves the person's own model API key. The key is never sent back. */
+    setApiKey(input: BridgeRequestMap['providers.setApiKey']): Promise<DesktopSnapshot>;
+    clearApiKey(): Promise<DesktopSnapshot>;
   };
   settings: {
     openDirectory(): Promise<{ path: string | null }>;

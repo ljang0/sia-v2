@@ -116,6 +116,8 @@ export class BridgeRouter {
     'providers.probe': ({ providerId }) => this.ctx.providers.probeProviders(providerId),
     'providers.login': ({ providerId }) => this.ctx.providers.providerLogin(providerId),
     'providers.cancelLogin': () => this.ctx.providers.cancelProviderLogin(),
+    'providers.setApiKey': (input) => this.ctx.providers.saveApiKey(input),
+    'providers.clearApiKey': () => this.ctx.providers.clearApiKey(),
     'settings.openDirectory': async () => ({
       path: await this.ctx.workspace.grantChosenDirectory(),
     }),

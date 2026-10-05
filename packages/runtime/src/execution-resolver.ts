@@ -71,6 +71,7 @@ export const LEGACY_ROUTE_DEFAULTS: Readonly<Record<ProviderId, LegacyRouteDefau
   grok: { harnessId: 'legacy_acp', credentialSource: 'provider_subscription' },
   gemini: { harnessId: 'legacy_acp', credentialSource: 'provider_api' },
   meta: { harnessId: 'sia_direct', credentialSource: 'sia_managed' },
+  byok: { harnessId: 'codex_app_server', credentialSource: 'user_byok' },
 };
 
 /** Produces the concrete route represented by a legacy provider/model pair. */

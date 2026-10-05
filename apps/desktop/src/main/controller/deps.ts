@@ -31,6 +31,7 @@ export interface ControllerDeps {
   readonly requestMicrophonePermission: (() => Promise<void>) | undefined;
   readonly restartApp: (() => void) | undefined;
   readonly installCodex: (() => Promise<void>) | undefined;
+  readonly byok: ControllerOptions['byok'];
   readonly chooseDirectory: () => Promise<string | null>;
   readonly defaultWorkspaceRoot: string | undefined;
   readonly createDirectory: (path: string) => Promise<void>;
@@ -74,6 +75,7 @@ export function resolveControllerDeps(options: ControllerOptions): ControllerDep
     requestMicrophonePermission: options.requestMicrophonePermission,
     restartApp: options.restartApp,
     installCodex: options.installCodex,
+    byok: options.byok,
     chooseDirectory: options.chooseDirectory,
     defaultWorkspaceRoot: options.defaultWorkspaceRoot
       ? normalizeWorkspace(options.defaultWorkspaceRoot)

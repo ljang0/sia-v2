@@ -64,6 +64,8 @@ interface SettingsProps {
   onProbeProvider(provider: ProviderId): Promise<void>;
   onOpenProviderSetup(provider: ProviderId): Promise<void>;
   onCancelProviderSetup?(provider: ProviderId): Promise<void>;
+  onSaveApiKey?(input: { baseUrl?: string; model: string; apiKey: string }): Promise<void>;
+  onClearApiKey?(): Promise<void>;
   onCheckForUpdates(): Promise<void>;
   onOpenUpdateDownload(): Promise<void>;
   onConnectSelectedApps(apps: ('google' | 'slack')[]): Promise<void>;
@@ -125,6 +127,8 @@ export function Settings({
   onProbeProvider,
   onOpenProviderSetup,
   onCancelProviderSetup,
+  onSaveApiKey,
+  onClearApiKey,
   onCheckForUpdates,
   onOpenUpdateDownload,
   onConnectSelectedApps,
@@ -395,6 +399,7 @@ export function Settings({
               onProbe={onProbeProvider}
               onOpenProviderSetup={onOpenProviderSetup}
               {...(onCancelProviderSetup ? { onCancelProviderSetup } : {})}
+              {...(onSaveApiKey && onClearApiKey ? { onSaveApiKey, onClearApiKey } : {})}
               onOpenCloudSettings={() => setSection('apps')}
             />
           ) : null}
