@@ -441,8 +441,13 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   phone turn (`fromPhone`), so `trustForTurn` resolves to `ask` regardless of Full bypass and
   task grants are unavailable, exactly as for the phone remote. The relay texts the final answer, pending
   questions and "needs your OK on your Mac" notices back to the same number. `STOP` cancels, `NEW`
-  starts a fresh thread. Settings uses one validated `messages.relay` preload route; the relay
-  exposes no approval by text, generic IPC, shell or credential path.
+  starts a fresh thread. Photos and files in a text are granted to that thread through
+  `attachments.drop` from Messages' own attachment copies. Saved results (generated attachments)
+  of the finished turn are read with `readGeneratedResult`, staged in a private temporary folder
+  and sent back with Messages. With "Text me when scheduled tasks finish" on (the default), scheduled
+  turns of the texting assistant that start after Sia opens are texted to the first number when
+  they finish, ask a question or wait for approval. Settings uses one validated `messages.relay`
+  preload route; the relay exposes no approval by text, generic IPC, shell or credential path.
 
 - **Phone remote** is an optional, separate local web surface built into `out/remote`.
   `PhoneRemote` ports Notch's `/t/<token>/` command/state/cancel/outbox/vault/note flow, with

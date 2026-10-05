@@ -139,6 +139,19 @@ export function TextSiaSettings({
           </button>
         </div>
       )}
+      {state && (
+        <label className={phone.toggle}>
+          <input
+            type="checkbox"
+            checked={state.proactive}
+            disabled={pending}
+            onChange={(event) =>
+              void run({ operation: 'preferences', proactive: event.target.checked })
+            }
+          />
+          Text me when scheduled tasks finish or need me
+        </label>
+      )}
       {state && <p className={phone.note}>{state.detail}</p>}
       <p className={phone.note}>
         Only iMessages from your numbers reach Sia. Anything that changes your Mac or accounts

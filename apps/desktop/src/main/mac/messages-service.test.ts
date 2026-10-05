@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -113,6 +113,8 @@ describe('MessagesService', () => {
       CREATE TABLE chat (ROWID INTEGER PRIMARY KEY, guid TEXT, display_name TEXT,
         chat_identifier TEXT, style INTEGER);
       CREATE TABLE chat_message_join (chat_id INTEGER, message_id INTEGER);
+      CREATE TABLE attachment (ROWID INTEGER PRIMARY KEY, filename TEXT);
+      CREATE TABLE message_attachment_join (message_id INTEGER, attachment_id INTEGER);
       INSERT INTO handle VALUES (1, '+15551234567');
       INSERT INTO chat VALUES (1, 'iMessage;-;+15551234567', '', '+15551234567', 45);
       INSERT INTO chat VALUES (2, 'iMessage;+;chat1', 'Family', 'chat1', 43);
@@ -122,13 +124,21 @@ describe('MessagesService', () => {
       INSERT INTO message VALUES (4, 'in a group', NULL, 1, 0, 0, 'iMessage', 0, 0);
       INSERT INTO message VALUES (5, 'Loved “hello Sia”', NULL, 1, 0, 0, 'iMessage', 0, 2000);
       INSERT INTO message VALUES (6, 'note to self', NULL, 0, 0, 1, 'iMessage', 0, 0);
-      INSERT INTO chat_message_join VALUES (1, 1), (1, 2), (1, 3), (2, 4), (1, 5), (1, 6);
+      INSERT INTO message VALUES (7, '￼', NULL, 1, 0, 0, 'iMessage', 0, 0);
+      INSERT INTO chat_message_join VALUES (1, 1), (1, 2), (1, 3), (2, 4), (1, 5), (1, 6), (1, 7);
     `);
+    const photo = join(root, 'IMG_1.heic');
+    writeFileSync(photo, 'photo');
+    db.prepare('INSERT INTO attachment VALUES (1, ?), (2, ?)').run(
+      photo,
+      join(root, 'gone.png'),
+    );
+    db.exec('INSERT INTO message_attachment_join VALUES (7, 1), (7, 2)');
     db.close();
     const service = new MessagesService({ databasePath: path, platform: 'darwin' });
-    expect(service.latestRowId()).toBe(6);
+    expect(service.latestRowId()).toBe(7);
     const { cursor, messages } = service.inbound(1, 50);
-    expect(cursor).toBe(6);
+    expect(cursor).toBe(7);
     expect(messages).toEqual([
       {
         rowId: 2,
@@ -136,6 +146,7 @@ describe('MessagesService', () => {
         chatIdentifier: '+15551234567',
         fromMe: false,
         text: 'hello Sia',
+        attachments: [],
       },
       {
         rowId: 6,
@@ -143,7 +154,29 @@ describe('MessagesService', () => {
         chatIdentifier: '+15551234567',
         fromMe: true,
         text: 'note to self',
+        attachments: [],
+      },
+      {
+        rowId: 7,
+        handle: '+15551234567',
+        chatIdentifier: '+15551234567',
+        fromMe: false,
+        text: '',
+        attachments: [photo],
       },
     ]);
+  });
+
+  it('sends a file through Messages as a POSIX file argument', async () => {
+    const runOsascript = vi.fn(async (_script: string, _argv: readonly string[]) => undefined);
+    const service = new MessagesService({
+      databasePath: '/missing',
+      platform: 'darwin',
+      runOsascript,
+    });
+    await service.sendFile('+15551234567', '/tmp/sia-text-1/plan.pdf');
+    const [script, argv] = runOsascript.mock.calls[0]!;
+    expect(script).toContain('send (POSIX file (item 2 of argv)) to targetBuddy');
+    expect(argv).toEqual(['+15551234567', '/tmp/sia-text-1/plan.pdf']);
   });
 });

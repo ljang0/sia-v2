@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { promisify } from 'node:util';
 
@@ -28,6 +28,8 @@ export interface InboundMessage {
   chatIdentifier: string;
   fromMe: boolean;
   text: string;
+  /** Absolute paths of photos and files sent with the message (Messages' own copies). */
+  attachments: string[];
 }
 
 export interface MessagesServiceOptions {
@@ -173,23 +175,68 @@ export class MessagesService {
           Number(row.associated_type ?? 0) !== 0
         )
           continue;
-        const text =
-          typeof row.text === 'string' && row.text.length
+        const attachments = this.#attachments(database, Number(row.row_id));
+        // U+FFFC marks where an attachment sits inline; it is not part of the text.
+        const text = (
+          (typeof row.text === 'string' && row.text.length
             ? row.text
-            : decodeAttributedBody(row.attributed_body);
-        if (!text?.trim()) continue;
+            : decodeAttributedBody(row.attributed_body)) ?? ''
+        )
+          .replaceAll('\uFFFC', '')
+          .trim();
+        if (!text && !attachments.length) continue;
         messages.push({
           rowId: Number(row.row_id),
           handle: String(row.handle ?? ''),
           chatIdentifier: String(row.chat_identifier ?? ''),
           fromMe: Boolean(row.from_me),
           text,
+          attachments,
         });
       }
       return { cursor, messages };
     } finally {
       database.close();
     }
+  }
+
+  #attachments(database: DatabaseSync, rowId: number): string[] {
+    try {
+      const rows = database
+        .prepare(
+          `SELECT attachment.filename AS filename
+           FROM message_attachment_join
+           JOIN attachment ON attachment.ROWID = message_attachment_join.attachment_id
+           WHERE message_attachment_join.message_id = ?
+           LIMIT 10`,
+        )
+        .all(rowId) as { filename?: unknown }[];
+      return rows
+        .map(({ filename }) => (typeof filename === 'string' ? filename : ''))
+        .filter(Boolean)
+        .map((filename) =>
+          filename.startsWith('~/') ? join(homedir(), filename.slice(2)) : filename,
+        )
+        .filter((path) => isAbsolute(path) && existsSync(path));
+    } catch {
+      // Older or partial databases without attachment tables still deliver text.
+      return [];
+    }
+  }
+
+  /** Sends a file through the Messages app to an already-approved recipient. */
+  async sendFile(recipient: string, path: string): Promise<void> {
+    if (this.#platform !== 'darwin') throw new Error('Messages is available on macOS only.');
+    const script = [
+      'on run argv',
+      '  tell application "Messages"',
+      '    set targetService to 1st account whose service type = iMessage',
+      '    set targetBuddy to participant (item 1 of argv) of targetService',
+      '    send (POSIX file (item 2 of argv)) to targetBuddy',
+      '  end tell',
+      'end run',
+    ].join('\n');
+    await this.#runOsascript(script, [recipient, path]);
   }
 
   /** Sends through the Messages app; the exact text and recipient were already approved. */

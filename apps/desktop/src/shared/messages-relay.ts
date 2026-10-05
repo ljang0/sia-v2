@@ -14,6 +14,7 @@ export const messagesRelayCommand = z.discriminatedUnion('operation', [
   z
     .object({ operation: z.literal('untrust'), handle: z.string().trim().min(1).max(100) })
     .strict(),
+  z.object({ operation: z.literal('preferences'), proactive: z.boolean() }).strict(),
 ]);
 export type MessagesRelayCommand = z.infer<typeof messagesRelayCommand>;
 
@@ -32,6 +33,8 @@ export interface MessagesRelaySettings {
   running: boolean;
   agentId?: string;
   trusted: TrustedContact[];
+  /** Text your first number when scheduled tasks finish or need you. */
+  proactive: boolean;
   access: 'ready' | 'needs_full_disk_access' | 'unavailable';
   detail: string;
 }

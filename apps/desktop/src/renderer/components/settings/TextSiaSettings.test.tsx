@@ -12,6 +12,7 @@ it('adds your number, turns texting on for the chosen assistant, and turns it of
     enabled: false,
     running: false,
     trusted: [],
+    proactive: true,
     access: 'ready',
     detail: 'Add your phone number to text Sia from anywhere.',
   };

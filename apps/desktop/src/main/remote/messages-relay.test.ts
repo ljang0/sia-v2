@@ -19,6 +19,7 @@ function harness() {
   let rows: InboundMessage[] = [];
   let sequence = 0;
   const sent: { to: string; text: string }[] = [];
+  const files: { to: string; name: string }[] = [];
   const invoke = vi.fn(async (method: string, input: Record<string, string>) => {
     if (method === 'threads.create') {
       const id = `thread-${snapshot.threads.length + 1}`;
@@ -45,6 +46,14 @@ function harness() {
       });
       return { turnId, snapshot };
     }
+    if (method === 'attachments.drop') {
+      return {
+        attachments: (input.paths as unknown as string[]).map((path, index) => ({
+          id: `attachment-${index}`,
+          name: path.split('/').at(-1),
+        })),
+      };
+    }
     if (method === 'threads.cancel') {
       snapshot.threads.find(({ id }) => id === input.threadId)!.status = 'idle';
       return snapshot;
@@ -55,6 +64,10 @@ function harness() {
     snapshot: () => snapshot,
     invoke,
     remoteAccessAllowed: () => true,
+    readGeneratedResult: vi.fn(async (_threadId: string, attachmentId: string) => ({
+      name: `${attachmentId}.pdf`,
+      data: Buffer.from('%PDF'),
+    })),
     subscribe: (listener: (event: DesktopPushEvent) => void) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -79,18 +92,28 @@ function harness() {
       send: async (to: string, text: string) => {
         sent.push({ to, text });
       },
+      sendFile: async (to: string, path: string) => {
+        files.push({ to, name: path.split('/').at(-1)! });
+      },
     },
     ackAfterMs: 5000,
     now: () => now,
   });
   relay.initialize();
-  const text = (rowId: number, body: string, from = ME, fromMe = false) => {
+  const text = (
+    rowId: number,
+    body: string,
+    from = ME,
+    fromMe = false,
+    attachments: string[] = [],
+  ) => {
     rows.push({
       rowId,
       handle: fromMe ? '' : from,
       chatIdentifier: from,
       fromMe,
       text: body,
+      attachments,
     });
   };
   const emit = () => {
@@ -119,6 +142,7 @@ function harness() {
     relay,
     snapshot,
     sent,
+    files,
     invoke,
     controller,
     text,
@@ -266,5 +290,84 @@ describe('MessagesRelay', () => {
     const settings = await h.relay.configure({ operation: 'untrust', handle: ME });
     expect(settings).toMatchObject({ enabled: false, running: false, trusted: [] });
     expect(h.records.get('messages-relay/settings')).toMatchObject({ threads: {} });
+  });
+
+  it('passes photos from a text to Sia as attachments', async () => {
+    const h = harness();
+    await h.ready();
+    h.text(101, '', ME, false, ['/Users/me/Library/Messages/Attachments/IMG_1.heic']);
+    await h.relay.poll();
+    expect(h.invoke).toHaveBeenCalledWith('attachments.drop', {
+      threadId: 'thread-1',
+      paths: ['/Users/me/Library/Messages/Attachments/IMG_1.heic'],
+    });
+    expect(h.invoke).toHaveBeenCalledWith('threads.send', {
+      threadId: 'thread-1',
+      text: '',
+      fromPhone: true,
+      attachmentIds: ['attachment-0'],
+    });
+  });
+
+  it('sends saved results back as iMessage attachments after the reply', async () => {
+    const h = harness();
+    await h.ready();
+    h.text(101, 'Make me a PDF of the plan');
+    await h.relay.poll();
+    h.snapshot.timeline.push({
+      id: 'answer',
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      sequence: 99,
+      kind: 'assistant',
+      text: 'Here it is.',
+      attachments: [{ id: 'result-1', name: 'plan.pdf', kind: 'file', generated: true }],
+      timestamp: '',
+    } as never);
+    h.snapshot.threads[0]!.status = 'idle';
+    h.emit();
+    await h.relay.flush();
+    expect(h.sent.at(-1)!.text).toBe(`${REPLY_PREFIX}Here it is.`);
+    expect(h.controller.readGeneratedResult).toHaveBeenCalledWith('thread-1', 'result-1');
+    expect(h.files).toEqual([{ to: ME, name: 'result-1.pdf' }]);
+  });
+
+  it('texts your first number when a scheduled task finishes, unless turned off', async () => {
+    const h = harness();
+    await h.ready();
+    const schedule = (id: string, turnId: string) => {
+      h.snapshot.threads.push({
+        id,
+        agentId: AGENT,
+        title: 'Morning brief',
+        status: 'running',
+      } as never);
+      h.snapshot.timeline.push({
+        id: `u-${turnId}`,
+        threadId: id,
+        turnId,
+        sequence: 50,
+        kind: 'user',
+        text: 'Brief me',
+        scheduleRunId: `run-${turnId}`,
+        timestamp: new Date(Date.now() + 1000).toISOString(),
+      } as never);
+      h.emit();
+    };
+    schedule('scheduled-1', 'turn-s1');
+    h.finish('scheduled-1', 'Three meetings today.');
+    await h.relay.flush();
+    expect(h.sent.at(-1)).toEqual({
+      to: ME,
+      text: `${REPLY_PREFIX}Scheduled task “Morning brief”: Three meetings today.`,
+    });
+    const count = h.sent.length;
+    expect(
+      (await h.relay.configure({ operation: 'preferences', proactive: false })).proactive,
+    ).toBe(false);
+    schedule('scheduled-2', 'turn-s2');
+    h.finish('scheduled-2', 'Nothing today.');
+    await h.relay.flush();
+    expect(h.sent).toHaveLength(count);
   });
 });

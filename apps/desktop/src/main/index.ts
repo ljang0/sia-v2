@@ -703,6 +703,7 @@ async function performApplicationCreation(): Promise<void> {
             latestRowId: () => 0,
             inbound: (cursor) => ({ cursor, messages: [] }),
             send: async () => undefined,
+            sendFile: async () => undefined,
           }
         : messagesService,
     });

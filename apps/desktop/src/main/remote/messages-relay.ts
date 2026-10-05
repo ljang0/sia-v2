@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { basename, join } from 'node:path';
 import type { DesktopController } from '../controller/desktop-controller.js';
 import type { MessagesService } from '../mac/messages-service.js';
 import type { RecordRepository } from '../storage/persistence.js';
@@ -20,6 +23,8 @@ interface Config {
   agentId?: string;
   trusted: TrustedContact[];
   cursor?: number;
+  /** Text the first number when scheduled tasks finish or need the person. */
+  proactive?: boolean;
   /** Trusted handle → the thread that continues its conversation. */
   threads: Record<string, string>;
 }
@@ -29,14 +34,16 @@ interface Tracked {
   started: number;
   acknowledged: boolean;
   notified: Set<string>;
+  /** Started by a schedule rather than a text; results are labelled with the task title. */
+  schedule?: string;
 }
 interface Dependencies {
   controller: Pick<
     DesktopController,
-    'snapshot' | 'invoke' | 'remoteAccessAllowed' | 'subscribe'
+    'snapshot' | 'invoke' | 'remoteAccessAllowed' | 'subscribe' | 'readGeneratedResult'
   >;
   repository: RecordRepository;
-  messages: Pick<MessagesService, 'status' | 'latestRowId' | 'inbound' | 'send'>;
+  messages: Pick<MessagesService, 'status' | 'latestRowId' | 'inbound' | 'send' | 'sendFile'>;
   intervalMs?: number;
   ackAfterMs?: number;
   now?: () => number;
@@ -59,6 +66,8 @@ export class MessagesRelay {
   #polling = false;
   #detail = '';
   #disposed = false;
+  #since = new Date().toISOString();
+  #seenScheduled = new Set<string>();
 
   constructor(deps: Dependencies) {
     this.#deps = deps;
@@ -112,6 +121,8 @@ export class MessagesRelay {
         ...this.#config.trusted.filter((entry) => entry.handle !== handle),
         { handle, label: command.label || handle },
       ];
+    } else if (command.operation === 'preferences') {
+      this.#config.proactive = command.proactive;
     } else if (command.operation === 'untrust') {
       const handle = normalizeHandle(command.handle) ?? command.handle;
       this.#config.trusted = this.#config.trusted.filter((entry) => entry.handle !== handle);
@@ -136,7 +147,7 @@ export class MessagesRelay {
       }
       for (const message of messages) {
         const contact = this.#sender(message);
-        if (contact) await this.#receive(contact, message.text.trim());
+        if (contact) await this.#receive(contact, message.text.trim(), message.attachments);
       }
       this.#detail = '';
     } catch (error) {
@@ -155,6 +166,7 @@ export class MessagesRelay {
       running,
       ...(this.#config.agentId ? { agentId: this.#config.agentId } : {}),
       trusted: this.#config.trusted.map((entry) => ({ ...entry })),
+      proactive: this.#config.proactive ?? true,
       access,
       detail:
         this.#detail ||
@@ -204,11 +216,20 @@ export class MessagesRelay {
    * In that self chat Messages can record both a sent and a received copy of the same text, and
    * Sia's own replies land there too, so those are skipped.
    */
-  #sender(message: { handle: string; chatIdentifier: string; fromMe: boolean; text: string }) {
+  #sender(message: {
+    handle: string;
+    chatIdentifier: string;
+    fromMe: boolean;
+    text: string;
+    attachments: string[];
+  }) {
     const handle = normalizeHandle(message.fromMe ? message.chatIdentifier : message.handle);
     const contact = handle ? this.#trusted(handle) : undefined;
     if (!contact) return undefined;
-    const text = message.text.trim();
+    const text = [
+      message.text.trim(),
+      ...message.attachments.map((path) => basename(path)),
+    ].join('\n');
     if (text.startsWith(REPLY_PREFIX.trim()) || this.#sent.includes(text)) return undefined;
     const now = this.#now();
     this.#recent = this.#recent.filter((entry) => now - entry.at < 60000);
@@ -218,8 +239,12 @@ export class MessagesRelay {
     return contact;
   }
 
-  async #receive(contact: TrustedContact, text: string): Promise<void> {
-    if (!text) return;
+  async #receive(
+    contact: TrustedContact,
+    text: string,
+    attachments: readonly string[] = [],
+  ): Promise<void> {
+    if (!text && !attachments.length) return;
     const handle = contact.handle;
     const snapshot = this.#deps.controller.snapshot();
     const threadId = this.#config.threads[handle];
@@ -262,17 +287,26 @@ export class MessagesRelay {
         (
           await this.#deps.controller.invoke('threads.create', {
             agentId: this.#config.agentId!,
-            title: `Text: ${text.slice(0, 70)}`,
+            title: `Text: ${(text || 'Photo').slice(0, 70)}`,
           })
         ).threadId;
       if (target !== threadId) {
         this.#config.threads[handle] = target;
         this.#save();
       }
+      const attachmentIds = attachments.length
+        ? (
+            await this.#deps.controller.invoke('attachments.drop', {
+              threadId: target,
+              paths: [...attachments],
+            })
+          ).attachments.map(({ id }) => id)
+        : [];
       const { turnId } = await this.#deps.controller.invoke('threads.send', {
         threadId: target,
         text,
         fromPhone: true,
+        ...(attachmentIds.length ? { attachmentIds } : {}),
       });
       this.#tracked.set(target, {
         handle,
@@ -296,7 +330,37 @@ export class MessagesRelay {
     );
   }
 
+  /** Scheduled turns for the texting assistant, started after Sia opened, are texted too. */
+  #watchSchedules(snapshot: DesktopSnapshot): void {
+    const handle = this.#config.trusted[0]?.handle;
+    if (!handle || !(this.#config.proactive ?? true) || !this.#available()) return;
+    for (const item of snapshot.timeline) {
+      if (
+        item.kind !== 'user' ||
+        !item.scheduleRunId ||
+        !item.turnId ||
+        item.timestamp < this.#since ||
+        this.#seenScheduled.has(item.turnId)
+      )
+        continue;
+      this.#seenScheduled.add(item.turnId);
+      const thread = snapshot.threads.find(({ id }) => id === item.threadId);
+      if (!thread || thread.agentId !== this.#config.agentId || this.#tracked.has(thread.id))
+        continue;
+      this.#tracked.set(thread.id, {
+        handle,
+        turnId: item.turnId,
+        started: this.#now(),
+        // Scheduled work is quiet until it finishes or needs the person.
+        acknowledged: true,
+        notified: new Set(),
+        schedule: thread.title,
+      });
+    }
+  }
+
   #observe(snapshot: DesktopSnapshot): void {
+    this.#watchSchedules(snapshot);
     for (const [threadId, tracked] of this.#tracked) {
       const thread = snapshot.threads.find(({ id }) => id === threadId);
       if (!thread) {
@@ -342,7 +406,47 @@ export class MessagesRelay {
         continue;
       }
       this.#tracked.delete(threadId);
-      this.#reply(tracked.handle, this.#result(snapshot, threadId, tracked.turnId));
+      const result = this.#result(snapshot, threadId, tracked.turnId);
+      this.#reply(
+        tracked.handle,
+        tracked.schedule ? `Scheduled task “${tracked.schedule}”: ${result}` : result,
+      );
+      this.#sendResultFiles(snapshot, threadId, tracked);
+    }
+  }
+
+  /** Saved results from the finished turn follow the reply as iMessage attachments. */
+  #sendResultFiles(snapshot: DesktopSnapshot, threadId: string, tracked: Tracked): void {
+    const files = snapshot.timeline
+      .filter(
+        (item) =>
+          item.threadId === threadId &&
+          item.turnId === tracked.turnId &&
+          item.kind === 'assistant',
+      )
+      .flatMap((item) => item.attachments ?? [])
+      .filter((file) => file.generated)
+      .slice(0, 3);
+    for (const file of files) {
+      this.#outgoing = this.#outgoing
+        .then(async () => {
+          const { name, data } = await this.#deps.controller.readGeneratedResult(
+            threadId,
+            file.id,
+          );
+          const folder = await mkdtemp(join(tmpdir(), 'sia-text-'));
+          try {
+            const path = join(folder, basename(name));
+            await writeFile(path, data, { mode: 0o600 });
+            await this.#deps.messages.sendFile(tracked.handle, path);
+          } finally {
+            // Give Messages time to copy the file into its own attachment store.
+            setTimeout(() => void rm(folder, { recursive: true, force: true }), 60000).unref();
+          }
+        })
+        .catch(() => {
+          this.#detail = `${file.name} could not be sent by text. It is saved in Sia on your Mac.`;
+        });
     }
   }
 
