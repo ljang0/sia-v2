@@ -21,7 +21,7 @@ import {
   type TextSize,
   type ThemePreference,
 } from '../../shared/display.js';
-import { EMPTY_CONNECTIONS } from './connection-ids.js';
+import { EMPTY_CONNECTIONS, isGoogleConnection } from './connection-ids.js';
 import { legacyResolvedExecutionTarget } from './execution-routes.js';
 import { LEGACY_RECURRING_RUN_LIMIT, scheduleRuleFields } from './schedule-rules.js';
 
@@ -191,8 +191,35 @@ export function recoverPersistedState(state: PersistedState): PersistedState {
   const recoveredConnections = new Map(
     recovered.connections.map((connection) => [connection.id, connection]),
   );
+  // Calendar and Tasks joined the one Google Workspace grant later. Give saved Workspace grants
+  // their rows so the unified grant is not mistaken for older per-app grants; the cloud reports
+  // per tool whether the grant includes each scope.
+  const workspaceGrant = recovered.connections.find(
+    (connection) =>
+      isGoogleConnection(connection.id) && connection.connectionId?.startsWith('gw_'),
+  );
+  const workspaceOwner = workspaceGrant
+    ? recovered.connectionOwners?.[workspaceGrant.id]
+    : undefined;
   recovered.connections = EMPTY_CONNECTIONS.map((fallback) => {
-    const connection = recoveredConnections.get(fallback.id) ?? fallback;
+    let connection = recoveredConnections.get(fallback.id) ?? fallback;
+    if (
+      !recoveredConnections.has(fallback.id) &&
+      workspaceGrant &&
+      isGoogleConnection(fallback.id)
+    ) {
+      connection = {
+        ...fallback,
+        status: workspaceGrant.status,
+        connectionId: workspaceGrant.connectionId!,
+        ...(workspaceGrant.account ? { account: workspaceGrant.account } : {}),
+        ...(workspaceGrant.googleAccess ? { googleAccess: workspaceGrant.googleAccess } : {}),
+        ...(workspaceGrant.detail ? { detail: workspaceGrant.detail } : {}),
+      };
+      if (workspaceOwner && recovered.connectionOwners) {
+        recovered.connectionOwners[fallback.id] = workspaceOwner;
+      }
+    }
     return connection.status === 'connecting'
       ? {
           ...connection,

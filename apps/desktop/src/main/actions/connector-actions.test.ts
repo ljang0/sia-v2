@@ -215,9 +215,8 @@ describe('DesktopActionBackend connector boundary', () => {
         result: { message_id: 'opaque-message' },
       })),
     };
-    const resolveConnectionId = vi.fn(
-      (app: 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack', selector: string) =>
-        app === 'slack' && selector === 'slack' ? 'connection-9' : undefined,
+    const resolveConnectionId = vi.fn((app: string, selector: string) =>
+      app === 'slack' && selector === 'slack' ? 'connection-9' : undefined,
     );
     const backend = new DesktopActionBackend({
       cua: fakeCua(async () => ({})),

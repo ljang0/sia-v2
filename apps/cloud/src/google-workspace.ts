@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import type { S3Client } from '@aws-sdk/client-s3';
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import type { GoogleAccessLevel, ToolName } from './contracts.js';
+import { TOOL_POLICIES, type GoogleAccessLevel, type ToolName } from './contracts.js';
 import { CloudError, isRecord } from './domain.js';
 import { ConnectorReconnectRequiredError } from './ports.js';
 import type {
@@ -16,6 +16,8 @@ import type {
 } from './ports.js';
 import {
   boundedJson,
+  compactCalendarEvent,
+  compactTask,
   documentEndIndex,
   extractDocumentTabs,
   extractDocumentText,
@@ -27,14 +29,17 @@ import {
   optionalStringField,
   parseSlides,
   recordId,
+  recordInput,
+  recordsFromArray,
   requiredStringField,
   stringInput,
 } from './google-workspace/payloads.js';
 import {
   googleAccessLevel,
   missingRequiredScopes,
+  optionalScopeService,
+  requestedScopesForAccess,
   scopeIsGranted,
-  scopesForAccess,
   toolScopeRequirements,
 } from './google-workspace/scopes.js';
 
@@ -52,6 +57,7 @@ const GOOGLE_API_ORIGINS = new Set([
   'https://docs.googleapis.com',
   'https://sheets.googleapis.com',
   'https://slides.googleapis.com',
+  'https://tasks.googleapis.com',
 ]);
 
 /** Backward-compatible name for the legacy all-at-once grant. */
@@ -119,7 +125,7 @@ export class GoogleWorkspaceConnector {
       client_id: config.clientId,
       redirect_uri: config.redirectUri,
       response_type: 'code',
-      scope: scopesForAccess(access).join(' '),
+      scope: requestedScopesForAccess(access).join(' '),
       access_type: 'offline',
       include_granted_scopes: 'true',
       prompt: 'consent select_account',
@@ -243,13 +249,24 @@ export class GoogleWorkspaceConnector {
       (alternatives) =>
         !alternatives.some((scope) => scopeIsGranted(token.grantedScopes, scope)),
     );
-    if (missing) {
+    if (!missing) return;
+    const service = optionalScopeService(tool);
+    const editingDisabled =
+      TOOL_POLICIES[tool].mutation && googleAccessLevel(token.grantedScopes) === 'read_only';
+    // Grants saved before Calendar and Tasks existed lack those scopes. Enabling editing already
+    // requests them, so only a grant that cannot be fixed that way is asked to reconnect.
+    if (service && !editingDisabled) {
       throw new CloudError(
         409,
-        'google_access_upgrade_required',
-        'Enable Google editing and sending in Connected apps, then try again.',
+        'google_scope_missing',
+        `Reconnect Google Workspace in Settings to let Sia use ${service}.`,
       );
     }
+    throw new CloudError(
+      409,
+      'google_access_upgrade_required',
+      'Enable Google editing and sending in Connected apps, then try again.',
+    );
   }
 
   async disconnect(connectionId: string): Promise<void> {
@@ -669,6 +686,120 @@ export class GoogleWorkspaceConnector {
         );
         return { data, opaqueResourceIds: [presentationId] };
       }
+      case 'calendar.list_events': {
+        const calendarId = stringInput(input, 'calendar_id');
+        const timeMin = typeof input.time_min === 'string' ? input.time_min : undefined;
+        const timeMax = typeof input.time_max === 'string' ? input.time_max : undefined;
+        const data = await this.#googleJson(
+          accessToken,
+          googleUrl(calendarEventsUrl(calendarId), {
+            singleEvents: true,
+            orderBy: 'startTime',
+            maxResults: numberInput(input, 'max_results'),
+            ...(timeMin === undefined && timeMax === undefined
+              ? { timeMin: this.#now().toISOString() }
+              : {}),
+            ...(timeMin === undefined ? {} : { timeMin }),
+            ...(timeMax === undefined ? {} : { timeMax }),
+            ...(typeof input.query === 'string' ? { q: input.query } : {}),
+          }),
+          { method: 'GET' },
+        );
+        const events = recordsFromArray(data.items).map(compactCalendarEvent);
+        return {
+          data: {
+            events,
+            ...(typeof data.nextPageToken === 'string' ? { hasMore: true } : {}),
+          },
+          opaqueResourceIds: idsFromArray(events),
+        };
+      }
+      case 'calendar.read_event': {
+        const eventId = stringInput(input, 'event_id');
+        const event = await this.#googleJson(
+          accessToken,
+          calendarEventsUrl(stringInput(input, 'calendar_id'), eventId),
+          { method: 'GET' },
+        );
+        const organizer = isRecord(event.organizer) ? event.organizer : {};
+        return {
+          data: {
+            ...compactCalendarEvent(event),
+            description: event.description,
+            organizer: organizer.email,
+            hangoutLink: event.hangoutLink,
+          },
+          opaqueResourceIds: [eventId],
+        };
+      }
+      case 'calendar.create_event': {
+        const event = await this.#googleJson(
+          accessToken,
+          googleUrl(calendarEventsUrl(stringInput(input, 'calendar_id')), {
+            sendUpdates: stringInput(input, 'send_updates'),
+          }),
+          { method: 'POST', body: JSON.stringify(recordInput(input, 'event')) },
+        );
+        return { data: compactCalendarEvent(event), opaqueResourceIds: recordId(event) };
+      }
+      case 'calendar.update_event': {
+        const eventId = stringInput(input, 'event_id');
+        // Google notifies only the event's existing guests, so an event without guests emails no one.
+        const event = await this.#googleJson(
+          accessToken,
+          googleUrl(calendarEventsUrl(stringInput(input, 'calendar_id'), eventId), {
+            sendUpdates: 'all',
+          }),
+          { method: 'PATCH', body: JSON.stringify(recordInput(input, 'patch')) },
+        );
+        return { data: compactCalendarEvent(event), opaqueResourceIds: [eventId] };
+      }
+      case 'calendar.delete_event': {
+        const eventId = stringInput(input, 'event_id');
+        await this.#googleJson(
+          accessToken,
+          googleUrl(calendarEventsUrl(stringInput(input, 'calendar_id'), eventId), {
+            sendUpdates: 'all',
+          }),
+          { method: 'DELETE' },
+        );
+        return { data: { id: eventId, deleted: true }, opaqueResourceIds: [eventId] };
+      }
+      case 'tasks.list': {
+        const showCompleted = input.show_completed === true;
+        const data = await this.#googleJson(
+          accessToken,
+          googleUrl(tasksUrl(stringInput(input, 'list_id')), {
+            maxResults: numberInput(input, 'max_results'),
+            showCompleted,
+            // Tasks completed in Google's own apps are hidden unless this is also set.
+            showHidden: showCompleted,
+          }),
+          { method: 'GET' },
+        );
+        const tasks = recordsFromArray(data.items).map(compactTask);
+        return {
+          data: { tasks, ...(typeof data.nextPageToken === 'string' ? { hasMore: true } : {}) },
+          opaqueResourceIds: idsFromArray(tasks),
+        };
+      }
+      case 'tasks.create': {
+        const task = await this.#googleJson(
+          accessToken,
+          tasksUrl(stringInput(input, 'list_id')),
+          { method: 'POST', body: JSON.stringify(recordInput(input, 'task')) },
+        );
+        return { data: compactTask(task), opaqueResourceIds: recordId(task) };
+      }
+      case 'tasks.update': {
+        const taskId = stringInput(input, 'task_id');
+        const task = await this.#googleJson(
+          accessToken,
+          tasksUrl(stringInput(input, 'list_id'), taskId),
+          { method: 'PATCH', body: JSON.stringify(recordInput(input, 'patch')) },
+        );
+        return { data: compactTask(task), opaqueResourceIds: [taskId] };
+      }
       default:
         throw new CloudError(
           400,
@@ -825,6 +956,16 @@ export class GoogleWorkspaceConnector {
     }
     return body;
   }
+}
+
+function calendarEventsUrl(calendarId: string, eventId?: string): string {
+  const base = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
+  return eventId === undefined ? base : `${base}/${encodeURIComponent(eventId)}`;
+}
+
+function tasksUrl(listId: string, taskId?: string): string {
+  const base = `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(listId)}/tasks`;
+  return taskId === undefined ? base : `${base}/${encodeURIComponent(taskId)}`;
 }
 
 function oauthStateContext(connectionId: string, userId: string): Record<string, string> {

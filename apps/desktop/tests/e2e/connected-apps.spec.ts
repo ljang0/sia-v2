@@ -113,9 +113,7 @@ test('core Sia opens first and optional setup connects every work app later', as
     await harness.page.getByRole('button', { name: 'Settings' }).click();
     await harness.page.getByRole('button', { name: 'More settings' }).click();
     await harness.page.getByRole('menuitem', { name: 'Connections' }).click();
-    await expect(
-      harness.page.getByText(/Google Workspace and Slack are optional/),
-    ).toBeVisible();
+    await expect(harness.page.getByText(/Every connection is optional/)).toBeVisible();
     await expect(harness.page.getByText('Work apps', { exact: true })).toBeVisible();
     for (const width of [1220, 900]) {
       await harness.page.setViewportSize({ width, height: 780 });
@@ -156,11 +154,16 @@ test('core Sia opens first and optional setup connects every work app later', as
       })
       .toEqual([
         { id: 'gmail', status: 'connected', enabled: true },
+        { id: 'calendar', status: 'connected', enabled: true },
         { id: 'drive', status: 'connected', enabled: true },
         { id: 'docs', status: 'connected', enabled: true },
         { id: 'sheets', status: 'connected', enabled: true },
         { id: 'slides', status: 'connected', enabled: true },
+        { id: 'tasks', status: 'connected', enabled: true },
         { id: 'slack', status: 'connected', enabled: true },
+        { id: 'outlook', status: 'disconnected', enabled: true },
+        { id: 'notion', status: 'disconnected', enabled: true },
+        { id: 'github', status: 'disconnected', enabled: true },
       ]);
     expect(harness.rendererErrors).toEqual([]);
   } finally {
@@ -206,11 +209,16 @@ test('a user can connect only a selected set of work apps later', async () => {
       })
       .toEqual([
         { id: 'gmail', status: 'connected', enabled: false },
+        { id: 'calendar', status: 'connected', enabled: true },
         { id: 'drive', status: 'connected', enabled: false },
         { id: 'docs', status: 'connected', enabled: true },
         { id: 'sheets', status: 'connected', enabled: false },
         { id: 'slides', status: 'connected', enabled: false },
+        { id: 'tasks', status: 'connected', enabled: true },
         { id: 'slack', status: 'connected', enabled: true },
+        { id: 'outlook', status: 'disconnected', enabled: true },
+        { id: 'notion', status: 'disconnected', enabled: true },
+        { id: 'github', status: 'disconnected', enabled: true },
       ]);
     await expect(harness.page.getByRole('button', { name: 'Enable Gmail' })).toBeVisible();
     await expect(

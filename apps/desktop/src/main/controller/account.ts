@@ -1,5 +1,5 @@
 import type { BridgeResultMap, DesktopSnapshot } from '../../shared/bridge.js';
-import { isGoogleConnection } from './connection-ids.js';
+import { isGoogleConnection, isLocalConnection } from './connection-ids.js';
 import type { ControllerContext } from './context.js';
 import { INITIAL_STATE } from './persisted-state.js';
 import { LOCAL_RESEARCH_IDENTITY } from './research-records.js';
@@ -372,6 +372,12 @@ export class CloudAccount {
         connection.detail = owner
           ? 'This grant belongs to another Sia cloud account.'
           : 'This legacy grant has no verifiable account owner; reconnect is blocked.';
+        continue;
+      }
+      if (isLocalConnection(connection.id)) {
+        // Signed in from this Mac; its tokens are verified when a tool next uses them.
+        connection.status = 'connected';
+        delete connection.detail;
         continue;
       }
       try {

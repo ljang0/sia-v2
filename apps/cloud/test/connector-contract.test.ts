@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { ToolName } from '../src/contracts.js';
+import { GOOGLE_DIRECT_TOOLS, type ToolName } from '../src/contracts.js';
 import {
   assertComposioContract,
   COMPOSIO_TOOL_SLUGS,
@@ -187,6 +187,117 @@ describe('canonical connector input mapping', () => {
       { presentationId: 'deck-1', markdown_text: '# Next steps' },
     ],
     [
+      'calendar.list_events',
+      {
+        time_min: '2026-10-05T00:00:00-04:00',
+        time_max: '2026-10-06T00:00:00-04:00',
+        query: 'standup',
+        limit: 10,
+        calendar_id: 'team@example.com',
+      },
+      {
+        calendar_id: 'team@example.com',
+        max_results: 10,
+        time_min: '2026-10-05T00:00:00-04:00',
+        time_max: '2026-10-06T00:00:00-04:00',
+        query: 'standup',
+      },
+    ],
+    ['calendar.list_events', {}, { calendar_id: 'primary', max_results: 25 }],
+    [
+      'calendar.read_event',
+      { resource_id: 'event-1' },
+      { calendar_id: 'primary', event_id: 'event-1' },
+    ],
+    [
+      'calendar.create_event',
+      {
+        summary: 'Design review',
+        start: '2026-10-05T10:00:00',
+        end: '2026-10-05T11:00:00',
+        description: 'Agenda',
+        location: 'Room 4',
+        attendees: ['first@example.com', 'second@example.com'],
+        time_zone: 'America/New_York',
+      },
+      {
+        calendar_id: 'primary',
+        send_updates: 'all',
+        event: {
+          summary: 'Design review',
+          start: { dateTime: '2026-10-05T10:00:00', timeZone: 'America/New_York' },
+          end: { dateTime: '2026-10-05T11:00:00', timeZone: 'America/New_York' },
+          description: 'Agenda',
+          location: 'Room 4',
+          attendees: [{ email: 'first@example.com' }, { email: 'second@example.com' }],
+        },
+      },
+    ],
+    [
+      'calendar.create_event',
+      { summary: 'Offsite', start: '2026-10-05', end: '2026-10-05', calendar_id: 'cal-2' },
+      {
+        calendar_id: 'cal-2',
+        send_updates: 'none',
+        event: {
+          summary: 'Offsite',
+          start: { date: '2026-10-05' },
+          end: { date: '2026-10-06' },
+        },
+      },
+    ],
+    [
+      'calendar.update_event',
+      {
+        resource_id: 'event-1',
+        start: '2026-10-05T15:00:00Z',
+        end: '2026-10-05T16:00:00Z',
+        location: '',
+      },
+      {
+        calendar_id: 'primary',
+        event_id: 'event-1',
+        patch: {
+          location: '',
+          start: { dateTime: '2026-10-05T15:00:00Z' },
+          end: { dateTime: '2026-10-05T16:00:00Z' },
+        },
+      },
+    ],
+    [
+      'calendar.delete_event',
+      { resource_id: 'event-1', calendar_id: 'primary' },
+      { calendar_id: 'primary', event_id: 'event-1' },
+    ],
+    ['tasks.list', {}, { list_id: '@default', show_completed: false, max_results: 50 }],
+    [
+      'tasks.list',
+      { list_id: 'list-1', show_completed: true, limit: 5 },
+      { list_id: 'list-1', show_completed: true, max_results: 5 },
+    ],
+    [
+      'tasks.create',
+      { title: 'Send notes', notes: 'To the team', due: '2026-10-07' },
+      {
+        list_id: '@default',
+        task: { title: 'Send notes', notes: 'To the team', due: '2026-10-07T00:00:00.000Z' },
+      },
+    ],
+    [
+      'tasks.update',
+      { task_id: 'task-1', list_id: 'list-1', completed: true },
+      { list_id: 'list-1', task_id: 'task-1', patch: { status: 'completed' } },
+    ],
+    [
+      'tasks.update',
+      { task_id: 'task-1', title: 'Send final notes', completed: false },
+      {
+        list_id: '@default',
+        task_id: 'task-1',
+        patch: { title: 'Send final notes', status: 'needsAction', completed: null },
+      },
+    ],
+    [
       'slack.search',
       { query: 'in:general launch', limit: 30 },
       { query: 'in:general launch', count: 30, auto_paginate: false },
@@ -306,6 +417,80 @@ describe('canonical connector input mapping', () => {
         }),
       hasCode('invalid_connector_input'),
     );
+  });
+
+  it('rejects ambiguous or malformed Calendar and Tasks input', () => {
+    const rejected: Array<
+      [Parameters<typeof mapCanonicalConnectorInput>[0], Record<string, unknown>]
+    > = [
+      ['calendar.list_events', { time_min: '2026-10-05T10:00:00' }],
+      ['calendar.list_events', { time_min: 'tomorrow' }],
+      [
+        'calendar.list_events',
+        { time_min: '2026-10-06T00:00:00Z', time_max: '2026-10-05T00:00:00Z' },
+      ],
+      ['calendar.list_events', { limit: 0 }],
+      ['calendar.list_events', { query: 'x'.repeat(1_001) }],
+      ['calendar.read_event', {}],
+      [
+        'calendar.create_event',
+        { summary: 'Mixed', start: '2026-10-05', end: '2026-10-05T11:00:00Z' },
+      ],
+      [
+        'calendar.create_event',
+        { summary: 'Backwards', start: '2026-10-05T11:00:00Z', end: '2026-10-05T10:00:00Z' },
+      ],
+      [
+        'calendar.create_event',
+        { summary: 'No offset', start: '2026-10-05T10:00:00', end: '2026-10-05T11:00:00' },
+      ],
+      [
+        'calendar.create_event',
+        { summary: 'Bad date', start: '2026-02-30', end: '2026-03-01' },
+      ],
+      [
+        'calendar.create_event',
+        {
+          summary: 'Bad zone',
+          start: '2026-10-05T10:00:00',
+          end: '2026-10-05T11:00:00',
+          time_zone: 'Mars/Olympus',
+        },
+      ],
+      [
+        'calendar.create_event',
+        {
+          summary: 'Crowd',
+          start: '2026-10-05',
+          end: '2026-10-06',
+          attendees: Array.from({ length: 51 }, (_, index) => `p${index}@example.com`),
+        },
+      ],
+      [
+        'calendar.create_event',
+        { summary: 'Guest', start: '2026-10-05', end: '2026-10-06', attendees: ['nobody'] },
+      ],
+      ['calendar.update_event', { resource_id: 'event-1' }],
+      ['calendar.update_event', { resource_id: 'event-1', time_zone: 'UTC', summary: 'x' }],
+      ['tasks.list', { show_completed: 'yes' }],
+      ['tasks.create', { title: 'Due', due: 'next week' }],
+      ['tasks.update', { task_id: 'task-1' }],
+      ['tasks.update', { task_id: 'task-1', completed: 'true' }],
+    ];
+    for (const [tool, input] of rejected) {
+      assert.throws(
+        () => mapCanonicalConnectorInput(tool, input),
+        hasCode('invalid_connector_input'),
+        `${tool} ${JSON.stringify(input)}`,
+      );
+    }
+  });
+
+  it('keeps Calendar and Tasks out of the Composio contract', () => {
+    for (const tool of GOOGLE_DIRECT_TOOLS) {
+      assert.equal(tool in COMPOSIO_TOOL_SLUGS, false);
+      assert.equal(tool in COMPOSIO_TOOL_VERSIONS, false);
+    }
   });
 
   it('validates Drive upload descriptors and rejects raw paths', () => {

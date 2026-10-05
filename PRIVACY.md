@@ -73,13 +73,21 @@ research batches. One optional Google Workspace OAuth grant starts with read-onl
 Drive, Docs, Sheets, and Slides. Editing and sending use a separate explicit upgrade. Refresh tokens
 are encrypted with AWS KMS in a credential vault separated from research records; the desktop never
 receives them. Slack access uses a separate provider-owned OAuth grant.
+
+Outlook, Notion, and GitHub connect directly from the Mac instead of through the control plane.
+Their OAuth tokens are encrypted with Sia's macOS Keychain key in a per-connection file under the
+local application data folder, never enter synced app state, the renderer, or the model, and are
+deleted when the person disconnects the app. Requests go straight from the Mac to Microsoft Graph,
+Notion's hosted MCP server, or the GitHub API. Removing Sia's access on the provider side remains
+available in each account's own app settings.
 Exact writes are bound to their complete input and either run automatically in autonomous mode or
 require confirmation when that setting is enabled. The desktop receives no AWS credentials.
 
 Research capture is off by default in local-only mode. Sia asks local users after they create their
 first agent. A Sia cloud sign-in is a research-release enrollment: the person must explicitly accept
 the current versioned consent to remain signed in, or decline and sign out. After acceptance, Sia
-offers independent **Connect Google** and **Connect Slack** actions. The five Google service controls
+offers independent **Connect Google** and **Connect Slack** actions, and Outlook, Notion, and GitHub
+can be connected separately. The seven Google service controls
 share the current Google grant, while the person may still choose which services the agent may use.
 Connection lifecycle records include the app, status, opaque connection identifier, and provider
 account label when available; OAuth URLs, authorization codes, and tokens are not retained in the
@@ -88,7 +96,7 @@ local trajectory or research bundles.
 The `alpha-research-v3-raw` consent retains the raw JSON events Sia observes during every completed,
 failed, or cancelled turn. This includes prompts, responses, surfaced reasoning, provider events,
 commands and output, tool names and arguments, tool results, approvals and answers, browser and
-computer events, Slack and Apple Messages results, paths and diffs, usage, errors, and captured
+computer events, Slack, Outlook, Notion, GitHub, and Apple Messages results, paths and diffs, usage, errors, and captured
 images. A turn that invokes a Google Workspace connector is excluded in full, including its prompt,
 connector result, and assistant response. Large eligible events are split into reconstructable
 chunks and batches are organized by

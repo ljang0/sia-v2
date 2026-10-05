@@ -8,7 +8,7 @@ import type {
   ToolName,
   VoiceTokenType,
 } from './contracts.js';
-import type { LegacyGoogleAppId } from './contracts.js';
+import type { ComposioToolName, LegacyGoogleAppId } from './contracts.js';
 
 export interface Clock {
   now(): Date;
@@ -402,8 +402,8 @@ export interface ComposioConfig {
   apiKey: string;
   baseUrl: string;
   authConfigIds: Record<LegacyGoogleAppId | 'slack', string>;
-  toolSlugs: Record<ToolName, string>;
-  toolVersions: Record<ToolName, string>;
+  toolSlugs: Record<ComposioToolName, string>;
+  toolVersions: Record<ComposioToolName, string>;
 }
 
 export interface GoogleOAuthConfig {

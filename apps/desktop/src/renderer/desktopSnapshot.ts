@@ -7,6 +7,7 @@ import type {
   ProviderStatus as BridgeProviderStatus,
   TimelineItemView,
 } from '../shared/bridge';
+import { isGoogleConnection } from '../shared/bridge/connections';
 import type {
   ActivityEvent,
   AgentSummary,
@@ -492,14 +493,22 @@ function mapProviderStatus(status: BridgeProviderStatus): ProviderStatus {
 function mapConnection(connection: DesktopSnapshot['connections'][number]): AppConnection {
   const allPermissions = {
     gmail: ['Search and read mail', 'Create drafts and send mail'],
+    calendar: ['See your events', 'Create, change, and cancel events'],
     drive: ['Find and read selected files', 'Upload and share files'],
     docs: ['Read document text', 'Create and append to documents'],
     sheets: ['Read bounded ranges', 'Create, update, and append values'],
     slides: ['Read presentation text', 'Create and append Markdown slides'],
+    tasks: ['See your tasks', 'Add, change, and complete tasks'],
     slack: ['Search and read messages', 'Post messages'],
+    outlook: ['Search and read mail', 'Draft, send, reply, and organize mail'],
+    notion: ['Search and read pages', 'Create pages, edit text, and comment'],
+    github: [
+      'Read repositories, issues, and pull requests',
+      'Open issues, pull requests, and comments',
+    ],
   }[connection.id];
   const permissions =
-    connection.id !== 'slack' && connection.googleAccess === 'read_only'
+    isGoogleConnection(connection.id) && connection.googleAccess === 'read_only'
       ? allPermissions.slice(0, 1)
       : allPermissions;
   return {
@@ -512,6 +521,8 @@ function mapConnection(connection: DesktopSnapshot['connections'][number]): AppC
     account: connection.account,
     googleAccess: connection.googleAccess,
     upgrading: Boolean(connection.upgradeConnectionId),
+    userCode: connection.userCode,
+    available: connection.available !== false,
     permissions,
   };
 }

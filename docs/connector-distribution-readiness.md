@@ -130,6 +130,20 @@ plane reconciled the grant as connected and live `slack.find_users` plus `slack.
 records remain revoked and deleted. A second unrelated-workspace acceptance, exact write preview and
 approved synthetic send, revocation, and reconnect remain.
 
+## Outlook, Notion, and GitHub gate
+
+These connect from the Mac (see `provider-policy.md`). They ship hidden until their public client
+ids are set in `apps/desktop/src/main/connectors/clients.ts`; Notion needs no registration.
+
+- [ ] Register the Microsoft Entra app: multitenant plus personal Microsoft accounts, public client
+      flows allowed, platform "Mobile and desktop applications" with redirect `http://localhost`,
+      delegated `offline_access User.Read Mail.ReadWrite Mail.Send`. Publisher verification is needed
+      before work tenants show it without an unverified-app warning.
+- [ ] Register the GitHub OAuth app with Device Flow enabled. Organizations with OAuth app access
+      restrictions must approve Sia before their private repositories appear.
+- [ ] Test each app from a fresh profile: connect, read, an approved write, cancel mid sign-in,
+      expired token (Outlook and Notion refresh; GitHub reconnect), disconnect, and reconnect.
+
 ## Cross-account and failure acceptance
 
 - [x] Composio entities are keyed by the signed-in Sia subject, not a shared application identity.

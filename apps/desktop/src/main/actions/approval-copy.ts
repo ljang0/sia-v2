@@ -102,6 +102,10 @@ export function summarizeActionTarget(
     'document_id',
     'spreadsheet_id',
     'presentation_id',
+    'repo',
+    'page_id',
+    'task_id',
+    'summary',
     'title',
     'parent_id',
     'tab_id',
@@ -141,9 +145,11 @@ export function summarizeDataLeaving(
     const label =
       toolName === 'slack_post'
         ? 'Slack message'
-        : toolName === 'computer_action' && action === 'set'
-          ? 'Exact replacement text'
-          : 'Text to type';
+        : toolName === 'notion_comment'
+          ? 'Comment'
+          : toolName === 'computer_action' && action === 'set'
+            ? 'Exact replacement text'
+            : 'Text to type';
     lines.push(`${label}:\n${argumentsValue.text}`);
   }
   if (typeof argumentsValue.value === 'string') {
@@ -180,6 +186,49 @@ export function summarizeDataLeaving(
   }
   if (typeof argumentsValue.title === 'string') {
     lines.push(`Title: ${argumentsValue.title}`);
+  }
+  const labelled: readonly [string, string][] = [
+    ['repo', 'Repository'],
+    ['number', 'Issue or pull request'],
+    ['head', 'From branch'],
+    ['base', 'Into branch'],
+    ['page_id', 'Page'],
+    ['parent_page_id', 'Inside page'],
+    ['task_id', 'Task'],
+    ['summary', 'Event'],
+    ['start', 'Starts'],
+    ['end', 'Ends'],
+    ['location', 'Location'],
+    ['due', 'Due'],
+    ['destination', 'Move to folder'],
+  ];
+  for (const [key, label] of labelled) {
+    const value = argumentsValue[key];
+    if (typeof value === 'string' || typeof value === 'number')
+      lines.push(`${label}: ${value}`);
+  }
+  const attendees = stringArray(argumentsValue.attendees);
+  if (attendees.length > 0) lines.push(`Invites: ${attendees.join(', ')}`);
+  const labels = stringArray(argumentsValue.labels);
+  if (labels.length > 0) lines.push(`Labels: ${labels.join(', ')}`);
+  for (const [key, label] of [
+    ['read', ['Mark read', 'Mark unread']],
+    ['flagged', ['Flag', 'Clear flag']],
+    ['completed', ['Mark done', 'Reopen']],
+    ['reply_all', ['Reply to everyone', 'Reply to sender only']],
+  ] as const) {
+    const value = argumentsValue[key];
+    if (typeof value === 'boolean') lines.push(value ? label[0] : label[1]);
+  }
+  for (const [key, label] of [
+    ['description', 'Description'],
+    ['notes', 'Notes'],
+    ['content', 'Content'],
+    ['old_text', 'Replace this text'],
+    ['new_text', 'With'],
+  ] as const) {
+    const value = argumentsValue[key];
+    if (typeof value === 'string' && value.length > 0) lines.push(`${label}:\n${value}`);
   }
   for (const key of ['file_path', 'file_paths']) {
     const value = argumentsValue[key];

@@ -15,6 +15,8 @@ Electron main -------------- Sia cloud API
   |       |       |
   |       |       `-- ActionGateway -- CUA / authenticated Chrome
   |       |                         |-- Apple Messages read/send capabilities
+  |       |                         |-- Outlook (Graph), Notion (hosted MCP), GitHub (REST)
+  |       |                         |   signed in from this Mac; tokens Keychain-encrypted
   |       |                         `-- authorized schedule mutations
   |       `---------- encrypted local SQLite + macOS Keychain
   |                    |-- app-open schedules + Activity
@@ -51,6 +53,10 @@ The rest of the main process is grouped by domain under `apps/desktop/src/main/`
   tool-bridge entry, approval copy and native Mac execution/automation also live here.
 - `mac/` — macOS integrations: the Cua Driver service, browser-window inspection, Chrome
   discovery, installed apps, Messages, permissions, keep-awake and the screen-control indicator.
+- `connectors/` — Outlook, Notion, and GitHub signed in from this Mac: loopback PKCE and device-flow
+  sign-in, the Keychain-encrypted per-connection credential store, and the curated tool adapters.
+  `ConnectorActions` routes their tools here after ActionGateway authorization; Google Workspace
+  and Slack keep going through the cloud connector gateway.
 - `providers/` — the provider runtime coordinator, provider probing, Codex installation and the
   hosted Responses relay.
 - `cloud/` — the cloud control-plane client, packaged cloud configuration, identity and signed

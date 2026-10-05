@@ -54,6 +54,16 @@ export const TOOL_POLICIES = {
   'slides.create': { app: 'google_slides', mutation: true },
   'slides.read': { app: 'google_slides', mutation: false },
   'slides.append': { app: 'google_slides', mutation: true },
+  // Calendar and Tasks exist only on Sia's direct Google adapter, so they belong to the unified
+  // Workspace connection rather than a superseded per-service Composio app.
+  'calendar.list_events': { app: 'google_workspace', mutation: false },
+  'calendar.read_event': { app: 'google_workspace', mutation: false },
+  'calendar.create_event': { app: 'google_workspace', mutation: true },
+  'calendar.update_event': { app: 'google_workspace', mutation: true },
+  'calendar.delete_event': { app: 'google_workspace', mutation: true },
+  'tasks.list': { app: 'google_workspace', mutation: false },
+  'tasks.create': { app: 'google_workspace', mutation: true },
+  'tasks.update': { app: 'google_workspace', mutation: true },
   'slack.search': { app: 'slack', mutation: false },
   'slack.find_users': { app: 'slack', mutation: false },
   'slack.open_dm': { app: 'slack', mutation: false },
@@ -62,6 +72,24 @@ export const TOOL_POLICIES = {
 } as const satisfies Record<string, { app: AppId; mutation: boolean }>;
 
 export type ToolName = keyof typeof TOOL_POLICIES;
+
+/** Tools with no Composio mapping. They run only through Sia's direct Google adapter. */
+export const GOOGLE_DIRECT_TOOLS = [
+  'calendar.list_events',
+  'calendar.read_event',
+  'calendar.create_event',
+  'calendar.update_event',
+  'calendar.delete_event',
+  'tasks.list',
+  'tasks.create',
+  'tasks.update',
+] as const satisfies readonly ToolName[];
+export type GoogleDirectToolName = (typeof GOOGLE_DIRECT_TOOLS)[number];
+export type ComposioToolName = Exclude<ToolName, GoogleDirectToolName>;
+
+export function isComposioTool(tool: ToolName): tool is ComposioToolName {
+  return !(GOOGLE_DIRECT_TOOLS as readonly ToolName[]).includes(tool);
+}
 
 export type GoogleAccessLevel = 'read_only' | 'read_write';
 

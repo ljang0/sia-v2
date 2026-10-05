@@ -2,6 +2,7 @@ import type { ToolDescriptor } from '@sia/protocol';
 import { z } from 'zod';
 import {
   type ActionToolName,
+  OUTLOOK_FOLDERS,
   SCHEDULE_CADENCES,
   SCHEDULE_DAYS,
   computerList,
@@ -47,10 +48,49 @@ const scheduleEveryHoursDescriptor = (description: string): Record<string, unkno
   description,
 });
 
-type ConnectedAppSelector = 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack';
+type ConnectedAppSelector =
+  | 'gmail'
+  | 'drive'
+  | 'docs'
+  | 'sheets'
+  | 'slides'
+  | 'calendar'
+  | 'tasks'
+  | 'slack'
+  | 'outlook'
+  | 'notion'
+  | 'github';
 
 const accountSelector = (app: ConnectedAppSelector): Record<string, unknown> =>
   string(`Stable ${app} account selector`, { enum: [app] });
+
+const integer = (minimum: number, maximum: number): Record<string, unknown> => ({
+  type: 'integer',
+  minimum,
+  maximum,
+});
+
+const emailList = (description: string): Record<string, unknown> => ({
+  type: 'array',
+  maxItems: 50,
+  items: { type: 'string', format: 'email' },
+  description,
+});
+
+const readOnly = { readOnly: true, requiresApproval: false, takesForeground: false } as const;
+const mutation = { readOnly: false, requiresApproval: true, takesForeground: false } as const;
+
+const outlookMessageSchema = (): Record<string, unknown> =>
+  object(
+    {
+      account_id: accountSelector('outlook'),
+      to: { ...emailList('Recipient email addresses'), minItems: 1 },
+      cc: emailList('Optional CC email addresses'),
+      subject: string('Subject'),
+      body: string('Plain-text body'),
+    },
+    ['account_id', 'to', 'subject', 'body'],
+  );
 
 const sheetWriteInputSchema = (append: boolean): Record<string, unknown> =>
   object(
@@ -653,6 +693,380 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
       ['account_id', 'channel_id', 'text'],
     ),
     annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
+  },
+  calendar_list_events: {
+    name: 'calendar_list_events',
+    description:
+      'List upcoming Google Calendar events, soonest first. Without bounds it starts from now. Use time_min/time_max for a specific day or range.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('calendar'),
+        time_min: string('Optional RFC 3339 start bound with a UTC offset', {
+          format: 'date-time',
+        }),
+        time_max: string('Optional RFC 3339 end bound with a UTC offset', {
+          format: 'date-time',
+        }),
+        query: string('Optional free-text filter'),
+        limit: integer(1, 100),
+        calendar_id: string('Optional calendar id; defaults to the primary calendar'),
+      },
+      ['account_id'],
+    ),
+    annotations: readOnly,
+  },
+  calendar_read_event: {
+    name: 'calendar_read_event',
+    description: 'Read one Google Calendar event, including attendees and their responses.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('calendar'),
+        resource_id: string('Event id from calendar_list_events'),
+        calendar_id: string('Optional calendar id; defaults to the primary calendar'),
+      },
+      ['account_id', 'resource_id'],
+    ),
+    annotations: readOnly,
+  },
+  calendar_create_event: {
+    name: 'calendar_create_event',
+    description:
+      'Create a Google Calendar event. Use YYYY-MM-DD for all-day events or RFC 3339 date-times with offsets for timed events. Invited attendees receive Google invitations.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('calendar'),
+        summary: string('Event title'),
+        start: string('Start: YYYY-MM-DD or RFC 3339 date-time with offset'),
+        end: string('End, in the same form as start'),
+        description: string('Optional description'),
+        location: string('Optional location'),
+        attendees: emailList('Optional attendee email addresses'),
+        time_zone: string('Optional IANA time zone, for example America/New_York'),
+        calendar_id: string('Optional calendar id; defaults to the primary calendar'),
+      },
+      ['account_id', 'summary', 'start', 'end'],
+    ),
+    annotations: mutation,
+  },
+  calendar_update_event: {
+    name: 'calendar_update_event',
+    description: 'Change the title, time, description, or location of a Google Calendar event.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('calendar'),
+        resource_id: string('Event id'),
+        calendar_id: string('Optional calendar id; defaults to the primary calendar'),
+        summary: string('Replacement title'),
+        start: string('Replacement start: YYYY-MM-DD or RFC 3339 date-time with offset'),
+        end: string('Replacement end, in the same form as start'),
+        description: string('Replacement description'),
+        location: string('Replacement location'),
+      },
+      ['account_id', 'resource_id'],
+    ),
+    annotations: mutation,
+  },
+  calendar_delete_event: {
+    name: 'calendar_delete_event',
+    description: 'Delete or cancel one Google Calendar event.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('calendar'),
+        resource_id: string('Event id'),
+        calendar_id: string('Optional calendar id; defaults to the primary calendar'),
+      },
+      ['account_id', 'resource_id'],
+    ),
+    annotations: mutation,
+  },
+  tasks_list: {
+    name: 'tasks_list',
+    description: 'List Google Tasks from the default list or a specific list.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('tasks'),
+        list_id: string('Optional task list id; defaults to the main list'),
+        show_completed: { type: 'boolean', description: 'Include completed tasks' },
+        limit: integer(1, 100),
+      },
+      ['account_id'],
+    ),
+    annotations: readOnly,
+  },
+  tasks_create: {
+    name: 'tasks_create',
+    description: 'Add a Google Task.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('tasks'),
+        title: string('Task title'),
+        notes: string('Optional notes'),
+        due: string('Optional due date, YYYY-MM-DD'),
+        list_id: string('Optional task list id; defaults to the main list'),
+      },
+      ['account_id', 'title'],
+    ),
+    annotations: mutation,
+  },
+  tasks_update: {
+    name: 'tasks_update',
+    description: 'Change a Google Task, or mark it done or not done.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('tasks'),
+        task_id: string('Task id from tasks_list'),
+        list_id: string('Optional task list id; defaults to the main list'),
+        title: string('Replacement title'),
+        notes: string('Replacement notes'),
+        due: string('Replacement due date, YYYY-MM-DD'),
+        completed: { type: 'boolean', description: 'True marks it done; false reopens it' },
+      },
+      ['account_id', 'task_id'],
+    ),
+    annotations: mutation,
+  },
+  outlook_search: {
+    name: 'outlook_search',
+    description:
+      'Search or list Outlook mail through Microsoft Graph, newest first. Without a query it lists the folder.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('outlook'),
+        query: string('Optional search words, sender, or subject'),
+        folder: string(
+          'Optional folder; defaults to all mail for searches and the inbox otherwise',
+          {
+            enum: [...OUTLOOK_FOLDERS],
+          },
+        ),
+        unread_only: { type: 'boolean', description: 'Only unread messages' },
+        limit: integer(1, 100),
+      },
+      ['account_id'],
+    ),
+    annotations: readOnly,
+  },
+  outlook_read: {
+    name: 'outlook_read',
+    description: 'Read one Outlook message as plain text.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('outlook'),
+        resource_id: string('Message id from outlook_search'),
+      },
+      ['account_id', 'resource_id'],
+    ),
+    annotations: readOnly,
+  },
+  outlook_create_draft: {
+    name: 'outlook_create_draft',
+    description: 'Save a new plain-text Outlook draft without sending it.',
+    inputSchema: outlookMessageSchema(),
+    annotations: mutation,
+  },
+  outlook_send: {
+    name: 'outlook_send',
+    description: 'Send a new plain-text Outlook email.',
+    inputSchema: outlookMessageSchema(),
+    annotations: mutation,
+  },
+  outlook_reply: {
+    name: 'outlook_reply',
+    description: 'Reply to an Outlook message with plain text, optionally to everyone on it.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('outlook'),
+        resource_id: string('Message id to reply to'),
+        body: string('Reply text'),
+        reply_all: { type: 'boolean', description: 'Reply to all recipients' },
+      },
+      ['account_id', 'resource_id', 'body'],
+    ),
+    annotations: mutation,
+  },
+  outlook_move: {
+    name: 'outlook_move',
+    description: 'Move an Outlook message to another folder, such as archive or deleted items.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('outlook'),
+        resource_id: string('Message id'),
+        destination: string('Destination folder', { enum: [...OUTLOOK_FOLDERS] }),
+      },
+      ['account_id', 'resource_id', 'destination'],
+    ),
+    annotations: mutation,
+  },
+  outlook_mark: {
+    name: 'outlook_mark',
+    description: 'Mark an Outlook message read or unread, or flag or unflag it.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('outlook'),
+        resource_id: string('Message id'),
+        read: { type: 'boolean', description: 'True marks read; false marks unread' },
+        flagged: { type: 'boolean', description: 'True flags; false clears the flag' },
+      },
+      ['account_id', 'resource_id'],
+    ),
+    annotations: mutation,
+  },
+  notion_search: {
+    name: 'notion_search',
+    description: 'Search pages and databases in the connected Notion workspace.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('notion'),
+        query: string('Search words'),
+        limit: integer(1, 50),
+      },
+      ['account_id', 'query'],
+    ),
+    annotations: readOnly,
+  },
+  notion_fetch: {
+    name: 'notion_fetch',
+    description: 'Read a Notion page or database by id or URL, as Markdown.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('notion'),
+        id: string('Page or database id, or its notion.so URL'),
+      },
+      ['account_id', 'id'],
+    ),
+    annotations: readOnly,
+  },
+  notion_create_page: {
+    name: 'notion_create_page',
+    description:
+      'Create a Notion page with Markdown content, inside a parent page when one is given, otherwise as a private page.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('notion'),
+        title: string('Page title'),
+        content: string('Optional Markdown content'),
+        parent_page_id: string('Optional parent page id or URL'),
+      },
+      ['account_id', 'title'],
+    ),
+    annotations: mutation,
+  },
+  notion_edit_page: {
+    name: 'notion_edit_page',
+    description:
+      'Replace one exact passage on a Notion page. Fetch the page first and copy old_text exactly.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('notion'),
+        page_id: string('Page id or URL'),
+        old_text: string('Exact existing text to replace'),
+        new_text: string('Replacement Markdown text'),
+      },
+      ['account_id', 'page_id', 'old_text', 'new_text'],
+    ),
+    annotations: mutation,
+  },
+  notion_comment: {
+    name: 'notion_comment',
+    description: 'Add a comment to a Notion page.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('notion'),
+        page_id: string('Page id or URL'),
+        text: string('Comment text'),
+      },
+      ['account_id', 'page_id', 'text'],
+    ),
+    annotations: mutation,
+  },
+  github_search: {
+    name: 'github_search',
+    description:
+      'Search GitHub code, issues and pull requests, or repositories using GitHub search syntax, for example "repo:owner/name is:pr is:open".',
+    inputSchema: object(
+      {
+        account_id: accountSelector('github'),
+        kind: string('What to search', { enum: ['code', 'issues', 'repositories'] }),
+        query: string('GitHub search query'),
+        limit: integer(1, 100),
+      },
+      ['account_id', 'kind', 'query'],
+    ),
+    annotations: readOnly,
+  },
+  github_read_file: {
+    name: 'github_read_file',
+    description: 'Read a file, or list a folder, in a GitHub repository.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('github'),
+        repo: string('Repository as owner/name'),
+        path: string('File or folder path; empty for the repository root'),
+        ref: string('Optional branch, tag, or commit'),
+      },
+      ['account_id', 'repo', 'path'],
+    ),
+    annotations: readOnly,
+  },
+  github_read_issue: {
+    name: 'github_read_issue',
+    description:
+      'Read a GitHub issue or pull request with its comments. Pull requests also include their changed files.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('github'),
+        repo: string('Repository as owner/name'),
+        number: integer(1, 100_000_000),
+      },
+      ['account_id', 'repo', 'number'],
+    ),
+    annotations: readOnly,
+  },
+  github_create_issue: {
+    name: 'github_create_issue',
+    description: 'Open a GitHub issue.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('github'),
+        repo: string('Repository as owner/name'),
+        title: string('Issue title'),
+        body: string('Optional Markdown body'),
+        labels: { type: 'array', maxItems: 20, items: { type: 'string' } },
+      },
+      ['account_id', 'repo', 'title'],
+    ),
+    annotations: mutation,
+  },
+  github_comment: {
+    name: 'github_comment',
+    description: 'Comment on a GitHub issue or pull request.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('github'),
+        repo: string('Repository as owner/name'),
+        number: integer(1, 100_000_000),
+        body: string('Markdown comment'),
+      },
+      ['account_id', 'repo', 'number', 'body'],
+    ),
+    annotations: mutation,
+  },
+  github_create_pull_request: {
+    name: 'github_create_pull_request',
+    description: 'Open a GitHub pull request from an existing branch.',
+    inputSchema: object(
+      {
+        account_id: accountSelector('github'),
+        repo: string('Repository as owner/name'),
+        title: string('Pull request title'),
+        head: string('Branch with the changes, or owner:branch for a fork'),
+        base: string('Branch to merge into'),
+        body: string('Optional Markdown description'),
+        draft: { type: 'boolean', description: 'Open as a draft' },
+      },
+      ['account_id', 'repo', 'title', 'head', 'base'],
+    ),
+    annotations: mutation,
   },
   messages_search: {
     name: 'messages_search',
