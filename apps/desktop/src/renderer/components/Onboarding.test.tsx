@@ -112,6 +112,14 @@ it.each([
     });
     expect(confirmations.checked).toBe(false);
     if (confirmActions) fireEvent.click(confirmations);
+    if (route === 'mac-bypass') {
+      const apps = screen.getByRole<HTMLInputElement>('checkbox', {
+        name: /Prepare everyday apps now/,
+      });
+      // Everyday-app approvals are an opt-in.
+      expect(apps.checked).toBe(false);
+      fireEvent.click(apps);
+    }
     fireEvent.click(screen.getByRole('button', { name: 'Set up Sia' }));
     if (route === 'mac-bypass') {
       await waitFor(() => expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1));

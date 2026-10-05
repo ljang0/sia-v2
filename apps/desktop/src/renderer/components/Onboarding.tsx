@@ -116,8 +116,9 @@ export function Onboarding({
   const [accessReady, setAccessReady] = useState(false);
   const [permissionPassComplete, setPermissionPassComplete] = useState(false);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
+  // Everyday-app approvals are optional; macOS asks for each one the first time a task needs it.
   const [prepareApps, setPrepareApps] = useState(
-    snapshot.preferences.onboarding?.permissionSetup?.includeApps ?? starting,
+    snapshot.preferences.onboarding?.permissionSetup?.includeApps ?? false,
   );
   const autoFinished = useRef(false);
   const [error, setError] = useState<string>();

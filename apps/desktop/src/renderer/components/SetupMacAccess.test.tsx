@@ -95,7 +95,7 @@ it('an explicitly authorized automatic pass starts once even under StrictMode an
   expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1);
 });
 
-it('keeps a denial incomplete and retries only the current step when the person requests recovery', async () => {
+it('moves past a declined optional app, then lets the person retry it from its row', async () => {
   const { snapshot, api, complete, rerender } = setup();
   snapshot.computer.accessibility = 'allowed';
   snapshot.computer.screenRecording = 'allowed';
@@ -103,17 +103,10 @@ it('keeps a denial incomplete and retries only the current step when the person 
   rerender();
   fireEvent.click(screen.getByRole('button', { name: 'Grant all' }));
   await waitFor(() => expect(api.requestAutomationPermission).toHaveBeenCalledTimes(1));
-  await waitFor(() =>
-    expect(
-      (screen.getByRole('button', { name: 'Open System Settings' }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(false),
-  );
-  expect(screen.getByText('In Automation, expand Sia and turn on Safari.')).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Open Settings: Safari' })).toBeTruthy();
+  // Declining an optional app never holds setup open.
+  await waitFor(() => expect(complete).toHaveBeenCalledOnce());
   expect(screen.getByText('Turned off')).toBeTruthy();
-  expect(complete).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button', { name: 'Open System Settings' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Open Settings: Safari' }));
   await waitFor(() => expect(api.requestAutomationPermission).toHaveBeenCalledTimes(2));
   expect(api.requestComputerPermissions).not.toHaveBeenCalled();
 });
@@ -264,6 +257,8 @@ it('lets optional steps be skipped, but not the permissions Sia needs', async ()
   const { snapshot, api, complete, rerender } = setup();
   snapshot.computer.screenRecording = 'allowed';
   rerender();
+  const prompt = Promise.withResolvers<void>();
+  api.requestAutomationPermission.mockImplementation(() => prompt.promise);
   fireEvent.click(screen.getByRole('button', { name: 'Grant all' }));
   await waitFor(() =>
     expect(api.requestComputerPermissions).toHaveBeenCalledExactlyOnceWith('accessibility'),
@@ -272,12 +267,11 @@ it('lets optional steps be skipped, but not the permissions Sia needs', async ()
   snapshot.computer.accessibility = 'allowed';
   rerender();
   await waitFor(() => expect(api.requestAutomationPermission).toHaveBeenCalledWith('safari'));
-  await waitFor(() =>
-    expect((screen.getByRole('button', { name: 'Skip' }) as HTMLButtonElement).disabled).toBe(
-      false,
-    ),
-  );
-  fireEvent.click(screen.getByRole('button', { name: 'Skip' }));
+  expect(screen.getByRole('button', { name: 'Skip' })).toBeTruthy();
+  await act(async () => {
+    prompt.resolve();
+    await prompt.promise;
+  });
   await waitFor(() => expect(complete).toHaveBeenCalledOnce());
   expect(api.requestAutomationPermission).toHaveBeenCalledOnce();
   expect(screen.getByText('Mac access is ready.')).toBeTruthy();

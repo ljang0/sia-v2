@@ -201,6 +201,8 @@ export function SetupMacAccess({
   const [error, setError] = useState<string>();
   const [skipped, setSkipped] = useState<readonly string[]>(initialSkipped ?? []);
   const [asked, setAsked] = useState<readonly string[]>([]);
+  // Optional rows the guided pass already asked about; a decline moves the pass on.
+  const [passed, setPassed] = useState<readonly string[]>([]);
   const requested = useRef(new Set<string>());
   const requesting = useRef(false);
   const refreshing = useRef(false);
@@ -224,7 +226,8 @@ export function SetupMacAccess({
     (row) =>
       row.guided &&
       (row.state === 'needed' || row.state === 'denied' || row.state === 'error') &&
-      !skipped.includes(row.id),
+      !skipped.includes(row.id) &&
+      !(row.optional && passed.includes(row.id)),
   );
   const currentRef = useRef(current);
   currentRef.current = current;
@@ -252,6 +255,7 @@ export function SetupMacAccess({
   const start = () => {
     if (requesting.current) return;
     requested.current.clear();
+    setPassed([]);
     setError(undefined);
     setActive(true);
     setRetry((value) => value + 1);
@@ -300,9 +304,21 @@ export function SetupMacAccess({
     void (async () => {
       try {
         if (step) {
-          await step.request?.(() => pass === generation.current);
-          if (pass !== generation.current) return;
-          await latest.current.api.refreshComputerPermissions();
+          try {
+            await step.request?.(() => pass === generation.current);
+            if (pass !== generation.current) return;
+            await latest.current.api.refreshComputerPermissions();
+          } finally {
+            // Asked once is enough for an optional prompt: declining it never blocks setup.
+            // Full Disk Access has no prompt; its guide waits while the person uses Settings.
+            if (
+              step.optional &&
+              step.id !== 'messages_history' &&
+              mounted.current &&
+              pass === generation.current
+            )
+              setPassed((ids) => (ids.includes(step.id) ? ids : [...ids, step.id]));
+          }
         } else {
           setActive(false);
           // A grant waiting for a relaunch finishes with the Relaunch button, not here.

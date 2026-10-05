@@ -227,11 +227,17 @@ Automation. Anything skipped is asked for by macOS the first time a task needs i
 background task that is missing Accessibility or Screen Recording names the missing permission
 in plain words.
 
-In Use my Mac, **Prepare everyday apps now** is selected by default. The same setup pass requests
-missing Automation grants for System Events, Safari, Chrome, Calendar, Reminders, Finder and
-Messages. Already allowed or unavailable apps are skipped; running apps are reused and missing
-apps open hidden where macOS supports it. Uncheck the option to defer those app prompts until a
-task needs them. Connected apps setup does not request these Automation grants.
+In Use my Mac, **Prepare everyday apps now** is off by default; macOS asks for each app the first
+time a task needs it. When it is checked, the same setup pass requests missing Automation grants for
+System Events, Safari, Chrome, Calendar, Reminders, Finder and Messages. Already allowed or
+unavailable apps are skipped; running apps are reused and missing apps open hidden where macOS
+supports it. Each app is asked once per pass: declining one moves the pass on, and its row keeps an
+**Open Settings** button. Connected apps setup does not request these Automation grants.
+
+Once macOS lists both Accessibility and Screen Recording, Sia confirms they work by reading one
+other app's window (preferring Finder) through the same driver its tools use. The window is
+discarded immediately. If that read fails, **See your screen** shows **Reopen Sia** instead of a
+check, because macOS usually applies the grant only after Sia reopens.
 **Settings → Computer** shows the same checklist and **Grant all** later.
 
 The default is **Use my Mac** with bypass: Sia works in the background with signed-in Mac apps
