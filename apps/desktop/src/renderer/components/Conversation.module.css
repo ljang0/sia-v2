@@ -42,7 +42,6 @@
   min-height: 0;
   flex: 1;
   overflow-y: auto;
-  scroll-behavior: smooth;
 }
 
 .threadWorkspaceBar {
@@ -814,10 +813,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .threadScroll {
-    scroll-behavior: auto;
-  }
-
   .skeletonMessage,
   .skeletonActivity,
   .skeletonComposer,

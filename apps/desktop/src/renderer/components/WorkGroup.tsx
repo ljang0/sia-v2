@@ -108,8 +108,16 @@ export function WorkingStatus({ since, step, writing, thinking, plan }: WorkingS
   // The running step already shows as its own row above, so this line stays short.
   const label = !step && !writing && thinking ? thinking : workingLabel(Boolean(step), writing);
   const duration = since ? elapsed(since, new Date(now).toISOString()) : '';
+  // A running step has its own spinner in its row, and a reply being written has its caret, so
+  // this line goes quiet then instead of adding a second moving indicator beside them.
+  const quiet = Boolean(step) || writing;
   return (
-    <div className={styles.workingStatus} role="status" data-testid="turn-running">
+    <div
+      className={styles.workingStatus}
+      role="status"
+      data-testid="turn-running"
+      data-quiet={quiet || undefined}
+    >
       <CircleNotch size={15} className={styles.workingSpinner} aria-hidden="true" />
       {/* Keyed by its words so a new phase fades in instead of snapping. */}
       <span key={label} className={styles.workingLabel}>

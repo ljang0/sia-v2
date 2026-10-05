@@ -145,6 +145,7 @@ export function Conversation({
   browserRecovery,
 }: ConversationProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const columnRef = useRef<HTMLDivElement>(null);
   const pinnedToLatestRef = useRef(true);
   const previousThreadIdRef = useRef<string | undefined>(undefined);
   const lastSentMessageRef = useRef<string | undefined>(undefined);
@@ -290,6 +291,21 @@ export function Conversation({
     if (pinnedToLatestRef.current) scrollToLatest(scroller, 'instant');
     else setShowJumpToLatest(true);
   }, [thread, thread?.events, thread?.id, thread?.status]);
+
+  // Height can change without a new event: images load, code blocks lay out, the live status
+  // line comes and goes. A reader following the latest stays there.
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    const column = columnRef.current;
+    if (!scroller || !column || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      // An empty conversation keeps its welcome at the top.
+      if (pinnedToLatestRef.current && column.querySelector('[data-message-role]'))
+        scrollToLatest(scroller, 'instant');
+    });
+    observer.observe(column);
+    return () => observer.disconnect();
+  }, [thread?.id, loading]);
 
   const handleScroll = () => {
     const scroller = scrollRef.current;
@@ -540,7 +556,7 @@ export function Conversation({
         onScroll={handleScroll}
         aria-label="Conversation"
       >
-        <div className={styles.conversationColumn}>
+        <div className={styles.conversationColumn} ref={columnRef}>
           {queued ? (
             <div className={styles.queueBanner} role="status">
               <Clock size={17} aria-hidden="true" />
