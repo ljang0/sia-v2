@@ -76,6 +76,13 @@ export interface ControllerOptions {
    * The person's own model API key. The key is write-only from here on: it is validated,
    * checked against the endpoint, and stored encrypted; only the model and host come back.
    */
+  /** Lab harnesses from a verified testing manifest; absent in every ordinary build. */
+  labHarnesses?: readonly {
+    id: string;
+    name: string;
+    disclosure: string;
+    models: readonly { id: string; label: string }[];
+  }[];
   byok?: {
     summary(): { model: string; host: string } | undefined;
     save(input: { baseUrl?: string; model: string; apiKey: string }): Promise<void>;

@@ -61,6 +61,15 @@ const PROVIDERS: Record<ProviderId, ProviderCommand> = {
     detail:
       'Runs through the Codex harness. Your key stays encrypted on this Mac and is never given to Codex.',
   },
+  lab: {
+    executable: '',
+    versionArgs: [],
+    model: '',
+    label: 'Lab harness',
+    plan: 'Lab harness test',
+    billing: 'Provided by the model lab for testing.',
+    detail: 'Present only in a testing build started with a signed lab harness manifest.',
+  },
   grok: {
     executable: 'grok',
     versionArgs: ['--version'],
@@ -119,7 +128,10 @@ export async function probeProviders(
   runner: ProviderProbeRunner = { run: runCommand },
   commands: Partial<Record<ProviderId, string>> = {},
 ): Promise<ProviderView[]> {
-  const ids = only ? [only] : (Object.keys(PROVIDERS) as ProviderId[]);
+  // The controller describes a lab harness from its signed manifest; there is nothing to probe.
+  const ids = only
+    ? [only]
+    : (Object.keys(PROVIDERS) as ProviderId[]).filter((id) => id !== 'lab');
   const safeEnvironment = sanitizedEnvironment(environment);
   return Promise.all(ids.map((id) => probeProvider(id, safeEnvironment, runner, commands[id])));
 }
@@ -133,7 +145,8 @@ async function probeProvider(
   const definition = PROVIDERS[id];
   if (definition.disabled) return view(id, definition, 'disabled');
 
-  // Sia's controller fills in a saved key; the probe has nothing to run.
+  // Sia's controller fills in a saved key or a signed lab manifest; the probe has nothing to run.
+  if (id === 'lab') return view(id, definition, 'unavailable');
   if (id === 'byok')
     return view(
       id,

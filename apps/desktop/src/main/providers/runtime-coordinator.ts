@@ -522,7 +522,8 @@ export class RuntimeCoordinator {
       thread.provider !== 'codex' &&
       thread.provider !== 'claude' &&
       thread.provider !== 'meta' &&
-      thread.provider !== 'byok'
+      thread.provider !== 'byok' &&
+      thread.provider !== 'lab'
     ) {
       throw new Error(
         'This model is no longer available in Sia. Choose Codex or a model included with Sia.',
@@ -533,7 +534,11 @@ export class RuntimeCoordinator {
       resolutionSource: 'legacy_default' as const,
     };
     assertTargetContext(thread, target);
-    const mac = thread.computerAccessMode === 'mac' && thread.nativeTools !== 'disabled';
+    // A lab harness reaches Sia's tools through MCP, not Codex's native Mac tools.
+    const mac =
+      thread.computerAccessMode === 'mac' &&
+      thread.nativeTools !== 'disabled' &&
+      thread.provider !== 'lab';
     if (mac && target.harnessId !== 'codex_app_server')
       throw new Error('Use my Mac requires a Codex App Server agent.');
     if (thread.nativeTools === 'disabled' && target.harnessId !== 'codex_app_server')

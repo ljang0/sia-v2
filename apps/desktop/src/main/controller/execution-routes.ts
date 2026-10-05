@@ -12,6 +12,8 @@ export const RELEASE_PROVIDERS: ReadonlySet<ProviderId> = new Set<ProviderId>([
   'codex',
   'meta',
   'byok',
+  // Only present in a testing build started with a signed lab harness manifest.
+  'lab',
 ]);
 
 export function requireReleaseProvider(provider: ProviderId): void {

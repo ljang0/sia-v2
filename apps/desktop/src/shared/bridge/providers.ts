@@ -1,6 +1,6 @@
 // Model providers, their models and plan usage, and the execution route a thread pins.
 
-export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude' | 'byok';
+export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude' | 'byok' | 'lab';
 
 /** Safe catalog id. Executability still requires an audited runtime registration. */
 export type HarnessId = string;

@@ -57,6 +57,7 @@ export async function createHarness(
     restartApp?: () => void;
     installCodex?: () => Promise<void>;
     byok?: ConstructorParameters<typeof DesktopController>[0]['byok'];
+    labHarnesses?: ConstructorParameters<typeof DesktopController>[0]['labHarnesses'];
     workspaceOperations?: ConstructorParameters<
       typeof DesktopController
     >[0]['workspaceOperations'];
@@ -103,6 +104,7 @@ export async function createHarness(
     ...(options.restartApp ? { restartApp: options.restartApp } : {}),
     ...(options.installCodex ? { installCodex: options.installCodex } : {}),
     ...(options.byok ? { byok: options.byok } : {}),
+    ...(options.labHarnesses ? { labHarnesses: options.labHarnesses } : {}),
     ...(options.workspaceOperations
       ? { workspaceOperations: options.workspaceOperations }
       : {}),

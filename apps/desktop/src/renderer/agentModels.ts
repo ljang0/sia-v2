@@ -7,7 +7,7 @@ interface ModelChoice {
   ready: boolean;
 }
 
-const RELEASE_PROVIDER_ORDER: ProviderId[] = ['codex', 'meta', 'byok'];
+const RELEASE_PROVIDER_ORDER: ProviderId[] = ['codex', 'meta', 'byok', 'lab'];
 
 export function firstReadyModel(providers: ProviderSetup[]): ModelChoice | undefined {
   return modelChoices(providers).find((choice) => choice.ready);
@@ -34,7 +34,9 @@ export function modelChoices(
             ? `${model.label} · Codex plan`
             : provider.id === 'byok'
               ? `${model.label} · Your API key`
-              : `${model.label} — ${provider.name}`,
+              : provider.id === 'lab'
+                ? `${model.label} · Lab test`
+                : `${model.label} — ${provider.name}`,
       ready: provider.status === 'ready',
     }));
   });

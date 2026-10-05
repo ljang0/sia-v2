@@ -91,6 +91,53 @@ export class ProviderAccess {
       else this.views.push(fakeCodex);
     }
     this.applyByok();
+    this.applyLabHarnesses();
+  }
+
+  /**
+   * Adds the lab harnesses of a verified testing manifest as the `lab` provider. Each model is
+   * routed only to its own harness; Codex stays the default everywhere else.
+   */
+  applyLabHarnesses(): void {
+    for (const routes of [this.allowedModelRoutes, this.backendModelRoutes])
+      for (const key of routes.keys()) if (key.startsWith('lab\u0000')) routes.delete(key);
+    const index = this.views.findIndex(({ id }) => id === 'lab');
+    const harnesses = this.ctx.deps.labHarnesses;
+    if (!harnesses.length) {
+      if (index >= 0) this.views.splice(index, 1);
+      return;
+    }
+    const view: ProviderView = {
+      id: 'lab',
+      label: `Lab harness: ${harnesses.map(({ name }) => name).join(', ')}`,
+      plan: 'Lab harness test',
+      status: 'ready',
+      model: harnesses[0]!.models[0]!.id,
+      detail: harnesses.map(({ name, disclosure }) => `${name}: ${disclosure}`).join(' '),
+      billing: 'Provided by the model lab for testing.',
+      models: harnesses.flatMap(({ name, models }) =>
+        models.map((model) => ({
+          id: model.id,
+          label: model.label,
+          description: `Runs in ${name}’s own harness.`,
+          reasoningEfforts: [],
+        })),
+      ),
+    };
+    if (index >= 0) this.views[index] = view;
+    else this.views.push(view);
+    for (const harness of harnesses)
+      for (const model of harness.models) {
+        const route: ModelRoute = {
+          provider: 'lab',
+          model: model.id,
+          harnessId: harness.id,
+          harnessModelId: model.id,
+          credentialSource: 'provider_api',
+        };
+        this.allowedModelRoutes.set(modelRouteKey('lab', model.id), [route]);
+        this.backendModelRoutes.set(modelRouteKey('lab', model.id), route);
+      }
   }
 
   /**
@@ -185,6 +232,7 @@ export class ProviderAccess {
       }
     } else this.views = updated;
     this.applyByok();
+    this.applyLabHarnesses();
     await this.refreshMetaProviderState();
     await this.refreshProviderModels(providerId);
     if (

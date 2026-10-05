@@ -6,8 +6,18 @@ export const isoDateSchema = z.string().datetime({ offset: true });
 /**
  * `byok` is a model the person reaches with their own API key. Its key stays in the main
  * process and is attached by a loopback proxy; no harness or renderer ever receives it.
+ * `lab` is a model lab's own harness, present only in a testing build started with a manifest
+ * signed by Sia's release key.
  */
-export const providerIdSchema = z.enum(['codex', 'claude', 'grok', 'gemini', 'meta', 'byok']);
+export const providerIdSchema = z.enum([
+  'codex',
+  'claude',
+  'grok',
+  'gemini',
+  'meta',
+  'byok',
+  'lab',
+]);
 export type ProviderId = z.infer<typeof providerIdSchema>;
 
 /**

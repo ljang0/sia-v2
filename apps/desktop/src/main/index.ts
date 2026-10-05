@@ -52,6 +52,8 @@ import { MessagesService } from './mac/messages-service.js';
 
 import { CloudClient } from './cloud/cloud-client.js';
 import { HostedResponsesProxy } from './providers/hosted-responses-proxy.js';
+import { createAcpAdapter } from '@sia/runtime';
+import { LAB_HARNESS_MANIFEST_ENV, loadLabHarnessManifest } from './providers/lab-harness.js';
 import {
   ByokCredential,
   ByokForwarder,
@@ -440,7 +442,27 @@ async function performApplicationCreation(): Promise<void> {
           'x-apple.systempreferences:com.apple.preference.security?Privacy_Automation',
         ),
     });
+    // Lab harness testing builds only: a manifest signed with Sia's release key pins each
+    // lab's ACP command by hash. Anything invalid is reported and ignored; Codex stays default.
+    const labManifestPath = process.env[LAB_HARNESS_MANIFEST_ENV];
+    const labHarnesses = labManifestPath
+      ? await loadLabHarnessManifest({
+          path: labManifestPath,
+          publicKey: cloudConfiguration.updateManifestPublicKey,
+        }).catch((error: unknown) => {
+          console.error(
+            `[sia:lab-harness] ${error instanceof Error ? error.message : 'The manifest could not be loaded.'}`,
+          );
+          return [];
+        })
+      : [];
     activeController = new DesktopController({
+      labHarnesses: labHarnesses.map(({ id, name, disclosure, models }) => ({
+        id,
+        name,
+        disclosure,
+        models,
+      })),
       captureMacContext: () => browserWindows.macContext(),
       notchHelperPath: app.isPackaged
         ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
@@ -670,6 +692,22 @@ async function performApplicationCreation(): Promise<void> {
               byokResponsesProxy.issue(providerSession.model),
           }
         : {}),
+      harnessAdapters: labHarnesses.map((harness) => ({
+        provider: 'lab' as const,
+        harnessId: harness.id,
+        adapter: createAcpAdapter({
+          provider: 'lab',
+          command: harness.command,
+          commandArgs: harness.args,
+          versionArgs: harness.versionArgs,
+          supportedVersions: { minimum: '0.0.0' },
+          productionEnabled: true,
+          accountOverride: { state: 'authenticated', label: harness.name, billing: 'api' },
+          ...(capabilityHost
+            ? { mcpServerFactory: (session) => [capabilityHost!.mint(session.threadId)] }
+            : {}),
+        }),
+      })),
       ...(capabilityHost
         ? {
             acpMcpServerFactory: (_provider, session) => [

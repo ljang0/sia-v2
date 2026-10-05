@@ -9,7 +9,8 @@ import styles from './ProvidersSettings.module.css';
 import { InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
 import { ByokSettings, type ApiKeyInput } from './ByokSettings';
 
-const RELEASE_PROVIDERS: ProviderId[] = ['codex', 'meta'];
+// `lab` appears only in a testing build started with a signed lab harness manifest.
+const RELEASE_PROVIDERS: ProviderId[] = ['codex', 'meta', 'lab'];
 
 export function ProvidersSettings({
   providers,

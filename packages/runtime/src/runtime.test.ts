@@ -22,6 +22,7 @@ import { CodexAppServerAdapter } from './providers/codex.js';
 import {
   AcpAdapter,
   createGeminiAdapter,
+  createAcpAdapter,
   createGrokAdapter,
   defaultAcpCommandArgs,
 } from './providers/acp.js';
@@ -1271,6 +1272,32 @@ describe('ACP adapter', () => {
     expect(gemini.productionEnabled).toBe(false);
     expect(grok.productionEnabled).toBe(false);
     await Promise.all([gemini.dispose(), grok.dispose()]);
+  });
+
+  it('admits a signed lab ACP harness only when its manifest enables it', async () => {
+    const runner = { run: vi.fn(async () => ({ code: 0, stdout: '1.2.0', stderr: '' })) };
+    const lab = createAcpAdapter({
+      provider: 'lab',
+      command: '/opt/example/acp',
+      supportedVersions: { minimum: '0.0.0' },
+      commandRunner: runner,
+      productionEnabled: true,
+      accountOverride: { state: 'authenticated', label: 'Example Lab', billing: 'api' },
+    });
+    expect(lab.productionEnabled).toBe(true);
+    await expect(lab.account()).resolves.toEqual({
+      state: 'authenticated',
+      label: 'Example Lab',
+      billing: 'api',
+    });
+    const unsigned = createAcpAdapter({
+      provider: 'lab',
+      command: '/opt/example/acp',
+      supportedVersions: { minimum: '0.0.0' },
+      commandRunner: runner,
+    });
+    expect(unsigned.productionEnabled).toBe(false);
+    await Promise.all([lab.dispose(), unsigned.dispose()]);
   });
 });
 

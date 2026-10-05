@@ -52,18 +52,12 @@ export function verifyUpdateManifestResponse(
   publicKeyBase64Url: string,
 ): { payload: UpdateManifestPayload; downloadUrl: string } {
   const parsed = signedUpdateManifestResponseSchema.parse(value);
-  const publicKeyBytes = decodeBase64Url(publicKeyBase64Url, 'update manifest public key');
-  if (publicKeyBytes.byteLength !== 44) {
-    throw new Error('The update manifest public key is not an Ed25519 SPKI key.');
-  }
-  const signature = decodeBase64Url(parsed.signature, 'update manifest signature');
-  if (signature.byteLength !== 64) {
-    throw new Error('The update manifest signature is invalid.');
-  }
-  const publicKey = createPublicKey({ key: publicKeyBytes, format: 'der', type: 'spki' });
-  if (!verify(null, Buffer.from(canonicalJson(parsed.payload), 'utf8'), publicKey, signature)) {
-    throw new Error('The update manifest signature could not be verified.');
-  }
+  verifyCanonicalSignature(
+    parsed.payload,
+    parsed.signature,
+    publicKeyBase64Url,
+    'update manifest',
+  );
   if (!safeHttpsDownloadUrl(parsed.downloadUrl, parsed.payload.artifact.key)) {
     throw new Error('The update manifest download URL is not safe.');
   }
@@ -72,6 +66,30 @@ export function verifyUpdateManifestResponse(
     throw new Error('The update manifest artifact does not match its version.');
   }
   return { payload: parsed.payload, downloadUrl: parsed.downloadUrl };
+}
+
+/**
+ * Verifies an Ed25519 signature over the canonical JSON of `payload`. Shared by every manifest
+ * Sia trusts from its release key, so each has the same encoding and key checks.
+ */
+export function verifyCanonicalSignature(
+  payload: unknown,
+  signatureBase64Url: string,
+  publicKeyBase64Url: string,
+  label: string,
+): void {
+  const publicKeyBytes = decodeBase64Url(publicKeyBase64Url, `${label} public key`);
+  if (publicKeyBytes.byteLength !== 44) {
+    throw new Error(`The ${label} public key is not an Ed25519 SPKI key.`);
+  }
+  const signature = decodeBase64Url(signatureBase64Url, `${label} signature`);
+  if (signature.byteLength !== 64) {
+    throw new Error(`The ${label} signature is invalid.`);
+  }
+  const publicKey = createPublicKey({ key: publicKeyBytes, format: 'der', type: 'spki' });
+  if (!verify(null, Buffer.from(canonicalJson(payload), 'utf8'), publicKey, signature)) {
+    throw new Error(`The ${label} signature could not be verified.`);
+  }
 }
 
 export function canonicalJson(value: unknown): string {

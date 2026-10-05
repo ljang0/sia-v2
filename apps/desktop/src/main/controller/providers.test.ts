@@ -130,6 +130,45 @@ describe('DesktopController', () => {
     }
   });
 
+  it('routes a signed lab harness model only to its own harness, leaving Codex the default', async () => {
+    const { controller } = await createHarness({
+      fakeServices: false,
+      providerProbe: deterministicProviderProbe,
+      labHarnesses: [
+        {
+          id: 'example_lab',
+          name: 'Example Lab',
+          disclosure: 'Prompts go to Example Lab.',
+          models: [{ id: 'example/spark', label: 'Spark' }],
+        },
+      ],
+    });
+    try {
+      const providers = controller.snapshot().providers;
+      expect(providers.find(({ id }) => id === 'lab')).toMatchObject({
+        status: 'ready',
+        label: 'Lab harness: Example Lab',
+        models: [{ id: 'example/spark' }],
+      });
+      const created = await controller.invoke('agents.save', {
+        name: 'Lab tester',
+        instructions: '',
+        provider: 'lab',
+        model: 'example/spark',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: created.agentId,
+      });
+      expect(
+        controller.snapshot().threads.find(({ id }) => id === threadId)
+          ?.resolvedExecutionTarget,
+      ).toMatchObject({ provider: 'lab', harnessId: 'example_lab', model: 'example/spark' });
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
   it('keeps compatibility providers off new agents and threads but preserves pinned threads', async () => {
     const turns: RuntimeTurnInput[] = [];
     const runtime = {

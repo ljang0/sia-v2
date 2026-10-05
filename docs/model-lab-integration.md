@@ -82,6 +82,35 @@ Harness ids are safe lowercase catalog identifiers rather than a closed persiste
 means adding a lab harness does not require a data migration. Catalog presence alone never grants
 execution: an unknown, incompatible, unavailable, or non-release registration fails closed.
 
+## Test a lab's own harness without a release
+
+A lab can test its own agent harness in Sia before it passes release admission. Codex App Server
+stays the default; the lab harness is added next to it only on the tester's Mac.
+
+1. The lab provides an ACP v1 stdio command (`session/new`, `session/prompt`, model selection, and
+   cancellation) that prints a semantic version for `--version`. Sia's tools reach it through the
+   same capability-scoped MCP bridge as other ACP harnesses. It cannot use Codex's native Use my Mac
+   tools.
+2. The release owner lists it in a JSON array with `id` (lowercase, not a built-in harness id),
+   `name`, absolute `command`, optional `args`/`versionArgs`, `models` (`id`, `label`), and a
+   plain-language `disclosure` of what leaves the Mac and how long the lab keeps it. They sign it
+   with the release manifest key:
+
+   ```sh
+   SIA_RELEASE_MANIFEST_PRIVATE_KEY_FILE=… SIA_RELEASE_MANIFEST_KEY_ID=… \
+     node apps/desktop/scripts/sign-lab-harness-manifest.mjs harnesses.json lab-manifest.json --days 14
+   ```
+
+   The script records each command's SHA-256, so sign on the machine with the exact binary.
+
+3. The tester starts Sia with `SIA_LAB_HARNESS_MANIFEST=/path/to/lab-manifest.json`.
+
+Sia verifies the signature against the same pinned key as update manifests, the expiry, and every
+command hash before registering anything. Any failure is logged as `[sia:lab-harness]` and ignored.
+The harness then appears as **Lab harness: <name>** in Settings → AI, with its disclosure, and its
+models appear in the agent model picker as **· Lab test**. New threads pin `provider: lab` and the
+lab's harness id. The lab owns its authentication; Sia passes no Sia or model credential to it.
+
 ## Required conformance
 
 - exact model selection and confirmation;
