@@ -391,6 +391,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               assistantApi={api}
               scottyApi={api.scotty}
               phoneRemoteApi={api.phoneRemote}
+              messagesRelayApi={api.messagesRelay}
               onRunWorkflow={(threadId) => {
                 app.closeSettings();
                 void run(() => api.selectThread(threadId));

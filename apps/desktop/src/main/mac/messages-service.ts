@@ -21,6 +21,15 @@ export interface MessageRow {
 
 export type MessagesStatus = 'ready' | 'needs_full_disk_access' | 'unavailable';
 
+/** One new one-to-one iMessage row, before trust filtering by the relay. */
+export interface InboundMessage {
+  rowId: number;
+  handle: string;
+  chatIdentifier: string;
+  fromMe: boolean;
+  text: string;
+}
+
 export interface MessagesServiceOptions {
   readonly databasePath?: string;
   readonly platform?: NodeJS.Platform;
@@ -109,6 +118,75 @@ export class MessagesService {
         )
         .all(chatId, limit);
       return rows.map((row) => mapRow(row as Record<string, unknown>)).reverse();
+    } finally {
+      database.close();
+    }
+  }
+
+  /** Newest message row id, so a relay starts after existing history. */
+  latestRowId(): number {
+    const database = this.#requireDatabase();
+    try {
+      const row = database.prepare('SELECT COALESCE(MAX(ROWID), 0) AS id FROM message').get();
+      return Number((row as { id?: number } | undefined)?.id ?? 0);
+    } finally {
+      database.close();
+    }
+  }
+
+  /**
+   * One-to-one iMessage rows after a cursor, oldest first. SMS is excluded because carriers do
+   * not authenticate sender IDs; reactions and system rows are excluded by their item types.
+   */
+  inbound(afterRowId: number, limit: number): { cursor: number; messages: InboundMessage[] } {
+    const database = this.#requireDatabase();
+    try {
+      const rows = database
+        .prepare(
+          `SELECT message.ROWID AS row_id,
+                  COALESCE(handle.id, '') AS handle,
+                  COALESCE(chat.chat_identifier, '') AS chat_identifier,
+                  message.is_from_me AS from_me,
+                  message.text AS text,
+                  message.attributedBody AS attributed_body,
+                  message.service AS service,
+                  chat.style AS style,
+                  message.item_type AS item_type,
+                  message.associated_message_type AS associated_type
+           FROM message
+           LEFT JOIN chat_message_join ON chat_message_join.message_id = message.ROWID
+           LEFT JOIN chat ON chat.ROWID = chat_message_join.chat_id
+           LEFT JOIN handle ON handle.ROWID = message.handle_id
+           WHERE message.ROWID > ?
+           ORDER BY message.ROWID ASC
+           LIMIT ?`,
+        )
+        .all(afterRowId, limit) as Record<string, unknown>[];
+      const messages: InboundMessage[] = [];
+      let cursor = afterRowId;
+      for (const row of rows) {
+        cursor = Math.max(cursor, Number(row.row_id));
+        if (
+          row.service !== 'iMessage' ||
+          Number(row.style) !== 45 ||
+          Number(row.item_type ?? 0) !== 0 ||
+          Number(row.associated_type ?? 0) !== 0
+        )
+          continue;
+        const text =
+          typeof row.text === 'string' && row.text.length
+            ? row.text
+            : decodeAttributedBody(row.attributed_body);
+        if (!text?.trim()) continue;
+        messages.push({
+          rowId: Number(row.row_id),
+          handle: String(row.handle ?? ''),
+          chatIdentifier: String(row.chat_identifier ?? ''),
+          fromMe: Boolean(row.from_me),
+          text,
+        });
+      }
+      return { cursor, messages };
     } finally {
       database.close();
     }

@@ -431,6 +431,19 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   It preserves drafts and rejects concurrent connections or stale/active/archived requests.
   No model turn starts until the user chooses a window and the host verifies an HTTP(S) grant.
 
+- **Text Sia** (`MessagesRelay`) is an optional iMessage channel on the Phone remote page. It is
+  off until the person adds at least one of their own phone numbers or iCloud emails and turns it
+  on. It polls the local `chat.db` (Full Disk Access) every two seconds from a cursor taken at
+  enable time. It accepts only one-to-one iMessage rows (no SMS, groups or reactions) from those
+  numbers, or sent to them from this Mac's Apple ID (texting yourself). Replies start with
+  `Sia › ` and are remembered so Sia never reads its own replies; duplicate self-chat copies are
+  ignored for a minute. Each number continues one thread. Every texted message is sent as a
+  phone turn (`fromPhone`), so `trustForTurn` resolves to `ask` regardless of Full bypass and
+  task grants are unavailable, exactly as for the phone remote. The relay texts the final answer, pending
+  questions and "needs your OK on your Mac" notices back to the same number. `STOP` cancels, `NEW`
+  starts a fresh thread. Settings uses one validated `messages.relay` preload route; the relay
+  exposes no approval by text, generic IPC, shell or credential path.
+
 - **Phone remote** is an optional, separate local web surface built into `out/remote`.
   `PhoneRemote` ports Notch's `/t/<token>/` command/state/cancel/outbox/vault/note flow, with
   a Core Image QR and Bonjour helper. Settings uses one validated `phone.remote` preload route;

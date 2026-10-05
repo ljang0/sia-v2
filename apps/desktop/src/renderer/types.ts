@@ -561,6 +561,7 @@ export interface RendererApi {
   onOpenConversation?(listener: () => void): () => void;
   scotty?: import('../shared/scotty').ScottySettingsApi;
   phoneRemote?: import('../shared/phone-remote').PhoneRemoteApi;
+  messagesRelay?: import('../shared/messages-relay').MessagesRelayApi;
   assistantLibrary(
     input: import('../shared/assistant-library').AssistantLibraryCommand,
   ): Promise<import('../shared/assistant-library').AssistantLibraryView>;

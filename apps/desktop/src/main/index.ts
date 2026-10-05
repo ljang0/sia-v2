@@ -3,6 +3,7 @@ import { backgroundControlUnavailable } from './controller/computer-access.js';
 import { AutomationPermissionService } from './mac/automation-permissions.js';
 import { developmentRelaunchArguments } from './window/development-relaunch.js';
 import { PhoneRemote } from './remote/phone-remote.js';
+import { MessagesRelay } from './remote/messages-relay.js';
 import { remoteQR, advertiseRemote } from './remote/phone-remote-native.js';
 import { createScottyCompanion } from './window/scotty-window.js';
 import { createScreenControlIndicator } from './mac/screen-control-indicator.js';
@@ -91,6 +92,7 @@ const PRODUCTION_HEADER_CSP = PRODUCTION_CSP.replace(
   `script-src 'self' ${CSP_BOOTSTRAP_HASH}`,
 );
 let phoneRemote: PhoneRemote | undefined;
+let messagesRelay: MessagesRelay | undefined;
 let scotty: ReturnType<typeof createScottyCompanion> | undefined;
 let screenIndicator: ReturnType<typeof createScreenControlIndicator> | undefined;
 let commandLauncher: ReturnType<typeof createCommandLauncher> | undefined;
@@ -142,6 +144,8 @@ if (!gotLock) {
     windowStateSaver?.flushNow();
     phoneRemote?.dispose();
     phoneRemote = undefined;
+    messagesRelay?.dispose();
+    messagesRelay = undefined;
     scotty?.dispose();
     scotty = undefined;
     screenIndicator?.dispose();
@@ -690,6 +694,19 @@ async function performApplicationCreation(): Promise<void> {
         : {}),
     });
     activeController.attachPhoneRemote((command) => phoneRemote!.configure(command));
+    messagesRelay = new MessagesRelay({
+      controller: activeController,
+      repository,
+      messages: fakeServices
+        ? {
+            status: () => 'unavailable',
+            latestRowId: () => 0,
+            inbound: (cursor) => ({ cursor, messages: [] }),
+            send: async () => undefined,
+          }
+        : messagesService,
+    });
+    activeController.attachMessagesRelay((command) => messagesRelay!.configure(command));
     scotty = createScottyCompanion(
       activeController,
       repository,
@@ -730,6 +747,7 @@ async function performApplicationCreation(): Promise<void> {
     });
     updateVoiceSuspension();
     await phoneRemote.initialize();
+    messagesRelay.initialize();
     scotty.initialize();
     controller = activeController;
     // Reload appears in the View menu while Settings → Developer tools is on.

@@ -99,4 +99,51 @@ describe('MessagesService', () => {
     expect(script).toContain('service type = iMessage');
     expect(argv).toEqual(['+15551234567', 'On my way']);
   });
+
+  it('reads new one-to-one iMessages after a cursor and skips SMS, groups and reactions', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sia-messages-inbound-'));
+    roots.push(root);
+    const path = join(root, 'chat.db');
+    const db = new DatabaseSync(path);
+    db.exec(`
+      CREATE TABLE message (ROWID INTEGER PRIMARY KEY, text TEXT, attributedBody BLOB,
+        handle_id INTEGER, date INTEGER, is_from_me INTEGER, service TEXT, item_type INTEGER,
+        associated_message_type INTEGER);
+      CREATE TABLE handle (ROWID INTEGER PRIMARY KEY, id TEXT);
+      CREATE TABLE chat (ROWID INTEGER PRIMARY KEY, guid TEXT, display_name TEXT,
+        chat_identifier TEXT, style INTEGER);
+      CREATE TABLE chat_message_join (chat_id INTEGER, message_id INTEGER);
+      INSERT INTO handle VALUES (1, '+15551234567');
+      INSERT INTO chat VALUES (1, 'iMessage;-;+15551234567', '', '+15551234567', 45);
+      INSERT INTO chat VALUES (2, 'iMessage;+;chat1', 'Family', 'chat1', 43);
+      INSERT INTO message VALUES (1, 'before cursor', NULL, 1, 0, 0, 'iMessage', 0, 0);
+      INSERT INTO message VALUES (2, 'hello Sia', NULL, 1, 0, 0, 'iMessage', 0, 0);
+      INSERT INTO message VALUES (3, 'via SMS', NULL, 1, 0, 0, 'SMS', 0, 0);
+      INSERT INTO message VALUES (4, 'in a group', NULL, 1, 0, 0, 'iMessage', 0, 0);
+      INSERT INTO message VALUES (5, 'Loved “hello Sia”', NULL, 1, 0, 0, 'iMessage', 0, 2000);
+      INSERT INTO message VALUES (6, 'note to self', NULL, 0, 0, 1, 'iMessage', 0, 0);
+      INSERT INTO chat_message_join VALUES (1, 1), (1, 2), (1, 3), (2, 4), (1, 5), (1, 6);
+    `);
+    db.close();
+    const service = new MessagesService({ databasePath: path, platform: 'darwin' });
+    expect(service.latestRowId()).toBe(6);
+    const { cursor, messages } = service.inbound(1, 50);
+    expect(cursor).toBe(6);
+    expect(messages).toEqual([
+      {
+        rowId: 2,
+        handle: '+15551234567',
+        chatIdentifier: '+15551234567',
+        fromMe: false,
+        text: 'hello Sia',
+      },
+      {
+        rowId: 6,
+        handle: '',
+        chatIdentifier: '+15551234567',
+        fromMe: true,
+        text: 'note to self',
+      },
+    ]);
+  });
 });

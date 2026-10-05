@@ -16,6 +16,7 @@ import type {
 } from '../../shared/bridge.js';
 import type { TextSize, ThemePreference } from '../../shared/display.js';
 import type { PhoneRemoteApi } from '../../shared/phone-remote.js';
+import type { MessagesRelayApi } from '../../shared/messages-relay.js';
 import type { ScottySettingsApi } from '../../shared/scotty.js';
 import type { CuaAuthorizationContext } from '../mac/cua-service.js';
 import type { TaskSnapshot } from './latest-task-turn.js';
@@ -138,6 +139,10 @@ export class DesktopController {
 
   attachPhoneRemote(handler: PhoneRemoteApi): void {
     this.#ctx.attachPhoneRemote(handler);
+  }
+
+  attachMessagesRelay(handler: MessagesRelayApi): void {
+    this.#ctx.attachMessagesRelay(handler);
   }
 
   remoteAccessAllowed(): boolean {

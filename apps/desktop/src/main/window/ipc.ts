@@ -1,5 +1,6 @@
 import { scottyCommand } from './scotty-state.js';
 import { phoneRemoteCommand } from '../../shared/phone-remote.js';
+import { messagesRelayCommand } from '../../shared/messages-relay.js';
 import { automationAppSchema } from '../../shared/mac-permissions.js';
 import type { BrowserWindow, IpcMain } from 'electron';
 import { z } from 'zod';
@@ -32,6 +33,7 @@ const harnessId = z
 const inputSchemas = {
   'scotty.configure': scottyCommand,
   'phone.remote': phoneRemoteCommand,
+  'messages.relay': messagesRelayCommand,
   'assistant.library': assistantLibraryCommand,
   bootstrap: z.undefined(),
   'agents.save': z

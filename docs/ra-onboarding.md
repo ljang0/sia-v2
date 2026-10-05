@@ -141,6 +141,12 @@ the local traffic is not encrypted. **Create a new link** revokes old links; **T
 closes the listener. The listener binds a private LAN address on port 8738 and accepts only that
 subnet. It stops on sleep/lock, follows network changes, and resumes when the Mac is available.
 Sia must remain open and the Mac awake and unlocked. Scan again after a Wi-Fi address change.
+
+**Text Sia from anywhere** is on the same page. Give Sia Full Disk Access, add your own phone
+number or iCloud email, choose an assistant and select **Turn on texting**. Then iMessage the
+Mac's Apple ID from your phone (or text yourself if your phone and Mac share an Apple ID). Sia
+replies in that conversation. Texted tasks always wait for approval in Sia on the Mac, even with
+Full bypass on. Text **STOP** to cancel or **NEW** to start over. SMS and group chats are ignored.
 Guest/campus Wi-Fi that isolates devices may prevent pairing; use a network that permits peers.
 
 `pnpm --filter @sia/desktop test:remote` runs the isolated phone-browser checks in Chromium and
