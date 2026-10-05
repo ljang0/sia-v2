@@ -146,7 +146,7 @@ Sia must remain open and the Mac awake and unlocked. Scan again after a Wi-Fi ad
 number or iCloud email, choose an assistant and select **Turn on texting**. Then iMessage the
 Mac's Apple ID from your phone (or text yourself if your phone and Mac share an Apple ID). Sia
 replies in that conversation. Texted tasks always wait for approval in Sia on the Mac, even with
-Full bypass on. Text **STOP** to cancel or **NEW** to start over. SMS and group chats are ignored. Send photos or files with a text and Sia receives them; saved results come back as attachments. Sia also texts your first number when scheduled tasks finish, unless you turn that off.
+Full bypass on. Text **STOP** to cancel or **NEW** to start over. SMS and group chats are ignored. Send photos, files or voice notes with a text and Sia receives them (voice notes need Sia's voice service on); saved results come back as attachments. Sia also texts your first number when scheduled tasks finish, unless you turn that off.
 Guest/campus Wi-Fi that isolates devices may prevent pairing; use a network that permits peers.
 
 `pnpm --filter @sia/desktop test:remote` runs the isolated phone-browser checks in Chromium and

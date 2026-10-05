@@ -442,7 +442,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   task grants are unavailable, exactly as for the phone remote. The relay texts the final answer, pending
   questions and "needs your OK on your Mac" notices back to the same number. `STOP` cancels, `NEW`
   starts a fresh thread. Photos and files in a text are granted to that thread through
-  `attachments.drop` from Messages' own attachment copies. Saved results (generated attachments)
+  `attachments.drop` from Messages' own attachment copies. Voice notes are converted with `/usr/bin/afconvert` to 16 kHz WAV and transcribed through `voice.transcribe`; without a transcription-capable voice service Sia asks for a typed text. Saved results (generated attachments)
   of the finished turn are read with `readGeneratedResult`, staged in a private temporary folder
   and sent back with Messages. With "Text me when scheduled tasks finish" on (the default), scheduled
   turns of the texting assistant that start after Sia opens are texted to the first number when

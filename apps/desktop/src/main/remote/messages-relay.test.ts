@@ -97,6 +97,10 @@ function harness() {
       },
     },
     ackAfterMs: 5000,
+    transcribe: async (path: string) => {
+      if (path.includes('mumble')) throw new Error('no speech');
+      return 'Book a table for two at 7';
+    },
     now: () => now,
   });
   relay.initialize();
@@ -369,5 +373,23 @@ describe('MessagesRelay', () => {
     h.finish('scheduled-2', 'Nothing today.');
     await h.relay.flush();
     expect(h.sent).toHaveLength(count);
+  });
+
+  it('transcribes voice notes into the request and asks to type when it cannot', async () => {
+    const h = harness();
+    await h.ready();
+    h.text(101, '', ME, false, ['/Users/me/Library/Messages/Attachments/Audio Message.caf']);
+    await h.relay.poll();
+    expect(h.invoke).toHaveBeenCalledWith('threads.send', {
+      threadId: 'thread-1',
+      text: 'Book a table for two at 7',
+      fromPhone: true,
+    });
+    h.finish('thread-1', 'Booked.');
+    h.text(102, '', ME, false, ['/Users/me/Library/Messages/Attachments/mumble.caf']);
+    await h.relay.poll();
+    await h.relay.flush();
+    expect(h.sent.at(-1)!.text).toContain("I couldn't understand that voice note");
+    expect(h.invoke.mock.calls.filter(([m]) => m === 'threads.send')).toHaveLength(1);
   });
 });

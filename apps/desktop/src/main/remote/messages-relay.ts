@@ -1,4 +1,6 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import type { DesktopController } from '../controller/desktop-controller.js';
@@ -11,6 +13,40 @@ import {
   type MessagesRelaySettings,
   type TrustedContact,
 } from '../../shared/messages-relay.js';
+
+const VOICE_NOTE = /\.(caf|m4a|amr|aac|mp3|wav)$/i;
+
+/**
+ * Converts an iMessage voice note (usually Opus in CAF) to 16 kHz WAV with macOS afconvert and
+ * transcribes it through the configured voice service.
+ */
+export function voiceNoteTranscriber(
+  controller: Pick<DesktopController, 'invoke'>,
+): (path: string) => Promise<string> {
+  const run = promisify(execFile);
+  return async (path) => {
+    const folder = await mkdtemp(join(tmpdir(), 'sia-voice-note-'));
+    try {
+      const wav = join(folder, 'note.wav');
+      await run(
+        '/usr/bin/afconvert',
+        ['-f', 'WAVE', '-d', 'LEI16@16000', '-c', '1', path, wav],
+        {
+          timeout: 20000,
+        },
+      );
+      const audio = await readFile(wav);
+      if (audio.length > 10 * 1024 * 1024) throw new Error('This voice note is too long.');
+      const { text } = await controller.invoke('voice.transcribe', {
+        audioBase64: audio.toString('base64'),
+        mimeType: 'audio/wav',
+      });
+      return text.trim();
+    } finally {
+      await rm(folder, { recursive: true, force: true });
+    }
+  };
+}
 
 /** Every outgoing text starts with this, so Sia never reads its own replies in a self chat. */
 export const REPLY_PREFIX = 'Sia › ';
@@ -44,6 +80,8 @@ interface Dependencies {
   >;
   repository: RecordRepository;
   messages: Pick<MessagesService, 'status' | 'latestRowId' | 'inbound' | 'send' | 'sendFile'>;
+  /** Turns a voice note into text; absent when this build has no transcription. */
+  transcribe?: (path: string) => Promise<string>;
   intervalMs?: number;
   ackAfterMs?: number;
   now?: () => number;
@@ -246,6 +284,25 @@ export class MessagesRelay {
   ): Promise<void> {
     if (!text && !attachments.length) return;
     const handle = contact.handle;
+    const notes = attachments.filter((path) => VOICE_NOTE.test(path)).slice(0, 2);
+    if (notes.length) {
+      const spoken: string[] = [];
+      for (const note of notes) {
+        try {
+          if (!this.#deps.transcribe) throw new Error('unavailable');
+          spoken.push(await this.#deps.transcribe(note));
+        } catch {
+          this.#reply(
+            handle,
+            "I couldn't understand that voice note. Turn on Sia's voice service on your Mac, or type it instead.",
+          );
+          return;
+        }
+      }
+      text = [text, ...spoken].filter(Boolean).join('\n\n');
+      attachments = attachments.filter((path) => !VOICE_NOTE.test(path));
+      if (!text && !attachments.length) return;
+    }
     const snapshot = this.#deps.controller.snapshot();
     const threadId = this.#config.threads[handle];
     const thread = snapshot.threads.find((entry) => entry.id === threadId && !entry.archivedAt);
