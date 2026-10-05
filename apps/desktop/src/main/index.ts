@@ -390,6 +390,7 @@ async function performApplicationCreation(): Promise<void> {
       },
       {
         fakePermissions: fakeServices,
+        verifyAccess: true,
         freshPermissions: freshPermissionProbe({
           executable: process.execPath,
           entryPath: join(import.meta.dirname, 'permission-probe.js'),

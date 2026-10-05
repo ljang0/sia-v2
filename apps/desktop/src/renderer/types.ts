@@ -386,6 +386,8 @@ export interface ComputerInspectorState {
   screenRecording: 'allowed' | 'denied' | 'not-requested';
   /** Turned on in System Settings; macOS applies it after Sia reopens once. */
   relaunchFor?: ('accessibility' | 'screenRecording')[] | undefined;
+  /** `failed`: macOS lists both grants, but Sia could not read a window yet. */
+  verified?: 'confirmed' | 'unconfirmed' | 'failed' | undefined;
   windows: ComputerWindow[];
   /** 'auto' runs eligible actions without in-app approval. */
   trust: 'auto' | 'ask';

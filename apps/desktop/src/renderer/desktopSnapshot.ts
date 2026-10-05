@@ -239,6 +239,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
       accessibility: source.computer.accessibility ? 'allowed' : 'not-requested',
       screenRecording: source.computer.screenRecording ? 'allowed' : 'not-requested',
       relaunchFor: source.computer.relaunchFor,
+      verified: source.computer.verified,
       windows: [],
       accessMode: source.computer.accessMode,
       backgroundControl: source.computer.backgroundControl,

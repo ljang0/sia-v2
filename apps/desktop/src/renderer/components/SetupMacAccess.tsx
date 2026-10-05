@@ -65,7 +65,11 @@ export function macAccessRows(
   const computer = snapshot.computer;
   const core = (permission: 'accessibility' | 'screenRecording'): AccessState =>
     computer[permission] === 'allowed'
-      ? 'ready'
+      ? // Both grants are listed, but reading a window failed: macOS usually applies the
+        // grant to Sia only after it reopens, so treat seeing the screen as not done yet.
+        permission === 'screenRecording' && computer.verified === 'failed'
+        ? 'relaunch'
+        : 'ready'
       : computer.relaunchFor?.includes(permission)
         ? 'relaunch'
         : 'needed';

@@ -301,6 +301,18 @@ it('treats a grant waiting for a relaunch as done-but-reopen, and relaunches onc
   expect(api.requestComputerPermissions).not.toHaveBeenCalled();
 });
 
+it('asks for a relaunch when macOS lists both grants but Sia could not read the screen', () => {
+  const onRestart = vi.fn(async (_skipped: string[]) => {});
+  const { snapshot, rerender } = setup(false, onRestart);
+  snapshot.computer.accessibility = 'allowed';
+  snapshot.computer.screenRecording = 'allowed';
+  snapshot.computer.verified = 'failed';
+  snapshot.computer.automation!.safari = 'ready';
+  rerender();
+  expect(screen.getByText('Reopen Sia')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Relaunch Sia' })).toBeTruthy();
+});
+
 it('offers a relaunch fallback when a needed grant still reads as off after asking', async () => {
   const onRestart = vi.fn(async (_skipped: string[]) => {});
   const { snapshot } = setup(false, onRestart);

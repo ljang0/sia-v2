@@ -85,11 +85,80 @@ it.each([true, false])(
     await service.requestPermissions();
     expect(permissionUi.getSources).not.toHaveBeenCalled();
     expect(permissionUi.accessibility).toHaveBeenCalledExactlyOnceWith(true);
+    // The macOS prompt offers Open System Settings itself; Sia does not open a second window.
+    expect(permissionUi.openExternal).not.toHaveBeenCalled();
+    await service.requestPermissions();
     expect(permissionUi.openExternal).toHaveBeenCalledExactlyOnceWith(
       'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
     );
   },
 );
+
+describe('confirming granted access through the driver', () => {
+  const finderWindow = { pid: 501, window_id: 77, app_name: 'Finder' };
+  const service = (
+    callTool: (name: string, args: string) => Promise<{
+      rawJson: string;
+      errorCode?: string;
+      images?: { mimeType: string; dataBase64: string }[];
+    }>,
+  ) => {
+    const driver = { callTool: vi.fn(callTool), shutdown: vi.fn(async () => undefined) };
+    return {
+      driver,
+      cua: new CuaService(authorization(), {
+        platform: 'darwin',
+        verifyAccess: true,
+        hostPid: 42,
+        readPermissions: async () => ({ accessibility: true, screenRecording: true }),
+        driverFactory: () => driver,
+      }),
+    };
+  };
+
+  it('confirms once it reads another app window with a screenshot, then stops checking', async () => {
+    const { cua, driver } = service(async (name) =>
+      name === 'list_windows'
+        ? { rawJson: JSON.stringify({ windows: [{ ...finderWindow, pid: 42 }, finderWindow] }) }
+        : {
+            rawJson: JSON.stringify({ elements: [] }),
+            images: [{ mimeType: 'image/png', dataBase64: 'iVBORw0KGgo=' }],
+          },
+    );
+    await expect(cua.permissions()).resolves.toMatchObject({
+      status: 'ready',
+      verified: 'confirmed',
+    });
+    expect(JSON.parse(driver.callTool.mock.calls[1]![1])).toEqual({
+      pid: 501,
+      window_id: 77,
+      include_screenshot: true,
+    });
+    await cua.permissions();
+    expect(driver.callTool).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports a failed check when the driver cannot capture the window', async () => {
+    const { cua } = service(async (name) =>
+      name === 'list_windows'
+        ? { rawJson: JSON.stringify({ windows: [finderWindow] }) }
+        : { rawJson: JSON.stringify({ elements: [] }) },
+    );
+    await expect(cua.permissions()).resolves.toMatchObject({
+      status: 'ready',
+      verified: 'failed',
+      detail: expect.stringContaining('could not read the screen'),
+    });
+  });
+
+  it('stays unconfirmed, not failed, when no other window is open', async () => {
+    const { cua } = service(async () => ({ rawJson: JSON.stringify({ windows: [] }) }));
+    await expect(cua.permissions()).resolves.toMatchObject({
+      status: 'ready',
+      verified: 'unconfirmed',
+    });
+  });
+});
 
 it('shares overlapping permission requests and permits a later retry after failure', async () => {
   const service = new CuaService(authorization(), { platform: 'darwin' });
