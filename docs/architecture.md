@@ -72,8 +72,10 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
 ## State ownership
 
 - SQLite stores agents, immutable thread snapshots, normalized events, approval history, connection identifiers, Sia tokens, and capture/sync records as payloads encrypted by macOS Keychain-backed `safeStorage`.
-- Streaming text publishes UI snapshots at 50ms while encrypted desktop-state checkpoints run
-  at 500ms. Composer drafts use the same 500ms checkpoint and push no snapshot. Other
+- Streaming text publishes UI updates at 50ms while encrypted desktop-state checkpoints run
+  at 500ms. Each streaming update is a patch with only the streaming threads, their previews and
+  the open thread's items from the streaming turn, so its size does not grow with history; the
+  renderer applies it to its last snapshot and the next full snapshot replaces both. Composer drafts use the same 500ms checkpoint and push no snapshot. Other
   non-streaming changes, completion and graceful shutdown persist immediately. An abrupt
   termination may lose the last checkpoint interval of an unfinished response or draft.
 - Settled approvals that no transcript row refers to (such as computer-use requests) are dropped
@@ -81,6 +83,9 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
 - UI snapshots pushed to the renderer, and snapshots returned by its bridge calls, carry only the
   open thread's history and approvals plus a one-line preview per thread. In-process callers
   (Scotty, the launcher, phone remote, tests) read the full state from the controller.
+- At launch the window loads as soon as the encrypted store is open and shows its startup screen
+  while provider, permission and account checks run side by side. Renderer bridge calls wait for
+  those checks and earlier pushes are dropped, so the first snapshot is always complete.
 
 - Browser/tab capabilities, one-shot action grants, and turn/resource leases are process-local and are never restored after Sia restarts.
 - Chrome and Messages reuse accounts already configured by their owning Mac applications. Chrome

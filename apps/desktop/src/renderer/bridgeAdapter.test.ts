@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { DesktopBridgeApi, DesktopSnapshot } from '../shared/bridge';
+import type { DesktopBridgeApi, DesktopPushEvent, DesktopSnapshot } from '../shared/bridge';
 import { createBridgeRendererApi } from './bridgeAdapter';
 import { mapDesktopSnapshot, reasoningHeadline } from './desktopSnapshot';
 import type { RendererSnapshot } from './types';
@@ -432,6 +432,64 @@ describe('bridge renderer scoped snapshots', () => {
       snapshot: snapshot([item('earlier', 1, 'Done'), item('streaming', 2, 'Hello')]),
     });
     expect(published.at(-1)!.activeThread!.events).toBe(after.activeThread!.events);
+  });
+
+  it('applies a streamed patch to the open conversation and ignores stale ones', async () => {
+    const item = (id: string, sequence: number, text: string, turnId = 'turn-2') => ({
+      id,
+      threadId: 'thread-1',
+      turnId,
+      sequence,
+      kind: 'assistant' as const,
+      text,
+      status: 'running' as const,
+      timestamp: '2026-01-01T00:00:00.000Z',
+    });
+    let push!: (event: DesktopPushEvent) => void;
+    const first = snapshot([item('earlier', 1, 'Done', 'turn-1'), item('streaming', 2, 'Hel')]);
+    const api = createBridgeRendererApi({
+      bootstrap: async () => first,
+      subscribe: (listener: typeof push) => {
+        push = listener;
+        return () => undefined;
+      },
+    } as unknown as DesktopBridgeApi);
+    const published: Array<RendererSnapshot> = [];
+    api.subscribe((next) => published.push(next));
+    await api.getSnapshot();
+    const thread = { ...first.threads[0]!, status: 'running' as const };
+    push({
+      type: 'stream',
+      patch: {
+        revision: 2,
+        activeThreadId: 'thread-1',
+        threads: [thread],
+        previews: { 'thread-1': { label: 'Latest reply', text: 'Hello' } },
+        timeline: [item('streaming', 2, 'Hello'), item('tool', 3, 'Searching')],
+      },
+    });
+    const after = published.at(-1)!;
+    expect(after.activeThread!.events.map(({ id }) => id)).toEqual([
+      'earlier',
+      'streaming',
+      'tool',
+    ]);
+    expect(after.activeThread!.events[0]).toBe(published.at(-2)!.activeThread!.events[0]);
+    expect(after.activeThread!.events[1]).toMatchObject({ content: 'Hello' });
+    expect(after.agents[0]!.threads[0]!.status).toBe('running');
+
+    const count = published.length;
+    for (const patch of [
+      // Older than the snapshot in hand.
+      { revision: 2, activeThreadId: 'thread-1' },
+      // Built for a conversation the renderer has not switched to yet.
+      { revision: 3, activeThreadId: 'thread-2' },
+    ])
+      push({
+        type: 'stream',
+        patch: { ...patch, threads: [], previews: {}, timeline: [item('streaming', 2, 'X')] },
+      });
+    expect(published).toHaveLength(count);
   });
 
   it('uses pushed previews for threads whose history was not sent', () => {

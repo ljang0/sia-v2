@@ -109,6 +109,8 @@ export class ControllerContext {
   readonly rendererCall = new AsyncLocalStorage<true>();
   readonly workspaceGrants = new Set<string>();
   streamCommitTimer: NodeJS.Timeout | undefined;
+  /** Turns whose streamed text changed since the last push. */
+  readonly streamTurns = new Set<string>();
   streamPersistTimer: NodeJS.Timeout | undefined;
   runtime: RuntimeCoordinator | undefined;
   browserCapabilitySink: BrowserCapabilitySink | undefined;
@@ -165,6 +167,9 @@ export class ControllerContext {
     ]) {
       if (isAbsolute(workspace)) this.workspaceGrants.add(normalizeWorkspace(workspace));
     }
+    // Independent startup checks run side by side; the window shows its startup screen until
+    // they finish. The Codex model list still follows the account check, which can restart
+    // provider sessions.
     const [providers, computer] = await Promise.all([
       // Fake-services mode must not inspect or depend on host CLI installs or
       // authentication. An empty PATH produces deterministic placeholder views;
@@ -173,17 +178,21 @@ export class ControllerContext {
         ? probeProviders(undefined, { PATH: '' })
         : this.deps.providerProbe(),
       this.deps.computer.permissions(),
-      this.deps.identity.initialize(),
+      this.deps.identity.initialize().then(async () => {
+        await this.account.reconcileIdentityBoundState();
+        await this.account.refreshCloudSession();
+      }),
+      this.computerAccess.refreshCapabilityStatuses().catch(() => undefined),
     ]);
     this.providers.setInitialViews(providers);
-    await this.computerAccess.refreshCapabilityStatuses().catch(() => undefined);
-    await this.providers.refreshProviderModels();
-    await this.account.reconcileIdentityBoundState();
-    await this.account.refreshCloudSession();
-    await this.providers.refreshMetaProviderState();
-    if (this.deps.identity.status().state === 'signed_in') {
-      await this.deps.voice?.refresh().catch(() => undefined);
-    }
+    await Promise.all([
+      this.providers
+        .refreshProviderModels()
+        .then(() => this.providers.refreshMetaProviderState()),
+      this.deps.identity.status().state === 'signed_in'
+        ? this.deps.voice?.refresh().catch(() => undefined)
+        : undefined,
+    ]);
     this.computerAccess.state = computer;
     this.researchOutbox.refreshPendingCount();
     this.persist();
@@ -292,14 +301,19 @@ export class ControllerContext {
     return thread;
   }
 
-  commit(deferStreamDelta = false): void {
+  /**
+   * Persists and pushes the state. A streamed delta passes its turn: it is pushed within 50ms as
+   * a patch carrying only that turn's items, not a copy of the whole conversation.
+   */
+  commit(streamingTurnId?: string): void {
     this.revision += 1;
     this.mac.syncKeepAwake();
-    if (deferStreamDelta) {
+    if (streamingTurnId) {
+      this.streamTurns.add(streamingTurnId);
       if (!this.streamCommitTimer) {
         this.streamCommitTimer = setTimeout(() => {
           this.streamCommitTimer = undefined;
-          this.emit();
+          this.emitStream();
         }, 50);
         this.streamCommitTimer.unref();
       }
@@ -327,6 +341,7 @@ export class ControllerContext {
     if (this.streamPersistTimer) clearTimeout(this.streamPersistTimer);
     this.streamCommitTimer = undefined;
     this.streamPersistTimer = undefined;
+    this.streamTurns.clear();
   }
 
   persist(): void {
@@ -340,7 +355,21 @@ export class ControllerContext {
   emit(): void {
     this.speech.pushToTalk?.syncAccess();
     this.speech.pushToTalk?.syncTasks();
+    this.streamTurns.clear();
     const event: DesktopPushEvent = { type: 'snapshot', snapshot: this.snapshots.renderer() };
+    for (const listener of this.listeners) listener(event);
+  }
+
+  private emitStream(): void {
+    const patch = this.snapshots.streamPatch(this.streamTurns);
+    this.streamTurns.clear();
+    if (!patch) {
+      this.emit();
+      return;
+    }
+    this.speech.pushToTalk?.syncAccess();
+    this.speech.pushToTalk?.syncTasks();
+    const event: DesktopPushEvent = { type: 'stream', patch };
     for (const listener of this.listeners) listener(event);
   }
 }

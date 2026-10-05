@@ -18,6 +18,7 @@ import type {
 } from './bridge/research.js';
 import type {
   DesktopSnapshot,
+  DesktopStreamPatch,
   OnboardingProgress,
   OnboardingStep,
   UpdateView,
@@ -338,6 +339,7 @@ export interface BridgeErrorShape {
 export type DesktopPushEvent =
   | { type: 'open-conversation' }
   | { type: 'snapshot'; snapshot: DesktopSnapshot }
+  | { type: 'stream'; patch: DesktopStreamPatch }
   | { type: 'fatal'; error: BridgeErrorShape };
 
 export interface DesktopBridgeApi {

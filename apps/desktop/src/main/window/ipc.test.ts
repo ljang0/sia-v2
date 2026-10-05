@@ -38,6 +38,43 @@ describe('desktop IPC dispatch', () => {
     };
   }
 
+  it('holds renderer calls and pushes until startup is ready', async () => {
+    let handler!: (event: unknown, envelope: unknown) => Promise<unknown>;
+    let listener!: (event: unknown) => void;
+    let markReady!: () => void;
+    const mainFrame = {};
+    const send = vi.fn();
+    const invokeForRenderer = vi.fn(async () => ({ ok: true }));
+    registerDesktopIpc(
+      {
+        handle: (_channel: string, value: typeof handler) => {
+          handler = value;
+        },
+        removeHandler: () => undefined,
+      } as never,
+      { isDestroyed: () => false, webContents: { mainFrame, send } } as never,
+      {
+        subscribe: (value: typeof listener) => {
+          listener = value;
+          return () => undefined;
+        },
+        invokeForRenderer,
+      } as never,
+      new Promise<void>((resolve) => {
+        markReady = resolve;
+      }),
+    );
+    const bootstrap = handler({ senderFrame: mainFrame }, { method: 'bootstrap' });
+    listener({ type: 'open-conversation' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(invokeForRenderer).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+    markReady();
+    await expect(bootstrap).resolves.toEqual({ ok: true });
+    listener({ type: 'open-conversation' });
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects inherited object members as method names', async () => {
     const ipc = register();
     for (const method of ['toString', 'constructor', '__proto__', 'hasOwnProperty'])

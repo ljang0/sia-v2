@@ -1,4 +1,9 @@
-import type { DesktopSnapshot, TimelineItemView, VoiceView } from '../../shared/bridge.js';
+import type {
+  DesktopSnapshot,
+  DesktopStreamPatch,
+  TimelineItemView,
+  VoiceView,
+} from '../../shared/bridge.js';
 import { type ThreadPreviewMemo, threadPreviews } from '../../shared/thread-previews.js';
 import type { TaskSnapshot } from './latest-task-turn.js';
 import { EMPTY_CONNECTIONS } from './connection-ids.js';
@@ -41,6 +46,29 @@ export class Snapshots {
    */
   renderer(): DesktopSnapshot {
     return this.build(true);
+  }
+
+  /**
+   * What streamed deltas changed: the streaming threads, their previews and the active thread's
+   * items from the given turns. Undefined while Sia is locked, when only a full snapshot is safe.
+   */
+  streamPatch(turnIds: ReadonlySet<string>): DesktopStreamPatch | undefined {
+    if (this.ctx.releaseAccessLocked()) return undefined;
+    const activeThreadId = this.ctx.state.activeThreadId;
+    const items = this.ctx.state.timeline.filter(
+      ({ turnId }) => turnId !== undefined && turnIds.has(turnId),
+    );
+    const threadIds = new Set(items.map(({ threadId }) => threadId));
+    const previews = threadPreviews(this.ctx.state.timeline, this.previewMemo);
+    return {
+      revision: this.ctx.revision,
+      ...(activeThreadId ? { activeThreadId } : {}),
+      threads: structuredClone(this.ctx.state.threads.filter(({ id }) => threadIds.has(id))),
+      previews: structuredClone(
+        Object.fromEntries([...previews].filter(([threadId]) => threadIds.has(threadId))),
+      ),
+      timeline: structuredClone(items.filter(({ threadId }) => threadId === activeThreadId)),
+    };
   }
 
   /** Task metadata and each thread's latest turn, without cloning every thread's history. */

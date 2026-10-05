@@ -391,13 +391,22 @@ const inputSchemas = {
   'research.admin.readBatch': z.object({ subject: identifier, batchId: identifier }).strict(),
 } satisfies Record<BridgeMethod, z.ZodType>;
 
+/**
+ * `ready` lets the window load while startup checks finish: calls wait for it and earlier
+ * pushes are dropped, so the renderer's first snapshot is never a half-initialized one.
+ */
 export function registerDesktopIpc(
   ipcMain: IpcMain,
   window: BrowserWindow,
   controller: DesktopController,
+  ready?: Promise<void>,
 ): () => void {
+  let started = !ready;
+  void ready?.then(() => {
+    started = true;
+  });
   const unsubscribe = controller.subscribe((event: DesktopPushEvent) => {
-    if (!window.isDestroyed()) window.webContents.send('sia:event', event);
+    if (started && !window.isDestroyed()) window.webContents.send('sia:event', event);
   });
 
   ipcMain.handle('sia:invoke', async (event, rawEnvelope: unknown) => {
@@ -405,6 +414,7 @@ export function registerDesktopIpc(
       throw new Error('Blocked IPC call from an untrusted frame.');
     }
     const envelope = parseEnvelope(rawEnvelope);
+    await ready;
     try {
       return await controller.invokeForRenderer(envelope.method, envelope.input as never);
     } catch (error) {

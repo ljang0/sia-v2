@@ -1,14 +1,16 @@
 import { mapDesktopSnapshot } from './desktopSnapshot';
-import type { DesktopBridgeApi, DesktopSnapshot } from '../shared/bridge';
+import type { DesktopBridgeApi, DesktopSnapshot, DesktopStreamPatch } from '../shared/bridge';
 import { RESEARCH_CONSENT_VERSION } from '../shared/bridge';
 import type { RendererApi, RendererSnapshot, ThreadEvent } from './types';
 
 export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
   let latest: RendererSnapshot | undefined;
+  let latestDesktop: DesktopSnapshot | undefined;
   let selectedAgentOverride: string | undefined;
   const listeners = new Set<(snapshot: RendererSnapshot) => void>();
 
   const publish = (desktop: DesktopSnapshot) => {
+    latestDesktop = desktop;
     const previous = latest?.activeThread;
     latest = mapDesktopSnapshot(desktop);
     if (latest.activeThread && previous?.id === latest.activeThread.id)
@@ -35,6 +37,37 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     return snapshot;
   };
 
+  // A streamed reply arrives as a patch to the last snapshot. A patch for another thread, or
+  // one older than the snapshot in hand, is already covered by that snapshot.
+  const applyStream = (patch: DesktopStreamPatch) => {
+    const base = latestDesktop;
+    if (
+      !base ||
+      patch.revision <= base.revision ||
+      patch.activeThreadId !== base.activeThreadId
+    )
+      return;
+    const changed = new Map(patch.timeline.map((item) => [item.id, item]));
+    const timeline = base.timeline.map((item) => {
+      const next = changed.get(item.id);
+      if (!next) return item;
+      changed.delete(item.id);
+      return next;
+    });
+    if (changed.size) {
+      timeline.push(...changed.values());
+      timeline.sort((left, right) => left.sequence - right.sequence);
+    }
+    const threads = new Map(patch.threads.map((thread) => [thread.id, thread]));
+    publish({
+      ...base,
+      revision: patch.revision,
+      threads: base.threads.map((thread) => threads.get(thread.id) ?? thread),
+      previews: { ...base.previews, ...patch.previews },
+      timeline,
+    });
+  };
+
   const publishLocal = (update: (snapshot: RendererSnapshot) => void) => {
     if (!latest) return;
     const snapshot = { ...latest };
@@ -58,6 +91,7 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
       listeners.add(listener);
       const unsubscribe = bridge.subscribe((event) => {
         if (event.type === 'snapshot') publish(event.snapshot);
+        else if (event.type === 'stream') applyStream(event.patch);
         else if (event.type === 'fatal') onError?.(event.error.message);
       });
       return () => {
