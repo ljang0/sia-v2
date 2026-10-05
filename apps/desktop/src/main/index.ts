@@ -468,6 +468,25 @@ async function performApplicationCreation(): Promise<void> {
         ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
         : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper'),
       installCodex: () => installManagedCodex(codexToolsRoot),
+      ...(fakeServices
+        ? (() => {
+            // Development only: a key kept in memory and never checked, so the Settings flow
+            // can be exercised without a provider account.
+            let fake: { model: string; host: string } | undefined;
+            return {
+              byok: {
+                summary: () => fake,
+                save: async (input: { baseUrl?: string; model: string; apiKey: string }) => {
+                  const config = validateByokConfig(input);
+                  fake = { model: config.model, host: new URL(config.baseUrl).host };
+                },
+                clear: () => {
+                  fake = undefined;
+                },
+              },
+            };
+          })()
+        : {}),
       ...(byokCredential
         ? {
             byok: {

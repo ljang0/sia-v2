@@ -97,7 +97,7 @@ export function ByokSettings({
           <form
             className={styles.byokForm}
             onSubmit={(event) => void save(event)}
-            aria-label="Your own API key"
+            aria-label="Add your own API key"
           >
             <label className={dialogs.field}>
               <span>Model</span>
