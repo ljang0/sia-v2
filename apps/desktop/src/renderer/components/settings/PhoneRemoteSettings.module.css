@@ -270,3 +270,8 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
+.people {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-subtle);
+}

@@ -451,7 +451,16 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   records which pending approval that number was asked about; a later YES or NO from that same
   number resolves exactly that approval once (`approve` or `deny`, never `approve_task`), and only
   while it is still pending. Other numbers, stale approvals and replies with attachments do not
-  resolve anything. The relay exposes no generic IPC, shell or credential path.
+  resolve anything. **Trusted people** (as in Instinct) are other Sia users the person adds by
+  name and number; both sides add each other. Approved `messages_send` calls to a trusted person
+  are prefixed `Sia ⇄ ` by `MessagesRelay.sendFromSia`. An incoming one-to-one iMessage from a
+  trusted person that carries that prefix starts a phone turn (never full bypass, no task grants)
+  in that person's own thread, framed as information rather than instructions, and the person's
+  first number is told about it. Any answer is an approved `messages_send`, and texted approvals
+  name the person and show the exact text. Unmarked texts, unknown senders and paused connections
+  are ignored; each person is limited to 12 messages an hour, and messages that arrive while their
+  thread is busy are combined into the next turn. The relay exposes no generic IPC, shell or
+  credential path.
 
 - **Phone remote** is an optional, separate local web surface built into `out/remote`.
   `PhoneRemote` ports Notch's `/t/<token>/` command/state/cancel/outbox/vault/note flow, with

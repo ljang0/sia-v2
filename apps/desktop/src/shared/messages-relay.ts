@@ -21,6 +21,17 @@ export const messagesRelayCommand = z.discriminatedUnion('operation', [
       textApprovals: z.boolean().optional(),
     })
     .strict(),
+  z
+    .object({
+      operation: z.literal('addPerson'),
+      handle: z.string().trim().min(3).max(100),
+      name: z.string().trim().min(1).max(60),
+    })
+    .strict(),
+  z
+    .object({ operation: z.literal('removePerson'), handle: z.string().trim().min(1).max(100) })
+    .strict(),
+  z.object({ operation: z.literal('pausePeople'), paused: z.boolean() }).strict(),
 ]);
 export type MessagesRelayCommand = z.infer<typeof messagesRelayCommand>;
 
@@ -34,11 +45,24 @@ export interface TrustedContact {
   label: string;
 }
 
+/**
+ * Another Sia user whose assistant may exchange messages with yours, as in Instinct's trusted
+ * people. Both people add each other. Their messages run as phone turns, so every reply your
+ * Sia sends them needs your approval.
+ */
+export interface TrustedPerson {
+  handle: string;
+  name: string;
+}
+
 export interface MessagesRelaySettings {
   enabled: boolean;
   running: boolean;
   agentId?: string;
   trusted: TrustedContact[];
+  people: TrustedPerson[];
+  /** Pause all Sia-to-Sia messages without removing anyone. */
+  peoplePaused: boolean;
   /** Text your first number when scheduled tasks finish or need you. */
   proactive: boolean;
   /** Reply YES or NO from your numbers to allow or deny one pending step (never a whole task). */

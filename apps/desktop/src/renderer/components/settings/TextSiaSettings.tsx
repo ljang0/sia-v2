@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ChatCircleText, X } from '@phosphor-icons/react';
 import type { MessagesRelayApi, MessagesRelaySettings } from '../../../shared/messages-relay';
 import { InlineSettingsError } from './SettingsShared';
+import { TrustedPeopleSettings } from './TrustedPeopleSettings';
 import { errorMessage } from '../../plainErrors';
 import buttons from '../../styles/buttons.module.css';
 import phone from './PhoneRemoteSettings.module.css';
@@ -166,6 +167,7 @@ export function TextSiaSettings({
         </label>
       )}
       {state && <p className={phone.note}>{state.detail}</p>}
+      {state && <TrustedPeopleSettings state={state} pending={pending} run={run} />}
       <p className={phone.note}>
         Only iMessages from your numbers reach Sia. Anything that changes your Mac or accounts
         waits for your OK, one step at a time, even when bypass is on. Text STOP to cancel or

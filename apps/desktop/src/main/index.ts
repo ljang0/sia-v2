@@ -561,7 +561,15 @@ async function performApplicationCreation(): Promise<void> {
       installedApplications,
       openApplication: launchInstalledApplication,
       openUrl: openWebExternal,
-      messages: messagesService,
+      messages: {
+        search: (query, limit) => messagesService.search(query, limit),
+        readThread: (chatId, limit) => messagesService.readThread(chatId, limit),
+        // Approved sends to trusted people are marked as coming from this Sia.
+        send: (recipient, text) =>
+          messagesRelay
+            ? messagesRelay.sendFromSia(recipient, text)
+            : messagesService.send(recipient, text),
+      },
       openFullDiskAccessSettings: async () => {
         await shell.openExternal(
           'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles',

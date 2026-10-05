@@ -150,6 +150,11 @@ Mac's Apple ID from your phone (or text yourself if your phone and Mac share an 
 replies in that conversation. Texted tasks always wait for your approval, one step at a time, even with
 Full bypass on. Reply **YES** or **NO** when Sia asks, or answer in Sia on the Mac. Text **STOP** to cancel or **NEW** to start over. SMS and group chats are ignored. Send photos, files or voice notes with a text and Sia receives them (voice notes need Sia's voice service on); saved results come back as attachments. Sia also texts your first number when scheduled tasks finish, unless you turn that off.
 
+Under **Trusted people**, add other Sia users by name and number (they add you too). Your Sias
+can then message each other, for example to find a meeting time. Their messages never run with
+Full bypass, you hear about each one by text, and every reply your Sia sends them waits for your
+approval. **Pause connections** stops all of it without removing anyone.
+
 `pnpm --filter @sia/desktop test:remote` runs the isolated phone-browser checks in Chromium and
 WebKit with simulated tasks. Install their test engines once with
 `pnpm --filter @sia/desktop exec playwright install chromium webkit`. These checks cover sending,
