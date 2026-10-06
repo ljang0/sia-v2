@@ -579,6 +579,8 @@ it('shows progress through setup and a calm note after finishing', async () => {
 
   snapshot.agents = structuredClone(demoSnapshot.agents.slice(0, 1));
   snapshot.preferences.onboarding = { step: 'verify', agentId: snapshot.agents[0]!.id };
+  // A fresh setup opens an empty conversation; the note steps aside once one starts.
+  snapshot.activeThread = undefined;
   view.rerender(
     <Onboarding {...props}>
       <div>Conversation</div>

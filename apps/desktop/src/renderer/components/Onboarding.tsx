@@ -234,7 +234,10 @@ export function Onboarding({
     return (
       <>
         {children}
-        {celebrate ? <SetupDoneToast onDone={() => setCelebrate(false)} /> : null}
+        {/* The note points at the suggestions; once a conversation starts it would only cover it. */}
+        {celebrate && !snapshot.activeThread?.events.length ? (
+          <SetupDoneToast onDone={() => setCelebrate(false)} />
+        ) : null}
       </>
     );
   // Stay on Mac access while a Grant all pass is still walking optional rows.
