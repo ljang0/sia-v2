@@ -132,7 +132,6 @@ export class CuaService {
   #verifying: Promise<'confirmed' | 'unconfirmed' | 'failed'> | undefined;
   readonly #hostPid: number;
   readonly #verifyAccessEnabled: boolean;
-  #accessibilityPrompted = false;
   #callTail: Promise<void> = Promise.resolve();
   #authorizationContext: CuaAuthorizationContext | undefined;
   /** The running call's timeout, paused while an approval waits on the person. */
@@ -257,16 +256,13 @@ export class CuaService {
       // Request one permission at a time. Opening Screen Recording while the
       // Accessibility prompt is still pending hides the first step on macOS.
       if (target === 'accessibility') {
-        // The macOS prompt already offers Open System Settings. Opening Settings as well
-        // put two windows in front of the person at once; only open it once the prompt
-        // has been dismissed before (macOS shows it once per app).
-        const prompted = this.#accessibilityPrompted;
-        this.#accessibilityPrompted = true;
+        // macOS shows its prompt only the first time an app asks; an app already listed (but
+        // off) gets no prompt at all. Always open the Accessibility pane too, so there is
+        // something to act on either way.
         systemPreferences.isTrustedAccessibilityClient(true);
-        if (prompted)
-          await shell.openExternal(
-            'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
-          );
+        await shell.openExternal(
+          'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
+        );
       } else {
         // Register the responsible, signed Electron app with TCC. This explicit
         // setup request retains no image and sends nothing to the agent.

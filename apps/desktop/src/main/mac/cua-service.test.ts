@@ -85,9 +85,7 @@ it.each([true, false])(
     await service.requestPermissions();
     expect(permissionUi.getSources).not.toHaveBeenCalled();
     expect(permissionUi.accessibility).toHaveBeenCalledExactlyOnceWith(true);
-    // The macOS prompt offers Open System Settings itself; Sia does not open a second window.
-    expect(permissionUi.openExternal).not.toHaveBeenCalled();
-    await service.requestPermissions();
+    // macOS shows no prompt for an app it already lists, so the pane always opens too.
     expect(permissionUi.openExternal).toHaveBeenCalledExactlyOnceWith(
       'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
     );
