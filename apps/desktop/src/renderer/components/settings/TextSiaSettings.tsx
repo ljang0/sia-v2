@@ -97,7 +97,7 @@ export function TextSiaSettings({
         }}
       >
         <input
-          aria-label="Phone number or iCloud email"
+          aria-label="Your phone number or iCloud email"
           placeholder="Your phone number or iCloud email"
           value={handle}
           onChange={(event) => setHandle(event.target.value)}

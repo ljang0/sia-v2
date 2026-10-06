@@ -34,7 +34,7 @@ it('adds your number, turns texting on for the chosen assistant, and turns it of
   ).toBeTruthy();
   const turnOn = screen.getByRole('button', { name: 'Turn on texting' }) as HTMLButtonElement;
   expect(turnOn.disabled).toBe(true);
-  fireEvent.change(screen.getByLabelText('Phone number or iCloud email'), {
+  fireEvent.change(screen.getByLabelText('Your phone number or iCloud email'), {
     target: { value: '(555) 123-4567' },
   });
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
