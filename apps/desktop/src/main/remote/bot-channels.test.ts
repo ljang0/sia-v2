@@ -18,7 +18,6 @@ const json = (value: unknown, status = 200) =>
     status,
     headers: { 'Content-Type': 'application/json' },
   });
-const settle = () => new Promise((done) => setTimeout(done, 10));
 
 describe('TelegramChannel', () => {
   it('verifies the bot, delivers private messages with files, and sends replies', async () => {
@@ -62,8 +61,13 @@ describe('TelegramChannel', () => {
     expect(await channel.verify()).toBe('@sia_bot');
     const messages: ChannelMessage[] = [];
     channel.start((message) => messages.push(message));
-    await settle();
-    channel.stop();
+    try {
+      // Reaching the next poll proves the whole batch (including the ignored group message)
+      // finished. A fixed sleep can stop the channel while the attachment is still being saved.
+      await vi.waitFor(() => expect(polled).toBe(2));
+    } finally {
+      channel.stop();
+    }
     expect(messages).toHaveLength(1);
     expect(messages[0]).toMatchObject({
       handle: 'telegram:42',
@@ -93,8 +97,11 @@ describe('TelegramChannel', () => {
       fetch: fetch as never,
     });
     channel.start(() => undefined);
-    await settle();
-    expect(channel.error()).toContain('rejected the bot token');
+    try {
+      await vi.waitFor(() => expect(channel.error()).toContain('rejected the bot token'));
+    } finally {
+      channel.stop();
+    }
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
@@ -137,8 +144,9 @@ describe('DiscordChannel', () => {
     });
     expect(await channel.verify()).toBe('Sia');
     const messages: ChannelMessage[] = [];
+    FakeSocket.last = undefined;
     channel.start((message) => messages.push(message));
-    await settle();
+    await vi.waitFor(() => expect(FakeSocket.last).toBeDefined());
     const socket = FakeSocket.last!;
     expect(socket.url).toBe('wss://gateway.example?v=10&encoding=json');
     socket.receive({ op: 10, d: { heartbeat_interval: 45000 } });
@@ -155,10 +163,11 @@ describe('DiscordChannel', () => {
       t: 'MESSAGE_CREATE',
       d: { author: { id: '42', username: 'lawrence' }, channel_id: 'dm-42', content: 'hi Sia' },
     });
-    await settle();
-    expect(messages).toEqual([
-      { handle: 'discord:42', name: 'lawrence', text: 'hi Sia', attachments: [] },
-    ]);
+    await vi.waitFor(() =>
+      expect(messages).toEqual([
+        { handle: 'discord:42', name: 'lawrence', text: 'hi Sia', attachments: [] },
+      ]),
+    );
     await channel.send('discord:42', 'Hello <@everyone>');
     const sent = calls.at(-1)!;
     expect(sent.url).toBe('https://discord.com/api/v10/channels/dm-42/messages');

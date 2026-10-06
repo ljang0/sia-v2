@@ -47,6 +47,11 @@ Verification on October 6, 2026 UTC:
   Do not distribute it or use it as evidence of signed upgrade or Gatekeeper acceptance.
 - CI now installs Chromium and WebKit and runs both renderer and phone-browser checks. Signed
   packaging depends on the verification job, so it cannot run after that job fails.
+- [Combined application CI](https://github.com/ljang0/sia-v2/actions/runs/37411104281) passed all
+  source, Electron, renderer, phone-browser, and universal-package gates on `d1eacf5`. A rerun after
+  the live-evidence documentation update exposed a Telegram test's fixed 10 ms wait for attachment
+  delivery. Bot tests now wait for observable completion instead; the latest commit requires its
+  own green CI result before merge.
 
 The installed `/Applications/Sia.app` is **alpha.14**, not this candidate. Computer Use works in
 this session. The integrated source was opened with real services in the existing signed
