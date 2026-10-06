@@ -77,6 +77,9 @@ type ServiceName =
  * Everything the desktop controller knows and does. DesktopController is the public facade;
  * this context holds the shared state and wires the domain collaborators.
  */
+/** How often a streaming reply is checkpointed to encrypted storage. */
+const STREAM_CHECKPOINT_MS = 2_000;
+
 export class ControllerContext {
   readonly deps: ControllerDeps;
   // Domain collaborators, created by DesktopController through the wire callback.
@@ -317,9 +320,10 @@ export class ControllerContext {
         }, 50);
         this.streamCommitTimer.unref();
       }
-      // Keep the visible stream responsive without encrypting the entire history
-      // at UI cadence. Completion, actions and shutdown still persist immediately.
-      this.persistSoon();
+      // Keep the visible stream responsive without encrypting the entire history at UI
+      // cadence. Each checkpoint encrypts all saved state, so a long reply checkpoints every
+      // 2s; completion, actions and shutdown still persist immediately.
+      this.persistSoon(STREAM_CHECKPOINT_MS);
       return;
     }
     this.cancelStreamCommit();
@@ -327,12 +331,12 @@ export class ControllerContext {
     this.emit();
   }
 
-  persistSoon(): void {
+  persistSoon(delayMs = 500): void {
     if (this.streamPersistTimer) return;
     this.streamPersistTimer = setTimeout(() => {
       this.streamPersistTimer = undefined;
       this.persist();
-    }, 500);
+    }, delayMs);
     this.streamPersistTimer.unref();
   }
 

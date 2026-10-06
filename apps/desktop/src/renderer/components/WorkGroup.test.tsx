@@ -188,6 +188,14 @@ describe('plan steps', () => {
     render(<WorkingStatus writing={false} plan={planProgress(steps)} />);
     expect(screen.getByRole('status').textContent).toContain('Step 2 of 3');
   });
+
+  it('counts finished steps when the turn has no plan', () => {
+    const { rerender } = render(<WorkingStatus writing={false} finished={6} />);
+    expect(screen.getByRole('status').textContent).toContain('6 steps done');
+    rerender(<WorkingStatus writing={false} finished={1} plan={planProgress(steps)} />);
+    expect(screen.getByRole('status').textContent).toContain('Step 2 of 3');
+    expect(screen.getByRole('status').textContent).not.toContain('done');
+  });
 });
 
 describe('activity detail', () => {

@@ -336,6 +336,14 @@ export interface BridgeErrorShape {
   retryable: boolean;
 }
 
+/**
+ * A bridge result whose snapshot is identical to the one just pushed to the window carries this
+ * marker instead of a second copy; the preload puts the pushed snapshot back in its place.
+ */
+export interface PushedSnapshotMarker {
+  pushedSnapshotRevision: number;
+}
+
 export type DesktopPushEvent =
   | { type: 'open-conversation' }
   | { type: 'snapshot'; snapshot: DesktopSnapshot }

@@ -9,7 +9,13 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
   let selectedAgentOverride: string | undefined;
   const listeners = new Set<(snapshot: RendererSnapshot) => void>();
 
+  let latestOverride: string | undefined;
+
   const publish = (desktop: DesktopSnapshot) => {
+    // A call's result is often the very snapshot that was just pushed (see the preload); it
+    // changes nothing, so the window does not render it again.
+    if (latest && desktop === latestDesktop && latestOverride === selectedAgentOverride)
+      return latest;
     latestDesktop = desktop;
     const previous = latest?.activeThread;
     latest = mapDesktopSnapshot(desktop);
@@ -30,6 +36,7 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     } else {
       selectedAgentOverride = undefined;
     }
+    latestOverride = selectedAgentOverride;
     // Each mapped snapshot is fresh and never mutated afterwards, so listeners share it.
     // Copying it per listener cost more than the mapping itself on long histories.
     const snapshot = latest;

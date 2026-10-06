@@ -460,6 +460,17 @@ export function Conversation({
             event.type === 'activity' && event.status === 'running',
         )
     : undefined;
+  // How much of a long task is already behind it, so a returning reader sees progress at once.
+  const finishedSteps = running
+    ? thread.events
+        .slice(lastUserEventIndex + 1)
+        .filter(
+          (event) =>
+            event.type === 'activity' &&
+            event.status === 'complete' &&
+            event.toolName !== 'runtime.start',
+        ).length
+    : 0;
   const usageWarning = usageWarningText(thread?.usageLimit);
   const currentPlan = running
     ? thread.events
@@ -611,6 +622,7 @@ export function Conversation({
                   writing={Boolean(currentAssistantEventId)}
                   thinking={thread.thinking}
                   plan={currentPlanProgress}
+                  finished={finishedSteps}
                 />
               ) : null}
               {browserRecovery}

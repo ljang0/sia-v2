@@ -73,11 +73,14 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
 
 - SQLite stores agents, immutable thread snapshots, normalized events, approval history, connection identifiers, Sia tokens, and capture/sync records as payloads encrypted by macOS Keychain-backed `safeStorage`.
 - Streaming text publishes UI updates at 50ms while encrypted desktop-state checkpoints run
-  at 500ms. Each streaming update is a patch with only the streaming threads, their previews and
-  the open thread's items from the streaming turn, so its size does not grow with history; the
-  renderer applies it to its last snapshot and the next full snapshot replaces both. Composer drafts use the same 500ms checkpoint and push no snapshot. Other
+  every 2s (each one encrypts all saved state). Each streaming update is a patch with only the
+  streaming threads, their previews and the open thread's items from the streaming turn, so its
+  size does not grow with history; the renderer applies it to its last snapshot and the next full
+  snapshot replaces both. Composer drafts checkpoint after 500ms and push no snapshot. Other
   non-streaming changes, completion and graceful shutdown persist immediately. An abrupt
   termination may lose the last checkpoint interval of an unfinished response or draft.
+- A bridge call that returns the snapshot it just pushed sends a marker instead of a second
+  copy; the preload restores the pushed snapshot and the renderer skips re-rendering it.
 - Settled approvals that no transcript row refers to (such as computer-use requests) are dropped
   at launch a week after they expired.
 - UI snapshots pushed to the renderer, and snapshots returned by its bridge calls, carry only the

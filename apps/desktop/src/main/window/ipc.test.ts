@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { registerDesktopIpc } from './ipc.js';
+import { registerDesktopIpc, withoutPushedSnapshot } from './ipc.js';
 
 // This snapshot keeps the public renderer boundary intentionally small.
 describe('desktop IPC contract', () => {
@@ -128,4 +128,56 @@ describe('desktop IPC dispatch', () => {
       ).rejects.toThrow();
     expect(ipc.invokeForRenderer).toHaveBeenCalledTimes(1);
   });
+});
+
+describe('pushed snapshot reuse', () => {
+  const snapshot = (revision: number, title = 'Plan') =>
+    ({ revision, threads: [{ id: 'thread-1', title }], agents: [] }) as never;
+
+  it('replaces a returned snapshot equal to the one just pushed', () => {
+    expect(withoutPushedSnapshot(snapshot(4), snapshot(4))).toEqual({
+      pushedSnapshotRevision: 4,
+    });
+    expect(
+      withoutPushedSnapshot({ threadId: 't', snapshot: snapshot(4) }, snapshot(4)),
+    ).toEqual({
+      threadId: 't',
+      snapshot: { pushedSnapshotRevision: 4 },
+    });
+  });
+
+  it('keeps any result that differs from the pushed snapshot', () => {
+    const changed = snapshot(4, 'Renamed');
+    expect(withoutPushedSnapshot(changed, snapshot(4))).toBe(changed);
+    expect(withoutPushedSnapshot(snapshot(5), snapshot(4))).toEqual(snapshot(5));
+    expect(withoutPushedSnapshot({ saved: true }, snapshot(4))).toEqual({ saved: true });
+    expect(withoutPushedSnapshot(snapshot(4), undefined)).toEqual(snapshot(4));
+  });
+});
+
+it('never shortens bootstrap, which a reloaded window needs in full', async () => {
+  let handler!: (event: unknown, envelope: unknown) => Promise<unknown>;
+  let listener!: (event: unknown) => void;
+  const mainFrame = {};
+  const snapshot = { revision: 3, threads: [], agents: [] };
+  registerDesktopIpc(
+    {
+      handle: (_channel: string, value: typeof handler) => {
+        handler = value;
+      },
+      removeHandler: () => undefined,
+    } as never,
+    { isDestroyed: () => false, webContents: { mainFrame, send: () => undefined } } as never,
+    {
+      subscribe: (value: typeof listener) => {
+        listener = value;
+        return () => undefined;
+      },
+      invokeForRenderer: async () => structuredClone(snapshot),
+    } as never,
+  );
+  listener({ type: 'snapshot', snapshot });
+  await expect(handler({ senderFrame: mainFrame }, { method: 'bootstrap' })).resolves.toEqual(
+    snapshot,
+  );
 });
