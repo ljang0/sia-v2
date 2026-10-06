@@ -652,8 +652,6 @@ function remoteStartError(error: unknown): RemoteError {
   const message = error instanceof Error ? error.message : '';
   if (message.startsWith('Codex setup is in progress')) return new RemoteError(message);
   if (message.startsWith('Sign in to Sia')) return new RemoteError(message);
-  if (message.startsWith('Review and accept the current raw research consent'))
-    return new RemoteError(message);
   if (message.startsWith('Raw research capture could not be stored'))
     return new RemoteError(message);
   return new RemoteError(

@@ -14,7 +14,6 @@ interface ResearchConsentDialogProps {
   autoOpen?: boolean;
   cloudAvailable?: boolean;
   showTrigger?: boolean;
-  researchRequired?: boolean;
 }
 
 export function ResearchConsentDialog({
@@ -23,7 +22,6 @@ export function ResearchConsentDialog({
   autoOpen = false,
   cloudAvailable = false,
   showTrigger = true,
-  researchRequired = false,
 }: ResearchConsentDialogProps) {
   const [open, setOpen] = useState(autoOpen);
   const [saving, setSaving] = useState<'accept' | 'decline'>();
@@ -40,9 +38,6 @@ export function ResearchConsentDialog({
     try {
       if (decision === 'accept') await onAccept();
       else if (onDecline) await onDecline();
-      else if (researchRequired) {
-        throw new Error('Sign out from Connections to decline the research release.');
-      }
       setOpen(false);
     } catch (cause) {
       setError(errorMessage(cause, 'Your research choice could not be saved.'));
@@ -56,7 +51,6 @@ export function ResearchConsentDialog({
       open={open}
       onOpenChange={(next) => {
         if (saving) return;
-        if (researchRequired && !next) return;
         setOpen(next);
         if (!next) setError(undefined);
       }}
@@ -73,9 +67,6 @@ export function ResearchConsentDialog({
         <AlertDialog.Content
           className={`${dialogs.alertDialogContent} ${styles.consentDialog}`}
         >
-          {researchRequired ? (
-            <span className={styles.onboardingStep}>Sia research alpha</span>
-          ) : null}
           <AlertDialog.Title>Join the Sia research release?</AlertDialog.Title>
           <AlertDialog.Description>
             This release records the raw activity Sia observes so researchers can understand
@@ -124,11 +115,8 @@ export function ResearchConsentDialog({
               <li>
                 Raw task content can contain private or secret information. Do not use this
                 research release for material you do not agree to share. You can export or
-                delete your data at any time.{' '}
-                {researchRequired
-                  ? 'Sign out to stop new capture.'
-                  : 'Local participants can pause capture.'}{' '}
-                Deleting resets consent.
+                delete your data at any time. You can pause capture and keep using Sia. Deleting
+                resets consent.
               </li>
             </ul>
           </div>
@@ -147,11 +135,7 @@ export function ResearchConsentDialog({
               disabled={Boolean(saving)}
               onClick={() => void decide('decline')}
             >
-              {saving === 'decline'
-                ? 'Saving…'
-                : researchRequired
-                  ? 'Decline & sign out'
-                  : 'Use without sharing'}
+              {saving === 'decline' ? 'Saving…' : 'Use without sharing'}
             </button>
             <button
               type="button"

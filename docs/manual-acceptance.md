@@ -36,6 +36,10 @@ Use one exact candidate for all four workstreams. Record its commit, app.asar SH
 identifier, signing team, macOS version, test time, observed result, and evidence location.
 Passing development fixtures or the older installed Sia does not complete these checks.
 
+With a signed-in account eligible for research, leave sharing off and complete a disposable task.
+It must finish without a consent prompt or research upload. In a separately consented test profile,
+pause research and repeat: the account stays signed in and the task completes without new capture.
+
 | Area                     | Required live check                                                                                                                                                                                   | Completion evidence                                                                                                                                                                      |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Identity and permissions | Open the exact signed candidate; complete Accessibility, Screen Recording, each installed app's Automation, and Messages Full Disk Access. Deny once, resume, and relaunch.                           | Candidate reports the grants; a disposable Calculator or TextEdit task changes the intended window and the result is read back. A checked box for another Electron copy is insufficient. |

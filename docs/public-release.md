@@ -3,7 +3,9 @@
 ## Decision
 
 Sia `0.1.0-alpha.25` remains an internal release candidate. The integrated build containing the model-selection
-repairs passed signing, notarization, and stapling.
+repairs passed signing, notarization, and stapling. Live signed-app testing then exposed an obsolete
+mandatory-research task gate. The optional-research repair requires fresh verification and signed packaging;
+the artifact hashes below still identify the earlier build.
 Public distribution remains blocked until
 the recipient acceptance checks below pass. No alpha.25
 installer or public download has been published. The last published pilot release remains
@@ -73,6 +75,11 @@ Verification on October 6, 2026 UTC:
 1,165 desktop unit tests, 45 Electron tests, 17 renderer tests, all 60 phone-browser tests,
 and unsigned universal package verification. Local signed packaging used this exact source.
 
+The later documentation-only CI run on `29ee868` failed during the appearance relaunch test:
+the trace shows the test reading the default native theme before app initialization, then hanging
+while closing that partially initialized process. The test now waits for Sia's first window before
+checking the restored theme and initial dark background. It retains the same visual assertions.
+
 The installed `/Applications/Sia.app` is **alpha.14**, not this candidate. Computer Use works in
 this session. The integrated source was opened with real services in the existing signed
 `ai.sia.desktop.dev` runtime and an isolated encrypted profile. Its Keychain opened successfully.
@@ -133,6 +140,12 @@ a new sign-in or observed Keychain prompt. Its permission panel still reports Sy
 Safari as needing attention, so actual app-control acceptance remains pending. Clean-macOS-user
 and alpha.24 upgrade acceptance remain pending. The published alpha.24 ZIP was retrieved and its
 recorded hash, strict app signature and Gatekeeper acceptance verified in preparation for that test.
+Starting a task in the signed candidate exposed a contradiction with the optional-research interface:
+accounts eligible for research uploads were required to consent before any task could start, and
+could not pause capture while signed in. The obsolete checks and unused mandatory-consent UI path
+have been removed. Regression tests complete real controller turns with sharing untouched, declined,
+paused, and explicitly accepted; only the accepted case stores and uploads research. No live research
+consent was supplied and no account membership was changed for this repair.
 GitHub consent completed and the development app independently showed the expected
 connected account; its live read passed as recorded above, while disconnect/reconnect remains pending.
 
