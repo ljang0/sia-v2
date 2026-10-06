@@ -166,7 +166,11 @@ test('phone layout, send, immediate completion, persistence and result download'
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(remote.url);
-  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  // Cold WebKit startup on the hosted Mac can outlast the default five-second assertion.
+  // Keep the check bounded by the client's actual initial state-request deadline.
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible({
+    timeout: 10_000,
+  });
   await expect(page.getByRole('heading', { name: 'Your Mac, within reach.' })).toBeVisible();
   await expect(page.getByRole('textbox')).toBeVisible();
   await page.emulateMedia({ colorScheme: 'light' });
@@ -507,8 +511,6 @@ test('acknowledged commands survive a failed status refresh without claiming sen
   page,
   remote,
 }) => {
-  await page.goto(remote.url);
-  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
   let loseUpdates = false;
   await page.route('**/state', (route) =>
     loseUpdates ? route.abort('failed') : route.continue(),
@@ -518,7 +520,12 @@ test('acknowledged commands survive a failed status refresh without claiming sen
     loseUpdates = true;
     await route.fulfill({ response });
   });
-  await page.getByRole('textbox').fill('A quick answer');
+  await page.goto(remote.url);
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  const composer = page.getByRole('textbox');
+  // Exercise real key input and assert the draft before testing acknowledged delivery.
+  await composer.pressSequentially('A quick answer');
+  await expect(composer).toHaveValue('A quick answer');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByRole('textbox')).toHaveValue('');
   await expect(page.getByRole('status', { name: 'Mac disconnected' })).toBeVisible();

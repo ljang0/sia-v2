@@ -52,8 +52,11 @@ Verification on October 6, 2026 UTC:
   the live-evidence documentation update exposed a Telegram test's fixed 10 ms wait for attachment
   delivery. Bot tests now wait for observable completion instead. CI on `1999c98` passed the source, desktop,
   and renderer gates, then passed 58 of 60 phone-browser checks; two WebKit cases failed during
-  connection/send recovery. Both cases passed three consecutive local runs. CI failure evidence
-  remains under investigation; a local pass does not close that gate.
+  connection/send recovery. The captured first page connected just after its five-second assertion expired; the second was
+  connected but had no draft before Send. The cold-start check now uses the client's ten-second
+  request deadline, and the recovery test installs routes before navigation, types real keys, and
+  asserts its draft. All 60 phone-browser checks passed locally again. Failure traces are retained,
+  and CI has 45 minutes for the expanded verification/package job. Fresh CI remains required.
 
 The installed `/Applications/Sia.app` is **alpha.14**, not this candidate. Computer Use works in
 this session. The integrated source was opened with real services in the existing signed
