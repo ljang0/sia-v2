@@ -6,8 +6,8 @@
 export const LOCAL_CONNECTOR_CLIENT_IDS = {
   /** Microsoft Entra app: "Accounts in any organizational directory and personal Microsoft accounts", public client, redirect http://localhost. */
   microsoft: '',
-  /** GitHub OAuth app with Device Flow enabled. */
-  github: '',
+  /** GitHub OAuth app "Sia" (owner ljang0) with Device Flow and expiring user tokens. */
+  github: 'Ov23lifxZeaFVTP3wCCh',
 } as const;
 
 export interface LocalConnectorClients {
