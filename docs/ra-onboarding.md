@@ -141,7 +141,26 @@ the local traffic is not encrypted. **Create a new link** revokes old links; **T
 closes the listener. The listener binds a private LAN address on port 8738 and accepts only that
 subnet. It stops on sleep/lock, follows network changes, and resumes when the Mac is available.
 Sia must remain open and the Mac awake and unlocked. Scan again after a Wi-Fi address change.
+
 Guest/campus Wi-Fi that isolates devices may prevent pairing; use a network that permits peers.
+
+**Text Sia from anywhere** is on the same page. Give Sia Full Disk Access, add your own phone
+number or iCloud email, choose an assistant and select **Turn on texting**. Then iMessage the
+Mac's Apple ID from your phone (or text yourself if your phone and Mac share an Apple ID). Sia
+replies in that conversation. Texted tasks always wait for your approval, one step at a time, even with
+Full bypass on. Reply **YES** or **NO** when Sia asks, or answer in Sia on the Mac. Text **STATUS** to see what Sia is doing, **STOP** to cancel or **NEW** to start over. Long tasks send a short progress note every 10 minutes. SMS and group chats are ignored. Send photos, files or voice notes with a text and Sia receives them (voice notes need Sia's voice service on); saved results come back as attachments. Sia also texts your first number when scheduled tasks finish, unless you turn that off.
+
+Under **Trusted people**, add other Sia users by name and number (they add you too). Your Sias
+can then message each other, for example to find a meeting time. Their messages never run with
+Full bypass, you hear about each one by text, and every reply your Sia sends them waits for your
+approval. **Pause connections** stops all of it without removing anyone.
+
+Prefer **Telegram or Discord**? Create a bot (Telegram: message @BotFather and send /newbot;
+Discord: Developer Portal → Applications → Bot), copy its token and select **Paste Telegram
+token** or **Paste Discord token**. Sia reads the token from the clipboard, keeps it encrypted on
+the Mac and clears the clipboard. Message the bot the six-digit code Sia shows to link your
+account; after that it works like texting Sia. Send a voice note and Sia answers in text and
+speech.
 
 `pnpm --filter @sia/desktop test:remote` runs the isolated phone-browser checks in Chromium and
 WebKit with simulated tasks. Install their test engines once with

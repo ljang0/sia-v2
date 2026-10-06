@@ -52,6 +52,7 @@ export * from './bridge/workspace.js';
 export interface BridgeRequestMap {
   'scotty.configure': import('./scotty.js').ScottyCommand;
   'phone.remote': import('./phone-remote.js').PhoneRemoteCommand;
+  'messages.relay': import('./messages-relay.js').MessagesRelayCommand;
   'assistant.library': import('./assistant-library.js').AssistantLibraryCommand;
   bootstrap: undefined;
   'agents.save': SaveAgentInput;
@@ -202,6 +203,7 @@ export interface BridgeRequestMap {
 export interface BridgeResultMap {
   'scotty.configure': import('./scotty.js').ScottySettings;
   'phone.remote': import('./phone-remote.js').PhoneRemoteSettings;
+  'messages.relay': import('./messages-relay.js').MessagesRelaySettings;
   'assistant.library': import('./assistant-library.js').AssistantLibraryView;
   bootstrap: DesktopSnapshot;
   'agents.save': { agentId: string; snapshot: DesktopSnapshot };
@@ -358,6 +360,7 @@ export type DesktopPushEvent =
 export interface DesktopBridgeApi {
   scotty: import('./scotty.js').ScottySettingsApi;
   phoneRemote: import('./phone-remote.js').PhoneRemoteApi;
+  messagesRelay: import('./messages-relay.js').MessagesRelayApi;
   assistantLibrary(
     input: BridgeRequestMap['assistant.library'],
   ): Promise<BridgeResultMap['assistant.library']>;

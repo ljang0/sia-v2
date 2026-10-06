@@ -1,8 +1,13 @@
 import { BrowserWindowService } from './mac/browser-window.js';
 import { backgroundControlUnavailable } from './controller/computer-access.js';
 import { AutomationPermissionService } from './mac/automation-permissions.js';
-import { developmentRelaunchArguments } from './window/development-relaunch.js';
+import {
+  developmentRelaunchArguments,
+  packagedRelaunchArguments,
+} from './window/development-relaunch.js';
 import { PhoneRemote } from './remote/phone-remote.js';
+import { MessagesRelay, spokenReply, voiceNoteTranscriber } from './remote/messages-relay.js';
+import { DiscordChannel, TelegramChannel } from './remote/bot-channels.js';
 import { remoteQR, advertiseRemote } from './remote/phone-remote-native.js';
 import { createScottyCompanion } from './window/scotty-window.js';
 import { createScreenControlIndicator } from './mac/screen-control-indicator.js';
@@ -106,6 +111,7 @@ const PRODUCTION_HEADER_CSP = PRODUCTION_CSP.replace(
   `script-src 'self' ${CSP_BOOTSTRAP_HASH}`,
 );
 let phoneRemote: PhoneRemote | undefined;
+let messagesRelay: MessagesRelay | undefined;
 let scotty: ReturnType<typeof createScottyCompanion> | undefined;
 let screenIndicator: ReturnType<typeof createScreenControlIndicator> | undefined;
 let commandLauncher: ReturnType<typeof createCommandLauncher> | undefined;
@@ -157,6 +163,8 @@ if (!gotLock) {
     windowStateSaver?.flushNow();
     phoneRemote?.dispose();
     phoneRemote = undefined;
+    messagesRelay?.dispose();
+    messagesRelay = undefined;
     scotty?.dispose();
     scotty = undefined;
     screenIndicator?.dispose();
@@ -663,7 +671,15 @@ async function performApplicationCreation(): Promise<void> {
       installedApplications,
       openApplication: launchInstalledApplication,
       openUrl: openWebExternal,
-      messages: messagesService,
+      messages: {
+        search: (query, limit) => messagesService.search(query, limit),
+        readThread: (chatId, limit) => messagesService.readThread(chatId, limit),
+        // Approved sends to trusted people are marked as coming from this Sia.
+        send: (recipient, text) =>
+          messagesRelay
+            ? messagesRelay.sendFromSia(recipient, text)
+            : messagesService.send(recipient, text),
+      },
       openFullDiskAccessSettings: async () => {
         await shell.openExternal(
           'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles',
@@ -823,6 +839,39 @@ async function performApplicationCreation(): Promise<void> {
         : {}),
     });
     activeController.attachPhoneRemote((command) => phoneRemote!.configure(command));
+    messagesRelay = new MessagesRelay({
+      controller: activeController,
+      repository,
+      messages: fakeServices
+        ? {
+            status: () => 'unavailable',
+            latestRowId: () => 0,
+            inbound: (cursor) => ({ cursor, messages: [] }),
+            send: async () => undefined,
+            sendFile: async () => undefined,
+          }
+        : messagesService,
+      ...(!fakeServices
+        ? {
+            transcribe: voiceNoteTranscriber(activeController),
+            speak: spokenReply(activeController),
+            bot: (kind: 'telegram' | 'discord', token: string) => {
+              const downloads = join(app.getPath('userData'), 'chat-attachments', kind);
+              return kind === 'telegram'
+                ? new TelegramChannel({ token, downloads })
+                : new DiscordChannel({ token, downloads });
+            },
+            // The bot token goes from the clipboard straight to encrypted storage; it never
+            // crosses IPC or reaches the renderer, and the clipboard is cleared afterwards.
+            takeClipboardToken: () => {
+              const token = clipboard.readText();
+              if (token) clipboard.clear();
+              return token;
+            },
+          }
+        : {}),
+    });
+    activeController.attachMessagesRelay((command) => messagesRelay!.configure(command));
     scotty = createScottyCompanion(
       activeController,
       repository,
@@ -863,6 +912,7 @@ async function performApplicationCreation(): Promise<void> {
     });
     updateVoiceSuspension();
     await phoneRemote.initialize();
+    messagesRelay.initialize();
     scotty.initialize();
     controller = activeController;
     // Reload appears in the View menu while Settings → Developer tools is on.
@@ -923,10 +973,12 @@ async function confirmQuit(
 
 function relaunchApplication(): void {
   quitConfirmed = true;
-  if (process.platform === 'darwin' && !app.isPackaged) {
+  if (process.platform === 'darwin') {
     app.relaunch({
       execPath: '/usr/bin/open',
-      args: developmentRelaunchArguments(process.execPath, app.getAppPath(), process.env),
+      args: app.isPackaged
+        ? packagedRelaunchArguments(process.execPath, process.argv)
+        : developmentRelaunchArguments(process.execPath, app.getAppPath(), process.env),
     });
   } else app.relaunch();
   app.quit();

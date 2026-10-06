@@ -1,5 +1,23 @@
 import { resolve } from 'node:path';
 
+/**
+ * `open` arguments that restart this exact app bundle with its original arguments. A plain
+ * relaunch on macOS can resolve the bundle identifier instead, starting another installed copy
+ * of Sia (for example /Applications) and dropping arguments such as --user-data-dir.
+ */
+export function packagedRelaunchArguments(
+  executable: string,
+  argv: readonly string[],
+): string[] {
+  const args = argv.slice(1).filter((arg) => !arg.startsWith('-psn_'));
+  return [
+    '-n',
+    '-a',
+    resolve(executable, '../../..'),
+    ...(args.length ? ['--args', ...args] : []),
+  ];
+}
+
 export function developmentRelaunchArguments(
   executable: string,
   appPath: string,
