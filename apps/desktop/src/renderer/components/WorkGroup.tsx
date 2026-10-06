@@ -75,6 +75,8 @@ interface WorkingStatusProps {
   thinking?: string | undefined;
   /** The running turn's plan, when it has one: "Step 2 of 5". */
   plan?: PlanProgress | undefined;
+  /** Steps this turn has finished; shown when there is no plan to count against. */
+  finished?: number | undefined;
 }
 
 export interface PlanProgress {
@@ -99,7 +101,14 @@ export function workingLabel(step: boolean, writing: boolean): string {
 }
 
 /** The live line under a running turn: what Sia is doing now and for how long. */
-export function WorkingStatus({ since, step, writing, thinking, plan }: WorkingStatusProps) {
+export function WorkingStatus({
+  since,
+  step,
+  writing,
+  thinking,
+  plan,
+  finished = 0,
+}: WorkingStatusProps) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1_000);
@@ -108,8 +117,16 @@ export function WorkingStatus({ since, step, writing, thinking, plan }: WorkingS
   // The running step already shows as its own row above, so this line stays short.
   const label = !step && !writing && thinking ? thinking : workingLabel(Boolean(step), writing);
   const duration = since ? elapsed(since, new Date(now).toISOString()) : '';
+  // A running step has its own spinner in its row, and a reply being written has its caret, so
+  // this line goes quiet then instead of adding a second moving indicator beside them.
+  const quiet = Boolean(step) || writing;
   return (
-    <div className={styles.workingStatus} role="status" data-testid="turn-running">
+    <div
+      className={styles.workingStatus}
+      role="status"
+      data-testid="turn-running"
+      data-quiet={quiet || undefined}
+    >
       <CircleNotch size={15} className={styles.workingSpinner} aria-hidden="true" />
       {/* Keyed by its words so a new phase fades in instead of snapping. */}
       <span key={label} className={styles.workingLabel}>
@@ -117,6 +134,10 @@ export function WorkingStatus({ since, step, writing, thinking, plan }: WorkingS
       </span>
       {plan ? (
         <span className={styles.workingElapsed}>{`Step ${plan.current} of ${plan.total}`}</span>
+      ) : finished ? (
+        <span className={styles.workingElapsed}>
+          {finished === 1 ? '1 step done' : `${finished} steps done`}
+        </span>
       ) : null}
       {duration ? (
         <span className={styles.workingElapsed} aria-hidden="true">

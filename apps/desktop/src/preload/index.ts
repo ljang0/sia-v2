@@ -7,23 +7,52 @@ import type {
   BridgeResultMap,
   DesktopBridgeApi,
   DesktopPushEvent,
+  DesktopSnapshot,
+  PushedSnapshotMarker,
 } from '../shared/bridge.js';
 
 const INVOKE_CHANNEL = 'sia:invoke';
 const EVENT_CHANNEL = 'sia:event';
+
+// The main process skips resending a snapshot this window already received (see ipc.ts).
+let pushed: DesktopSnapshot | undefined;
+ipcRenderer.on(EVENT_CHANNEL, (_event, value: DesktopPushEvent) => {
+  if (value.type === 'snapshot') pushed = value.snapshot;
+});
+
+const isMarker = (value: unknown): value is PushedSnapshotMarker =>
+  Boolean(value) &&
+  typeof value === 'object' &&
+  typeof (value as PushedSnapshotMarker).pushedSnapshotRevision === 'number';
 
 const invoke = <M extends BridgeMethod>(
   method: M,
   input: BridgeRequestMap[M],
 ): Promise<BridgeResultMap[M]> => {
   const envelope: BridgeInvokeEnvelope<M> = { method, input };
-  return ipcRenderer.invoke(INVOKE_CHANNEL, envelope).catch((cause: unknown) => {
-    if (cause instanceof Error)
-      throw new Error(
-        cause.message.replace(/^Error invoking remote method 'sia:invoke': (?:Error: )?/, ''),
-      );
-    throw cause;
-  }) as Promise<BridgeResultMap[M]>;
+  return ipcRenderer
+    .invoke(INVOKE_CHANNEL, envelope)
+    .then(async (result: unknown) => {
+      const marker = isMarker(result)
+        ? result
+        : isMarker((result as { snapshot?: unknown } | undefined)?.snapshot)
+          ? (result as { snapshot: PushedSnapshotMarker }).snapshot
+          : undefined;
+      if (!marker) return result;
+      // Pushes and replies share one ordered channel, so this is the snapshot just received.
+      const snapshot =
+        pushed?.revision === marker.pushedSnapshotRevision
+          ? pushed
+          : await invoke('bootstrap', undefined);
+      return marker === result ? snapshot : { ...(result as object), snapshot };
+    })
+    .catch((cause: unknown) => {
+      if (cause instanceof Error)
+        throw new Error(
+          cause.message.replace(/^Error invoking remote method 'sia:invoke': (?:Error: )?/, ''),
+        );
+      throw cause;
+    }) as Promise<BridgeResultMap[M]>;
 };
 
 const api: DesktopBridgeApi = {

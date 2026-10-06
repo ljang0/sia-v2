@@ -18,6 +18,7 @@ import type {
 } from './bridge/research.js';
 import type {
   DesktopSnapshot,
+  DesktopStreamPatch,
   OnboardingProgress,
   OnboardingStep,
   UpdateView,
@@ -335,9 +336,18 @@ export interface BridgeErrorShape {
   retryable: boolean;
 }
 
+/**
+ * A bridge result whose snapshot is identical to the one just pushed to the window carries this
+ * marker instead of a second copy; the preload puts the pushed snapshot back in its place.
+ */
+export interface PushedSnapshotMarker {
+  pushedSnapshotRevision: number;
+}
+
 export type DesktopPushEvent =
   | { type: 'open-conversation' }
   | { type: 'snapshot'; snapshot: DesktopSnapshot }
+  | { type: 'stream'; patch: DesktopStreamPatch }
   | { type: 'fatal'; error: BridgeErrorShape };
 
 export interface DesktopBridgeApi {

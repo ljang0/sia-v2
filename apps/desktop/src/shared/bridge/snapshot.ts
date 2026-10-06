@@ -72,6 +72,21 @@ export interface DesktopSnapshot {
   };
 }
 
+/**
+ * Pushed instead of a full snapshot while a reply streams: only what streamed deltas change.
+ * The renderer applies it to its last snapshot; the next full snapshot replaces both.
+ */
+export interface DesktopStreamPatch {
+  revision: number;
+  activeThreadId?: string;
+  /** The threads with streaming turns, replacing the same threads in the last snapshot. */
+  threads: ThreadView[];
+  /** Previews for those threads. */
+  previews: Record<string, ThreadPreview>;
+  /** The active thread's items from the streaming turns, new or changed. */
+  timeline: TimelineItemView[];
+}
+
 export interface CloudFeatureFlags {
   researchUploads: boolean;
   researchArchive: boolean;
