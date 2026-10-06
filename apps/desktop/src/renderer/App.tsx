@@ -82,6 +82,15 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     workspace,
   );
   useInstantThemeSwitch();
+  // The Access panel stays mounted for its closing animation, then unmounts.
+  const inspectorVisible = app.inspectorOpen && !app.settingsOpen;
+  const [inspectorShown, setInspectorShown] = useState(inspectorVisible);
+  const [inspectorClosing, setInspectorClosing] = useState(false);
+  if (inspectorShown !== inspectorVisible) {
+    setInspectorShown(inspectorVisible);
+    setInspectorClosing(!inspectorVisible);
+  }
+  const endInspectorClose = useCallback(() => setInspectorClosing(false), []);
   useTextSize(app.snapshot?.preferences.textSize);
   const windowVisible = useWindowVisible();
   const markRead = useCallback(
@@ -692,8 +701,10 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               />
             </Onboarding>
           )}
-          {app.inspectorOpen && !app.settingsOpen ? (
+          {inspectorVisible || inspectorClosing ? (
             <Inspector
+              open={inspectorVisible}
+              onExited={endInspectorClose}
               browser={snapshot.browser}
               computer={snapshot.computer}
               connection={snapshot.connection}

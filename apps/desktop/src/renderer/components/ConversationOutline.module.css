@@ -221,7 +221,7 @@
 
 .conversationOutlineStatus[data-status='running'] svg,
 .conversationOutlineSteps li[data-status='in_progress'] svg {
-  animation: spin 1.1s linear infinite;
+  animation: spin var(--motion-spin) linear infinite;
 }
 
 .conversationOutlineStatus[data-status='complete'],

@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import type { DesktopSnapshot } from '../../shared/bridge.js';
+import type { DesktopPushEvent, DesktopSnapshot } from '../../shared/bridge.js';
 import { PlaintextTestCipher, SqliteRecordRepository } from '../storage/persistence.js';
 import type { RuntimeTurnInput } from '../providers/runtime-coordinator.js';
 import { ScottyTasks } from '../window/scotty-state.js';
@@ -181,8 +181,10 @@ describe('DesktopController', () => {
     runtimeThreadId = threadId;
     const writesBeforeTurn = repository.desktopStateWrites;
     let pushes = 0;
-    controller.subscribe(() => {
+    const events: DesktopPushEvent[] = [];
+    controller.subscribe((event) => {
       pushes += 1;
+      events.push(event);
     });
 
     await controller.invoke('threads.send', { threadId, text: 'Stream the answer' });
@@ -207,6 +209,16 @@ describe('DesktopController', () => {
     expect(
       controller.snapshot().timeline.find(({ detail }) => detail === 'streamed-answer')?.text,
     ).toHaveLength(30);
+    // Streamed text crosses to the window as small patches, not copies of the whole history.
+    const patches = events.flatMap((event) => (event.type === 'stream' ? [event.patch] : []));
+    expect(patches.length).toBeGreaterThan(3);
+    for (const patch of patches) {
+      expect(patch.threads.map(({ id }) => id)).toEqual([threadId]);
+      expect(
+        patch.timeline.every((item) => item.turnId === patches[0]!.timeline[0]!.turnId),
+      ).toBe(true);
+    }
+    expect(events.at(-1)?.type).toBe('snapshot');
     await controller.shutdown();
   });
 

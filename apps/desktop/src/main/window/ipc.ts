@@ -13,6 +13,8 @@ import type {
   BridgeMethod,
   BridgeRequestMap,
   DesktopPushEvent,
+  DesktopSnapshot,
+  PushedSnapshotMarker,
 } from '../../shared/bridge.js';
 
 const providerId = z.enum(['codex', 'meta', 'grok', 'gemini', 'claude', 'byok', 'lab']);
@@ -399,13 +401,28 @@ const inputSchemas = {
   'research.admin.readBatch': z.object({ subject: identifier, batchId: identifier }).strict(),
 } satisfies Record<BridgeMethod, z.ZodType>;
 
+/**
+ * `ready` lets the window load while startup checks finish: calls wait for it and earlier
+ * pushes are dropped, so the renderer's first snapshot is never a half-initialized one.
+ */
 export function registerDesktopIpc(
   ipcMain: IpcMain,
   window: BrowserWindow,
   controller: DesktopController,
+  ready?: Promise<void>,
 ): () => void {
+  let started = !ready;
+  void ready?.then(() => {
+    started = true;
+  });
+  // The last full snapshot this window received. A call usually commits (pushing a snapshot)
+  // and then returns the same snapshot; that second copy is replaced by a marker.
+  let pushed: DesktopSnapshot | undefined;
   const unsubscribe = controller.subscribe((event: DesktopPushEvent) => {
-    if (!window.isDestroyed()) window.webContents.send('sia:event', event);
+    if (!started || window.isDestroyed()) return;
+    if (event.type === 'snapshot') pushed = event.snapshot;
+    else if (event.type === 'stream') pushed = undefined;
+    window.webContents.send('sia:event', event);
   });
 
   ipcMain.handle('sia:invoke', async (event, rawEnvelope: unknown) => {
@@ -413,8 +430,14 @@ export function registerDesktopIpc(
       throw new Error('Blocked IPC call from an untrusted frame.');
     }
     const envelope = parseEnvelope(rawEnvelope);
+    await ready;
     try {
-      return await controller.invokeForRenderer(envelope.method, envelope.input as never);
+      const result = await controller.invokeForRenderer(
+        envelope.method,
+        envelope.input as never,
+      );
+      // Bootstrap is how a reloaded window, which holds no pushed snapshot, gets its state.
+      return envelope.method === 'bootstrap' ? result : withoutPushedSnapshot(result, pushed);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'The request failed.';
       throw new Error(sanitizeErrorMessage(message));
@@ -445,4 +468,40 @@ function sanitizeErrorMessage(value: string): string {
     .replace(/(?:sk|key|token|secret|bearer)[-_][A-Za-z0-9._-]{8,}/gi, '[redacted]')
     .replace(/\/Users\/[^/\s]+/g, '/Users/[user]')
     .slice(0, 800);
+}
+
+/** Replaces a returned snapshot, or a result's `snapshot`, that equals the one just pushed. */
+export function withoutPushedSnapshot(
+  result: unknown,
+  pushed: DesktopSnapshot | undefined,
+): unknown {
+  if (!pushed || !result || typeof result !== 'object') return result;
+  const marker: PushedSnapshotMarker = { pushedSnapshotRevision: pushed.revision };
+  if (isSnapshot(result)) return sameData(result, pushed) ? marker : result;
+  const snapshot = (result as { snapshot?: unknown }).snapshot;
+  return isSnapshot(snapshot) && sameData(snapshot, pushed)
+    ? { ...result, snapshot: marker }
+    : result;
+}
+
+function isSnapshot(value: unknown): value is DesktopSnapshot {
+  return (
+    Boolean(value) &&
+    typeof value === 'object' &&
+    typeof (value as DesktopSnapshot).revision === 'number' &&
+    Array.isArray((value as DesktopSnapshot).threads)
+  );
+}
+
+function sameData(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (typeof left !== 'object' || typeof right !== 'object' || !left || !right) return false;
+  if (Array.isArray(left) !== Array.isArray(right)) return false;
+  const keys = Object.keys(left);
+  if (keys.length !== Object.keys(right).length) return false;
+  return keys.every(
+    (key) =>
+      Object.hasOwn(right, key) &&
+      sameData((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key]),
+  );
 }

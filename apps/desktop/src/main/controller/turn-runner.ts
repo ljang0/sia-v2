@@ -366,7 +366,7 @@ export class TurnRunner {
             if (stoppedStatus.queueReason) thread.queueReason = stoppedStatus.queueReason;
             else delete thread.queueReason;
           }
-          this.ctx.commit(isStreamingDelta(event));
+          this.ctx.commit(isStreamingDelta(event) ? event.turnId : undefined);
         }
         await recordNative(macTask?.result?.success ? 'complete' : 'failed');
         this.completeRunningActivities(turn.threadId, turn.id);

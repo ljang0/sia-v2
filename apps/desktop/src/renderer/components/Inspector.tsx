@@ -12,7 +12,7 @@ import {
   ShieldCheck,
   X,
 } from '@phosphor-icons/react';
-import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import type {
   BrowserInspectorState,
   ComputerInspectorState,
@@ -30,6 +30,9 @@ interface InspectorProps {
   connection: RendererSnapshot['connection'];
   cloudAuth: RendererSnapshot['cloudAuth'];
   research: ResearchSettings;
+  /** False while the panel plays its closing animation; the parent then unmounts it. */
+  open?: boolean;
+  onExited?(): void;
   onClose(): void;
   onAttachBrowser(windowId?: number): void;
   onOpenBrowserSite(url: string): void;
@@ -41,6 +44,9 @@ interface InspectorProps {
 }
 
 type AccessTab = 'browser' | 'computer' | 'data';
+
+/** Matches --motion-fast, the panel's closing animation. */
+const CLOSE_MS = 160;
 
 export function Inspector({
   browser,
@@ -56,7 +62,15 @@ export function Inspector({
   onOpenCloudSettings,
   onOpenResearchSettings,
   onToggleResearch,
+  open = true,
+  onExited,
 }: InspectorProps) {
+  // Leave on a timer, not animationend, so a window whose animations are paused still closes.
+  useEffect(() => {
+    if (open || !onExited) return;
+    const timer = window.setTimeout(onExited, CLOSE_MS);
+    return () => window.clearTimeout(timer);
+  }, [open, onExited]);
   const [tab, setTab] = useState<AccessTab>('browser');
   const descriptionId = useId();
   const browserPanelId = useId();
@@ -103,7 +117,7 @@ export function Inspector({
   };
 
   return (
-    <Dialog.Root open onOpenChange={(open) => !open && close()}>
+    <Dialog.Root open={open} onOpenChange={(next) => !next && close()}>
       <Dialog.Portal>
         <Dialog.Overlay className={styles.inspectorOverlay} />
         <Dialog.Content

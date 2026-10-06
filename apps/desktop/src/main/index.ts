@@ -351,6 +351,11 @@ async function performApplicationCreation(): Promise<void> {
     if (!controller) app.quit();
   });
 
+  let rendererLoad: Promise<void> | undefined;
+  let markStartupReady!: () => void;
+  const startupReady = new Promise<void>((resolve) => {
+    markStartupReady = resolve;
+  });
   const plaintextTestStorage =
     !app.isPackaged && process.env.SIA_TEST_PLAINTEXT_STORAGE === '1';
   if (!controller && !plaintextTestStorage) await showStorageStartup(window);
@@ -610,6 +615,11 @@ async function performApplicationCreation(): Promise<void> {
       }),
       ...(startupNotice ? { startupNotice } : {}),
     });
+    // The encrypted store is open, so the Keychain explanation has done its job. Load the
+    // window now; its startup screen shows while provider, permission and account checks run.
+    unregisterIpc = registerDesktopIpc(ipcMain, window, activeController, startupReady);
+    rendererLoad = loadRenderer(window, rendererDevUrl);
+    rendererLoad.catch(() => undefined);
     const actionBackend = new DesktopActionBackend({
       computerUnavailable: async () =>
         backgroundControlUnavailable(await computer.permissions()),
@@ -751,9 +761,11 @@ async function performApplicationCreation(): Promise<void> {
     await activeController.initialize();
     unsubscribeDockBadge?.();
     let dockBadge: string | undefined;
-    const updateDockBadge = (snapshot: ReturnType<typeof activeController.snapshot>) => {
-      // Snapshots arrive while replies stream; only a changed count reaches the Dock.
-      const next = dockBadgeText(snapshot.threads);
+    const updateDockBadge = ({
+      threads,
+    }: Pick<import('../shared/bridge.js').DesktopSnapshot, 'threads'>) => {
+      // Updates arrive while replies stream; only a changed count reaches the Dock.
+      const next = dockBadgeText(threads);
       if (next === dockBadge) return;
       dockBadge = next;
       app.dock?.setBadge(next);
@@ -761,6 +773,7 @@ async function performApplicationCreation(): Promise<void> {
     updateDockBadge(activeController.snapshot());
     unsubscribeDockBadge = activeController.subscribe((event) => {
       if (event.type === 'snapshot') updateDockBadge(event.snapshot);
+      else if (event.type === 'stream') updateDockBadge(event.patch);
     });
     activeController.attachPushToTalk({
       available: process.platform === 'darwin' && !fakeServices,
@@ -849,14 +862,19 @@ async function performApplicationCreation(): Promise<void> {
   );
   activeController.setLauncherRegistered(commandLauncher.registered);
 
-  unregisterIpc = registerDesktopIpc(ipcMain, window, activeController);
-
-  if (rendererDevUrl) {
-    await window.loadURL(rendererDevUrl);
-  } else {
-    await window.loadFile(join(import.meta.dirname, '../renderer/index.html'));
-  }
+  unregisterIpc ??= registerDesktopIpc(ipcMain, window, activeController);
+  markStartupReady();
+  await (rendererLoad ?? loadRenderer(window, rendererDevUrl));
   void activeController.resumeCodexSetup().catch(() => undefined);
+}
+
+function loadRenderer(
+  window: BrowserWindow,
+  rendererDevUrl: string | undefined,
+): Promise<void> {
+  return rendererDevUrl
+    ? window.loadURL(rendererDevUrl)
+    : window.loadFile(join(import.meta.dirname, '../renderer/index.html'));
 }
 
 async function confirmQuit(

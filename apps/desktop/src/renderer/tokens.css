@@ -133,6 +133,8 @@
   --motion-fast: 140ms;
   --motion-standard: 190ms;
   --motion-surface: 240ms;
+  /* One turn of every busy spinner; reduced motion stops spinners instead of shortening this. */
+  --motion-spin: 1s;
   --ease-standard: cubic-bezier(0.2, 0.72, 0.2, 1);
   --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
 
