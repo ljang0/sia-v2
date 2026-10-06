@@ -4,6 +4,7 @@ import { automationAppSchema } from '../../shared/mac-permissions.js';
 import type { BrowserWindow, IpcMain } from 'electron';
 import { z } from 'zod';
 import { TEXT_SIZES, THEMES } from '../../shared/display.js';
+import { CONNECTION_IDS } from '../../shared/bridge/connections.js';
 import { assistantLibraryCommand } from '../../shared/assistant-library.js';
 import { MAX_EVERY_HOURS, SCHEDULE_CADENCES } from '../../shared/schedule-cadence.js';
 
@@ -18,7 +19,7 @@ import type {
 } from '../../shared/bridge.js';
 
 const providerId = z.enum(['codex', 'meta', 'grok', 'gemini', 'claude', 'byok', 'lab']);
-const connectionId = z.enum(['gmail', 'drive', 'docs', 'sheets', 'slides', 'slack']);
+const connectionId = z.enum(CONNECTION_IDS);
 const identifier = z.string().uuid();
 const scheduleCadence = z.enum(SCHEDULE_CADENCES);
 const scheduleDays = z.array(z.number().int().min(0).max(6)).min(1).max(7);

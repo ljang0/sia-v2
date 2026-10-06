@@ -315,7 +315,7 @@ function validateRawResearchBatch(request: ResearchBatchRequest): void {
 }
 
 const GOOGLE_WORKSPACE_RESEARCH_TOOL =
-  /"(?:name|toolName)"\s*:\s*"(?:mail|drive|docs|sheets|slides)[._][^"]*"/u;
+  /"(?:name|toolName)"\s*:\s*"(?:mail|drive|docs|sheets|slides|calendar|tasks)[._][^"]*"/u;
 
 /**
  * Defense in depth for older or faulty clients: Google Workspace connector turns are never valid

@@ -1,4 +1,5 @@
 import type {
+  ConnectionId,
   OnboardingProgress,
   OnboardingStep,
   PushToTalkView,
@@ -432,7 +433,7 @@ export interface ProviderSetup {
 }
 
 export interface AppConnection {
-  id: 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack';
+  id: ConnectionId;
   name: string;
   description: string;
   status: ConnectionStatus;
@@ -442,6 +443,10 @@ export interface AppConnection {
   account?: string | undefined;
   googleAccess?: 'read_only' | 'read_write' | undefined;
   upgrading?: boolean | undefined;
+  /** One-time code shown while a device sign-in waits. */
+  userCode?: string | undefined;
+  /** False when this build cannot connect the app yet. */
+  available?: boolean | undefined;
   permissions: string[];
 }
 

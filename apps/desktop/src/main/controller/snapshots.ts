@@ -6,7 +6,7 @@ import type {
 } from '../../shared/bridge.js';
 import { type ThreadPreviewMemo, threadPreviews } from '../../shared/thread-previews.js';
 import type { TaskSnapshot } from './latest-task-turn.js';
-import { EMPTY_CONNECTIONS } from './connection-ids.js';
+import { EMPTY_CONNECTIONS, isLocalConnection } from './connection-ids.js';
 import type { ControllerContext } from './context.js';
 
 /** The parts of the controller context Snapshots uses. */
@@ -185,7 +185,13 @@ export class Snapshots {
           ? { setup: { ...this.ctx.providers.codexSetup } }
           : {}),
       })),
-      connections: structuredClone(this.ctx.state.connections),
+      connections: structuredClone(this.ctx.state.connections).map((connection) =>
+        isLocalConnection(connection.id) &&
+        !this.ctx.deps.fakeServices &&
+        !this.ctx.deps.localConnectors?.available(connection.id)
+          ? { ...connection, available: false }
+          : connection,
+      ),
       capture: structuredClone(this.ctx.state.capture),
       computer: {
         ...structuredClone(this.ctx.computerAccess.state),

@@ -4,37 +4,47 @@ import type { ConnectionView } from '../../shared/bridge.js';
 
 export const EMPTY_CONNECTIONS: ConnectionView[] = [
   { id: 'gmail', label: 'Gmail', status: 'disconnected' },
+  { id: 'calendar', label: 'Google Calendar', status: 'disconnected' },
   { id: 'drive', label: 'Google Drive', status: 'disconnected' },
   { id: 'docs', label: 'Google Docs', status: 'disconnected' },
   { id: 'sheets', label: 'Google Sheets', status: 'disconnected' },
   { id: 'slides', label: 'Google Slides', status: 'disconnected' },
+  { id: 'tasks', label: 'Google Tasks', status: 'disconnected' },
   { id: 'slack', label: 'Slack', status: 'disconnected' },
+  { id: 'outlook', label: 'Outlook', status: 'disconnected' },
+  { id: 'notion', label: 'Notion', status: 'disconnected' },
+  { id: 'github', label: 'GitHub', status: 'disconnected' },
 ];
 
-export const GOOGLE_CONNECTION_IDS: readonly ConnectionView['id'][] = [
-  'gmail',
-  'drive',
-  'docs',
-  'sheets',
-  'slides',
-];
+export {
+  GOOGLE_CONNECTION_IDS,
+  isGoogleConnection,
+  isLocalConnection,
+  LOCAL_CONNECTION_IDS,
+  type LocalConnectionId,
+} from '../../shared/bridge.js';
 
-export function isGoogleConnection(id: ConnectionView['id']): boolean {
-  return id !== 'slack';
+const TOOL_PREFIXES: Readonly<Record<string, ConnectionView['id']>> = {
+  mail: 'gmail',
+  calendar: 'calendar',
+  drive: 'drive',
+  docs: 'docs',
+  sheets: 'sheets',
+  slides: 'slides',
+  tasks: 'tasks',
+  slack: 'slack',
+  outlook: 'outlook',
+  notion: 'notion',
+  github: 'github',
+};
+
+export function connectorAppForTool(value: string): ConnectionView['id'] | undefined {
+  const prefix = /^([a-z]+)_/.exec(value)?.[1];
+  return prefix ? TOOL_PREFIXES[prefix] : undefined;
 }
 
 export function isConnectorActionTool(name: string): boolean {
-  return /^(?:mail|drive|docs|sheets|slides|slack)_/.test(name);
+  return connectorAppForTool(name) !== undefined;
 }
 
-export const GOOGLE_WORKSPACE_ACTION = /^(?:mail|drive|docs|sheets|slides)_/;
-
-export function connectorAppForTool(value: string): ConnectionView['id'] | undefined {
-  if (value.startsWith('mail_')) return 'gmail';
-  if (value.startsWith('drive_')) return 'drive';
-  if (value.startsWith('docs_')) return 'docs';
-  if (value.startsWith('sheets_')) return 'sheets';
-  if (value.startsWith('slides_')) return 'slides';
-  if (value.startsWith('slack_')) return 'slack';
-  return undefined;
-}
+export const GOOGLE_WORKSPACE_ACTION = /^(?:mail|calendar|drive|docs|sheets|slides|tasks)_/;

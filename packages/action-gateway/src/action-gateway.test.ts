@@ -89,9 +89,56 @@ describe('curated tool surface', () => {
     ).toMatchObject({ thread_id: 'existing-thread' });
   });
 
+  it('validates calendar, task, Outlook, Notion, and GitHub inputs strictly', () => {
+    expect(
+      parseActionArguments('calendar_create_event', {
+        account_id: 'calendar',
+        summary: 'Lunch',
+        start: '2026-10-06T12:00:00-04:00',
+        end: '2026-10-06T13:00:00-04:00',
+        attendees: ['friend@example.com'],
+      }),
+    ).toMatchObject({ summary: 'Lunch' });
+    expect(() =>
+      parseActionArguments('calendar_create_event', {
+        account_id: 'calendar',
+        summary: 'Mixed',
+        start: '2026-10-06',
+        end: '2026-10-06T13:00:00-04:00',
+      }),
+    ).toThrow();
+    expect(() =>
+      parseActionArguments('tasks_update', { account_id: 'tasks', task_id: 'abc' }),
+    ).toThrow();
+    expect(() =>
+      parseActionArguments('outlook_move', {
+        account_id: 'outlook',
+        resource_id: 'm1',
+        destination: 'somewhere-else',
+      }),
+    ).toThrow();
+    expect(() =>
+      parseActionArguments('notion_search', { account_id: 'gmail', query: 'plans' }),
+    ).toThrow();
+    expect(() =>
+      parseActionArguments('github_read_file', {
+        account_id: 'github',
+        repo: '../etc',
+        path: 'passwd',
+      }),
+    ).toThrow();
+    expect(
+      parseActionArguments('github_read_file', {
+        account_id: 'github',
+        repo: 'octo-org/hello.world',
+        path: '',
+      }),
+    ).toMatchObject({ repo: 'octo-org/hello.world', path: '' });
+  });
+
   it('contains only stable snake_case tools and no raw escape hatches', () => {
     const names = ACTION_TOOL_DESCRIPTORS.map((tool) => tool.name);
-    expect(names).toHaveLength(50);
+    expect(names).toHaveLength(77);
     expect(names.every((name) => /^[a-z][a-z0-9_]*$/.test(name))).toBe(true);
     expect(names.join(' ')).not.toMatch(/visual|canvas|javascript|cdp|cookie|profile|shell/i);
     expect(names).toContain('computer_action');
@@ -370,6 +417,16 @@ describe('curated tool surface', () => {
       slack_open_dm: 'slack',
       slack_read_thread: 'slack',
       slack_post: 'slack',
+      calendar_list_events: 'calendar',
+      calendar_create_event: 'calendar',
+      tasks_list: 'tasks',
+      tasks_update: 'tasks',
+      outlook_search: 'outlook',
+      outlook_send: 'outlook',
+      notion_search: 'notion',
+      notion_create_page: 'notion',
+      github_search: 'github',
+      github_create_pull_request: 'github',
     } as const;
     for (const [name, selector] of Object.entries(selectors)) {
       const descriptor = getActionToolDescriptor(name)!;

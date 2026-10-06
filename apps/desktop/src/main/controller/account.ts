@@ -1,6 +1,7 @@
 import type { BridgeResultMap, DesktopSnapshot } from '../../shared/bridge.js';
 import { CloudRequestError } from '../cloud/cloud-client.js';
-import { isGoogleConnection } from './connection-ids.js';
+import { isGoogleConnection, isLocalConnection } from './connection-ids.js';
+import { LOCAL_DEVICE_OWNER } from './connections.js';
 import type { ControllerContext } from './context.js';
 import { INITIAL_STATE } from './persisted-state.js';
 import { LOCAL_RESEARCH_IDENTITY } from './research-records.js';
@@ -126,6 +127,7 @@ export class CloudAccount {
     this.ctx.emit();
     try {
       this.ctx.connections.setup?.controller.abort();
+      this.ctx.connections.cancelLocalSetups();
       await this.stopAllWorkForAuthenticationBoundary();
       if (this.ctx.deps.cloud.configured) {
         await this.ctx.researchOutbox.inFlightSync?.catch(() => undefined);
@@ -298,6 +300,8 @@ export class CloudAccount {
       this.ctx.turns.tasks.clear();
       this.ctx.turns.workspaceLeases.clear();
       this.ctx.approvals.pending.clear();
+      this.ctx.connections.cancelLocalSetups();
+      this.ctx.deps.localConnectors?.forgetAll();
       this.ctx.deps.repository.clearAll();
       this.ctx.state = structuredClone(INITIAL_STATE);
       this.ctx.researchOutbox.inFlightSync = undefined;
@@ -378,6 +382,13 @@ export class CloudAccount {
     const pendingGoogleUpgrades = new Set<string>();
     for (const connection of this.ctx.state.connections) {
       if (!connection.connectionId) continue;
+      if (
+        isLocalConnection(connection.id) &&
+        this.ctx.state.connectionOwners[connection.id] === LOCAL_DEVICE_OWNER
+      ) {
+        // Connected on this Mac before any Sia account existed; the signed-in person claims it.
+        this.ctx.state.connectionOwners[connection.id] = identity;
+      }
       const owner = this.ctx.state.connectionOwners[connection.id];
       if (owner !== identity) {
         connection.status = 'error';
@@ -385,6 +396,21 @@ export class CloudAccount {
         connection.detail = owner
           ? 'This grant belongs to another Sia cloud account.'
           : 'This legacy grant has no verifiable account owner; reconnect is blocked.';
+        continue;
+      }
+      if (isLocalConnection(connection.id)) {
+        // Signed in from this Mac. Keep a grant the provider already rejected in its reconnect
+        // state; otherwise restore it from the saved sign-in, which the next tool call verifies.
+        if (connection.status === 'error' && connection.detail?.includes('expired')) continue;
+        const account = this.ctx.deps.localConnectors?.savedAccount(connection.connectionId);
+        if (account || this.ctx.deps.fakeServices) {
+          connection.status = 'connected';
+          if (account) connection.account = account;
+          delete connection.detail;
+        } else {
+          connection.status = 'error';
+          connection.detail = 'This app’s sign-in is no longer on this Mac. Reconnect it.';
+        }
         continue;
       }
       try {

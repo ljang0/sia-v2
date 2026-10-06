@@ -31,7 +31,7 @@ starts read-only and that editing or sending requires a separate permission upgr
 Sia owns the Google Web OAuth client. Authorization code with PKCE terminates at the exact AWS
 callback above. Refresh tokens are encrypted with AWS KMS in a credential vault separated from
 research records and are never returned to the desktop. The adapter can call only the fixed Gmail,
-Drive, Docs, Sheets, and Slides API origins.
+Drive, Docs, Sheets, Slides, Calendar, and Tasks API origins.
 
 The connection has two deliberate levels:
 
@@ -41,8 +41,12 @@ The connection has two deliberate levels:
    while the browser consent is pending. After the write grant is verified, Sia removes the
    superseded encrypted credential and switches the five services atomically.
 
-A granular-consent response missing any selected scope is revoked best-effort and never saved. OAuth
-state is single-use, PKCE-bound, and expires after ten minutes.
+A granular-consent response missing any required Gmail, Drive, Docs, Sheets, or Slides scope is
+revoked best-effort and never saved. Calendar and Tasks scopes are requested at both levels but are
+optional: a person may leave them unchecked, and grants saved before Calendar and Tasks were added
+remain connected at their current level. A Calendar or Tasks tool whose scope is absent fails before
+any Google request and asks the person to reconnect Google Workspace in Settings. OAuth state is
+single-use, PKCE-bound, and expires after ten minutes.
 
 ## Complete requested scope inventory
 
@@ -65,6 +69,8 @@ the correct signed-in Sia subject. It is not used for advertising, enrichment, o
 - `https://www.googleapis.com/auth/documents.readonly`
 - `https://www.googleapis.com/auth/spreadsheets.readonly`
 - `https://www.googleapis.com/auth/presentations.readonly`
+- `https://www.googleapis.com/auth/calendar.events.readonly` (optional)
+- `https://www.googleapis.com/auth/tasks.readonly` (optional)
 
 `gmail.readonly` is used only when a person asks Sia to search, read, summarize, or reference email.
 Message bodies are required for thread summaries and requested detail extraction, so metadata-only
@@ -78,6 +84,10 @@ The Docs, Sheets, and Slides read-only scopes let Sia read a resource selected o
 person. The adapter accepts a resource ID or the corresponding Google URL. Sheets reads are bounded
 to at most 500 rows per call. Read-only scopes cannot modify resources.
 
+`calendar.events.readonly` lets Sia list events in a bounded time window (at most 100 per call) or
+read one event the person asks about. `tasks.readonly` lets Sia list tasks in one task list (at most
+100 per call). Neither crawls history beyond the requested window or list.
+
 ### Optional editor and sender upgrade
 
 - `https://www.googleapis.com/auth/gmail.compose`
@@ -85,6 +95,8 @@ to at most 500 rows per call. Read-only scopes cannot modify resources.
 - `https://www.googleapis.com/auth/documents`
 - `https://www.googleapis.com/auth/spreadsheets`
 - `https://www.googleapis.com/auth/presentations`
+- `https://www.googleapis.com/auth/calendar.events` (optional)
+- `https://www.googleapis.com/auth/tasks` (optional)
 
 `gmail.compose` lets Sia create a Gmail draft and send it only after the person supplies or approves
 the recipient, subject, and body. Draft creation gives the person a reviewable copy in Gmail. Sia
@@ -97,13 +109,19 @@ The full Docs, Sheets, and Slides scopes are requested only after **Enable editi
 to create a resource or apply a bounded user-requested change. Consequential writes identify the
 target and exact content before execution under the active approval policy.
 
+`calendar.events` lets Sia create, change, or delete one event the person asks for. Guests are
+emailed only when the person names attendees or the event already has guests. Calendar settings,
+sharing, and calendar lists are not modified. `tasks` lets Sia create a task or change one task's
+title, notes, due date, or completion. Neither scope is required for the connection itself.
+
 ## Google API data handling statement
 
 Google Workspace access is optional and separately consented on Google's page. Sia accesses Google
 data only to provide the user-facing task the person requested. Data is read live, is not bulk
 copied, and is not used for advertising, model training, or generalized AI development.
 
-Every turn that invokes Gmail, Drive, Docs, Sheets, or Slides is excluded in full from:
+Every turn that invokes Gmail, Drive, Docs, Sheets, Slides, Calendar, or Tasks is excluded in full
+from:
 
 - AWS research uploads and the research archive;
 - administrator research review;
@@ -126,8 +144,8 @@ second category.
 Read scopes justification:
 
 > Sia is a macOS assistant that reads Gmail and Google Workspace files only when a person asks for a
-> specific search, message, file, document, spreadsheet range, or presentation. Drive, Docs, Sheets,
-> and Slides are read live and are not crawled, indexed, or bulk copied. Read-only Google connection
+> specific search, message, file, document, spreadsheet range, presentation, calendar time window,
+> or task list. Drive, Docs, Sheets, Slides, Calendar, and Tasks are read live and are not crawled, indexed, or bulk copied. Read-only Google connection
 > is optional and separately revocable. Every turn invoking a Google Workspace connector is excluded
 > in full from research uploads, the AWS research archive, administrator research review, the
 > optional local diagnostic trajectory, advertising, generalized AI development, and model
@@ -139,7 +157,8 @@ Editor and sender scopes justification:
 > second Google consent. gmail.compose creates a reviewable Gmail draft and can send only the exact
 > recipient, subject, and body supplied or approved by the person. drive.file supports files created
 > with or explicitly supplied to Sia. The Docs, Sheets, and Slides editor scopes support bounded
-> user-requested creation and changes; read-only scopes cannot perform those features. Sia does not
+> user-requested creation and changes; read-only scopes cannot perform those features.
+> calendar.events and tasks create or change one event or task the person requests. Sia does not
 > bulk copy or index Workspace data. Every invoking turn is excluded in full from research and
 > diagnostic capture, advertising, generalized AI development, and model training.
 

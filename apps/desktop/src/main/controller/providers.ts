@@ -1,3 +1,4 @@
+import { isLocalConnection } from './connection-ids.js';
 import type { ModelRoute } from '@sia/protocol';
 import { admitHostedRoutes } from '@sia/runtime';
 import type {
@@ -283,7 +284,9 @@ export class ProviderAccess {
       this.ctx.workspace.pendingTerminalOperations ||
       this.ctx.deps.workspaceOperations?.hasRunningTerminals?.() ||
       this.ctx.connections.setup ||
-      this.ctx.state.connections.some((app) => app.status === 'connecting')
+      this.ctx.state.connections.some(
+        (app) => !isLocalConnection(app.id) && app.status === 'connecting',
+      )
     ) {
       throw new Error(
         'Finish the current task, terminal process, recording, or account approval, then try Codex setup again.',

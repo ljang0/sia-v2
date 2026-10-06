@@ -2,6 +2,11 @@ import { useState } from 'react';
 import type { AppConnection, RendererSnapshot } from '../types';
 import buttons from '../styles/buttons.module.css';
 import styles from './ConnectionChecklist.module.css';
+import {
+  GOOGLE_CALENDAR_AND_TASKS_ENABLED,
+  isGoogleConnection,
+  isLocalConnection,
+} from '../../shared/bridge/connections';
 
 export function ConnectionChecklist({
   snapshot,
@@ -17,7 +22,9 @@ export function ConnectionChecklist({
   reconnect(app: AppConnection['id']): Promise<void>;
 }) {
   const [selected, setSelected] = useState({ google: true, slack: true });
-  const connecting = snapshot.apps.find((app) => app.status === 'connecting');
+  const connecting = snapshot.apps.find(
+    (app) => !isLocalConnection(app.id) && app.status === 'connecting',
+  );
   const cloudReady =
     snapshot.cloudAuth.state === 'signed-in' &&
     snapshot.cloudAuth.features?.connectors !== false;
@@ -31,8 +38,10 @@ export function ConnectionChecklist({
     {
       id: 'google' as const,
       name: 'Google Workspace',
-      detail: 'Gmail, Drive, Docs, Sheets, and Slides. Read access.',
-      apps: snapshot.apps.filter((app) => app.id !== 'slack'),
+      detail: GOOGLE_CALENDAR_AND_TASKS_ENABLED
+        ? 'Gmail, Calendar, Drive, Docs, Sheets, Slides, and Tasks. Read access.'
+        : 'Gmail, Drive, Docs, Sheets, and Slides. Read access.',
+      apps: snapshot.apps.filter((app) => isGoogleConnection(app.id)),
     },
     {
       id: 'slack' as const,

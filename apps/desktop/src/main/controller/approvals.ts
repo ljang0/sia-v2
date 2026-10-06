@@ -16,7 +16,11 @@ import {
 import type { CuaAuthorizationContext } from '../mac/cua-service.js';
 import { humanizeToolName, runtimeToolTitle } from '../providers/runtime-activity.js';
 import { gatewayTaskGrant } from './approval-grants.js';
-import { connectorAppForTool, GOOGLE_WORKSPACE_ACTION } from './connection-ids.js';
+import {
+  connectorAppForTool,
+  GOOGLE_WORKSPACE_ACTION,
+  isConnectorActionTool,
+} from './connection-ids.js';
 import type { ControllerContext } from './context.js';
 import type { ApprovedConnectorBinding, PendingApproval } from './types.js';
 
@@ -303,7 +307,7 @@ export class Approvals {
   ): Promise<{ approved: boolean }> {
     this.ctx.researchCapture.taintResearchTurn(request.turnId);
     const approvalId = randomUUID();
-    const connector = /^(mail|drive|docs|sheets|slides|slack)_/.test(request.tool.name);
+    const connector = isConnectorActionTool(request.tool.name);
     const upload = /upload/.test(request.tool.name);
     let reviewArguments = request.arguments;
     if (request.tool.name === 'skill_run') {

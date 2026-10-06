@@ -772,7 +772,14 @@ describe('research boundary', () => {
       ],
     };
 
-    for (const batch of [rawEvent, rawChunk]) {
+    const calendarEvent = structuredClone(rawEvent);
+    calendarEvent.batchId = 'google-calendar-event';
+    calendarEvent.events[0]!.payload.data.name = 'calendar_list_events';
+    const tasksEvent = structuredClone(rawEvent);
+    tasksEvent.batchId = 'google-tasks-event';
+    tasksEvent.events[0]!.payload.data.name = 'tasks_update';
+
+    for (const batch of [rawEvent, rawChunk, calendarEvent, tasksEvent]) {
       await assert.rejects(
         fixture.services.research.upload(user, batch),
         hasCode('google_workspace_research_forbidden'),

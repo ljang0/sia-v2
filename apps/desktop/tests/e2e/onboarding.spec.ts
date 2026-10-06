@@ -111,7 +111,11 @@ test('one checklist action connects the selected accounts and keeps connected ac
     await expect(connectSelected).toHaveCount(0);
     await expect(sia.page.getByRole('button', { name: 'Disconnect Slack' })).toBeVisible();
     const connected = await sia.page.evaluate(() => window.sia.bootstrap());
-    expect(connected.connections.every((app) => app.status === 'connected')).toBe(true);
+    expect(
+      connected.connections
+        .filter((app) => !['outlook', 'notion', 'github'].includes(app.id))
+        .every((app) => app.status === 'connected'),
+    ).toBe(true);
     expect(connected.connections.find((app) => app.id === 'gmail')?.connectionId).toBe(
       partial.connections.find((app) => app.id === 'gmail')?.connectionId,
     );
