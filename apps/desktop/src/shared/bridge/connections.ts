@@ -27,6 +27,20 @@ export const GOOGLE_CONNECTION_IDS: readonly ConnectionId[] = [
   'tasks',
 ];
 
+/**
+ * Calendar and Tasks ride the Google Workspace grant but stay hidden until their scopes are
+ * enabled in Google Auth Platform and the cloud requests them (see the cloud's matching flag).
+ */
+export const GOOGLE_CALENDAR_AND_TASKS_ENABLED = false;
+
+/** Google services shown in Settings and offered to agents. */
+export function isOfferedGoogleConnection(id: ConnectionId): boolean {
+  return (
+    isGoogleConnection(id) &&
+    (GOOGLE_CALENDAR_AND_TASKS_ENABLED || (id !== 'calendar' && id !== 'tasks'))
+  );
+}
+
 /** Apps this Mac signs in to directly; their tokens stay in this Mac's Keychain-encrypted store. */
 export const LOCAL_CONNECTION_IDS = ['outlook', 'notion', 'github'] as const;
 export type LocalConnectionId = (typeof LOCAL_CONNECTION_IDS)[number];

@@ -9,11 +9,13 @@ import { mapCanonicalConnectorInput } from '../src/connector-contract.js';
 import type { ToolName } from '../src/contracts.js';
 import { CloudError } from '../src/domain.js';
 import {
+  GOOGLE_CALENDAR_AND_TASKS_ENABLED,
   GOOGLE_WORKSPACE_OPTIONAL_READ_SCOPES,
   GOOGLE_WORKSPACE_OPTIONAL_WRITE_SCOPES,
   GOOGLE_WORKSPACE_READ_SCOPES,
   GOOGLE_WORKSPACE_WRITE_SCOPES,
   googleAccessLevel,
+  requestedScopesForAccess,
   scopeIsGranted,
 } from '../src/google-workspace/scopes.js';
 import { FixedSecrets, MemoryState } from '../src/memory.js';
@@ -100,7 +102,8 @@ describe('unified Google Workspace OAuth', () => {
     );
     assert.deepEqual(
       new Set(authorization.searchParams.get('scope')!.split(' ')),
-      new Set([...GOOGLE_WORKSPACE_READ_SCOPES, ...GOOGLE_WORKSPACE_OPTIONAL_READ_SCOPES]),
+      // Calendar and Tasks stay unrequested until they are switched on.
+      new Set(GOOGLE_WORKSPACE_READ_SCOPES),
     );
     assert.equal(authorization.searchParams.get('code_challenge_method'), 'S256');
     assert.ok(authorization.searchParams.get('code_challenge'));
@@ -115,6 +118,18 @@ describe('unified Google Workspace OAuth', () => {
     );
   });
 
+  it('adds Calendar and Tasks to the consent only when they are switched on', () => {
+    assert.deepEqual(
+      new Set(requestedScopesForAccess('read_only', true)),
+      new Set([...GOOGLE_WORKSPACE_READ_SCOPES, ...GOOGLE_WORKSPACE_OPTIONAL_READ_SCOPES]),
+    );
+    assert.deepEqual(
+      new Set(requestedScopesForAccess('read_write', true)),
+      new Set([...GOOGLE_WORKSPACE_WRITE_SCOPES, ...GOOGLE_WORKSPACE_OPTIONAL_WRITE_SCOPES]),
+    );
+    assert.equal(GOOGLE_CALENDAR_AND_TASKS_ENABLED, false);
+  });
+
   it('requests editor scopes only for an explicit read-write connection', async () => {
     const state = new MemoryState();
     const google = connector(state, async () => {
@@ -125,7 +140,7 @@ describe('unified Google Workspace OAuth', () => {
     const authorization = new URL(link.redirectUrl);
     assert.deepEqual(
       new Set(authorization.searchParams.get('scope')!.split(' ')),
-      new Set([...GOOGLE_WORKSPACE_WRITE_SCOPES, ...GOOGLE_WORKSPACE_OPTIONAL_WRITE_SCOPES]),
+      new Set(GOOGLE_WORKSPACE_WRITE_SCOPES),
     );
     assert.equal([...state.googleOAuthStates.values()][0]?.access, 'read_write');
   });

@@ -44,6 +44,9 @@ describe('DesktopController', () => {
       ).toEqual(['notion']);
       expect(controller.actionToolAvailable('notion_search')).toBe(true);
       expect(controller.actionToolAvailable('github_search')).toBe(false);
+      // Calendar and Tasks stay off until Google approves their scopes.
+      expect(controller.actionToolAvailable('calendar_list_events')).toBe(false);
+      expect(controller.actionToolAvailable('mail_search')).toBe(true);
       expect(controller.connectionIdForAction('notion', 'notion')).toBe(notion?.connectionId);
       expect(controller.connectionIdForAction('github', 'github')).toBeUndefined();
 

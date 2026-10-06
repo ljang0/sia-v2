@@ -25,8 +25,10 @@ Provider availability is a legal and product boundary as well as an engineering 
   connector, or archive access.
 - **Google Workspace:** use Sia's production Web OAuth client with authorization code + PKCE.
   Connect Google with the fixed read-only Gmail/Drive/Docs/Sheets/Slides scopes first; request the
-  fixed editor/sender scopes only after the person chooses **Enable editing**. Each grant also
-  requests Calendar and Tasks (`calendar.events.readonly` and `tasks.readonly` when connecting,
+  fixed editor/sender scopes only after the person chooses **Enable editing**. Calendar and Tasks
+  are built but switched off (`GOOGLE_CALENDAR_AND_TASKS_ENABLED` in the cloud scopes module and the
+  desktop's shared connections module) until their scopes are added to Google Auth Platform Data
+  Access. Once switched on, each grant also requests Calendar and Tasks (`calendar.events.readonly` and `tasks.readonly` when connecting,
   `calendar.events` and `tasks` when enabling editing). Those scopes are optional: grants saved
   before they existed stay connected at their current level, and only the Calendar or Tasks tools
   fail, before calling Google, with a plain-language reconnect message. Encrypt refresh

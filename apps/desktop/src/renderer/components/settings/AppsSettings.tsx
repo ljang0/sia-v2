@@ -21,7 +21,15 @@ import { BrowserWindowPicker } from '../BrowserWindowPicker';
 import { CloudAccountSettings } from './CloudAccountSettings';
 import { InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
 import { errorMessage } from '../../plainErrors';
-import { isGoogleConnection, isLocalConnection } from '../../../shared/bridge/connections';
+import {
+  GOOGLE_CALENDAR_AND_TASKS_ENABLED,
+  isOfferedGoogleConnection,
+  isLocalConnection,
+} from '../../../shared/bridge/connections';
+
+const GOOGLE_SERVICES_SUMMARY = GOOGLE_CALENDAR_AND_TASKS_ENABLED
+  ? 'Gmail, Calendar, Drive, Docs, Sheets, Slides, and Tasks'
+  : 'Gmail, Drive, Docs, Sheets, and Slides';
 
 export function AppsSettings({
   snapshot,
@@ -67,7 +75,7 @@ export function AppsSettings({
   const [pending, setPending] = useState<string>();
   const [error, setError] = useState<string>();
   const [confirm, confirmDialog] = useConfirmDialog();
-  const googleApps = snapshot.apps.filter(({ id }) => isGoogleConnection(id));
+  const googleApps = snapshot.apps.filter(({ id }) => isOfferedGoogleConnection(id));
   const slack = snapshot.apps.find(({ id }) => id === 'slack');
   const activeGoogleGrants = new Set(
     googleApps
@@ -225,11 +233,7 @@ export function AppsSettings({
                 </span>
                 <div className={styles.connectionGroupBody}>
                   <strong>Google Workspace</strong>
-                  <span>
-                    {googleError
-                      ? googleError.description
-                      : 'Gmail, Calendar, Drive, Docs, Sheets, Slides, and Tasks'}
-                  </span>
+                  <span>{googleError ? googleError.description : GOOGLE_SERVICES_SUMMARY}</span>
                   <span className={styles.connectionGroupStatus}>
                     {googleConnected ? <CheckCircle size={13} aria-hidden="true" /> : null}
                     {googleConnected
@@ -740,7 +744,8 @@ function MacConnectedApps({
       <div className={styles.connectionGroups}>
         {MAC_APPS.map(({ id, icon: Icon, detail, signIn }) => {
           const app = snapshot.apps.find((candidate) => candidate.id === id);
-          if (!app) return null;
+          // An app this build cannot sign in to yet stays out of the list instead of teasing.
+          if (!app || (app.available === false && app.status === 'disconnected')) return null;
           const name = appName(id);
           const connected = app.status === 'connected';
           const connecting = app.status === 'connecting';

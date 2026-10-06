@@ -2,7 +2,11 @@ import { useState } from 'react';
 import type { AppConnection, RendererSnapshot } from '../types';
 import buttons from '../styles/buttons.module.css';
 import styles from './ConnectionChecklist.module.css';
-import { isGoogleConnection, isLocalConnection } from '../../shared/bridge/connections';
+import {
+  GOOGLE_CALENDAR_AND_TASKS_ENABLED,
+  isGoogleConnection,
+  isLocalConnection,
+} from '../../shared/bridge/connections';
 
 export function ConnectionChecklist({
   snapshot,
@@ -32,7 +36,9 @@ export function ConnectionChecklist({
     {
       id: 'google' as const,
       name: 'Google Workspace',
-      detail: 'Gmail, Calendar, Drive, Docs, Sheets, Slides, and Tasks. Read access.',
+      detail: GOOGLE_CALENDAR_AND_TASKS_ENABLED
+        ? 'Gmail, Calendar, Drive, Docs, Sheets, Slides, and Tasks. Read access.'
+        : 'Gmail, Drive, Docs, Sheets, and Slides. Read access.',
       apps: snapshot.apps.filter((app) => isGoogleConnection(app.id)),
     },
     {

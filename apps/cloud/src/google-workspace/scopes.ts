@@ -44,11 +44,23 @@ export function scopesForAccess(access: GoogleAccessLevel): readonly string[] {
   return access === 'read_write' ? GOOGLE_WORKSPACE_WRITE_SCOPES : GOOGLE_WORKSPACE_READ_SCOPES;
 }
 
-/** Everything the consent screen asks for: the required scopes plus the optional services. */
-export function requestedScopesForAccess(access: GoogleAccessLevel): readonly string[] {
+/**
+ * Calendar and Tasks stay off until their scopes are added to Google Auth Platform Data Access;
+ * requesting unlisted sensitive scopes would show every new grant Google's unverified-app warning.
+ */
+export const GOOGLE_CALENDAR_AND_TASKS_ENABLED = false;
+
+/** Everything the consent screen asks for: the required scopes plus enabled optional services. */
+export function requestedScopesForAccess(
+  access: GoogleAccessLevel,
+  calendarAndTasks: boolean = GOOGLE_CALENDAR_AND_TASKS_ENABLED,
+): readonly string[] {
+  const required =
+    access === 'read_write' ? GOOGLE_WORKSPACE_WRITE_SCOPES : GOOGLE_WORKSPACE_READ_SCOPES;
+  if (!calendarAndTasks) return required;
   return access === 'read_write'
-    ? [...GOOGLE_WORKSPACE_WRITE_SCOPES, ...GOOGLE_WORKSPACE_OPTIONAL_WRITE_SCOPES]
-    : [...GOOGLE_WORKSPACE_READ_SCOPES, ...GOOGLE_WORKSPACE_OPTIONAL_READ_SCOPES];
+    ? [...required, ...GOOGLE_WORKSPACE_OPTIONAL_WRITE_SCOPES]
+    : [...required, ...GOOGLE_WORKSPACE_OPTIONAL_READ_SCOPES];
 }
 
 export function missingRequiredScopes(scopes: string[], access: GoogleAccessLevel): string[] {

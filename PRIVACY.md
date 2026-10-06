@@ -87,7 +87,7 @@ Research capture is off by default in local-only mode. Sia asks local users afte
 first agent. A Sia cloud sign-in is a research-release enrollment: the person must explicitly accept
 the current versioned consent to remain signed in, or decline and sign out. After acceptance, Sia
 offers independent **Connect Google** and **Connect Slack** actions, and Outlook, Notion, and GitHub
-can be connected separately. The seven Google service controls
+can be connected separately. The Google service controls
 share the current Google grant, while the person may still choose which services the agent may use.
 Connection lifecycle records include the app, status, opaque connection identifier, and provider
 account label when available; OAuth URLs, authorization codes, and tokens are not retained in the
