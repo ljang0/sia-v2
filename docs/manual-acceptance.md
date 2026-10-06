@@ -47,6 +47,9 @@ Passing development fixtures or the older installed Sia does not complete these 
 | BYOK and lab harness     | With an explicitly selected test provider, save a key through Settings and complete one read-only task. For lab evaluation, use a release-signed manifest and verify a tampered manifest is rejected. | BYOK survives relaunch without exposing its key; invalid lab admission keeps the default Codex route usable. Do not paste credentials into evidence.                                     |
 | Responsiveness           | Launch cold and warm, stream a long reply, switch threads, cancel, reopen, and test reduced motion.                                                                                                   | Window and progress remain usable; cancellation completes; saved thread and results remain correct. Record measured times rather than borrowing PR #17's earlier measurements.           |
 
+For this candidate, the operator deferred Notion live acceptance and telephone calling. Record
+Notion as deferred, not passed; the remaining existing phone channels still need live verification.
+
 Google/Slack public distribution retains its separate
 [connector gates](./connector-distribution-readiness.md). Calendar, Tasks, and Outlook remain off.
 Complete physical voice, lock/sleep, and clean-user checks below before public distribution.

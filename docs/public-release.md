@@ -2,8 +2,8 @@
 
 ## Decision
 
-Sia `0.1.0-alpha.25` remains an internal release candidate. An integrated build passed signing,
-notarization, and stapling; the subsequent model-selection repairs require a new signed build.
+Sia `0.1.0-alpha.25` remains an internal release candidate. The integrated build containing the model-selection
+repairs passed signing, notarization, and stapling.
 Public distribution remains blocked until
 the recipient acceptance checks below pass. No alpha.25
 installer or public download has been published. The last published pilot release remains
@@ -20,6 +20,9 @@ The `codex/release-verification` branch combines all four workstreams against re
 | GitHub and Notion, PR #18                             | `9f917672a3174d2c402d6436556358f64a12e910` |
 | Texting and bot channels, PR #19                      | `570f8f7b674544ad9ddd025022a3a14e121f0160` |
 | Public-release audit, BYOK, lab harness and Mac setup | `ffd1aca`                                  |
+
+Notion live acceptance is deferred for this release at the operator's request. Its implementation
+remains included, but no live Notion result is claimed.
 
 The integration preserves BYOK and lab provider validation alongside the expanded connector IDs,
 local-connector ownership and the improved sign-in errors. Calendar, Tasks, and Outlook remain
@@ -59,11 +62,16 @@ Verification on October 6, 2026 UTC:
   request deadline, and the recovery test installs routes before navigation, types real keys, and
   asserts its draft. All 60 phone-browser checks passed locally again. Failure traces are retained,
   and CI has 45 minutes for the expanded verification/package job.
-  [Final combined CI](https://github.com/ljang0/sia-v2/actions/runs/37421718412) passed on
+  [Earlier combined CI](https://github.com/ljang0/sia-v2/actions/runs/37421718412) passed on
   `7f59f848b70d163888ae2a8fa45b8952bddce8f8`: all source gates, 1,162 desktop unit tests,
   45 Electron tests, 17 renderer checks, all 60 phone-browser checks, and unsigned universal
   package verification. The new slow-download test uses native byte-exact Buffer comparison
   to avoid the test framework spending more than five seconds on a recursive 3 MB comparison.
+
+[Final application CI](https://github.com/ljang0/sia-v2/actions/runs/37429077856) passed on
+`cd21ffd08b0c07cf7ee031015e49d4d7daccd061`, including both live-discovered model fixes:
+1,165 desktop unit tests, 45 Electron tests, 17 renderer tests, all 60 phone-browser tests,
+and unsigned universal package verification. Local signed packaging used this exact source.
 
 The installed `/Applications/Sia.app` is **alpha.14**, not this candidate. Computer Use works in
 this session. The integrated source was opened with real services in the existing signed
@@ -92,25 +100,30 @@ now identifies the unavailable pinned choice, and explicit replacement resolves 
 allowed route while preserving the conversation's harness and credential source. Regression tests
 cover the visible selection, starting a task with the new route, persistence, and repair of an
 already mismatched saved conversation. The full pilot gate passed again with 1,165 desktop unit
-tests, 45 Electron tests, and 17 renderer tests. Live retry and a rebuilt signed artifact remain required.
+tests, 45 Electron tests, and 17 renderer tests. The repaired source also passed full CI and signed packaging. A fresh Connected apps conversation
+then read PR #20 through GitHub in 15 seconds; its title, state, base/head branches, and draft flag
+matched an independent GitHub check after relaunch. Disconnect/reconnect and signed-app connector
+acceptance remain pending.
 Texting is enabled and Ready for one authorized self-test recipient; physical-phone delivery
 remains unverified. Telephone calling is outside this release scope.
 
 The cloud-configured universal candidate passed Developer ID signing, Apple notarization,
 stapling, strict nested signature verification, and Gatekeeper acceptance for both app and DMG.
-App notarization submission `054f38c7-5be1-4a20-bccd-efeeda331747` and DMG submission
-`e13fde99-e33f-4659-95c4-c30b69c8e71c` were accepted. Its app.asar SHA-256 is
-`d127e0b87ec4844bab3f695514343cb7518826f5809d58d182d75115aef6746e`.
-The DMG SHA-256 is `1372cbe6587e52579da5744bc65de1db11b7223d7d533a7429e368f0c18b1551`;
-the ZIP SHA-256 is `8de225eeace209480e6fcd387591cc8b1cde7f429fd8788623dcc33fb31bf555`.
-A fresh isolated profile launched the exact signed app and showed only email sign-in. The live
+App notarization submission `a8d50e6d-eca3-4bf9-85e2-ed23bb431230` and DMG submission
+`7a4b0103-1642-48fb-b214-c32b130216d8` were accepted. Its app.asar SHA-256 is
+`abef0f1a32f47fe9c2abe027b386a89d8861bac9c44de0035cba0a817ab26e79`.
+The DMG SHA-256 is `32bc6dfdb5bb1042cec6c6045fa7fa6f2e9fb111c45348c6c3e1490d20015bbe`;
+the ZIP SHA-256 is `a9b3404d96a68ab109434fac3aea7b182824ab355b1dac565164cfa4029c957d`.
+The prior notarized build completed the following signup check; the repaired signed artifact still
+needs the profile continuity check. A fresh isolated profile launched that app and showed only email sign-in. The live
 service accepted a code request and rejected a deliberately incorrect code while preserving
 the sign-in wall. The operator received and entered the valid code, and the exact signed copy
 independently reached authenticated onboarding in its isolated profile. Managed Codex 0.153.0
-then installed through the GUI; its automatic restart preserved that profile. Mac permission
-setup is still incomplete for this signed identity. Clean-macOS-user and upgrade acceptance remain
-pending. GitHub consent completed and the development app independently showed the expected
-connected account; its connector read/reconnect acceptance remains pending.
+then installed through the GUI; its automatic restart preserved that profile. After the operator
+completed the macOS prompts, independent inspection confirmed authenticated setup finished and
+the conversation screen reported **Sia is ready**. This used the earlier notarized copy, not the
+rebuilt artifact. Clean-macOS-user and upgrade acceptance remain pending. GitHub consent completed and the development app independently showed the expected
+connected account; its live read passed as recorded above, while disconnect/reconnect remains pending.
 
 A real ElevenLabs probe completed speech generation, batch and streaming transcription, and
 cancellation using a synthetic sentence. It generated 46,020 audio bytes and completed in 3,050 ms.
@@ -123,8 +136,8 @@ enabled and a confirmed email subscription. The control Lambda remains the Septe
 this integration has not been deployed. The public homepage, privacy, terms, and support pages
 responded successfully; `/download/` returned 404 because the new download has not been published.
 Unauthenticated session, catalog, voice-catalog, and release-feed requests returned 401 as expected.
-These checks do not establish fresh-recipient delivery, authenticated endpoint behavior, or alarm
-receipt during an actual incident.
+Email receipt and authenticated signup were separately verified as recorded above. The other
+endpoint checks do not establish all authenticated behavior or alarm receipt during an actual incident.
 
 The GitHub `alpha-release` environment contains the five cloud/update configuration secrets, but
 no signing or Apple notarization secrets; the repository-level secret list is empty. Local signing uses the existing Developer ID certificate and the operator's named Keychain profile.
@@ -141,7 +154,8 @@ channels are iMessage, Telegram, Discord, and the Wi-Fi browser remote. Their li
 recorded separately from browser fixtures and unit tests. Voice notes and in-app voice conversation
 are implemented; incoming/outgoing telephone calls and an always-on cloud worker are not implemented. The operator
 confirmed this release should finish and verify the existing phone features before adding calling.
-Local work still requires Sia running on an awake Mac. Calendar, Tasks, and Outlook remain disabled
+Notion live testing is also deferred. Local work still requires Sia running on an awake Mac.
+Calendar, Tasks, and Outlook remain disabled
 by the operator's prior scope decision. Do not claim complete Instinct parity or arbitrary-account
 connector availability from the current automated test results.
 
@@ -267,7 +281,7 @@ After the exact signed artifacts and human acceptance pass, run `pnpm release:st
 to validate and stage the immutable installer and `/download/release.json`. The public site's
 `pnpm --filter @sia/site deploy --public-release` performs the release checks before uploading.
 The candidate is already staged locally. The page loaded in a browser, and a full local HTTP
-download returned 263,088,668 bytes matching its manifest SHA-256. Nothing was uploaded.
+download of the rebuilt candidate returned 263,069,560 bytes matching its manifest SHA-256. Nothing was uploaded.
 Verify an external unauthenticated recipient download and its hash after publication. The authenticated signed update feed
 is a separate publication step in [release.md](./release.md).
 

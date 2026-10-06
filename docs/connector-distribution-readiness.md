@@ -132,17 +132,24 @@ approved synthetic send, revocation, and reconnect remain.
 
 ## Outlook, Notion, and GitHub gate
 
-These connect from the Mac (see `provider-policy.md`). They ship hidden until their public client
-ids are set in `apps/desktop/src/main/connectors/clients.ts`; Notion needs no registration.
+These connect from the Mac (see `provider-policy.md`). GitHub's public OAuth client ID is configured
+in `apps/desktop/src/main/connectors/clients.ts`; Notion needs no registration. Outlook remains
+disabled for the current candidate, and the operator deferred Notion live acceptance. Neither
+deferral counts as a passed provider check.
 
 - [ ] Register the Microsoft Entra app: multitenant plus personal Microsoft accounts, public client
       flows allowed, platform "Mobile and desktop applications" with redirect `http://localhost`,
       delegated `offline_access User.Read Mail.ReadWrite Mail.Send`. Publisher verification is needed
       before work tenants show it without an unverified-app warning.
-- [ ] Register the GitHub OAuth app with Device Flow enabled. Organizations with OAuth app access
+- [x] Register the GitHub OAuth app with Device Flow enabled. Organizations with OAuth app access
       restrictions must approve Sia before their private repositories appear.
 - [ ] Test each app from a fresh profile: connect, read, an approved write, cancel mid sign-in,
       expired token (Outlook and Notion refresh; GitHub reconnect), disconnect, and reconnect.
+
+The integrated alpha.25 development identity completed real GitHub device authorization and,
+after relaunch, read the designated release PR through `github_read_issue`; the result matched an
+independent GitHub read. This verifies consent and read for that account. Signed-candidate
+acceptance, approved writes, cancellation, disconnect and reconnect remain open.
 
 ## Cross-account and failure acceptance
 
