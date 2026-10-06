@@ -45,8 +45,10 @@ Provider availability is a legal and product boundary as well as an engineering 
 - **Slack:** use the Sia-owned manifest in `infra/slack-app-manifest.yaml`, never Composio's broad
   managed Slack grant. The user-token scopes are limited to workspace search (`search:read`), person
   lookup without email access (`users:read`), opening one-to-one DMs (`im:write`), reviewed sends
-  (`chat:write`), and the four conversation-history scopes needed by the explicit thread-read tool.
-  Do not add administrative, file, profile-write, channel-write, or email-directory scopes.
+  (`chat:write`), the four conversation-history scopes needed by the explicit thread-read tool,
+  and, for Instinct parity, reactions (`reactions:write`), reminders (`reminders:write`), and
+  canvases (`canvases:read`, `canvases:write`). The last four take effect only after the Slack app
+  and the Composio auth config are updated and people reconnect Slack. Do not add administrative, file, profile-write, channel-write, or email-directory scopes.
 
 - **Outlook, Notion, and GitHub:** connected from the Mac, not the control plane, using public
   OAuth clients with no shipped secret. Outlook uses a Sia-owned Microsoft Entra app (personal and
