@@ -82,6 +82,7 @@
   "build": {
     "appId": "ai.sia.desktop",
     "productName": "Sia",
+    "copyright": "Copyright © 2026 Superintelligent Agents, Inc.",
     "artifactName": "Sia-${version}-${arch}.${ext}",
     "asar": true,
     "asarUnpack": [
