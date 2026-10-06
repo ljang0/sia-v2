@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { ComposioConnector } from '../../src/aws/composio-connector.js';
 import { COMPOSIO_TOOL_SLUGS, COMPOSIO_TOOL_VERSIONS } from '../../src/connector-contract.js';
+import { CloudError } from '../../src/domain.js';
 import { ConnectorReconnectRequiredError } from '../../src/ports.js';
 import type { ComposioConfig, SecretProvider } from '../../src/ports.js';
 
@@ -35,6 +36,20 @@ const secrets: SecretProvider = {
 };
 
 describe('Composio connection lifecycle adapter', () => {
+  it('refuses direct-only Google tools before reading secrets or calling Composio', async () => {
+    const connector = new ComposioConnector({
+      ...secrets,
+      composio: async () => {
+        throw new Error('direct-only tools must not read the Composio secret');
+      },
+    });
+    await assert.rejects(
+      connector.execute('user-1', 'composio-account', 'calendar.list_events', {}, 'exec-1'),
+      (error: unknown) =>
+        error instanceof CloudError && error.code === 'tool_connection_mismatch',
+    );
+  });
+
   it('deletes a never-authorized pending link after revoke reports a state conflict', async () => {
     const calls: Array<{ method: string; url: string }> = [];
     const originalFetch = globalThis.fetch;

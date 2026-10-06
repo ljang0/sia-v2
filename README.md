@@ -16,8 +16,8 @@ the Sia account or the person's existing ChatGPT plan. Nobody pastes a model API
 - **Phone requests always ask on the Mac**, one request at a time, even with approvals bypassed.
 - **Hard safety blocks apply in every mode.** Sia never types into password fields, sign-in
   screens, Keychain, or password managers.
-- **Connections are optional.** Google Workspace, Slack, signed-in Chrome, Apple Messages, and
-  computer use never block first-run setup.
+- **Connections are optional.** Google Workspace, Slack, Outlook, Notion, GitHub, signed-in Chrome,
+  Apple Messages, and computer use never block first-run setup.
 - **Schedules** repeat until paused or deleted; one-time schedules run once. Sia must stay open and
   the Mac awake for local tasks and schedules.
 - **Research capture is off** unless a person separately agrees to it. The pilot is not a research

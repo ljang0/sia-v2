@@ -200,6 +200,33 @@ export class DesktopActionBackend implements ActionBackend {
         case 'slack_open_dm':
         case 'slack_read_thread':
         case 'slack_post':
+        case 'calendar_list_events':
+        case 'calendar_read_event':
+        case 'calendar_create_event':
+        case 'calendar_update_event':
+        case 'calendar_delete_event':
+        case 'tasks_list':
+        case 'tasks_create':
+        case 'tasks_update':
+        case 'outlook_search':
+        case 'outlook_read':
+        case 'outlook_create_draft':
+        case 'outlook_send':
+        case 'outlook_reply':
+        case 'outlook_move':
+        case 'outlook_mark':
+        case 'notion_search':
+        case 'notion_fetch':
+        case 'notion_create_page':
+        case 'notion_query_database':
+        case 'notion_edit_page':
+        case 'notion_comment':
+        case 'github_search':
+        case 'github_read_file':
+        case 'github_read_issue':
+        case 'github_create_issue':
+        case 'github_comment':
+        case 'github_create_pull_request':
           return await this.#connectors.run(request, request.name);
         case 'messages_search':
         case 'messages_read_thread':

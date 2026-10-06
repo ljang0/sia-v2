@@ -59,6 +59,12 @@ import { DesktopActionBackend } from './actions/desktop-action-backend.js';
 import { CapabilitySocketHost } from './actions/capability-host.js';
 import { registerDesktopIpc } from './window/ipc.js';
 import { ElectronPayloadCipher, SecureStorageUnavailableError } from './storage/persistence.js';
+import { localConnectorClients } from './connectors/clients.js';
+import {
+  LocalCredentialStore,
+  localConnectorDirectory,
+} from './connectors/credential-store.js';
+import { LocalConnectorService } from './connectors/local-connectors.js';
 import { RuntimeCoordinator } from './providers/runtime-coordinator.js';
 import { CognitoIdentityManager } from './cloud/identity.js';
 import { configureMetaCloudAvailability, probeProviders } from './providers/provider-probe.js';
@@ -381,6 +387,20 @@ async function performApplicationCreation(): Promise<void> {
             decrypt: (value) => new ElectronPayloadCipher().decrypt(value),
           })
         : undefined;
+    const localConnectors =
+      !fakeServices && process.platform === 'darwin'
+        ? new LocalConnectorService({
+            store: new LocalCredentialStore(localConnectorDirectory(app.getPath('appData')), {
+              encrypt: (value) => new ElectronPayloadCipher().encrypt(value),
+              decrypt: (value) => new ElectronPayloadCipher().decrypt(value),
+            }),
+            clients: localConnectorClients({
+              packaged: app.isPackaged,
+              environment: process.env,
+            }),
+            openExternal: openSafeExternal,
+          })
+        : undefined;
     const hostedResponsesProxy = fakeServices ? undefined : new HostedResponsesProxy(cloud);
     let activeController!: DesktopController;
     const computer = new CuaService(
@@ -448,6 +468,7 @@ async function performApplicationCreation(): Promise<void> {
         shell.showItemInFolder(path);
       },
       openExternal: openSafeExternal,
+      ...(localConnectors ? { localConnectors } : {}),
       openMessages: () => shell.openExternal('sms:', { activate: true }),
       ...(!fakeServices ? { requestMicrophonePermission } : {}),
       openMessagesPermissions: () =>
@@ -567,6 +588,7 @@ async function performApplicationCreation(): Promise<void> {
       inspectBrowserWindow: (pid, windowId) => browserWindows.inspect(pid, windowId),
       readImageText: (dataBase64) => browserWindows.imageText(dataBase64),
       readWindowContext: (pid, windowId) => browserWindows.context(pid, windowId),
+      ...(localConnectors ? { localConnectors } : {}),
       resolveConnectionId: (app, selector, approvalId) =>
         activeController.connectionIdForAction(app, selector, approvalId),
       onConnectionReconnectRequired: (app, connectionId) =>

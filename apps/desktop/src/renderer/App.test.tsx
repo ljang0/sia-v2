@@ -408,7 +408,7 @@ describe('app privacy routing', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Connect work apps later' }));
     expect(await screen.findByRole('heading', { name: 'Connections' })).toBeTruthy();
-    expect(screen.getByText(/Google Workspace and Slack are optional/)).toBeTruthy();
+    expect(screen.getByText(/Every connection is optional/)).toBeTruthy();
   });
 
   it('connects Slack independently later from Settings', async () => {

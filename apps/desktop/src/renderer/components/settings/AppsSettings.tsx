@@ -4,7 +4,10 @@ import {
   ChatsCircle,
   CheckCircle,
   CircleNotch,
+  GithubLogo,
   GoogleLogo,
+  MicrosoftOutlookLogo,
+  NotionLogo,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { useConfirmDialog } from '../ConfirmDialog';
@@ -18,6 +21,15 @@ import { BrowserWindowPicker } from '../BrowserWindowPicker';
 import { CloudAccountSettings } from './CloudAccountSettings';
 import { InlineSettingsError, SettingsSectionHeader } from './SettingsShared';
 import { errorMessage } from '../../plainErrors';
+import {
+  GOOGLE_CALENDAR_AND_TASKS_ENABLED,
+  isOfferedGoogleConnection,
+  isLocalConnection,
+} from '../../../shared/bridge/connections';
+
+const GOOGLE_SERVICES_SUMMARY = GOOGLE_CALENDAR_AND_TASKS_ENABLED
+  ? 'Gmail, Calendar, Drive, Docs, Sheets, Slides, and Tasks'
+  : 'Gmail, Drive, Docs, Sheets, and Slides';
 
 export function AppsSettings({
   snapshot,
@@ -63,7 +75,7 @@ export function AppsSettings({
   const [pending, setPending] = useState<string>();
   const [error, setError] = useState<string>();
   const [confirm, confirmDialog] = useConfirmDialog();
-  const googleApps = snapshot.apps.filter(({ id }) => id !== 'slack');
+  const googleApps = snapshot.apps.filter(({ id }) => isOfferedGoogleConnection(id));
   const slack = snapshot.apps.find(({ id }) => id === 'slack');
   const activeGoogleGrants = new Set(
     googleApps
@@ -83,7 +95,9 @@ export function AppsSettings({
     : 'read_only';
   const googleUpgrading = googleApps.some(({ upgrading }) => upgrading);
   const slackConnected = slack?.status === 'connected';
-  const setupActive = snapshot.apps.some(({ status }) => status === 'connecting');
+  const setupActive = snapshot.apps.some(
+    ({ id, status }) => !isLocalConnection(id) && status === 'connecting',
+  );
   const connectorsEnabled = snapshot.cloudAuth.features?.connectors !== false;
   const accountReady = snapshot.cloudAuth.state === 'signed-in';
   const cloudReady = accountReady && connectorsEnabled;
@@ -111,7 +125,7 @@ export function AppsSettings({
     return (
       <SettingsSectionHeader
         title="Connections"
-        description="Browser and device connections are managed here. Work apps require Sia cloud."
+        description="Connect apps, your browser, and this Mac here. Google Workspace and Slack need Sia cloud."
       >
         <div className={settings.cloudLocalSummary}>
           <div className={settings.cloudIdentityHeader}>
@@ -124,6 +138,17 @@ export function AppsSettings({
             Google Workspace and Slack will appear after cloud service is configured.
           </div>
         </div>
+        {confirmDialog}
+        <InlineSettingsError message={error} />
+        <MacConnectedApps
+          snapshot={snapshot}
+          pending={pending}
+          disabled={false}
+          run={run}
+          confirm={confirm}
+          onConnect={onConnect}
+          onDisconnect={onDisconnect}
+        />
         <LocalIntegrations
           snapshot={snapshot}
           pending={pending}
@@ -140,7 +165,7 @@ export function AppsSettings({
   return (
     <SettingsSectionHeader
       title="Connections"
-      description="Google Workspace and Slack are optional. Connect them when you want help with your mail, files, and messages. Google starts read-only."
+      description="Every connection is optional. Connect the apps you want help with: your mail, calendar, files, notes, code, and messages. Google starts read-only."
     >
       {confirmDialog}
       {snapshot.cloudAuth.state !== 'signed-in' ? (
@@ -208,11 +233,7 @@ export function AppsSettings({
                 </span>
                 <div className={styles.connectionGroupBody}>
                   <strong>Google Workspace</strong>
-                  <span>
-                    {googleError
-                      ? googleError.description
-                      : 'Gmail, Drive, Docs, Sheets, and Slides'}
-                  </span>
+                  <span>{googleError ? googleError.description : GOOGLE_SERVICES_SUMMARY}</span>
                   <span className={styles.connectionGroupStatus}>
                     {googleConnected ? <CheckCircle size={13} aria-hidden="true" /> : null}
                     {googleConnected
@@ -404,6 +425,15 @@ export function AppsSettings({
           </div>
         </div>
       ) : null}
+      <MacConnectedApps
+        snapshot={snapshot}
+        pending={pending}
+        disabled={!accountReady}
+        run={run}
+        confirm={confirm}
+        onConnect={onConnect}
+        onDisconnect={onDisconnect}
+      />
       {googleNeedsUpgrade ? (
         <div className={styles.legacyConnectionCleanup}>
           <strong>Older Google grants</strong>
@@ -654,9 +684,166 @@ function LocalIntegrations({
 const appName = (id: AppConnection['id']) =>
   ({
     gmail: 'Gmail',
+    calendar: 'Google Calendar',
     drive: 'Google Drive',
     docs: 'Google Docs',
     sheets: 'Google Sheets',
     slides: 'Google Slides',
+    tasks: 'Google Tasks',
     slack: 'Slack',
+    outlook: 'Outlook',
+    notion: 'Notion',
+    github: 'GitHub',
   })[id];
+
+const MAC_APPS = [
+  {
+    id: 'outlook',
+    icon: MicrosoftOutlookLogo,
+    detail: 'Read, search, draft, send, and organize Outlook mail',
+    signIn: 'Sign in with Microsoft in your browser',
+  },
+  {
+    id: 'notion',
+    icon: NotionLogo,
+    detail: 'Search, read, and add to the pages you choose to share',
+    signIn: 'Choose which pages to share in your browser',
+  },
+  {
+    id: 'github',
+    icon: GithubLogo,
+    detail: 'Repositories, files, issues, and pull requests',
+    signIn: 'Approve with a short code on GitHub',
+  },
+] as const;
+
+/** Outlook, Notion, and GitHub sign in from this Mac; their sign-in stays on this Mac. */
+function MacConnectedApps({
+  snapshot,
+  pending,
+  disabled,
+  run,
+  confirm,
+  onConnect,
+  onDisconnect,
+}: {
+  snapshot: RendererSnapshot;
+  pending: string | undefined;
+  disabled: boolean;
+  run(key: string, action: () => Promise<void>, fallback: string): Promise<void>;
+  confirm: ReturnType<typeof useConfirmDialog>[0];
+  onConnect(app: AppConnection['id']): Promise<void>;
+  onDisconnect(app: AppConnection['id'], expectedConnectionId?: string): Promise<void>;
+}) {
+  return (
+    <div className={styles.moreApps}>
+      <div className={styles.moreAppsHeader}>
+        <strong>More apps</strong>
+        <p>These sign in from this Mac. Sia keeps their sign-in in your Mac’s Keychain.</p>
+      </div>
+      <div className={styles.connectionGroups}>
+        {MAC_APPS.map(({ id, icon: Icon, detail, signIn }) => {
+          const app = snapshot.apps.find((candidate) => candidate.id === id);
+          // An app this build cannot sign in to yet stays out of the list instead of teasing.
+          if (!app || (app.available === false && app.status === 'disconnected')) return null;
+          const name = appName(id);
+          const connected = app.status === 'connected';
+          const connecting = app.status === 'connecting';
+          const available = app.available !== false;
+          const busy = pending === `connect-${id}` || pending === `disconnect-${id}`;
+          return (
+            <section key={id} className={styles.connectionGroup} data-connected={connected}>
+              <span className={styles.connectionGroupIcon} aria-hidden="true">
+                <Icon size={20} />
+              </span>
+              <div className={styles.connectionGroupBody}>
+                <strong>{name}</strong>
+                <span>{app.status === 'error' ? app.description : detail}</span>
+                <span className={styles.connectionGroupStatus}>
+                  {connected ? <CheckCircle size={13} aria-hidden="true" /> : null}
+                  {connected
+                    ? (app.account ?? 'Connected')
+                    : connecting
+                      ? app.userCode
+                        ? 'Enter this code on GitHub'
+                        : 'Finish signing in in your browser'
+                      : app.status === 'error'
+                        ? 'Needs attention'
+                        : available
+                          ? signIn
+                          : 'Not available in this version yet'}
+                </span>
+                {connecting && app.userCode ? (
+                  <code
+                    className={styles.deviceCode}
+                    aria-label={`GitHub code ${app.userCode}`}
+                  >
+                    {app.userCode}
+                  </code>
+                ) : null}
+              </div>
+              {connected ? (
+                <button
+                  type="button"
+                  className={buttons.textButtonDanger}
+                  disabled={Boolean(pending) || disabled}
+                  aria-label={`Disconnect ${name}`}
+                  onClick={() =>
+                    confirm({
+                      title: `Disconnect ${name}?`,
+                      description: `Sia won’t be able to use ${name} until you connect again. This removes the sign-in saved on this Mac.`,
+                      confirmLabel: 'Disconnect',
+                      onConfirm: () =>
+                        run(
+                          `disconnect-${id}`,
+                          () => onDisconnect(id, app.connectionId),
+                          `${name} could not be disconnected.`,
+                        ),
+                    })
+                  }
+                >
+                  {pending === `disconnect-${id}` ? 'Disconnecting…' : 'Disconnect'}
+                </button>
+              ) : connecting ? (
+                <button
+                  type="button"
+                  className={buttons.secondaryButton}
+                  disabled={busy}
+                  onClick={() =>
+                    run(
+                      `disconnect-${id}`,
+                      () => onDisconnect(id),
+                      'Sign-in could not be cancelled.',
+                    )
+                  }
+                >
+                  Cancel
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className={buttons.primaryButton}
+                  disabled={Boolean(pending) || disabled || !available}
+                  onClick={() =>
+                    run(`connect-${id}`, () => onConnect(id), `${name} could not be connected.`)
+                  }
+                >
+                  {pending === `connect-${id}` ? (
+                    <CircleNotch className={primitives.spin} size={16} aria-hidden="true" />
+                  ) : (
+                    <Icon size={16} aria-hidden="true" />
+                  )}
+                  {pending === `connect-${id}`
+                    ? 'Opening…'
+                    : app.status === 'error'
+                      ? `Reconnect ${name}`
+                      : `Connect ${name}`}
+                </button>
+              )}
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

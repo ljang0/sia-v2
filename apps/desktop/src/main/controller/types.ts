@@ -1,3 +1,4 @@
+import type { LocalConnectorService } from '../connectors/local-connectors.js';
 /**
  * Host capabilities the desktop controller is constructed with, and the in-memory records its
  * collaborators share.
@@ -67,6 +68,8 @@ export interface ControllerOptions {
   fakeServices: boolean;
   fakeTurnDelayMs?: number;
   openExternal(url: string): Promise<void>;
+  /** Signs in to Outlook, Notion, and GitHub from this Mac; absent where unsupported. */
+  localConnectors?: LocalConnectorService;
   openMessages?(): Promise<void>;
   openMessagesPermissions?(): Promise<void>;
   requestMicrophonePermission?(): Promise<void>;
