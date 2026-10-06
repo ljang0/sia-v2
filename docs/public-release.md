@@ -50,28 +50,60 @@ Verification on October 6, 2026 UTC:
 - [Combined application CI](https://github.com/ljang0/sia-v2/actions/runs/37411104281) passed all
   source, Electron, renderer, phone-browser, and universal-package gates on `d1eacf5`. A rerun after
   the live-evidence documentation update exposed a Telegram test's fixed 10 ms wait for attachment
-  delivery. Bot tests now wait for observable completion instead; the latest commit requires its
-  own green CI result before merge.
+  delivery. Bot tests now wait for observable completion instead. CI on `1999c98` passed the source, desktop,
+  and renderer gates, then passed 58 of 60 phone-browser checks; two WebKit cases failed during
+  connection/send recovery. Both cases passed three consecutive local runs. CI failure evidence
+  remains under investigation; a local pass does not close that gate.
 
 The installed `/Applications/Sia.app` is **alpha.14**, not this candidate. Computer Use works in
 this session. The integrated source was opened with real services in the existing signed
 `ai.sia.desktop.dev` runtime and an isolated encrypted profile. Its Keychain opened successfully.
 The app reports Accessibility, Screen Recording, Chrome Automation, Finder Automation, Messages
 Automation, and Full Disk Access allowed. System Events, Safari, Calendar, and Reminders Automation
-still need grants; voice is unavailable. These are existing development-identity grants, not
+still need grants. The personal ElevenLabs voice service is configured and enabled. These are existing development-identity grants, not
 clean-user or signed-release acceptance. No operating-system grants were changed in this pass.
 
 The installed global Codex `0.154.0` is outside Sia's admitted versions. The app correctly shows it
-as incompatible; setting up the supported managed runtime in the isolated profile awaits operator
-confirmation. No model task, connector consent, or real message round trip is claimed for this
-integrated build.
+as incompatible. The operator approved the managed runtime installation. Its live download exposed
+a fixed two-minute deadline: the official 116 MB archive could not finish over the observed slow
+connection. Setup now displays downloaded megabytes and permits a progressing download for up to
+45 minutes, while aborting after two minutes without incoming data. SHA-512 verification, archive
+size limits, admitted-version checks, and atomic installation remain required. Regression checks
+cover slow success, a stalled stream, the overall deadline, and visible progress. The repaired full `pnpm test:pilot` gate passed with 1,162 desktop unit tests, 45 Electron checks,
+and 17 renderer checks. The repaired GUI setup is being verified; no completed model turn or real message round trip is claimed yet.
+
+A real ElevenLabs probe completed speech generation, batch and streaming transcription, and
+cancellation using a synthetic sentence. It generated 46,020 audio bytes and completed in 3,050 ms.
+This verifies the configured service, not physical microphone/Fn input or phone delivery. The
+Mac-only dictation fallback does not transcribe uploaded voice-note files.
+
+Read-only external checks found the production stack in `UPDATE_COMPLETE`, SES production sending
+enabled, and the sender domain verified with successful DKIM. All 17 alarms were `OK`, with actions
+enabled and a confirmed email subscription. The control Lambda remains the September 24 deployment;
+this integration has not been deployed. The public homepage, privacy, terms, and support pages
+responded successfully; `/download/` returned 404 because the new download has not been published.
+Unauthenticated session, catalog, voice-catalog, and release-feed requests returned 401 as expected.
+These checks do not establish fresh-recipient delivery, authenticated endpoint behavior, or alarm
+receipt during an actual incident.
 
 The GitHub `alpha-release` environment contains the five cloud/update configuration secrets, but
-no signing or Apple notarization secrets; the repository-level secret list is empty. The local
-signed-release environment check also fails because signing, notarization, and release environment
-variables are unset. Existing installed cloud configuration is not proof that a new package was
-configured or notarized. Configure the release operator's existing certificate/notarization
-profile, or the protected CI signing secrets, before invoking signed packaging.
+no signing or Apple notarization secrets; the repository-level secret list is empty. Local signing uses the existing Developer ID certificate and the operator's named Keychain profile.
+The profile initially returned Apple's missing-agreement error; after the operator accepted the
+agreement, the notarization service accepted the profile. The installed app's non-secret cloud and
+update configuration matches the deployed stack and is available for the new signed build. This is
+release preparation, not evidence that the new artifact has passed notarization or Gatekeeper.
+
+## Instinct comparison scope
+
+The comparison target is [Instinct's public product](https://instinct.com/): connected apps,
+computer actions, messaging, voice interaction, and proactive follow-up. Sia's implemented phone
+channels are iMessage, Telegram, Discord, and the Wi-Fi browser remote. Their live acceptance is
+recorded separately from browser fixtures and unit tests. Voice notes and in-app voice conversation
+are implemented; incoming/outgoing telephone calls and an always-on cloud worker are not implemented. The operator
+confirmed this release should finish and verify the existing phone features before adding calling.
+Local work still requires Sia running on an awake Mac. Calendar, Tasks, and Outlook remain disabled
+by the operator's prior scope decision. Do not claim complete Instinct parity or arbitrary-account
+connector availability from the current automated test results.
 
 ## Earlier audit verification
 
@@ -157,10 +189,10 @@ The existing Developer ID Application certificate for team `DXYJ578DD4` is avail
 must keep the `Sia` runtime/product/executable name and `ai.sia.desktop` bundle identifier so it
 retains the established Keychain namespace and designated requirement.
 
-The saved Apple notarization profile name is still required. A targeted metadata query found no
-matching entry. Automatic approval review rejected opening the entire Keychain Access window
-because it could expose unrelated credential metadata; broad enumeration was not used as a
-workaround. Supply the exact profile name, never a password in chat or a repository file.
+The operator supplied the exact existing notarization Keychain profile. Apple initially refused it
+because a developer agreement was missing or expired. After the operator accepted the agreement,
+the read-only notarization history request succeeded. No password was written to the repository,
+command-line arguments, or evidence.
 
 Run the canonical `pnpm package:mac` with that profile and the deployed non-secret cloud/update
 configuration. Require strict nested signatures, successful notarization, stapling, and Gatekeeper

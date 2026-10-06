@@ -74,7 +74,7 @@ export interface ControllerOptions {
   openMessagesPermissions?(): Promise<void>;
   requestMicrophonePermission?(): Promise<void>;
   restartApp?(): void;
-  installCodex?(): Promise<void>;
+  installCodex?(onProgress: (message: string) => void): Promise<void>;
   /**
    * The person's own model API key. The key is write-only from here on: it is validated,
    * checked against the endpoint, and stored encrypted; only the model and host come back.

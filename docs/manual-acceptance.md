@@ -55,6 +55,8 @@ Complete physical voice, lock/sleep, and clean-user checks below before public d
 On a clean macOS test account, use the exact signed release artifact and an unlocked login
 Keychain. **Set up Codex** must install or update the managed version, resume official browser
 sign-in after any restart, and show **Connected** without terminal commands or a manual download.
+On a slow connection, downloaded megabytes must advance beyond two minutes without aborting; a stalled
+connection must offer an actionable retry and preserve the previous runtime.
 While Sia shows **Waiting for sign-in…**, press **Cancel** once (or leave the browser tab closed) and
 verify **Try again** starts a fresh sign-in in Sia; ordinary launches must not reopen it.
 **Grant all** must show individual statuses, skip granted access, and refresh after returning

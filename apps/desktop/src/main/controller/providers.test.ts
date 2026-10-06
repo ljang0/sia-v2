@@ -432,8 +432,9 @@ describe('DesktopController', () => {
   it('installs Codex once, blocks new turns, and restarts without claiming authentication', async () => {
     let finish!: () => void;
     const installCodex = vi.fn(
-      () =>
+      (onProgress: (message: string) => void) =>
         new Promise<void>((resolve) => {
+          onProgress('Downloading Codex… 5 MB of 116 MB.');
           finish = resolve;
         }),
     );
@@ -455,6 +456,10 @@ describe('DesktopController', () => {
       await controller.invoke('settings.setDeveloperTools', { enabled: true });
       const pending = controller.invoke('providers.login', { providerId: 'codex' });
       await vi.waitFor(() => expect(installCodex).toHaveBeenCalledOnce());
+      expect(controller.snapshot().providers.find(({ id }) => id === 'codex')?.setup).toEqual({
+        phase: 'installing',
+        message: 'Downloading Codex… 5 MB of 116 MB.',
+      });
       await expect(
         controller.invoke('providers.login', { providerId: 'codex' }),
       ).rejects.toThrow('in progress');

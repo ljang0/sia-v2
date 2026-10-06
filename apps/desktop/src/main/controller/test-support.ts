@@ -55,7 +55,7 @@ export async function createHarness(
     openMessagesPermissions?: () => Promise<void>;
     requestMicrophonePermission?: () => Promise<void>;
     restartApp?: () => void;
-    installCodex?: () => Promise<void>;
+    installCodex?: ConstructorParameters<typeof DesktopController>[0]['installCodex'];
     byok?: ConstructorParameters<typeof DesktopController>[0]['byok'];
     labHarnesses?: ConstructorParameters<typeof DesktopController>[0]['labHarnesses'];
     workspaceOperations?: ConstructorParameters<

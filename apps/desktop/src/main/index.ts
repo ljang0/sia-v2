@@ -500,7 +500,7 @@ async function performApplicationCreation(): Promise<void> {
       notchHelperPath: app.isPackaged
         ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
         : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper'),
-      installCodex: () => installManagedCodex(codexToolsRoot),
+      installCodex: (onProgress) => installManagedCodex(codexToolsRoot, onProgress),
       ...(fakeServices
         ? (() => {
             // Development only: a key kept in memory and never checked, so the Settings flow

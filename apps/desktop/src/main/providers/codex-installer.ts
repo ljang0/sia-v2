@@ -1,7 +1,7 @@
 import { execFile, spawn } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
-import { chmod, mkdir, mkdtemp, open, rename, rm, symlink } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rename, rm, symlink } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -12,9 +12,9 @@ import {
   parseCliVersion,
   sanitizedEnvironment,
 } from '@sia/runtime';
+import { downloadCodexArchive } from './codex-download.js';
 
 const exec = promisify(execFile);
-const MAX_ARCHIVE_BYTES = 200 * 1024 * 1024;
 const MAX_FILE_BYTES = 350 * 1024 * 1024;
 const VERSION = '0.153.0';
 const FILES = [
@@ -44,16 +44,24 @@ export function managedCodexCommand(root: string): string {
   return join(root, 'current', 'bin', 'codex');
 }
 
-export async function installManagedCodex(root: string): Promise<void> {
+export async function installManagedCodex(
+  root: string,
+  onProgress?: (message: string) => void,
+): Promise<void> {
   if (process.platform !== 'darwin' || !(process.arch in RELEASES)) {
     throw new Error('Automatic Codex setup requires an Apple silicon or Intel Mac.');
   }
   const arch = process.arch as keyof typeof RELEASES;
-  await installCodexRelease(root, {
-    ...RELEASES[arch],
-    version: VERSION,
-    url: `https://registry.npmjs.org/@openai/codex/-/codex-${VERSION}-darwin-${arch}.tgz`,
-  });
+  await installCodexRelease(
+    root,
+    {
+      ...RELEASES[arch],
+      version: VERSION,
+      url: `https://registry.npmjs.org/@openai/codex/-/codex-${VERSION}-darwin-${arch}.tgz`,
+    },
+    fetch,
+    onProgress,
+  );
 }
 
 /** Trusted main-process/test seam. No release fields cross the renderer bridge. */
@@ -61,6 +69,7 @@ export async function installCodexRelease(
   root: string,
   release: { version: string; target: string; integrity: string; url: string },
   download: typeof fetch = fetch,
+  onProgress?: (message: string) => void,
 ): Promise<void> {
   if (!isVersionSupported(release.version, CODEX_SUPPORTED_VERSIONS)) {
     throw new Error('This Codex download has not been verified for Sia.');
@@ -73,29 +82,8 @@ export async function installCodexRelease(
   const payload = join(stage, 'release');
   let published: string | undefined;
   try {
-    const response = await download(release.url, {
-      redirect: 'error',
-      credentials: 'omit',
-      signal: AbortSignal.timeout(120_000),
-    });
-    if (!response.ok || !response.body) throw new Error('Codex download failed. Try again.');
-    const file = await open(archive, 'wx', 0o600);
-    const hash = createHash('sha512');
-    let bytes = 0;
-    try {
-      for await (const chunk of response.body) {
-        bytes += chunk.byteLength;
-        if (bytes > MAX_ARCHIVE_BYTES)
-          throw new Error('Codex download exceeded its size limit.');
-        hash.update(chunk);
-        await file.writeFile(chunk);
-      }
-    } finally {
-      await file.close();
-    }
-    if (hash.digest('base64') !== release.integrity) {
-      throw new Error('Codex download could not be verified. Try again.');
-    }
+    await downloadCodexArchive(release, archive, download, onProgress);
+    onProgress?.('Download verified. Installing Codex…');
     // Extract fixed members to stdout; archive paths/links never choose output paths.
     for (const name of FILES) {
       const destination = join(payload, name);

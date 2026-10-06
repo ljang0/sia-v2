@@ -335,7 +335,9 @@ export class ProviderAccess {
               ? 'Updating Codex for Sia…'
               : 'Downloading and installing Codex…',
           );
-          await this.ctx.deps.installCodex();
+          await this.ctx.deps.installCodex((message) =>
+            this.setCodexSetup('installing', message),
+          );
           this.requireSafeCodexRestart();
           // Only this explicit setup action can authorize sign-in after restart.
           // No credential, login URL or token is persisted in the continuation.

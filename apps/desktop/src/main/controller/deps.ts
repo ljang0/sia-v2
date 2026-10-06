@@ -32,7 +32,7 @@ export interface ControllerDeps {
   readonly openMessagesPermissions: (() => Promise<void>) | undefined;
   readonly requestMicrophonePermission: (() => Promise<void>) | undefined;
   readonly restartApp: (() => void) | undefined;
-  readonly installCodex: (() => Promise<void>) | undefined;
+  readonly installCodex: ControllerOptions['installCodex'];
   readonly byok: ControllerOptions['byok'];
   readonly labHarnesses: NonNullable<ControllerOptions['labHarnesses']>;
   readonly chooseDirectory: () => Promise<string | null>;

@@ -13,6 +13,8 @@ anything else or paste an API key.
   Workspace, Slack, GitHub, Notion, and Chrome connections stay optional. Use my Mac walks through
   Accessibility, Screen Recording, app Automation, and Full Disk Access; macOS approves each grant.
   Connected-app setup skips Mac permissions, and ordinary chat remains available before screen access.
+- **Visible setup progress.** Codex setup shows downloaded megabytes and handles slow connections;
+  a stalled download offers a clear retry without replacing a working installation.
 - **Reports you can open.** Generated documents have Preview, Open, and Reveal controls that
   remain available when you reopen the conversation. Phone remote can download saved results.
 - **Monthly and yearly schedules.** Create schedules directly from Scheduled. Month-end and
