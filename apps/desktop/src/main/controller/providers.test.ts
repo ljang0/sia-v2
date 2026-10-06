@@ -8,6 +8,102 @@ import type { DesktopController } from './desktop-controller.js';
 import { createHarness, deterministicProviderProbe } from './test-support.js';
 
 describe('DesktopController', () => {
+  it.each([false, true])(
+    'runs and restores an explicitly changed model with its matching execution route (stale saved model: %s)',
+    async (staleSavedModel) => {
+      const turns: RuntimeTurnInput[] = [];
+      const runtime = {
+        async *runTurn(input: RuntimeTurnInput) {
+          turns.push(input);
+          if (input.thread.resolvedExecutionTarget?.model !== input.thread.model) {
+            throw new Error('Mismatched model route');
+          }
+          yield {
+            id: randomUUID(),
+            threadId: input.thread.id,
+            turnId: input.turnId,
+            provider: 'codex' as const,
+            sequence: 1,
+            timestamp: new Date().toISOString(),
+            type: 'completion' as const,
+            payload: { status: 'completed' as const },
+          };
+        },
+        dispose: vi.fn(async () => undefined),
+      };
+      const providerProbe = async (only?: Parameters<typeof probeProviders>[0]) =>
+        (await deterministicProviderProbe(only)).map((provider) =>
+          provider.id === 'codex'
+            ? {
+                ...provider,
+                models: ['gpt-5.6-sol', 'gpt-5.6-terra'].map((id) => ({
+                  id,
+                  label: id,
+                  description: '',
+                  reasoningEfforts: ['medium'],
+                })),
+              }
+            : provider,
+        );
+      const first = await createHarness({ fakeServices: false, runtime, providerProbe });
+      const { agentId } = await first.controller.invoke('agents.save', {
+        name: 'Model replacement',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await first.controller.invoke('threads.create', { agentId });
+      const saved = first.repository.get<{ threads: Array<{ id: string; model: string }> }>(
+        'desktop',
+        'state',
+      )!;
+      if (staleSavedModel) {
+        saved.threads.find(({ id }) => id === threadId)!.model = 'gpt-5.6-terra';
+      }
+      const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+      repository.put('desktop', 'state', saved);
+      await first.controller.shutdown();
+      const { controller } = await createHarness({
+        fakeServices: false,
+        runtime,
+        providerProbe,
+        repository,
+      });
+      try {
+        await controller.invoke('threads.config', {
+          threadId,
+          model: 'gpt-5.6-terra',
+          reasoningEffort: 'medium',
+        });
+        await controller.invoke('threads.send', { threadId, text: 'Read the test document.' });
+        await vi.waitFor(() =>
+          expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+            'idle',
+          ),
+        );
+        expect(turns).toHaveLength(1);
+        expect(turns[0]?.thread.resolvedExecutionTarget).toMatchObject({
+          provider: 'codex',
+          model: 'gpt-5.6-terra',
+          harnessId: 'codex_app_server',
+          harnessModelId: 'gpt-5.6-terra',
+          credentialSource: 'provider_subscription',
+        });
+        const persisted = repository.get<{ threads: unknown[] }>('desktop', 'state')!;
+        expect(persisted.threads).toContainEqual(
+          expect.objectContaining({
+            id: threadId,
+            model: 'gpt-5.6-terra',
+            resolvedExecutionTarget: turns[0]?.thread.resolvedExecutionTarget,
+          }),
+        );
+      } finally {
+        await controller.shutdown();
+      }
+    },
+  );
+
   it('uses the offered reasoning default after reset while preserving an explicit choice', async () => {
     const turns: RuntimeTurnInput[] = [];
     const runtime = {

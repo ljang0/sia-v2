@@ -189,7 +189,34 @@ export class Threads {
     ) {
       throw new Error(`${model.label} does not support that reasoning level.`);
     }
-    thread.model = input.model.trim();
+    const selectedModel = input.model.trim();
+    const pinned = thread.resolvedExecutionTarget;
+    if (!pinned || pinned.model !== selectedModel || pinned.provider !== thread.provider) {
+      // An explicit model change must update the whole route, including model aliases.
+      // Keep the conversation's harness and credential source rather than inheriting a
+      // subsequently edited agent or silently switching accounts.
+      const routeKey = modelRouteKey(thread.provider, selectedModel);
+      const resolution = resolveExecutionTarget({
+        provider: thread.provider,
+        model: selectedModel,
+        ...(pinned
+          ? {
+              preference: { mode: 'explicit' as const, harnessId: pinned.harnessId },
+              credentialSource: pinned.credentialSource,
+            }
+          : {}),
+        allowedRoutes: this.ctx.providers.allowedModelRoutes.get(routeKey) ?? [
+          legacyModelRoute(thread.provider, selectedModel),
+        ],
+        ...(this.ctx.providers.backendModelRoutes.has(routeKey)
+          ? { backendDefault: this.ctx.providers.backendModelRoutes.get(routeKey)! }
+          : {}),
+      });
+      if (!resolution.ok) throw new Error(resolution.message);
+      thread.resolvedExecutionTarget = resolution.target;
+      thread.harnessId = resolution.target.harnessId;
+    }
+    thread.model = selectedModel;
     if (reasoningEffort) thread.reasoningEffort = reasoningEffort;
     else delete thread.reasoningEffort;
     thread.updatedAt = new Date().toISOString();

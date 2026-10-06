@@ -84,6 +84,9 @@ Record the selected model, tool calls, outcome, and any missing macOS grant. The
 permission prompts; full bypass does not grant macOS permissions.
 Resetting reasoning to **Default** uses the selected model's advertised default; an explicit
 reasoning choice stays in effect and does not inherit a separate CLI setting.
+When a provider stops offering a pinned model, its picker must identify that choice as unavailable.
+Select an offered replacement, run a task, and relaunch: the displayed model and the execution
+route must agree, and the conversation must retain its harness and credential source.
 
 | Task                                                                                                | Independent completion check                                                                                                                                         |
 | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

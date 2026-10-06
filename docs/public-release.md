@@ -2,7 +2,9 @@
 
 ## Decision
 
-Sia `0.1.0-alpha.25` remains an internal release candidate. The exact candidate is signed, notarized, and stapled. Public distribution remains blocked until
+Sia `0.1.0-alpha.25` remains an internal release candidate. An integrated build passed signing,
+notarization, and stapling; the subsequent model-selection repairs require a new signed build.
+Public distribution remains blocked until
 the recipient acceptance checks below pass. No alpha.25
 installer or public download has been published. The last published pilot release remains
 [`alpha.24`](./release-evidence.md).
@@ -26,7 +28,7 @@ unavailable. Slack's deployed behavior is unchanged; the prepared manifest is no
 Verification on October 6, 2026 UTC:
 
 - `pnpm test:pilot` passed: build, formatting, lint, quality guard, all workspace type/unit gates,
-  **1,162 desktop unit tests**, **45 Electron tests**, and **17 renderer tests**. Seven desktop
+  **1,165 desktop unit tests**, **45 Electron tests**, and **17 renderer tests**. Seven desktop
   tests and four Electron tests remain opt-in and were skipped; passing fixtures do not establish
   real OAuth, Messages, model responses, or operating-system grants.
 - The texting E2E now uses the integrated one-click setup; its obsolete optional-app checkbox
@@ -83,6 +85,14 @@ Connected. GPT-6-Astra then read a disposable CSV through the real harness and r
 expected item total and the correct grand total, 31.50, in 12 seconds with two steps.
 A live Calculator task correctly stopped when background controls were unavailable under
 the selected Pause and tell me policy. Foreground GUI acceptance remains pending.
+After the live Codex catalog stopped offering that conversation's pinned model, two defects were
+found: the picker visually showed its first available option while retaining the old model, and
+an explicit replacement changed the model without updating its saved execution route. The picker
+now identifies the unavailable pinned choice, and explicit replacement resolves the complete
+allowed route while preserving the conversation's harness and credential source. Regression tests
+cover the visible selection, starting a task with the new route, persistence, and repair of an
+already mismatched saved conversation. The full pilot gate passed again with 1,165 desktop unit
+tests, 45 Electron tests, and 17 renderer tests. Live retry and a rebuilt signed artifact remain required.
 Texting is enabled and Ready for one authorized self-test recipient; physical-phone delivery
 remains unverified. Telephone calling is outside this release scope.
 
@@ -95,7 +105,12 @@ The DMG SHA-256 is `1372cbe6587e52579da5744bc65de1db11b7223d7d533a7429e368f0c18b
 the ZIP SHA-256 is `8de225eeace209480e6fcd387591cc8b1cde7f429fd8788623dcc33fb31bf555`.
 A fresh isolated profile launched the exact signed app and showed only email sign-in. The live
 service accepted a code request and rejected a deliberately incorrect code while preserving
-the sign-in wall. Successful recipient sign-in and upgrade acceptance remain in progress.
+the sign-in wall. The operator received and entered the valid code, and the exact signed copy
+independently reached authenticated onboarding in its isolated profile. Managed Codex 0.153.0
+then installed through the GUI; its automatic restart preserved that profile. Mac permission
+setup is still incomplete for this signed identity. Clean-macOS-user and upgrade acceptance remain
+pending. GitHub consent completed and the development app independently showed the expected
+connected account; its connector read/reconnect acceptance remains pending.
 
 A real ElevenLabs probe completed speech generation, batch and streaming transcription, and
 cancellation using a synthetic sentence. It generated 46,020 audio bytes and completed in 3,050 ms.
