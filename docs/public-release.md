@@ -48,9 +48,18 @@ Verification on October 6, 2026 UTC:
 - CI now installs Chromium and WebKit and runs both renderer and phone-browser checks. Signed
   packaging depends on the verification job, so it cannot run after that job fails.
 
-The installed `/Applications/Sia.app` is **alpha.14**, not this candidate. This session can inspect
-Sia through Computer Use. The existing Sia Development window stopped at its native Keychain
-unlock screen; no real permission or provider acceptance is claimed for this integrated build.
+The installed `/Applications/Sia.app` is **alpha.14**, not this candidate. Computer Use works in
+this session. The integrated source was opened with real services in the existing signed
+`ai.sia.desktop.dev` runtime and an isolated encrypted profile. Its Keychain opened successfully.
+The app reports Accessibility, Screen Recording, Chrome Automation, Finder Automation, Messages
+Automation, and Full Disk Access allowed. System Events, Safari, Calendar, and Reminders Automation
+still need grants; voice is unavailable. These are existing development-identity grants, not
+clean-user or signed-release acceptance. No operating-system grants were changed in this pass.
+
+The installed global Codex `0.154.0` is outside Sia's admitted versions. The app correctly shows it
+as incompatible; setting up the supported managed runtime in the isolated profile awaits operator
+confirmation. No model task, connector consent, or real message round trip is claimed for this
+integrated build.
 
 The GitHub `alpha-release` environment contains the five cloud/update configuration secrets, but
 no signing or Apple notarization secrets; the repository-level secret list is empty. The local

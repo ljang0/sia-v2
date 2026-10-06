@@ -17,9 +17,12 @@ signed packaging. Main has not been changed by this integration pass.
 packaging and acceptance on that exact artifact: clean signup and permissions, authenticated
 upgrade, live connector consent, and real phone/bot round trips. The prior signed internal alpha.25
 candidate predates these workstreams. `/Applications/Sia.app` on the verification Mac is alpha.14.
-Computer Use works in the current Codex session; the previous threads' inability to click is not a
-universal host limitation. The existing Sia Development app was waiting for its native Keychain
-unlock, which the operator must handle without sharing their password.
+Computer Use works in the current Codex session. The integrated source opened with real services
+and an isolated encrypted profile in the existing signed Sia Development runtime. Six permissions
+are allowed; System Events, Safari, Calendar, and Reminders Automation still need grants. Keychain
+opened successfully. Global Codex `0.154.0` is incompatible; the app's managed runtime setup awaits
+operator confirmation. No grants were changed or real model tasks/messages sent. These existing
+development grants do not establish clean-user or signed-release acceptance.
 
 The original audit results and demonstrations below are historical evidence. They prove analysis
 and drafting with fictional inputs, not live bookings, cancellations, account-wide source coverage,
