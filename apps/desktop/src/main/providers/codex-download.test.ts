@@ -54,7 +54,9 @@ it('finishes a progressing download that takes longer than two minutes and repor
   }
   test.stream.close();
   await test.pending;
-  expect(await readFile(test.archive)).toEqual(test.expected);
+  // Compare bytes natively; recursively diffing three million Buffer entries can exhaust
+  // the test's wall-clock budget on the hosted Mac even though the download is complete.
+  expect((await readFile(test.archive)).equals(test.expected)).toBe(true);
   expect(vi.getTimerCount()).toBe(0);
 });
 
