@@ -2,9 +2,9 @@
 
 ## Decision
 
-Sia `0.1.0-alpha.25` remains an internal release candidate. Public distribution is blocked until
-the exact candidate is notarized and the recipient acceptance checks below pass. No alpha.25
-installer or public download has been published. The last notarized pilot release remains
+Sia `0.1.0-alpha.25` remains an internal release candidate. The exact candidate is signed, notarized, and stapled. Public distribution remains blocked until
+the recipient acceptance checks below pass. No alpha.25
+installer or public download has been published. The last published pilot release remains
 [`alpha.24`](./release-evidence.md).
 
 ## Integrated release candidate
@@ -26,7 +26,7 @@ unavailable. Slack's deployed behavior is unchanged; the prepared manifest is no
 Verification on October 6, 2026 UTC:
 
 - `pnpm test:pilot` passed: build, formatting, lint, quality guard, all workspace type/unit gates,
-  **1,159 desktop unit tests**, **45 Electron tests**, and **17 renderer tests**. Seven desktop
+  **1,162 desktop unit tests**, **45 Electron tests**, and **17 renderer tests**. Seven desktop
   tests and four Electron tests remain opt-in and were skipped; passing fixtures do not establish
   real OAuth, Messages, model responses, or operating-system grants.
 - The texting E2E now uses the integrated one-click setup; its obsolete optional-app checkbox
@@ -56,15 +56,20 @@ Verification on October 6, 2026 UTC:
   connected but had no draft before Send. The cold-start check now uses the client's ten-second
   request deadline, and the recovery test installs routes before navigation, types real keys, and
   asserts its draft. All 60 phone-browser checks passed locally again. Failure traces are retained,
-  and CI has 45 minutes for the expanded verification/package job. Fresh CI remains required.
+  and CI has 45 minutes for the expanded verification/package job.
+  [Final combined CI](https://github.com/ljang0/sia-v2/actions/runs/37421718412) passed on
+  `7f59f848b70d163888ae2a8fa45b8952bddce8f8`: all source gates, 1,162 desktop unit tests,
+  45 Electron tests, 17 renderer checks, all 60 phone-browser checks, and unsigned universal
+  package verification. The new slow-download test uses native byte-exact Buffer comparison
+  to avoid the test framework spending more than five seconds on a recursive 3 MB comparison.
 
 The installed `/Applications/Sia.app` is **alpha.14**, not this candidate. Computer Use works in
 this session. The integrated source was opened with real services in the existing signed
 `ai.sia.desktop.dev` runtime and an isolated encrypted profile. Its Keychain opened successfully.
-The app reports Accessibility, Screen Recording, Chrome Automation, Finder Automation, Messages
-Automation, and Full Disk Access allowed. System Events, Safari, Calendar, and Reminders Automation
-still need grants. The personal ElevenLabs voice service is configured and enabled. These are existing development-identity grants, not
-clean-user or signed-release acceptance. No operating-system grants were changed in this pass.
+The guided Mac permission check now reports every required permission ready, including
+System Events, Safari, Calendar, and Reminders Automation; optional microphone/speech access
+also reports allowed. The personal ElevenLabs voice service is configured and enabled. These
+are development-identity grants, not clean-user or signed-release acceptance.
 
 The installed global Codex `0.154.0` is outside Sia's admitted versions. The app correctly shows it
 as incompatible. The operator approved the managed runtime installation. Its live download exposed
@@ -73,7 +78,24 @@ connection. Setup now displays downloaded megabytes and permits a progressing do
 45 minutes, while aborting after two minutes without incoming data. SHA-512 verification, archive
 size limits, admitted-version checks, and atomic installation remain required. Regression checks
 cover slow success, a stalled stream, the overall deadline, and visible progress. The repaired full `pnpm test:pilot` gate passed with 1,162 desktop unit tests, 45 Electron checks,
-and 17 renderer checks. The repaired GUI setup is being verified; no completed model turn or real message round trip is claimed yet.
+and 17 renderer checks. The repaired GUI setup completed and installed admitted Codex `0.153.0`; Settings shows
+Connected. GPT-6-Astra then read a disposable CSV through the real harness and returned every
+expected item total and the correct grand total, 31.50, in 12 seconds with two steps.
+A live Calculator task correctly stopped when background controls were unavailable under
+the selected Pause and tell me policy. Foreground GUI acceptance remains pending.
+Texting is enabled and Ready for one authorized self-test recipient; physical-phone delivery
+remains unverified. Telephone calling is outside this release scope.
+
+The cloud-configured universal candidate passed Developer ID signing, Apple notarization,
+stapling, strict nested signature verification, and Gatekeeper acceptance for both app and DMG.
+App notarization submission `054f38c7-5be1-4a20-bccd-efeeda331747` and DMG submission
+`e13fde99-e33f-4659-95c4-c30b69c8e71c` were accepted. Its app.asar SHA-256 is
+`d127e0b87ec4844bab3f695514343cb7518826f5809d58d182d75115aef6746e`.
+The DMG SHA-256 is `1372cbe6587e52579da5744bc65de1db11b7223d7d533a7429e368f0c18b1551`;
+the ZIP SHA-256 is `8de225eeace209480e6fcd387591cc8b1cde7f429fd8788623dcc33fb31bf555`.
+A fresh isolated profile launched the exact signed app and showed only email sign-in. The live
+service accepted a code request and rejected a deliberately incorrect code while preserving
+the sign-in wall. Successful recipient sign-in and upgrade acceptance remain in progress.
 
 A real ElevenLabs probe completed speech generation, batch and streaming transcription, and
 cancellation using a synthetic sentence. It generated 46,020 audio bytes and completed in 3,050 ms.
@@ -93,8 +115,8 @@ The GitHub `alpha-release` environment contains the five cloud/update configurat
 no signing or Apple notarization secrets; the repository-level secret list is empty. Local signing uses the existing Developer ID certificate and the operator's named Keychain profile.
 The profile initially returned Apple's missing-agreement error; after the operator accepted the
 agreement, the notarization service accepted the profile. The installed app's non-secret cloud and
-update configuration matches the deployed stack and is available for the new signed build. This is
-release preparation, not evidence that the new artifact has passed notarization or Gatekeeper.
+update configuration matches the deployed stack and is embedded in the signed candidate.
+The completed notarization and Gatekeeper results are recorded above.
 
 ## Instinct comparison scope
 
@@ -112,7 +134,7 @@ connector availability from the current automated test results.
 
 These results describe the earlier audit candidate and do not replace the integrated-build gates.
 
-The current candidate passed `pnpm test:pilot`: 1,077 desktop unit tests,
+That earlier audit candidate passed `pnpm test:pilot`: 1,077 desktop unit tests,
 42 Electron checks and 17 renderer checks, with six desktop and four opt-in Electron checks
 skipped. All 60 phone checks passed across Chromium and WebKit. Computer Use exercised the
 connected-app setup, email-code resend fixture, permission/relaunch fixture, and monthly schedule
@@ -134,7 +156,7 @@ universal candidate passed strict nested signature verification. Its designated 
 exactly matches the installed previous Sia app; this is identity evidence, not a completed upgrade
 acceptance test.
 
-## Live harness and package evidence
+## Earlier audit harness and package evidence
 
 - Sia's actual pinned Codex `0.153.0` download, SHA-512 validation, extraction, and version check
   passed in a disposable directory. The operator's existing Codex installation was unchanged.
@@ -164,7 +186,8 @@ Computer Use verified the real packaged email sign-in screen with an empty isola
 New conversation, search and Settings keyboard shortcuts did not expose private app surfaces.
 No email was sent or account created. This reused the existing Mac and does not establish clean
 macOS permissions, new-user Keychain behavior or authenticated upgrade persistence.
-No notarized DMG/ZIP was produced or published.
+That earlier pass produced no notarized DMG/ZIP. The integrated candidate above has since
+completed notarization; no alpha.25 installer has been published.
 
 ## Production email delivery
 
@@ -178,8 +201,9 @@ were retained, no resource was replaced, and Cognito's refresh lifetime remains 
 revocation enabled. An initial preview omitted the required branded From address and rolled back
 at parameter validation before any resource update. The corrected change completed successfully.
 
-Actual new-recipient email delivery, wrong-code handling, resend, expiry, and full sign-in still
-need the disposable recipient acceptance check. SES configuration alone is not delivery evidence.
+The integrated signed candidate accepted an email-code request and rejected a deliberately
+incorrect code. Inbox delivery, resend, expiry, and complete new-recipient sign-in remain pending.
+SES configuration alone is not delivery evidence.
 
 The source's separately prepared ten-year refresh-token setting has **not** been deployed.
 Do not apply it incidentally through a broad stack update. That production-wide duration still
@@ -197,9 +221,10 @@ because a developer agreement was missing or expired. After the operator accepte
 the read-only notarization history request succeeded. No password was written to the repository,
 command-line arguments, or evidence.
 
-Run the canonical `pnpm package:mac` with that profile and the deployed non-secret cloud/update
-configuration. Require strict nested signatures, successful notarization, stapling, and Gatekeeper
-assessment for both the app and DMG. Retain the previous signed artifact for rollback.
+The canonical `pnpm package:mac` completed with that profile and the deployed non-secret
+cloud/update configuration. Strict nested signatures, notarization, stapling, and Gatekeeper
+assessment passed for both the app and DMG. The previous signed release remains available
+for rollback. These packaging results do not replace recipient acceptance.
 
 On that exact artifact, complete [manual acceptance](./manual-acceptance.md):
 
@@ -226,7 +251,9 @@ offline cloud scheduling, and full binary/scanned tax-document coverage remain u
 After the exact signed artifacts and human acceptance pass, run `pnpm release:stage-public-download`
 to validate and stage the immutable installer and `/download/release.json`. The public site's
 `pnpm --filter @sia/site deploy --public-release` performs the release checks before uploading.
-Verify an unauthenticated recipient download and its hash. The authenticated signed update feed
+The candidate is already staged locally. The page loaded in a browser, and a full local HTTP
+download returned 263,088,668 bytes matching its manifest SHA-256. Nothing was uploaded.
+Verify an external unauthenticated recipient download and its hash after publication. The authenticated signed update feed
 is a separate publication step in [release.md](./release.md).
 
 Keep Google/Slack limited to their approved tester cohort until their distribution gates pass.

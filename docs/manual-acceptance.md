@@ -5,8 +5,9 @@ code and deterministic flows; these checks cover provider-owned login screens, m
 and real accounts. Use disposable, non-sensitive fixtures and keep research sharing off.
 
 Record the result in the private pilot log with the exact Sia version and artifact hash under
-test. The source is `0.1.0-alpha.25`; the latest signed artifact (`0.1.0-alpha.24`) and its hashes
-are in [`release-evidence.md`](./release-evidence.md).
+test. The source is `0.1.0-alpha.25`; the signed `0.1.0-alpha.25` candidate and its hashes are recorded in
+[`public-release.md`](./public-release.md). The last published pilot artifact remains
+`0.1.0-alpha.24`, recorded in [`release-evidence.md`](./release-evidence.md).
 
 ## Automated gate
 
