@@ -105,7 +105,12 @@ then read PR #20 through GitHub in 15 seconds; its title, state, base/head branc
 matched an independent GitHub check after relaunch. Disconnect/reconnect and signed-app connector
 acceptance remain pending.
 Texting is enabled and Ready for one authorized self-test recipient; physical-phone delivery
-remains unverified. Telephone calling is outside this release scope.
+remains unverified. With operator approval, the development phone remote was enabled and independently
+confirmed listening on its selected LAN address; the app reports Ready. The in-app browser rejected
+that LAN URL, and loopback is not a listener, so pairing and task control still require the physical
+phone check. Desktop Computer Use input also became unreliable after the Mac lock/sleep interruption.
+Neither a listening port nor UI readiness establishes an end-to-end phone result. Telephone calling
+is outside this release scope.
 
 The cloud-configured universal candidate passed Developer ID signing, Apple notarization,
 stapling, strict nested signature verification, and Gatekeeper acceptance for both app and DMG.
@@ -114,15 +119,21 @@ App notarization submission `a8d50e6d-eca3-4bf9-85e2-ed23bb431230` and DMG submi
 `abef0f1a32f47fe9c2abe027b386a89d8861bac9c44de0035cba0a817ab26e79`.
 The DMG SHA-256 is `32bc6dfdb5bb1042cec6c6045fa7fa6f2e9fb111c45348c6c3e1490d20015bbe`;
 the ZIP SHA-256 is `a9b3404d96a68ab109434fac3aea7b182824ab355b1dac565164cfa4029c957d`.
-The prior notarized build completed the following signup check; the repaired signed artifact still
-needs the profile continuity check. A fresh isolated profile launched that app and showed only email sign-in. The live
+The prior notarized build completed the following signup check. A fresh isolated profile launched
+that app and showed only email sign-in. The live
 service accepted a code request and rejected a deliberately incorrect code while preserving
 the sign-in wall. The operator received and entered the valid code, and the exact signed copy
 independently reached authenticated onboarding in its isolated profile. Managed Codex 0.153.0
 then installed through the GUI; its automatic restart preserved that profile. After the operator
 completed the macOS prompts, independent inspection confirmed authenticated setup finished and
 the conversation screen reported **Sia is ready**. This used the earlier notarized copy, not the
-rebuilt artifact. Clean-macOS-user and upgrade acceptance remain pending. GitHub consent completed and the development app independently showed the expected
+rebuilt artifact. The rebuilt signed candidate then reopened the same isolated profile: the
+authenticated conversation screen, completed onboarding and Connected Codex plan persisted without
+a new sign-in or observed Keychain prompt. Its permission panel still reports System Events and
+Safari as needing attention, so actual app-control acceptance remains pending. Clean-macOS-user
+and alpha.24 upgrade acceptance remain pending. The published alpha.24 ZIP was retrieved and its
+recorded hash, strict app signature and Gatekeeper acceptance verified in preparation for that test.
+GitHub consent completed and the development app independently showed the expected
 connected account; its live read passed as recorded above, while disconnect/reconnect remains pending.
 
 A real ElevenLabs probe completed speech generation, batch and streaming transcription, and
