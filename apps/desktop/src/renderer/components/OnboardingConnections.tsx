@@ -20,6 +20,7 @@ export function SetupConnections({ snapshot, api, pending, run }: SetupProps) {
         pending={pending}
         connect={(apps) => run(() => api.connectSelectedApps(apps))}
         cancel={(app, grant) => run(() => api.disconnectApp(app, grant))}
+        reconnect={(app) => run(() => api.connectApp(app))}
       />
       {googleReady && google.some((app) => app.googleAccess !== 'read_write') ? (
         <button

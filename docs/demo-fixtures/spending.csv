@@ -1,0 +1,16 @@
+date,merchant,category,amount_usd,status,transaction_id
+2026-09-01,Rent,Housing,1800.00,posted,r1
+2026-09-02,Groceries,Food,160.00,posted,f1
+2026-09-05,Groceries,Food,95.00,posted,f2
+2026-09-06,Dinner,Dining,80.00,posted,d1
+2026-09-08,Music service,Subscriptions,12.00,posted,s1
+2026-09-09,Unused fitness app,Subscriptions,29.00,posted,s2
+2026-09-10,Video service,Subscriptions,18.00,posted,s3
+2026-09-12,Internet,Utilities,70.00,posted,u1
+2026-09-14,Electricity,Utilities,90.00,posted,u2
+2026-09-15,Clothing purchase,Shopping,120.00,posted,c1
+2026-09-20,Clothing refund,Shopping,-40.00,posted,c2
+2026-09-21,Dinner,Dining,65.00,posted,d2
+2026-09-22,Account transfer,Transfer,500.00,posted,x1
+2026-09-22,Dinner pending duplicate,Dining,65.00,pending,d2-pending
+2026-09-02,Groceries export duplicate,Food,160.00,posted,f1

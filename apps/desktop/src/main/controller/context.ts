@@ -8,6 +8,7 @@ import type {
   TimelineItemView,
 } from '../../shared/bridge.js';
 import type { PhoneRemoteApi } from '../../shared/phone-remote.js';
+import type { MessagesRelayApi } from '../../shared/messages-relay.js';
 import type { ScottySettingsApi } from '../../shared/scotty.js';
 import { probeProviders } from '../providers/provider-probe.js';
 import type { RuntimeCoordinator } from '../providers/runtime-coordinator.js';
@@ -114,6 +115,7 @@ export class ControllerContext {
   browserCapabilitySink: BrowserCapabilitySink | undefined;
   scotty: ScottySettingsApi | undefined;
   phoneRemote: PhoneRemoteApi | undefined;
+  messagesRelay: MessagesRelayApi | undefined;
   state: PersistedState = structuredClone(INITIAL_STATE);
   revision = 0;
   shuttingDown = false;
@@ -143,6 +145,10 @@ export class ControllerContext {
 
   attachPhoneRemote(handler: PhoneRemoteApi): void {
     this.phoneRemote = handler;
+  }
+
+  attachMessagesRelay(handler: MessagesRelayApi): void {
+    this.messagesRelay = handler;
   }
 
   remoteAccessAllowed(): boolean {

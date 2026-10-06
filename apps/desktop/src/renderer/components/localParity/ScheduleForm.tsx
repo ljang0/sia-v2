@@ -1,5 +1,5 @@
 import { Repeat } from '@phosphor-icons/react';
-import { useId, useState, type FormEvent } from 'react';
+import { useId, useMemo, useState, type FormEvent } from 'react';
 import {
   defaultFirstScheduleRun,
   firstScheduleRunAt,
@@ -129,12 +129,15 @@ export function ScheduleForm({
     setValues((current) => ({ ...current, ...patch }));
   const { cadence } = values;
   const needsDays = cadence === 'weekly' && values.days.length === 0;
-  const draft = draftFromValues(values);
+  const draft = useMemo(() => draftFromValues(values), [values]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!values.prompt.trim() || busy || needsDays) return;
-    void Promise.resolve(onSubmit(draftFromValues(values))).then(
+    // Exact dates in the preview must survive a clock tick or an unrelated refresh.
+    // "As soon as possible" and "one hour from now" remain relative to submission.
+    const relativeStart = (cadence === 'once' || cadence === 'hourly') && !values.when;
+    void Promise.resolve(onSubmit(relativeStart ? draftFromValues(values) : draft)).then(
       () => onSaved?.(),
       // The failure is already reported; keep the draft so the person can try again.
       () => undefined,
@@ -256,6 +259,12 @@ export function ScheduleForm({
           </label>
         )}
       </div>
+      {cadence === 'monthly' || cadence === 'yearly' ? (
+        <p className={styles.scheduleSummaryLine}>
+          Repeats on the starting date at the same local time. Short months use their last day;
+          February 29 uses February 28 in other years. Times follow this Mac’s time zone.
+        </p>
+      ) : null}
       {cadence === 'weekly' ? (
         <fieldset className={styles.scheduleDays} disabled={busy}>
           <legend>On</legend>

@@ -12,6 +12,12 @@ Named research, privacy, security, support, and release approval is recorded in
 
 Local CI intentionally builds an unsigned universal `.app` only to exercise both native architectures. That artifact is not distributable and must never be presented as signed or notarized.
 
+Build release artifacts from a checkout outside iCloud Drive or another File Provider-managed
+folder. A managed Documents directory can recreate Finder metadata while Apple signs an app, even
+after cleanup. The staging hook removes Finder/resource-fork metadata but does not disable sync or
+strip quarantine. If metadata returns during signing, use an unsynced checkout or build directory
+and repeat strict signature verification.
+
 An external alpha release must be created with `pnpm package:mac`. The command fails unless all of the following are present:
 
 - `CSC_LINK` and `CSC_KEY_PASSWORD` for a Developer ID Application certificate, or `CSC_NAME` for
@@ -59,16 +65,17 @@ sam deploy \
     EnableResearchArchive=true \
     EnableConnectors=true \
     EnableSchedules=true \
-    EmailSendingAccount=COGNITO_DEFAULT \
+    EmailSendingAccount=DEVELOPER \
     SesSourceArn="$SIA_SES_SOURCE_ARN" \
-    FromEmail=
+    'FromEmail=Sia <auth@superintelligentagents.ai>'
 ```
 
 For `COGNITO_DEFAULT`, `SIA_SES_SOURCE_ARN` must identify the verified sender email address itself;
 the `FromEmail` property is omitted because Cognito rejects it on the managed delivery path.
-`COGNITO_DEFAULT` with the verified custom sender is the reviewed small-cohort alternative while
-SES production access remains pending. Switch to `DEVELOPER` only after SES reports
-`ProductionAccessEnabled: true` in `us-east-1`. See
+`COGNITO_DEFAULT` with the verified custom sender is the small-cohort alternative when
+SES production access is unavailable. The current production stack uses `DEVELOPER` with a
+verified branded From address; SES production access and sending were verified before the
+email-only update. Verify `ProductionAccessEnabled: true` in `us-east-1` before any new deployment. See
 [`ses-production-access-request.md`](./ses-production-access-request.md) for the resubmission wording
 and the required unrelated-domain human delivery check.
 

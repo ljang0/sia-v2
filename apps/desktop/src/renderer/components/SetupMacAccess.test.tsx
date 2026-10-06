@@ -33,6 +33,7 @@ function setup(autoStart = false, onRestart?: (skipped: string[]) => Promise<voi
     requestComputerPermissions: vi.fn(async () => {}),
     refreshComputerPermissions: vi.fn(async () => {}),
     requestAutomationPermission: vi.fn(async () => {}),
+    setupMessages: vi.fn(async () => {}),
     configureVoice: vi.fn(async () => {}),
     configurePushToTalk: vi.fn(async () => {}),
   };
@@ -231,8 +232,8 @@ it('lists every permission once, with the two needed ones first and the rest opt
     ['reminders', true, 'denied', true],
     ['finder', true, 'error', true],
     ['messages', true, 'ready', true],
-    // Full Disk Access has no system prompt, so Grant all leaves it to its own button.
-    ['messages_history', true, 'needed', false],
+    // Full Disk Access is guided through System Settings and remains skippable.
+    ['messages_history', true, 'needed', true],
   ]);
   for (const row of rows) expect(row.why.length).toBeGreaterThan(10);
   expect(
@@ -320,4 +321,30 @@ it('keeps checking status while something is missing so rows flip without a rest
   expect(api.refreshComputerPermissions.mock.calls.length).toBeGreaterThanOrEqual(2);
   expect(api.requestComputerPermissions).not.toHaveBeenCalled();
   expect(api.requestAutomationPermission).not.toHaveBeenCalled();
+});
+
+it('finishes the guided app prompts before one relaunch and includes Full Disk Access', async () => {
+  const restart = vi.fn(async () => {});
+  const { snapshot, api, complete, rerender } = setup(false, restart);
+  snapshot.computer.accessibility = 'allowed';
+  snapshot.computer.screenRecording = 'allowed';
+  snapshot.computer.screenRecording = 'not-requested';
+  snapshot.computer.relaunchFor = ['screenRecording'];
+  snapshot.computer.messagesAccess = 'needs_full_disk_access';
+  rerender();
+  fireEvent.click(screen.getByRole('button', { name: 'Grant all' }));
+  await waitFor(() => expect(api.requestAutomationPermission).toHaveBeenCalledWith('safari'));
+  expect(screen.queryByRole('button', { name: 'Relaunch Sia' })).toBeNull();
+  snapshot.computer.automation!.safari = 'ready';
+  rerender();
+  await waitFor(() => expect(api.setupMessages).toHaveBeenCalledOnce());
+  expect(complete).not.toHaveBeenCalled();
+  await waitFor(() =>
+    expect(
+      (screen.getByRole('button', { name: 'Turned it on? Relaunch Sia' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Turned it on? Relaunch Sia' }));
+  expect(restart).toHaveBeenCalledExactlyOnceWith([]);
 });

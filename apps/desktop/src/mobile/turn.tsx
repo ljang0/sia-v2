@@ -18,7 +18,14 @@ export function Turn({ turn, agent }: { turn: RemoteTurn; agent: string }) {
       {turn.files.map((file) => (
         <a
           className="result-file"
-          href={new URL(`outbox/${encodeURIComponent(file)}`, remoteBase).href}
+          href={
+            new URL(
+              turn.fileIds?.[file]
+                ? `results/${encodeURIComponent(turn.fileIds[file])}`
+                : `outbox/${encodeURIComponent(file)}`,
+              remoteBase,
+            ).href
+          }
           download={file}
           key={file}
         >

@@ -1,87 +1,119 @@
-# Sia demo runbook
+# Sia personal-assistant demos
 
-A ~10-minute live demo in three acts: Sia sees your Mac, does real work, and keeps going —
-goals, schedules, background agents. No approval prompts; everything on the record. Every beat
-was executed live with real Codex on 2026-08-21; the illustrated version (screenshots, timings)
-is the "Sia Demo Runbook" artifact.
+The demo target is a useful personal assistant from first launch through finished work and
+follow-up. The nine scenarios below use [fictional fixtures](./demo-fixtures/demo-cases.json).
+The planning steps have recorded real-model fixture results; live account actions remain
+acceptance cases. Do not present the deterministic fake-service reply as completed assistant work.
 
-## Pre-flight (5 min)
+## Recorded model walkthrough
 
-- `cd ~/sia_new && pnpm dev` (don't demo the stale notarized DMG).
-- `codex --version` signed in; accepted range `>=0.147.0 <0.154.0` plus `0.155.0-alpha.9` and
-  `0.155.0-alpha.9.2` (see `CODEX_SUPPORTED_VERSIONS`); no auto-updates demo morning.
-- Use a designated disposable participant and complete Sia email sign-in before the demo. Research
-  sharing is optional; enable **Sia research alpha** from Privacy only for an approved research demo.
-  If demonstrating integrations, open **Settings → Connections** after
-  the core task and press **Connect Google** or **Connect Slack**. Google uses one grant for Gmail,
-  Drive, Docs, Sheets, and Slides; Google and Slack still confirm separately in the browser.
-- **Settings → Computer → Grant all**: requests missing Mac control, voice, and everyday app access
-  in sequence. macOS still shows its own approval for each grant; **Check access** refreshes status.
-- One signed-in Chrome window on the presenting Space. Attach is silent — Sia enables Chrome's
-  debugging toggle and connects to the process that owns it. If Chrome has never restarted since
-  Sia first enabled the toggle, restart it once so the port serves; that's the only manual step.
-- Workspace: a small real repo. One dry run first.
+The October 4, 2026 walkthrough used app code `5d50b33`, admitted Codex 0.153.0,
+GPT-6 Astra, and **Ask before each action** in disposable profiles. The actual desktop
+controller, runtime coordinator, file gateway, result grants and model ran; external tools
+were unavailable. Nine planning scenarios and four follow-up decisions passed across the
+recorded runs. Every final report was checked against its decision oracle and a real generated
+result grant. This establishes fixture analysis and saved drafts, not all nine workflows end to end.
 
-## Act I — It can see
+The initial run had ten passes and three incomplete cases. Music monitoring was not available,
+the events scenario saw a mention in an earlier report, and the changed-price scenario paused
+for later approval. The reruns isolate scenario workspaces and explicitly request one-shot
+planning or decisions. A subscription decision filename also collided with its source fixture;
+the corrected harness uses separate report/decision names and asserts source preservation.
+Retain these first attempts alongside the corrected results when presenting the demo.
 
-Create **Scout** (sky) live — name, color, repo; the room takes its hue.
+Run the opt-in suite with an admitted, signed-in Codex installation available:
 
-- "What's open on my Mac right now? Just look, don't touch anything." → it lists the real
-  desktop: apps, window titles, visible vs. merely running. (Verified: 9 s, zero prompts.)
-- "What am I looking at in Chrome right now?" → auto-attaches to the frontmost Chrome window
-  and reads the page. Say: "my focus never moved." (If Chrome is on another Space it says so —
-  drag a window over, re-send.)
+```sh
+SIA_CODEX_REAL_SMOKE=1 SIA_PERSONAL_DEMOS_SMOKE=1 \
+SIA_SMOKE_MODEL=gpt-6-astra SIA_DEMO_EVIDENCE_DIR=/private/tmp/sia-demo-evidence \
+pnpm --filter @sia/desktop exec vitest run src/main/actions/personal-demos.smoke.test.ts
+```
 
-## Act II — It does real work
+`SIA_DEMO_CASES=music,local_events` selects cases for a focused rerun. This consumes real model
+turns. Expected-answer fields are removed from model inputs, each case uses its own agent
+workspace, and only local file tools are available. The harness approves those fixture writes;
+it cannot purchase, cancel, send messages, or access another app. It retains sanitized inputs,
+transcripts, reports, decisions, model identity and the current code/harness revision in the
+requested evidence directory. Without that directory, temporary evidence is removed on exit.
 
-- "Fix the TODO in todo.py: greet should return 'Hello, stranger' when name is empty or None.
-  Keep the change minimal, do not run anything." Then open **Tools** → **Changes** → the diff,
-  stage/restore. (Verified: file edited in 12–21 s.)
-- "What's the latest stable version of Node.js right now? Give me your source." (Verified:
-  v26.7.0 + nodejs.org link, 3 s; transcript shows the real queries.)
+The follow-ups check changed ticket terms, an uncertain receipt, an unchanged reading queue,
+and a **simulated** cancellation receipt. No live booking/cancellation occurred. Reminder plans
+were drafted but not scheduled; automated venue/event monitoring and inbox polling remain live
+acceptance gates. The spending check reconciles the fixture arithmetic, and the tax check
+organizes documents without making legal tax determinations.
 
-### Messaging (personal)
+The accompanying presentation/video should say **real model, fictional data** and preserve this
+scope. A narrated slide walkthrough is not an end-to-end recording of connected accounts.
 
-- "What's my most recent WhatsApp message? Just read, don't reply." → reads the actual WhatsApp
-  window via computer use. (Verified live.)
-- "Message Lawrence Jang in Slack: ‘The demo is ready.’" → the connected Slack path finds the exact
-  person, opens or reuses the DM, and posts the reviewed message. Do not demo Slack through the
-  desktop window; Electron accessibility is not dependable enough for that path.
-- "What were my last few iMessages?" → the local `messages_search` tool reads chat.db directly.
-  First use auto-opens System Settings at the Full Disk Access pane — flip the Sia switch once
-  and ask again (verified).
-  In autonomous mode, sending an iMessage continues without an approval card and records the exact
-  recipient and text. Turn on **Confirm before changes** to demo the preview card.
+## First launch
 
-## Act III — It keeps going
+From the repository root, follow the install and signing steps in [RA onboarding](./ra-onboarding.md),
+then launch an isolated development profile. `pnpm dev` builds workspace dependencies itself.
+Use the signed app and a disposable participant for live acceptance.
 
-- **Goal** tool: "Keep me posted on what changes on this machine." (Pause/resume; failed goal
-  turns pause safely.)
-- **Schedules** tool → New schedule: "Check the Node.js blog for a new release and summarize
-  anything new in two sentences", repeat daily → **Run now** so it fires on stage. (Verified:
-  searched nodejs.org, two-sentence 26.7.0 summary with link, 15 s.)
-- Create **Janitor** (mint): "Add a short docstring to every function in todo.py." Switch back
-  to Scout's room and keep talking; then open **Activity** → finished work across agents, 2
-  unread. Say: "These agents are permanent. The schedule runs every day this app is open, and
-  everything they did while I wasn't looking is in the log."
+1. Sign in or create an account with an email code. Check a wrong code, resend, and changing the
+   email. The newest-code confirmation should be visible and focus should return to the code.
+2. Choose **Set up Sia** for one guided Mac permission pass. Grant missing Accessibility, Screen
+   Recording, voice, and optional app access in order. Include Full Disk Access for Messages
+   history. Skip optional grants deliberately; pause, reopen, and resume. macOS still requires
+   its own individual approvals. Prefer one Sia relaunch after finishing the prompts.
+3. Also exercise **Customize setup → Connected apps only**: no Mac prompts, and a direct path
+   to a conversation without connecting an account. Ordinary chat works before computer access.
+4. Select Google Workspace and/or Slack, approve each provider's sign-in, and return to Sia.
+   Cancel one pending connection; completed accounts must remain connected. Reconnect an expired
+   grant directly from the checklist. Google starts with read access; edits and sends require
+   the separate scope upgrade. Calendar aggregation currently uses account UI/Mac apps, not a
+   dedicated Google/Outlook Calendar connector.
+5. Send a request, stop it, retry, switch conversations, and quit/reopen. Confirm drafts,
+   connection status, schedule history, and generated result controls survive as intended.
 
-## Closer — The receipts
+Keep supervised acceptance in **Ask before each action** mode. Production's default remains
+bypass. Use local merchant fixtures for purchase/cancellation rehearsals; no real transactions.
 
-Settings → Computer → Show in Finder → the thread folder: `events.jsonl` plus the screenshots
-actions captured. Connected-app setup also appears under `app-lifecycle`. For a signed-in consenting
-participant, show the upload-health indicator or audited Research archive to demonstrate that the
-equivalent raw stream is queued to AWS. "Nothing asked permission, and everything is on the record."
+## Nine scenarios
 
-## Troubleshooting
+Each case has a full prompt, expected output, and adversarial checks in the linked JSON manifest.
+Copy only the needed fictional inputs into a disposable conversation workspace, run the prompt
+through the actual admitted model/harness, and retain the transcript and visible result.
 
-| Symptom                                                | Fix                                                                                                                    |
-| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| "Bring a Chrome window onto this Space"                | Drag a Chrome window onto the current Space (not minimized), re-send.                                                  |
-| "Chrome refused this window / Allow remote debugging?" | One-time consent: Settings → Computer → Choose window, then click **Allow** on Chrome's prompt. Do this in pre-flight. |
-| Codex shows **Set up Codex** / "Updating…"             | The CLI moved past the pin. Let **Set up Codex** install the supported build, or widen `CODEX_SUPPORTED_VERSIONS`.     |
-| Red "Provider error" card                              | Card shows the real reason (sign-in, usage limits). Fix account, Retry.                                                |
-| Turn hangs                                             | Stop, re-send. First turn after launch is slowest.                                                                     |
+| Scenario               | Visible success                                                                    | Adversarial check                                                       |
+| ---------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Draft my taxes         | Source-linked preparation inventory, missing inputs, downloadable draft; no filing | Missing facts, duplicate receipt, document instructions treated as data |
+| Family calendars       | All three calendars covered; Riley leaves by 16:25; driver conflict flagged        | Cancelled events, duplicate UTC/local entries, missing calendars        |
+| Birthdays and gifts    | Correct Jordan, suitable $60 workshop, reminder plan                               | Same-name contacts, previously given gift, budget and arrival date      |
+| Local music            | One matching show, two tickets at $72 total, approval before booking               | Sold out, duplicate listing, price change, uncertain receipt            |
+| Monthly spending       | Net $2,499; subscriptions $59; readable saved report                               | Transfers, duplicate IDs, pending entries, refunds                      |
+| Nearby events          | Useful advance notice with sources and calendar conflict                           | Stale/cancelled events, repeats, wrong location                         |
+| Relationships          | Timely, private outreach drafts to the intended person                             | Same-name contacts, sensitive context, accidental sends                 |
+| Newsletters and essays | Relevant reading queue with reasons and sources                                    | Embedded prompt injection, repeat articles, inaccessible source         |
+| Unused subscriptions   | Evidence distinguishes unused from unknown; approved cancellation with receipt     | Bundles, annual renewal, duplicate merchants, stale price               |
 
-Sia must stay open and the Mac awake. Gmail/Drive/Docs/Sheets/Slides/Slack use their provider-owned OAuth screens once,
-then reads and writes run autonomously and appear in the same action log. Use only designated
-internal test accounts until the connector scope audit in `docs/manual-acceptance.md` is complete.
+Run monitor cases three ways: meaningful change, verified no change, and incomplete source
+coverage. Only the second should stay quiet. Failed checks must remain visible. Repeat the same
+input to test duplicate recommendations; the model can use saved memory, but durable source-level
+deduplication is still a live acceptance requirement.
+
+## Persistence and handoff checks
+
+- Save a report with spaces and Unicode in its name. Preview, open, reveal, then reopen Sia and
+  repeat. Verify its contents against the fixture oracle, not merely the existence of a file.
+- Monthly dates must recover after short months (January 31 → February 28 → March 31). Annual
+  February 29 runs on February 28 in non-leap years and returns to February 29 in leap years.
+  Editing the prompt must preserve the original date. The timezone is the Mac's timezone.
+- With Phone remote enabled for the disposable agent, download the same generated result.
+  Other conversations' files and revoked links must be inaccessible. Phone actions requiring
+  approval are completed on the Mac.
+- Leave Sia open and the Mac awake for schedules. Closing the app is not a supported way to
+  run unattended monitoring. Demonstrate the stated limitation explicitly.
+
+## Evidence and release gate
+
+`pnpm test:pilot` covers deterministic build, unit, renderer, and Electron behavior. Run
+`pnpm --filter @sia/desktop test:remote` with Chromium and WebKit for the phone surfaces.
+Neither suite proves live email delivery, OAuth consent, native TCC grants, model task quality,
+binary tax-document coverage, payment safety, or all nine scenarios end to end.
+
+A demo passes only with observed source coverage, a checked artifact/outcome, and evidence of
+its negative branches. Record the actual app commit, model/harness, grants, timezone, source
+fixtures, and transcript. Follow [manual acceptance](./manual-acceptance.md) for live accounts;
+never use personal tax records, payment methods, or customer data for these rehearsals.

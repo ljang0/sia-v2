@@ -32,6 +32,11 @@ module.exports = async function afterPack(context) {
     );
     if (present.status === 0) runPlutil(['-remove', unusedPermission, plistPath]);
   }
+
+  // Electron Builder calls this again after merging the universal app, immediately
+  // before signing. Finder metadata can otherwise make codesign reject a helper.
+  const { cleanSigningMetadata } = await import('../scripts/signing-metadata.mjs');
+  cleanSigningMetadata(appPath);
 };
 
 function runPlutil(argumentsValue) {

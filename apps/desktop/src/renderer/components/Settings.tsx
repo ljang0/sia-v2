@@ -55,6 +55,7 @@ export type SettingsSection =
 interface SettingsProps {
   scottyApi?: import('../../shared/scotty').ScottySettingsApi | undefined;
   phoneRemoteApi?: import('../../shared/phone-remote').PhoneRemoteApi | undefined;
+  messagesRelayApi?: import('../../shared/messages-relay').MessagesRelayApi | undefined;
   assistantApi?: Pick<RendererApi, 'assistantLibrary'>;
   onRunWorkflow?: (threadId: string) => void;
   snapshot: RendererSnapshot;
@@ -116,6 +117,7 @@ interface SettingsProps {
 export function Settings({
   scottyApi,
   phoneRemoteApi,
+  messagesRelayApi,
   assistantApi,
   onRunWorkflow,
   snapshot,
@@ -376,6 +378,7 @@ export function Settings({
           {section === 'phone' && phoneRemoteApi && (
             <PhoneRemoteSettings
               api={phoneRemoteApi}
+              messagesApi={messagesRelayApi}
               agents={snapshot.agents}
               providers={snapshot.providers}
             />

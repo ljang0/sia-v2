@@ -92,7 +92,12 @@ async function setup() {
       };
     return state;
   });
+  const readGeneratedResult = vi.fn(async (_threadId: string, _id: string) => ({
+    name: 'Family résumé.csv',
+    data: Buffer.from('food,25\n'),
+  }));
   const deps = {
+    readGeneratedResult,
     repository,
     controller: {
       snapshot: () => structuredClone(state),
@@ -582,4 +587,33 @@ it('tells the phone which step is waiting for approval on the Mac', async () => 
   });
   state.threads[0]!.status = 'idle';
   expect(remoteState(state, agentId, root).turns[0]).not.toHaveProperty('approval');
+});
+
+it('downloads only a generated result visible in the current phone conversation', async () => {
+  const { post, url, state, deps, remote } = await setup();
+  await post('command', { id: randomUUID(), text: 'Make a report', session: null });
+  const id = randomUUID();
+  state.timeline.push({
+    id: randomUUID(),
+    threadId: state.activeThreadId!,
+    sequence: 2,
+    timestamp: '',
+    kind: 'assistant',
+    text: 'Your report is ready.',
+    attachments: [{ id, name: 'Family résumé.csv', bytes: 8, kind: 'file', generated: true }],
+  });
+  const file = await fetch(new URL(`results/${id}`, url));
+  expect(file.status).toBe(200);
+  expect(file.headers.get('content-disposition')).toContain('attachment');
+  expect(file.headers.get('content-security-policy')).toContain('sandbox');
+  expect(await file.text()).toBe('food,25\n');
+  expect(deps.readGeneratedResult).toHaveBeenCalledExactlyOnceWith(state.activeThreadId, id);
+  expect((await fetch(new URL(`results/${randomUUID()}`, url))).status).toBe(404);
+  state.timeline = [];
+  expect((await fetch(new URL(`results/${id}`, url))).status).toBe(404);
+  expect(deps.readGeneratedResult).toHaveBeenCalledTimes(1);
+  const rotated = await remote.configure({ operation: 'rotate' });
+  const revoked = new URL(`results/${id}`, url);
+  revoked.port = new URL(rotated.url!).port;
+  expect((await fetch(revoked)).status).toBe(404);
 });

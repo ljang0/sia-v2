@@ -78,6 +78,7 @@ export interface AttachmentView {
   name: string;
   kind: AttachmentKind;
   bytes: number;
+  generated?: boolean;
 }
 
 export type AttachmentPreviewView =

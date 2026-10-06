@@ -53,6 +53,8 @@ export interface DesktopActionBackendOptions {
   ) => Promise<ActionExecutionResult>;
   readonly macBrowserAccess?: () => boolean;
   readonly macBackgroundControl?: () => boolean;
+  /** Checks actual OS access at the action boundary without blocking ordinary chat. */
+  readonly computerUnavailable?: () => Promise<string | undefined>;
   readonly inspectBrowserWindow?: (
     pid: number,
     windowId: number,

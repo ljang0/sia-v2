@@ -391,6 +391,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               assistantApi={api}
               scottyApi={api.scotty}
               phoneRemoteApi={api.phoneRemote}
+              messagesRelayApi={api.messagesRelay}
               onRunWorkflow={(threadId) => {
                 app.closeSettings();
                 void run(() => api.selectThread(threadId));
@@ -526,7 +527,13 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                         app.run(() => api.revealAttachment(activeThread.id, attachmentId))
                     : undefined
                 }
-                starterPrompts={welcomePrompts(roomAgent, { apps: snapshot.apps })}
+                starterPrompts={welcomePrompts(roomAgent, {
+                  apps: snapshot.apps,
+                  macAccess:
+                    snapshot.computer.accessMode !== 'connected' &&
+                    snapshot.computer.accessibility === 'allowed' &&
+                    snapshot.computer.screenRecording === 'allowed',
+                })}
                 recentThreads={
                   activeThread?.events.length
                     ? []

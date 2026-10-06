@@ -51,6 +51,7 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     },
     scotty: (input) => bridge.scotty(input),
     phoneRemote: (input) => bridge.phoneRemote(input),
+    messagesRelay: (input) => bridge.messagesRelay(input),
     async getSnapshot() {
       return publish(await bridge.bootstrap());
     },

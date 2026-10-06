@@ -179,6 +179,9 @@ export function AppsSettings({
           <ConnectionChecklist
             snapshot={snapshot}
             pending={Boolean(pending)}
+            reconnect={(app) =>
+              run('reconnect', () => onConnect(app), 'This account could not reconnect.')
+            }
             connect={(apps) =>
               run(
                 'connect-selected',

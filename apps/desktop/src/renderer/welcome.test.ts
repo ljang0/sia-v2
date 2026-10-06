@@ -94,6 +94,15 @@ describe('personal welcome', () => {
     ).toEqual(['Wrap up today', 'Summarize a page', 'Find a file']);
   });
 
+  it('offers useful first tasks without assuming screen or account access', () => {
+    const agent = { instructions: STARTER_INSTRUCTIONS } as AgentSummary;
+    expect(
+      welcomePrompts(agent, { now: new Date(2030, 0, 1, 9), macAccess: false }).map(
+        (item) => item.title,
+      ),
+    ).toEqual(['Plan my day', 'Write a message', 'Plan a birthday gift']);
+  });
+
   it('says how long ago in plain words', () => {
     const now = new Date(2026, 8, 25, 15, 0);
     expect(timeAgo(new Date(2026, 8, 25, 14, 59, 40).toISOString(), now)).toBe('Just now');

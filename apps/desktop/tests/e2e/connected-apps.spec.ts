@@ -19,7 +19,9 @@ test('configured first run requires Sia sign-in before setup', async () => {
     await expect(harness.page.getByRole('button', { name: 'Start in local mode' })).toHaveCount(
       0,
     );
-    await expect(harness.page.getByText(/Enter your email/)).toBeVisible();
+    await expect(
+      harness.page.getByText(/Sign in or create your account with an email code/),
+    ).toBeVisible();
     expect(harness.rendererErrors).toEqual([]);
   } finally {
     await harness.close();

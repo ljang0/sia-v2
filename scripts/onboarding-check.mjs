@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { devHome, selectIdentity } from '../apps/desktop/scripts/dev-signing.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const results = [];
@@ -40,6 +41,25 @@ required('Git', git.ok, git.output || 'not found');
 
 const xcode = command('xcode-select', ['-p']);
 required('Xcode tools', xcode.ok, xcode.output || 'run: xcode-select --install');
+
+try {
+  const signing = spawnSync('/usr/bin/security', ['find-identity', '-p', 'codesigning'], {
+    encoding: 'utf8',
+    timeout: 10_000,
+  });
+  const identities = [...(signing.stdout ?? '').matchAll(/\b([A-Fa-f0-9]{40}) "([^"]+)"/g)].map(
+    (match) => ({ hash: match[1].toUpperCase(), name: match[2] }),
+  );
+  const pin = resolve(devHome, 'signing.json');
+  selectIdentity(
+    identities,
+    existsSync(pin) ? JSON.parse(readFileSync(pin, 'utf8')) : undefined,
+    process.env.SIA_DEV_SIGN_IDENTITY,
+  );
+  required('Dev signing', true, 'stable identity available');
+} catch (error) {
+  required('Dev signing', false, error.message);
+}
 
 required(
   'Lockfile',

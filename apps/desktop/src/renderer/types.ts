@@ -224,6 +224,7 @@ export interface RendererAttachment {
   name: string;
   kind: 'file' | 'image' | 'audio';
   bytes: number;
+  generated?: boolean;
 }
 
 export type AttachmentPreview =
@@ -286,6 +287,7 @@ interface ThreadSchedule {
   days?: number[] | undefined;
   /** Hourly only: hours between runs; missing means every hour. */
   everyHours?: number | undefined;
+  anchorAt?: string | undefined;
   nextRunAt: string;
   enabled?: boolean | undefined;
   createdAt: string;
@@ -559,6 +561,7 @@ export interface RendererApi {
   onOpenConversation?(listener: () => void): () => void;
   scotty?: import('../shared/scotty').ScottySettingsApi;
   phoneRemote?: import('../shared/phone-remote').PhoneRemoteApi;
+  messagesRelay?: import('../shared/messages-relay').MessagesRelayApi;
   assistantLibrary(
     input: import('../shared/assistant-library').AssistantLibraryCommand,
   ): Promise<import('../shared/assistant-library').AssistantLibraryView>;
