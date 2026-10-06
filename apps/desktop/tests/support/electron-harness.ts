@@ -39,7 +39,15 @@ export async function launchIsolatedSia(
   ]);
 
   const application = await electron.launch({
-    args: [desktopRoot],
+    // Match CI's sRGB, 1x screenshots on Retina/wide-gamut Mac displays. Otherwise Chromium
+    // applies the host display profile and backing scale, changing colors and text edges.
+    // Real-provider probes keep the production display behavior.
+    args: [
+      desktopRoot,
+      ...(options.fakeServices === false
+        ? []
+        : ['--force-color-profile=srgb', '--force-device-scale-factor=1']),
+    ],
     env: {
       ...process.env,
       SIA_FAKE_SERVICES: options.fakeServices === false ? '0' : '1',

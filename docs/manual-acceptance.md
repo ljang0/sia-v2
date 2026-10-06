@@ -29,6 +29,27 @@ SIA_REAL_CODEX_E2E=1 SIA_REAL_CUA_E2E=1 pnpm test:e2e:real:no-turn
 Run Chrome probing only with a dedicated visible test window and a unique
 `SIA_REAL_BROWSER_WINDOW_MATCH` value.
 
+## Integrated alpha.25 acceptance
+
+Use one exact candidate for all four workstreams. Record its commit, app.asar SHA-256, bundle
+identifier, signing team, macOS version, test time, observed result, and evidence location.
+Passing development fixtures or the older installed Sia does not complete these checks.
+
+| Area                     | Required live check                                                                                                                                                                                   | Completion evidence                                                                                                                                                                      |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identity and permissions | Open the exact signed candidate; complete Accessibility, Screen Recording, each installed app's Automation, and Messages Full Disk Access. Deny once, resume, and relaunch.                           | Candidate reports the grants; a disposable Calculator or TextEdit task changes the intended window and the result is read back. A checked box for another Electron copy is insufficient. |
+| Signup and upgrade       | Fresh-recipient email signup, wrong/expired code, resend, provider login cancel/retry; upgrade a disposable alpha.24 profile and reopen twice.                                                        | Sign-in wall holds; encrypted conversations, result files, grants, and schedules survive without repeated Keychain prompts.                                                              |
+| GitHub and Notion        | Tester completes official provider consent; read a designated disposable repository/page, disconnect, cancel reconnect once, then reconnect and relaunch.                                             | Correct account and fresh read after relaunch; disconnected tools disappear; cancellation recovers without leaking tokens.                                                               |
+| iMessage                 | Add only the designated tester's number and explicitly turn on texting. From the physical phone send a unique read-only task, then STATUS, STOP, and NEW; send one synthetic image and a voice note.  | Correct conversation and result on both ends; stopped work stays stopped; attachment and voice paths complete.                                                                           |
+| Text approvals           | In a disposable fixture request one reversible action, inspect the exact request, answer NO; retry and answer YES. Repeat YES and try an untrusted sender.                                            | NO prevents the action; YES authorizes exactly one shown request; stale/repeated or untrusted replies cannot authorize more work.                                                        |
+| Telegram and Discord     | Tester supplies their disposable bot through the app's clipboard flow, pairs with the displayed code, then repeats the phone task/approval/attachment checks.                                         | Linked account works, unlinked account cannot start work, disconnect stops delivery, and credentials do not appear in renderer state or diagnostics.                                     |
+| BYOK and lab harness     | With an explicitly selected test provider, save a key through Settings and complete one read-only task. For lab evaluation, use a release-signed manifest and verify a tampered manifest is rejected. | BYOK survives relaunch without exposing its key; invalid lab admission keeps the default Codex route usable. Do not paste credentials into evidence.                                     |
+| Responsiveness           | Launch cold and warm, stream a long reply, switch threads, cancel, reopen, and test reduced motion.                                                                                                   | Window and progress remain usable; cancellation completes; saved thread and results remain correct. Record measured times rather than borrowing PR #17's earlier measurements.           |
+
+Google/Slack public distribution retains its separate
+[connector gates](./connector-distribution-readiness.md). Calendar, Tasks, and Outlook remain off.
+Complete physical voice, lock/sleep, and clean-user checks below before public distribution.
+
 ## New-user setup and Keychain continuity
 
 On a clean macOS test account, use the exact signed release artifact and an unlocked login

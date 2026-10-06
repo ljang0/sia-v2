@@ -7,7 +7,61 @@ the exact candidate is notarized and the recipient acceptance checks below pass.
 installer or public download has been published. The last notarized pilot release remains
 [`alpha.24`](./release-evidence.md).
 
-## Current source and local verification
+## Integrated release candidate
+
+The `codex/release-verification` branch combines all four workstreams against remote main
+`5c80af0`, including the six earlier local-main commits through `8ed02a4`:
+
+| Workstream                                            | Included source                            |
+| ----------------------------------------------------- | ------------------------------------------ |
+| UI and streaming, PR #17                              | `1149feda49d36504974f866d7c4619e9812b04a2` |
+| GitHub and Notion, PR #18                             | `9f917672a3174d2c402d6436556358f64a12e910` |
+| Texting and bot channels, PR #19                      | `570f8f7b674544ad9ddd025022a3a14e121f0160` |
+| Public-release audit, BYOK, lab harness and Mac setup | `ffd1aca`                                  |
+
+The integration preserves BYOK and lab provider validation alongside the expanded connector IDs,
+local-connector ownership and the improved sign-in errors. Calendar, Tasks, and Outlook remain
+unavailable. Slack's deployed behavior is unchanged; the prepared manifest is not a deployment.
+
+Verification on October 6, 2026 UTC:
+
+- `pnpm test:pilot` passed: build, formatting, lint, quality guard, all workspace type/unit gates,
+  **1,159 desktop unit tests**, **45 Electron tests**, and **17 renderer tests**. Seven desktop
+  tests and four Electron tests remain opt-in and were skipped; passing fixtures do not establish
+  real OAuth, Messages, model responses, or operating-system grants.
+- The texting E2E now uses the integrated one-click setup; its obsolete optional-app checkbox
+  was removed from the test. Saved numbers, preferences, and trusted people survive relaunch.
+- PR #19's failed CI screenshot was compared with main's reference: its actual image was
+  **pixel-identical to main**. The branch had inherited a display-profile-dependent reference.
+  Deterministic Electron tests now force sRGB at 1× backing scale, and the original main reference
+  is restored. Both visual tests passed again after that change.
+  No screenshot comparison tolerance was increased.
+- Phone-browser verification passed all **60 tests**: 30 Chromium and 30 WebKit. WebKit was
+  initially absent locally; its pinned runtime was installed and all 30 WebKit tests reran
+  successfully. These exercise the phone web client, not iMessage/Telegram/Discord delivery.
+- `pnpm package:mac:dir` built and verified the combined **unsigned universal** app, including
+  both native architectures, app identity, bundled resources, license corpus, and MCP bridge.
+  It has cloud disabled for local verification and is neither signed nor notarized. Its
+  `Contents/Resources/app.asar` SHA-256 is
+  `1c1d26ef22db23b6f3eac2acbe07e603d918ad7ad0c3919d755b95077072e800`.
+  Do not distribute it or use it as evidence of signed upgrade or Gatekeeper acceptance.
+- CI now installs Chromium and WebKit and runs both renderer and phone-browser checks. Signed
+  packaging depends on the verification job, so it cannot run after that job fails.
+
+The installed `/Applications/Sia.app` is **alpha.14**, not this candidate. This session can inspect
+Sia through Computer Use. The existing Sia Development window stopped at its native Keychain
+unlock screen; no real permission or provider acceptance is claimed for this integrated build.
+
+The GitHub `alpha-release` environment contains the five cloud/update configuration secrets, but
+no signing or Apple notarization secrets; the repository-level secret list is empty. The local
+signed-release environment check also fails because signing, notarization, and release environment
+variables are unset. Existing installed cloud configuration is not proof that a new package was
+configured or notarized. Configure the release operator's existing certificate/notarization
+profile, or the protected CI signing secrets, before invoking signed packaging.
+
+## Earlier audit verification
+
+These results describe the earlier audit candidate and do not replace the integrated-build gates.
 
 The current candidate passed `pnpm test:pilot`: 1,077 desktop unit tests,
 42 Electron checks and 17 renderer checks, with six desktop and four opt-in Electron checks
@@ -50,7 +104,7 @@ acceptance test.
   nested signatures, then correctly stopped at Gatekeeper with `Unnotarized Developer ID`.
   Neither artifact is distributable without notarization and recipient acceptance.
 
-## Signed internal candidate
+## Earlier signed internal candidate
 
 The preserved app is `apps/desktop/release/internal-candidate/mac-universal/Sia.app` in the
 original checkout. It was built in an unsynced local staging directory and verified again after

@@ -43,7 +43,8 @@ lint, quality, type, unit, deterministic desktop E2E, and renderer gates. See
   Mac works in the background by default (window control through the bundled Cua driver); On my
   screen is the explicit alternative. Use confirmations for supervised pilot testing. Approval
   cards offer Approve, Allow for this task (equivalent requests until that task ends), and Don't
-  allow. Phone-remote turns always ask on the Mac, one request at a time. Hard safety blocks apply in every mode: Sia-hosted tools block secure fields,
+  allow. Phone-remote turns always require confirmation, one request at a time. When text approvals are
+  enabled, YES/NO binds only to the exact pending request shown to that trusted sender. Hard safety blocks apply in every mode: Sia-hosted tools block secure fields,
   authentication surfaces, Keychain, and password managers. Native shell execution follows the
   provider's approval boundary; the same restrictions in its prompt are not shell enforcement.
 - Local turns and schedules require the Sia process to remain open and the Mac to stay awake. Sia

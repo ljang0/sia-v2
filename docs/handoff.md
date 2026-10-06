@@ -1,32 +1,30 @@
 # Sia development handoff
 
-Updated October 4, 2026. Application source reviewed: `6ba4e5f` (`0.1.0-alpha.25`).
+Updated October 6, 2026 UTC. The integrated alpha.25 candidate is on
+`codex/release-verification`; [public-release.md](./public-release.md) records its input commits,
+verification results, and release gates.
 
 ## Current state
 
-Sia has a working Electron app, a tested Codex harness, simpler onboarding, usable saved results,
-and recorded real-model demonstrations of all nine requested planning scenarios. The audit found
-several concrete breaks between setup, execution, and results; those are fixed in local source.
+The release-verification branch combines PRs #17, #18, and #19 with the public-release audit
+branch and six previously unpublished local-main commits. Source merge conflicts are resolved.
+The combined source gate, 1,159 desktop unit tests, 45 deterministic Electron tests, and 17
+renderer tests passed. All 60 phone-browser checks and unsigned universal packaging also passed.
+CI now also requires renderer and Chromium/WebKit phone checks before
+signed packaging. Main has not been changed by this integration pass.
 
-**Sia is still an internal alpha, not ready for public distribution.** The alpha.25 candidate is
-signed but not notarized, and it predates the latest UI changes. Fresh-recipient signup, clean-Mac
-permissions, live connector consent, and sustained monitoring still need acceptance. The demos
-prove analysis and drafting with fictional inputs; they do not prove live bookings, cancellations,
-calendar aggregation, or reminders running unattended.
+**Public distribution remains blocked.** The combined candidate still needs signed/notarized
+packaging and acceptance on that exact artifact: clean signup and permissions, authenticated
+upgrade, live connector consent, and real phone/bot round trips. The prior signed internal alpha.25
+candidate predates these workstreams. `/Applications/Sia.app` on the verification Mac is alpha.14.
+Computer Use works in the current Codex session; the previous threads' inability to click is not a
+universal host limitation. The existing Sia Development app was waiting for its native Keychain
+unlock, which the operator must handle without sharing their password.
 
-| Item                     | State at handoff                                                                                       |
-| ------------------------ | ------------------------------------------------------------------------------------------------------ |
-| Main checkout            | `/Users/lawrencejang/Developer/sia-v2`, branch `main`                                                  |
-| Working checkout         | `/Users/lawrencejang/Documents/ChatGPT/sia/seamless-setup`, branch `codex/seamless-setup`              |
-| Application source       | Both checkouts at `6ba4e5f`; clean before this documentation update                                    |
-| Remote publication       | Five application commits ahead of the locally recorded `origin/main`; no push or PR made for this work |
-| Internal package         | Alpha.25, built from `5d50b33`; strict nested signatures passed, notarization absent                   |
-| Last notarized release   | Alpha.24; historical evidence in [release-evidence.md](./release-evidence.md)                          |
-| Local evidence and media | `/Users/lawrencejang/Documents/ChatGPT/sia`; outside the repository and not included in a clone        |
-
-The handoff documentation commit follows the application revision above. Keep this file current
-rather than creating another dated handoff. Use [public-release.md](./public-release.md) for the
-candidate's packaging and deployment details; its test counts precede the final UI pass recorded here.
+The original audit results and demonstrations below are historical evidence. They prove analysis
+and drafting with fictional inputs, not live bookings, cancellations, account-wide source coverage,
+or reminders running while Sia is closed. Current release decisions belong in
+[public-release.md](./public-release.md).
 
 ## Product direction
 
@@ -82,12 +80,12 @@ are intentional compatibility/evaluation paths, not additional release choices. 
 
 - A cloud-configured release requires email sign-in before showing private app surfaces. A local
   development build without cloud configuration intentionally behaves differently.
-- Google Workspace, Slack, Chrome, Messages, and computer access are optional. Calendar demos
-  currently rely on exports or account/Mac UI; there is no dedicated Google/Outlook Calendar
-  aggregation connector established by this work.
+- Google Workspace, Slack, GitHub, Notion, and Chrome connections are optional. Use my Mac setup
+  now requires all supported Mac permissions, including Messages Full Disk Access; Connected apps
+  only needs none. Calendar, Tasks, and Outlook connectors remain disabled.
 - Production defaults to **Use my Mac**, background operation, and **bypass** for per-action
   confirmations. Supervised testing explicitly selected **Ask before each action**. Phone actions
-  always ask on the Mac. Do not infer production confirmation behavior from the demo.
+  always require a separate approval; an enabled text channel can bind YES/NO to one pending action. Do not infer production confirmation behavior from the demo.
 - Sia-hosted tools block protected authentication and credential surfaces. Native shell/file tools
   follow the provider's sandbox/approval boundary; prompt instructions are not OS enforcement.
 - Mac permissions are guided together, but macOS still requires individual grants. “All in one

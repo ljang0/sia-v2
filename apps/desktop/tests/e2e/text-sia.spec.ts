@@ -19,7 +19,6 @@ test('Text Sia settings save numbers, trusted people and preferences across rela
   const testRoot = sia.testRoot;
   try {
     await sia.page.setViewportSize({ width: 1220, height: 900 });
-    await sia.page.getByRole('checkbox', { name: /Prepare everyday apps now/ }).uncheck();
     let page = await sia.completeSetup();
     await openPhoneRemote(page);
 
