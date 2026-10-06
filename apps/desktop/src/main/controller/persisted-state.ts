@@ -220,6 +220,12 @@ export function recoverPersistedState(state: PersistedState): PersistedState {
         recovered.connectionOwners[fallback.id] = workspaceOwner;
       }
     }
+    if (connection.status === 'connecting' && !connection.connectionId) {
+      // A sign-in that never produced a grant (a Mac-connected app waiting in the browser) has
+      // nothing saved to verify; start it fresh instead of asking about a "saved grant".
+      const { userCode: _code, detail: _detail, ...rest } = connection;
+      return { ...rest, status: 'disconnected' as const };
+    }
     return connection.status === 'connecting'
       ? {
           ...connection,

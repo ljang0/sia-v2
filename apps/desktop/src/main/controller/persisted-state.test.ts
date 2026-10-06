@@ -60,4 +60,26 @@ describe('recoverPersistedState connections', () => {
       status: 'disconnected',
     });
   });
+
+  it('resets a Mac sign-in that was waiting in the browser when Sia quit', () => {
+    const recovered = recoverPersistedState(
+      structuredClone({
+        ...INITIAL_STATE,
+        connections: [
+          {
+            id: 'github',
+            label: 'GitHub',
+            status: 'connecting',
+            userCode: 'ABCD-1234',
+            detail: 'Enter code ABCD-1234 on the GitHub page that opened in your browser.',
+          },
+        ],
+      }),
+    );
+    expect(recovered.connections.find(({ id }) => id === 'github')).toEqual({
+      id: 'github',
+      label: 'GitHub',
+      status: 'disconnected',
+    });
+  });
 });

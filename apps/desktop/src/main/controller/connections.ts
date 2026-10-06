@@ -866,6 +866,15 @@ export class ConnectorConnections {
   lockConnections(detail: string): void {
     for (const connection of this.ctx.state.connections) {
       if (!connection.connectionId) continue;
+      // Without Sia cloud there is no account to sign in with: a Mac-connected app belongs to
+      // this Mac and stays usable.
+      if (
+        !this.ctx.deps.cloud.configured &&
+        isLocalConnection(connection.id) &&
+        this.ctx.state.connectionOwners[connection.id] === LOCAL_DEVICE_OWNER
+      ) {
+        continue;
+      }
       connection.status = 'error';
       connection.detail = detail;
       delete connection.account;
