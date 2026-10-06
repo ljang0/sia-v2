@@ -1,7 +1,10 @@
 import { BrowserWindowService } from './mac/browser-window.js';
 import { backgroundControlUnavailable } from './controller/computer-access.js';
 import { AutomationPermissionService } from './mac/automation-permissions.js';
-import { developmentRelaunchArguments } from './window/development-relaunch.js';
+import {
+  developmentRelaunchArguments,
+  packagedRelaunchArguments,
+} from './window/development-relaunch.js';
 import { PhoneRemote } from './remote/phone-remote.js';
 import { MessagesRelay, spokenReply, voiceNoteTranscriber } from './remote/messages-relay.js';
 import { DiscordChannel, TelegramChannel } from './remote/bot-channels.js';
@@ -832,10 +835,12 @@ async function confirmQuit(
 
 function relaunchApplication(): void {
   quitConfirmed = true;
-  if (process.platform === 'darwin' && !app.isPackaged) {
+  if (process.platform === 'darwin') {
     app.relaunch({
       execPath: '/usr/bin/open',
-      args: developmentRelaunchArguments(process.execPath, app.getAppPath(), process.env),
+      args: app.isPackaged
+        ? packagedRelaunchArguments(process.execPath, process.argv)
+        : developmentRelaunchArguments(process.execPath, app.getAppPath(), process.env),
     });
   } else app.relaunch();
   app.quit();

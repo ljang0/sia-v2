@@ -705,7 +705,7 @@ describe('MessagesRelay', () => {
       for (let index = 0; index < 20; index++) {
         h.text(200 + index, `${PEER_PREFIX}message ${index}`, ALEX);
         await h.relay.poll();
-        h.snapshot.threads[0] && (h.snapshot.threads[0].status = 'idle');
+        if (h.snapshot.threads[0]) h.snapshot.threads[0].status = 'idle';
       }
       expect(h.invoke.mock.calls.filter(([m]) => m === 'threads.send')).toHaveLength(12);
     });

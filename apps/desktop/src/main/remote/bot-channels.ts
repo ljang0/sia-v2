@@ -234,6 +234,13 @@ export class TelegramChannel implements BotChannel {
   }
 }
 
+interface DiscordMessage {
+  author: { id: string; username?: string; global_name?: string };
+  channel_id: string;
+  content?: string;
+  attachments?: { url: string; filename: string; size: number }[];
+}
+
 interface DiscordOptions extends ChannelOptions {
   WebSocket?: typeof WebSocket;
 }
@@ -307,7 +314,7 @@ export class DiscordChannel implements BotChannel {
     const socket = new Socket(`${url}?v=10&encoding=json`);
     this.#socket = socket;
     socket.addEventListener('message', (event) => {
-      let payload: { op: number; s?: number | null; t?: string | null; d?: any };
+      let payload: { op: number; s?: number | null; t?: string | null; d?: unknown };
       try {
         payload = JSON.parse(String(event.data));
       } catch {
@@ -318,7 +325,7 @@ export class DiscordChannel implements BotChannel {
         clearInterval(this.#heartbeat);
         this.#heartbeat = setInterval(
           () => socket.send(JSON.stringify({ op: 1, d: this.#sequence })),
-          payload.d.heartbeat_interval,
+          (payload.d as { heartbeat_interval: number }).heartbeat_interval,
         );
         this.#heartbeat.unref();
         // DIRECT_MESSAGES only; DM content does not need the privileged message-content intent.
@@ -335,7 +342,10 @@ export class DiscordChannel implements BotChannel {
       } else if (payload.op === 0 && payload.t === 'READY') {
         this.#error = undefined;
       } else if (payload.op === 0 && payload.t === 'MESSAGE_CREATE') {
-        const message = payload.d;
+        const message = payload.d as DiscordMessage & {
+          guild_id?: string;
+          author?: { bot?: boolean };
+        };
         if (message.guild_id || message.author?.bot) return;
         void this.#deliver(message, onMessage);
       } else if (payload.op === 7 || payload.op === 9) {
@@ -354,12 +364,7 @@ export class DiscordChannel implements BotChannel {
   }
 
   async #deliver(
-    message: {
-      author: { id: string; username?: string; global_name?: string };
-      channel_id: string;
-      content?: string;
-      attachments?: { url: string; filename: string; size: number }[];
-    },
+    message: DiscordMessage,
     onMessage: (message: ChannelMessage) => void,
   ): Promise<void> {
     this.#channels.set(message.author.id, message.channel_id);
