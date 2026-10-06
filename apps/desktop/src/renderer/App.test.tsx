@@ -91,6 +91,32 @@ describe('app privacy routing', () => {
     expect(screen.getByText('Workspace')).toBeTruthy();
   });
 
+  it('keeps an unavailable pinned model visible until the person chooses a replacement', async () => {
+    const snapshot = structuredClone(demoSnapshot);
+    const thread = snapshot.activeThread!;
+    const provider = snapshot.providers.find(({ id }) => id === thread.provider)!;
+    provider.models = [
+      {
+        id: 'gpt-5.6-sol',
+        label: 'GPT-5.6-Sol',
+        description: 'Available replacement model',
+        reasoningEfforts: ['medium'],
+      },
+    ];
+    thread.model = 'gpt-6-astra';
+    const api = createDemoRendererApi(snapshot);
+    render(<App api={api} />);
+    fireEvent.click(await screen.findByText('Model for this conversation'));
+    const model = screen.getByRole('combobox', { name: 'Model' }) as HTMLSelectElement;
+    expect(model.value).toBe('gpt-6-astra');
+    expect(model.selectedOptions[0]?.textContent).toContain('(unavailable)');
+    expect(model.selectedOptions[0]?.disabled).toBe(true);
+    fireEvent.change(model, { target: { value: 'gpt-5.6-sol' } });
+    await waitFor(() => expect(model.value).toBe('gpt-5.6-sol'));
+    expect(model.selectedOptions[0]?.disabled).toBe(false);
+    expect((await api.getSnapshot()).activeThread?.model).toBe('gpt-5.6-sol');
+  });
+
   async function openSettingsInNavWidth(
     navWidth: number,
     check: (nav: HTMLElement) => Promise<void>,
