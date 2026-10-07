@@ -122,6 +122,24 @@ phone check. Desktop Computer Use input also became unreliable after the Mac loc
 Neither a listening port nor UI readiness establishes an end-to-end phone result. Telephone calling
 is outside this release scope.
 
+On October 7, a real iMessage self-test reached the development app and produced the requested
+answer, but exposed a release blocker: the attributed-message decoder included binary length
+bytes and sometimes selected attribute metadata instead of the message. Sia then mistook its own
+prefixed replies for new tasks. The test relay was turned off to stop the loop. The decoder now
+reads the root attributed string's length-delimited text with bounded parsing and rejects unknown
+formats without guessing. Independent Foundation-generated synthetic archives cover short commands,
+reply suppression, Unicode, line breaks, attachments and long messages. The complete pilot gate
+passed with 1,186 desktop unit tests, 45 Electron checks, and 17 renderer checks. A repeated live
+self-test and fresh signed packaging remain required. Do not count the first
+reply as a completed phone acceptance pass; physical-phone origin, media and approvals remain open.
+The same review found that a one-minute text deduplication window suppressed a second YES for
+a different approval. Deduplication now pairs opposite-direction copies in a self-chat, rather
+than suppressing a new same-direction command with identical text. Regression checks exercise
+consecutive exact-step approvals in both copy arrival orders. The full gate also exposed a test
+timing race: a deterministic turn could finish while the test was still creating a second worktree.
+The test now creates both worktrees first, then dispatches their tasks together and still requires
+two running and two completed results, without increasing the delay or assertion deadlines.
+
 The cloud-configured universal candidate passed Developer ID signing, Apple notarization,
 stapling, strict nested signature verification, and Gatekeeper acceptance for both app and DMG.
 App notarization submission `a8e0e4b6-320f-405a-ac0f-5535f3a38b40` and DMG submission

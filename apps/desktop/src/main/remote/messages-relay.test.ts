@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import { MessagesRelay, PEER_PREFIX, REPLY_PREFIX } from './messages-relay.js';
+import { decodeAttributedBody } from '../mac/attributed-message.js';
 import type { InboundMessage } from '../mac/messages-service.js';
 import type { BotChannel, ChannelMessage } from './bot-channels.js';
 import { normalizeHandle } from '../../shared/messages-relay.js';
@@ -7,6 +10,16 @@ import type { DesktopSnapshot, DesktopPushEvent } from '../../shared/bridge.js';
 
 const AGENT = '11111111-1111-4111-8111-111111111111';
 const ME = '+15551234567';
+const messageArchives = JSON.parse(
+  readFileSync(
+    new URL('../../../tests/fixtures/messages/attributed-bodies.json', import.meta.url),
+    'utf8',
+  ),
+) as { name: string; archiveGzipBase64: string }[];
+function archivedText(name: string): string {
+  const fixture = messageArchives.find((entry) => entry.name === name)!;
+  return decodeAttributedBody(gunzipSync(Buffer.from(fixture.archiveGzipBase64, 'base64')))!;
+}
 
 function harness(
   options: {
@@ -234,6 +247,88 @@ describe('MessagesRelay', () => {
     await h.relay.poll();
     expect(h.invoke.mock.calls.filter(([m]) => m === 'threads.send')).toHaveLength(1);
   });
+
+  it('does not turn native attributed reply copies or metadata into a new task', async () => {
+    const h = harness();
+    await h.ready();
+    h.text(101, archivedText('unicode-multiline'), ME, true);
+    h.text(102, archivedText('unicode-multiline'), ME, false);
+    await h.relay.poll();
+    h.finish('thread-1', 'SIA-IMESSAGE-1007-OK');
+    await h.relay.flush();
+    h.text(103, archivedText('reply'), ME, true);
+    h.text(104, archivedText('reply'), ME, false);
+    await h.relay.poll();
+    await h.relay.flush();
+    expect(h.invoke.mock.calls.filter(([method]) => method === 'threads.send')).toHaveLength(1);
+    expect(h.sent).toEqual([{ to: ME, text: 'Sia › SIA-IMESSAGE-1007-OK' }]);
+    h.relay.dispose();
+  });
+
+  it('binds a native attributed YES to the exact pending approval', async () => {
+    const h = harness();
+    await h.ready();
+    h.text(101, 'Create the disposable test report');
+    await h.relay.poll();
+    h.snapshot.threads[0]!.status = 'waiting';
+    h.snapshot.approvals.push({
+      id: 'native-yes-approval',
+      threadId: 'thread-1',
+      title: 'Create test report',
+      summary: 'Only the test folder',
+      status: 'pending',
+    } as never);
+    h.emit();
+    await h.relay.flush();
+    h.text(102, archivedText('short-command'));
+    await h.relay.poll();
+    expect(h.invoke).toHaveBeenCalledWith('approvals.resolve', {
+      approvalId: 'native-yes-approval',
+      decision: 'approve',
+    });
+    expect(h.invoke.mock.calls.filter(([method]) => method === 'threads.send')).toHaveLength(1);
+    h.relay.dispose();
+  });
+
+  it.each([true, false])(
+    'accepts consecutive YES commands while pairing their self-chat copies (sent first: %s)',
+    async (sentFirst) => {
+      const h = harness();
+      await h.ready();
+      h.text(101, 'Create two disposable reports');
+      await h.relay.poll();
+      let rowId = 102;
+      for (const id of ['first-step', 'second-step']) {
+        h.snapshot.threads[0]!.status = 'waiting';
+        h.snapshot.approvals.push({
+          id,
+          threadId: 'thread-1',
+          title: 'Create report',
+          summary: '',
+          status: 'pending',
+        } as never);
+        h.emit();
+        await h.relay.flush();
+        h.text(rowId++, archivedText('short-command'), ME, sentFirst);
+        await h.relay.poll();
+        h.snapshot.approvals.at(-1)!.status = 'approved';
+        h.text(rowId++, archivedText('short-command'), ME, !sentFirst);
+        await h.relay.poll();
+      }
+      expect(
+        h.invoke.mock.calls
+          .filter(([method]) => method === 'approvals.resolve')
+          .map(([, input]) => input),
+      ).toEqual([
+        { approvalId: 'first-step', decision: 'approve' },
+        { approvalId: 'second-step', decision: 'approve' },
+      ]);
+      expect(h.invoke.mock.calls.filter(([method]) => method === 'threads.send')).toHaveLength(
+        1,
+      );
+      h.relay.dispose();
+    },
+  );
 
   it('does not treat your own texts to other people as requests', async () => {
     const h = harness();

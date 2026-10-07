@@ -54,6 +54,14 @@ pause research and repeat: the account stays signed in and the task completes wi
 For this candidate, the operator deferred Notion live acceptance and telephone calling. Record
 Notion as deferred, not passed; the remaining existing phone channels still need live verification.
 
+For iMessage, verify exact message text for short commands, multiline/Unicode text and messages
+longer than 127 bytes. In a self-chat, the sent and received copies must start only one task;
+Sia's reply must never create another task. Leave the relay running for two polling intervals after
+the reply and confirm the task count stays unchanged. Internal attributed-string metadata must
+never appear as a message or approval response.
+Approve two consecutive harmless steps by texting YES to each within one minute. Each new YES
+must approve only its currently displayed request, and the mirrored copy must not approve the next.
+
 Google/Slack public distribution retains its separate
 [connector gates](./connector-distribution-readiness.md). Calendar, Tasks, and Outlook remain off.
 Complete physical voice, lock/sleep, and clean-user checks below before public distribution.

@@ -1,11 +1,24 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { gunzipSync } from 'node:zlib';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MessagesService } from './messages-service.js';
 
 const APPLE_EPOCH_OFFSET_SECONDS = 978_307_200;
+const archivedMessages = JSON.parse(
+  readFileSync(
+    new URL('../../../tests/fixtures/messages/attributed-bodies.json', import.meta.url),
+    'utf8',
+  ),
+) as { name: string; archiveGzipBase64: string }[];
+const replyArchive = gunzipSync(
+  Buffer.from(
+    archivedMessages.find(({ name }) => name === 'reply')!.archiveGzipBase64,
+    'base64',
+  ),
+);
 
 function fixtureDatabase(root: string): string {
   const path = join(root, 'chat.db');
@@ -27,14 +40,7 @@ function fixtureDatabase(root: string): string {
   const insert = db.prepare('INSERT INTO message VALUES (?, ?, ?, ?, ?, ?)');
   insert.run(1, 'See you at the demo tomorrow!', null, 1, base(1_755_800_000), 0);
   insert.run(2, 'Bringing the projector', null, 1, base(1_755_800_100), 1);
-  insert.run(
-    3,
-    null,
-    Buffer.from('streamtypedNSString\x01\x95Rich body here'),
-    1,
-    base(1_755_800_200),
-    0,
-  );
+  insert.run(3, null, replyArchive, 1, base(1_755_800_200), 0);
   db.close();
   return path;
 }
@@ -59,7 +65,7 @@ describe('MessagesService', () => {
     const rows = makeService().search(undefined, 10);
     expect(rows).toHaveLength(3);
     expect(rows[0]).toMatchObject({ chatName: 'Alex', sender: '+15551234567', fromMe: false });
-    expect(rows[0]!.text).toContain('Rich body here');
+    expect(rows[0]!.text).toBe('Sia › SIA-IMESSAGE-1007-OK');
     expect(rows[1]).toMatchObject({
       sender: 'me',
       fromMe: true,
@@ -73,7 +79,7 @@ describe('MessagesService', () => {
     expect(service.search('projector', 10)).toHaveLength(1);
     const thread = service.readThread('iMessage;-;+15551234567', 10);
     expect(thread[0]!.text).toBe('See you at the demo tomorrow!');
-    expect(thread.at(-1)!.text).toContain('Rich body here');
+    expect(thread.at(-1)!.text).toBe('Sia › SIA-IMESSAGE-1007-OK');
   });
 
   it('explains the Full Disk Access requirement when the database is unreadable', () => {
@@ -125,8 +131,11 @@ describe('MessagesService', () => {
       INSERT INTO message VALUES (5, 'Loved “hello Sia”', NULL, 1, 0, 0, 'iMessage', 0, 2000);
       INSERT INTO message VALUES (6, 'note to self', NULL, 0, 0, 1, 'iMessage', 0, 0);
       INSERT INTO message VALUES (7, '￼', NULL, 1, 0, 0, 'iMessage', 0, 0);
-      INSERT INTO chat_message_join VALUES (1, 1), (1, 2), (1, 3), (2, 4), (1, 5), (1, 6), (1, 7);
+      INSERT INTO chat_message_join VALUES (1, 1), (1, 2), (1, 3), (2, 4), (1, 5), (1, 6), (1, 7), (1, 8);
     `);
+    db.prepare("INSERT INTO message VALUES (8, NULL, ?, 1, 0, 0, 'iMessage', 0, 0)").run(
+      replyArchive,
+    );
     const photo = join(root, 'IMG_1.heic');
     writeFileSync(photo, 'photo');
     db.prepare('INSERT INTO attachment VALUES (1, ?), (2, ?)').run(
@@ -136,9 +145,9 @@ describe('MessagesService', () => {
     db.exec('INSERT INTO message_attachment_join VALUES (7, 1), (7, 2)');
     db.close();
     const service = new MessagesService({ databasePath: path, platform: 'darwin' });
-    expect(service.latestRowId()).toBe(7);
+    expect(service.latestRowId()).toBe(8);
     const { cursor, messages } = service.inbound(1, 50);
-    expect(cursor).toBe(7);
+    expect(cursor).toBe(8);
     expect(messages).toEqual([
       {
         rowId: 2,
@@ -163,6 +172,14 @@ describe('MessagesService', () => {
         fromMe: false,
         text: '',
         attachments: [photo],
+      },
+      {
+        rowId: 8,
+        handle: '+15551234567',
+        chatIdentifier: '+15551234567',
+        fromMe: false,
+        text: 'Sia › SIA-IMESSAGE-1007-OK',
+        attachments: [],
       },
     ]);
   });

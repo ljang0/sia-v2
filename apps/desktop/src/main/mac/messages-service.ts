@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { promisify } from 'node:util';
+import { decodeAttributedBody } from './attributed-message.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -292,24 +293,6 @@ function mapRow(row: Record<string, unknown>): MessageRow {
     text,
     timestamp: new Date(seconds * 1000).toISOString(),
   };
-}
-
-/**
- * Newer macOS releases store message text only inside an NSAttributedString typedstream blob.
- * The exact format is undocumented; the longest printable run after the NSString marker is the
- * message body in practice, and failure just falls back to a placeholder label.
- */
-function decodeAttributedBody(value: unknown): string | undefined {
-  if (!(value instanceof Uint8Array) || value.length === 0) return undefined;
-  const buffer = Buffer.from(value);
-  const marker = buffer.indexOf(Buffer.from('NSString'));
-  const slice = marker >= 0 ? buffer.subarray(marker + 8) : buffer;
-  const text = slice.toString('utf8');
-  let best = '';
-  for (const match of text.matchAll(/[\p{L}\p{N}\p{P}\p{Zs}\p{Emoji_Presentation}]{2,}/gu)) {
-    if (match[0].length > best.length) best = match[0];
-  }
-  return best.trim() || undefined;
 }
 
 async function defaultRunOsascript(script: string, argv: readonly string[]): Promise<void> {

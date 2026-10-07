@@ -170,7 +170,7 @@ export class MessagesRelay {
   #unsubscribe: (() => void) | undefined;
   #tracked = new Map<string, Tracked>();
   #sent: string[] = [];
-  #recent: { handle: string; text: string; at: number }[] = [];
+  #recent: { handle: string; text: string; fromMe: boolean; at: number }[] = [];
   #outgoing: Promise<unknown> = Promise.resolve();
   #polling = false;
   #detail = '';
@@ -628,9 +628,19 @@ export class MessagesRelay {
     if (text.startsWith(REPLY_PREFIX.trim()) || this.#sent.includes(text)) return undefined;
     const now = this.#now();
     this.#recent = this.#recent.filter((entry) => now - entry.at < 60000);
-    if (this.#recent.some((entry) => entry.handle === contact.handle && entry.text === text))
+    // Pair only opposite-direction copies of a self-message. Suppressing every identical
+    // text for a minute also suppresses a person's next YES for a different approval.
+    const copy = this.#recent.findIndex(
+      (entry) =>
+        entry.handle === contact.handle &&
+        entry.text === text &&
+        entry.fromMe !== message.fromMe,
+    );
+    if (copy >= 0) {
+      this.#recent.splice(copy, 1);
       return undefined;
-    this.#recent.push({ handle: contact.handle, text, at: now });
+    }
+    this.#recent.push({ handle: contact.handle, text, fromMe: message.fromMe, at: now });
     return contact;
   }
 
