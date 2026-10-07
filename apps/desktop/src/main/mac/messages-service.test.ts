@@ -82,6 +82,33 @@ describe('MessagesService', () => {
     expect(thread.at(-1)!.text).toBe('Sia › SIA-IMESSAGE-1007-OK');
   });
 
+  it('searches archived message text before limiting results, without matching metadata', () => {
+    const service = makeService();
+    expect(service.search('sia-imessage', 1).map(({ text }) => text)).toEqual([
+      'Sia › SIA-IMESSAGE-1007-OK',
+    ]);
+    expect(service.search('projector', 1).map(({ text }) => text)).toEqual([
+      'Bringing the projector',
+    ]);
+    expect(service.search('NSMutableAttributedString', 10)).toEqual([]);
+    expect(service.search('__kIMMessagePartAttributeName', 10)).toEqual([]);
+    expect(service.search('Alex', 1)).toHaveLength(1);
+    expect(service.search('5551234567', 1)).toHaveLength(1);
+  });
+
+  it('uses plain text when present and archived text when the text column is empty', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sia-messages-search-'));
+    roots.push(root);
+    const path = fixtureDatabase(root);
+    const db = new DatabaseSync(path);
+    db.prepare('UPDATE message SET attributedBody = ? WHERE ROWID = 2').run(replyArchive);
+    db.exec("UPDATE message SET text = '' WHERE ROWID = 3");
+    db.close();
+    const service = new MessagesService({ databasePath: path, platform: 'darwin' });
+    expect(service.search('SIA-IMESSAGE', 10)).toHaveLength(1);
+    expect(service.search('projector', 10)[0]!.text).toBe('Bringing the projector');
+  });
+
   it('explains the Full Disk Access requirement when the database is unreadable', () => {
     const root = mkdtempSync(join(tmpdir(), 'sia-messages-denied-'));
     roots.push(root);

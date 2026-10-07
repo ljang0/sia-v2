@@ -4,6 +4,12 @@ Use this checklist on the exact signed artifact before adding a tester. Automate
 code and deterministic flows; these checks cover provider-owned login screens, macOS permissions,
 and real accounts. Use disposable, non-sensitive fixtures and keep research sharing off.
 
+Run automated Electron tests and manual Mac input in separate phases. Automated launches can
+change keyboard focus. Before sending a real message, inspect the recipient and complete draft
+after typing, then send in a separate action. Never combine recipient entry and Return, and do not
+send from an existing personal draft. If focus moves unexpectedly, stop and re-establish the
+target before any more input.
+
 Record the result in the private pilot log with the exact Sia version and artifact hash under
 test. The source is `0.1.0-alpha.25`; the signed `0.1.0-alpha.25` candidate and its hashes are recorded in
 [`public-release.md`](./public-release.md). The last published pilot artifact remains

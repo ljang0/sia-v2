@@ -74,6 +74,13 @@ export class MessagesService {
     const database = this.#requireDatabase();
     try {
       const filter = query?.trim();
+      if (filter) {
+        // Filter the same visible body that readThread returns, before applying LIMIT.
+        // Recent Messages versions often leave message.text empty and archive the body.
+        database.function('sia_message_body', { deterministic: true }, (body) => {
+          return decodeAttributedBody(body) ?? null;
+        });
+      }
       const rows = database
         .prepare(
           `SELECT chat.guid AS chat_guid,
@@ -87,7 +94,7 @@ export class MessagesService {
            JOIN chat_message_join ON chat_message_join.message_id = message.ROWID
            JOIN chat ON chat.ROWID = chat_message_join.chat_id
            LEFT JOIN handle ON handle.ROWID = message.handle_id
-           ${filter ? 'WHERE message.text LIKE ? OR handle.id LIKE ? OR chat.display_name LIKE ?' : ''}
+           ${filter ? "WHERE COALESCE(NULLIF(message.text, ''), sia_message_body(message.attributedBody)) LIKE ? OR handle.id LIKE ? OR chat.display_name LIKE ?" : ''}
            ORDER BY message.date DESC
            LIMIT ?`,
         )

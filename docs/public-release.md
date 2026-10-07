@@ -2,10 +2,13 @@
 
 ## Decision
 
-Sia `0.1.0-alpha.25` remains an internal release candidate. The integrated build containing the model-selection
-repairs passed signing, notarization, and stapling. Live signed-app testing then exposed an obsolete
-mandatory-research task gate. The repair passed the complete pilot gate and fresh signed packaging
-on `e544761178068c4c5d5b107fe592118d17827e49`; the artifact hashes below identify this repaired build.
+Sia `0.1.0-alpha.25` remains an internal release candidate. Live testing found and repaired
+model-selection, optional-research, approval-focus and iMessage decoding issues. The latest signed
+app under test is built from `73b4a0f3cd0fd51f47f6026caba966413de457db`; its app.asar SHA-256 is
+`36db237be32dca851c2a20ac43f9eae912ba887432b648c1173995764e975e3c`. Apple accepted app submission
+`781c19c3-d04c-414a-b537-34f58bbaa8e7`, and the isolated copied app passed strict signatures,
+staple validation and Gatekeeper. DMG notarization and the repeated live phone check are pending.
+The additional Messages search repair described below is not yet in that signed artifact.
 Public distribution remains blocked until
 the recipient acceptance checks below pass. No alpha.25
 installer or public download has been published. The last published pilot release remains
@@ -139,6 +142,17 @@ consecutive exact-step approvals in both copy arrival orders. The full gate also
 timing race: a deterministic turn could finish while the test was still creating a second worktree.
 The test now creates both worktrees first, then dispatches their tasks together and still requires
 two running and two completed results, without increasing the delay or assertion deadlines.
+
+The accompanying Messages search review found that filtering only `message.text` missed modern
+messages stored in `attributedBody`. Search now uses the same bounded decoder as reading, before
+applying the result limit; archive metadata cannot match as message text. Synthetic database checks
+cover case-insensitive body search, limiting, sender/name search, empty text and plain-text precedence.
+The repaired signed app restored its authenticated profile, saved conversations and connected Codex
+plan. Texting was enabled for the authorized self-number, but no successful repeated live delivery
+has been verified. A manual recipient-entry operation changed focus and sent only the test number
+to an unintended conversation; Undo Send was invoked but could not be independently confirmed.
+Real outbound testing is paused until recipient focus is reliable. Automated Electron and manual
+Mac input must run separately, with the complete recipient and draft inspected before Send.
 
 The cloud-configured universal candidate passed Developer ID signing, Apple notarization,
 stapling, strict nested signature verification, and Gatekeeper acceptance for both app and DMG.
