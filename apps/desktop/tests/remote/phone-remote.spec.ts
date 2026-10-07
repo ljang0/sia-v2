@@ -892,12 +892,22 @@ test('typing eases the welcome layout while preserving the Dither aurora and com
     Object.defineProperty(visualViewport!, 'offsetTop', { configurable: true, value: 120 });
     visualViewport!.dispatchEvent(new Event('resize'));
     visualViewport!.dispatchEvent(new Event('scroll'));
+    await new Promise(requestAnimationFrame);
+    // Sample the actual CSS transition at known times. A busy CI renderer can miss all
+    // intermediate frames in a wall-clock loop even when the transition is correct.
+    const transitions = hero.getAnimations();
+    const heightTransition = transitions.find(
+      (animation) => (animation as CSSTransition).transitionProperty === 'height',
+    );
+    if (!heightTransition) throw new Error('Keyboard resize did not animate the hero height');
+    for (const animation of transitions) animation.pause();
     const samples: ReturnType<typeof read>[] = [];
-    const start = performance.now();
-    while (performance.now() - start < 600) {
-      await new Promise(requestAnimationFrame);
+    for (const fraction of [0, 0.25, 0.5, 0.75, 1]) {
+      for (const animation of transitions)
+        animation.currentTime = Number(animation.effect!.getTiming().duration) * fraction;
       samples.push(read());
     }
+    for (const animation of transitions) animation.play();
     return {
       before,
       samples,

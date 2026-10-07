@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
-import { randomInt } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createHash, randomInt } from 'node:crypto';
+import { createReadStream } from 'node:fs';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
@@ -117,6 +118,21 @@ interface Config {
   peoplePaused?: boolean;
   /** Trusted handle (or `peer:<handle>`) → the thread that continues its conversation. */
   threads: Record<string, string>;
+  /** Recently sent files, so their self-chat copies cannot become new phone tasks. */
+  outgoingAttachments?: {
+    handle: string;
+    fingerprint: string;
+    expires: number;
+    seen: boolean[];
+  }[];
+}
+
+async function attachmentFingerprint(path: string): Promise<string> {
+  const info = await stat(path);
+  if (!info.isFile()) throw new Error('The attachment is not a file.');
+  const hash = createHash('sha256');
+  for await (const chunk of createReadStream(path)) hash.update(chunk);
+  return `${info.size}:${hash.digest('hex')}`;
 }
 interface Tracked {
   handle: string;
@@ -173,6 +189,8 @@ export class MessagesRelay {
   #recent: { handle: string; text: string; fromMe: boolean; at: number }[] = [];
   #outgoing: Promise<unknown> = Promise.resolve();
   #polling = false;
+  #readError = '';
+  #replyErrors = new Map<string, string>();
   #detail = '';
   #disposed = false;
   #since = new Date().toISOString();
@@ -291,6 +309,8 @@ export class MessagesRelay {
     this.#bots.get(kind)?.channel.stop();
     this.#bots.delete(kind);
     this.#deps.repository.remove('messages-relay', `${kind}-bot`);
+    for (const handle of this.#replyErrors.keys())
+      if (handle.startsWith(`${kind}:`)) this.#replyErrors.delete(handle);
     this.#config.trusted = this.#config.trusted.filter(
       (entry) => !entry.handle.startsWith(`${kind}:`),
     );
@@ -346,6 +366,7 @@ export class MessagesRelay {
       this.#config.people = [...people, { handle, name: command.name }];
     } else if (command.operation === 'removePerson') {
       const handle = normalizeHandle(command.handle) ?? command.handle;
+      this.#replyErrors.delete(handle);
       this.#config.people = this.#people().filter((entry) => entry.handle !== handle);
       delete this.#config.threads[`peer:${handle}`];
       this.#peerBacklog.delete(handle);
@@ -360,6 +381,7 @@ export class MessagesRelay {
       this.#disconnectBot(command.kind);
     } else if (command.operation === 'untrust') {
       const handle = normalizeHandle(command.handle) ?? command.handle;
+      this.#replyErrors.delete(handle);
       this.#config.trusted = this.#config.trusted.filter((entry) => entry.handle !== handle);
       delete this.#config.threads[handle];
       for (const [threadId, tracked] of this.#tracked)
@@ -385,13 +407,13 @@ export class MessagesRelay {
         this.#save();
       }
       for (const message of messages) {
-        const contact = this.#sender(message);
+        const contact = await this.#sender(message);
         if (contact) await this.#receive(contact, message.text.trim(), message.attachments);
         else await this.#receivePeer(message);
       }
-      this.#detail = '';
+      this.#readError = '';
     } catch (error) {
-      this.#detail = error instanceof Error ? error.message : 'Messages could not be read.';
+      this.#readError = error instanceof Error ? error.message : 'Messages could not be read.';
     } finally {
       this.#polling = false;
     }
@@ -401,6 +423,7 @@ export class MessagesRelay {
   #settings(): MessagesRelaySettings {
     const access = this.#access();
     const running = this.#available();
+    const replyError = [...this.#replyErrors.values()].at(-1);
     return {
       enabled: this.#config.enabled,
       running,
@@ -422,7 +445,10 @@ export class MessagesRelay {
         };
       }),
       access,
+      ...(replyError ? { replyError } : {}),
       detail:
+        this.#readError ||
+        replyError ||
         this.#detail ||
         (access === 'unavailable' && !this.#bots.size
           ? 'Messages is not set up on this Mac.'
@@ -589,13 +615,50 @@ export class MessagesRelay {
     return kind ? this.#bots.get(kind)?.channel : undefined;
   }
 
-  #sendFile(handle: string, path: string): Promise<void> {
+  async #sendFile(handle: string, path: string): Promise<void> {
     if (/^(telegram|discord):/.test(handle)) {
       const bot = this.#botFor(handle);
-      if (!bot) return Promise.reject(new Error('That messaging app is disconnected.'));
+      if (!bot) throw new Error('That messaging app is disconnected.');
       return bot.sendFile(handle, path);
     }
+    const fingerprint = await attachmentFingerprint(path);
+    this.#config.outgoingAttachments = [
+      ...(this.#config.outgoingAttachments ?? [])
+        .filter((entry) => entry.expires > this.#now())
+        .slice(-49),
+      { handle, fingerprint, expires: this.#now() + 10 * 60000, seen: [] },
+    ];
+    // Save before sending: Messages can expose the sent copy immediately, or after restart.
+    this.#save();
     return this.#deps.messages.sendFile(handle, path);
+  }
+
+  async #isAttachmentEcho(
+    handle: string,
+    message: { text: string; attachments: string[]; fromMe: boolean },
+  ): Promise<boolean> {
+    if (message.text.trim() || message.attachments.length !== 1) return false;
+    const recent = (this.#config.outgoingAttachments ?? []).filter(
+      (entry) => entry.expires > this.#now(),
+    );
+    if (!recent.some((entry) => entry.handle === handle)) return false;
+    let fingerprint: string;
+    try {
+      fingerprint = await attachmentFingerprint(message.attachments[0]!);
+    } catch {
+      return false;
+    }
+    const match = recent.find(
+      (entry) =>
+        entry.handle === handle &&
+        entry.fingerprint === fingerprint &&
+        !entry.seen.includes(message.fromMe),
+    );
+    if (!match) return false;
+    match.seen.push(message.fromMe);
+    this.#config.outgoingAttachments = recent.filter((entry) => entry.seen.length < 2);
+    this.#save();
+    return true;
   }
 
   #save(): void {
@@ -611,7 +674,7 @@ export class MessagesRelay {
    * In that self chat Messages can record both a sent and a received copy of the same text, and
    * Sia's own replies land there too, so those are skipped.
    */
-  #sender(message: {
+  async #sender(message: {
     handle: string;
     chatIdentifier: string;
     fromMe: boolean;
@@ -621,6 +684,7 @@ export class MessagesRelay {
     const handle = normalizeHandle(message.fromMe ? message.chatIdentifier : message.handle);
     const contact = handle ? this.#trusted(handle) : undefined;
     if (!contact) return undefined;
+    if (await this.#isAttachmentEcho(contact.handle, message)) return undefined;
     const text = [
       message.text.trim(),
       ...message.attachments.map((path) => basename(path)),
@@ -956,7 +1020,10 @@ export class MessagesRelay {
           }
         })
         .catch(() => {
-          this.#detail = `${file.name} could not be sent by text. It is saved in Sia on your Mac.`;
+          this.#replyErrors.set(
+            tracked.handle,
+            'A result file could not be sent. It is saved in Sia on your Mac. Check your messaging connection, then try again.',
+          );
         });
     }
   }
@@ -1008,16 +1075,26 @@ export class MessagesRelay {
     const message = isBot ? body : `${REPLY_PREFIX}${body}`;
     this.#sent = [...this.#sent.slice(-49), message];
     this.#outgoing = this.#outgoing
-      .then(() => {
-        if (!isBot) return this.#deps.messages.send(handle, message);
-        const bot = this.#botFor(handle);
-        if (!bot) throw new Error('That messaging app is disconnected.');
-        return bot.send(handle, message);
+      .then(async () => {
+        if (!isBot) await this.#deps.messages.send(handle, message);
+        else {
+          const bot = this.#botFor(handle);
+          if (!bot) throw new Error('That messaging app is disconnected.');
+          await bot.send(handle, message);
+        }
+        this.#replyErrors.delete(handle);
       })
-      .catch(() => {
-        this.#detail = isBot
-          ? 'A reply could not be sent through the bot. Check its connection in Settings.'
-          : 'A reply could not be sent. Check that Messages is signed in to iMessage.';
+      .catch((error: unknown) => {
+        // Do not surface the raw process error: it can contain the recipient and message.
+        const denied = error instanceof Error && /-1743|not authorized/i.test(error.message);
+        this.#replyErrors.set(
+          handle,
+          isBot
+            ? 'A reply could not be sent through the bot. Check its connection in Settings, then send your request again.'
+            : denied
+              ? 'A reply could not be sent. Allow Sia to control Messages in System Settings → Privacy & Security → Automation, then send your request again.'
+              : 'A reply could not be sent. Check that Messages is signed in to iMessage, then send your request again. The answer is saved in Sia.',
+        );
       });
   }
 
@@ -1035,7 +1112,12 @@ export class MessagesRelay {
           setTimeout(() => void rm(folder, { recursive: true, force: true }), 60000).unref();
         }
       })
-      .catch(() => undefined);
+      .catch(() => {
+        this.#replyErrors.set(
+          handle,
+          'A voice reply could not be sent. The text answer is saved in Sia. Check your voice service and messaging connection, then try again.',
+        );
+      });
   }
 
   /** Resolves once queued replies have been handed to Messages; for tests. */

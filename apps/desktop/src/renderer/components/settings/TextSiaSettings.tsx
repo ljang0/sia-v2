@@ -65,12 +65,19 @@ export function TextSiaSettings({
           <h3>Text Sia from anywhere</h3>
           <p>Send a text from your phone. Sia replies in the same conversation.</p>
         </div>
-        <span className={state?.running ? phone.live : phone.off}>
+        <span className={state?.running && !state.replyError ? phone.live : phone.off}>
           <i />
-          {state?.running ? 'Ready' : state?.enabled ? 'Waiting' : 'Off'}
+          {state?.replyError
+            ? 'Needs attention'
+            : state?.running
+              ? 'Ready'
+              : state?.enabled
+                ? 'Waiting'
+                : 'Off'}
         </span>
       </div>
       <InlineSettingsError message={error} />
+      <InlineSettingsError message={state?.replyError ?? ''} />
       <span className={phone.eyebrow}>YOUR NUMBERS</span>
       <ul aria-label="Your numbers" className={phone.numbers}>
         {state?.trusted.map((contact) => (
@@ -167,7 +174,9 @@ export function TextSiaSettings({
           Approve steps by replying YES or NO
         </label>
       )}
-      {state && <p className={phone.note}>{state.detail}</p>}
+      {state && state.detail !== state.replyError && (
+        <p className={phone.note}>{state.detail}</p>
+      )}
       {state && <BotChannelsSettings state={state} pending={pending} run={run} />}
       {state && <TrustedPeopleSettings state={state} pending={pending} run={run} />}
       <p className={phone.note}>

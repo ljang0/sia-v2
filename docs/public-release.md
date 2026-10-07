@@ -3,8 +3,10 @@
 ## Decision
 
 Sia `0.1.0-alpha.25` is an **internal release candidate**, not approved for public distribution.
-The integrated source and signed packaging are complete. CI state is tracked on the integration PR. Physical phone delivery
-and the remaining recipient checks below are not complete. Supervised Calculator, TextEdit
+The integrated candidate is still under verification. Physical-phone intake and answer generation
+passed, but the operator reported that no reply reached the handset. Delivery is a failed release
+gate; the newer source adds persistent send-error reporting and attachment echo protection. CI state
+is tracked on the integration PR. The remaining recipient checks below are not complete. Supervised Calculator, TextEdit
 and Finder actions passed on the preceding signed candidate; the latest app change corrects the
 permission checklist, which now reaches Mac access is ready in live verification. The latest signed
 candidate also completed a fresh Calculator task after restart with automatic local actions enabled. No alpha.25 installer
@@ -12,7 +14,7 @@ has been uploaded or published. The last published pilot release is
 [`alpha.24`](./release-evidence.md).
 
 The exact signed candidate was built from `9eb1eea34aa0bf265c366044f9efb67f4a0c18a4` on macOS
-15.7.2. Later test and evidence-only documentation commits do not change that artifact. Its app identity is
+15.7.2. Later phone-delivery source changes are not included in this artifact; a replacement must be signed and tested. Its app identity is
 `ai.sia.desktop`, signed by Developer ID team `DXYJ578DD4`.
 
 | Artifact                           | SHA-256                                                            |       Bytes |
@@ -54,8 +56,8 @@ not implemented. Do not claim complete Instinct parity or arbitrary-account conn
 
 ## Automated verification
 
-The final source passed `pnpm test:pilot` on October 7, 2026: build, formatting, lint, quality,
-workspace types and unit gates, **1,189 desktop unit tests**, **45 Electron tests** and **17 renderer
+The phone-delivery repair source passed `pnpm test:pilot` on October 7, 2026: build, formatting, lint, quality,
+workspace types and unit gates, **1,197 desktop unit tests**, **45 Electron tests** and **17 renderer
 tests**. Seven desktop tests and four live Electron tests remain opt-in and were skipped.
 
 [CI for the preceding signed source](https://github.com/ljang0/sia-v2/actions/runs/37583850875) passed,
@@ -70,7 +72,7 @@ passed the source gates but timed out in one WebKit phone theme case (59 passed)
 showed that all view/theme and screenshot assertions completed before its final resume assertion
 reached the total test deadline. Commit `418f647` separates light and dark into individual tests,
 retaining every assertion and the same 20-second limit. The focused four cases passed locally;
-all 62 local cases passed (31 Chromium, 31 WebKit). [CI rerun](https://github.com/ljang0/sia-v2/actions/runs/37599286070) tracks the correction; verify its result and the latest PR checks before merging. This correction changes no packaged app code.
+all 62 local cases passed (31 Chromium, 31 WebKit). [CI rerun](https://github.com/ljang0/sia-v2/actions/runs/37599286070) passed all 62 phone checks and unsigned universal packaging. The next documentation-only run, [cf97709](https://github.com/ljang0/sia-v2/actions/runs/37600713235), failed one Chromium typing-animation assertion (61 passed). Its trace sampled only the starting and ending heights during a busy render. The test now advances the actual CSS transitions to fixed intermediate times; three repeats on each browser passed without changing product animation or dropping assertions. Verify the latest PR checks before merging.
 
 The integrated suite retains its visual and concurrency assertions. Electron screenshots use sRGB
 at 1× backing scale; no image tolerance was increased. The theme-restoration check waits for the
@@ -79,6 +81,14 @@ race without extending task delays or assertion deadlines. Bot and phone-browser
 observable connection, draft and attachment states rather than fixed short sleeps.
 
 ## Repairs found through live work
+
+- Outbound reply failures now remain visible through successful inbox polls, with **Needs attention**
+  and a useful recovery message. A successful reply to another contact does not hide the failed
+  recipient. Raw send-process errors stay out of the renderer. File and voice-reply failures are
+  also reported. This diagnostic repair does not itself establish successful handset delivery.
+- Returned files and voice notes carry a bounded, encrypted, short-lived content fingerprint so
+  their sent/received self-chat copies cannot start another task, including after restart. Tests
+  cover renamed copies, changed content, explicit captions, later reuse and expired markers.
 
 - Closed apps are now labeled **Open to check**, with an **Open app** action, instead of
   **Needs you**. The guided pass still verifies them before completing and preserves actual
@@ -117,8 +127,10 @@ observable connection, draft and attachment states rather than fixed short sleep
 The initial iMessage answer followed by echoes remains a **failed live test**. The preceding signed candidate (`4be6bfc`)
 subsequently received one self-addressed test intact and produced the exact requested answer, with
 no extra task over more than 30 seconds (the relay polls every two seconds). That test originated
-on the Mac through an individually approved explicit-recipient action. Phone receipt confirmation,
-physical-device origin, repeated delivery and approvals remain required.
+on the Mac through an individually approved explicit-recipient action. A later physical-phone request
+on `9eb1eea` reached the app at 09:27:14 UTC and produced the exact answer at 09:27:19 UTC, but the
+operator reported **No reply arrived** on the handset. This remains a failed end-to-end test.
+Repeated delivery, approvals and media remain required.
 
 ## Live evidence and limitations
 
@@ -130,10 +142,10 @@ physical-device origin, repeated delivery and approvals remain required.
 | GitHub                     | Development app showed the connected account and read PR #20; title, state, branches and draft flag matched an independent GitHub check after relaunch.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Signed-profile consent was started but GitHub disabled its authorization button. Fresh consent/read, disconnect, cancelled reconnect, reconnect and relaunch remain. |
 | Mac control                | The preceding signed candidate (`4be6bfc`) activated and inspected Calculator, cleared it, entered 123 × 456 with a foreground guard, and produced 56088. Independent native UI inspection confirmed both expression and result. TextEdit changed only the requested third line and saved; independent bytes preserved Unicode, other lines and final LF. Finder renamed the fixture to a Unicode name; its window and unchanged file bytes were independently checked. Commands were individually approved with window-only capture and compact-command guidance. On the latest signed candidate (`9eb1eea`), a fresh automatic-mode Calculator task completed 17 × 19 = 323 in 1m40s; independent AX and window screenshot matched. It recovered from an initial process-not-running check and needed no operator approval. | Lock/sleep recovery and mid-input cancellation; clean-user permissions.                                                                                              |
 | UI and update check        | Signed About screen visibly included alpha.25, the Brand S icon and company logo. Its authenticated update check completed with “You’re on the latest version.”                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Final candidate cold/warm timing, long streaming response, cancellation and live reduced-motion check.                                                               |
-| iMessage                   | The preceding signed relay (`4be6bfc`), enabled only for the authorized self-number, received the exact test text and produced SIA-IMESSAGE-FINAL-OK in one task. No echo appeared over more than 30 seconds. Connected Messages search confirmed one request and one prefixed reply, each mirrored as sent/received records. The test originated on the Mac through a reviewed explicit-recipient command.                                                                                                                                                                                                                                                                                                                                                                                                                   | Successful repeated delivery, exact text, no echo, physical-phone origin, STATUS/STOP/NEW, approvals, photo and voice note.                                          |
-| Wi-Fi remote               | Operator-approved development listener reported Ready on its selected LAN interface.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Physical phone pairing, task, approval and reconnect. The in-app browser rejected the LAN URL; loopback is not a listener.                                           |
+| iMessage                   | The preceding signed relay (`4be6bfc`) completed a Mac-originated self-test with one exact answer and no echo over 30 seconds. On `9eb1eea`, a physical-phone request reached Sia and generated SIA-PHONE-ORIGIN-OK in five seconds; the operator reported no reply on the handset.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | **Failed handset delivery.** Diagnose and retest the replacement signed app, then repeated exact text, STATUS/STOP/NEW, approvals, photo and voice note.             |
+| Wi-Fi remote               | The operator enabled the signed candidate listener; Settings reported Ready and the process listened on the selected LAN interface.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Physical phone pairing, task, approval and reconnect remain unverified. The operator did not confirm the requested browser test.                                     |
 | Telegram and Discord       | Implemented, with automated channel and attachment checks. No configured disposable test bots were confirmed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Operator enters test-bot tokens directly in Sia, then real pairing, messages, approvals, media and disconnect.                                                       |
-| Voice                      | Real ElevenLabs probe completed synthesis, batch/stream transcription and cancellation using synthetic speech: 46,020 bytes in 3,050 ms.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Physical microphone/Fn, in-app voice and phone voice-note delivery. Mac-only dictation does not transcribe uploaded audio files.                                     |
+| Voice                      | Real ElevenLabs synthesis, batch/stream transcription and cancellation passed with synthetic speech. Signed read-aloud controls started and cancelled successfully.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Audible output, physical microphone/Fn, in-app voice and phone voice-note delivery. UI start/cancel does not prove audible speech.                                   |
 
 The final Calculator draft initially encountered a changed live model catalog; Sia rejected the
 unavailable pinned choice and preserved the draft. After relaunch, the catalog offered that model

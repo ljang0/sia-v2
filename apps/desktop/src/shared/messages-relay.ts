@@ -85,6 +85,8 @@ export interface MessagesRelaySettings {
   /** Reply YES or NO from your numbers to allow or deny one pending step (never a whole task). */
   textApprovals: boolean;
   access: 'ready' | 'needs_full_disk_access' | 'unavailable';
+  /** Last failed reply, retained until a later send to the same recipient succeeds. */
+  replyError?: string;
   detail: string;
 }
 export type MessagesRelayApi = (

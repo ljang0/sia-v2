@@ -7,6 +7,29 @@ import type { MessagesRelayApi, MessagesRelaySettings } from '../../../shared/me
 afterEach(cleanup);
 const AGENT = '11111111-1111-4111-8111-111111111111';
 
+it('shows a failed reply as needing attention even while incoming texts remain active', async () => {
+  const replyError = 'A reply could not be sent. Check that Messages is signed in to iMessage.';
+  const api = vi.fn<MessagesRelayApi>(async () => ({
+    enabled: true,
+    running: true,
+    trusted: [{ handle: '+15551234567', label: 'Test phone' }],
+    proactive: true,
+    textApprovals: true,
+    people: [],
+    peoplePaused: false,
+    bots: [],
+    access: 'ready',
+    replyError,
+    detail: replyError,
+  }));
+  render(<TextSiaSettings api={api} agents={[{ id: AGENT, name: 'Sia' }]} />);
+  expect(await screen.findByText('Needs attention')).toBeTruthy();
+  expect(screen.queryByText('Ready')).toBeNull();
+  expect(screen.getByRole('alert').textContent).toBe(replyError);
+  expect(screen.getAllByText(replyError)).toHaveLength(1);
+  expect(screen.getByRole('button', { name: 'Turn off texting' })).toBeTruthy();
+});
+
 it('adds your number, turns texting on for the chosen assistant, and turns it off', async () => {
   let state: MessagesRelaySettings = {
     enabled: false,

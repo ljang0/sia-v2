@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { MessagesRelay, PEER_PREFIX, REPLY_PREFIX } from './messages-relay.js';
 import { decodeAttributedBody } from '../mac/attributed-message.js';
@@ -26,6 +29,8 @@ function harness(
     bot?: (kind: 'telegram' | 'discord', token: string) => BotChannel;
     takeClipboardToken?: () => string | undefined;
     speak?: (text: string) => Promise<string>;
+    send?: (to: string, text: string) => Promise<void>;
+    sendFile?: (to: string, path: string) => Promise<void>;
     records?: Map<string, unknown>;
   } = {},
 ) {
@@ -116,9 +121,11 @@ function harness(
         return { cursor: Math.max(cursor, ...next.map((row) => row.rowId)), messages: next };
       },
       send: async (to: string, text: string) => {
+        await options.send?.(to, text);
         sent.push({ to, text });
       },
       sendFile: async (to: string, path: string) => {
+        await options.sendFile?.(to, path);
         files.push({ to, name: path.split('/').at(-1)! });
       },
     },
@@ -196,6 +203,45 @@ describe('normalizeHandle', () => {
 });
 
 describe('MessagesRelay', () => {
+  it('keeps failed replies visible through inbox polls until that recipient can be sent a reply', async () => {
+    const send = vi.fn(async (_to: string, _text: string) => undefined);
+    send.mockRejectedValueOnce(new Error('Not authorized (-1743): private message text'));
+    const h = harness({ send });
+    await h.ready();
+    h.text(101, 'Check a disposable fixture');
+    await h.relay.poll();
+    h.finish('thread-1', 'Finished');
+    await h.relay.flush();
+    await h.relay.poll();
+    await h.relay.poll();
+    let state = await h.relay.configure({ operation: 'status' });
+    expect(state.replyError).toContain('Allow Sia to control Messages');
+    expect(state.replyError).not.toContain('private message text');
+    expect(state.detail).toBe(state.replyError);
+    expect(h.sent).toHaveLength(0);
+
+    // A successful reply elsewhere must not hide this recipient's delivery problem.
+    await h.relay.configure({ operation: 'trust', handle: '+15557654321', label: '' });
+    h.text(102, 'STATUS', '+15557654321');
+    await h.relay.poll();
+    await h.relay.flush();
+    expect((await h.relay.configure({ operation: 'status' })).replyError).toBe(
+      state.replyError,
+    );
+
+    h.text(103, 'STATUS');
+    await h.relay.poll();
+    await h.relay.flush();
+    state = await h.relay.configure({ operation: 'status' });
+    expect(state.replyError).toBeUndefined();
+    expect(state.detail).toContain('Sia replies in the same conversation');
+    expect(h.sent.at(-1)).toEqual({
+      to: ME,
+      text: `${REPLY_PREFIX}Nothing is running right now.`,
+    });
+    h.relay.dispose();
+  });
+
   it('stays off until a number is trusted and texting is turned on', async () => {
     const h = harness();
     await expect(h.relay.configure({ operation: 'enable', agentId: AGENT })).rejects.toThrow(
@@ -513,6 +559,113 @@ describe('MessagesRelay', () => {
     expect(h.controller.readGeneratedResult).toHaveBeenCalledWith('thread-1', 'result-1');
     expect(h.files).toEqual([{ to: ME, name: 'result-1.pdf' }]);
   });
+
+  it('shows voice delivery failures even when the text answer succeeds', async () => {
+    const h = harness({
+      speak: async () => {
+        throw new Error('private service response');
+      },
+    });
+    try {
+      await h.ready();
+      h.text(101, '', ME, false, ['/tmp/request.caf']);
+      await h.relay.poll();
+      h.finish('thread-1', 'The text answer.');
+      await h.relay.flush();
+      await h.relay.poll();
+      expect(h.sent.at(-1)?.text).toBe(`${REPLY_PREFIX}The text answer.`);
+      const state = await h.relay.configure({ operation: 'status' });
+      expect(state.replyError).toContain('A voice reply could not be sent');
+      expect(state.replyError).not.toContain('private service response');
+    } finally {
+      h.relay.dispose();
+    }
+  });
+
+  it.each(['pdf', 'm4a'])(
+    'ignores both self-chat copies of a returned %s after restart, without blocking a later request',
+    async (extension) => {
+      const folder = await mkdtemp(join(tmpdir(), 'sia-echo-test-'));
+      const copy = join(folder, `renamed-by-messages.${extension}`);
+      const spoken = join(folder, 'spoken.m4a');
+      await writeFile(copy, 'disposable returned file');
+      await writeFile(spoken, 'disposable returned file');
+      const h = harness({ speak: async () => spoken });
+      let restarted: ReturnType<typeof harness> | undefined;
+      try {
+        await h.ready();
+        if (extension === 'm4a') h.text(101, '', ME, false, ['/tmp/request.caf']);
+        else h.text(101, 'Make a PDF');
+        await h.relay.poll();
+        if (extension === 'pdf') {
+          h.controller.readGeneratedResult.mockResolvedValueOnce({
+            name: 'plan.pdf',
+            data: Buffer.from('disposable returned file'),
+          });
+          h.snapshot.timeline.push({
+            id: 'file',
+            threadId: 'thread-1',
+            turnId: 'turn-1',
+            sequence: 2,
+            kind: 'assistant',
+            timestamp: '',
+            attachments: [{ id: 'result', name: 'plan.pdf', kind: 'file', generated: true }],
+          } as never);
+        }
+        h.finish('thread-1', 'Here is your answer.');
+        await h.relay.flush();
+        expect(h.files).toHaveLength(1);
+        h.relay.dispose();
+        restarted = harness({ records: h.records });
+        restarted.text(102, '', ME, true, [copy]);
+        restarted.text(103, '', ME, false, [copy]);
+        await restarted.relay.poll();
+        expect(restarted.invoke).not.toHaveBeenCalled();
+
+        // The sent and received echoes consume the marker; a later request is legitimate.
+        restarted.text(104, '', ME, false, [copy]);
+        await restarted.relay.poll();
+        expect(restarted.invoke.mock.calls.filter(([m]) => m === 'threads.send')).toHaveLength(
+          1,
+        );
+      } finally {
+        h.relay.dispose();
+        restarted?.relay.dispose();
+        await rm(folder, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.each(['different contents', 'explicit caption', 'expired marker'])(
+    'accepts an incoming attachment with %s despite a recent outgoing file',
+    async (scenario) => {
+      const folder = await mkdtemp(join(tmpdir(), 'sia-echo-test-'));
+      const path = join(folder, 'same-name.m4a');
+      await writeFile(path, 'outgoing audio');
+      const h = harness({ speak: async () => path });
+      try {
+        await h.ready();
+        h.text(101, '', ME, false, ['/tmp/request.caf']);
+        await h.relay.poll();
+        h.finish('thread-1', 'Here is your answer.');
+        await h.relay.flush();
+        if (scenario === 'different contents') await writeFile(path, 'new incoming audio');
+        if (scenario === 'expired marker') h.advance(11 * 60000);
+        h.text(
+          102,
+          scenario === 'explicit caption' ? 'Please summarize this again' : '',
+          ME,
+          false,
+          [path],
+        );
+        await h.relay.poll();
+        expect(h.invoke.mock.calls.filter(([m]) => m === 'threads.send')).toHaveLength(2);
+      } finally {
+        h.relay.dispose();
+        await rm(folder, { recursive: true, force: true });
+      }
+    },
+  );
 
   it('texts your first number when a scheduled task finishes, unless turned off', async () => {
     const h = harness();
