@@ -88,6 +88,12 @@ observable connection, draft and attachment states rather than fixed short sleep
 
 ## Repairs found through live work
 
+- A release-signed lab manifest with omitted optional arguments was incorrectly rejected: schema
+  defaults changed its canonical payload before signature verification. The same ordering also
+  hid whitespace-only edits to signed display text. Source now verifies the original signed
+  payload before applying defaults or trimming. Both regressions failed before the fix and pass
+  afterward. This repair still needs full gates and a replacement signed candidate.
+
 - Background phone answers no longer read the renderer’s selected-conversation snapshot. That
   optimization had removed the actual answer before the relay finished, producing **Sia › Done.**
   in the live self-test. A regression reproduced that exact failure before the fix. The relay now

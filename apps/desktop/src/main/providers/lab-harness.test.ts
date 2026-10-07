@@ -69,6 +69,35 @@ describe('lab harness testing manifest', () => {
     ]);
   });
 
+  it('verifies the signed payload before applying optional defaults or text normalization', async () => {
+    const harness: Record<string, unknown> = { ...payload().harnesses[0] };
+    delete harness.args;
+    delete harness.versionArgs;
+    harness.name = ' Example Lab ';
+    const harnesses = await loadLabHarnessManifest({
+      path: write(signed(payload({ harnesses: [harness] }))),
+      publicKey: publicKeyText,
+      now,
+      hashFile: async () => hash,
+    });
+    expect(harnesses).toMatchObject([
+      { name: 'Example Lab', args: [], versionArgs: ['--version'] },
+    ]);
+  });
+
+  it('rejects payload edits even when schema normalization would hide the change', async () => {
+    const edited = signed(payload());
+    edited.payload.harnesses[0]!.name = ' Example Lab ';
+    await expect(
+      loadLabHarnessManifest({
+        path: write(edited),
+        publicKey: publicKeyText,
+        now,
+        hashFile: async () => hash,
+      }),
+    ).rejects.toThrow('could not be verified');
+  });
+
   it('refuses another key, an edited payload, an expired manifest, or a changed binary', async () => {
     const other = generateKeyPairSync('ed25519').privateKey;
     const load = (value: unknown, hashFile = async () => hash) =>

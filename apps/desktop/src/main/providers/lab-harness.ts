@@ -56,7 +56,8 @@ const labHarnessPayloadSchema = z
 
 const signedLabHarnessManifestSchema = z
   .object({
-    payload: labHarnessPayloadSchema,
+    // Preserve exactly what was signed; defaults and trimmed text change canonical JSON.
+    payload: z.unknown(),
     keyId: z
       .string()
       .min(1)
@@ -87,11 +88,12 @@ export async function loadLabHarnessManifest(input: {
     input.publicKey,
     'lab harness manifest',
   );
-  if (Date.parse(parsed.payload.expiresAt) <= (input.now ?? new Date()).getTime())
+  const payload = labHarnessPayloadSchema.parse(parsed.payload);
+  if (Date.parse(payload.expiresAt) <= (input.now ?? new Date()).getTime())
     throw new Error('The lab harness manifest has expired.');
   const ids = new Set<string>();
   const models = new Set<string>();
-  for (const harness of parsed.payload.harnesses) {
+  for (const harness of payload.harnesses) {
     if (ids.has(harness.id)) throw new Error(`Lab harness ${harness.id} is listed twice.`);
     ids.add(harness.id);
     for (const { id } of harness.models) {
@@ -102,7 +104,7 @@ export async function loadLabHarnessManifest(input: {
     if (actual !== harness.sha256)
       throw new Error(`The ${harness.name} command does not match its signed hash.`);
   }
-  return parsed.payload.harnesses;
+  return payload.harnesses;
 }
 
 async function sha256File(path: string): Promise<string> {
