@@ -737,20 +737,20 @@ test('phone keeps its fallback aurora and working controls when graphics are una
   expect(remote.sends).toEqual(['A quick answer']);
 });
 
-test('phone fallback remains visible in every view and both themes', async ({
-  page,
-  remote,
-}, info) => {
-  await page.goto(remote.url);
-  const aurora = page.locator('.phone-aurora');
-  await expect(aurora).toHaveAttribute('data-renderer', 'dither');
-  await expect(aurora.locator('.dither-container canvas')).toBeVisible();
-  await page.evaluate(() => {
-    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
-    document.dispatchEvent(new Event('visibilitychange'));
-  });
-  await expect(aurora).toHaveAttribute('data-renderer', 'still');
-  for (const colorScheme of ['light', 'dark'] as const) {
+for (const colorScheme of ['light', 'dark'] as const) {
+  test(`phone fallback remains visible in every view in ${colorScheme} theme`, async ({
+    page,
+    remote,
+  }, info) => {
+    await page.goto(remote.url);
+    const aurora = page.locator('.phone-aurora');
+    await expect(aurora).toHaveAttribute('data-renderer', 'dither');
+    await expect(aurora.locator('.dither-container canvas')).toBeVisible();
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect(aurora).toHaveAttribute('data-renderer', 'still');
     await page.emulateMedia({ colorScheme });
     await expect(aurora.locator('.aurora-fallback')).toHaveCSS('opacity', '1');
     for (const view of ['Chat', 'Tasks', 'Memory']) {
@@ -776,15 +776,15 @@ test('phone fallback remains visible in every view and both themes', async ({
       path: info.outputPath(`persistent-aurora-${colorScheme}.png`),
       animations: 'disabled',
     });
-  }
-  await page.evaluate(() => {
-    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
-    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    });
+    await expect(aurora).toHaveAttribute('data-paused', 'false');
+    await expect(aurora).toHaveAttribute('data-renderer', 'dither');
+    expect(remote.sends).toHaveLength(0);
   });
-  await expect(aurora).toHaveAttribute('data-paused', 'false');
-  await expect(aurora).toHaveAttribute('data-renderer', 'dither');
-  expect(remote.sends).toHaveLength(0);
-});
+}
 
 test('graphics context loss falls back and recovers without losing the draft', async ({
   page,
