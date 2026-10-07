@@ -215,7 +215,9 @@ export class MessagesRelay {
 
   initialize(): void {
     this.#unsubscribe = this.#deps.controller.subscribe((event) => {
-      if (event.type === 'snapshot') this.#observe(event.snapshot);
+      // UI events contain only the selected conversation. Phone tasks continue in the
+      // background, so their answers, approvals and result files need the complete state.
+      if (event.type === 'snapshot') this.#observe(this.#deps.controller.snapshot());
     });
     this.#timer = setInterval(() => void this.poll(), this.#deps.intervalMs ?? 2000);
     this.#timer.unref();

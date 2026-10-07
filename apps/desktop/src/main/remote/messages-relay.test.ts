@@ -31,6 +31,7 @@ function harness(
     speak?: (text: string) => Promise<string>;
     send?: (to: string, text: string) => Promise<void>;
     sendFile?: (to: string, path: string) => Promise<void>;
+    scopedEvents?: boolean;
     records?: Map<string, unknown>;
   } = {},
 ) {
@@ -154,7 +155,18 @@ function harness(
     });
   };
   const emit = () => {
-    for (const listener of listeners) listener({ type: 'snapshot', snapshot });
+    const eventSnapshot = options.scopedEvents
+      ? {
+          ...snapshot,
+          timeline: snapshot.timeline.filter(
+            (item) => item.threadId === snapshot.activeThreadId,
+          ),
+          approvals: snapshot.approvals.filter(
+            (item) => item.threadId === snapshot.activeThreadId,
+          ),
+        }
+      : snapshot;
+    for (const listener of listeners) listener({ type: 'snapshot', snapshot: eventSnapshot });
   };
   const finish = (threadId: string, answer: string) => {
     const thread = snapshot.threads.find(({ id }) => id === threadId)!;
@@ -203,6 +215,68 @@ describe('normalizeHandle', () => {
 });
 
 describe('MessagesRelay', () => {
+  it('delivers the exact background answer when UI snapshots contain another conversation', async () => {
+    const h = harness({ scopedEvents: true });
+    try {
+      await h.ready();
+      h.text(101, 'Reply exactly BACKGROUND-PHONE-OK');
+      await h.relay.poll();
+      h.snapshot.activeThreadId = 'another-conversation';
+      h.finish('thread-1', 'BACKGROUND-PHONE-OK');
+      await h.relay.flush();
+      expect(h.sent).toEqual([{ to: ME, text: `${REPLY_PREFIX}BACKGROUND-PHONE-OK` }]);
+      await h.relay.poll();
+      expect(h.sent).toHaveLength(1);
+    } finally {
+      h.relay.dispose();
+    }
+  });
+
+  it('delivers background approvals and result files while a different conversation is selected', async () => {
+    const h = harness({ scopedEvents: true });
+    try {
+      await h.ready();
+      h.text(101, 'Create a disposable plan');
+      await h.relay.poll();
+      h.snapshot.activeThreadId = 'another-conversation';
+      h.snapshot.threads[0]!.status = 'waiting';
+      h.snapshot.approvals.push({
+        id: 'background-approval',
+        threadId: 'thread-1',
+        status: 'pending',
+        title: 'Save the plan',
+        summary: 'Disposable fixture',
+        dataLeaving: 'Exact contents',
+      } as never);
+      h.emit();
+      await h.relay.flush();
+      expect(h.sent.at(-1)?.text).toContain('Save the plan. Disposable fixture.');
+      expect(h.sent.at(-1)?.text).toContain('Exact contents');
+      h.text(102, 'YES');
+      await h.relay.poll();
+      expect(h.invoke).toHaveBeenCalledWith('approvals.resolve', {
+        approvalId: 'background-approval',
+        decision: 'approve',
+      });
+      h.snapshot.approvals[0]!.status = 'approved';
+      h.snapshot.timeline.push({
+        id: 'file',
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        sequence: 2,
+        kind: 'assistant',
+        timestamp: '',
+        attachments: [{ id: 'result', name: 'plan.pdf', kind: 'file', generated: true }],
+      } as never);
+      h.finish('thread-1', 'The plan is ready.');
+      await h.relay.flush();
+      expect(h.sent.at(-1)?.text).toBe(`${REPLY_PREFIX}The plan is ready.`);
+      expect(h.files).toEqual([{ to: ME, name: 'result.pdf' }]);
+    } finally {
+      h.relay.dispose();
+    }
+  });
+
   it('keeps failed replies visible through inbox polls until that recipient can be sent a reply', async () => {
     const send = vi.fn(async (_to: string, _text: string) => undefined);
     send.mockRejectedValueOnce(new Error('Not authorized (-1743): private message text'));
