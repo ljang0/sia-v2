@@ -4,8 +4,8 @@
 
 Sia `0.1.0-alpha.25` remains an internal release candidate. The integrated build containing the model-selection
 repairs passed signing, notarization, and stapling. Live signed-app testing then exposed an obsolete
-mandatory-research task gate. The optional-research repair requires fresh verification and signed packaging;
-the artifact hashes below still identify the earlier build.
+mandatory-research task gate. The repair passed the complete pilot gate and fresh signed packaging
+on `e544761178068c4c5d5b107fe592118d17827e49`; the artifact hashes below identify this repaired build.
 Public distribution remains blocked until
 the recipient acceptance checks below pass. No alpha.25
 installer or public download has been published. The last published pilot release remains
@@ -33,7 +33,7 @@ unavailable. Slack's deployed behavior is unchanged; the prepared manifest is no
 Verification on October 6, 2026 UTC:
 
 - `pnpm test:pilot` passed: build, formatting, lint, quality guard, all workspace type/unit gates,
-  **1,165 desktop unit tests**, **45 Electron tests**, and **17 renderer tests**. Seven desktop
+  **1,168 desktop unit tests**, **45 Electron tests**, and **17 renderer tests**. Seven desktop
   tests and four Electron tests remain opt-in and were skipped; passing fixtures do not establish
   real OAuth, Messages, model responses, or operating-system grants.
 - The texting E2E now uses the integrated one-click setup; its obsolete optional-app checkbox
@@ -70,10 +70,13 @@ Verification on October 6, 2026 UTC:
   package verification. The new slow-download test uses native byte-exact Buffer comparison
   to avoid the test framework spending more than five seconds on a recursive 3 MB comparison.
 
-[Final application CI](https://github.com/ljang0/sia-v2/actions/runs/37429077856) passed on
+[Previous application CI](https://github.com/ljang0/sia-v2/actions/runs/37429077856) passed on
 `cd21ffd08b0c07cf7ee031015e49d4d7daccd061`, including both live-discovered model fixes:
 1,165 desktop unit tests, 45 Electron tests, 17 renderer tests, all 60 phone-browser tests,
-and unsigned universal package verification. Local signed packaging used this exact source.
+and unsigned universal package verification. That signed build has been superseded by the
+optional-research repair. Local `pnpm test:pilot` passed again on `e544761` with 1,168 desktop
+unit tests, 45 Electron tests and 17 renderer tests. [Fresh CI](https://github.com/ljang0/sia-v2/actions/runs/37508953064)
+passed on the same source used for the repaired signed candidate, including all 60 phone-browser checks and universal package verification.
 
 The later documentation-only CI run on `29ee868` failed during the appearance relaunch test:
 the trace shows the test reading the default native theme before app initialization, then hanging
@@ -121,11 +124,11 @@ is outside this release scope.
 
 The cloud-configured universal candidate passed Developer ID signing, Apple notarization,
 stapling, strict nested signature verification, and Gatekeeper acceptance for both app and DMG.
-App notarization submission `a8d50e6d-eca3-4bf9-85e2-ed23bb431230` and DMG submission
-`7a4b0103-1642-48fb-b214-c32b130216d8` were accepted. Its app.asar SHA-256 is
-`abef0f1a32f47fe9c2abe027b386a89d8861bac9c44de0035cba0a817ab26e79`.
-The DMG SHA-256 is `32bc6dfdb5bb1042cec6c6045fa7fa6f2e9fb111c45348c6c3e1490d20015bbe`;
-the ZIP SHA-256 is `a9b3404d96a68ab109434fac3aea7b182824ab355b1dac565164cfa4029c957d`.
+App notarization submission `a8e0e4b6-320f-405a-ac0f-5535f3a38b40` and DMG submission
+`902c203f-3d9b-4afe-82ac-8ef626bfd740` were accepted. Its app.asar SHA-256 is
+`c086a9ada3e8124a62f26fe4704dd78199e0ac7ed695f3b31b910d375402d8b0`.
+The DMG SHA-256 is `b0c202413464cd190e9b68f2fdcf33906acbf0f523a700bfd6de46f26ef2c70a`;
+the ZIP SHA-256 is `0d3e3df9088e32e662229baa32dc9b510ab185896623f1e17b55fdc676b5b7cc`.
 The prior notarized build completed the following signup check. A fresh isolated profile launched
 that app and showed only email sign-in. The live
 service accepted a code request and rejected a deliberately incorrect code while preserving
@@ -146,6 +149,13 @@ could not pause capture while signed in. The obsolete checks and unused mandator
 have been removed. Regression tests complete real controller turns with sharing untouched, declined,
 paused, and explicitly accepted; only the accepted case stores and uploads research. No live research
 consent was supplied and no account membership was changed for this repair.
+The repaired signed app reached its saved conversation and started the Calculator task without
+requiring research consent. It opened Calculator and captured the display, but then stopped when
+the foreground changed during an approval. This did not complete the calculation. The foreground
+execution guidance now requires restoring and checking the authorized app/window after approval,
+prefers app-scoped controls, and keeps a small action with its verification capture when practical.
+This guidance change needs its own live verification and signed rebuild; the hashes above identify
+the preceding optional-research build.
 GitHub consent completed and the development app independently showed the expected
 connected account; its live read passed as recorded above, while disconnect/reconnect remains pending.
 

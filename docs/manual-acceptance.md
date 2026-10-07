@@ -87,6 +87,9 @@ and [Electron's signing guidance](https://www.electronjs.org/docs/latest/api/saf
 Run these tasks only when the tester explicitly requests live computer control. They are not
 startup checks. Use **Use my Mac → On my screen**, a separate validation agent, a disposable folder,
 and a model actually offered by the signed-in Codex plan. Keep existing documents and browser tabs.
+With confirmations enabled, deliberately leave Sia's approval card in front when approving a
+Calculator or TextEdit action. Sia must restore and inspect the authorized target before input,
+then verify the result; an old screen coordinate must never land in the approval window.
 Record the selected model, tool calls, outcome, and any missing macOS grant. The person must handle
 permission prompts; full bypass does not grant macOS permissions.
 Resetting reasoning to **Default** uses the selected model's advertised default; an explicit
