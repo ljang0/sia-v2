@@ -18,7 +18,8 @@ export type MacSetupApi = Pick<
   Partial<Pick<RendererApi, 'setupMessages'>>;
 
 /** What a row needs from the person right now. */
-type AccessState = 'ready' | 'needed' | 'denied' | 'relaunch' | 'unavailable' | 'error';
+type AccessState =
+  'ready' | 'needed' | 'closed' | 'denied' | 'relaunch' | 'unavailable' | 'error';
 
 export type AccessRow = {
   id: string;
@@ -37,6 +38,7 @@ export type AccessRow = {
 const STATE_LABEL: Record<AccessState, string> = {
   ready: 'Allowed',
   needed: 'Needs you',
+  closed: 'Open to check',
   denied: 'Turned off',
   relaunch: 'Reopen Sia',
   unavailable: 'Unavailable',
@@ -46,7 +48,7 @@ const STATE_LABEL: Record<AccessState, string> = {
 const automationState: Record<AutomationStatus, AccessState> = {
   ready: 'ready',
   needs_permission: 'needed',
-  not_running: 'needed',
+  not_running: 'closed',
   denied: 'denied',
   unavailable: 'unavailable',
   error: 'error',
@@ -138,9 +140,11 @@ export function macAccessRows(
       name,
       why: detail,
       guide:
-        state === 'denied'
-          ? `In Automation, expand Sia and turn on ${name}.`
-          : `Choose Allow when macOS asks if Sia can control ${name}.`,
+        state === 'closed'
+          ? `Open ${name} so macOS can check its existing access. If permission is needed, macOS will ask you to allow it.`
+          : state === 'denied'
+            ? `In Automation, expand Sia and turn on ${name}.`
+            : `Choose Allow when macOS asks if Sia can control ${name}.`,
       optional: false,
       state,
       guided: true,
@@ -227,7 +231,10 @@ export function SetupMacAccess({
   const current = rows.find(
     (row) =>
       row.guided &&
-      (row.state === 'needed' || row.state === 'denied' || row.state === 'error') &&
+      (row.state === 'needed' ||
+        row.state === 'closed' ||
+        row.state === 'denied' ||
+        row.state === 'error') &&
       !skipped.includes(row.id),
   );
   const currentRef = useRef(current);
@@ -366,7 +373,12 @@ export function SetupMacAccess({
   const busy = pending || Boolean(rowPending);
 
   const renderRow = (row: AccessRow) => {
-    const action = row.state === 'denied' || !row.guided ? 'Open Settings' : 'Allow';
+    const action =
+      row.state === 'closed'
+        ? 'Open app'
+        : row.state === 'denied' || !row.guided
+          ? 'Open Settings'
+          : 'Allow';
     return (
       <li className={styles.permission} key={row.id} data-state={row.state}>
         <div>
@@ -409,6 +421,9 @@ export function SetupMacAccess({
           Grant all goes through each one and moves on when macOS says it’s on. You approve
           macOS dialogs; your password stays with macOS.
         </span>
+        {shown.some((row) => row.state === 'closed') && (
+          <span>Closed apps need to open before macOS can check their existing access.</span>
+        )}
         <span className={styles.meter} aria-hidden="true">
           <span
             style={{ width: `${shown.length ? (readyCount / shown.length) * 100 : 100}%` }}

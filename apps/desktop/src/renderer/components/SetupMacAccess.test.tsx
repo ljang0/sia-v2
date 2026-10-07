@@ -191,6 +191,36 @@ it('explains unavailable dictation without attempting to configure it', async ()
   expect(api.configureVoice).not.toHaveBeenCalled();
 });
 
+it('checks a closed app during guided setup without calling it a missing grant', async () => {
+  const { snapshot, api, complete, rerender } = setup();
+  snapshot.computer.accessibility = 'allowed';
+  snapshot.computer.screenRecording = 'allowed';
+  snapshot.computer.automation!.safari = 'not_running';
+  rerender();
+  expect(screen.getByText('Open to check')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Open app: Safari' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Allow: Safari' })).toBeNull();
+  expect(screen.queryByText('Mac access is ready.')).toBeNull();
+  expect(api.requestAutomationPermission).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Grant all' }));
+  await waitFor(() =>
+    expect(api.requestAutomationPermission).toHaveBeenCalledExactlyOnceWith('safari'),
+  );
+  expect(complete).not.toHaveBeenCalled();
+  expect(screen.getByText(/Open Safari so macOS can check its existing access/)).toBeTruthy();
+  snapshot.computer.automation!.safari = 'ready';
+  rerender();
+  await waitFor(() => expect(complete).toHaveBeenCalledOnce());
+  expect(screen.getByText('Mac access is ready.')).toBeTruthy();
+  expect(api.requestComputerPermissions).not.toHaveBeenCalled();
+
+  snapshot.computer.automation!.safari = 'denied';
+  rerender();
+  expect(screen.getByText('Turned off')).toBeTruthy();
+  expect(screen.queryByText('Mac access is ready.')).toBeNull();
+});
+
 it('lists every permission once and requires all of them except voice', () => {
   const snapshot = structuredClone(demoSnapshot);
   snapshot.computer.messagesAccess = 'needs_full_disk_access';
@@ -229,7 +259,7 @@ it('lists every permission once and requires all of them except voice', () => {
     ['voice', true, 'needed', true],
     ['system_events', false, 'ready', true],
     ['safari', false, 'needed', true],
-    ['calendar', false, 'needed', true],
+    ['calendar', false, 'closed', true],
     ['reminders', false, 'denied', true],
     ['finder', false, 'error', true],
     ['messages', false, 'ready', true],
