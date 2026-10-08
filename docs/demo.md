@@ -10,7 +10,9 @@ acceptance cases. Do not present the deterministic fake-service reply as complet
 Use the signed candidate in a disposable profile, with research sharing off and only the
 designated tester's iMessage number enabled. Launch through Finder/Launch Services so macOS
 attributes the existing grants to Sia. Before presenting, check AI is ready, Computer shows the
-intended Mac-control mode, and Phone remote shows Texting Ready. Keep the Mac awake and unlocked.
+intended Mac-control mode, and Phone remote shows Texting Ready. Check available model quota;
+the October 8 final app displayed 99% plan usage, so the current route needs headroom before a
+live demo. Keep the Mac awake and unlocked.
 The Arena credits' endpoint, model list, budget and expiry still need to be supplied; do not label
 the current Codex-plan demonstration as running on sponsored API credits.
 
@@ -39,6 +41,9 @@ A fresh NO/YES file write/read-back on the replacement produced exactly
 **SIA-FINAL-PHONE-ACTION-OK**, independently checked against the actual file.
 Photo understanding on `2898c71` returned all four fixture colors in order. The paired LAN browser
 also completed an exact reply and approved file action, then reconnected after replacement.
+The final `cfd1a61` signed candidate also passes cancellation-status verification: a pending
+file edit stopped through iMessage leaves no file, shows an error without Undo, and records
+a cancelled outcome. The browser reconnects and shows Stopped.
 These are Mac-originated live-service checks, not physical-handset action, media or receipt checks.
 iPhone Mirroring could not find the paired phone. Rehearse that remaining handset gate before
 claiming it in the demo.

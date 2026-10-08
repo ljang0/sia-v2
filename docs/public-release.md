@@ -22,29 +22,32 @@ could not be opened. The replacement signed `0d4b87f` passes both retests: STOP 
 to completion in QuickTime after temporary-source cleanup. A fresh file-action NO/YES test on
 that replacement also passed: NO left the file absent, separate YES replies allowed its write
 and read-back, and **SIA-FINAL-PHONE-ACTION-OK** appeared in Messages and matched independent bytes.
+A further UI defect marked cancelled proposed edits complete and offered Undo. Signed `cfd1a61`
+now passes that live retest: STOP leaves the file absent, the activity reports error, no Undo is
+offered, and the recorded outcome is cancelled. The LAN browser reconnects and shows Stopped.
 These Mac-originated checks do not establish handset-originated actions or handset receipt.
 No alpha.25 installer has been uploaded or published; the last published pilot release remains
 [`alpha.24`](./release-evidence.md).
 
-The current signed candidate was built from `0d4b87fb02f2079492f72d43604d97e55f3460a8` on macOS
+The current signed candidate was built from `cfd1a61f0d1cdd1b7bc436fb484ee5469b296cb7` on macOS
 15.7.2. Later evidence-only documentation updates do not change that artifact. Its app identity is
 `ai.sia.desktop`, signed by Developer ID team `DXYJ578DD4`.
 
 | Artifact                           | SHA-256                                                            |       Bytes |
 | ---------------------------------- | ------------------------------------------------------------------ | ----------: |
-| `app.asar`                         | `a34e91c0ad4d6530475c7e9a33e35f4cf21538d18cf07e0a62e076318d78184a` |  12,287,793 |
-| `Sia-0.1.0-alpha.25-universal.dmg` | `3661c09ad3fc73d3e8307c588021ee09ef0cebaab3956eaef20f391f9a08ea5c` | 263,093,393 |
-| `Sia-0.1.0-alpha.25-universal.zip` | `d74a6084ee2e4d98d62fd16c1710cbcf276b5768a61760f093662049a465cda3` | 261,474,494 |
+| `app.asar`                         | `391c5602fb561d5579b50e2e23960343e15164c3796a304432d2d1a00f2ae1b9` |  12,288,349 |
+| `Sia-0.1.0-alpha.25-universal.dmg` | `309f9b7d729ab4635b98f5d371f9f521b929cc22e4c17929d3a0ff7716cf9a1d` | 263,095,055 |
+| `Sia-0.1.0-alpha.25-universal.zip` | `cdb061079af92565a6b5c655cc5733a6d52e9266fe295b5d61b81af50ac92042` | 261,474,477 |
 
-Apple accepted app submission `0eee0fca-d3a2-4df8-a30b-9605c3513ead` and DMG submission
-`44d7715e-878e-4598-acfe-8597f5977eac`. The canonical `pnpm package:mac` passed strict nested
+Apple accepted app submission `59322747-1761-439e-b028-b9ced643c737` and DMG submission
+`1ae8f842-5597-4eab-8558-1db95893ae74`. The canonical `pnpm package:mac` passed strict nested
 signatures, notarization, stapling, Gatekeeper, universal architectures, bundled resources,
 license corpus and packaged MCP bridge verification. The separate copied app passed signature,
 staple and Gatekeeper checks again before launch.
 
 The durable operator evidence is in `release-verification-evidence/` in the original workspace:
 `verification.json`, a verified complete-history `source.bundle`, test and packaging logs, and
-`artifacts/phone-live-0d4b87f/`. No credentials, private Messages archives or unrelated
+`artifacts/phone-live-cfd1a61/`. No credentials, private Messages archives or unrelated
 conversation screenshots belong in that evidence. Earlier artifact records remain in Git history
 and the preserved evidence directories.
 
@@ -69,11 +72,11 @@ not implemented. Do not claim complete Instinct parity or arbitrary-account conn
 
 ## Automated verification
 
-The STOP and outgoing-media repair source passed `pnpm test:pilot` on October 8, 2026: build, formatting, lint, quality,
-workspace types and unit gates, **1,212 desktop unit tests**, **45 Electron tests** and **20 renderer
+The cancellation-status repair source passed `pnpm test:pilot` on October 8, 2026: build, formatting, lint, quality,
+workspace types and unit gates, **1,215 desktop unit tests**, **45 Electron tests** and **20 renderer
 tests**. Seven desktop tests and four live Electron tests remain opt-in and were skipped.
 
-[CI for the exact signed source](https://github.com/ljang0/sia-v2/actions/runs/37814670930)
+[CI for the exact signed source](https://github.com/ljang0/sia-v2/actions/runs/37819301018)
 passed, including all **62 Chromium/WebKit phone checks** and unsigned universal packaging.
 Local release signing is recorded separately above; the CI signing job was not run.
 
@@ -104,7 +107,8 @@ observable connection, draft and attachment states rather than fixed short sleep
   or restoring a profile now marks an unfinished file-change activity unsuccessful; only a
   completed file-tool event proves the edit happened. Confirmed earlier edits retain their status.
   Cancelled streams also stop reporting successful task completion. Three regressions reproduced
-  the failure; the replacement signed UI retest remains pending.
+  the failure; the `cfd1a61` signed retest passes: file absent, activity error, no Undo offer,
+  cancelled trajectory outcome, only “Stopped” in Messages, and Stopped after LAN browser reload.
 
 - STOP clears relay tracking before cancellation emits its final idle snapshot, preventing an
   incorrect “Done” reply. Two regressions failed before the fix and passed afterward; the signed
@@ -289,7 +293,7 @@ and complete binary/scanned tax-document coverage remain unproven.
 ## Publication
 
 `pnpm release:stage-public-download` passed for the exact final candidate. A complete local HTTP
-download returned 263,093,393 bytes with the recorded SHA-256, matching the manifest. The temporary
+download returned 263,095,055 bytes with the recorded SHA-256, matching the manifest. The temporary
 loopback server was stopped afterward. Staging and local transfer are not publication. After all recipient gates pass, publish with the
 site's `deploy --public-release` flow and verify an unauthenticated external recipient download and
 its hash. The authenticated signed update feed is a separate step in [release.md](./release.md).
