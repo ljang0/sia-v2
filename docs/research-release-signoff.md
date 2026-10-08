@@ -25,6 +25,9 @@ the implementation was verified; it is not legal or institutional approval.
   images visible inside the eligible task surface. Raw task-visible strings can themselves contain
   private or secret material. A turn that invokes Gmail, Drive, Docs, Sheets, or Slides is excluded
   in full from research capture and administrator research review.
+- After consent, eligible foreground and background CUA turns automatically include their execution
+  route, model/harness metadata, task-visible action and observation references, and a capture
+  summary. Capture does not collect a hidden app-state snapshot or an independent success label.
 - Sia does not intentionally obtain provider credentials, Chrome cookies, Keychain contents, secure
   fields, private-window contents, or hidden authentication surfaces. These controls reduce exposure
   but do not make task-visible content anonymous.

@@ -73,7 +73,8 @@ export function ResearchConsentDialog({
           <AlertDialog.Title>Join the Sia research release?</AlertDialog.Title>
           <AlertDialog.Description>
             This release records the raw activity Sia observes so researchers can understand
-            complete agent behavior. Review this before participating.
+            complete agent behavior. After you join, eligible tasks are captured automatically,
+            including background computer control. Review this before participating.
           </AlertDialog.Description>
 
           <div className={styles.consentSummary}>

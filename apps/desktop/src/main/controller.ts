@@ -5617,6 +5617,7 @@ export class DesktopController {
     if (version !== RESEARCH_CONSENT_VERSION || !acceptedAt) return;
     const first = staged.rawEvents[0]!;
     const threadId = first.payload.threadId;
+    const evidence = summarizeRawEpisode(staged.rawEvents);
     const expanded = expandRawResearchEvents([
       ...staged.rawEvents,
       {
@@ -5630,7 +5631,7 @@ export class DesktopController {
           threadId,
           turnId,
           eventType: 'turn.capture_finished',
-          data: { outcome },
+          data: { outcome, evidence },
         },
         sourceEventIds: [],
       },
@@ -5933,6 +5934,27 @@ export class DesktopController {
     this.#workspaceLeases.set(thread.workspace, turn.id);
     thread.status = 'running';
     delete thread.queueReason;
+    this.#stageRawResearchEvent({
+      threadId: thread.id,
+      turnId: turn.id,
+      eventType: 'episode.started',
+      data: {
+        schemaVersion: 1,
+        source: turn.source ?? 'manual',
+        route:
+          this.computerAccessMode() === 'mac'
+            ? this.macBackgroundControl()
+              ? 'mac_background_cua'
+              : 'mac_foreground_native'
+            : 'connected_apps',
+        provider: thread.provider,
+        model: thread.model,
+        harnessId: thread.harnessId,
+        reasoningEffort: thread.reasoningEffort,
+        platform: process.platform,
+        architecture: process.arch,
+      },
+    });
     this.#appendTimeline(thread.id, {
       id: randomUUID(),
       turnId: turn.id,
@@ -8212,6 +8234,44 @@ function researchSyncErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message.trim() : '';
   if (!message) return 'The encrypted research outbox could not reach AWS.';
   return message.length > 240 ? `${message.slice(0, 237)}…` : message;
+}
+
+function summarizeRawEpisode(
+  events: readonly RawResearchEventRecord[],
+): Record<string, unknown> {
+  let providerToolEvents = 0;
+  let gatewayActions = 0;
+  let computerSnapshots = 0;
+  let computerActions = 0;
+  let computerImages = 0;
+  const observationEventIds: string[] = [];
+  for (const event of events) {
+    if (event.payload.eventType === 'provider.tool') providerToolEvents += 1;
+    if (event.payload.eventType !== 'sia.action_result' || !isRecord(event.payload.data))
+      continue;
+    gatewayActions += 1;
+    const name = event.payload.data.name;
+    if (name !== 'computer_snapshot' && name !== 'computer_action') continue;
+    if (name === 'computer_snapshot') computerSnapshots += 1;
+    else computerActions += 1;
+    observationEventIds.push(event.id);
+    const result = event.payload.data.result;
+    if (isRecord(result) && Array.isArray(result.images))
+      computerImages += result.images.length;
+  }
+  return {
+    recordedEventCount: events.length,
+    providerToolEvents,
+    gatewayActions,
+    computerSnapshots,
+    computerActions,
+    computerImages,
+    firstObservationEventId: observationEventIds[0],
+    lastObservationEventId: observationEventIds.at(-1),
+    eventDigestSha256: createHash('sha256').update(JSON.stringify(events)).digest('hex'),
+    independentTaskVerification: 'not_available',
+    privilegedInitialAndFinalState: 'not_captured',
+  };
 }
 
 function expandRawResearchEvents(

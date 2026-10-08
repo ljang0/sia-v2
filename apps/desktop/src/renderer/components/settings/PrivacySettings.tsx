@@ -94,7 +94,8 @@ export function PrivacySettings({
           <p>
             Stores the raw prompts, responses, surfaced reasoning, tool arguments/results,
             commands and output, browser/computer activity, and captured images Sia observes. It
-            is not used for model training.
+            captures eligible tasks automatically after you join, including background computer
+            control. It is not used for model training.
           </p>
         </div>
         {uploadsPaused ? (

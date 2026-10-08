@@ -2499,7 +2499,111 @@ describe('DesktopController', () => {
     expect(serialized).toContain('printf raw-fixture');
     expect(serialized).toContain('raw command output');
     expect(serialized).toContain(threadId);
+    expect(serialized).toContain('episode.started');
+    expect(serialized).toContain('mac_foreground_native');
+    expect(serialized).toContain('independentTaskVerification');
     await controller.shutdown();
+  });
+
+  it('captures task-visible background CUA observations only after raw research consent', async () => {
+    const { controller, repository } = await createHarness();
+    try {
+      await controller.invoke('computer.setAccessMode', { mode: 'mac', background: true });
+      const created = await controller.invoke('agents.save', {
+        name: 'Background capture',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: created.agentId,
+      });
+      const observe = controller.actionResultObserver();
+      const recordComputerResult = (turnId: string, name: string, snapshotId: string) =>
+        observe({
+          name,
+          arguments: name === 'computer_snapshot' ? {} : { action: 'click', x: 12, y: 34 },
+          context: {
+            sessionId: 'background-cua-fixture',
+            threadId,
+            turnId,
+            provider: 'codex',
+            workspace: '/tmp/sia-workspace',
+            backgroundOnly: true,
+          },
+          result: {
+            outcome: 'verified',
+            summary: 'Observed the test window',
+            images: [{ mimeType: 'image/png', dataBase64: 'dGVzdC1pbWFnZQ==' }],
+            verification: { snapshotId },
+          },
+        });
+
+      const unconsented = await controller.invoke('threads.send', {
+        threadId,
+        text: 'Inspect the test window',
+      });
+      recordComputerResult(unconsented.turnId, 'computer_snapshot', 'before');
+      await vi.waitFor(() =>
+        expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.status).toBe(
+          'idle',
+        ),
+      );
+      expect(repository.list('research')).toHaveLength(0);
+
+      await controller.invoke('research.setCapture', {
+        enabled: true,
+        consentVersion: 'alpha-research-v3-raw',
+      });
+      const consented = await controller.invoke('threads.send', {
+        threadId,
+        text: 'Click the test window and check the result',
+      });
+      recordComputerResult(consented.turnId, 'computer_snapshot', 'before');
+      recordComputerResult(consented.turnId, 'computer_action', 'after');
+      await vi.waitFor(() =>
+        expect(
+          repository
+            .list<ResearchBatchView>('research')
+            .flatMap(({ events }) => events)
+            .some(({ payload }) => payload.eventType === 'turn.capture_finished'),
+        ).toBe(true),
+      );
+      const events = repository
+        .list<ResearchBatchView>('research')
+        .flatMap(({ events }) => events);
+      const started = events.find(({ payload }) => payload.eventType === 'episode.started');
+      expect(started?.payload.data).toMatchObject({ route: 'mac_background_cua' });
+      const observations = events.filter(
+        ({ payload }) => payload.eventType === 'sia.action_result',
+      );
+      expect(observations).toHaveLength(2);
+      expect(observations[1]?.payload.data).toMatchObject({
+        name: 'computer_action',
+        result: {
+          images: [{ mimeType: 'image/png', dataBase64: 'dGVzdC1pbWFnZQ==' }],
+          verification: { snapshotId: 'after' },
+        },
+      });
+      const finished = events.find(
+        ({ payload }) => payload.eventType === 'turn.capture_finished',
+      );
+      expect(finished?.payload.data).toMatchObject({
+        outcome: 'completed',
+        evidence: {
+          computerSnapshots: 1,
+          computerActions: 1,
+          computerImages: 2,
+          firstObservationEventId: observations[0]?.id,
+          lastObservationEventId: observations[1]?.id,
+          independentTaskVerification: 'not_available',
+          privilegedInitialAndFinalState: 'not_captured',
+        },
+      });
+    } finally {
+      await controller.shutdown();
+    }
   });
 
   it('excludes an entire Google Workspace action turn from research capture', async () => {

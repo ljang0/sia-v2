@@ -444,8 +444,15 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   computer/action events observed during a turn are copied into encrypted local research batches
   and synced to AWS. A turn that invokes Gmail, Drive, Docs, Sheets, or Slides is excluded in full;
   Google Workspace action results remain only in the normal local user-facing transcript, and the
-  diagnostic trajectory excludes the entire turn. Without
-  consent, other events remain within their normal runtime/transcript boundaries.
+  diagnostic trajectory excludes the entire turn. Each consented turn automatically records an
+  `episode.started` route (`mac_foreground_native`, `mac_background_cua`, or `connected_apps`) and a
+  capture-finished evidence summary with event counts, background CUA observation references, and
+  a digest of the captured events. Background CUA's existing snapshot and action results carry the
+  task-visible images and verification IDs; capture does not take extra screenshots or read browser
+  sessions. The summary explicitly marks independent task verification and privileged initial/final
+  app state as unavailable. Those require separate, consented test environments and checkers before
+  these traces can support reliable outcome labels. Without consent, other events remain within
+  their normal runtime/transcript boundaries.
 - AWS stores invite, consent, connection, preview, quota, deletion, and KMS-encrypted raw research
   objects behind the Sia API. Raw objects are organized by participant and batch, metadata carries
   thread/turn/sequence/event-kind scope, and only Cognito `Admins` can list or read the archive;
