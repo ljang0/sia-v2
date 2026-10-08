@@ -742,8 +742,11 @@ export class MessagesRelay {
     const command = text.toLowerCase().replace(/[.!]+$/, '');
     if (command === 'stop' || command === 'cancel') {
       if (thread && ['running', 'queued', 'waiting'].includes(thread.status)) {
-        await this.#deps.controller.invoke('threads.cancel', { threadId: thread.id });
+        // Cancellation emits an idle snapshot before invoke resolves. Stop observing first
+        // so that snapshot cannot send a misleading completion reply ahead of "Stopped."
         this.#tracked.delete(thread.id);
+        this.#awaiting.delete(handle);
+        await this.#deps.controller.invoke('threads.cancel', { threadId: thread.id });
         this.#reply(handle, 'Stopped.');
       } else this.#reply(handle, 'Nothing is running right now.');
       return;

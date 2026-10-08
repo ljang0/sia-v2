@@ -1,4 +1,15 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -211,16 +222,72 @@ describe('MessagesService', () => {
     ]);
   });
 
-  it('sends a file through Messages as a POSIX file argument', async () => {
-    const runOsascript = vi.fn(async (_script: string, _argv: readonly string[]) => undefined);
+  it('stages exact approved attachment bytes privately where Messages can read them', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'sia-messages-send-file-'));
+    roots.push(root);
+    const source = join(root, 'Sia reply.mp3');
+    const bytes = Buffer.from([0, 255, 4, 128]);
+    writeFileSync(source, bytes);
+    const runOsascript = vi.fn(async (_script: string, argv: readonly string[]) => {
+      expect(argv[0]).toBe('+15551234567');
+      expect(argv[1]).not.toBe(source);
+      expect(argv[1]).toMatch(/\.sia-outgoing\/send-[A-Za-z0-9]{6}\/Sia reply\.mp3$/);
+      expect(readFileSync(argv[1]!)).toEqual(bytes);
+      expect(statSync(argv[1]!).mode & 0o777).toBe(0o600);
+      expect(statSync(join(root, '.sia-outgoing')).mode & 0o777).toBe(0o700);
+    });
     const service = new MessagesService({
-      databasePath: '/missing',
+      databasePath: fixtureDatabase(root),
       platform: 'darwin',
       runOsascript,
     });
-    await service.sendFile('+15551234567', '/tmp/sia-text-1/plan.pdf');
-    const [script, argv] = runOsascript.mock.calls[0]!;
-    expect(script).toContain('send (POSIX file (item 2 of argv)) to targetBuddy');
-    expect(argv).toEqual(['+15551234567', '/tmp/sia-text-1/plan.pdf']);
+    await service.sendFile('+15551234567', source);
+    await service.sendFile('+15551234567', source);
+    expect(runOsascript).toHaveBeenCalledTimes(2);
+    expect(runOsascript.mock.calls[0]![1][1]).not.toBe(runOsascript.mock.calls[1]![1][1]);
+    expect(readFileSync(source)).toEqual(bytes);
+    expect(existsSync(runOsascript.mock.calls[0]![1][1]!)).toBe(true);
+  });
+
+  it('removes failed and stale staging copies without changing the source or unrelated files', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'sia-messages-send-file-'));
+    roots.push(root);
+    const source = join(root, 'reply.mp3');
+    writeFileSync(source, 'synthetic audio');
+    const stagingRoot = join(root, '.sia-outgoing');
+    const stale = join(stagingRoot, 'send-old123');
+    mkdirSync(stale, { recursive: true });
+    writeFileSync(join(stale, 'old.mp3'), 'old');
+    utimesSync(stale, new Date(0), new Date(0));
+    writeFileSync(join(stagingRoot, 'keep.txt'), 'unrelated');
+    const service = new MessagesService({
+      databasePath: fixtureDatabase(root),
+      platform: 'darwin',
+      runOsascript: async () => {
+        throw new Error('send refused');
+      },
+    });
+    await expect(service.sendFile('+15551234567', source)).rejects.toThrow('send refused');
+    expect(readdirSync(stagingRoot)).toEqual(['keep.txt']);
+    expect(readFileSync(source, 'utf8')).toBe('synthetic audio');
+  });
+
+  it('refuses a redirected staging directory before sending or copying data', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'sia-messages-send-file-'));
+    roots.push(root);
+    const elsewhere = join(root, 'elsewhere');
+    mkdirSync(elsewhere);
+    symlinkSync(elsewhere, join(root, '.sia-outgoing'));
+    const runOsascript = vi.fn(async () => undefined);
+    const service = new MessagesService({
+      databasePath: fixtureDatabase(root),
+      platform: 'darwin',
+      runOsascript,
+    });
+    await expect(service.sendFile('+15551234567', join(root, 'reply.mp3'))).rejects.toThrow(
+      'private directory',
+    );
+    expect(runOsascript).not.toHaveBeenCalled();
+    expect(readdirSync(elsewhere)).toEqual([]);
   });
 });

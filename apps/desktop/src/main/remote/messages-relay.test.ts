@@ -489,6 +489,33 @@ describe('MessagesRelay', () => {
     ]);
   });
 
+  it.each(['running', 'waiting'] as const)(
+    'sends only Stopped when cancelling %s work emits an idle snapshot',
+    async (status) => {
+      const h = harness();
+      try {
+        await h.ready();
+        h.text(101, 'Create a disposable report');
+        await h.relay.poll();
+        h.snapshot.threads[0]!.status = status;
+        const invoke = h.invoke.getMockImplementation()!;
+        h.invoke.mockImplementation(async (method, input) => {
+          const result = await invoke(method, input);
+          if (method === 'threads.cancel') h.emit();
+          return result;
+        });
+        h.text(102, 'STOP');
+        await h.relay.poll();
+        h.emit();
+        await h.relay.flush();
+        expect(h.invoke).toHaveBeenCalledWith('threads.cancel', { threadId: 'thread-1' });
+        expect(h.sent.map(({ text }) => text.slice(REPLY_PREFIX.length))).toEqual(['Stopped.']);
+      } finally {
+        h.relay.dispose();
+      }
+    },
+  );
+
   it('lets you allow or deny one step by replying YES or NO', async () => {
     const h = harness();
     await h.ready();

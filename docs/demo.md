@@ -23,8 +23,24 @@ After restart, the runtime no longer offered that conversation's pinned GPT-6-As
 Sia preserved the draft and rejected submission before a model turn. Choose a model actually
 offered in the live picker and repeat the rehearsal before presenting; do not assume a saved
 model remains available. The replacement `2898c71` signed app restored the same authenticated
-profile. Pointer automation still returned stale state or no available windows, so interactive
-model selection and the new phone action remain unverified.
+profile. On October 8, exiting full screen and using Window → Center restored CUA input.
+GPT-5.6-Sol was selected for the existing phone conversation and saved as the Sia agent default.
+A subsequent NEW request created a fresh conversation and returned the exact expected reply.
+
+On that signed candidate, CUA sent real self-addressed iMessages from Messages on the Mac.
+A file action was denied first and independently confirmed absent; the repeated request was
+approved and produced the exact bytes. The same sequence then passed with texted NO and YES,
+including a separate YES for the read-back step. The completion reply appeared in Messages.
+STATUS correctly described the pending approval, and a stale YES was rejected. STOP prevented
+the write but sent an erroneous extra “Done” before “Stopped”; two regression tests reproduced
+that cancellation race and passed after the source repair. The repaired signed build still needs
+its live STOP retest. Photo understanding returned all four fixture colors in order. A synthetic voice attachment
+was transcribed correctly and returned the expected three-word answer. Its audio reply appeared
+in Messages but could not be opened, including while the valid MP3 source still existed. The
+source now stages approved outgoing files privately inside Messages’ permitted data directory;
+three regressions failed before that change and passed after it. Actual playback on the rebuilt
+signed app and handset receipt remain pending.
+These are Mac-originated live-service tests, not a physical-handset action or receipt check.
 
 A focused spending rerun on `2898c71` passed with GPT-5.6-Sol and admitted Codex 0.153.0 in
 23.875 seconds. The real controller and file tools produced a report and decision record, with
@@ -46,8 +62,9 @@ Rehearse this short flow before the meeting:
    continue typing. Repeat after another app has covered Sia to check input recovery.
 
 Step 2 remains the physical-phone action gate. Earlier handset evidence proves the exact text
-reply round trip, not a Mac mutation. Photos, voice notes, Wi-Fi pairing, Telegram and Discord
-retain their separate live checks in [manual acceptance](./manual-acceptance.md). Telephone calls
+reply round trip, not a handset-originated Mac mutation. The Mac-originated photo and text-approval
+checks above do not close handset media, Wi-Fi pairing, Telegram or Discord acceptance
+in [manual acceptance](./manual-acceptance.md). Telephone calls
 remain deferred. The demo should describe Sia's tested texting-to-Mac behavior, without promising
 full parity with another product or work while the Mac is asleep or Sia is closed.
 

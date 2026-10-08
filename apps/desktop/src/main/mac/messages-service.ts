@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { chmod, copyFile, lstat, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { isAbsolute, join } from 'node:path';
+import { basename, dirname, isAbsolute, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { promisify } from 'node:util';
 import { decodeAttributedBody } from './attributed-message.js';
@@ -235,6 +236,26 @@ export class MessagesService {
   /** Sends a file through the Messages app to an already-approved recipient. */
   async sendFile(recipient: string, path: string): Promise<void> {
     if (this.#platform !== 'darwin') throw new Error('Messages is available on macOS only.');
+    // Messages accepts Apple events for arbitrary paths but its sandbox cannot read our
+    // temporary directory. Stage only this approved file inside its existing allowed area.
+    const stagingRoot = join(dirname(this.#databasePath), '.sia-outgoing');
+    await mkdir(stagingRoot, { recursive: true, mode: 0o700 });
+    const rootStat = await lstat(stagingRoot);
+    if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
+      throw new Error('Messages attachment staging must be a private directory.');
+    }
+    await chmod(stagingRoot, 0o700);
+    // Recover copies left behind when Sia quit before their cleanup timer ran.
+    for (const entry of await readdir(stagingRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !/^send-[A-Za-z0-9]{6}$/.test(entry.name)) continue;
+      const oldFolder = join(stagingRoot, entry.name);
+      const info = await lstat(oldFolder);
+      if (Date.now() - info.mtimeMs > 3_600_000) {
+        await rm(oldFolder, { recursive: true, force: true });
+      }
+    }
+    const folder = await mkdtemp(join(stagingRoot, 'send-'));
+    const staged = join(folder, basename(path));
     const script = [
       'on run argv',
       '  tell application "Messages"',
@@ -244,7 +265,18 @@ export class MessagesService {
       '  end tell',
       'end run',
     ].join('\n');
-    await this.#runOsascript(script, [recipient, path]);
+    try {
+      await copyFile(path, staged);
+      await chmod(staged, 0o600);
+      await this.#runOsascript(script, [recipient, staged]);
+    } catch (error) {
+      await rm(folder, { recursive: true, force: true });
+      throw error;
+    }
+    // The Apple event acknowledges dispatch before Messages finishes importing the file.
+    setTimeout(() => {
+      void rm(folder, { recursive: true, force: true }).catch(() => undefined);
+    }, 60_000).unref();
   }
 
   /** Sends through the Messages app; the exact text and recipient were already approved. */

@@ -12,8 +12,17 @@ was traced to a real integration bug: UI snapshots omitted background answers, s
 
 The repaired Mac-originated test was followed by a physical-phone request. Sia received it at
 16:35:46 UTC, generated the exact answer at 16:35:57 UTC, and the operator confirmed receipt of
-**Sia › SIA-PHONE-FIXED-OK** on the phone. This passes one real text round trip; repeated commands,
-approvals, media and the remaining recipient checks below are still unverified. No alpha.25 installer has been uploaded or published;
+**Sia › SIA-PHONE-FIXED-OK** on the phone. This passes one physical-phone text round trip.
+On October 8, CUA in Mac Messages verified live self-addressed iMessage file actions, texted
+NO/YES, STATUS, stale-YES rejection, NEW, photo understanding and synthetic voice transcription on signed `2898c71`.
+The denied file stayed absent; the approved file contained exactly the expected bytes and the
+completion reply appeared in Messages. STOP cancelled the write but incorrectly also sent “Done”;
+the source repair has two passing regressions and still needs a replacement signed-app retest.
+The synthetic voice request returned the expected text, but its audio attachment could not be
+opened in Messages even before temporary-file cleanup. The generated source was a valid MP3.
+Source now stages approved outgoing attachments privately inside Messages’ permitted directory;
+three regressions failed before the repair and passed after it. Rebuilt-app playback is pending. These Mac-originated checks do not establish handset-originated
+actions or handset receipt. No alpha.25 installer has been uploaded or published;
 the last published pilot release remains [`alpha.24`](./release-evidence.md).
 
 The current signed candidate was built from `2898c71ea4d818a4672f8638575bf5e6dc8e4f69` on macOS
@@ -221,8 +230,11 @@ permissions showed Allowed. The `64b40df` replacement restored authenticated con
 lab fixture's completed result without an observed sign-in or Keychain prompt. The latest
 `2898c71` replacement also restored the authenticated profile and unsent draft. Its live runtime
 catalog offers GPT-5.6-Sol, but the saved GPT-6-Astra choice is unavailable. Submission correctly
-stopped before a turn. Model selection and the phone-action rehearsal remain pending because
-Mac automation returns stale state or no available windows even after the operator made Sia visible.
+stopped before a turn. On October 8, leaving full screen and using Window → Center restored CUA
+input. GPT-5.6-Sol was selected for the phone conversation and saved as the Sia agent default;
+NEW then created a working fresh conversation. The agent editor saved and dismissed normally.
+The Mac-originated iMessage action/approval checks above passed; physical-handset action and
+receipt remain separate gates.
 
 Read-only production checks found `sia-alpha` in `UPDATE_COMPLETE`, SES production sending enabled,
 sender-domain verification and DKIM successful, all 17 alarms `OK` with actions enabled, and a
