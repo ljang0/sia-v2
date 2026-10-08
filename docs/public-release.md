@@ -3,8 +3,9 @@
 ## Decision
 
 Sia `0.1.0-alpha.25` is an **internal release candidate**, not approved for public distribution.
-The latest phone-approval and dialog-dismissal repairs passed the complete automated gate and CI. Their replacement
-app and DMG passed signing, notarization, stapling and package verification. The preceding signed
+The latest Connections polish passed the complete local automated gate. The current app and DMG
+passed signing, notarization, stapling and package verification. The preceding phone-approval and
+dialog-dismissal repairs also passed CI. The preceding signed
 phone-repair candidate passed a live background iMessage self-test: while another conversation stayed selected,
 it returned the exact requested answer in about five seconds. The earlier physical-phone failure
 was traced to a real integration bug: UI snapshots omitted background answers, so the relay sent
@@ -29,27 +30,42 @@ These Mac-originated checks do not establish handset-originated actions or hands
 No alpha.25 installer has been uploaded or published; the last published pilot release remains
 [`alpha.24`](./release-evidence.md).
 
-The current signed candidate was built from `cfd1a61f0d1cdd1b7bc436fb484ee5469b296cb7` on macOS
+The current signed candidate was built from `32a916c6be84a920413c7fcbf75bd85b6c3b5439` on macOS
 15.7.2. Later evidence-only documentation updates do not change that artifact. Its app identity is
 `ai.sia.desktop`, signed by Developer ID team `DXYJ578DD4`.
 
 | Artifact                           | SHA-256                                                            |       Bytes |
 | ---------------------------------- | ------------------------------------------------------------------ | ----------: |
-| `app.asar`                         | `391c5602fb561d5579b50e2e23960343e15164c3796a304432d2d1a00f2ae1b9` |  12,288,349 |
-| `Sia-0.1.0-alpha.25-universal.dmg` | `309f9b7d729ab4635b98f5d371f9f521b929cc22e4c17929d3a0ff7716cf9a1d` | 263,095,055 |
-| `Sia-0.1.0-alpha.25-universal.zip` | `cdb061079af92565a6b5c655cc5733a6d52e9266fe295b5d61b81af50ac92042` | 261,474,477 |
+| `app.asar`                         | `7a0ed2690697cb8f125db93278c14748f7a4c5e9f159266bcc172b62295a04f5` |  12,288,399 |
+| `Sia-0.1.0-alpha.25-universal.dmg` | `33cab7da0bbc55378aad76ebd326e6975d7688b2a91a2791aaee1f49776f080c` | 263,067,780 |
+| `Sia-0.1.0-alpha.25-universal.zip` | `241c3a5c05d2e402c6e8373b54dda45211a0743ca0747eb4803a0c1cfe18dae2` | 261,476,115 |
 
-Apple accepted app submission `59322747-1761-439e-b028-b9ced643c737` and DMG submission
-`1ae8f842-5597-4eab-8558-1db95893ae74`. The canonical `pnpm package:mac` passed strict nested
+Apple accepted app submission `b93e2bf7-43dc-46d6-8375-a36d28951627` and DMG submission
+`dd777e5c-1a64-4cb5-ba21-884fd1a17caf`. The canonical `pnpm package:mac` passed strict nested
 signatures, notarization, stapling, Gatekeeper, universal architectures, bundled resources,
 license corpus and packaged MCP bridge verification. The separate copied app passed signature,
 staple and Gatekeeper checks again before launch.
 
 The durable operator evidence is in `release-verification-evidence/` in the original workspace:
 `verification.json`, a verified complete-history `source.bundle`, test and packaging logs, and
-`artifacts/phone-live-cfd1a61/`. No credentials, private Messages archives or unrelated
+`artifacts/polish-32a916c/`. No credentials, private Messages archives or unrelated
 conversation screenshots belong in that evidence. Earlier artifact records remain in Git history
 and the preserved evidence directories.
+
+## Persistent verification setup
+
+The previous temporary checkout, signed test app and authenticated profile were absent when the
+October 8 polish pass resumed. Source was recovered from the verified complete-history bundle.
+The working checkout is now `release-workspace/` in the operator workspace; release packaging uses
+an unsynced checkout at `~/Developer/sia-release-verification-build` to avoid File Provider metadata.
+The verification app is `~/Applications/Sia Release Verification/Sia.app`, with isolated profile
+`~/Library/Application Support/Sia Release Verification` and the workspace's
+`Launch Verified Sia.command` launcher. The existing alpha.14 app in `/Applications` is unchanged.
+
+The restored profile is signed out; completing email-code sign-in is the next live-test prerequisite.
+Historical signed-profile and iMessage evidence below remains valid for its recorded source and date; it does
+not prove the recovered profile is currently authenticated, connected or phone-ready. Fresh live
+acceptance must use the persistent candidate after setup.
 
 ## Integrated scope
 
@@ -72,11 +88,21 @@ not implemented. Do not claim complete Instinct parity or arbitrary-account conn
 
 ## Automated verification
 
-The cancellation-status repair source passed `pnpm test:pilot` on October 8, 2026: build, formatting, lint, quality,
+[CI for the signed source](https://github.com/ljang0/sia-v2/actions/runs/37856750700) passed source,
+Electron and all 20 renderer checks, then failed one WebKit phone case (61 passed). Its trace
+showed an empty composer after the automation's fill call and no command request; the delayed
+acknowledgement scenario had not begun. Ten focused local repeats passed. The test now uses real
+key input and asserts both drafts before send/acknowledgement, preserving every delivery assertion
+and the 20-second limit. Ten focused repeats and all 62 phone checks passed after that test-only
+change. Updated PR CI must pass before merge; the signed runtime is unchanged.
+The local full pilot gate, signed package verification and complete local HTTP installer download
+passed.
+
+The Connections-polish source `32a916c` passed `pnpm test:pilot` on October 8, 2026: build, formatting, lint, quality,
 workspace types and unit gates, **1,215 desktop unit tests**, **45 Electron tests** and **20 renderer
 tests**. Seven desktop tests and four live Electron tests remain opt-in and were skipped.
 
-[CI for the exact signed source](https://github.com/ljang0/sia-v2/actions/runs/37819301018)
+[CI for the preceding cancellation repair](https://github.com/ljang0/sia-v2/actions/runs/37819301018)
 passed, including all **62 Chromium/WebKit phone checks** and unsigned universal packaging.
 Local release signing is recorded separately above; the CI signing job was not run.
 
@@ -101,6 +127,13 @@ race without extending task delays or assertion deadlines. Bot and phone-browser
 observable connection, draft and attachment states rather than fixed short sleeps.
 
 ## Repairs found through live work
+
+- CUA found an empty **More apps** section when no optional connector was available, and
+  Connections copy still mentioned the disabled Calendar connector. Source `32a916c` hides only
+  the empty section, retains existing connected/error states, and removes that stale copy.
+  The complete local pilot gate passed, as did all 62 Chromium/WebKit phone checks. CUA reviewed
+  compact navigation, dialogs, menus, conversation controls and settings with disposable data;
+  the Electron surface audit exercised nine settings, library views and 125%/200% zoom.
 
 - A final CUA check on `0d4b87f` found that cancelled proposed file edits appeared as completed
   changes with an Undo offer, despite independent proof that the file was absent. Ending a turn
@@ -293,7 +326,7 @@ and complete binary/scanned tax-document coverage remain unproven.
 ## Publication
 
 `pnpm release:stage-public-download` passed for the exact final candidate. A complete local HTTP
-download returned 263,095,055 bytes with the recorded SHA-256, matching the manifest. The temporary
+download returned 263,067,780 bytes with the recorded SHA-256, matching the manifest. The temporary
 loopback server was stopped afterward. Staging and local transfer are not publication. After all recipient gates pass, publish with the
 site's `deploy --public-release` flow and verify an unauthenticated external recipient download and
 its hash. The authenticated signed update feed is a separate step in [release.md](./release.md).

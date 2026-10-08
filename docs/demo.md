@@ -7,6 +7,20 @@ acceptance cases. Do not present the deterministic fake-service reply as complet
 
 ## Arena CTO rehearsal
 
+The current verification copy lives at
+`~/Applications/Sia Release Verification/Sia.app`. Use
+`Launch Verified Sia.command` in the operator workspace to open it with the persistent isolated
+profile `~/Library/Application Support/Sia Release Verification`. The earlier `/private/tmp`
+checkout, app and authenticated profile were absent on October 8; source and the signed binary
+were recovered from the durable evidence bundle. The replacement profile still needs email-code sign-in
+before live-account or phone checks can resume. Do not present this restored copy as
+already configured, and do not use the unrelated alpha.14 copy in `/Applications` for rehearsal.
+
+The latest Connections polish removes an empty optional-app section and Calendar connector copy.
+CUA covered compact settings, dialogs and conversation controls with disposable demo data. The
+Electron surface audit covered nine settings, library views, dark/light layouts and 125%/200%
+zoom. Those UI checks establish layout and interaction behavior, not connected-account delivery.
+
 Use the signed candidate in a disposable profile, with research sharing off and only the
 designated tester's iMessage number enabled. Launch through Finder/Launch Services so macOS
 attributes the existing grants to Sia. Before presenting, check AI is ready, Computer shows the
@@ -41,7 +55,7 @@ A fresh NO/YES file write/read-back on the replacement produced exactly
 **SIA-FINAL-PHONE-ACTION-OK**, independently checked against the actual file.
 Photo understanding on `2898c71` returned all four fixture colors in order. The paired LAN browser
 also completed an exact reply and approved file action, then reconnected after replacement.
-The final `cfd1a61` signed candidate also passes cancellation-status verification: a pending
+The preceding `cfd1a61` signed candidate also passes cancellation-status verification: a pending
 file edit stopped through iMessage leaves no file, shows an error without Undo, and records
 a cancelled outcome. The browser reconnects and shows Stopped.
 These are Mac-originated live-service checks, not physical-handset action, media or receipt checks.

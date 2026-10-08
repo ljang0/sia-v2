@@ -614,13 +614,18 @@ test('typing the next draft during an acknowledgement does not erase it', async 
     await acknowledgement;
     await route.fulfill({ response });
   });
-  await page.getByRole('textbox').fill('A quick answer');
+  const composer = page.getByRole('textbox');
+  // Use real key input and establish both drafts before testing acknowledgement timing.
+  await composer.pressSequentially('A quick answer');
+  await expect(composer).toHaveValue('A quick answer');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect.poll(() => remote.sends.length).toBe(1);
-  await page.getByRole('textbox').fill('This is my next draft');
+  await composer.fill('');
+  await composer.pressSequentially('This is my next draft');
+  await expect(composer).toHaveValue('This is my next draft');
   release();
   await expect(page.getByRole('button', { name: 'Send message' })).toBeEnabled();
-  await expect(page.getByRole('textbox')).toHaveValue('This is my next draft');
+  await expect(composer).toHaveValue('This is my next draft');
   expect(remote.sends).toEqual(['A quick answer']);
 });
 
