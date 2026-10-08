@@ -99,6 +99,13 @@ observable connection, draft and attachment states rather than fixed short sleep
 
 ## Repairs found through live work
 
+- A final CUA check on `0d4b87f` found that cancelled proposed file edits appeared as completed
+  changes with an Undo offer, despite independent proof that the file was absent. Ending a turn
+  or restoring a profile now marks an unfinished file-change activity unsuccessful; only a
+  completed file-tool event proves the edit happened. Confirmed earlier edits retain their status.
+  Cancelled streams also stop reporting successful task completion. Three regressions reproduced
+  the failure; the replacement signed UI retest remains pending.
+
 - STOP clears relay tracking before cancellation emits its final idle snapshot, preventing an
   incorrect “Done” reply. Two regressions failed before the fix and passed afterward; the signed
   retest returned only “Stopped” and the disposable file stayed absent.

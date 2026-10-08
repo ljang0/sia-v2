@@ -187,7 +187,8 @@ export function recoverPersistedState(state: PersistedState): PersistedState {
   );
   // No turn survives a relaunch, so no activity row may keep spinning.
   for (const item of recovered.timeline)
-    if (item.status === 'running') item.status = 'complete';
+    if (item.status === 'running')
+      item.status = item.activity?.kind === 'file_change' ? 'failed' : 'complete';
   const recoveredConnections = new Map(
     recovered.connections.map((connection) => [connection.id, connection]),
   );

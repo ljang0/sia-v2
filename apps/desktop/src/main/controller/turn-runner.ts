@@ -370,6 +370,9 @@ export class TurnRunner {
         }
         await recordNative(macTask?.result?.success ? 'complete' : 'failed');
         this.completeRunningActivities(turn.threadId, turn.id);
+        // An interrupted provider can close its stream normally. That does not make the
+        // cancelled task successful or authorize a finished notification.
+        if (signal.aborted) return;
         if (thread.status === 'running' || thread.status === 'waiting') {
           this.ctx.turns.settleFinishedTurn(thread);
           this.ctx.researchCapture.completeResearchTurn(turn.id);
@@ -419,6 +422,18 @@ export class TurnRunner {
         this.completeRunningActivities(turn.threadId, turn.id);
         this.ctx.researchCapture.discardResearchTurn(turn.id);
         this.ctx.schedules.markScheduleRunFinished(turn, 'cancelled');
+        this.ctx.deps.trajectory?.record({
+          type: 'turn_finished',
+          threadId: turn.threadId,
+          turnId: turn.id,
+          outcome: 'cancelled',
+          source: turn.source ?? 'manual',
+          items: structuredClone(
+            this.ctx.state.timeline.filter(
+              (item) => item.threadId === turn.threadId && item.turnId === turn.id,
+            ),
+          ),
+        });
         if (macTask) {
           try {
             this.ctx.assistant.library.recordMacTask({
@@ -551,7 +566,9 @@ export class TurnRunner {
   completeRunningActivities(threadId: string, turnId: string): void {
     for (const item of this.ctx.state.timeline) {
       if (item.threadId === threadId && item.turnId === turnId && item.status === 'running') {
-        item.status = 'complete';
+        // A proposed patch is shown before approval. Only its own completed tool event
+        // proves it was applied; closing the turn must not create an Undo offer for it.
+        item.status = item.activity?.kind === 'file_change' ? 'failed' : 'complete';
       }
     }
   }

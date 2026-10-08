@@ -3,6 +3,30 @@ import type { ConnectionView } from '../../shared/bridge.js';
 import { INITIAL_STATE, recoverPersistedState } from './persisted-state.js';
 
 describe('recoverPersistedState connections', () => {
+  it('does not turn a pending file edit into a completed change after relaunch', () => {
+    const state = structuredClone(INITIAL_STATE);
+    for (const [index, status] of ['running', 'complete'].entries()) {
+      state.timeline.push({
+        id: `file-${index}`,
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        kind: 'activity',
+        sequence: index,
+        status: status as 'running' | 'complete',
+        toolName: 'fileChange',
+        timestamp: new Date().toISOString(),
+        activity: {
+          kind: 'file_change',
+          files: [{ path: `/tmp/file-${index}`, change: 'add' }],
+        },
+      });
+    }
+    expect(recoverPersistedState(state).timeline.map((item) => item.status)).toEqual([
+      'failed',
+      'complete',
+    ]);
+  });
+
   it('gives a saved Google Workspace grant its Calendar and Tasks rows', () => {
     const grant = {
       status: 'connected' as const,
