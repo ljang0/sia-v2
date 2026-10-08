@@ -3,8 +3,9 @@
 ## Decision
 
 Sia `0.1.0-alpha.25` is an **internal release candidate**, not approved for public distribution.
-The corrected source passed the complete automated gate and CI. The signed candidate passed
-notarization and a live background iMessage self-test: while another conversation stayed selected,
+The latest lab-manifest repair passed the complete automated gate and CI, and its replacement
+app and DMG passed signing, notarization, stapling and package verification. The preceding signed
+phone-repair candidate passed a live background iMessage self-test: while another conversation stayed selected,
 it returned the exact requested answer in about five seconds. The earlier physical-phone failure
 was traced to a real integration bug: UI snapshots omitted background answers, so the relay sent
 **Sia › Done.** instead. A regression reproduced that failure before the repair.
@@ -15,25 +16,25 @@ The repaired Mac-originated test was followed by a physical-phone request. Sia r
 approvals, media and the remaining recipient checks below are still unverified. No alpha.25 installer has been uploaded or published;
 the last published pilot release remains [`alpha.24`](./release-evidence.md).
 
-The exact signed candidate was built from `0925e66175dffee7a443f8a227a41bf99df3750b` on macOS
+The current signed candidate was built from `64b40df932fc89755c9c0c5482b9023005db0f1c` on macOS
 15.7.2. Later evidence-only documentation updates do not change that artifact. Its app identity is
 `ai.sia.desktop`, signed by Developer ID team `DXYJ578DD4`.
 
 | Artifact                           | SHA-256                                                            |       Bytes |
 | ---------------------------------- | ------------------------------------------------------------------ | ----------: |
-| `app.asar`                         | `a5d85b4a682ddf283246065ea8bfb1479bcd7a2d68bccba4d7d40fee051a5152` |  12,287,300 |
-| `Sia-0.1.0-alpha.25-universal.dmg` | `1e14fe939044c6b9ac60a92f0e71789d98d1dd9b423d9b62174b9b570b7a56f6` | 263,094,752 |
-| `Sia-0.1.0-alpha.25-universal.zip` | `3d6eadd89d66eda3e17c43a8b6210fa6f02db74624f1a3d9cd802aafbacc9748` | 261,474,728 |
+| `app.asar`                         | `8a5f78e4c90f2cccfcec32ac3bdc78c6bc0b9f35f9ce67d663b124a79226b604` |  12,287,420 |
+| `Sia-0.1.0-alpha.25-universal.dmg` | `4e0db71f27d4363542eeb7cf29117d078b79929b2c1d66d167a094182848f63b` | 263,087,920 |
+| `Sia-0.1.0-alpha.25-universal.zip` | `c8c3d1599b62a0ced0cef065997f76b5b46e4c3fed1d665f381584a034252596` | 261,474,470 |
 
-Apple accepted app submission `87c08c5e-563b-4f1c-a559-c623f855afed` and DMG submission
-`af5650c9-e2fa-4115-95d5-8f7bb911af0e`. The canonical `pnpm package:mac` passed strict nested
+Apple accepted app submission `f5e2bcb4-f3df-488a-8c99-fd113b099eff` and DMG submission
+`ad4ff4dc-e3d4-4214-b556-e7cd0e29332c`. The canonical `pnpm package:mac` passed strict nested
 signatures, notarization, stapling, Gatekeeper, universal architectures, bundled resources,
 license corpus and packaged MCP bridge verification. The separate copied app passed signature,
 staple and Gatekeeper checks again before launch.
 
 The durable operator evidence is in `release-verification-evidence/` in the original workspace:
 `verification.json`, a verified complete-history `source.bundle`, test and packaging logs, and
-`artifacts/background-reply-0925e66/`. No credentials, private Messages archives or unrelated
+`artifacts/lab-manifest-64b40df/`. No credentials, private Messages archives or unrelated
 conversation screenshots belong in that evidence. Earlier artifact records remain in Git history
 and the preserved evidence directories.
 
@@ -58,11 +59,11 @@ not implemented. Do not claim complete Instinct parity or arbitrary-account conn
 
 ## Automated verification
 
-The background-reply repair source passed `pnpm test:pilot` on October 7, 2026: build, formatting, lint, quality,
-workspace types and unit gates, **1,199 desktop unit tests**, **45 Electron tests** and **17 renderer
+The lab-manifest repair source passed `pnpm test:pilot` on October 7, 2026: build, formatting, lint, quality,
+workspace types and unit gates, **1,201 desktop unit tests**, **45 Electron tests** and **17 renderer
 tests**. Seven desktop tests and four live Electron tests remain opt-in and were skipped.
 
-[CI for the exact signed source](https://github.com/ljang0/sia-v2/actions/runs/37606481098)
+[CI for the exact signed source](https://github.com/ljang0/sia-v2/actions/runs/37695485627)
 passed, including all **62 Chromium/WebKit phone checks** and unsigned universal packaging.
 Local release signing is recorded separately above; the CI signing job was not run.
 
@@ -92,7 +93,10 @@ observable connection, draft and attachment states rather than fixed short sleep
   defaults changed its canonical payload before signature verification. The same ordering also
   hid whitespace-only edits to signed display text. Source now verifies the original signed
   payload before applying defaults or trimming. Both regressions failed before the fix and pass
-  afterward. This repair still needs full gates and a replacement signed candidate.
+  afterward. The full gate and CI passed. The replacement signed app accepted the same valid
+  manifest, exposed its model, and completed a local ACP protocol-fixture turn. A changed manifest
+  was rejected with a signature error and the lab route was absent from AI settings. Normal launch
+  without the manifest was restored. This checks admission, not external lab/model conformance.
 
 - Background phone answers no longer read the renderer’s selected-conversation snapshot. That
   optimization had removed the actual answer before the relay finished, producing **Sia › Done.**
@@ -125,7 +129,8 @@ observable connection, draft and attachment states rather than fixed short sleep
   its full allowed execution route while preserving harness and credential source.
 - The obsolete mandatory-research task gate was removed. Signed-in users can leave sharing off,
   decline or pause it and still complete tasks. Only explicit accepted consent captures research.
-  No live research consent or account-membership change was supplied during this verification.
+  No live research consent was supplied. The separate staged connector-test enrollment below
+  does not enable research capture.
 - Foreground guidance tells the model to restore and inspect the authorized app after an approval,
   prefer app-scoped controls and combine a small action with verification when practical. This is
   model guidance; native shell commands still use the provider's approval boundary.
@@ -184,13 +189,19 @@ before a separate Send action. See [manual acceptance](./manual-acceptance.md).
 
 ## External services and release gates
 
-The corrected signed test account reports Google Workspace and Slack **Not enabled for this
-account**. Telegram and Discord have no test bots configured. No account role or connector
-entitlement was expanded during verification. The operator’s approved **Use my Mac / On my screen /
-Bypass on** preference was restored after connected-tool diagnostics and survived a fresh restart.
-Authenticated conversations, texting Ready and Wi-Fi remote Ready also persisted; no new sign-in
-or Keychain prompt was observed. macOS grants were retained. Closed System Events and Safari
-remained **Open to check**, while the other nine required permissions showed Allowed.
+The operator's designated test account initially lacked the `ConnectorTesters` group. Under the
+release-testing authorization, only that account was enrolled in the existing staged tester group;
+it has no attached AWS role. After a normal signed-app restart on `0925e66`, Connections showed
+**Available for this account**. Google setup reached **Awaiting approval**; cancelling returned
+both selected providers to **Not connected** and re-enabled setup. Provider consent and a data read
+were not completed; Slack was queued behind Google and did not start. Other accounts and public
+connector eligibility were unchanged. Telegram and Discord still have no test bots configured.
+
+The approved **Use my Mac / On my screen / Bypass on** preference, authenticated conversations,
+texting Ready and Wi-Fi remote Ready survived the earlier signed restart. macOS grants were
+retained. Closed System Events and Safari remained **Open to check**, while the other nine required
+permissions showed Allowed. The `64b40df` replacement restored authenticated conversations and the
+lab fixture's completed result without an observed sign-in or Keychain prompt.
 
 Read-only production checks found `sia-alpha` in `UPDATE_COMPLETE`, SES production sending enabled,
 sender-domain verification and DKIM successful, all 17 alarms `OK` with actions enabled, and a
@@ -211,10 +222,12 @@ Before distribution:
 1. Complete the exact-artifact checks in [manual acceptance](./manual-acceptance.md), including
    clean-user install, alpha.24 upgrade, every enabled permission, real Mac control, physical voice,
    phone tasks/approvals/media and connector reconnect.
-2. Complete live BYOK with a test provider entered directly in Settings; verify signed lab-harness
-   admission and tamper rejection. Fixture probes do not establish external provider success.
-3. Complete the nine [demo cases](./demo.md) against disposable data and inspect their outputs.
-   Purchase, cancellation and outreach rehearsals require their specific approval.
+2. Complete live BYOK with a test provider entered directly in Settings and any external lab route.
+   Signed lab-manifest admission and tamper rejection now pass with a local protocol fixture; that
+   fixture does not establish external provider success.
+3. The nine [demo cases](./demo.md) and four follow-ups passed again with a real model and fictional
+   local data. Complete the live account portions for advertised workflows; purchase, cancellation
+   and outreach rehearsals require their specific approval.
 4. Keep Google and Slack restricted to their approved tester cohort until the independent
    [connector distribution gates](./connector-distribution-readiness.md) pass.
 5. Confirm exposed credentials were revoked/replaced and assign the support/incident owner, as
@@ -228,7 +241,7 @@ and complete binary/scanned tax-document coverage remain unproven.
 ## Publication
 
 `pnpm release:stage-public-download` passed for the exact final candidate. A complete local HTTP
-download returned 263,094,752 bytes with the recorded SHA-256, matching the manifest. The temporary
+download returned 263,087,920 bytes with the recorded SHA-256, matching the manifest. The temporary
 loopback server was stopped afterward. Staging and local transfer are not publication. After all recipient gates pass, publish with the
 site's `deploy --public-release` flow and verify an unauthenticated external recipient download and
 its hash. The authenticated signed update feed is a separate step in [release.md](./release.md).

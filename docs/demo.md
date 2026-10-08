@@ -7,25 +7,23 @@ acceptance cases. Do not present the deterministic fake-service reply as complet
 
 ## Recorded model walkthrough
 
-The October 4, 2026 walkthrough used app code `5d50b33`, admitted Codex 0.153.0,
-GPT-6 Astra, and **Ask before each action** in disposable profiles. The actual desktop
-controller, runtime coordinator, file gateway, result grants and model ran; external tools
-were unavailable. Nine planning scenarios and four follow-up decisions passed across the
-recorded runs. Every final report was checked against its decision oracle and a real generated
-result grant. This establishes fixture analysis and saved drafts, not all nine workflows end to end.
+The October 7, 2026 walkthrough used source `5863329`, admitted Codex 0.153.0 and
+GPT-5.6 Sol in disposable profiles. The actual desktop controller, runtime coordinator, file
+gateway, result grants and model ran; external tools were unavailable. All nine planning scenarios
+and four follow-up decisions passed in 278.31 seconds, with 26 approved fixture writes. Reports
+and decisions were checked against their oracles and generated result grants. This establishes
+fixture analysis and saved drafts; live account workflows remain unverified.
 
-The initial run had ten passes and three incomplete cases. Music monitoring was not available,
-the events scenario saw a mention in an earlier report, and the changed-price scenario paused
-for later approval. The reruns isolate scenario workspaces and explicitly request one-shot
-planning or decisions. A subscription decision filename also collided with its source fixture;
-the corrected harness uses separate report/decision names and asserts source preservation.
-Retain these first attempts alongside the corrected results when presenting the demo.
+An initial GPT-6 Astra attempt stopped before a model turn because the test runtime catalog did
+not offer it. Its failed log is retained alongside the successful run. The current sanitized
+inputs, transcripts, reports and decisions are in `release-verification-evidence/demo-5863329-sol/`
+in the original workspace. Earlier runs and failed attempts remain in the evidence and Git history.
 
 Run the opt-in suite with an admitted, signed-in Codex installation available:
 
 ```sh
 SIA_CODEX_REAL_SMOKE=1 SIA_PERSONAL_DEMOS_SMOKE=1 \
-SIA_SMOKE_MODEL=gpt-6-astra SIA_DEMO_EVIDENCE_DIR=/private/tmp/sia-demo-evidence \
+SIA_SMOKE_MODEL=gpt-5.6-sol SIA_DEMO_EVIDENCE_DIR=/private/tmp/sia-demo-evidence \
 pnpm --filter @sia/desktop exec vitest run src/main/actions/personal-demos.smoke.test.ts
 ```
 
