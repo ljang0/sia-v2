@@ -67,6 +67,12 @@ the reply and confirm the task count stays unchanged. Internal attributed-string
 never appear as a message or approval response.
 Approve two consecutive harmless steps by texting YES to each within one minute. Each new YES
 must approve only its currently displayed request, and the mirrored copy must not approve the next.
+After completion, STOP, and NEW, send YES again: Sia must say no approval is waiting and must not
+start or resume work. YES must still answer an actual pending follow-up question.
+
+For desktop input recovery, dismiss the agent editor with Cancel and Escape, select a Settings
+menu item, and close Access and the terminal drawer after another app covered Sia. The surface
+must disappear and the composer must accept input without waiting for an exit animation.
 
 Google/Slack public distribution retains its separate
 [connector gates](./connector-distribution-readiness.md). Calendar, Tasks, and Outlook remain off.

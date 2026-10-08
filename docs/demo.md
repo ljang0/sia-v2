@@ -5,6 +5,38 @@ follow-up. The nine scenarios below use [fictional fixtures](./demo-fixtures/dem
 The planning steps have recorded real-model fixture results; live account actions remain
 acceptance cases. Do not present the deterministic fake-service reply as completed assistant work.
 
+## Arena CTO rehearsal
+
+Use the signed candidate in a disposable profile, with research sharing off and only the
+designated tester's iMessage number enabled. Launch through Finder/Launch Services so macOS
+attributes the existing grants to Sia. Before presenting, check AI is ready, Computer shows the
+intended Mac-control mode, and Phone remote shows Texting Ready. Keep the Mac awake and unlocked.
+The Arena credits' endpoint, model list, budget and expiry still need to be supplied; do not label
+the current Codex-plan demonstration as running on sponsored API credits.
+
+The October 7 signed `64b40df` rehearsal used GPT-6-Astra in native Mac mode to create
+`/private/tmp/sia-cto-demo/local-demo.txt` with exactly `SIA-LOCAL-DEMO-OK`. Sia read it back in
+13 seconds; independent byte and SHA-256 checks matched. This establishes a real local file
+action on that candidate. It does not establish a phone-originated action.
+
+Rehearse this short flow before the meeting:
+
+1. Start with an ordinary local request that creates a useful report from fictional inputs in a
+   disposable folder. Open the result and compare its contents with the inputs.
+2. From the physical phone, text a request to create one clearly named disposable file. Reply NO
+   to its approval first; independently verify the file was not created. Repeat the request and
+   reply YES to each exact step. Confirm both the actual Mac file and the reply on the handset.
+3. Send STATUS during a task, STOP while a step waits, and NEW after it stops. A late YES must
+   report that no approval is waiting and must not start another task. Then complete a new task.
+4. Show the same conversation and result on the Mac, then close an editor and Settings menu and
+   continue typing. Repeat after another app has covered Sia to check input recovery.
+
+Step 2 remains the physical-phone action gate. Earlier handset evidence proves the exact text
+reply round trip, not a Mac mutation. Photos, voice notes, Wi-Fi pairing, Telegram and Discord
+retain their separate live checks in [manual acceptance](./manual-acceptance.md). Telephone calls
+remain deferred. The demo should describe Sia's tested texting-to-Mac behavior, without promising
+full parity with another product or work while the Mac is asleep or Sia is closed.
+
 ## Recorded model walkthrough
 
 The October 7, 2026 walkthrough used source `5863329`, admitted Codex 0.153.0 and

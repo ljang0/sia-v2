@@ -15,8 +15,9 @@
   animation: menuEnter var(--motion-standard) var(--ease-standard);
 }
 
+/* Unmount immediately: occluded windows can suspend animationend indefinitely. */
 .threadMenuContent[data-state='closed'] {
-  animation: menuExit var(--motion-fast) ease-in;
+  animation: none;
 }
 
 .threadMenuItem {
@@ -137,15 +138,6 @@
 .sectionLabel {
   color: var(--text-tertiary);
   font-size: var(--text-sm);
-}
-
-@keyframes menuExit {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
 }
 
 @keyframes menuEnter {
