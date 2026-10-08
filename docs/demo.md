@@ -31,16 +31,17 @@ On that signed candidate, CUA sent real self-addressed iMessages from Messages o
 A file action was denied first and independently confirmed absent; the repeated request was
 approved and produced the exact bytes. The same sequence then passed with texted NO and YES,
 including a separate YES for the read-back step. The completion reply appeared in Messages.
-STATUS correctly described the pending approval, and a stale YES was rejected. STOP prevented
-the write but sent an erroneous extra “Done” before “Stopped”; two regression tests reproduced
-that cancellation race and passed after the source repair. The repaired signed build still needs
-its live STOP retest. Photo understanding returned all four fixture colors in order. A synthetic voice attachment
-was transcribed correctly and returned the expected three-word answer. Its audio reply appeared
-in Messages but could not be opened, including while the valid MP3 source still existed. The
-source now stages approved outgoing files privately inside Messages’ permitted data directory;
-three regressions failed before that change and passed after it. Actual playback on the rebuilt
-signed app and handset receipt remain pending.
-These are Mac-originated live-service tests, not a physical-handset action or receipt check.
+STATUS correctly described the pending approval, and a stale YES was rejected. STOP and outgoing
+voice attachments exposed two live defects. Signed replacement `0d4b87f` passes both repairs:
+STOP returns only “Stopped” with no file created; a synthetic WAV returns **blue paper lantern**
+and an MP3 that can be saved from Messages, decoded and played to completion in QuickTime.
+A fresh NO/YES file write/read-back on the replacement produced exactly
+**SIA-FINAL-PHONE-ACTION-OK**, independently checked against the actual file.
+Photo understanding on `2898c71` returned all four fixture colors in order. The paired LAN browser
+also completed an exact reply and approved file action, then reconnected after replacement.
+These are Mac-originated live-service checks, not physical-handset action, media or receipt checks.
+iPhone Mirroring could not find the paired phone. Rehearse that remaining handset gate before
+claiming it in the demo.
 
 A focused spending rerun on `2898c71` passed with GPT-5.6-Sol and admitted Codex 0.153.0 in
 23.875 seconds. The real controller and file tools produced a report and decision record, with
