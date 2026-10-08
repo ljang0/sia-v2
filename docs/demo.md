@@ -19,6 +19,20 @@ The October 7 signed `64b40df` rehearsal used GPT-6-Astra in native Mac mode to 
 13 seconds; independent byte and SHA-256 checks matched. This establishes a real local file
 action on that candidate. It does not establish a phone-originated action.
 
+After restart, the runtime no longer offered that conversation's pinned GPT-6-Astra model.
+Sia preserved the draft and rejected submission before a model turn. Choose a model actually
+offered in the live picker and repeat the rehearsal before presenting; do not assume a saved
+model remains available. The replacement `2898c71` signed app restored the same authenticated
+profile. Pointer automation still returned stale state or no available windows, so interactive
+model selection and the new phone action remain unverified.
+
+A focused spending rerun on `2898c71` passed with GPT-5.6-Sol and admitted Codex 0.153.0 in
+23.875 seconds. The real controller and file tools produced a report and decision record, with
+two approved local writes. Net spending was $2,499 and subscriptions $59, matching the fixture
+oracle. This was a headless controller check with fictional data and no GUI or external account
+tools. Its initial invocation rejected the incompatible global Codex before a model turn;
+the successful rerun used Sia's managed runtime. Both logs are retained.
+
 Rehearse this short flow before the meeting:
 
 1. Start with an ordinary local request that creates a useful report from fictional inputs in a

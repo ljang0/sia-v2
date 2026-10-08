@@ -3,7 +3,7 @@
 ## Decision
 
 Sia `0.1.0-alpha.25` is an **internal release candidate**, not approved for public distribution.
-The latest lab-manifest repair passed the complete automated gate and CI, and its replacement
+The latest phone-approval and dialog-dismissal repairs passed the complete automated gate and CI. Their replacement
 app and DMG passed signing, notarization, stapling and package verification. The preceding signed
 phone-repair candidate passed a live background iMessage self-test: while another conversation stayed selected,
 it returned the exact requested answer in about five seconds. The earlier physical-phone failure
@@ -16,25 +16,25 @@ The repaired Mac-originated test was followed by a physical-phone request. Sia r
 approvals, media and the remaining recipient checks below are still unverified. No alpha.25 installer has been uploaded or published;
 the last published pilot release remains [`alpha.24`](./release-evidence.md).
 
-The current signed candidate was built from `64b40df932fc89755c9c0c5482b9023005db0f1c` on macOS
+The current signed candidate was built from `2898c71ea4d818a4672f8638575bf5e6dc8e4f69` on macOS
 15.7.2. Later evidence-only documentation updates do not change that artifact. Its app identity is
 `ai.sia.desktop`, signed by Developer ID team `DXYJ578DD4`.
 
 | Artifact                           | SHA-256                                                            |       Bytes |
 | ---------------------------------- | ------------------------------------------------------------------ | ----------: |
-| `app.asar`                         | `8a5f78e4c90f2cccfcec32ac3bdc78c6bc0b9f35f9ce67d663b124a79226b604` |  12,287,420 |
-| `Sia-0.1.0-alpha.25-universal.dmg` | `4e0db71f27d4363542eeb7cf29117d078b79929b2c1d66d167a094182848f63b` | 263,087,920 |
-| `Sia-0.1.0-alpha.25-universal.zip` | `c8c3d1599b62a0ced0cef065997f76b5b46e4c3fed1d665f381584a034252596` | 261,474,470 |
+| `app.asar`                         | `cca87442707f00b838c668b357317ebe964133191c9aa1f0a854a450d47389b5` |  12,286,565 |
+| `Sia-0.1.0-alpha.25-universal.dmg` | `1d6e2116ebc5af15d948c3b513b301d54ef310f4e36cb1868055791029a378d5` | 263,090,901 |
+| `Sia-0.1.0-alpha.25-universal.zip` | `e64cf95b549115f5a3c5819054d2f21f96699473a7c891923d4da310ff9484d1` | 261,474,816 |
 
-Apple accepted app submission `f5e2bcb4-f3df-488a-8c99-fd113b099eff` and DMG submission
-`ad4ff4dc-e3d4-4214-b556-e7cd0e29332c`. The canonical `pnpm package:mac` passed strict nested
+Apple accepted app submission `2aae8d91-2235-4d29-b866-99bbcc8d9ce6` and DMG submission
+`35066250-99c1-44d8-8129-ec453ba7038a`. The canonical `pnpm package:mac` passed strict nested
 signatures, notarization, stapling, Gatekeeper, universal architectures, bundled resources,
 license corpus and packaged MCP bridge verification. The separate copied app passed signature,
 staple and Gatekeeper checks again before launch.
 
 The durable operator evidence is in `release-verification-evidence/` in the original workspace:
 `verification.json`, a verified complete-history `source.bundle`, test and packaging logs, and
-`artifacts/lab-manifest-64b40df/`. No credentials, private Messages archives or unrelated
+`artifacts/cto-demo-2898c71/`. No credentials, private Messages archives or unrelated
 conversation screenshots belong in that evidence. Earlier artifact records remain in Git history
 and the preserved evidence directories.
 
@@ -59,11 +59,11 @@ not implemented. Do not claim complete Instinct parity or arbitrary-account conn
 
 ## Automated verification
 
-The lab-manifest repair source passed `pnpm test:pilot` on October 7, 2026: build, formatting, lint, quality,
-workspace types and unit gates, **1,201 desktop unit tests**, **45 Electron tests** and **17 renderer
+The phone-approval and UI repair source passed `pnpm test:pilot` on October 7, 2026: build, formatting, lint, quality,
+workspace types and unit gates, **1,208 desktop unit tests**, **45 Electron tests** and **20 renderer
 tests**. Seven desktop tests and four live Electron tests remain opt-in and were skipped.
 
-[CI for the exact signed source](https://github.com/ljang0/sia-v2/actions/runs/37695485627)
+[CI for the exact signed source](https://github.com/ljang0/sia-v2/actions/runs/37722808981)
 passed, including all **62 Chromium/WebKit phone checks** and unsigned universal packaging.
 Local release signing is recorded separately above; the CI signing job was not run.
 
@@ -88,6 +88,15 @@ race without extending task delays or assertion deadlines. Bot and phone-browser
 observable connection, draft and attachment states rather than fixed short sleeps.
 
 ## Repairs found through live work
+
+- An idle phone relay treated an unsolicited or delayed YES/NO/OK as a new model request.
+  It now reports that no approval is waiting and starts no task. Genuine follow-up questions
+  still accept these answers. Six regressions failed before the fix; all 46 relay tests pass.
+- Dismissed Radix dialogs and menus depended on CSS exit animations completing. When rendering
+  stalled, an invisible modal could continue intercepting input. Closed overlays now unmount
+  immediately. Agent Cancel and the Settings menu failed with deliberately paused exit animations
+  before the fix; all three input-recovery checks pass afterward. The Access panel retains its
+  existing bounded timer. Working-folder copy also no longer implies it bounds native Mac access.
 
 - A release-signed lab manifest with omitted optional arguments was incorrectly rejected: schema
   defaults changed its canonical payload before signature verification. The same ordering also
@@ -163,6 +172,14 @@ trip. Repeated commands, approvals and media remain required.
 
 ## Live evidence and limitations
 
+On `64b40df`, the signed app created and read back a disposable file with exactly
+`SIA-LOCAL-DEMO-OK` in 13 seconds; independent bytes matched. A focused spending rehearsal on
+`2898c71` then passed with the real GPT-5.6-Sol model and Sia controller: 23.875 seconds, two
+approved local writes, net spending $2,499 and subscriptions $59. It used fictional data and
+no GUI or external account tools. The initial invocation found an incompatible global Codex;
+the retained successful run used Sia's admitted 0.153.0 runtime. These results do not complete
+the physical-phone NO/YES action gate or the signed-app interactive rehearsal.
+
 | Area                       | Observed result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Remaining check                                                                                                                                                                                                                                                                                            |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Signed app and persistence | The corrected `0925e66` candidate restored the authenticated isolated profile and fixture conversations after installation and another restart, without an observed sign-in or Keychain prompt. Use my Mac, On my screen, bypass, texting Ready and Wi-Fi remote Ready persisted.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Clean macOS user and actual alpha.24 upgrade.                                                                                                                                                                                                                                                              |
@@ -201,7 +218,11 @@ The approved **Use my Mac / On my screen / Bypass on** preference, authenticated
 texting Ready and Wi-Fi remote Ready survived the earlier signed restart. macOS grants were
 retained. Closed System Events and Safari remained **Open to check**, while the other nine required
 permissions showed Allowed. The `64b40df` replacement restored authenticated conversations and the
-lab fixture's completed result without an observed sign-in or Keychain prompt.
+lab fixture's completed result without an observed sign-in or Keychain prompt. The latest
+`2898c71` replacement also restored the authenticated profile and unsent draft. Its live runtime
+catalog offers GPT-5.6-Sol, but the saved GPT-6-Astra choice is unavailable. Submission correctly
+stopped before a turn. Model selection and the phone-action rehearsal remain pending because
+Mac automation returns stale state or no available windows even after the operator made Sia visible.
 
 Read-only production checks found `sia-alpha` in `UPDATE_COMPLETE`, SES production sending enabled,
 sender-domain verification and DKIM successful, all 17 alarms `OK` with actions enabled, and a
@@ -241,7 +262,7 @@ and complete binary/scanned tax-document coverage remain unproven.
 ## Publication
 
 `pnpm release:stage-public-download` passed for the exact final candidate. A complete local HTTP
-download returned 263,087,920 bytes with the recorded SHA-256, matching the manifest. The temporary
+download returned 263,090,901 bytes with the recorded SHA-256, matching the manifest. The temporary
 loopback server was stopped afterward. Staging and local transfer are not publication. After all recipient gates pass, publish with the
 site's `deploy --public-release` flow and verify an unauthenticated external recipient download and
 its hash. The authenticated signed update feed is a separate step in [release.md](./release.md).
