@@ -12,12 +12,21 @@ EXPECTED = {
 }
 
 
+def unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("Duplicate JSON key")
+        result[key] = value
+    return result
+
+
 def grade(path: Path) -> bool:
     try:
         if path.stat().st_size > 16_384:
             return False
-        answer = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError):
+        answer = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_object)
+    except (OSError, UnicodeError, ValueError):
         return False
     if not isinstance(answer, dict) or set(answer) != {"term", "courses"}:
         return False

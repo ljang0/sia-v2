@@ -16,3 +16,4 @@ _old-builds
 release
 release-*
 *.woff2
+research/rl-environments/local

@@ -20,3 +20,7 @@ services:
       interval: 2s
       timeout: 3s
       retries: 15
+
+networks:
+  default:
+    internal: true

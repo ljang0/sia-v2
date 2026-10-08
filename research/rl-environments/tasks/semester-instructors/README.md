@@ -12,9 +12,9 @@ The agent sees a course portal sidecar at `http://portal:8000/` and writes one a
 
 ## Verification explanation
 
-The portal sidecar is separate from the agent container. The exact-answer verifier and oracle are baked into a separate verifier image and receive only `/workspace/answer.json`.
+The portal sidecar is separate from the agent container, on a Docker internal network with no external route. The exact-answer verifier and oracle are baked into a separate verifier image, run with networking disabled, and receive only `/workspace/answer.json`.
 
-The reward is `1` only when every current course has exactly the right instructors and supporting page; extra courses, TAs, archived names, missing co-instructors, self-reported completion, and malformed output score `0`.
+The reward is `1` only when every current course has exactly the right instructors and supporting page; extra courses, TAs, archived names, missing co-instructors, self-reported completion, duplicate JSON keys, and malformed output score `0`.
 
 ## Relevant experience
 

@@ -20,14 +20,14 @@ environment_mode = "separate"
 
 [environment]
 build_timeout_sec = 1200.0
-network_mode = "allowlist"
-allowed_hosts = ["portal"]
+# Compose enforces an internal portal network on Docker hosts without Harbor's
+# optional kernel egress-control support (including this macOS/Colima host).
 cpus = 2
 memory_mb = 4096
 storage_mb = 4096
 
 [verifier.environment]
-network_mode = "no-network"
+# The verifier Compose service uses network_mode: none.
 cpus = 1
 memory_mb = 512
 storage_mb = 1024

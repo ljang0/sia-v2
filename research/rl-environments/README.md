@@ -49,7 +49,55 @@ harbor run -p research/rl-environments/tasks/semester-instructors -a oracle -n 1
 harbor run -p research/rl-environments/tasks/semester-instructors -a nop -n 1 -o research/rl-environments/local/noop-jobs
 ```
 
-The oracle should earn `1`; no-op should earn `0`. Docker is required for the Compose and separate-verifier boundary; local unit tests alone do not establish that Harbor can launch the images or that an actual CUA agent can operate the UI. Pin built image digests and run repeated randomized trials before using this as a published benchmark.
+The oracle should earn `1`; no-op should earn `0`. The agent and portal share a Docker **internal** network; the separate verifier uses `network_mode: none`. This Compose isolation works on Mac Docker backends that lack Harbor's optional kernel egress-control support. Docker is required for this boundary; local unit tests alone do not establish that Harbor can launch the images or that an actual CUA agent can operate the UI. Pin built image digests and run repeated randomized trials before using this as a published benchmark.
+
+## Real Sia background smoke test
+
+On an awake, unlocked Mac with the signed Sia Development runtime, Mac permissions, an authenticated Codex provider, and a current desktop build:
+
+```sh
+SIA_REAL_RL_BACKGROUND=1 node research/rl-environments/tools/test_background.mjs
+```
+
+This deliberately consumes one real model turn. It opens a **new disposable Safari window**, serves only the fictional portal on a random loopback port, creates a fresh Sia test profile/workspace, enables consented capture only in that profile, selects background control with foreground fallback disabled, and sends the course-instructor task through Sia's typed bridge. It closes its own Safari window and test process afterward. It does not attach Chrome, change the person's Sia settings, sign into a real account, or upload research. The isolated test profile uses plaintext test storage; all output stays in a private, ignored `local/background-*` directory. Inventory events can contain unrelated window titles, so even these smoke-test exports must stay private.
+
+`tools/evaluate_background.py` evaluates the exported episode and the **unaltered final answer**. It separately checks the independent answer oracle and the execution route: all three supporting pages were observed, delivered input was background, and no unexpected action/provider tool or outside origin was used. Guarded refusals before any observation or input count as recovery costs; uncertain input still fails the route check. `clean_execution` distinguishes a successful recovery from a run with no refusals. A completed capture, invented reward, correct answer without observations, foreground delivery, or native web search cannot pass this smoke test. This is evidence for a specific synthetic task, not proof of unrestricted background reliability.
+
+For the reported output directory, replay the captured answer through Harbor's separate verifier, then attempt to forge its reward:
+
+```sh
+PYTHONPATH="$PWD/research/rl-environments/tools" harbor run \
+  -p research/rl-environments/tasks/semester-instructors \
+  -a harbor_replay:CapturedOutputAgent \
+  --ak answer_path="$PWD/research/rl-environments/local/background-REPLACE/answer.json" \
+  -n 1 -o research/rl-environments/local/captured-jobs
+
+PYTHONPATH="$PWD/research/rl-environments/tools" harbor run \
+  -p research/rl-environments/tasks/semester-instructors \
+  -a harbor_replay:ForgedRewardAgent \
+  -n 1 -o research/rl-environments/local/forgery-jobs
+```
+
+The captured-output agent also checks that the oracle/reference solution are absent from the agent container and that an external TCP connection is blocked. It replays the **answer artifact**, not the Mac CUA actions. The real Mac probe checks actions separately. The forgery probe writes a fake `reward.txt` and a self-reported success artifact in the agent container; the separate verifier must still return `0`.
+
+This test uses the already reviewed synthetic task template. The intake tool still performs triage, **not automatic synthesis of arbitrary environments from traces**. A trace alone does not reconstruct a resettable app or an authoritative reward function. For a new task family, the specification, synthetic seed, independent oracle, and reset behavior still need to be authored and reviewed.
+
+### Checked behavior
+
+Local validation used Harbor 0.20.0 and real Sia background turns with GPT-5.6-Sol (the default advertised by this Sia installation). Both turns used new workspaces and fictional portal data; the second also used a fresh profile and randomized local port.
+
+| Check                          | Result                                                                                                                                             |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| First real Mac background turn | Exact answer reward `1`; all three sources observed; 10 delivered actions; about 204 s                                                             |
+| Fresh Mac background turn      | Exact answer reward `1`; all three sources observed; 10 delivered actions; about 367 s; recovered from one refused snapshot and one refused action |
+| Harbor reference solution      | Separate verifier reward `1`, no trial exception                                                                                                   |
+| Harbor captured-answer replay  | Separate verifier reward `1`; oracle absent from agent image; external TCP blocked                                                                 |
+| Harbor forged-reward attempt   | Separate verifier reward `0` despite fake agent-side `reward.txt` and claimed success                                                              |
+| Focused Python checks          | 16 tests passed, including stale/partial answers, chunked capture, duplicate keys, route violations, and safe refusal accounting                   |
+
+The Harbor no-op control also returned reward `0` with no trial exception.
+
+These results cover one fixed information-extraction task. They do not establish seed generalization, mutable-app rollback, resistance to every exploit, or replay of native Mac actions inside Harbor. The extra recovery and latency in the second turn are real limitations to measure, rather than hide with a completion label. Raw traces, screenshots, profiles, and Harbor job files remain private under `local/`.
 
 ## Research gate before RL training
 
