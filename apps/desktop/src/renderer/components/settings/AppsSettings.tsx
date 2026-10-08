@@ -165,7 +165,7 @@ export function AppsSettings({
   return (
     <SettingsSectionHeader
       title="Connections"
-      description="Every connection is optional. Connect the apps you want help with: your mail, calendar, files, notes, code, and messages. Google starts read-only."
+      description="Every connection is optional. Connect the apps you want help with: your mail, files, notes, code, and messages. Google starts read-only."
     >
       {confirmDialog}
       {snapshot.cloudAuth.state !== 'signed-in' ? (
@@ -738,6 +738,14 @@ function MacConnectedApps({
   onConnect(app: AppConnection['id']): Promise<void>;
   onDisconnect(app: AppConnection['id'], expectedConnectionId?: string): Promise<void>;
 }) {
+  const visibleApps = MAC_APPS.flatMap((entry) => {
+    const app = snapshot.apps.find((candidate) => candidate.id === entry.id);
+    // Keep connected and failed accounts reachable even if new sign-ins are unavailable.
+    if (!app || (app.available === false && app.status === 'disconnected')) return [];
+    return [{ ...entry, app }];
+  });
+  if (visibleApps.length === 0) return null;
+
   return (
     <div className={styles.moreApps}>
       <div className={styles.moreAppsHeader}>
@@ -745,10 +753,7 @@ function MacConnectedApps({
         <p>These sign in from this Mac. Sia keeps their sign-in in your Mac’s Keychain.</p>
       </div>
       <div className={styles.connectionGroups}>
-        {MAC_APPS.map(({ id, icon: Icon, detail, signIn }) => {
-          const app = snapshot.apps.find((candidate) => candidate.id === id);
-          // An app this build cannot sign in to yet stays out of the list instead of teasing.
-          if (!app || (app.available === false && app.status === 'disconnected')) return null;
+        {visibleApps.map(({ id, icon: Icon, detail, signIn, app }) => {
           const name = appName(id);
           const connected = app.status === 'connected';
           const connecting = app.status === 'connecting';
