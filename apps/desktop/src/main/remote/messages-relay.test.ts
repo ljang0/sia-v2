@@ -566,6 +566,84 @@ describe('MessagesRelay', () => {
     expect(h.invoke.mock.calls.some(([m]) => m === 'approvals.resolve')).toBe(false);
   });
 
+  it.each(['YES', 'NO', 'OK'])(
+    'does not start a task from an unsolicited %s',
+    async (reply) => {
+      const h = harness();
+      await h.ready();
+      h.text(101, reply);
+      await h.relay.poll();
+      await h.relay.flush();
+      expect(h.invoke).not.toHaveBeenCalled();
+      expect(h.sent.at(-1)!.text).toContain('There is no step waiting for your approval');
+      h.relay.dispose();
+    },
+  );
+
+  it.each(['finished', 'stopped', 'reset'])(
+    'does not resume %s work from a late approval reply',
+    async (state) => {
+      const h = harness();
+      await h.ready();
+      h.text(101, 'Create a disposable report');
+      await h.relay.poll();
+      h.snapshot.threads[0]!.status = 'waiting';
+      h.snapshot.approvals.push({
+        id: 'old-step',
+        threadId: 'thread-1',
+        title: 'Create report',
+        summary: '',
+        status: 'pending',
+      } as never);
+      h.emit();
+      await h.relay.flush();
+      h.snapshot.approvals[0]!.status = 'expired';
+      if (state === 'stopped') {
+        h.text(102, 'STOP');
+        await h.relay.poll();
+      } else {
+        h.finish('thread-1', 'No changes made.');
+        if (state === 'reset') {
+          h.text(102, 'NEW');
+          await h.relay.poll();
+        }
+      }
+      h.text(103, 'YES');
+      await h.relay.poll();
+      await h.relay.flush();
+      expect(h.invoke.mock.calls.filter(([m]) => m === 'threads.send')).toHaveLength(1);
+      expect(h.invoke.mock.calls.some(([m]) => m === 'approvals.resolve')).toBe(false);
+      expect(h.sent.at(-1)!.text).toContain('There is no step waiting for your approval');
+      h.relay.dispose();
+    },
+  );
+
+  it('still accepts YES as an answer to a pending follow-up question', async () => {
+    const h = harness();
+    await h.ready();
+    h.text(101, 'Draft a checklist');
+    await h.relay.poll();
+    h.snapshot.threads[0]!.status = 'waiting';
+    h.snapshot.timeline.push({
+      id: 'question-1',
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      kind: 'question',
+      text: 'Should the checklist include a demo rehearsal?',
+      status: 'pending',
+    } as never);
+    h.emit();
+    h.text(102, 'YES');
+    await h.relay.poll();
+    expect(h.invoke).toHaveBeenCalledWith('threads.send', {
+      threadId: 'thread-1',
+      text: 'YES',
+      fromPhone: true,
+    });
+    expect(h.invoke.mock.calls.some(([m]) => m === 'approvals.resolve')).toBe(false);
+    h.relay.dispose();
+  });
+
   it('does not let a YES from another trusted number answer your approval', async () => {
     const h = harness();
     await h.ready();

@@ -823,6 +823,16 @@ export class MessagesRelay {
       );
       return;
     }
+    // A delayed approval reply must never become a fresh instruction to the model,
+    // which could interpret it as permission to resume earlier, finished work.
+    if (decision && !question && !attachments.length) {
+      this.#awaiting.delete(handle);
+      this.#reply(
+        handle,
+        'There is no step waiting for your approval. Text a new request to start work.',
+      );
+      return;
+    }
     try {
       const target =
         thread?.id ??
