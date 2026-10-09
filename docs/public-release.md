@@ -62,10 +62,13 @@ The verification app is `~/Applications/Sia Release Verification/Sia.app`, with 
 `~/Library/Application Support/Sia Release Verification` and the workspace's
 `Launch Verified Sia.command` launcher. The existing alpha.14 app in `/Applications` is unchanged.
 
-The restored profile is signed out; completing email-code sign-in is the next live-test prerequisite.
-Historical signed-profile and iMessage evidence below remains valid for its recorded source and date; it does
-not prove the recovered profile is currently authenticated, connected or phone-ready. Fresh live
-acceptance must use the persistent candidate after setup.
+On October 9, computer use completed email-code sign-in and guided setup in this persistent
+profile. The signed app shows Mac access ready, Codex connected, an included model available,
+and research capture off. GPT-5.6-Sol completed a real GUI spending rehearsal in 29 seconds: the
+saved report and JSON matched every fixture category and the $2,499 total, and the in-app
+preview worked. See [the demo runbook](./demo.md#arena-cto-rehearsal) for the prepared workspace
+and current phone evidence. Historical evidence below remains tied to its recorded source/date;
+these checks do not establish a clean-user installation or every live connector.
 
 ## Integrated scope
 
@@ -94,7 +97,9 @@ showed an empty composer after the automation's fill call and no command request
 acknowledgement scenario had not begun. Ten focused local repeats passed. The test now uses real
 key input and asserts both drafts before send/acknowledgement, preserving every delivery assertion
 and the 20-second limit. Ten focused repeats and all 62 phone checks passed after that test-only
-change. Updated PR CI must pass before merge; the signed runtime is unchanged.
+change. [Replacement CI](https://github.com/ljang0/sia-v2/actions/runs/37859613752)
+passed on `9adb2949fef743ff9f3c2ee135dd870c3e340c10`, including the full phone suite and
+unsigned universal packaging; the signed runtime is unchanged.
 The local full pilot gate, signed package verification and complete local HTTP installer download
 passed.
 

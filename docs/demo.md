@@ -7,86 +7,102 @@ acceptance cases. Do not present the deterministic fake-service reply as complet
 
 ## Arena CTO rehearsal
 
-The current verification copy lives at
-`~/Applications/Sia Release Verification/Sia.app`. Use
-`Launch Verified Sia.command` in the operator workspace to open it with the persistent isolated
-profile `~/Library/Application Support/Sia Release Verification`. The earlier `/private/tmp`
-checkout, app and authenticated profile were absent on October 8; source and the signed binary
-were recovered from the durable evidence bundle. The replacement profile still needs email-code sign-in
-before live-account or phone checks can resume. Do not present this restored copy as
-already configured, and do not use the unrelated alpha.14 copy in `/Applications` for rehearsal.
+Use the signed **alpha.25** candidate at
+`~/Applications/Sia Release Verification/Sia.app`, built from `32a916c`. Open the operator
+workspace's `Launch Verified Sia.command`; it selects the persistent isolated profile at
+`~/Library/Application Support/Sia Release Verification`. Do not use the unrelated alpha.14
+copy in `/Applications`. The code/test head `9adb294` passed
+[replacement CI](https://github.com/ljang0/sia-v2/actions/runs/37859613752); its test/documentation
+changes do not alter the signed runtime.
 
-The latest Connections polish removes an empty optional-app section and Calendar connector copy.
-CUA covered compact settings, dialogs and conversation controls with disposable demo data. The
-Electron surface audit covered nine settings, library views, dark/light layouts and 125%/200%
-zoom. Those UI checks establish layout and interaction behavior, not connected-account delivery.
+The October 9 computer-use rehearsal completed real email-code sign-in and guided setup.
+The app shows **Mac access is ready**, Codex **Connected**, the included model **Ready**, and
+research capture **Not enabled**. Plan usage showed **94% left** at rehearsal; check again before
+presenting. The prepared **Arena demo** agent uses **GPT-5.6-Sol**, **Use my Mac → Work in
+background**, and the fictional working folder
+`arena-demo/rehearsal-2026-10-09/` under the operator workspace. Local automatic actions remain
+on; phone requests still require approval. The authorized self-test number is the only texting
+recipient, with **Approve steps by replying YES or NO** on and Texting **Ready**.
 
-Use the signed candidate in a disposable profile, with research sharing off and only the
-designated tester's iMessage number enabled. Launch through Finder/Launch Services so macOS
-attributes the existing grants to Sia. Before presenting, check AI is ready, Computer shows the
-intended Mac-control mode, and Phone remote shows Texting Ready. Check available model quota;
-the October 8 final app displayed 99% plan usage, so the current route needs headroom before a
-live demo. Keep the Mac awake and unlocked.
-The Arena credits' endpoint, model list, budget and expiry still need to be supplied; do not label
-the current Codex-plan demonstration as running on sponsored API credits.
+### Five-minute presentation
 
-The October 7 signed `64b40df` rehearsal used GPT-6-Astra in native Mac mode to create
-`/private/tmp/sia-cto-demo/local-demo.txt` with exactly `SIA-LOCAL-DEMO-OK`. Sia read it back in
-13 seconds; independent byte and SHA-256 checks matched. This establishes a real local file
-action on that candidate. It does not establish a phone-originated action.
+1. **Set the scope (30 seconds).** “Sia turns a request into checked work on your Mac. This is a
+   real model using fictional data.” Keep the Mac awake, unlocked and online, with Sia open.
+   Close unrelated personal windows before sharing the screen.
+2. **Useful work (90 seconds).** In Arena demo, start a conversation and use the prompt below.
+   Open the saved result in Sia. Show the $2,499 total, $59 subscriptions, refund treatment and
+   duplicate/pending exclusions. Ask why “Unused fitness app” does not establish actual usage.
+3. **A text that does work (90 seconds).** In the authorized self iMessage conversation, send
+   `NEW`, wait for “Starting fresh,” then use the text prompt below with a new filename. Reply
+   `NO` first: no file should appear. Repeat the request and reply `YES` to the exact write.
+   Show the created file and its returned attachment. The Mac-originated real iMessage path is
+   freshly verified; include the physical handset only after its separate preflight passes.
+4. **Control and continuity (30 seconds).** Show the same conversation on the Mac. Explain
+   `STATUS`, `STOP`, and `NEW`; demonstrate STOP on a pending disposable write if time permits.
+   A late YES after cancellation must not resume work.
+5. **Arena collaboration (30 seconds).** Discuss the agreed API credits, marketing and
+   sponsorship, then agree the credit endpoint/models, budget/expiry, evaluation tasks and
+   success criteria. Do not describe this Codex-plan run as using sponsored credits. No public
+   sponsorship announcement or logo use has been approved in this workflow.
 
-After restart, the runtime no longer offered that conversation's pinned GPT-6-Astra model.
-Sia preserved the draft and rejected submission before a model turn. Choose a model actually
-offered in the live picker and repeat the rehearsal before presenting; do not assume a saved
-model remains available. The replacement `2898c71` signed app restored the same authenticated
-profile. On October 8, exiting full screen and using Window → Center restored CUA input.
-GPT-5.6-Sol was selected for the existing phone conversation and saved as the Sia agent default.
-A subsequent NEW request created a fresh conversation and returned the exact expected reply.
+Desktop prompt (use new output names on each rehearsal so earlier evidence stays intact):
 
-On that signed candidate, CUA sent real self-addressed iMessages from Messages on the Mac.
-A file action was denied first and independently confirmed absent; the repeated request was
-approved and produced the exact bytes. The same sequence then passed with texted NO and YES,
-including a separate YES for the read-back step. The completion reply appeared in Messages.
-STATUS correctly described the pending approval, and a stale YES was rejected. STOP and outgoing
-voice attachments exposed two live defects. Signed replacement `0d4b87f` passes both repairs:
-STOP returns only “Stopped” with no file created; a synthetic WAV returns **blue paper lantern**
-and an MP3 that can be saved from Messages, decoded and played to completion in QuickTime.
-A fresh NO/YES file write/read-back on the replacement produced exactly
-**SIA-FINAL-PHONE-ACTION-OK**, independently checked against the actual file.
-Photo understanding on `2898c71` returned all four fixture colors in order. The paired LAN browser
-also completed an exact reply and approved file action, then reconnected after replacement.
-The preceding `cfd1a61` signed candidate also passes cancellation-status verification: a pending
-file edit stopped through iMessage leaves no file, shows an error without Undo, and records
-a cancelled outcome. The browser reconnects and shows Stopped.
-These are Mac-originated live-service checks, not physical-handset action, media or receipt checks.
-iPhone Mirroring could not find the paired phone. Rehearse that remaining handset gate before
-claiming it in the demo.
+> Read spending.csv in your working folder using the workspace file tools. Summarize September
+> spending by category, excluding transfers, pending transactions and duplicate transaction IDs,
+> and net refunds. A merchant name is not evidence of actual usage. Save a concise, polished
+> spending-live.md and spending-live.json directly in the working folder. Label the report
+> “Real model, fictional data” and explain exclusions and evidence-based observations. The JSON
+> should contain net_spending_usd and category_totals_usd. Read both saved files back, then give
+> me the result. Use only this fixture and these outputs; no apps, browsing, accounts, purchases,
+> or cancellations.
 
-A focused spending rerun on `2898c71` passed with GPT-5.6-Sol and admitted Codex 0.153.0 in
-23.875 seconds. The real controller and file tools produced a report and decision record, with
-two approved local writes. Net spending was $2,499 and subscriptions $59, matching the fixture
-oracle. This was a headless controller check with fictional data and no GUI or external account
-tools. Its initial invocation rejected the incompatible global Codex before a model turn;
-the successful rerun used Sia's managed runtime. Both logs are retained.
+Text prompt (choose a new `arena-live-N.txt` for each demonstration):
 
-Rehearse this short flow before the meeting:
+> Using your working-folder file tools, create arena-live-1.txt with exactly
+> ARENA-IMESSAGE-ACTION-OK and then read it back. Use only that file. If any step is denied,
+> stop without retrying.
 
-1. Start with an ordinary local request that creates a useful report from fictional inputs in a
-   disposable folder. Open the result and compare its contents with the inputs.
-2. From the physical phone, text a request to create one clearly named disposable file. Reply NO
-   to its approval first; independently verify the file was not created. Repeat the request and
-   reply YES to each exact step. Confirm both the actual Mac file and the reply on the handset.
-3. Send STATUS during a task, STOP while a step waits, and NEW after it stops. A late YES must
-   report that no approval is waiting and must not start another task. Then complete a new task.
-4. Show the same conversation and result on the Mac, then close an editor and Settings menu and
-   continue typing. Repeat after another app has covered Sia to check input recovery.
+### What the current rehearsal establishes
 
-Step 2 remains the physical-phone action gate. Earlier handset evidence proves the exact text
-reply round trip, not a handset-originated Mac mutation. The Mac-originated photo and text-approval
-checks above do not close handset media, Wi-Fi pairing, Telegram or Discord acceptance
-in [manual acceptance](./manual-acceptance.md). Telephone calls
-remain deferred. The demo should describe Sia's tested texting-to-Mac behavior, without promising
-full parity with another product or work while the Mac is asleep or Sia is closed.
+The signed GUI completed the spending request in **29 seconds, eight steps**. The actual
+`spending-recap.md` and `spending-summary.json` matched an independently calculated oracle:
+Housing $1,800; Food $255; Utilities $160; Dining $145; Shopping $80; Subscriptions $59.
+Sia's report correctly distinguishes the merchant label from usage evidence and its in-app
+preview renders the report and table. These files are also the fallback if the live provider is
+slow: explicitly introduce them as the saved rehearsal result, not a new completion.
+
+The first attempt used nested paths outside the default agent workspace, so background mode
+tried the Mac UI. It was stopped after 73 seconds and 12 steps without the requested outputs.
+Use the prepared working folder with top-level files for this demo. That incomplete attempt is
+retained; this pass does not establish arbitrary Finder/TextEdit work in background mode.
+
+Fresh CUA actions in native Mac Messages used the real iMessage service. NO left
+`arena-text-demo.txt` absent; a fresh request and YES created it with exactly
+`ARENA-IMESSAGE-ACTION-OK`. Sia returned a completion message and the actual attachment, which
+was saved from Messages and independently matched byte for byte. STATUS reported a pending
+approval, STOP left `arena-stop-must-not-exist.txt` absent, and a stale YES was rejected.
+NEW completed a fresh exact reply; after a full quit/relaunch, authentication, the pinned report
+and Texting Ready persisted, and a new iMessage returned `ARENA-READY-AFTER-RESTART`.
+Evidence is under `release-verification-evidence/arena-rehearsal-2026-10-09/` in the operator
+workspace. Screenshots and transcripts exclude credentials and unrelated Messages threads.
+
+### Boundaries and fallback
+
+This is a prepared Mac demo, not public-release approval or complete Instinct parity. The
+physical-phone text-reply round trip was confirmed earlier, but handset-originated Mac actions,
+handset media and physical Wi-Fi pairing remain separate gates. In this rehearsal iPhone
+Mirroring reported **iPhone in Use** and then timed out; it requires the phone to be locked
+before device checks.
+Earlier signed candidates have source-specific Mac iMessage photo/voice and LAN browser
+results in [public release evidence](./public-release.md); do not relabel those as current
+handset tests. Telegram and Discord have no test bots configured. Telephone calls and Notion
+live acceptance remain deferred; Calendar, Tasks and Outlook connectors remain off.
+
+If sign-in or model availability changes, stop before presenting a live completion. Use the
+saved report and describe the current blocker plainly. Re-select a model actually offered by
+the picker if necessary, then rehearse again. Mac permissions belong to the signed Sia identity;
+Codex's own approval settings do not replace macOS grants. Sia must stay open and the Mac awake
+for local and remote work. No public alpha.25 release or Arena outreach was sent by this pass.
 
 ## Recorded model walkthrough
 
