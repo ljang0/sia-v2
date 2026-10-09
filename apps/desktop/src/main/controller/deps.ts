@@ -1,6 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { CloudClient } from '../cloud/cloud-client.js';
+import type { LocalConnectorService } from '../connectors/local-connectors.js';
 import type { RecordRepository } from '../storage/persistence.js';
 import { probeProviders } from '../providers/provider-probe.js';
 import type { TrajectoryRecorder } from '../research/trajectory-recorder.js';
@@ -19,6 +20,7 @@ export interface ControllerDeps {
   readonly fakeServices: boolean;
   readonly fakeTurnDelayMs: number;
   readonly openExternal: (url: string) => Promise<void>;
+  readonly localConnectors: LocalConnectorService | undefined;
   readonly trajectory: TrajectoryRecorder | undefined;
   readonly capabilitySetup: ControllerOptions['capabilitySetup'];
   readonly keepAwake: ControllerOptions['keepAwake'];
@@ -30,7 +32,9 @@ export interface ControllerDeps {
   readonly openMessagesPermissions: (() => Promise<void>) | undefined;
   readonly requestMicrophonePermission: (() => Promise<void>) | undefined;
   readonly restartApp: (() => void) | undefined;
-  readonly installCodex: (() => Promise<void>) | undefined;
+  readonly installCodex: ControllerOptions['installCodex'];
+  readonly byok: ControllerOptions['byok'];
+  readonly labHarnesses: NonNullable<ControllerOptions['labHarnesses']>;
   readonly chooseDirectory: () => Promise<string | null>;
   readonly defaultWorkspaceRoot: string | undefined;
   readonly createDirectory: (path: string) => Promise<void>;
@@ -62,6 +66,7 @@ export function resolveControllerDeps(options: ControllerOptions): ControllerDep
     fakeServices: options.fakeServices,
     fakeTurnDelayMs: options.fakeTurnDelayMs ?? 160,
     openExternal: options.openExternal,
+    localConnectors: options.localConnectors,
     trajectory: options.trajectory,
     capabilitySetup: options.capabilitySetup,
     keepAwake: options.keepAwake,
@@ -74,6 +79,8 @@ export function resolveControllerDeps(options: ControllerOptions): ControllerDep
     requestMicrophonePermission: options.requestMicrophonePermission,
     restartApp: options.restartApp,
     installCodex: options.installCodex,
+    byok: options.byok,
+    labHarnesses: options.labHarnesses ?? [],
     chooseDirectory: options.chooseDirectory,
     defaultWorkspaceRoot: options.defaultWorkspaceRoot
       ? normalizeWorkspace(options.defaultWorkspaceRoot)

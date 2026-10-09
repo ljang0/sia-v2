@@ -9,6 +9,7 @@ Requirements: macOS 14+, Node 24+, pnpm 11+, and Xcode command-line tools.
 
 ```sh
 pnpm install --frozen-lockfile
+pnpm --filter @sia/desktop signing:setup # once per Mac
 pnpm onboard:check
 SIA_FAKE_SERVICES=1 pnpm dev
 ```
@@ -25,16 +26,25 @@ lint, quality, type, unit, deterministic desktop E2E, and renderer gates. See
 
 - A release with cloud configured has no private app access before email sign-in.
 - New agents offer an included model when live-verified or the user's existing Codex plan. Both use
-  the Codex App Server harness. Users never paste model API keys into Sia.
-- Google Workspace, Slack, signed-in Chrome, Apple Messages, and computer use are optional. They do
-  not block first-run setup.
+  the Codex App Server harness. Codex is the default. An optional **Your own API key** in
+  Settings → AI (never in onboarding) adds one OpenAI Responses-compatible model, also run through
+  Codex App Server. That key is write-only from the renderer, stored encrypted outside the state
+  JSON, and attached only by a loopback proxy; Codex, the renderer, IPC results, and logs never
+  receive it.
+- Use my Mac setup requires every macOS permission Sia uses: Accessibility, Screen Recording,
+  Automation for each installed everyday app, and Full Disk Access for Messages history. One **Set
+  up Sia** click walks them in order; macOS still approves each one, and Start using Sia stays off
+  until all are on. Fn voice stays optional because it also needs a voice service. Google
+  Workspace, Slack, GitHub, Notion, and signed-in Chrome stay optional, and the Connected apps only
+  route needs no Mac permissions. Calendar, Tasks, and Outlook connectors remain disabled.
 - Bypass (no per-action approvals) is the default for every route, including profiles that never
   chose; confirmations are an explicit opt-in (onboarding's Customize setup → Ask before each
   action, or Settings → Computer). Onboarding's initial selection is Use my Mac with bypass. Use my
   Mac works in the background by default (window control through the bundled Cua driver); On my
   screen is the explicit alternative. Use confirmations for supervised pilot testing. Approval
   cards offer Approve, Allow for this task (equivalent requests until that task ends), and Don't
-  allow. Phone-remote turns always ask on the Mac, one request at a time. Hard safety blocks apply in every mode: Sia-hosted tools block secure fields,
+  allow. Phone-remote turns always require confirmation, one request at a time. When text approvals are
+  enabled, YES/NO binds only to the exact pending request shown to that trusted sender. Hard safety blocks apply in every mode: Sia-hosted tools block secure fields,
   authentication surfaces, Keychain, and password managers. Native shell execution follows the
   provider's approval boundary; the same restrictions in its prompt are not shell enforcement.
 - Local turns and schedules require the Sia process to remain open and the Mac to stay awake. Sia

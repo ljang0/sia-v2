@@ -1,6 +1,6 @@
 import { ActionGateway } from '@sia/action-gateway';
 import { describe, expect, it, vi } from 'vitest';
-import { CloudClient } from '../cloud/cloud-client.js';
+import type { CloudClient } from '../cloud/cloud-client.js';
 import { PlaintextTestCipher, SqliteRecordRepository } from '../storage/persistence.js';
 import type { DesktopController } from './desktop-controller.js';
 import { createController, createHarness, type ResearchBatchView } from './test-support.js';
@@ -55,48 +55,137 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
-  it('requires signed-in research-release users to sign out before pausing capture', async () => {
-    const identity = {
-      initialize: async () => ({ state: 'signed_in' as const, email: 'person@example.com' }),
-      status: () => ({ state: 'signed_in' as const, email: 'person@example.com' }),
-      startEmailSignIn: async () => ({
-        state: 'signed_in' as const,
-        email: 'person@example.com',
-      }),
-      completeEmailSignIn: async () => ({
-        state: 'signed_in' as const,
-        email: 'person@example.com',
-      }),
-      signOut: async () => ({ state: 'signed_out' as const }),
-    } satisfies ConstructorParameters<typeof DesktopController>[0]['identity'];
-    const { controller } = await createHarness({
-      cloud: new CloudClient('https://api.example.test', { read: async () => 'test-token' }),
-      identity,
-    });
-    const created = await controller.invoke('agents.save', {
-      name: 'Research participant',
-      instructions: '',
-      provider: 'codex',
-      model: 'gpt-5.6-sol',
-      workspace: '/tmp/sia-workspace',
-    });
-    const { threadId } = await controller.invoke('threads.create', {
-      agentId: created.agentId,
-    });
-    await expect(
-      controller.invoke('threads.send', { threadId, text: 'This must not bypass consent.' }),
-    ).rejects.toThrow('current raw research consent');
-    await controller.invoke('research.setCapture', {
-      enabled: true,
-      consentVersion: 'alpha-research-v3-raw',
-    });
-
-    await expect(controller.invoke('research.setCapture', { enabled: false })).rejects.toThrow(
-      'required while signed in',
-    );
-    expect(controller.snapshot().capture.status).toBe('recording');
-    await controller.shutdown();
-  });
+  it.each(['untouched', 'declined', 'paused', 'accepted'] as const)(
+    'completes signed-in participant tasks with research %s and captures only after opt-in',
+    async (choice) => {
+      const identity = {
+        initialize: async () => ({ state: 'signed_in' as const, email: 'person@example.com' }),
+        status: () => ({ state: 'signed_in' as const, email: 'person@example.com' }),
+        startEmailSignIn: async () => ({
+          state: 'signed_in' as const,
+          email: 'person@example.com',
+        }),
+        completeEmailSignIn: async () => ({
+          state: 'signed_in' as const,
+          email: 'person@example.com',
+        }),
+        signOut: async () => ({ state: 'signed_out' as const }),
+      } satisfies ConstructorParameters<typeof DesktopController>[0]['identity'];
+      const uploadResearchBatch = vi.fn(async () => undefined);
+      const cloud = {
+        configured: true,
+        sessionStatus: async () => ({
+          admin: false,
+          participant: true,
+          features: {
+            researchUploads: true,
+            researchArchive: false,
+            connectors: false,
+            schedules: false,
+          },
+        }),
+        uploadResearchBatch,
+      } as unknown as CloudClient;
+      let runtimeThreadId = '';
+      const runtime = {
+        async *runTurn(input: { turnId: string }) {
+          const base = {
+            threadId: runtimeThreadId,
+            turnId: input.turnId,
+            provider: 'codex' as const,
+            timestamp: new Date().toISOString(),
+          };
+          yield {
+            ...base,
+            id: crypto.randomUUID(),
+            sequence: 1,
+            type: 'message' as const,
+            payload: {
+              role: 'assistant' as const,
+              messageId: 'research-choice-reply',
+              parts: [
+                { kind: 'text' as const, text: 'Task completed with your research choice.' },
+              ],
+            },
+          };
+          yield {
+            ...base,
+            id: crypto.randomUUID(),
+            sequence: 2,
+            type: 'completion' as const,
+            payload: { status: 'completed' as const },
+          };
+        },
+        dispose: vi.fn(async () => undefined),
+        cancel: vi.fn(async () => undefined),
+        respondToRequest: vi.fn(async () => undefined),
+      };
+      const { controller, repository } = await createHarness({
+        cloud,
+        identity,
+        fakeServices: false,
+        runtime,
+      });
+      try {
+        if (choice !== 'untouched') {
+          await controller.invoke('research.setCapture', {
+            enabled: choice !== 'declined',
+            consentVersion: 'alpha-research-v3-raw',
+          });
+          if (choice === 'paused') {
+            await controller.invoke('research.setCapture', { enabled: false });
+          }
+        }
+        const created = await controller.invoke('agents.save', {
+          name: 'Research participant',
+          instructions: '',
+          provider: 'codex',
+          model: 'gpt-5.6-sol',
+          workspace: '/tmp/sia-workspace',
+        });
+        const { threadId } = await controller.invoke('threads.create', {
+          agentId: created.agentId,
+        });
+        runtimeThreadId = threadId;
+        await controller.invoke('threads.send', {
+          threadId,
+          text: 'Respect my research choice.',
+        });
+        await vi.waitFor(() => {
+          const snapshot = controller.snapshot();
+          expect(snapshot.timeline.filter((item) => item.kind === 'error')).toEqual([]);
+          expect(snapshot.threads.find((thread) => thread.id === threadId)?.status).toBe(
+            'idle',
+          );
+          expect(snapshot.timeline).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({
+                kind: 'assistant',
+                text: 'Task completed with your research choice.',
+              }),
+            ]),
+          );
+        });
+        expect(controller.snapshot().cloud.auth).toBe('signed_in');
+        if (choice === 'accepted') {
+          await vi.waitFor(() => expect(uploadResearchBatch).toHaveBeenCalled());
+          expect(repository.list('research').length).toBeGreaterThan(0);
+          expect(JSON.stringify(repository.list('research'))).toContain(
+            'Respect my research choice.',
+          );
+        } else {
+          expect(repository.list('research')).toEqual([]);
+          expect(repository.list('research_sync')).toEqual([]);
+          expect(uploadResearchBatch).not.toHaveBeenCalled();
+          expect(controller.snapshot().capture.status).toBe(
+            choice === 'paused' ? 'paused' : 'not_consented',
+          );
+        }
+      } finally {
+        await controller.shutdown();
+      }
+    },
+  );
 
   it('keeps internal operators out of research capture and leaves hosted Meta usable', async () => {
     const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());

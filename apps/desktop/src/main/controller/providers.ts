@@ -1,3 +1,4 @@
+import { isLocalConnection } from './connection-ids.js';
 import type { ModelRoute } from '@sia/protocol';
 import { admitHostedRoutes } from '@sia/runtime';
 import type {
@@ -90,6 +91,131 @@ export class ProviderAccess {
       if (codexIndex >= 0) this.views[codexIndex] = fakeCodex;
       else this.views.push(fakeCodex);
     }
+    this.applyByok();
+    this.applyLabHarnesses();
+  }
+
+  /**
+   * Adds the lab harnesses of a verified testing manifest as the `lab` provider. Each model is
+   * routed only to its own harness; Codex stays the default everywhere else.
+   */
+  applyLabHarnesses(): void {
+    for (const routes of [this.allowedModelRoutes, this.backendModelRoutes])
+      for (const key of routes.keys()) if (key.startsWith('lab\u0000')) routes.delete(key);
+    const index = this.views.findIndex(({ id }) => id === 'lab');
+    const harnesses = this.ctx.deps.labHarnesses;
+    if (!harnesses.length) {
+      if (index >= 0) this.views.splice(index, 1);
+      return;
+    }
+    const view: ProviderView = {
+      id: 'lab',
+      label: `Lab harness: ${harnesses.map(({ name }) => name).join(', ')}`,
+      plan: 'Lab harness test',
+      status: 'ready',
+      model: harnesses[0]!.models[0]!.id,
+      detail: harnesses.map(({ name, disclosure }) => `${name}: ${disclosure}`).join(' '),
+      billing: 'Provided by the model lab for testing.',
+      models: harnesses.flatMap(({ name, models }) =>
+        models.map((model) => ({
+          id: model.id,
+          label: model.label,
+          description: `Runs in ${name}’s own harness.`,
+          reasoningEfforts: [],
+        })),
+      ),
+    };
+    if (index >= 0) this.views[index] = view;
+    else this.views.push(view);
+    for (const harness of harnesses)
+      for (const model of harness.models) {
+        const route: ModelRoute = {
+          provider: 'lab',
+          model: model.id,
+          harnessId: harness.id,
+          harnessModelId: model.id,
+          credentialSource: 'provider_api',
+        };
+        this.allowedModelRoutes.set(modelRouteKey('lab', model.id), [route]);
+        this.backendModelRoutes.set(modelRouteKey('lab', model.id), route);
+      }
+  }
+
+  /**
+   * Reflects the saved API key, if any, as the `byok` provider and its single model route. The
+   * key itself never leaves the main process; the view carries only the model and host.
+   */
+  applyByok(): void {
+    for (const routes of [this.allowedModelRoutes, this.backendModelRoutes])
+      for (const key of routes.keys()) if (key.startsWith('byok\u0000')) routes.delete(key);
+    const index = this.views.findIndex(({ id }) => id === 'byok');
+    if (!this.ctx.deps.byok) {
+      if (index >= 0) this.views.splice(index, 1);
+      return;
+    }
+    const base = index >= 0 ? this.views[index]! : undefined;
+    const summary = this.ctx.deps.byok.summary();
+    const view: ProviderView = {
+      id: 'byok',
+      label: 'Your API key',
+      plan: 'Your API key',
+      billing: base?.billing ?? 'Billed by your model provider to your own API key.',
+      ...(summary
+        ? {
+            status: 'ready' as const,
+            model: summary.model,
+            account: summary.host,
+            detail: `Uses ${summary.model} at ${summary.host} through the Codex harness.`,
+            models: [
+              {
+                id: summary.model,
+                label: summary.model,
+                description: `Your own model at ${summary.host}.`,
+                reasoningEfforts: [],
+              },
+            ],
+          }
+        : {
+            status: 'needs_login' as const,
+            model: '',
+            detail: 'Add an API key to use your own model.',
+          }),
+    };
+    if (index >= 0) this.views[index] = view;
+    else this.views.push(view);
+    if (!summary) return;
+    const route: ModelRoute = {
+      provider: 'byok',
+      model: summary.model,
+      harnessId: 'codex_app_server',
+      harnessModelId: summary.model,
+      credentialSource: 'user_byok',
+    };
+    this.allowedModelRoutes.set(modelRouteKey('byok', summary.model), [route]);
+    this.backendModelRoutes.set(modelRouteKey('byok', summary.model), route);
+  }
+
+  /** Saves the person's own key after checking it; the key is never returned. */
+  async saveApiKey(input: {
+    baseUrl?: string;
+    model: string;
+    apiKey: string;
+  }): Promise<DesktopSnapshot> {
+    this.ctx.requireSignedInReleaseAccount();
+    if (!this.ctx.deps.byok)
+      throw new Error('Your own API key is not available in this build.');
+    await this.ctx.deps.byok.save(input);
+    this.applyByok();
+    this.ctx.emit();
+    return this.ctx.resultSnapshot();
+  }
+
+  async clearApiKey(): Promise<DesktopSnapshot> {
+    this.ctx.requireSignedInReleaseAccount();
+    this.ctx.deps.byok?.clear();
+    this.applyByok();
+    this.ctx.emit();
+    return this.ctx.resultSnapshot();
   }
 
   async probeProviders(providerId?: ProviderId): Promise<DesktopSnapshot> {
@@ -106,6 +232,8 @@ export class ProviderAccess {
         else this.views.push(value);
       }
     } else this.views = updated;
+    this.applyByok();
+    this.applyLabHarnesses();
     await this.refreshMetaProviderState();
     await this.refreshProviderModels(providerId);
     if (
@@ -156,7 +284,9 @@ export class ProviderAccess {
       this.ctx.workspace.pendingTerminalOperations ||
       this.ctx.deps.workspaceOperations?.hasRunningTerminals?.() ||
       this.ctx.connections.setup ||
-      this.ctx.state.connections.some((app) => app.status === 'connecting')
+      this.ctx.state.connections.some(
+        (app) => !isLocalConnection(app.id) && app.status === 'connecting',
+      )
     ) {
       throw new Error(
         'Finish the current task, terminal process, recording, or account approval, then try Codex setup again.',
@@ -180,9 +310,9 @@ export class ProviderAccess {
         throw new Error('Included models require a configured Sia cloud deployment.');
       }
       if (provider.status === 'needs_login') {
-        throw new Error('Sign in to Sia to use included lab models.');
+        throw new Error('Sign in to Sia to use included models.');
       }
-      throw new Error('Lab model access is already included with your Sia account.');
+      throw new Error('Included models are already part of your Sia account.');
     }
     const installation =
       provider.status === 'needs_install' || provider.status === 'incompatible';
@@ -205,7 +335,9 @@ export class ProviderAccess {
               ? 'Updating Codex for Sia…'
               : 'Downloading and installing Codex…',
           );
-          await this.ctx.deps.installCodex();
+          await this.ctx.deps.installCodex((message) =>
+            this.setCodexSetup('installing', message),
+          );
           this.requireSafeCodexRestart();
           // Only this explicit setup action can authorize sign-in after restart.
           // No credential, login URL or token is persisted in the continuation.
@@ -280,7 +412,7 @@ export class ProviderAccess {
       claude: 'https://docs.anthropic.com/en/docs/claude-code/getting-started',
     };
     const url = urls[providerId];
-    if (!url) throw new Error('This provider has no supported sign-in flow in the alpha.');
+    if (!url) throw new Error('This provider cannot be signed in from Sia yet.');
     await this.ctx.deps.openExternal(url);
     return { opened: true, snapshot: this.ctx.resultSnapshot() };
   }
@@ -343,7 +475,7 @@ export class ProviderAccess {
       this.views[index] = {
         ...current,
         status: 'needs_login',
-        detail: 'Sign in to Sia before using included lab models.',
+        detail: 'Sign in to Sia before using included models.',
       };
       return;
     }
@@ -402,8 +534,7 @@ export class ProviderAccess {
         for (const [model, routes] of routesByModel) {
           this.allowedModelRoutes.set(modelRouteKey('meta', model), routes);
         }
-        for (const route of admitted.allowedRoutes) {
-          if (route.harnessId !== hostedProvider.execution.defaultHarnessId) continue;
+        for (const route of admitted.defaultRoutes) {
           this.backendModelRoutes.set(modelRouteKey('meta', route.model), route);
         }
       }

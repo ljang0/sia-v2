@@ -1,0 +1,69 @@
+[
+  {
+    "repeat": 1,
+    "name": "short-command",
+    "text": "YES",
+    "archiveGzipBase64": "H4sIAAAAAAAC/2PhLi4pSk3MLaksSE1pfMHcwujQ0tIi5BfsWFJSlJlUWpKaEgxk5KUztLRw+AX7J2WlJpcwtE5qAXMhUoxTWhi1mSNdg9tamDI9GZlBkjx+wS6ZySWZ+XmJRZUMQAWZjJNapk2TjY/P9vT1TS0uTkxPDUgsKoFb45eYm9oGNdavNDcptQhoI7tfcFhiTmkqyACtlpkzGdra2gAAL4TBsgAAAA=="
+  },
+  {
+    "repeat": 1,
+    "name": "reply",
+    "text": "Sia › SIA-IMESSAGE-1007-OK",
+    "archiveGzipBase64": "H4sIAAAAAAAC/2PhLi4pSk3MLaksSE1pfMHcwujQ0tIi5BfsWFJSlJlUWpKaEgxk5KUztLRw+AX7J2WlJpcwtE5qAXMhUoxTWhi1ZYIzExUeNexSCPZ01PX0dQ0OdnR31TU0MDDX9fdua2HK9GSUAuni8Qt2yUwuyczPSyyqZADqzGSc1DJtmmx8fLanr29qcXFiempAYlEJ3H6/xNzUNqh9fqW5SalFQKew+wWHJeaUpoIM0GqZOZOhra0NABM/NpHLAAAA"
+  },
+  {
+    "repeat": 95,
+    "name": "printable-length",
+    "text": "x",
+    "archiveGzipBase64": "H4sIAAAAAAAC/2PhLi4pSk3MLaksSE1pfMHcwujQ0tIi5BfsWFJSlJlUWpKaEgxk5KUztLRw+AX7J2WlJpcwtE5qAXMhUoxTWhi14ytoC9pamDI9GeNBFvP4BbtkJpdk5uclFlUyAC3PZJzUMm2abHx8tqevb2pxcWJ6akBiUQncC36JualtUCf7leYmpRYBfcPuFxyWmFOaCjJAq2XmTIa2tjYAFsuAnA4BAAA="
+  },
+  {
+    "repeat": 127,
+    "name": "one-byte-boundary",
+    "text": "x",
+    "archiveGzipBase64": "H4sIAAAAAAAC/2PhLi4pSk3MLaksSE1pfMHcwujQ0tIi5BfsWFJSlJlUWpKaEgxk5KUztLRw+AX7J2WlJpcwtE5qAXMhUoxTWhi16ysGFrS1MGV6MtaDHMbjF+ySmVySmZ+XWFTJAHRcJuOklmnTZOPjsz19fVOLixPTUwMSi0rgXvRLzE1tg3rJrzQ3KbUI6Ft2v+CwxJzSVJABWi0zZzK0tbUBALfkxvcuAQAA"
+  },
+  {
+    "repeat": 128,
+    "name": "two-byte-length",
+    "text": "x",
+    "archiveGzipBase64": "H4sIAAAAAAAC/2PhLi4pSk3MLaksSE1pfMHcwujQ0tIi5BfsWFJSlJlUWpKaEgxk5KUztLRw+AX7J2WlJpcwtE5qAXMhUoxTWhi1GxsYKgYYtLUwZXoyAh0Cch2PX7BLZnJJZn5eYlElA9CFmYyTWqZNk42Pz/b09U0tLk5MTw1ILCqB+9MvMTe1Deovv9LcpNQioJfZ/YLDEnNKU0EGaLXMnMnQ1tYGABQe8qQzAQAA"
+  },
+  {
+    "repeat": 4096,
+    "name": "two-byte-long",
+    "text": "x",
+    "archiveGzipBase64": "H4sIAAAAAAAC/+3YQQrCMBBA0UQFBV0U915AL6HgpotGIeC2pO1QolYlTcEuC2MOIKXQG3oMrYqHkHmrGQbmAH8wzq0BldnyAkn16CNfIuJUyJW1RkeFhUS+hlPKEEdCbqI9xJbd7vhePydeI19UzLsSQgghhBBCCCHk7znsaZ9XzOvqwETItY6tPp+UKVmNXPM7Ns0sDA9+EECeqxS2ythfZxAqA/ftCqLIIjAMcSjkTh0L6B7MsW2Zc+4JNfbSjbMQAAA="
+  },
+  {
+    "repeat": 70000,
+    "name": "four-byte-length",
+    "text": "x",
+    "archiveGzipBase64": "H4sIAAAAAAAC/+3MTUrDYBQF0EQFBZ3o3A3oJiw46aBRCDgtqX5I1NaSfgUdWp5ZQCkFd+gy/NuCw3NG93G5b+9wkbvUTPPrPN29fe5GeRERJ1U9yLlrJ8uc7urvMLsvIg6q+mrykG5z8b6O3/OvKjdRnq/mx2XxAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD8uz522mG5mh+XxToijqr6sr3N7fOs6V6LTZRtuY7t9nQ8fhyORmmxaO7TddPlQc5dO1nmVDXT1P8sD6q6Wk4nqSsi9qv6pnlapp8HZ/HxUfR9/wWY2ZqMJxIBAA=="
+  },
+  {
+    "repeat": 1,
+    "name": "unicode-multiline",
+    "text": "  안녕 👩🏽‍💻\nYES\r\nsecond\tline\n ",
+    "archiveGzipBase64": "H4sIAAAAAAAC/2PhLi4pSk3MLaksSE1pfMHcwujQ0tIi5BfsWFJSlJlUWpKaEgxk5KUztLRw+AX7J2WlJpcwtE5qAXMhUoxTWhi1tRUU3kzteN06VeHD/IkrP8zv3/uooffD/Em7uSJdg3m5ilOT8/NSOHMy81K5FNpamDI9GeVBhvD4BbtkJpdk5uclFlUyAA3KZJzUMm2abHx8tqevb2pxcWJ6akBiUQncOX6JualtUOv9SnOTUouALmP3Cw5LzClNBRmg1TJzJkNbWxsAuTJMltoAAAA="
+  },
+  {
+    "repeat": 1,
+    "name": "attachment",
+    "text": "￼",
+    "archiveGzipBase64": "H4sIAAAAAAAC/2PhLi4pSk3MLaksSE1pfMHcwujQ0tIi5BfsWFJSlJlUWpKaEgxk5KUztLRw+AX7J2WlJpcwtE5qAXMhUoxTWhi1md/v39PWwpTpycgIkuTxC3bJTC7JzM9LLKpkACrIBApPmyYbH5/t6eubWlycmJ4akFhUArfGLzE3tQ1qrF9pblJqEdBGdr/gsMSc0lSQAVotM2cytLW1AQCpi5MdsgAAAA=="
+  },
+  {
+    "repeat": 1,
+    "name": "empty",
+    "text": "",
+    "archiveGzipBase64": "H4sIAAAAAAAC/2PhLi4pSk3MLaksSE1pfMHcwujQ0tIi5BfsWFJSlJlUWpKaEgxk5KUztLRw+AX7J2WlJpcwtE5qAXMhUoxTWhi1GdraAL6WGztMAAAA"
+  },
+  {
+    "text": "First\nsecond 👋\nthird",
+    "name": "mutable-multiple-runs",
+    "mutable": true,
+    "repeat": 1,
+    "archiveGzipBase64": "H4sIAAAAAAAC/21PsUrEQBRMonJyCoqNWAjWyjZ+gYIIV9wqLNgem+wzWS/ZyO4LmFJ4bmNl4OA0qL9n6SeYRLnK5jFvmBlm1rccWpAF1vegHr/WKDwjogMuphXKOIdzRKvjCkGJDpg0INrj4h92k4ur+A4SDJ6aLmFnlfCrCAfFH15QeLJ/qa3DsYOkNOro+/PleYyZtspTpCfhRp+xzcWFTlCXRto66Ew6ami5PHW1wQxQJyzXZs4KQKkkSpaXJgXLMJOmO8BcVlpkcalq3/tGt/oBKwvDczibzSfTKTgnU7iWFleTuCx6ydCXV0UMtls34uJG5hX0LY6pbQPvX6Pdht7asHlvPrz/ASvXaPFIAQAA"
+  }
+]

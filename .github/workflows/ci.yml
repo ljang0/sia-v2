@@ -13,7 +13,8 @@ jobs:
   verify:
     name: Type, test, build, and Electron E2E
     runs-on: macos-15
-    timeout-minutes: 30
+    # Includes both phone engines and a universal package after the full source/desktop gate.
+    timeout-minutes: 45
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -36,11 +37,17 @@ jobs:
       - name: Install Electron distribution
         run: pnpm --filter @sia/desktop exec install-electron
 
+      - name: Install renderer and phone test browsers
+        run: pnpm --filter @sia/desktop exec playwright install chromium webkit
+
       - name: Build and run quality gates
         run: pnpm check
 
       - name: Run Electron E2E
         run: pnpm test:e2e
+
+      - name: Run renderer and phone checks
+        run: pnpm --filter @sia/desktop test:renderer && pnpm --filter @sia/desktop test:remote
 
       - name: Upload Electron E2E failure evidence
         if: failure()
@@ -58,6 +65,7 @@ jobs:
 
   signed-release:
     name: Sign, notarize, staple, and verify release
+    needs: verify
     if: github.event_name == 'workflow_dispatch'
     runs-on: macos-15
     timeout-minutes: 60

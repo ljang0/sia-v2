@@ -1,6 +1,7 @@
 import {
   ArrowSquareOut,
   CheckCircle,
+  CaretRight,
   Clock,
   Desktop,
   EnvelopeSimple,
@@ -58,14 +59,8 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
     return () => window.clearInterval(interval);
   }, [expiresAt, status]);
 
-  return (
-    <section
-      ref={card}
-      tabIndex={-1}
-      className={`${styles.approvalCard} ${resolved ? styles.approvalResolved : ''}`}
-      aria-label={request.title}
-      data-testid="approval-card"
-    >
+  const content = (
+    <>
       <header className={styles.approvalHeader}>
         <span className={styles.approvalIcon}>
           {request.kind === 'foreground' ? (
@@ -78,28 +73,16 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
         </span>
         <div>
           <h3>{request.title}</h3>
-          <p>
-            {request.kind === 'foreground'
-              ? 'Sia needs to use the pointer in the foreground.'
-              : request.kind === 'connector'
-                ? `${request.app} will make this change only after you approve it.`
-                : `Review this ${request.category.toLowerCase()} action before Sia continues.`}
-          </p>
+          {!resolved ? (
+            <p>
+              {request.kind === 'foreground'
+                ? 'Sia needs to use the pointer in the foreground.'
+                : request.kind === 'connector'
+                  ? `${request.app} will make this change only after you approve it.`
+                  : `Review this ${request.category.toLowerCase()} action before Sia continues.`}
+            </p>
+          ) : null}
         </div>
-        {resolved ? (
-          <span className={styles.approvalStatus}>
-            {displayStatus === 'approved' ? (
-              <CheckCircle size={16} aria-hidden="true" />
-            ) : (
-              <XCircle size={16} aria-hidden="true" />
-            )}
-            {displayStatus === 'approved' && event.scope === 'task' ? (
-              <span className={styles.approvalStatusPlain}>Allowed for this task</span>
-            ) : (
-              displayStatus
-            )}
-          </span>
-        ) : null}
       </header>
 
       {request.kind === 'foreground' ? (
@@ -174,6 +157,40 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
             </div>
           ) : null}
         </div>
+      )}
+    </>
+  );
+
+  return (
+    <section
+      ref={card}
+      tabIndex={-1}
+      className={`${styles.approvalCard} ${resolved ? styles.approvalResolved : ''}`}
+      aria-label={request.title}
+      data-testid="approval-card"
+    >
+      {resolved ? (
+        <details className={styles.resolvedDetails}>
+          <summary className={styles.resolvedSummary}>
+            <CaretRight size={14} className={styles.resolvedCaret} aria-hidden="true" />
+            <span className={styles.resolvedTitle}>{request.title}</span>
+            <span className={styles.approvalStatus}>
+              {displayStatus === 'approved' ? (
+                <CheckCircle size={16} aria-hidden="true" />
+              ) : (
+                <XCircle size={16} aria-hidden="true" />
+              )}
+              {displayStatus === 'approved' && event.scope === 'task' ? (
+                <span className={styles.approvalStatusPlain}>Allowed for this task</span>
+              ) : (
+                displayStatus
+              )}
+            </span>
+          </summary>
+          {content}
+        </details>
+      ) : (
+        content
       )}
 
       {!resolved ? (

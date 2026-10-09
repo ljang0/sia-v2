@@ -4,9 +4,16 @@ Use this checklist on the exact signed artifact before adding a tester. Automate
 code and deterministic flows; these checks cover provider-owned login screens, macOS permissions,
 and real accounts. Use disposable, non-sensitive fixtures and keep research sharing off.
 
+Run automated Electron tests and manual Mac input in separate phases. Automated launches can
+change keyboard focus. Before sending a real message, inspect the recipient and complete draft
+after typing, then send in a separate action. Never combine recipient entry and Return, and do not
+send from an existing personal draft. If focus moves unexpectedly, stop and re-establish the
+target before any more input.
+
 Record the result in the private pilot log with the exact Sia version and artifact hash under
-test. The source is `0.1.0-alpha.25`; the latest signed artifact (`0.1.0-alpha.24`) and its hashes
-are in [`release-evidence.md`](./release-evidence.md).
+test. The source is `0.1.0-alpha.25`; the signed `0.1.0-alpha.25` candidate and its hashes are recorded in
+[`public-release.md`](./public-release.md). The last published pilot artifact remains
+`0.1.0-alpha.24`, recorded in [`release-evidence.md`](./release-evidence.md).
 
 ## Automated gate
 
@@ -29,11 +36,55 @@ SIA_REAL_CODEX_E2E=1 SIA_REAL_CUA_E2E=1 pnpm test:e2e:real:no-turn
 Run Chrome probing only with a dedicated visible test window and a unique
 `SIA_REAL_BROWSER_WINDOW_MATCH` value.
 
+## Integrated alpha.25 acceptance
+
+Use one exact candidate for all four workstreams. Record its commit, app.asar SHA-256, bundle
+identifier, signing team, macOS version, test time, observed result, and evidence location.
+Passing development fixtures or the older installed Sia does not complete these checks.
+
+With a signed-in account eligible for research, leave sharing off and complete a disposable task.
+It must finish without a consent prompt or research upload. In a separately consented test profile,
+pause research and repeat: the account stays signed in and the task completes without new capture.
+
+| Area                     | Required live check                                                                                                                                                                                   | Completion evidence                                                                                                                                                                      |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identity and permissions | Open the exact signed candidate; complete Accessibility, Screen Recording, each installed app's Automation, and Messages Full Disk Access. Deny once, resume, and relaunch.                           | Candidate reports the grants; a disposable Calculator or TextEdit task changes the intended window and the result is read back. A checked box for another Electron copy is insufficient. |
+| Signup and upgrade       | Fresh-recipient email signup, wrong/expired code, resend, provider login cancel/retry; upgrade a disposable alpha.24 profile and reopen twice.                                                        | Sign-in wall holds; encrypted conversations, result files, grants, and schedules survive without repeated Keychain prompts.                                                              |
+| GitHub and Notion        | Tester completes official provider consent; read a designated disposable repository/page, disconnect, cancel reconnect once, then reconnect and relaunch.                                             | Correct account and fresh read after relaunch; disconnected tools disappear; cancellation recovers without leaking tokens.                                                               |
+| iMessage                 | Add only the designated tester's number and explicitly turn on texting. From the physical phone send a unique read-only task, then STATUS, STOP, and NEW; send one synthetic image and a voice note.  | Correct conversation and result on both ends; stopped work stays stopped; attachment and voice paths complete.                                                                           |
+| Text approvals           | In a disposable fixture request one reversible action, inspect the exact request, answer NO; retry and answer YES. Repeat YES and try an untrusted sender.                                            | NO prevents the action; YES authorizes exactly one shown request; stale/repeated or untrusted replies cannot authorize more work.                                                        |
+| Telegram and Discord     | Tester supplies their disposable bot through the app's clipboard flow, pairs with the displayed code, then repeats the phone task/approval/attachment checks.                                         | Linked account works, unlinked account cannot start work, disconnect stops delivery, and credentials do not appear in renderer state or diagnostics.                                     |
+| BYOK and lab harness     | With an explicitly selected test provider, save a key through Settings and complete one read-only task. For lab evaluation, use a release-signed manifest and verify a tampered manifest is rejected. | BYOK survives relaunch without exposing its key; invalid lab admission keeps the default Codex route usable. Do not paste credentials into evidence.                                     |
+| Responsiveness           | Launch cold and warm, stream a long reply, switch threads, cancel, reopen, and test reduced motion.                                                                                                   | Window and progress remain usable; cancellation completes; saved thread and results remain correct. Record measured times rather than borrowing PR #17's earlier measurements.           |
+
+For this candidate, the operator deferred Notion live acceptance and telephone calling. Record
+Notion as deferred, not passed; the remaining existing phone channels still need live verification.
+
+For iMessage, verify exact message text for short commands, multiline/Unicode text and messages
+longer than 127 bytes. In a self-chat, the sent and received copies must start only one task;
+Sia's reply must never create another task. Leave the relay running for two polling intervals after
+the reply and confirm the task count stays unchanged. Internal attributed-string metadata must
+never appear as a message or approval response.
+Approve two consecutive harmless steps by texting YES to each within one minute. Each new YES
+must approve only its currently displayed request, and the mirrored copy must not approve the next.
+After completion, STOP, and NEW, send YES again: Sia must say no approval is waiting and must not
+start or resume work. YES must still answer an actual pending follow-up question.
+
+For desktop input recovery, dismiss the agent editor with Cancel and Escape, select a Settings
+menu item, and close Access and the terminal drawer after another app covered Sia. The surface
+must disappear and the composer must accept input without waiting for an exit animation.
+
+Google/Slack public distribution retains its separate
+[connector gates](./connector-distribution-readiness.md). Calendar, Tasks, and Outlook remain off.
+Complete physical voice, lock/sleep, and clean-user checks below before public distribution.
+
 ## New-user setup and Keychain continuity
 
 On a clean macOS test account, use the exact signed release artifact and an unlocked login
 Keychain. **Set up Codex** must install or update the managed version, resume official browser
 sign-in after any restart, and show **Connected** without terminal commands or a manual download.
+On a slow connection, downloaded megabytes must advance beyond two minutes without aborting; a stalled
+connection must offer an actionable retry and preserve the previous runtime.
 While Sia shows **Waiting for sign-in…**, press **Cancel** once (or leave the browser tab closed) and
 verify **Try again** starts a fresh sign-in in Sia; ordinary launches must not reopen it.
 **Grant all** must show individual statuses, skip granted access, and refresh after returning
@@ -56,10 +107,16 @@ and [Electron's signing guidance](https://www.electronjs.org/docs/latest/api/saf
 Run these tasks only when the tester explicitly requests live computer control. They are not
 startup checks. Use **Use my Mac → On my screen**, a separate validation agent, a disposable folder,
 and a model actually offered by the signed-in Codex plan. Keep existing documents and browser tabs.
+With confirmations enabled, deliberately leave Sia's approval card in front when approving a
+Calculator or TextEdit action. Sia must restore and inspect the authorized target before input,
+then verify the result; an old screen coordinate must never land in the approval window.
 Record the selected model, tool calls, outcome, and any missing macOS grant. The person must handle
 permission prompts; full bypass does not grant macOS permissions.
 Resetting reasoning to **Default** uses the selected model's advertised default; an explicit
 reasoning choice stays in effect and does not inherit a separate CLI setting.
+When a provider stops offering a pinned model, its picker must identify that choice as unavailable.
+Select an offered replacement, run a task, and relaunch: the displayed model and the execution
+route must agree, and the conversation must retain its harness and credential source.
 
 | Task                                                                                                | Independent completion check                                                                                                                                         |
 | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -272,9 +329,10 @@ Research recruitment is a separate release. It requires every approval in
 - Choose **Finish later** while a prompt is pending. Complete or dismiss that prompt and confirm
   no subsequent permissions open. Chat remains available with the access already granted.
 - At Screen Recording, choose **Later** in macOS’s quit prompt. Within a few seconds the row must
-  read **Reopen Sia** and one **Relaunch Sia** button must appear (real-Mac check of the fresh-process
-  probe). Relaunch: setup must reopen on Mac access, resume the pass, and not ask again for any
-  permission already granted or skipped. Completing the pass opens the conversation with no restart.
+  read **Reopen Sia** (real-Mac check of the fresh-process probe). Finish or skip the remaining
+  voice/app and optional Full Disk Access steps before one final **Relaunch Sia** action appears.
+  Relaunch: setup must reopen on Mac access, retain grants and skips, and finish without requesting
+  already completed permissions again. Also pause before the last step and verify resume.
 - Skip **Talk with Fn** and one app. Finish setup, then start a task that needs the skipped app and
   confirm macOS asks once, in its own words.
 - Repeat from **Settings → Computer → Grant all**. Verify unavailable apps and existing grants are

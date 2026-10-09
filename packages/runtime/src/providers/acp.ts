@@ -21,7 +21,14 @@ export interface AcpPeerHandle {
 }
 
 export interface AcpAdapterOptions {
-  readonly provider: Extract<ProviderId, 'grok' | 'gemini'>;
+  readonly provider: Extract<ProviderId, 'grok' | 'gemini' | 'lab'>;
+  /**
+   * Only a lab harness pinned by a signed testing manifest sets this. Grok and Gemini stay
+   * disabled until a release passes Sia's harness admission checks.
+   */
+  readonly productionEnabled?: boolean;
+  /** The lab owns its own authentication; Sia reports it as given. */
+  readonly accountOverride?: ProviderAccount;
   readonly command?: string;
   readonly commandArgs?: readonly string[];
   readonly versionArgs?: readonly string[];
@@ -81,7 +88,7 @@ export function defaultAcpCommandArgs(
 
 /** Shared ACP v1 adapter used by Grok Build and Gemini CLI. */
 export class AcpAdapter implements ProviderAdapter {
-  readonly id: Extract<ProviderId, 'grok' | 'gemini'>;
+  readonly id: Extract<ProviderId, 'grok' | 'gemini' | 'lab'>;
   readonly productionEnabled: boolean;
   readonly #options: AcpAdapterOptions;
   readonly #supervisor: ProcessSupervisor;
@@ -97,7 +104,7 @@ export class AcpAdapter implements ProviderAdapter {
     // pinned to Sia's complete production boundary. Grok cannot comprehensively
     // exclude inherited extensions, and Gemini main does not advertise the
     // standard ACP model configuration that Sia must verify.
-    this.productionEnabled = false;
+    this.productionEnabled = options.productionEnabled ?? false;
     this.#options = options;
     this.#supervisor = options.supervisor ?? new ProcessSupervisor();
   }
@@ -114,6 +121,8 @@ export class AcpAdapter implements ProviderAdapter {
 
   async account(_signal?: AbortSignal): Promise<ProviderAccount> {
     const probe = await this.probe(_signal);
+    if (this.#options.accountOverride && probe.available && probe.supported)
+      return this.#options.accountOverride;
     return {
       state: probe.available && probe.supported ? 'unknown' : 'unauthenticated',
       billing: this.id === 'grok' ? 'subscription' : 'api',
@@ -299,7 +308,10 @@ export class AcpAdapter implements ProviderAdapter {
   async #spawnPeer(): Promise<AcpPeerHandle> {
     const process = this.#supervisor.spawn({
       command: this.#options.command ?? this.id,
-      args: [...(this.#options.commandArgs ?? defaultAcpCommandArgs(this.id))],
+      args: [
+        ...(this.#options.commandArgs ??
+          (this.id === 'lab' ? [] : defaultAcpCommandArgs(this.id))),
+      ],
     });
     await waitForProcessSpawn(process.child);
     process.child.stderr.resume();

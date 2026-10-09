@@ -6,6 +6,11 @@ export interface ComputerPermissionsView {
   screenRecording: boolean;
   /** Granted in System Settings, but macOS applies it to Sia only after one relaunch. */
   relaunchFor?: ('accessibility' | 'screenRecording')[];
+  /**
+   * Whether Sia actually read a window through the same driver its tools use. `failed` means
+   * macOS reports both grants, but control does not work yet; Sia is not shown as ready.
+   */
+  verified?: 'confirmed' | 'unconfirmed' | 'failed';
   detail?: string;
 }
 

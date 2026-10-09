@@ -111,7 +111,7 @@ export const MAC_RESPONSE_SCHEMA: Readonly<Record<string, unknown>> = {
   additionalProperties: false,
   required: ['type', 'steps', 'response', 'success', 'learned_skill', 'output_file'],
   properties: {
-    type: { type: 'string', enum: ['answer', 'action', 'clarify'] },
+    type: { type: 'string', enum: ['answer', 'action', 'clarify', 'no_change'] },
     steps: { type: 'array', items: { type: 'string' } },
     response: { type: 'string' },
     success: { type: 'boolean' },
@@ -139,7 +139,7 @@ export function parseMacResponse(text: string): MacTaskResult | undefined {
         try {
           const value = JSON.parse(stripped.slice(start, i + 1));
           if (
-            !['answer', 'action', 'clarify'].includes(value.type) ||
+            !['answer', 'action', 'clarify', 'no_change'].includes(value.type) ||
             typeof value.response !== 'string' ||
             !value.response.trim() ||
             typeof value.success !== 'boolean'
@@ -148,6 +148,13 @@ export function parseMacResponse(text: string): MacTaskResult | undefined {
           return {
             response: value.response,
             success: value.type !== 'clarify' && value.success,
+            ...(value.type === 'no_change' &&
+            value.success === true &&
+            Array.isArray(value.steps) &&
+            value.steps.length === 0 &&
+            !value.output_file
+              ? { noChange: true }
+              : {}),
             steps: Array.isArray(value.steps)
               ? value.steps.filter((step: unknown) => typeof step === 'string').slice(0, 20)
               : [],
@@ -170,6 +177,7 @@ export function parseMacResponse(text: string): MacTaskResult | undefined {
 }
 
 export interface MacTaskResult {
+  noChange?: boolean;
   response: string;
   success: boolean;
   steps: string[];
@@ -204,11 +212,8 @@ export function presentMacResponse(event: ThreadEventEnvelope): ThreadEventEnvel
   }
   const result = parseMacResponse(text);
   if (!result) return event;
-  const link = result.output_file
-    ? `\n\n[Open result](<${result.output_file.replaceAll('<', '%3C').replaceAll('>', '%3E')}>)`
-    : '';
   return {
     ...event,
-    payload: { ...event.payload, parts: [{ kind: 'text', text: result.response + link }] },
+    payload: { ...event.payload, parts: [{ kind: 'text', text: result.response }] },
   };
 }

@@ -1,11 +1,23 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { AssistantLibraryView } from '../../../shared/assistant-library';
 import type { RendererApi } from '../../types';
 import { AssistantSettings } from './AssistantSettings';
 
-afterEach(cleanup);
+afterEach(async () => {
+  cleanup();
+  // Radix restores focus on the next timer turn; finish that lifecycle before jsdom changes realms.
+  await act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+});
 it.each([
   { accessMode: 'connected' as const, backgroundControl: false, execution: 'gateway' },
   { accessMode: 'mac' as const, backgroundControl: false, execution: 'native' },

@@ -42,7 +42,6 @@
   min-height: 0;
   flex: 1;
   overflow-y: auto;
-  scroll-behavior: smooth;
 }
 
 .threadWorkspaceBar {
@@ -658,6 +657,37 @@
   width: min(700px, calc(100vw - 40px));
 }
 
+.attachmentPreviewHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.attachmentPreviewHeader h2 {
+  overflow-wrap: anywhere;
+}
+
+.attachmentPreviewHeader button {
+  flex: none;
+}
+
+.attachmentMarkdownPreview {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  align-self: start;
+  padding: 16px 20px;
+  color: var(--text-primary);
+  font-size: var(--text-md);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.attachmentMarkdownPreview > :first-child {
+  margin-top: 0;
+}
+
 .attachmentPreviewBody {
   display: grid;
   min-height: 180px;
@@ -814,10 +844,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .threadScroll {
-    scroll-behavior: auto;
-  }
-
   .skeletonMessage,
   .skeletonActivity,
   .skeletonComposer,

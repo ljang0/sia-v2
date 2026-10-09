@@ -52,10 +52,6 @@ export function AgentDialog({
   const submission = useRef(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [modelChosen, setModelChosen] = useState(false);
-  // A finished save closes without the exit animation: the view underneath is already
-  // switching to the new conversation, and Radix keeps a closing dialog (and its overlay)
-  // mounted until `animationend`, which never arrives while the window is not drawing.
-  const [closeInstantly, setCloseInstantly] = useState(false);
   const formId = useId();
   const choices = useMemo(
     () =>
@@ -70,7 +66,6 @@ export function AgentDialog({
     if (!open) return;
     submission.current = false;
     setSaving(false);
-    setCloseInstantly(false);
     if (agent) {
       setDraft({
         name: agent.name,
@@ -148,7 +143,6 @@ export function AgentDialog({
       };
       if (!agent) delete payload.hue;
       await onSave(payload);
-      setCloseInstantly(true);
       onOpenChange(false);
     } catch (cause) {
       submission.current = false;
@@ -166,13 +160,9 @@ export function AgentDialog({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay
-          className={dialogs.dialogOverlay}
-          {...(closeInstantly ? { 'data-instant-close': '' } : {})}
-        />
+        <Dialog.Overlay className={dialogs.dialogOverlay} />
         <Dialog.Content
           className={styles.dialogContent}
-          {...(closeInstantly ? { 'data-instant-close': '' } : {})}
           aria-describedby={`${formId}-description`}
         >
           <div className={styles.dialogHeader}>
@@ -317,7 +307,7 @@ export function AgentDialog({
                       Choose
                     </button>
                   </div>
-                  <small>Agents can work only inside a folder you approve.</small>
+                  <small>Sia uses this folder for the agent’s local work.</small>
                 </div>
 
                 {voice.status === 'connected' ? (
@@ -396,7 +386,7 @@ export function AgentDialog({
                 className={buttons.primaryButton}
                 disabled={saving || !selectedChoice?.ready}
               >
-                {saving ? 'Saving...' : agent ? 'Save changes' : 'Create agent'}
+                {saving ? 'Saving…' : agent ? 'Save changes' : 'Create agent'}
               </button>
             </div>
           </form>

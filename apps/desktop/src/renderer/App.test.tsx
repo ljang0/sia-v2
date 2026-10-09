@@ -91,6 +91,32 @@ describe('app privacy routing', () => {
     expect(screen.getByText('Workspace')).toBeTruthy();
   });
 
+  it('keeps an unavailable pinned model visible until the person chooses a replacement', async () => {
+    const snapshot = structuredClone(demoSnapshot);
+    const thread = snapshot.activeThread!;
+    const provider = snapshot.providers.find(({ id }) => id === thread.provider)!;
+    provider.models = [
+      {
+        id: 'gpt-5.6-sol',
+        label: 'GPT-5.6-Sol',
+        description: 'Available replacement model',
+        reasoningEfforts: ['medium'],
+      },
+    ];
+    thread.model = 'gpt-6-astra';
+    const api = createDemoRendererApi(snapshot);
+    render(<App api={api} />);
+    fireEvent.click(await screen.findByText('Model for this conversation'));
+    const model = screen.getByRole('combobox', { name: 'Model' }) as HTMLSelectElement;
+    expect(model.value).toBe('gpt-6-astra');
+    expect(model.selectedOptions[0]?.textContent).toContain('(unavailable)');
+    expect(model.selectedOptions[0]?.disabled).toBe(true);
+    fireEvent.change(model, { target: { value: 'gpt-5.6-sol' } });
+    await waitFor(() => expect(model.value).toBe('gpt-5.6-sol'));
+    expect(model.selectedOptions[0]?.disabled).toBe(false);
+    expect((await api.getSnapshot()).activeThread?.model).toBe('gpt-5.6-sol');
+  });
+
   async function openSettingsInNavWidth(
     navWidth: number,
     check: (nav: HTMLElement) => Promise<void>,
@@ -173,7 +199,7 @@ describe('app privacy routing', () => {
 
     expect(await screen.findByRole('dialog', { name: 'Sign in to Sia' })).toBeTruthy();
     expect(screen.getByRole('textbox', { name: 'Email' })).toBeTruthy();
-    expect(screen.getByText(/Enter your email/)).toBeTruthy();
+    expect(screen.getByText(/Sign in or create your account with an email code/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Start in local mode' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Create your first agent' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Access' })).toBeNull();
@@ -408,7 +434,7 @@ describe('app privacy routing', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Connect work apps later' }));
     expect(await screen.findByRole('heading', { name: 'Connections' })).toBeTruthy();
-    expect(screen.getByText(/Google Workspace and Slack are optional/)).toBeTruthy();
+    expect(screen.getByText(/Every connection is optional/)).toBeTruthy();
   });
 
   it('connects Slack independently later from Settings', async () => {
@@ -532,4 +558,39 @@ describe('app privacy routing', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByRole('button', { name: 'Access' })).toBeTruthy();
   });
+});
+
+it('creates a monthly task directly from Scheduled with an explicit conversation', async () => {
+  const snapshot = structuredClone(demoSnapshot);
+  snapshot.schedules = [];
+  const api = createDemoRendererApi(snapshot);
+  const created = vi.spyOn(api, 'createSchedule');
+  render(<App api={api} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Scheduled' }));
+  fireEvent.click(screen.getByRole('button', { name: 'New schedule' }));
+  expect(screen.getByRole('combobox', { name: 'Conversation' })).toBeTruthy();
+  fireEvent.change(screen.getByRole('textbox', { name: 'Task' }), {
+    target: { value: 'Prepare my monthly spending report' },
+  });
+  fireEvent.change(screen.getByRole('combobox', { name: 'Repeat' }), {
+    target: { value: 'monthly' },
+  });
+  fireEvent.change(screen.getByLabelText('Starting'), {
+    target: { value: '2030-01-31T09:00' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Create schedule' }));
+  await waitFor(() =>
+    expect(created).toHaveBeenCalledWith(
+      snapshot.activeThread!.id,
+      'Prepare my monthly spending report',
+      'monthly',
+      new Date(2030, 0, 31, 9).toISOString(),
+      undefined,
+      { days: undefined, everyHours: undefined },
+    ),
+  );
+  await waitFor(() =>
+    expect(screen.queryByRole('region', { name: 'New schedule' })).toBeNull(),
+  );
+  expect(screen.getByText('Prepare my monthly spending report')).toBeTruthy();
 });

@@ -14,6 +14,32 @@ vi.mock('node:timers/promises', async (original) => ({
   ),
 }));
 
+it('checks Mac access only for computer actions, before dispatch, and rechecks after a grant', async () => {
+  const cua = fakeCua(async () => ({}));
+  const access = vi
+    .fn<() => Promise<string | undefined>>()
+    .mockResolvedValueOnce('Allow Screen Recording in Settings → Computer.')
+    .mockResolvedValue(undefined);
+  const assistantAction = vi.fn(async () => ({
+    outcome: 'verified' as const,
+    summary: 'Read notes.',
+  }));
+  const backend = new DesktopActionBackend({
+    cua,
+    computerUnavailable: access,
+    assistantAction,
+  });
+  expect((await backend.invoke(request('memory_learn', {}))).outcome).toBe('verified');
+  expect(access).not.toHaveBeenCalled();
+  expect((await backend.invoke(request('computer_list', {}))).summary).toContain(
+    'Allow Screen Recording',
+  );
+  expect(cua.call).not.toHaveBeenCalled();
+  await backend.invoke(request('computer_list', {}));
+  expect(access).toHaveBeenCalledTimes(2);
+  expect(cua.call).toHaveBeenCalled();
+});
+
 it('stops a failed control loop after two attempts without posting any input', async () => {
   const cua = fakeCua(async () => ({}));
   const backend = new DesktopActionBackend({ cua });

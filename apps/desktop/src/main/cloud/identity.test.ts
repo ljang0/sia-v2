@@ -111,6 +111,40 @@ describe('CognitoIdentityManager', () => {
     repository.close();
   });
 
+  it('explains an expired sign-in, an offline resend, and keeps the code already sent', async () => {
+    const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+    const identity = new CognitoIdentityManager({
+      region: 'us-east-1',
+      clientId: 'clientid123456789',
+      repository,
+    });
+    let offline = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: URL | RequestInfo, init?: RequestInit) => {
+        if (offline) throw new TypeError('fetch failed');
+        const body = JSON.parse(String(init?.body));
+        if (body.AuthFlow)
+          return Response.json({ ChallengeName: 'EMAIL_OTP', Session: 'pending-challenge' });
+        return Response.json(
+          { __type: 'NotAuthorizedException', message: 'Invalid session for the user.' },
+          { status: 400 },
+        );
+      }),
+    );
+    await identity.startEmailSignIn('person@example.com');
+    await expect(identity.completeEmailSignIn('123456')).rejects.toThrow(
+      'That code expired. Request a new one.',
+    );
+
+    offline = true;
+    await expect(identity.startEmailSignIn('person@example.com')).rejects.toThrow(
+      'Sia could not reach the sign-in service. Check your internet connection and try again.',
+    );
+    expect(identity.status()).toEqual({ state: 'code_sent', email: 'person@example.com' });
+    repository.close();
+  });
+
   it('completes passwordless email OTP and persists only the renewable encrypted session', async () => {
     const calls: Array<Record<string, unknown>> = [];
     vi.stubGlobal(

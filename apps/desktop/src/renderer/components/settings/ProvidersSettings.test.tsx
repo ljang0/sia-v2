@@ -22,6 +22,27 @@ describe('AI access settings', () => {
     expect(screen.queryByText('Desktop updates')).toBeNull();
   });
 
+  it('offers your own API key only in Settings, sends it once, and clears the field', async () => {
+    renderSettings();
+    expect(screen.queryByText('Your own API key')).toBeNull();
+    cleanup();
+    const onSaveApiKey = vi.fn().mockResolvedValue(undefined);
+    renderSettings({ onSaveApiKey, onClearApiKey: vi.fn().mockResolvedValue(undefined) });
+    fireEvent.click(screen.getByRole('button', { name: 'Add key' }));
+    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'gpt-5' } });
+    fireEvent.change(screen.getByLabelText('API key'), {
+      target: { value: 'sk-test-0123456789abcdef' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save key' }));
+    await waitFor(() =>
+      expect(onSaveApiKey).toHaveBeenCalledExactlyOnceWith({
+        model: 'gpt-5',
+        apiKey: 'sk-test-0123456789abcdef',
+      }),
+    );
+    await waitFor(() => expect(screen.queryByLabelText('API key')).toBeNull());
+  });
+
   it('keeps diagnostics and recheck controls out of the connected state', () => {
     renderSettings();
 

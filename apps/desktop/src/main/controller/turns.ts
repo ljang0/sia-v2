@@ -4,7 +4,6 @@ import {
   type BridgeRequestMap,
   type BridgeResultMap,
   type DesktopSnapshot,
-  RESEARCH_CONSENT_VERSION,
   type ThreadView,
 } from '../../shared/bridge.js';
 import { conversationTitle, UNTITLED_THREAD_TITLE } from '../../shared/plain-text.js';
@@ -27,7 +26,6 @@ type TurnsContext = Pick<
   | 'requireSignedInReleaseAccount'
   | 'requireThread'
   | 'researchCapture'
-  | 'researchOutbox'
   | 'resultSnapshot'
   | 'runner'
   | 'runtime'
@@ -71,15 +69,6 @@ export class Turns {
       throw new Error(
         this.ctx.state.capture.blockedReason ??
           'Raw research capture could not be stored. Free disk space or sign out before starting another task.',
-      );
-    }
-    if (
-      this.ctx.researchOutbox.requiredForCurrentAccount() &&
-      (this.ctx.state.capture.consentVersion !== RESEARCH_CONSENT_VERSION ||
-        !this.ctx.researchCapture.researchCaptureActive())
-    ) {
-      throw new Error(
-        'Review and accept the current raw research consent, or sign out, before starting a task.',
       );
     }
     const thread = this.ctx.requireThread(input.threadId);

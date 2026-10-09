@@ -38,8 +38,17 @@ export class HostedResponsesProxy {
   #baseUrl: string | undefined;
   #starting: Promise<void> | undefined;
 
-  constructor(forwarder: HostedResponsesForwarder) {
+  readonly #provider: { readonly id: string; readonly name: string };
+
+  constructor(
+    forwarder: HostedResponsesForwarder,
+    provider: { readonly id: string; readonly name: string } = {
+      id: 'sia_included',
+      name: 'Sia included models',
+    },
+  ) {
     this.#forwarder = forwarder;
+    this.#provider = provider;
   }
 
   async issue(model: string): Promise<HostedCodexProvider> {
@@ -54,8 +63,8 @@ export class HostedResponsesProxy {
       if (oldest) this.#scopes.delete(oldest[0]);
     }
     return {
-      id: 'sia_included',
-      name: 'Sia included models',
+      id: this.#provider.id,
+      name: this.#provider.name,
       baseUrl: `${this.#baseUrl}/v1`,
       bearerToken,
     };

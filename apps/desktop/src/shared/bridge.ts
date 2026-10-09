@@ -18,6 +18,7 @@ import type {
 } from './bridge/research.js';
 import type {
   DesktopSnapshot,
+  DesktopStreamPatch,
   OnboardingProgress,
   OnboardingStep,
   UpdateView,
@@ -51,6 +52,7 @@ export * from './bridge/workspace.js';
 export interface BridgeRequestMap {
   'scotty.configure': import('./scotty.js').ScottyCommand;
   'phone.remote': import('./phone-remote.js').PhoneRemoteCommand;
+  'messages.relay': import('./messages-relay.js').MessagesRelayCommand;
   'assistant.library': import('./assistant-library.js').AssistantLibraryCommand;
   bootstrap: undefined;
   'agents.save': SaveAgentInput;
@@ -122,6 +124,9 @@ export interface BridgeRequestMap {
   'providers.probe': { providerId?: ProviderId };
   'providers.login': { providerId: ProviderId };
   'providers.cancelLogin': { providerId: ProviderId };
+  /** Write-only: the key is never returned, logged, or included in a snapshot. */
+  'providers.setApiKey': { baseUrl?: string; model: string; apiKey: string };
+  'providers.clearApiKey': undefined;
   'settings.openDirectory': undefined;
   'settings.setOnboarding': {
     step: OnboardingStep;
@@ -198,6 +203,7 @@ export interface BridgeRequestMap {
 export interface BridgeResultMap {
   'scotty.configure': import('./scotty.js').ScottySettings;
   'phone.remote': import('./phone-remote.js').PhoneRemoteSettings;
+  'messages.relay': import('./messages-relay.js').MessagesRelaySettings;
   'assistant.library': import('./assistant-library.js').AssistantLibraryView;
   bootstrap: DesktopSnapshot;
   'agents.save': { agentId: string; snapshot: DesktopSnapshot };
@@ -262,6 +268,8 @@ export interface BridgeResultMap {
   'providers.probe': DesktopSnapshot;
   'providers.login': { opened: boolean; snapshot: DesktopSnapshot };
   'providers.cancelLogin': DesktopSnapshot;
+  'providers.setApiKey': DesktopSnapshot;
+  'providers.clearApiKey': DesktopSnapshot;
   'settings.openDirectory': { path: string | null };
   'settings.setOnboarding': DesktopSnapshot;
   'settings.restartForOnboarding': DesktopSnapshot;
@@ -335,14 +343,24 @@ export interface BridgeErrorShape {
   retryable: boolean;
 }
 
+/**
+ * A bridge result whose snapshot is identical to the one just pushed to the window carries this
+ * marker instead of a second copy; the preload puts the pushed snapshot back in its place.
+ */
+export interface PushedSnapshotMarker {
+  pushedSnapshotRevision: number;
+}
+
 export type DesktopPushEvent =
   | { type: 'open-conversation' }
   | { type: 'snapshot'; snapshot: DesktopSnapshot }
+  | { type: 'stream'; patch: DesktopStreamPatch }
   | { type: 'fatal'; error: BridgeErrorShape };
 
 export interface DesktopBridgeApi {
   scotty: import('./scotty.js').ScottySettingsApi;
   phoneRemote: import('./phone-remote.js').PhoneRemoteApi;
+  messagesRelay: import('./messages-relay.js').MessagesRelayApi;
   assistantLibrary(
     input: BridgeRequestMap['assistant.library'],
   ): Promise<BridgeResultMap['assistant.library']>;
@@ -455,6 +473,9 @@ export interface DesktopBridgeApi {
     login(providerId: ProviderId): Promise<BridgeResultMap['providers.login']>;
     /** Stops a browser sign-in that is still waiting, so setup can start over. */
     cancelLogin(providerId: ProviderId): Promise<DesktopSnapshot>;
+    /** Saves the person's own model API key. The key is never sent back. */
+    setApiKey(input: BridgeRequestMap['providers.setApiKey']): Promise<DesktopSnapshot>;
+    clearApiKey(): Promise<DesktopSnapshot>;
   };
   settings: {
     openDirectory(): Promise<{ path: string | null }>;

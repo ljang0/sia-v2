@@ -11,6 +11,9 @@ export function modelRouteKey(provider: ProviderId, model: string): string {
 export const RELEASE_PROVIDERS: ReadonlySet<ProviderId> = new Set<ProviderId>([
   'codex',
   'meta',
+  'byok',
+  // Only present in a testing build started with a signed lab harness manifest.
+  'lab',
 ]);
 
 export function requireReleaseProvider(provider: ProviderId): void {
@@ -21,7 +24,7 @@ export function requireReleaseProvider(provider: ProviderId): void {
 }
 
 export function legacyHarnessForProvider(provider: ProviderId): HarnessId {
-  if (provider === 'codex') return 'codex_app_server';
+  if (provider === 'codex' || provider === 'byok') return 'codex_app_server';
   if (provider === 'claude') return 'claude_code';
   if (provider === 'meta') return 'sia_direct';
   return 'legacy_acp';

@@ -351,6 +351,311 @@ const slackOpenDm = z
   })
   .strict();
 
+const dateTime = z.iso.datetime({ offset: true });
+const dateOrDateTime = z.union([z.iso.date(), dateTime]);
+const limit = z.number().int().positive().max(100).optional();
+
+const calendarList = z
+  .object({
+    account_id: z.literal('calendar'),
+    time_min: dateTime.optional(),
+    time_max: dateTime.optional(),
+    query: z.string().trim().min(1).max(1_000).optional(),
+    limit,
+    calendar_id: optionalId,
+  })
+  .strict();
+
+const calendarRead = z
+  .object({ account_id: z.literal('calendar'), resource_id: id, calendar_id: optionalId })
+  .strict();
+
+const calendarEventFields = {
+  description: z.string().max(8_000).optional(),
+  location: z.string().max(1_000).optional(),
+};
+
+const calendarCreate = z
+  .object({
+    account_id: z.literal('calendar'),
+    summary: z.string().trim().min(1).max(1_000),
+    start: dateOrDateTime,
+    end: dateOrDateTime,
+    ...calendarEventFields,
+    attendees: z.array(z.email()).max(50).optional(),
+    time_zone: z.string().trim().min(1).max(64).optional(),
+    calendar_id: optionalId,
+  })
+  .strict()
+  .refine(({ start, end }) => start.includes('T') === end.includes('T'), {
+    path: ['end'],
+    message: 'Start and end must both be dates or both be date-times',
+  });
+
+const calendarUpdate = z
+  .object({
+    account_id: z.literal('calendar'),
+    resource_id: id,
+    calendar_id: optionalId,
+    summary: z.string().trim().min(1).max(1_000).optional(),
+    start: dateOrDateTime.optional(),
+    end: dateOrDateTime.optional(),
+    ...calendarEventFields,
+  })
+  .strict()
+  .refine(
+    ({ summary, start, end, description, location }) =>
+      [summary, start, end, description, location].some((value) => value !== undefined),
+    { message: 'Include at least one change' },
+  )
+  .refine(
+    ({ start, end }) =>
+      start === undefined
+        ? end === undefined
+        : end !== undefined && start.includes('T') === end.includes('T'),
+    { path: ['end'], message: 'Change start and end together, both as dates or date-times' },
+  );
+
+const calendarDelete = calendarRead;
+
+const tasksList = z
+  .object({
+    account_id: z.literal('tasks'),
+    list_id: optionalId,
+    show_completed: z.boolean().optional(),
+    limit,
+  })
+  .strict();
+
+const tasksCreate = z
+  .object({
+    account_id: z.literal('tasks'),
+    title: z.string().trim().min(1).max(1_024),
+    notes: z.string().max(8_000).optional(),
+    due: dateOrDateTime.optional(),
+    list_id: optionalId,
+  })
+  .strict();
+
+const tasksUpdate = z
+  .object({
+    account_id: z.literal('tasks'),
+    task_id: id,
+    list_id: optionalId,
+    title: z.string().trim().min(1).max(1_024).optional(),
+    notes: z.string().max(8_000).optional(),
+    due: dateOrDateTime.optional(),
+    completed: z.boolean().optional(),
+  })
+  .strict()
+  .refine(
+    ({ title, notes, due, completed }) =>
+      [title, notes, due, completed].some((value) => value !== undefined),
+    { message: 'Include at least one change' },
+  );
+
+export const OUTLOOK_FOLDERS = [
+  'inbox',
+  'drafts',
+  'sentitems',
+  'archive',
+  'deleteditems',
+  'junkemail',
+] as const;
+
+const outlookSearch = z
+  .object({
+    account_id: z.literal('outlook'),
+    query: z.string().trim().min(1).max(1_000).optional(),
+    folder: z.enum(OUTLOOK_FOLDERS).optional(),
+    unread_only: z.boolean().optional(),
+    limit,
+  })
+  .strict();
+
+const outlookRead = z.object({ account_id: z.literal('outlook'), resource_id: id }).strict();
+
+const outlookMessage = z
+  .object({
+    account_id: z.literal('outlook'),
+    to: z.array(z.email()).min(1).max(50),
+    cc: z.array(z.email()).max(50).optional(),
+    subject: z.string().max(998),
+    body: z.string().max(1_000_000),
+  })
+  .strict();
+
+const outlookReply = z
+  .object({
+    account_id: z.literal('outlook'),
+    resource_id: id,
+    body: z.string().min(1).max(1_000_000),
+    reply_all: z.boolean().optional(),
+  })
+  .strict();
+
+const outlookMove = z
+  .object({
+    account_id: z.literal('outlook'),
+    resource_id: id,
+    destination: z.enum(OUTLOOK_FOLDERS),
+  })
+  .strict();
+
+const outlookMark = z
+  .object({
+    account_id: z.literal('outlook'),
+    resource_id: id,
+    read: z.boolean().optional(),
+    flagged: z.boolean().optional(),
+  })
+  .strict()
+  .refine(({ read, flagged }) => read !== undefined || flagged !== undefined, {
+    message: 'Choose read, flagged, or both',
+  });
+
+const notionSearch = z
+  .object({
+    account_id: z.literal('notion'),
+    query: z.string().trim().min(1).max(1_000),
+    limit: z.number().int().positive().max(50).optional(),
+  })
+  .strict();
+
+const notionFetch = z.object({ account_id: z.literal('notion'), id }).strict();
+
+const notionDataSource = z
+  .string()
+  .trim()
+  .regex(
+    /^(?:collection:\/\/)?[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i,
+  );
+
+const notionPropertyValue = z.union([
+  z.string().max(10_000),
+  z.number(),
+  z.boolean(),
+  z.null(),
+  z.array(z.string().max(1_000)).max(100),
+]);
+
+const notionCreatePage = z
+  .object({
+    account_id: z.literal('notion'),
+    title: z.string().trim().min(1).max(2_000),
+    content: z.string().max(200_000).optional(),
+    parent_page_id: optionalId,
+    data_source: notionDataSource.optional(),
+    properties: z.record(z.string().min(1).max(200), notionPropertyValue).optional(),
+  })
+  .strict()
+  .refine(({ parent_page_id, data_source }) => !(parent_page_id && data_source), {
+    message: 'Choose a parent page or a database, not both',
+  })
+  .refine(({ properties, data_source }) => !properties || data_source, {
+    path: ['properties'],
+    message: 'Properties apply only to a database row',
+  });
+
+const notionQueryDatabase = z
+  .object({
+    account_id: z.literal('notion'),
+    data_source: notionDataSource,
+    filter: z
+      .record(z.string(), z.unknown())
+      .refine((value) => JSON.stringify(value).length <= 10_000, 'Filter is too large')
+      .optional(),
+    sort: z
+      .array(
+        z
+          .object({
+            property: z.string().min(1).max(200),
+            direction: z.enum(['ascending', 'descending']),
+          })
+          .strict(),
+      )
+      .max(10)
+      .optional(),
+    limit: limit,
+  })
+  .strict();
+
+const notionEditPage = z
+  .object({
+    account_id: z.literal('notion'),
+    page_id: id,
+    old_text: z.string().min(1).max(20_000),
+    new_text: z.string().max(200_000),
+  })
+  .strict();
+
+const notionComment = z
+  .object({
+    account_id: z.literal('notion'),
+    page_id: id,
+    text: z.string().trim().min(1).max(2_000),
+  })
+  .strict();
+
+const githubRepo = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9-]{1,39}\/[A-Za-z0-9._-]{1,100}$/);
+const githubNumber = z.number().int().positive().max(100_000_000);
+
+const githubSearch = z
+  .object({
+    account_id: z.literal('github'),
+    kind: z.enum(['code', 'issues', 'repositories']),
+    query: z.string().trim().min(1).max(256),
+    limit,
+  })
+  .strict();
+
+const githubReadFile = z
+  .object({
+    account_id: z.literal('github'),
+    repo: githubRepo,
+    path: z.string().trim().max(1_024),
+    ref: z.string().trim().min(1).max(256).optional(),
+  })
+  .strict();
+
+const githubReadIssue = z
+  .object({ account_id: z.literal('github'), repo: githubRepo, number: githubNumber })
+  .strict();
+
+const githubCreateIssue = z
+  .object({
+    account_id: z.literal('github'),
+    repo: githubRepo,
+    title: z.string().trim().min(1).max(256),
+    body: z.string().max(65_000).optional(),
+    labels: z.array(z.string().trim().min(1).max(50)).max(20).optional(),
+  })
+  .strict();
+
+const githubComment = z
+  .object({
+    account_id: z.literal('github'),
+    repo: githubRepo,
+    number: githubNumber,
+    body: z.string().trim().min(1).max(65_000),
+  })
+  .strict();
+
+const githubCreatePullRequest = z
+  .object({
+    account_id: z.literal('github'),
+    repo: githubRepo,
+    title: z.string().trim().min(1).max(256),
+    head: z.string().trim().min(1).max(256),
+    base: z.string().trim().min(1).max(256),
+    body: z.string().max(65_000).optional(),
+    draft: z.boolean().optional(),
+  })
+  .strict();
+
 const messagesSearch = z
   .object({
     query: z.string().max(512).optional(),
@@ -372,7 +677,15 @@ const messagesSend = z
   })
   .strict();
 
-export const SCHEDULE_CADENCES = ['once', 'hourly', 'daily', 'weekdays', 'weekly'] as const;
+export const SCHEDULE_CADENCES = [
+  'once',
+  'hourly',
+  'daily',
+  'weekdays',
+  'weekly',
+  'monthly',
+  'yearly',
+] as const;
 
 export const SCHEDULE_DAYS = [
   'sunday',
@@ -574,6 +887,33 @@ export const actionInputSchemas = {
   slack_open_dm: slackOpenDm,
   slack_read_thread: accountResource('slack'),
   slack_post: slackPost,
+  calendar_list_events: calendarList,
+  calendar_read_event: calendarRead,
+  calendar_create_event: calendarCreate,
+  calendar_update_event: calendarUpdate,
+  calendar_delete_event: calendarDelete,
+  tasks_list: tasksList,
+  tasks_create: tasksCreate,
+  tasks_update: tasksUpdate,
+  outlook_search: outlookSearch,
+  outlook_read: outlookRead,
+  outlook_create_draft: outlookMessage,
+  outlook_send: outlookMessage,
+  outlook_reply: outlookReply,
+  outlook_move: outlookMove,
+  outlook_mark: outlookMark,
+  notion_search: notionSearch,
+  notion_fetch: notionFetch,
+  notion_create_page: notionCreatePage,
+  notion_query_database: notionQueryDatabase,
+  notion_edit_page: notionEditPage,
+  notion_comment: notionComment,
+  github_search: githubSearch,
+  github_read_file: githubReadFile,
+  github_read_issue: githubReadIssue,
+  github_create_issue: githubCreateIssue,
+  github_comment: githubComment,
+  github_create_pull_request: githubCreatePullRequest,
   messages_search: messagesSearch,
   messages_read_thread: messagesReadThread,
   messages_send: messagesSend,

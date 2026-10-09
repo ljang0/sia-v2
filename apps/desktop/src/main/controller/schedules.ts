@@ -116,7 +116,7 @@ export class Schedules {
 
   private insertSchedule(input: BridgeRequestMap['schedules.create']): ScheduleView {
     if (!this.schedulesAvailable()) {
-      throw new Error('Schedules are turned off for this pilot right now.');
+      throw new Error('Schedules aren’t available on your account right now.');
     }
     const thread = this.ctx.requireThread(input.threadId);
     if (thread.archivedAt) throw new Error('Unarchive this thread before scheduling work.');
@@ -153,7 +153,7 @@ export class Schedules {
     input: Omit<BridgeRequestMap['schedules.update'], 'scheduleId'>,
   ): void {
     if (!this.schedulesAvailable()) {
-      throw new Error('Schedules are turned off for this pilot right now.');
+      throw new Error('Schedules aren’t available on your account right now.');
     }
     const prompt = input.prompt === undefined ? undefined : input.prompt.trim();
     if (prompt === '') throw new Error('A scheduled task cannot be empty.');
@@ -165,13 +165,20 @@ export class Schedules {
         : validScheduleRunLimit(input.maxRuns);
     const ruleChanged =
       input.cadence !== undefined || input.days !== undefined || input.everyHours !== undefined;
+    // The UI edits datetimes to the minute; saving a prompt must not reset a clamped date.
+    const dateChanged =
+      nextRunAt !== undefined &&
+      Math.floor(Date.parse(nextRunAt) / 60_000) !==
+        Math.floor(Date.parse(schedule.nextRunAt) / 60_000);
     if (prompt !== undefined) schedule.prompt = prompt;
     if (nextRunAt !== undefined) schedule.nextRunAt = nextRunAt;
-    if (ruleChanged) {
+    if (ruleChanged || nextRunAt !== undefined) {
       const cadence = input.cadence ?? schedule.cadence;
       const rule = scheduleRuleFields(
         {
           cadence,
+          anchorAt:
+            !dateChanged && cadence === schedule.cadence ? schedule.anchorAt : undefined,
           // A new cadence starts from its own details rather than the old one's.
           days: input.days ?? (cadence === schedule.cadence ? schedule.days : undefined),
           everyHours:
@@ -182,6 +189,7 @@ export class Schedules {
       );
       delete schedule.days;
       delete schedule.everyHours;
+      delete schedule.anchorAt;
       Object.assign(schedule, rule);
     }
     if (ruleChanged || nextRunAt !== undefined) {
@@ -205,7 +213,7 @@ export class Schedules {
 
   setScheduleEnabled(input: BridgeRequestMap['schedules.setEnabled']): DesktopSnapshot {
     if (input.enabled && !this.schedulesAvailable()) {
-      throw new Error('Schedules are turned off for this pilot right now.');
+      throw new Error('Schedules aren’t available on your account right now.');
     }
     const schedule = this.requireSchedule(input.scheduleId);
     schedule.enabled = input.enabled;
@@ -223,7 +231,7 @@ export class Schedules {
 
   runScheduleNow(scheduleId: string): BridgeResultMap['schedules.runNow'] {
     if (!this.schedulesAvailable()) {
-      throw new Error('Schedules are turned off for this pilot right now.');
+      throw new Error('Schedules aren’t available on your account right now.');
     }
     const schedule = this.requireSchedule(scheduleId);
     return this.dispatchSchedule(schedule, new Date());

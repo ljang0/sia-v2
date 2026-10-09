@@ -772,7 +772,14 @@ describe('research boundary', () => {
       ],
     };
 
-    for (const batch of [rawEvent, rawChunk]) {
+    const calendarEvent = structuredClone(rawEvent);
+    calendarEvent.batchId = 'google-calendar-event';
+    calendarEvent.events[0]!.payload.data.name = 'calendar_list_events';
+    const tasksEvent = structuredClone(rawEvent);
+    tasksEvent.batchId = 'google-tasks-event';
+    tasksEvent.events[0]!.payload.data.name = 'tasks_update';
+
+    for (const batch of [rawEvent, rawChunk, calendarEvent, tasksEvent]) {
       await assert.rejects(
         fixture.services.research.upload(user, batch),
         hasCode('google_workspace_research_forbidden'),
@@ -1336,6 +1343,14 @@ describe('Meta relay service', () => {
             allowedModels: ['second/fast'],
             defaultHarnessId: 'second_lab_harness',
             harnessRoutes: [
+              {
+                // Cannot replace the managed Codex baseline route.
+                model: 'second/fast',
+                harnessId: 'codex_app_server',
+                harnessModelId: 'replacement',
+                credentialSource: 'provider_api',
+                apiProtocol: 'openai_responses',
+              },
               {
                 model: 'second/fast',
                 harnessId: 'second_lab_harness',

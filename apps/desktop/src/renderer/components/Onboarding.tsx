@@ -35,8 +35,6 @@ export function onboardingStep(snapshot: RendererSnapshot): OnboardingStep | und
   return progress.step;
 }
 
-const STAGES = ['Welcome', 'Mac access', 'Ready'] as const;
-
 const INCLUDED: readonly { icon: Icon; title: string; detail: string }[] = [
   {
     icon: CursorClick,
@@ -55,11 +53,29 @@ const INCLUDED: readonly { icon: Icon; title: string; detail: string }[] = [
   },
 ];
 
+const CONNECTED_INCLUDED: typeof INCLUDED = [
+  {
+    icon: ChatsCircle,
+    title: 'Start with a conversation',
+    detail: 'Ask questions, make plans, or draft something right away.',
+  },
+  {
+    icon: PlugsConnected,
+    title: 'Connect only what you need',
+    detail: 'Choose Google Workspace or Slack, then approve each account.',
+  },
+  {
+    icon: LockKey,
+    title: 'No Mac permissions needed',
+    detail: 'Screen control and voice can be added later in Settings.',
+  },
+];
+
 /** Where the person is in setup: a short, fixed path so progress is always clear. */
-function SetupProgress({ stage }: { stage: number }) {
+function SetupProgress({ stage, connected }: { stage: number; connected: boolean }) {
   return (
     <ol className={styles.progress} aria-label="Setup progress">
-      {STAGES.map((label, index) => (
+      {['Welcome', connected ? 'Connections' : 'Mac access', 'Ready'].map((label, index) => (
         <li
           key={label}
           data-state={index < stage ? 'done' : index === stage ? 'current' : 'todo'}
@@ -100,15 +116,12 @@ export function Onboarding({
   const [accessReady, setAccessReady] = useState(false);
   const [permissionPassComplete, setPermissionPassComplete] = useState(false);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
-  const [prepareApps, setPrepareApps] = useState(
-    snapshot.preferences.onboarding?.permissionSetup?.includeApps ?? starting,
-  );
   const autoFinished = useRef(false);
   const [error, setError] = useState<string>();
   const [celebrate, setCelebrate] = useState(false);
   const customize = useRef<HTMLDetailsElement>(null);
   const [setupRoute, setSetupRoute] = useState<'mac-bypass' | 'connected'>(() =>
-    snapshot.agents.length && snapshot.computer.accessMode !== 'mac'
+    snapshot.agents.length && snapshot.computer.accessMode === 'connected'
       ? 'connected'
       : 'mac-bypass',
   );
@@ -129,6 +142,7 @@ export function Onboarding({
       : undefined) ??
     choices.find((item) => item.ready);
   const restarting = Boolean(snapshot.preferences.onboarding?.restartPending);
+  const connectedSetup = setupRoute === 'connected';
   const aiReady = Boolean(agent || choice?.ready);
   const codexSetupBusy = snapshot.providers.some(
     ({ setup }) => setup && setup.phase !== 'error',
@@ -153,9 +167,9 @@ export function Onboarding({
   }, [inSetup]);
   // Resuming setup only checks status. The shared checklist handles focus refreshes.
   useEffect(() => {
-    if (!inSetup || starting || restarting) return;
+    if (!inSetup || starting || restarting || connectedSetup) return;
     void api.refreshComputerPermissions().catch(() => undefined);
-  }, [api, inSetup, starting, restarting]);
+  }, [api, inSetup, starting, restarting, connectedSetup]);
 
   const run = async (action: () => Promise<unknown>) => {
     if (working.current) return;
@@ -186,11 +200,12 @@ export function Onboarding({
           workspace: '',
           startOnboarding: true,
         });
-      await api.setOnboarding('voice', {
-        includeApps: setupRoute === 'mac-bypass' && prepareApps,
-        active: true,
+      await api.setOnboarding(connectedSetup ? 'apps' : 'voice', {
+        includeApps: !connectedSetup,
+        active: !connectedSetup,
       });
-      setStartPermissions(true);
+      setConnectionsOpen(connectedSetup);
+      setStartPermissions(!connectedSetup);
     });
   const finish = () =>
     void run(async () => {
@@ -234,10 +249,13 @@ export function Onboarding({
     return (
       <>
         {children}
-        {celebrate ? <SetupDoneToast onDone={() => setCelebrate(false)} /> : null}
+        {/* The note points at the suggestions; once a conversation starts it would only cover it. */}
+        {celebrate && !snapshot.activeThread?.events.length ? (
+          <SetupDoneToast onDone={() => setCelebrate(false)} />
+        ) : null}
       </>
     );
-  // Stay on Mac access while a Grant all pass is still walking optional rows.
+  // Stay on Mac access while a Grant all pass is still walking its rows.
   const done = !starting && !restarting && accessReady && !permissionBusy;
   return (
     <main className={styles.setup} aria-label="Welcome to Sia">
@@ -246,7 +264,7 @@ export function Onboarding({
           <div className={styles.brand} aria-hidden="true">
             <Sparkle size={22} weight="fill" /> sia
           </div>
-          <SetupProgress stage={starting ? 0 : done ? 2 : 1} />
+          <SetupProgress stage={starting ? 0 : done ? 2 : 1} connected={connectedSetup} />
         </div>
         {/* Keyed so moving from welcome to permissions plays one calm entrance. */}
         <div key={starting ? 'welcome' : 'access'} className={styles.stageBody}>
@@ -258,31 +276,37 @@ export function Onboarding({
           <h1 ref={title} tabIndex={-1}>
             {starting
               ? 'Let’s set up Sia.'
-              : done
-                ? 'You’re all set.'
-                : 'Give Sia access to your Mac.'}
+              : connectedSetup
+                ? 'Connect the apps you use.'
+                : done
+                  ? 'You’re all set.'
+                  : 'Give Sia access to your Mac.'}
           </h1>
           <p className={styles.intro}>
             {starting
               ? 'A few quick steps, then Sia can help with everyday tasks in the apps you already use.'
-              : done
-                ? 'Sia is ready to help. Connect more apps below, or jump right in.'
-                : 'Turn these on once, here, and Sia won’t need to ask again. Only the first two are needed; skip anything else.'}
+              : connectedSetup
+                ? 'Choose the accounts you want Sia to use. You can also start chatting now and connect them later. No Mac permissions are needed.'
+                : done
+                  ? 'Sia is ready to help. Connect more apps below, or jump right in.'
+                  : 'One guided pass through Mac access, voice, and your everyday apps. macOS asks you to approve each permission. You can pause and keep chatting anytime.'}
           </p>
           {starting ? (
             <>
               <ul className={styles.included} aria-label="Included in setup">
-                {INCLUDED.map(({ icon: ItemIcon, title: label, detail }) => (
-                  <li key={label}>
-                    <span className={styles.includedIcon} aria-hidden="true">
-                      <ItemIcon size={18} />
-                    </span>
-                    <span>
-                      <strong>{label}</strong>
-                      <span>{detail}</span>
-                    </span>
-                  </li>
-                ))}
+                {(connectedSetup ? CONNECTED_INCLUDED : INCLUDED).map(
+                  ({ icon: ItemIcon, title: label, detail }) => (
+                    <li key={label}>
+                      <span className={styles.includedIcon} aria-hidden="true">
+                        <ItemIcon size={18} />
+                      </span>
+                      <span>
+                        <strong>{label}</strong>
+                        <span>{detail}</span>
+                      </span>
+                    </li>
+                  ),
+                )}
               </ul>
               {!agent && !choices.some((item) => item.ready) ? (
                 <div className={styles.providerSetup}>
@@ -316,8 +340,8 @@ export function Onboarding({
                   <span>
                     {setupRoute === 'mac-bypass'
                       ? confirmActions
-                        ? 'Sia works in the background while you keep using your Mac and asks before it sends messages or changes files.'
-                        : 'Sia works in the background while you keep using your Mac, without asking before each step. You can change this in Settings → Computer.'
+                        ? 'Sia starts in the background and asks before actions. If an app needs your screen, Sia pauses for you.'
+                        : 'Sia starts in the background without asking before each step. If an app needs your screen, Sia pauses for you. Change access in Settings → Computer.'
                       : confirmActions
                         ? 'Sia asks before taking actions in connected apps.'
                         : 'Sia takes actions in connected apps without asking each time. You can turn on confirmations in Settings → Computer.'}
@@ -338,23 +362,6 @@ export function Onboarding({
                   Change
                 </button>
               </div>
-              {setupRoute === 'mac-bypass' && aiReady ? (
-                <label className={styles.prepareApps}>
-                  <input
-                    type="checkbox"
-                    checked={prepareApps}
-                    disabled={busy || connecting}
-                    onChange={(event) => setPrepareApps(event.currentTarget.checked)}
-                  />
-                  <span>
-                    <strong>Prepare everyday apps now</strong>
-                    <span>
-                      Browsers, Calendar, Reminders, Finder, and Messages may open for macOS
-                      approval. You can also connect them later.
-                    </span>
-                  </span>
-                </label>
-              ) : null}
               {aiReady ? (
                 <div className={styles.actions}>
                   <button
@@ -465,7 +472,7 @@ export function Onboarding({
             </>
           ) : (
             <>
-              {restarting ? (
+              {connectedSetup ? null : restarting ? (
                 <p role="status">Relaunching Sia…</p>
               ) : (
                 <SetupMacAccess
@@ -487,7 +494,7 @@ export function Onboarding({
                     setStartPermissions(false);
                     void api
                       .setOnboarding(step!, {
-                        includeApps: setupRoute === 'mac-bypass' && prepareApps,
+                        includeApps: setupRoute === 'mac-bypass',
                         active: false,
                       })
                       .catch(() =>
@@ -497,19 +504,19 @@ export function Onboarding({
                   // The one relaunch: saves this step and resumes the pass after reopening.
                   onRestart={async (skipped) => {
                     await api.setOnboarding('verify', {
-                      includeApps: setupRoute === 'mac-bypass' && prepareApps,
+                      includeApps: setupRoute === 'mac-bypass',
                       active: true,
                       skipped,
                     });
                     await api.restartForOnboarding();
                   }}
-                  includeApps={setupRoute === 'mac-bypass' && prepareApps}
+                  includeApps={setupRoute === 'mac-bypass'}
                   initialSkipped={snapshot.preferences.onboarding?.permissionSetup?.skipped}
                   onComplete={async () => {
                     setStartPermissions(false);
                     await run(async () => {
                       await api.setOnboarding('verify', {
-                        includeApps: setupRoute === 'mac-bypass' && prepareApps,
+                        includeApps: setupRoute === 'mac-bypass',
                         active: false,
                       });
                       setPermissionPassComplete(true);
@@ -520,7 +527,8 @@ export function Onboarding({
               <div className={styles.actions}>
                 <button
                   className={buttons.primaryButton}
-                  disabled={busy || connecting}
+                  // Use my Mac needs every permission; the guide above asks for each in turn.
+                  disabled={busy || connecting || (!connectedSetup && !accessReady)}
                   onClick={finish}
                 >
                   Start using Sia

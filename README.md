@@ -16,8 +16,8 @@ the Sia account or the person's existing ChatGPT plan. Nobody pastes a model API
 - **Phone requests always ask on the Mac**, one request at a time, even with approvals bypassed.
 - **Hard safety blocks apply in every mode.** Sia never types into password fields, sign-in
   screens, Keychain, or password managers.
-- **Connections are optional.** Google Workspace, Slack, signed-in Chrome, Apple Messages, and
-  computer use never block first-run setup.
+- **Connections are optional.** Google Workspace, Slack, Outlook, Notion, GitHub, signed-in Chrome,
+  Apple Messages, and computer use never block first-run setup.
 - **Schedules** repeat until paused or deleted; one-time schedules run once. Sia must stay open and
   the Mac awake for local tasks and schedules.
 - **Research capture is off** unless a person separately agrees to it. The pilot is not a research
@@ -46,6 +46,7 @@ Requirements: macOS 14+, Node 24+, pnpm 11+, and Xcode command-line tools.
 
 ```sh
 pnpm install --frozen-lockfile
+pnpm --filter @sia/desktop signing:setup # once per Mac; keeps permissions across dev launches
 pnpm onboard:check
 SIA_FAKE_SERVICES=1 pnpm dev
 ```
@@ -53,6 +54,7 @@ SIA_FAKE_SERVICES=1 pnpm dev
 `SIA_FAKE_SERVICES=1` runs Sia against fake cloud and model services, so you need no AWS access,
 API key, or paid model turn. The first-day walkthrough is
 [`docs/ra-onboarding.md`](./docs/ra-onboarding.md).
+The dev command builds workspace dependencies before launching; no separate build is needed.
 
 ## Test
 

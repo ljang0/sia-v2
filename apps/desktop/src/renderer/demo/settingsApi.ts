@@ -1,3 +1,4 @@
+import { isGoogleConnection } from '../../shared/bridge/connections';
 import type { RendererApi } from '../types';
 import { RESEARCH_CONSENT_VERSION } from '../../shared/bridge';
 import type { DemoApiContext } from './context';
@@ -41,21 +42,37 @@ export function demoSettingsApi({ mutate }: DemoApiContext) {
     async refreshProvider() {
       return Promise.resolve();
     },
+    async saveApiKey({ baseUrl, model }) {
+      mutate((current) => {
+        const target = current.providers.find((item) => item.id === 'byok');
+        if (!target) return;
+        target.status = 'ready';
+        target.model = model;
+        target.account = new URL(baseUrl || 'https://api.openai.com/v1').host;
+      });
+    },
+    async clearApiKey() {
+      mutate((current) => {
+        const target = current.providers.find((item) => item.id === 'byok');
+        if (target) target.status = 'needs-login';
+      });
+    },
     async connectSelectedApps(selected) {
       mutate((current) => {
         for (const app of current.apps) {
+          if (!isGoogleConnection(app.id) && app.id !== 'slack') continue;
           if (!selected.includes(app.id === 'slack' ? 'slack' : 'google')) continue;
           app.status = 'connected';
           app.enabled = true;
           app.account ??= 'lawrence@example.com';
-          if (app.id !== 'slack') app.googleAccess = 'read_only';
+          if (isGoogleConnection(app.id)) app.googleAccess = 'read_only';
         }
       });
     },
     async connectGoogleApps() {
       mutate((current) => {
         for (const app of current.apps) {
-          if (app.id === 'slack') continue;
+          if (!isGoogleConnection(app.id)) continue;
           app.status = 'connected';
           app.account = app.account ?? 'lawrence@example.com';
           app.googleAccess = 'read_only';
@@ -65,7 +82,7 @@ export function demoSettingsApi({ mutate }: DemoApiContext) {
     async upgradeGoogleApps() {
       mutate((current) => {
         for (const app of current.apps) {
-          if (app.id === 'slack') continue;
+          if (!isGoogleConnection(app.id)) continue;
           app.googleAccess = 'read_write';
           app.upgrading = false;
         }
@@ -77,7 +94,7 @@ export function demoSettingsApi({ mutate }: DemoApiContext) {
         if (target) {
           target.status = 'connected';
           target.account = target.account ?? 'lawrence@example.com';
-          if (target.id !== 'slack') target.googleAccess = 'read_only';
+          if (isGoogleConnection(target.id)) target.googleAccess = 'read_only';
         }
       });
     },

@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { FolderSimple, ImageSquare, SpinnerGap } from '@phosphor-icons/react';
+import { FolderSimple, ImageSquare, SpinnerGap, X } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { errorMessage } from '../plainErrors';
 import type { AttachmentPreview, RendererAttachment } from '../types';
@@ -7,6 +7,7 @@ import buttons from '../styles/buttons.module.css';
 import dialogs from '../styles/dialogs.module.css';
 import primitives from '../styles/primitives.module.css';
 import styles from './Conversation.module.css';
+import { SafeMarkdown } from './SafeMarkdown';
 
 // Thumbnails of sent images, kept for the session so scrolling back does not reload them.
 const thumbnailCache = new Map<string, string>();
@@ -48,6 +49,7 @@ export function AttachmentChip({
       onClick={() => onPreview?.(attachment)}
       disabled={!onPreview}
       data-thumbnail={thumbnail ? 'true' : undefined}
+      aria-label={attachment.generated ? `Preview result: ${attachment.name}` : undefined}
     >
       {thumbnail ? (
         <img className={styles.attachmentThumbnail} src={thumbnail} alt="" />
@@ -72,20 +74,39 @@ export function AttachmentPreviewDialog({
   onOpenAttachment?: ((attachmentId: string) => Promise<void>) | undefined;
   onRevealAttachment?: ((attachmentId: string) => Promise<void>) | undefined;
 }) {
+  // Closing a preview must not wait for animationend in an occluded/background window.
+  if (!preview) return null;
   return (
     <Dialog.Root open={Boolean(preview)} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className={dialogs.dialogOverlay} />
         <Dialog.Content className={`${dialogs.alertDialogContent} ${styles.attachmentPreview}`}>
-          <Dialog.Title>{preview?.attachment.name}</Dialog.Title>
+          <div className={styles.attachmentPreviewHeader}>
+            <Dialog.Title>{preview?.attachment.name}</Dialog.Title>
+            <Dialog.Close asChild>
+              <button type="button" className={buttons.iconButton} aria-label="Close preview">
+                <X size={18} aria-hidden="true" />
+              </button>
+            </Dialog.Close>
+          </div>
           <Dialog.Description>
-            This local preview uses a short-lived file grant that expires after one hour.
+            {preview?.attachment.generated
+              ? 'Saved result. Preview it here, open it in its app, or show it in Finder.'
+              : 'This local preview uses a short-lived file grant that expires after one hour.'}
           </Dialog.Description>
           <div className={styles.attachmentPreviewBody}>
             {!preview?.result ? (
               <SpinnerGap className={primitives.spin} size={22} aria-label="Loading preview" />
             ) : preview.result.kind === 'image' ? (
               <img src={preview.result.dataUrl} alt={preview.attachment.name} />
+            ) : preview.result.kind === 'text' &&
+              /\.(md|markdown|mdown)$/i.test(preview.attachment.name) ? (
+              <article
+                className={styles.attachmentMarkdownPreview}
+                aria-label="Document preview"
+              >
+                <SafeMarkdown content={preview.result.content} />
+              </article>
             ) : preview.result.kind === 'text' ? (
               <div className={styles.attachmentTextPreview} data-format={preview.result.format}>
                 <header>

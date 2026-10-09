@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { CloudClient } from '../cloud/cloud-client.js';
 import type { DesktopController } from './desktop-controller.js';
+import { isGoogleConnection, isLocalConnection } from '../../shared/bridge.js';
 import { createController, createHarness } from './test-support.js';
 
 describe('DesktopController', () => {
@@ -14,13 +15,55 @@ describe('DesktopController', () => {
     expect(result.opened).toBe(false);
     expect(result.snapshot.connections).toEqual([
       expect.objectContaining({ id: 'gmail', status: 'connected' }),
+      expect.objectContaining({ id: 'calendar', status: 'connected' }),
       expect.objectContaining({ id: 'drive', status: 'connected' }),
       expect.objectContaining({ id: 'docs', status: 'connected' }),
       expect.objectContaining({ id: 'sheets', status: 'connected' }),
       expect.objectContaining({ id: 'slides', status: 'connected' }),
+      expect.objectContaining({ id: 'tasks', status: 'connected' }),
       expect.objectContaining({ id: 'slack', status: 'connected' }),
+      expect.objectContaining({ id: 'outlook', status: 'disconnected' }),
+      expect.objectContaining({ id: 'notion', status: 'disconnected' }),
+      expect.objectContaining({ id: 'github', status: 'disconnected' }),
     ]);
     await controller.shutdown();
+  });
+
+  it('connects Mac-signed-in apps on their own and offers their tools only once connected', async () => {
+    const controller = await createController();
+    try {
+      expect(controller.actionToolAvailable('notion_search')).toBe(false);
+      const result = await controller.invoke('connections.start', { connectionId: 'notion' });
+      const notion = result.snapshot.connections.find(({ id }) => id === 'notion');
+      expect(notion).toMatchObject({ status: 'connected', account: 'demo@notion.test' });
+      expect(notion?.connectionId).toMatch(/^lc_notion_/);
+      expect(
+        result.snapshot.connections
+          .filter(({ status }) => status === 'connected')
+          .map(({ id }) => id),
+      ).toEqual(['notion']);
+      expect(controller.actionToolAvailable('notion_search')).toBe(true);
+      expect(controller.actionToolAvailable('github_search')).toBe(false);
+      // Calendar and Tasks stay off until Google approves their scopes.
+      expect(controller.actionToolAvailable('calendar_list_events')).toBe(false);
+      expect(controller.actionToolAvailable('mail_search')).toBe(true);
+      expect(controller.connectionIdForAction('notion', 'notion')).toBe(notion?.connectionId);
+      expect(controller.connectionIdForAction('github', 'github')).toBeUndefined();
+
+      const disconnected = await controller.invoke('connections.disconnect', {
+        connectionId: 'notion',
+        expectedConnectionId: notion!.connectionId!,
+      });
+      expect(disconnected.connections.find(({ id }) => id === 'notion')).toEqual({
+        id: 'notion',
+        label: 'Notion',
+        status: 'disconnected',
+        enabled: true,
+      });
+      expect(controller.actionToolAvailable('notion_search')).toBe(false);
+    } finally {
+      await controller.shutdown();
+    }
   });
 
   it('replaces an expired saved grant in one reconnect action', async () => {
@@ -56,7 +99,7 @@ describe('DesktopController', () => {
     expect(result.opened).toBe(false);
     expect(
       result.snapshot.connections
-        .filter(({ id }) => id !== 'slack')
+        .filter(({ id }) => isGoogleConnection(id))
         .every(({ status }) => status === 'connected'),
     ).toBe(true);
     expect(result.snapshot.connections.find(({ id }) => id === 'slack')).toMatchObject({
@@ -72,6 +115,7 @@ describe('DesktopController', () => {
       try {
         const result = await controller.invoke('connections.startSelected', { apps });
         for (const connection of result.snapshot.connections) {
+          if (isLocalConnection(connection.id)) continue;
           const selected = apps.includes(connection.id === 'slack' ? 'slack' : 'google');
           expect(connection.status).toBe(selected ? 'connected' : 'disconnected');
         }
@@ -164,7 +208,7 @@ describe('DesktopController', () => {
       expect(
         controller
           .snapshot()
-          .connections.filter(({ id }) => id !== 'slack')
+          .connections.filter(({ id }) => isGoogleConnection(id))
           .every(
             ({ status, connectionId, googleAccess }) =>
               status === 'connected' &&
@@ -178,7 +222,7 @@ describe('DesktopController', () => {
       expect(startConnection).toHaveBeenLastCalledWith('gmail', 'read_write');
       expect(
         upgrading.snapshot.connections
-          .filter(({ id }) => id !== 'slack')
+          .filter(({ id }) => isGoogleConnection(id))
           .every(
             ({ connectionId, googleAccess, upgradeConnectionId }) =>
               connectionId === 'grant-reader' &&
@@ -191,7 +235,7 @@ describe('DesktopController', () => {
       expect(
         controller
           .snapshot()
-          .connections.filter(({ id }) => id !== 'slack')
+          .connections.filter(({ id }) => isGoogleConnection(id))
           .every(
             ({ connectionId, googleAccess, upgradeConnectionId }) =>
               connectionId === 'grant-editor' &&
@@ -227,11 +271,16 @@ describe('DesktopController', () => {
       })),
     ).toEqual([
       { id: 'gmail', status: 'connected', enabled: false },
+      { id: 'calendar', status: 'connected', enabled: false },
       { id: 'drive', status: 'connected', enabled: false },
       { id: 'docs', status: 'connected', enabled: true },
       { id: 'sheets', status: 'connected', enabled: false },
       { id: 'slides', status: 'connected', enabled: false },
+      { id: 'tasks', status: 'connected', enabled: false },
       { id: 'slack', status: 'connected', enabled: true },
+      { id: 'outlook', status: 'disconnected', enabled: true },
+      { id: 'notion', status: 'disconnected', enabled: true },
+      { id: 'github', status: 'disconnected', enabled: true },
     ]);
     await controller.shutdown();
   });
@@ -275,7 +324,7 @@ describe('DesktopController', () => {
     });
     expect(
       result.snapshot.connections
-        .filter(({ id }) => id !== 'slack')
+        .filter(({ id }) => isGoogleConnection(id))
         .every(({ status }) => status === 'connected'),
     ).toBe(true);
     expect(result.snapshot.connections.find(({ id }) => id === 'slack')).toMatchObject({
@@ -550,7 +599,10 @@ describe('DesktopController', () => {
       expect(startConnection.mock.calls.map(([id]) => id)).toEqual(connectionOrder);
       expect(connectionStatus.mock.calls.map(([id]) => id)).toEqual(connectionOrder);
       expect(
-        controller.snapshot().connections.every(({ status }) => status === 'connected'),
+        controller
+          .snapshot()
+          .connections.filter(({ id }) => !isLocalConnection(id))
+          .every(({ status }) => status === 'connected'),
       ).toBe(true);
 
       for (const connectionId of connectionOrder) {
@@ -586,11 +638,16 @@ describe('DesktopController', () => {
       expect(openExternal).toHaveBeenCalledTimes(3);
       expect(controller.snapshot().connections).toEqual([
         expect.objectContaining({ id: 'gmail', status: 'disconnected' }),
+        expect.objectContaining({ id: 'calendar', status: 'disconnected' }),
         expect.objectContaining({ id: 'drive', status: 'disconnected' }),
         expect.objectContaining({ id: 'docs', status: 'disconnected' }),
         expect.objectContaining({ id: 'sheets', status: 'disconnected' }),
         expect.objectContaining({ id: 'slides', status: 'disconnected' }),
+        expect.objectContaining({ id: 'tasks', status: 'disconnected' }),
         expect.objectContaining({ id: 'slack', status: 'disconnected' }),
+        expect.objectContaining({ id: 'outlook', status: 'disconnected' }),
+        expect.objectContaining({ id: 'notion', status: 'disconnected' }),
+        expect.objectContaining({ id: 'github', status: 'disconnected' }),
       ]);
     } finally {
       vi.useRealTimers();

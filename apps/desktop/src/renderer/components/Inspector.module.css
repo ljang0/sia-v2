@@ -87,6 +87,27 @@
   animation: overlayEnter var(--motion-standard) var(--ease-standard);
 }
 
+.inspector[data-state='closed'] {
+  animation: inspectorExit var(--motion-fast) ease-in forwards;
+}
+
+.inspectorOverlay[data-state='closed'] {
+  animation: inspectorOverlayExit var(--motion-fast) ease-in forwards;
+}
+
+@keyframes inspectorExit {
+  to {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+
+@keyframes inspectorOverlayExit {
+  to {
+    opacity: 0;
+  }
+}
+
 @keyframes inspectorEnter {
   from {
     opacity: 0;

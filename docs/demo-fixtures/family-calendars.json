@@ -1,0 +1,57 @@
+{
+  "fictional": true,
+  "time_zone": "America/New_York",
+  "sources": ["Google family", "Apple work", "Team schedule"],
+  "events": [
+    {
+      "id": "g1",
+      "source": "Google family",
+      "title": "Riley soccer",
+      "start": "2026-10-06T17:00:00-04:00",
+      "end": "2026-10-06T18:00:00-04:00",
+      "place": "East Field",
+      "drive_minutes": 25,
+      "arrival_buffer_minutes": 10,
+      "guardian": "Avery"
+    },
+    {
+      "id": "a1",
+      "source": "Apple work",
+      "title": "Client review",
+      "start": "2026-10-06T16:00:00-04:00",
+      "end": "2026-10-06T17:00:00-04:00",
+      "guardian": "Avery"
+    },
+    {
+      "id": "t1",
+      "source": "Team schedule",
+      "title": "Riley soccer",
+      "start": "2026-10-06T21:00:00Z",
+      "end": "2026-10-06T22:00:00Z",
+      "place": "East Field",
+      "duplicate_of": "g1"
+    },
+    {
+      "id": "g2",
+      "source": "Google family",
+      "title": "Quinn piano",
+      "start": "2026-10-06T17:30:00-04:00",
+      "end": "2026-10-06T18:15:00-04:00",
+      "place": "West Studio",
+      "guardian": "Sam"
+    },
+    {
+      "id": "t2",
+      "source": "Team schedule",
+      "title": "Saturday practice",
+      "start": "2026-10-10T09:00:00-04:00",
+      "status": "cancelled"
+    }
+  ],
+  "expected": {
+    "soccer_leave_by": "2026-10-06T16:25:00-04:00",
+    "conflict": "Avery is in a client review at departure time; propose another pickup owner.",
+    "duplicate_events": ["t1"],
+    "exclude_cancelled": ["t2"]
+  }
+}

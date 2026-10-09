@@ -1,6 +1,6 @@
 # Release status
 
-The last signed, notarized pilot build is `0.1.0-alpha.24` (tag `v0.1.0-alpha.24`). Its exact
+The last published signed, notarized pilot build is `0.1.0-alpha.24` (tag `v0.1.0-alpha.24`). Its exact
 source, artifacts, and live-provider checks are in
 [`release-evidence.md`](./release-evidence.md).
 The dated operator handoff for that build, including its private download instructions, remains
@@ -8,11 +8,16 @@ at the release tag.
 
 Start here:
 
+- [`public-release.md`](./public-release.md) — current alpha.25 candidate, verification and blockers.
 - [`cmu-pilot-runbook.md`](./cmu-pilot-runbook.md) — five-minute setup and safe pilot defaults.
 - [`manual-acceptance.md`](./manual-acceptance.md) — the remaining human acceptance pass.
 - [`release-notes.md`](./release-notes.md) — tester-facing notes for the next build.
 
 ## Remaining before broader release
+
+SES production email delivery is now configured on `sia-alpha` with the verified branded sender.
+The successful deployment retained existing sessions and their 30-day refresh lifetime. The operator received an email code and completed signup in an isolated signed candidate profile.
+A separate clean macOS user and recipient upgrade still need acceptance; see the current candidate record above.
 
 These do not block a small named CMU product pilot with research collection off:
 

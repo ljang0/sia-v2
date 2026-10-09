@@ -10,6 +10,7 @@ repository and run:
 
 ```sh
 pnpm install --frozen-lockfile
+pnpm --filter @sia/desktop signing:setup # once per Mac
 pnpm onboard:check
 ```
 
@@ -140,7 +141,26 @@ the local traffic is not encrypted. **Create a new link** revokes old links; **T
 closes the listener. The listener binds a private LAN address on port 8738 and accepts only that
 subnet. It stops on sleep/lock, follows network changes, and resumes when the Mac is available.
 Sia must remain open and the Mac awake and unlocked. Scan again after a Wi-Fi address change.
+
 Guest/campus Wi-Fi that isolates devices may prevent pairing; use a network that permits peers.
+
+**Text Sia from anywhere** is on the same page. Give Sia Full Disk Access, add your own phone
+number or iCloud email, choose an assistant and select **Turn on texting**. Then iMessage the
+Mac's Apple ID from your phone (or text yourself if your phone and Mac share an Apple ID). Sia
+replies in that conversation. Texted tasks always wait for your approval, one step at a time, even with
+Full bypass on. Reply **YES** or **NO** when Sia asks, or answer in Sia on the Mac. Text **STATUS** to see what Sia is doing, **STOP** to cancel or **NEW** to start over. Long tasks send a short progress note every 10 minutes. SMS and group chats are ignored. Send photos, files or voice notes with a text and Sia receives them (voice notes need Sia's voice service on); saved results come back as attachments. Sia also texts your first number when scheduled tasks finish, unless you turn that off.
+
+Under **Trusted people**, add other Sia users by name and number (they add you too). Your Sias
+can then message each other, for example to find a meeting time. Their messages never run with
+Full bypass, you hear about each one by text, and every reply your Sia sends them waits for your
+approval. **Pause connections** stops all of it without removing anyone.
+
+Prefer **Telegram or Discord**? Create a bot (Telegram: message @BotFather and send /newbot;
+Discord: Developer Portal → Applications → Bot), copy its token and select **Paste Telegram
+token** or **Paste Discord token**. Sia reads the token from the clipboard, keeps it encrypted on
+the Mac and clears the clipboard. Message the bot the six-digit code Sia shows to link your
+account; after that it works like texting Sia. Send a voice note and Sia answers in text and
+speech.
 
 `pnpm --filter @sia/desktop test:remote` runs the isolated phone-browser checks in Chromium and
 WebKit with simulated tasks. Install their test engines once with
@@ -194,7 +214,9 @@ opening or changing the saved database. It does not start a temporary, unsaved w
 
 After any required email sign-in:
 
-1. Click **Set up Sia**. This creates the default assistant and opens the **Mac access** checklist.
+1. Click **Set up Sia**. This creates the default assistant and starts the **Mac access** checklist.
+   **Customize setup → Connected apps only** opens account connections instead, with no Mac
+   permission requests. **Start using Sia** is available even without optional connections.
 2. The checklist lists every permission Sia can ask for, each with a plain name, one line on why,
    a live status (**Allowed**, **Needs you**, **Turned off**, or **Reopen Sia**), and one button
    (**Allow** shows the real macOS prompt; **Open Settings** opens the exact System Settings pane).
@@ -204,7 +226,8 @@ After any required email sign-in:
    rows flip to **Allowed** without restarting Sia.
 3. When the needed permissions are on, setup opens your conversation. There is no routine
    restart. If macOS applies a grant only after Sia reopens (usually Screen Recording), the row
-   shows **Reopen Sia** and one **Relaunch Sia** button appears. It saves the step, relaunches,
+   shows **Reopen Sia**. The guided pass finishes the remaining prompts before showing one
+   **Relaunch Sia** button. It saves the step, relaunches,
    and resumes the checklist where it was, without asking again for anything already granted or
    skipped. **Finish later** stops the pass; **Start using Sia** continues with the access granted.
 
@@ -213,8 +236,8 @@ After any required email sign-in:
 | Control your Mac                                                     | Accessibility (also covers the Fn key; no Input Monitoring) | Yes      | System prompt, then the Accessibility pane               |
 | See your screen                                                      | Screen & System Audio Recording                             | Yes      | Registers Sia, then the Screen Recording pane            |
 | Talk with Fn                                                         | Microphone and Speech Recognition                           | Optional | Native prompts from the signed app                       |
-| System Events, Safari, Chrome, Calendar, Reminders, Finder, Messages | Automation (Apple Events) for that app                      | Optional | One native prompt per app; apps not installed are hidden |
-| Read Messages history                                                | Full Disk Access                                            | Optional | Opens the Full Disk Access pane (macOS has no prompt)    |
+| System Events, Safari, Chrome, Calendar, Reminders, Finder, Messages | Automation (Apple Events) for that app                      | Yes      | One native prompt per app; apps not installed are hidden |
+| Read Messages history                                                | Full Disk Access                                            | Yes      | Opens the Full Disk Access pane (macOS has no prompt)    |
 
 Not in the checklist: notifications (macOS asks the first time a task-finished notice is sent),
 Local Network (asked only when you turn on Phone remote), and the Keychain prompt at launch. Sia
@@ -223,11 +246,17 @@ Automation. Anything skipped is asked for by macOS the first time a task needs i
 background task that is missing Accessibility or Screen Recording names the missing permission
 in plain words.
 
-In Use my Mac, **Prepare everyday apps now** is selected by default. The same setup pass requests
-missing Automation grants for System Events, Safari, Chrome, Calendar, Reminders, Finder and
-Messages. Already allowed or unavailable apps are skipped; running apps are reused and missing
-apps open hidden where macOS supports it. Uncheck the option to defer those app prompts until a
-task needs them. Connected apps setup does not request these Automation grants.
+In Use my Mac, one **Set up Sia** click walks every required permission in order, including the
+Automation grants for System Events, Safari, Chrome, Calendar, Reminders, Finder and Messages and
+Full Disk Access. Already allowed or unavailable apps are skipped; running apps are reused and
+missing apps open hidden where macOS supports it. A declined grant stays the current step with an
+**Open System Settings** button, and **Start using Sia** stays off until every required row is on.
+Connected apps setup does not request these grants.
+
+Once macOS lists both Accessibility and Screen Recording, Sia confirms they work by reading one
+other app's window (preferring Finder) through the same driver its tools use. The window is
+discarded immediately. If that read fails, **See your screen** shows **Reopen Sia** instead of a
+check, because macOS usually applies the grant only after Sia reopens.
 **Settings → Computer** shows the same checklist and **Grant all** later.
 
 The default is **Use my Mac** with bypass: Sia works in the background with signed-in Mac apps
@@ -239,7 +268,10 @@ complete AI sign-in first. No API key is required. If the ChatGPT browser sign-i
 closed, wrong account), **Cancel** next to **Waiting for sign-in…** stops it and **Try again**
 starts a fresh one.
 
-Only Accessibility and Screen Recording are needed to finish setup; the rest can be skipped.
+Accessibility and Screen Recording are needed for computer control. All permissions can be
+deferred to start chatting; **Finish later** pauses the guided pass. Full Disk Access participates
+in the same pass and can be skipped. If its grant still reads as off, use **Turned it on? Relaunch
+Sia** after enabling it in System Settings.
 macOS still requires its own approvals; a single Sia button cannot replace them with a single
 password prompt. Passwords are entered only in macOS dialogs, never Sia or the agent. Sia skips
 grants already allowed and never records during setup. Status checks only read; they never open a
@@ -253,7 +285,8 @@ before its Automation grant can be checked.
 **Connect Google or Slack** is optional. Both accounts are checked by default; uncheck unused
 accounts and click **Connect selected apps** once. Complete each provider's sign-in in order.
 Connected accounts are skipped. If a sign-in page was closed, **Cancel connection setup** cancels
-the pending grant while keeping completed connections. Google begins with read access; edits and
+the pending grant while keeping completed connections. An expired or interrupted saved grant has
+an inline **Reconnect Google Workspace** or **Reconnect Slack** button in setup. Google begins with read access; edits and
 sends require separate consent. In an unconfigured build, use your signed-in websites through
 Mac access instead. Chrome window selection remains available in **Settings → Computer**.
 

@@ -68,7 +68,7 @@ export class AppSupport {
       }
       await this.ctx.deps.identity.refreshSession?.();
       const token = await this.ctx.deps.identity.read?.();
-      if (!token) throw new Error('Sign in with an approved Sia account to check for updates.');
+      if (!token) throw new Error('Sign in to Sia to check for updates.');
       const response = await fetch(this.ctx.deps.updateManifestUrl, {
         headers: { accept: 'application/json', authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(10_000),

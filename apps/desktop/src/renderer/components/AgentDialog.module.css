@@ -17,11 +17,8 @@
   animation: dialogEnter var(--motion-surface) var(--ease-standard);
 }
 
+/* Unmount immediately: occluded windows can suspend animationend indefinitely. */
 .dialogContent[data-state='closed'] {
-  animation: dialogExit var(--motion-fast) ease-in;
-}
-
-.dialogContent[data-instant-close][data-state='closed'] {
   animation: none;
 }
 
@@ -33,17 +30,6 @@
   to {
     opacity: 1;
     transform: translate(-50%, -50%);
-  }
-}
-
-@keyframes dialogExit {
-  from {
-    opacity: 1;
-    transform: translate(-50%, -50%);
-  }
-  to {
-    opacity: 0;
-    transform: translate(-50%, calc(-50% + 4px));
   }
 }
 

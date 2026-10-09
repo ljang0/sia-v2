@@ -55,6 +55,8 @@ export interface RuntimeThreadConfig {
 }
 
 export interface RuntimeTurnInput {
+  /** Scheduled checks return a structured success/no-change verdict even in connected mode. */
+  scheduled?: boolean;
   onMacRawResult?: (text: string) => void;
   onMacResult?: (result: MacTaskResult) => void;
   thread: RuntimeThreadConfig;
@@ -121,6 +123,8 @@ export class RuntimeCoordinator {
       macContext?: () => Promise<string>;
       metaTransport?: MetaTransport;
       hostedCodexProvider?: CodexCustomModelProviderResolver;
+      /** The person's own API key, reached through a loopback proxy that holds the key. */
+      byokCodexProvider?: CodexCustomModelProviderResolver;
       acpMcpServerFactory?: (
         provider: 'grok' | 'gemini' | 'claude',
         session: ProviderSessionOptions,
@@ -154,32 +158,47 @@ export class RuntimeCoordinator {
       },
     });
     this.#registerAdapter('codex', 'codex_app_server', this.#codexAdapter);
+    const customCodexAdapter = (
+      providerId: 'meta' | 'byok',
+      label: string,
+      billing: 'included' | 'api',
+      customModelProvider: CodexCustomModelProviderResolver,
+    ) =>
+      createCodexAdapter({
+        ...(options.codexCommand ? { command: options.codexCommand } : {}),
+        providerId,
+        accountOverride: { state: 'authenticated', label, billing },
+        customModelProvider,
+        sessionEphemeral: true,
+        dynamicToolHandler: async (call, signal) => {
+          const context = this.#activeByProviderSession.get(call.threadId ?? '');
+          if (!context) {
+            return {
+              success: false,
+              content: { error: 'No active Sia turn owns this tool call.' },
+            };
+          }
+          return this.#invokeTool(context, call.name, call.arguments, signal);
+        },
+      });
     if (options.hostedCodexProvider) {
       this.#registerAdapter(
         'meta',
         'codex_app_server',
-        createCodexAdapter({
-          ...(options.codexCommand ? { command: options.codexCommand } : {}),
-          providerId: 'meta',
-          accountOverride: {
-            state: 'authenticated',
-            label: 'Included with Sia',
-            billing: 'included',
-          },
-          customModelProvider: options.hostedCodexProvider,
-          sessionEphemeral: true,
-          dynamicToolHandler: async (call, signal) => {
-            const context = this.#activeByProviderSession.get(call.threadId ?? '');
-            if (!context) {
-              return {
-                success: false,
-                content: { error: 'No active Sia turn owns this tool call.' },
-              };
-            }
-            return this.#invokeTool(context, call.name, call.arguments, signal);
-          },
-        }),
+        customCodexAdapter(
+          'meta',
+          'Included with Sia',
+          'included',
+          options.hostedCodexProvider,
+        ),
         false,
+      );
+    }
+    if (options.byokCodexProvider) {
+      this.#registerAdapter(
+        'byok',
+        'codex_app_server',
+        customCodexAdapter('byok', 'Your API key', 'api', options.byokCodexProvider),
       );
     }
     this.#registerAdapter(
@@ -283,6 +302,7 @@ export class RuntimeCoordinator {
   ): AsyncIterable<ThreadEventEnvelope> {
     const mac =
       input.thread.computerAccessMode === 'mac' && input.thread.nativeTools !== 'disabled';
+    const structuredResult = mac || input.scheduled === true;
     // Provider setup does not touch the GUI. Finish it before reserving the
     // screen, then capture foreground context immediately before the turn.
     const state = await this.#sessionFor(input.thread, signal);
@@ -307,7 +327,7 @@ export class RuntimeCoordinator {
               .filter(Boolean)
               .join('\n\n'),
             model: state.target.harnessModelId,
-            ...(mac ? { outputSchema: MAC_RESPONSE_SCHEMA } : {}),
+            ...(structuredResult ? { outputSchema: MAC_RESPONSE_SCHEMA } : {}),
             ...(input.reasoningEffort ? { reasoningEffort: input.reasoningEffort } : {}),
             ...(input.attachments?.length ? { attachments: input.attachments } : {}),
           },
@@ -315,7 +335,7 @@ export class RuntimeCoordinator {
         ),
     )) {
       if (
-        mac &&
+        structuredResult &&
         event.type === 'message' &&
         event.payload.role === 'assistant' &&
         event.payload.phase !== 'commentary' &&
@@ -339,7 +359,7 @@ export class RuntimeCoordinator {
           },
         );
       }
-      yield mac ? presentMacResponse(event) : event;
+      yield structuredResult ? presentMacResponse(event) : event;
     }
   }
 
@@ -501,7 +521,9 @@ export class RuntimeCoordinator {
     if (
       thread.provider !== 'codex' &&
       thread.provider !== 'claude' &&
-      thread.provider !== 'meta'
+      thread.provider !== 'meta' &&
+      thread.provider !== 'byok' &&
+      thread.provider !== 'lab'
     ) {
       throw new Error(
         'This model is no longer available in Sia. Choose Codex or a model included with Sia.',
@@ -512,7 +534,11 @@ export class RuntimeCoordinator {
       resolutionSource: 'legacy_default' as const,
     };
     assertTargetContext(thread, target);
-    const mac = thread.computerAccessMode === 'mac' && thread.nativeTools !== 'disabled';
+    // A lab harness reaches Sia's tools through MCP, not Codex's native Mac tools.
+    const mac =
+      thread.computerAccessMode === 'mac' &&
+      thread.nativeTools !== 'disabled' &&
+      thread.provider !== 'lab';
     if (mac && target.harnessId !== 'codex_app_server')
       throw new Error('Use my Mac requires a Codex App Server agent.');
     if (thread.nativeTools === 'disabled' && target.harnessId !== 'codex_app_server')
@@ -559,7 +585,9 @@ export class RuntimeCoordinator {
           ? 'That beta harness has not passed this release’s conformance and security checks.'
           : thread.provider === 'meta'
             ? 'Included models require a configured Sia cloud relay in this build.'
-            : `Harness ${target.harnessId} is not registered for ${thread.provider}.`,
+            : thread.provider === 'byok'
+              ? 'Add your API key in Settings → AI to use this model.'
+              : `Harness ${target.harnessId} is not registered for ${thread.provider}.`,
       );
     }
     if (!adapter.productionEnabled) {

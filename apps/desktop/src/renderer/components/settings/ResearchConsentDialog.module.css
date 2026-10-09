@@ -51,13 +51,3 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-
-.onboardingStep {
-  display: block;
-  margin-bottom: 12px;
-  color: var(--text-tertiary);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  letter-spacing: 0.055em;
-  text-transform: uppercase;
-}

@@ -6,6 +6,7 @@ import { CloudRequestError } from '../cloud/cloud-client.js';
 import { DesktopActionBackend } from './desktop-action-backend.js';
 import { dataRecord, fakeCua, request } from './test-support.js';
 import type { CloudActionClient } from './types.js';
+import { ConnectorRequestError } from '../connectors/http.js';
 
 describe('DesktopActionBackend connector boundary', () => {
   it('offers browser continuation when an optional connector is not connected', async () => {
@@ -27,6 +28,80 @@ describe('DesktopActionBackend connector boundary', () => {
     expect(result.reason).toContain('Google Drive is not connected');
     expect(result.reason).toContain('https://drive.google.com');
     expect(result.reason).toContain('connect it later in Settings > Connections');
+  });
+
+  it('runs Mac-connected app tools locally without Sia cloud and strips account_id', async () => {
+    const execute = vi.fn(async () => ({ results: [{ id: 'page-1' }] }));
+    const resolveConnectionId = vi.fn(() => 'lc_notion_00000000-0000-4000-8000-000000000000');
+    const backend = new DesktopActionBackend({
+      cua: fakeCua(async () => ({})),
+      localConnectors: { execute },
+      resolveConnectionId,
+    });
+
+    const result = await backend.invoke(
+      request('notion_search', { account_id: 'notion', query: 'roadmap' }),
+    );
+
+    expect(result).toMatchObject({
+      outcome: 'verified',
+      data: { results: [{ id: 'page-1' }] },
+    });
+    expect(resolveConnectionId).toHaveBeenCalledWith('notion', 'notion', undefined);
+    expect(execute).toHaveBeenCalledWith(
+      'notion',
+      'lc_notion_00000000-0000-4000-8000-000000000000',
+      'notion_search',
+      { query: 'roadmap' },
+      undefined,
+    );
+  });
+
+  it('refuses unapproved local mutations and asks to reconnect an expired local grant', async () => {
+    const execute = vi.fn(async () => {
+      throw new ConnectorRequestError(
+        401,
+        'This app connection expired. Reconnect it in Settings > Connections.',
+      );
+    });
+    const onConnectionReconnectRequired = vi.fn();
+    const backend = new DesktopActionBackend({
+      cua: fakeCua(async () => ({})),
+      localConnectors: { execute },
+      resolveConnectionId: () => 'lc_github_00000000-0000-4000-8000-000000000000',
+      onConnectionReconnectRequired,
+    });
+    const unapproved = request('github_create_issue', {
+      account_id: 'github',
+      repo: 'octo/repo',
+      title: 'Bug',
+    });
+    delete (unapproved as { approvalId?: string }).approvalId;
+    expect(await backend.invoke(unapproved)).toMatchObject({ outcome: 'refused' });
+    expect(execute).not.toHaveBeenCalled();
+
+    const expired = await backend.invoke(
+      request('github_search', { account_id: 'github', kind: 'issues', query: 'is:open' }),
+    );
+    expect(expired).toMatchObject({ outcome: 'refused' });
+    expect(expired.reason).toContain('Reconnect it in Settings');
+    expect(onConnectionReconnectRequired).toHaveBeenCalledWith(
+      'github',
+      'lc_github_00000000-0000-4000-8000-000000000000',
+    );
+  });
+
+  it('offers the browser when a Mac-connected app is not connected', async () => {
+    const backend = new DesktopActionBackend({
+      cua: fakeCua(async () => ({})),
+      localConnectors: { execute: vi.fn() },
+      resolveConnectionId: () => undefined,
+    });
+    const result = await backend.invoke(
+      request('outlook_search', { account_id: 'outlook', query: 'invoice' }),
+    );
+    expect(result.outcome).toBe('refused');
+    expect(result.reason).toContain('Outlook is not connected');
   });
 
   it('resolves stable account aliases to trusted cloud ids and strips account_id from input', async () => {
@@ -215,9 +290,8 @@ describe('DesktopActionBackend connector boundary', () => {
         result: { message_id: 'opaque-message' },
       })),
     };
-    const resolveConnectionId = vi.fn(
-      (app: 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack', selector: string) =>
-        app === 'slack' && selector === 'slack' ? 'connection-9' : undefined,
+    const resolveConnectionId = vi.fn((app: string, selector: string) =>
+      app === 'slack' && selector === 'slack' ? 'connection-9' : undefined,
     );
     const backend = new DesktopActionBackend({
       cua: fakeCua(async () => ({})),

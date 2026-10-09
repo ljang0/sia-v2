@@ -13,14 +13,21 @@ export function modelOptions(
   selectedModel: string,
 ) {
   const models = providerModels(snapshot, provider);
-  return models.length
-    ? models.map((model) => ({ id: model.id, label: model.label, detail: model.description }))
-    : [
-        {
-          id: selectedModel,
-          label: friendlyModelName(provider as ProviderId, selectedModel),
-        },
-      ];
+  const selected = {
+    id: selectedModel,
+    label: friendlyModelName(provider as ProviderId, selectedModel),
+  };
+  if (!models.length) return [selected];
+  const available = models.map((model) => ({
+    id: model.id,
+    label: model.label,
+    detail: model.description,
+  }));
+  // A refreshed catalog can drop a conversation's pinned model. A select whose value has
+  // no option visually selects the first model without actually changing the conversation.
+  return models.some((model) => model.id === selectedModel)
+    ? available
+    : [{ ...selected, label: `${selected.label} (unavailable)`, disabled: true }, ...available];
 }
 
 export function reasoningOptions(
