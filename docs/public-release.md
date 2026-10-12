@@ -3,7 +3,10 @@
 ## Decision
 
 Sia `0.1.0-alpha.25` is an **internal release candidate**, not approved for public distribution.
-The latest Connections polish passed the complete local automated gate. The current app and DMG
+The branch now includes the [October 12 source/dependency audit](./workflow-robustness.md#messaging-lifecycle-and-repository-audit).
+Those messaging, renderer and Electron changes are newer than the signed artifact recorded below;
+they require a new signed candidate and live rehearsal before being represented as installed fixes.
+The last signed Connections polish passed the complete local automated gate. That app and DMG
 passed signing, notarization, stapling and package verification. The preceding phone-approval and
 dialog-dismissal repairs also passed CI. The preceding signed
 phone-repair candidate passed a live background iMessage self-test: while another conversation stayed selected,
@@ -31,7 +34,7 @@ No alpha.25 installer has been uploaded or published; the last published pilot r
 [`alpha.24`](./release-evidence.md).
 
 The current signed candidate was built from `32a916c6be84a920413c7fcbf75bd85b6c3b5439` on macOS
-15.7.2. Later evidence-only documentation updates do not change that artifact. Its app identity is
+15.7.2. The October 12 source changes have not replaced that artifact. Its app identity is
 `ai.sia.desktop`, signed by Developer ID team `DXYJ578DD4`.
 
 | Artifact                           | SHA-256                                                            |       Bytes |

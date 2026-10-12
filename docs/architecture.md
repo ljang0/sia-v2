@@ -87,6 +87,8 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   termination may lose the last checkpoint interval of an unfinished response or draft.
 - A bridge call that returns the snapshot it just pushed sends a marker instead of a second
   copy; the preload restores the pushed snapshot and the renderer skips re-rendering it.
+  Delayed bridge replies cannot replace a newer renderer snapshot, including the cleared
+  snapshot after sign-out.
 - Settled approvals that no transcript row refers to (such as computer-use requests) are dropped
   at launch a week after they expired.
 - UI snapshots pushed to the renderer, and snapshots returned by its bridge calls, carry only the
@@ -468,10 +470,14 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   turns of the texting assistant that start after Sia opens are texted to the first number when
   they finish, ask a question or wait for approval. Settings uses one validated `messages.relay`
   preload route. With "Approve steps by replying YES or NO" on (the default), an approval notice
-  records which pending approval that number was asked about; a later YES or NO from that same
+  binds the pending approval only after its complete notice was sent successfully. Notices that
+  would truncate the action details instead require review on the Mac. A later YES or NO from that same
   number resolves exactly that approval once (`approve` or `deny`, never `approve_task`), and only
   while it is still pending. Other numbers, stale approvals and replies with attachments do not
-  resolve anything. **Trusted people** (as in Instinct) are other Sia users the person adds by
+  resolve anything. Pending transcription, result reads and queued delivery are bound to the
+  current messaging route and recipient; disabling texting, removing trust, changing assistants,
+  sign-out and shutdown invalidate old work before its next dispatch or send. Already submitted
+  external sends cannot be recalled. **Trusted people** (as in Instinct) are other Sia users the person adds by
   name and number; both sides add each other. Approved `messages_send` calls to a trusted person
   are prefixed `Sia ⇄ ` by `MessagesRelay.sendFromSia`. An incoming one-to-one iMessage from a
   trusted person that carries that prefix starts a phone turn (never full bypass, no task grants)
@@ -484,7 +490,9 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   process, clears the clipboard, verifies it (`getMe` / `/users/@me`) and stores it in the
   encrypted repository; it never crosses IPC or reaches the renderer, and settings show only the
   bot's name. Telegram uses `getUpdates` long polling; Discord uses the gateway with only the
-  DIRECT_MESSAGES intent. Private messages only; files up to 20 MB are saved to a private
+  DIRECT_MESSAGES intent. Pending setup and reconnects are cancelled on disconnect; received
+  attachment messages retain arrival order. Private messages only; response streams are cancelled
+  once they exceed 20 MB, and network calls have timeouts. Accepted files are saved to a private
   `chat-attachments` folder and pruned after an hour. A six-digit code shown for ten minutes
   links the sender's account (`telegram:<id>` / `discord:<id>`) as one of the person's own
   handles; unlinked accounts are ignored, and linked ones follow every iMessage rule above

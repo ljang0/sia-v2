@@ -193,6 +193,7 @@ export class MessagesRelay {
   #replyErrors = new Map<string, string>();
   #detail = '';
   #disposed = false;
+  #generation = 0;
   #since = new Date().toISOString();
   #seenScheduled = new Set<string>();
   /** Number → the approval it was last asked about by text. */
@@ -202,6 +203,7 @@ export class MessagesRelay {
   /** Person → messages that arrived while their thread was busy. */
   #peerBacklog = new Map<string, string[]>();
   #bots = new Map<BotKind, ConnectedBot>();
+  #botSetups = new Map<BotKind, symbol>();
   /** Bot messages are handled one at a time, like a polling pass. */
   #inbox: Promise<unknown> = Promise.resolve();
 
@@ -217,7 +219,10 @@ export class MessagesRelay {
     this.#unsubscribe = this.#deps.controller.subscribe((event) => {
       // UI events contain only the selected conversation. Phone tasks continue in the
       // background, so their answers, approvals and result files need the complete state.
-      if (event.type === 'snapshot') this.#observe(this.#deps.controller.snapshot());
+      if (event.type === 'snapshot') {
+        if (!this.#deps.controller.remoteAccessAllowed()) this.#invalidate();
+        else this.#observe(this.#deps.controller.snapshot());
+      }
     });
     this.#timer = setInterval(() => void this.poll(), this.#deps.intervalMs ?? 2000);
     this.#timer.unref();
@@ -233,6 +238,7 @@ export class MessagesRelay {
 
   dispose(): void {
     this.#disposed = true;
+    this.#invalidate();
     clearInterval(this.#timer);
     this.#unsubscribe?.();
     for (const { channel } of this.#bots.values()) channel.stop();
@@ -244,7 +250,10 @@ export class MessagesRelay {
     this.#bots.set(kind, connected);
     channel.start((message) => {
       this.#inbox = this.#inbox
-        .then(() => this.#receiveBot(kind, message))
+        .then(() => {
+          if (this.#bots.get(kind) === connected) return this.#receiveBot(kind, message);
+          return undefined;
+        })
         .catch(() => undefined);
     });
     return connected;
@@ -256,7 +265,7 @@ export class MessagesRelay {
    */
   async #receiveBot(kind: BotKind, message: ChannelMessage): Promise<void> {
     const connected = this.#bots.get(kind);
-    if (!connected || this.#disposed) return;
+    if (!connected || this.#disposed || !this.#deps.controller.remoteAccessAllowed()) return;
     const pairing = connected.pairing;
     const code = message.text.replace(/^\/start\s*/i, '').trim();
     if (!this.#trusted(message.handle)) {
@@ -272,6 +281,7 @@ export class MessagesRelay {
           this.#available()
             ? `Paired. ${HELP}`
             : 'Paired. Turn on messaging in Sia on your Mac, then message me here.',
+          { allowWhileDisabled: true },
         );
       }
       return;
@@ -291,14 +301,28 @@ export class MessagesRelay {
         `Copy your ${BOT_NAMES[kind]} bot token first, then choose Paste token again.`,
       );
     const channel = this.#deps.bot(kind, token);
+    const setup = Symbol(kind);
+    const generation = this.#generation;
+    this.#botSetups.set(kind, setup);
     let bot: string;
     try {
       bot = await channel.verify();
-    } catch (error) {
+    } catch {
+      channel.stop();
       throw new Error(
-        `${BOT_NAMES[kind]} did not accept that token. ${error instanceof Error ? error.message : ''}`.trim(),
+        `${BOT_NAMES[kind]} could not connect. Check the token and connection, then try again.`,
       );
     }
+    if (
+      this.#botSetups.get(kind) !== setup ||
+      generation !== this.#generation ||
+      this.#disposed ||
+      !this.#deps.controller.remoteAccessAllowed()
+    ) {
+      channel.stop();
+      throw new Error('Messaging setup was cancelled. Connect the bot again to retry.');
+    }
+    this.#botSetups.delete(kind);
     this.#deps.repository.put('messages-relay', `${kind}-bot`, { token, bot });
     const connected = this.#attachBot(kind, channel, bot);
     connected.pairing = {
@@ -308,11 +332,14 @@ export class MessagesRelay {
   }
 
   #disconnectBot(kind: BotKind): void {
+    this.#botSetups.delete(kind);
     this.#bots.get(kind)?.channel.stop();
     this.#bots.delete(kind);
     this.#deps.repository.remove('messages-relay', `${kind}-bot`);
     for (const handle of this.#replyErrors.keys())
       if (handle.startsWith(`${kind}:`)) this.#replyErrors.delete(handle);
+    for (const handle of this.#awaiting.keys())
+      if (handle.startsWith(`${kind}:`)) this.#awaiting.delete(handle);
     this.#config.trusted = this.#config.trusted.filter(
       (entry) => !entry.handle.startsWith(`${kind}:`),
     );
@@ -333,14 +360,17 @@ export class MessagesRelay {
           'Sia needs Full Disk Access to read Messages: System Settings → Privacy & Security → Full Disk Access. Or connect Telegram or Discord.',
         );
       if (!this.#config.trusted.length) throw new Error('Add a trusted phone number first.');
-      if (this.#config.agentId !== command.agentId) this.#config.threads = {};
+      if (this.#config.agentId !== command.agentId) {
+        this.#invalidate();
+        this.#config.threads = {};
+      }
       this.#config.agentId = command.agentId;
       this.#config.enabled = true;
       // Only texts that arrive after turning this on are read.
       if (this.#access() === 'ready') this.#config.cursor = this.#deps.messages.latestRowId();
     } else if (command.operation === 'disable') {
       this.#config.enabled = false;
-      this.#tracked.clear();
+      this.#invalidate();
     } else if (command.operation === 'trust') {
       const handle = normalizeHandle(command.handle);
       if (!handle)
@@ -369,6 +399,7 @@ export class MessagesRelay {
     } else if (command.operation === 'removePerson') {
       const handle = normalizeHandle(command.handle) ?? command.handle;
       this.#replyErrors.delete(handle);
+      this.#awaiting.delete(handle);
       this.#config.people = this.#people().filter((entry) => entry.handle !== handle);
       delete this.#config.threads[`peer:${handle}`];
       this.#peerBacklog.delete(handle);
@@ -384,6 +415,7 @@ export class MessagesRelay {
     } else if (command.operation === 'untrust') {
       const handle = normalizeHandle(command.handle) ?? command.handle;
       this.#replyErrors.delete(handle);
+      this.#awaiting.delete(handle);
       this.#config.trusted = this.#config.trusted.filter((entry) => entry.handle !== handle);
       delete this.#config.threads[handle];
       for (const [threadId, tracked] of this.#tracked)
@@ -398,6 +430,7 @@ export class MessagesRelay {
   async poll(): Promise<void> {
     if (this.#polling || !this.#available()) return;
     this.#polling = true;
+    const generation = this.#generation;
     try {
       // Telegram and Discord deliver on their own; only iMessage is polled.
       const { cursor, messages } =
@@ -409,7 +442,9 @@ export class MessagesRelay {
         this.#save();
       }
       for (const message of messages) {
+        if (!this.#available()) break;
         const contact = await this.#sender(message);
+        if (!this.#available() || generation !== this.#generation) break;
         if (contact) await this.#receive(contact, message.text.trim(), message.attachments);
         else await this.#receivePeer(message);
       }
@@ -533,6 +568,10 @@ export class MessagesRelay {
     body: string,
     existing: string | undefined,
   ): Promise<void> {
+    const ownerCurrent = this.#recipientScope(owner);
+    const current = () =>
+      ownerCurrent() && !this.#config.peoplePaused && this.#people().includes(person);
+    if (!current()) return;
     try {
       const target =
         existing ??
@@ -542,6 +581,7 @@ export class MessagesRelay {
             title: `${person.name}'s Sia`,
           })
         ).threadId;
+      if (!current()) return;
       if (target !== existing) {
         this.#config.threads[`peer:${person.handle}`] = target;
         this.#save();
@@ -558,6 +598,7 @@ export class MessagesRelay {
         text,
         fromPhone: true,
       });
+      if (!current()) return;
       this.#tracked.set(target, {
         handle: owner,
         turnId,
@@ -569,6 +610,7 @@ export class MessagesRelay {
       if (this.#config.proactive ?? true)
         this.#reply(owner, `${person.name}'s Sia wrote: ${body}`);
     } catch (error) {
+      if (!current()) return;
       this.#detail = `${person.name}'s Sia sent a message, but Sia could not start on it: ${
         error instanceof Error ? error.message : 'unavailable'
       }`;
@@ -611,19 +653,44 @@ export class MessagesRelay {
     );
   }
 
+  /** Revoke queued work as well as observations when the messaging route is replaced. */
+  #invalidate(): void {
+    this.#generation++;
+    this.#tracked.clear();
+    this.#awaiting.clear();
+    this.#peerBacklog.clear();
+  }
+
+  /** A pending read, transcription or reply belongs to this exact recipient and route. */
+  #recipientScope(handle: string, allowWhileDisabled = false): () => boolean {
+    const generation = this.#generation;
+    const contact = this.#trusted(handle);
+    const bot = this.#botFor(handle);
+    return () =>
+      generation === this.#generation &&
+      !this.#disposed &&
+      this.#deps.controller.remoteAccessAllowed() &&
+      Boolean(contact) &&
+      this.#trusted(handle) === contact &&
+      this.#botFor(handle) === bot &&
+      (allowWhileDisabled || this.#available());
+  }
+
   /** The connected bot for a `telegram:` or `discord:` handle; iMessage handles have none. */
   #botFor(handle: string): BotChannel | undefined {
     const kind = BOT_KINDS.find((entry) => handle.startsWith(`${entry}:`));
     return kind ? this.#bots.get(kind)?.channel : undefined;
   }
 
-  async #sendFile(handle: string, path: string): Promise<void> {
+  async #sendFile(handle: string, path: string, current: () => boolean): Promise<void> {
+    if (!current()) return;
     if (/^(telegram|discord):/.test(handle)) {
       const bot = this.#botFor(handle);
       if (!bot) throw new Error('That messaging app is disconnected.');
       return bot.sendFile(handle, path);
     }
     const fingerprint = await attachmentFingerprint(path);
+    if (!current()) return;
     this.#config.outgoingAttachments = [
       ...(this.#config.outgoingAttachments ?? [])
         .filter((entry) => entry.expires > this.#now())
@@ -715,6 +782,8 @@ export class MessagesRelay {
     text: string,
     attachments: readonly string[] = [],
   ): Promise<void> {
+    const current = this.#recipientScope(contact.handle);
+    if (!current() || this.#trusted(contact.handle) !== contact) return;
     if (!text && !attachments.length) return;
     const handle = contact.handle;
     const notes = attachments.filter((path) => VOICE_NOTE.test(path)).slice(0, 2);
@@ -724,7 +793,9 @@ export class MessagesRelay {
         try {
           if (!this.#deps.transcribe) throw new Error('unavailable');
           spoken.push(await this.#deps.transcribe(note));
+          if (!current()) return;
         } catch {
+          if (!current()) return;
           this.#reply(
             handle,
             "I couldn't understand that voice note. Turn on Sia's voice service on your Mac, or type it instead.",
@@ -747,6 +818,7 @@ export class MessagesRelay {
         this.#tracked.delete(thread.id);
         this.#awaiting.delete(handle);
         await this.#deps.controller.invoke('threads.cancel', { threadId: thread.id });
+        if (!current()) return;
         this.#reply(handle, 'Stopped.');
       } else this.#reply(handle, 'Nothing is running right now.');
       return;
@@ -803,8 +875,10 @@ export class MessagesRelay {
           approvalId: approval.id,
           decision,
         });
+        if (!current()) return;
         this.#reply(handle, decision === 'approve' ? 'Allowed. Continuing.' : 'Denied.');
       } catch (error) {
+        if (!current()) return;
         this.#reply(
           handle,
           error instanceof Error ? error.message : 'That approval could not be answered.',
@@ -845,6 +919,7 @@ export class MessagesRelay {
             title: `Text: ${(text || 'Photo').slice(0, 70)}`,
           })
         ).threadId;
+      if (!current()) return;
       if (target !== threadId) {
         this.#config.threads[handle] = target;
         this.#save();
@@ -857,12 +932,14 @@ export class MessagesRelay {
             })
           ).attachments.map(({ id }) => id)
         : [];
+      if (!current()) return;
       const { turnId } = await this.#deps.controller.invoke('threads.send', {
         threadId: target,
         text,
         fromPhone: true,
         ...(attachmentIds.length ? { attachmentIds } : {}),
       });
+      if (!current()) return;
       this.#tracked.set(target, {
         handle,
         turnId,
@@ -872,6 +949,7 @@ export class MessagesRelay {
         ...(notes.length ? { spoken: true } : {}),
       });
     } catch (error) {
+      if (!current()) return;
       this.#reply(
         handle,
         `I couldn't start that: ${error instanceof Error ? error.message : 'Sia is unavailable.'}`,
@@ -916,6 +994,7 @@ export class MessagesRelay {
   }
 
   #observe(snapshot: DesktopSnapshot): void {
+    if (!this.#available()) return;
     this.#watchSchedules(snapshot);
     for (const [threadId, tracked] of this.#tracked) {
       const thread = snapshot.threads.find(({ id }) => id === threadId);
@@ -938,17 +1017,33 @@ export class MessagesRelay {
         const content = approval.dataLeaving
           ? `\n\n${approval.dataLeaving.slice(0, 600)}${approval.dataLeaving.length > 600 ? '…' : ''}`
           : '';
-        if (this.#textApprovals()) {
-          this.#awaiting.set(tracked.handle, approval.id);
-          this.#reply(
-            tracked.handle,
-            `I need your OK to continue: ${step}${content}\n\nReply YES to allow this once or NO to deny. You can also answer in Sia on your Mac.`,
-          );
-        } else
+        const request = `I need your OK to continue: ${step}${content}\n\nReply YES to allow this once or NO to deny. You can also answer in Sia on your Mac.`;
+        if (
+          this.#textApprovals() &&
+          (approval.dataLeaving?.length ?? 0) <= 600 &&
+          request.length <= MAX_REPLY
+        ) {
+          this.#reply(tracked.handle, request, {
+            onSent: () => {
+              if (
+                this.#textApprovals() &&
+                this.#tracked.get(threadId) === tracked &&
+                this.#deps.controller
+                  .snapshot()
+                  .approvals.some(
+                    ({ id, status }) => id === approval.id && status === 'pending',
+                  )
+              )
+                this.#awaiting.set(tracked.handle, approval.id);
+            },
+          });
+        } else {
+          this.#awaiting.delete(tracked.handle);
           this.#reply(
             tracked.handle,
             `I need your OK in Sia on your Mac to continue: ${step}${content}`,
           );
+        }
       }
       const question = this.#pendingQuestion(snapshot, threadId);
       if (
@@ -1007,6 +1102,7 @@ export class MessagesRelay {
 
   /** Saved results from the finished turn follow the reply as iMessage attachments. */
   #sendResultFiles(snapshot: DesktopSnapshot, threadId: string, tracked: Tracked): void {
+    const current = this.#recipientScope(tracked.handle);
     const files = snapshot.timeline
       .filter(
         (item) =>
@@ -1020,21 +1116,24 @@ export class MessagesRelay {
     for (const file of files) {
       this.#outgoing = this.#outgoing
         .then(async () => {
+          if (!current()) return;
           const { name, data } = await this.#deps.controller.readGeneratedResult(
             threadId,
             file.id,
           );
+          if (!current()) return;
           const folder = await mkdtemp(join(tmpdir(), 'sia-text-'));
           try {
             const path = join(folder, basename(name));
             await writeFile(path, data, { mode: 0o600 });
-            await this.#sendFile(tracked.handle, path);
+            await this.#sendFile(tracked.handle, path, current);
           } finally {
             // Give Messages time to copy the file into its own attachment store.
             setTimeout(() => void rm(folder, { recursive: true, force: true }), 60000).unref();
           }
         })
         .catch(() => {
+          if (!current()) return;
           this.#replyErrors.set(
             tracked.handle,
             'A result file could not be sent. It is saved in Sia on your Mac. Check your messaging connection, then try again.',
@@ -1078,7 +1177,12 @@ export class MessagesRelay {
     return answer || 'Done.';
   }
 
-  #reply(handle: string, text: string): void {
+  #reply(
+    handle: string,
+    text: string,
+    options: { allowWhileDisabled?: boolean; onSent?: () => void } = {},
+  ): void {
+    const current = this.#recipientScope(handle, options.allowWhileDisabled);
     let body = text
       .replace(/\[Open result\]\(<[^>]+>\)/g, '(saved on your Mac)')
       .replace(/\[([^\]]+)\]\((?:<([^>]+)>|([^)]+))\)/g, '$1 ($2$3)')
@@ -1091,15 +1195,20 @@ export class MessagesRelay {
     this.#sent = [...this.#sent.slice(-49), message];
     this.#outgoing = this.#outgoing
       .then(async () => {
+        if (!current()) return;
         if (!isBot) await this.#deps.messages.send(handle, message);
         else {
           const bot = this.#botFor(handle);
           if (!bot) throw new Error('That messaging app is disconnected.');
           await bot.send(handle, message);
         }
-        this.#replyErrors.delete(handle);
+        if (current()) {
+          this.#replyErrors.delete(handle);
+          options.onSent?.();
+        }
       })
       .catch((error: unknown) => {
+        if (!current()) return;
         // Do not surface the raw process error: it can contain the recipient and message.
         const denied = error instanceof Error && /-1743|not authorized/i.test(error.message);
         this.#replyErrors.set(
@@ -1115,19 +1224,22 @@ export class MessagesRelay {
 
   /** After the text answer, a voice note request also gets the answer spoken. */
   #sendSpoken(handle: string, text: string): void {
+    const current = this.#recipientScope(handle);
     const speak = this.#deps.speak;
     if (!speak || !text || text === 'Done.') return;
     this.#outgoing = this.#outgoing
       .then(async () => {
+        if (!current()) return;
         const path = await speak(text);
         try {
-          await this.#sendFile(handle, path);
+          await this.#sendFile(handle, path, current);
         } finally {
           const folder = path.slice(0, path.lastIndexOf('/'));
           setTimeout(() => void rm(folder, { recursive: true, force: true }), 60000).unref();
         }
       })
       .catch(() => {
+        if (!current()) return;
         this.#replyErrors.set(
           handle,
           'A voice reply could not be sent. The text answer is saved in Sia. Check your voice service and messaging connection, then try again.',

@@ -127,6 +127,130 @@ class FakeSocket extends EventTarget {
 }
 
 describe('DiscordChannel', () => {
+  it('does not reopen a socket when gateway discovery finishes after stop', async () => {
+    const gateway = Promise.withResolvers<Response>();
+    const fetch = vi.fn(() => gateway.promise);
+    const channel = new DiscordChannel({
+      token: 'TEST',
+      downloads: folder(),
+      fetch: fetch as never,
+      WebSocket: FakeSocket as never,
+    });
+    FakeSocket.last = undefined;
+    channel.start(() => undefined);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    channel.stop();
+    gateway.resolve(json({ url: 'wss://gateway.example' }));
+    await new Promise((done) => setImmediate(done));
+    expect(FakeSocket.last).toBeUndefined();
+  });
+
+  it('keeps attachment messages in order and discards downloads that finish after stop', async () => {
+    const first = Promise.withResolvers<Response>();
+    const second = Promise.withResolvers<Response>();
+    const fetch = vi.fn(async (url: string) => {
+      if (url.endsWith('/gateway/bot')) return json({ url: 'wss://gateway.example' });
+      return url.endsWith('/first') ? first.promise : second.promise;
+    });
+    const channel = new DiscordChannel({
+      token: 'TEST',
+      downloads: folder(),
+      fetch: fetch as never,
+      WebSocket: FakeSocket as never,
+    });
+    const messages: ChannelMessage[] = [];
+    FakeSocket.last = undefined;
+    channel.start((message) => messages.push(message));
+    try {
+      await vi.waitFor(() => expect(FakeSocket.last).toBeDefined());
+      const emit = (content: string, file?: string) =>
+        FakeSocket.last!.receive({
+          op: 0,
+          t: 'MESSAGE_CREATE',
+          d: {
+            author: { id: '42' },
+            channel_id: 'dm',
+            content,
+            ...(file
+              ? {
+                  attachments: [
+                    {
+                      url: `https://cdn.discordapp.com/${file}`,
+                      filename: 'photo.png',
+                      size: 3,
+                    },
+                  ],
+                }
+              : {}),
+          },
+        });
+      emit('First photo', 'first');
+      emit('Follow up');
+      first.resolve(new Response('png'));
+      await vi.waitFor(() => expect(messages).toHaveLength(2));
+      expect(messages.map(({ text }) => text)).toEqual(['First photo', 'Follow up']);
+      emit('Stopped photo', 'second');
+      await vi.waitFor(() =>
+        expect(fetch.mock.calls.some(([url]) => url.endsWith('/second'))).toBe(true),
+      );
+      channel.stop();
+      second.resolve(new Response('png'));
+      await new Promise((done) => setTimeout(done, 20));
+      expect(messages).toHaveLength(2);
+    } finally {
+      first.resolve(new Response('png'));
+      second.resolve(new Response('png'));
+      channel.stop();
+    }
+  });
+
+  it('cancels oversized chunked downloads before buffering the entire body', async () => {
+    const cancelled = vi.fn();
+    let chunks = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (++chunks <= 30) controller.enqueue(new Uint8Array(1024 * 1024));
+        else controller.close();
+      },
+      cancel: cancelled,
+    });
+    const fetch = vi.fn(async (url: string) =>
+      url.endsWith('/gateway/bot')
+        ? json({ url: 'wss://gateway.example' })
+        : new Response(body),
+    );
+    const channel = new DiscordChannel({
+      token: 'TEST',
+      downloads: folder(),
+      fetch: fetch as never,
+      WebSocket: FakeSocket as never,
+    });
+    const messages: ChannelMessage[] = [];
+    FakeSocket.last = undefined;
+    channel.start((message) => messages.push(message));
+    try {
+      await vi.waitFor(() => expect(FakeSocket.last).toBeDefined());
+      FakeSocket.last!.receive({
+        op: 0,
+        t: 'MESSAGE_CREATE',
+        d: {
+          author: { id: '42' },
+          channel_id: 'dm',
+          content: 'An attachment',
+          attachments: [
+            { url: 'https://cdn.discordapp.com/file', filename: 'photo.png', size: 1 },
+          ],
+        },
+      });
+      await vi.waitFor(() => expect(messages).toHaveLength(1));
+      expect(messages[0]!.attachments).toEqual([]);
+      expect(cancelled).toHaveBeenCalledTimes(1);
+      expect(chunks).toBeLessThan(30);
+    } finally {
+      channel.stop();
+    }
+  });
+
   it('identifies for direct messages, delivers DMs only, and replies in the DM channel', async () => {
     const calls: { url: string; init?: RequestInit }[] = [];
     const fetch = vi.fn(async (url: string, init?: RequestInit) => {

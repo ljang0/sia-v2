@@ -4,8 +4,9 @@ Sia is a personal assistant for macOS that works in your apps for you. It is bui
 people without a technical background: you sign in with your email, connect an AI plan, and ask Sia
 to do things on your Mac. This repository is being prepared for a controlled CMU pilot.
 
-Every task runs through the Codex App Server harness, using either an included model that comes with
-the Sia account or the person's existing ChatGPT plan. Nobody pastes a model API key into Sia.
+New tasks run through the Codex App Server harness, using an available included model or the
+person's existing ChatGPT plan. Settings → AI also offers an optional **Your own API key** route
+for an OpenAI Responses-compatible endpoint. Setup does not require an API key.
 
 ## Defaults at a glance
 
@@ -13,11 +14,15 @@ the Sia account or the person's existing ChatGPT plan. Nobody pastes a model API
   bypassed. Confirmations (**Ask before each action**) are an explicit opt-in for supervised
   testing. **On my screen** is the alternative for watching Sia work; press ⌃Esc (Control+Escape)
   to stop a task that is using the screen.
-- **Phone requests always ask on the Mac**, one request at a time, even with approvals bypassed.
-- **Hard safety blocks apply in every mode.** Sia never types into password fields, sign-in
-  screens, Keychain, or password managers.
-- **Connections are optional.** Google Workspace, Slack, Outlook, Notion, GitHub, signed-in Chrome,
-  Apple Messages, and computer use never block first-run setup.
+- **Phone requests always require approval**, one request at a time, even with local approvals
+  bypassed. Review in Sia, or reply YES/NO to a complete approval sent to your trusted messaging
+  account when text approvals are enabled.
+- **Sia-hosted tools block protected surfaces**, including password fields, sign-in screens,
+  Keychain and password managers. Provider-native shell and file tools have their own boundary;
+  see [architecture](./docs/architecture.md).
+- **Connections are optional.** Google Workspace, Slack, Notion, GitHub and signed-in Chrome can
+  be added later. Calendar, Tasks and Outlook connectors are disabled. **Use my Mac** requires its
+  macOS grants before finishing setup; **Connected apps only** does not require Mac permissions.
 - **Schedules** repeat until paused or deleted; one-time schedules run once. Sia must stay open and
   the Mac awake for local tasks and schedules.
 - **Research capture is off** unless a person separately agrees to it. The pilot is not a research
@@ -63,7 +68,12 @@ The dev command builds workspace dependencies before launching; no separate buil
 | `pnpm --filter <workspace> test` | While developing, for the workspace you changed                              |
 | `pnpm lint`                      | ESLint across every workspace (also part of `check`)                         |
 | `pnpm check`                     | Before review: build, formatting, lint, quality guard, types, and unit tests |
-| `pnpm test:pilot`                | Pilot-facing behavior: `check` plus desktop E2E and renderer tests           |
+| `pnpm test:pilot`                | Pilot-facing behavior: `check` plus desktop E2E, renderer and phone tests    |
+| `pnpm test:remote`               | Focused phone-browser checks in Chromium and WebKit                          |
+| `pnpm audit:dependencies`        | Registry advisory check; fails on high or critical findings                  |
+
+Install the browser engines for the renderer and phone checks once with
+`pnpm --filter @sia/desktop exec playwright install chromium webkit`.
 
 Real provider and connector tests are opt-in, need explicit environment flags, and must use
 disposable accounts; see [`docs/manual-acceptance.md`](./docs/manual-acceptance.md). Packaging and

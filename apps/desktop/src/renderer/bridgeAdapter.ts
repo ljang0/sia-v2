@@ -12,6 +12,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
   let latestOverride: string | undefined;
 
   const publish = (desktop: DesktopSnapshot) => {
+    // Async bridge replies can arrive after a newer push (including sign-out). Never
+    // restore old private state or replace newer streamed progress with such a reply.
+    if (latestDesktop && desktop.revision < latestDesktop.revision) desktop = latestDesktop;
     // A call's result is often the very snapshot that was just pushed (see the preload); it
     // changes nothing, so the window does not render it again.
     if (latest && desktop === latestDesktop && latestOverride === selectedAgentOverride)

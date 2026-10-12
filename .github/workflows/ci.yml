@@ -34,20 +34,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Audit dependency advisories
+        run: pnpm audit:dependencies
+
       - name: Install Electron distribution
         run: pnpm --filter @sia/desktop exec install-electron
 
       - name: Install renderer and phone test browsers
         run: pnpm --filter @sia/desktop exec playwright install chromium webkit
 
-      - name: Build and run quality gates
-        run: pnpm check
-
-      - name: Run Electron E2E
-        run: pnpm test:e2e
-
-      - name: Run renderer and phone checks
-        run: pnpm --filter @sia/desktop test:renderer && pnpm --filter @sia/desktop test:remote
+      - name: Build and run pilot gates
+        run: pnpm test:pilot
 
       - name: Upload Electron E2E failure evidence
         if: failure()

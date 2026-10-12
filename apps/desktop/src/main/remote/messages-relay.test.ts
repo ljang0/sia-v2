@@ -29,6 +29,7 @@ function harness(
     bot?: (kind: 'telegram' | 'discord', token: string) => BotChannel;
     takeClipboardToken?: () => string | undefined;
     speak?: (text: string) => Promise<string>;
+    transcribe?: (path: string) => Promise<string>;
     send?: (to: string, text: string) => Promise<void>;
     sendFile?: (to: string, path: string) => Promise<void>;
     scopedEvents?: boolean;
@@ -91,7 +92,7 @@ function harness(
   const controller = {
     snapshot: () => snapshot,
     invoke,
-    remoteAccessAllowed: () => true,
+    remoteAccessAllowed: vi.fn(() => true),
     readGeneratedResult: vi.fn(async (_threadId: string, attachmentId: string) => ({
       name: `${attachmentId}.pdf`,
       data: Buffer.from('%PDF'),
@@ -131,10 +132,12 @@ function harness(
       },
     },
     ackAfterMs: 5000,
-    transcribe: async (path: string) => {
-      if (path.includes('mumble')) throw new Error('no speech');
-      return 'Book a table for two at 7';
-    },
+    transcribe:
+      options.transcribe ??
+      (async (path: string) => {
+        if (path.includes('mumble')) throw new Error('no speech');
+        return 'Book a table for two at 7';
+      }),
     now: () => now,
   });
   relay.initialize();
@@ -215,6 +218,101 @@ describe('normalizeHandle', () => {
 });
 
 describe('MessagesRelay', () => {
+  const revocations = ['disable', 'untrust', 'sign out', 'switch agent', 'dispose'] as const;
+  async function revoke(h: ReturnType<typeof harness>, reason: (typeof revocations)[number]) {
+    if (reason === 'disable') await h.relay.configure({ operation: 'disable' });
+    else if (reason === 'untrust')
+      await h.relay.configure({ operation: 'untrust', handle: ME });
+    else if (reason === 'sign out') {
+      h.controller.remoteAccessAllowed.mockReturnValue(false);
+      h.emit();
+    } else if (reason === 'switch agent') {
+      const id = '22222222-2222-4222-8222-222222222222';
+      h.snapshot.agents.push({ ...h.snapshot.agents[0]!, id });
+      await h.relay.configure({ operation: 'enable', agentId: id });
+    } else h.relay.dispose();
+  }
+
+  it.each(revocations)('does not dispatch a pending voice note after %s', async (reason) => {
+    const transcription = Promise.withResolvers<string>();
+    const transcribe = vi.fn(() => transcription.promise);
+    const h = harness({ transcribe });
+    try {
+      await h.ready();
+      h.text(101, '', ME, false, ['/tmp/voice-note.ogg']);
+      const poll = h.relay.poll();
+      await vi.waitFor(() => expect(transcribe).toHaveBeenCalled());
+      await revoke(h, reason);
+      transcription.resolve('Create a report');
+      await poll;
+      await h.relay.flush();
+      expect(h.invoke).not.toHaveBeenCalled();
+      expect(h.sent).toEqual([]);
+    } finally {
+      transcription.resolve('Create a report');
+      h.relay.dispose();
+    }
+  });
+
+  it.each(revocations)(
+    'does not deliver a result still being read after %s',
+    async (reason) => {
+      const file = Promise.withResolvers<{ name: string; data: Buffer<ArrayBuffer> }>();
+      const h = harness();
+      h.controller.readGeneratedResult.mockReturnValue(file.promise);
+      try {
+        await h.ready();
+        h.text(101, 'Create a report');
+        await h.relay.poll();
+        h.snapshot.timeline.push({
+          id: 'file',
+          threadId: 'thread-1',
+          turnId: 'turn-1',
+          sequence: 2,
+          kind: 'assistant',
+          timestamp: '',
+          attachments: [{ id: 'result', name: 'report.pdf', kind: 'file', generated: true }],
+        } as never);
+        h.finish('thread-1', 'The report is ready.');
+        await vi.waitFor(() => expect(h.controller.readGeneratedResult).toHaveBeenCalled());
+        await revoke(h, reason);
+        file.resolve({ name: 'report.pdf', data: Buffer.from('%PDF') });
+        await h.relay.flush();
+        expect(h.files).toEqual([]);
+      } finally {
+        file.resolve({ name: 'report.pdf', data: Buffer.from('%PDF') });
+        h.relay.dispose();
+      }
+    },
+  );
+
+  it('does not resurrect queued replies after texting is disabled and enabled again', async () => {
+    const firstSend = Promise.withResolvers<void>();
+    const send = vi.fn(() => firstSend.promise);
+    const h = harness({ send });
+    try {
+      await h.ready();
+      h.text(101, 'HELP');
+      await h.relay.poll();
+      await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+      h.text(102, 'STATUS');
+      await h.relay.poll();
+      await h.relay.configure({ operation: 'disable' });
+      await h.relay.configure({ operation: 'enable', agentId: AGENT });
+      firstSend.resolve();
+      await h.relay.flush();
+      expect(send).toHaveBeenCalledTimes(1);
+      // New requests still work after the lifecycle boundary.
+      h.text(103, 'HELP');
+      await h.relay.poll();
+      await h.relay.flush();
+      expect(send).toHaveBeenCalledTimes(2);
+    } finally {
+      firstSend.resolve();
+      h.relay.dispose();
+    }
+  });
+
   it('delivers the exact background answer when UI snapshots contain another conversation', async () => {
     const h = harness({ scopedEvents: true });
     try {
@@ -548,6 +646,7 @@ describe('MessagesRelay', () => {
     });
     h.snapshot.approvals[0]!.status = 'approved';
     ask('approval-2');
+    await h.relay.flush();
     h.text(103, 'what is this?');
     await h.relay.poll();
     h.text(104, 'no');
@@ -569,6 +668,44 @@ describe('MessagesRelay', () => {
       false,
     );
   });
+
+  it.each(['undelivered', 'truncated content', 'truncated summary'])(
+    'keeps an %s approval on the Mac instead of accepting a texted YES',
+    async (reason) => {
+      const h = harness({
+        send: async () => {
+          if (reason === 'undelivered') throw new Error('offline');
+        },
+      });
+      try {
+        await h.ready();
+        h.text(101, 'Send the report');
+        await h.relay.poll();
+        h.snapshot.threads[0]!.status = 'waiting';
+        h.snapshot.approvals.push({
+          id: 'approval',
+          threadId: 'thread-1',
+          title: 'Send report',
+          status: 'pending',
+          dataLeaving:
+            reason === 'truncated content' ? 'Private report '.repeat(100) : 'Report',
+          summary: reason === 'truncated summary' ? 'Recipient '.repeat(200) : 'Recipient',
+        } as never);
+        h.emit();
+        await h.relay.flush();
+        h.text(102, 'YES');
+        await h.relay.poll();
+        await h.relay.flush();
+        expect(h.invoke.mock.calls.some(([method]) => method === 'approvals.resolve')).toBe(
+          false,
+        );
+        if (reason !== 'undelivered')
+          expect(h.sent[0]!.text).toContain('I need your OK in Sia on your Mac');
+      } finally {
+        h.relay.dispose();
+      }
+    },
+  );
 
   it('keeps approvals on the Mac when replying YES is turned off', async () => {
     const h = harness();
@@ -1056,6 +1193,28 @@ describe('MessagesRelay', () => {
       expect(after.trusted).toEqual([]);
       expect(records.has('messages-relay/telegram-bot')).toBe(false);
       expect(bot.channel.stop).toHaveBeenCalled();
+    });
+
+    it('does not reconnect a bot whose verification finishes after disconnect', async () => {
+      const verification = Promise.withResolvers<string>();
+      const bot = fakeBot('telegram');
+      bot.channel.verify = () => verification.promise;
+      const h = harness({
+        bot: () => bot.channel,
+        takeClipboardToken: () => '123456:ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+      });
+      try {
+        const connecting = h.relay.configure({ operation: 'connectBot', kind: 'telegram' });
+        const rejected = expect(connecting).rejects.toThrow('cancelled');
+        await h.relay.configure({ operation: 'disconnectBot', kind: 'telegram' });
+        verification.resolve('@sia_test_bot');
+        await rejected;
+        expect((await h.relay.configure({ operation: 'status' })).bots).toEqual([]);
+        expect(h.records.has('messages-relay/telegram-bot')).toBe(false);
+      } finally {
+        verification.resolve('@sia_test_bot');
+        h.relay.dispose();
+      }
     });
   });
 

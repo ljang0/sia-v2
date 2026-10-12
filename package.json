@@ -9,6 +9,7 @@
     "node": ">=24.0.0"
   },
   "scripts": {
+    "audit:dependencies": "pnpm audit --audit-level high",
     "build": "pnpm -r --if-present build",
     "check": "pnpm build && pnpm format:check && pnpm lint && pnpm quality:guard && pnpm typecheck && pnpm test",
     "clean": "pnpm -r --if-present clean",
@@ -31,7 +32,8 @@
     "test:e2e:parity:strict": "pnpm --filter @sia/desktop test:e2e:parity:strict",
     "test:e2e:real:capabilities": "pnpm --filter @sia/desktop test:e2e:real:capabilities",
     "test:e2e:real:no-turn": "pnpm --filter @sia/desktop test:e2e:real:no-turn",
-    "test:pilot": "pnpm check && pnpm --filter @sia/desktop exec playwright test && pnpm --filter @sia/desktop test:renderer",
+    "test:pilot": "pnpm check && pnpm --filter @sia/desktop exec playwright test && pnpm --filter @sia/desktop test:renderer && pnpm test:remote",
+    "test:remote": "pnpm --filter @sia/desktop test:remote",
     "typecheck": "pnpm -r --if-present typecheck"
   },
   "devDependencies": {

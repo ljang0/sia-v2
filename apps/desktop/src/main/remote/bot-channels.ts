@@ -33,22 +33,47 @@ interface ChannelOptions {
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const delay = (ms: number, signal?: AbortSignal) =>
   new Promise<void>((done) => {
-    const timer = setTimeout(done, ms);
-    signal?.addEventListener('abort', () => {
+    const finish = () => {
       clearTimeout(timer);
+      signal?.removeEventListener('abort', finish);
       done();
-    });
+    };
+    const timer = setTimeout(finish, ms);
+    signal?.addEventListener('abort', finish, { once: true });
+    if (signal?.aborted) finish();
   });
 
 async function saveDownload(
   folder: string,
   name: string,
   response: Response,
+  signal?: AbortSignal,
 ): Promise<string | undefined> {
   const size = Number(response.headers.get('content-length') ?? 0);
-  if (!response.ok || size > MAX_FILE_BYTES) return undefined;
-  const data = Buffer.from(await response.arrayBuffer());
-  if (data.length > MAX_FILE_BYTES) return undefined;
+  if (!response.ok || size > MAX_FILE_BYTES || signal?.aborted) {
+    await response.body?.cancel();
+    return undefined;
+  }
+  if (!response.body) return undefined;
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_FILE_BYTES || signal?.aborted) {
+        await reader.cancel();
+        return undefined;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  if (signal?.aborted) return undefined;
+  const data = Buffer.concat(chunks, bytes);
   await mkdir(folder, { recursive: true, mode: 0o700 });
   // Keep the folder small: anything older than an hour has already been handed to a turn.
   for (const entry of await readdir(folder).catch(() => [])) {
@@ -62,6 +87,7 @@ async function saveDownload(
       .replace(/[^\w.() -]/g, '_')
       .slice(-80) || 'file';
   const path = join(folder, `${randomUUID().slice(0, 8)}-${safe}`);
+  if (signal?.aborted) return undefined;
   await writeFile(path, data, { mode: 0o600 });
   return path;
 }
@@ -102,7 +128,9 @@ export class TelegramChannel implements BotChannel {
           : body
             ? { body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } }
             : {}),
-        ...(signal ? { signal } : {}),
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(35000)])
+          : AbortSignal.timeout(15000),
       },
     );
     const data = (await response.json()) as { ok: boolean; result?: T; description?: string };
@@ -145,6 +173,7 @@ export class TelegramChannel implements BotChannel {
           >('getUpdates', { offset, timeout: 25, allowed_updates: ['message'] }, abort.signal);
           this.#error = undefined;
           for (const update of updates) {
+            if (abort.signal.aborted) return;
             offset = Math.max(offset, update.update_id + 1);
             const message = update.message;
             if (!message?.from || message.from.is_bot || message.chat.type !== 'private')
@@ -174,20 +203,29 @@ export class TelegramChannel implements BotChannel {
             const attachments: string[] = [];
             for (const file of files.slice(0, 5)) {
               if ((file.size ?? 0) > MAX_FILE_BYTES) continue;
-              const info = await this.#call<{ file_path?: string }>('getFile', {
-                file_id: file.id,
-              });
+              const info = await this.#call<{ file_path?: string }>(
+                'getFile',
+                { file_id: file.id },
+                abort.signal,
+              );
+              if (abort.signal.aborted) return;
               if (!info.file_path) continue;
               const response = await this.#fetch(
                 `https://api.telegram.org/file/bot${this.#options.token}/${info.file_path}`,
-                { signal: abort.signal },
+                { signal: AbortSignal.any([abort.signal, AbortSignal.timeout(30000)]) },
               );
               const name = extname(file.name)
                 ? file.name
                 : `${file.name}${extname(info.file_path)}`;
-              const path = await saveDownload(this.#options.downloads, name, response);
+              const path = await saveDownload(
+                this.#options.downloads,
+                name,
+                response,
+                abort.signal,
+              );
               if (path) attachments.push(path);
             }
+            if (abort.signal.aborted) return;
             onMessage({
               handle: `telegram:${message.from.id}`,
               name: message.from.username
@@ -253,7 +291,8 @@ export class DiscordChannel implements BotChannel {
   #socket: WebSocket | undefined;
   #heartbeat: NodeJS.Timeout | undefined;
   #sequence: number | null = null;
-  #stopped = true;
+  #abort: AbortController | undefined;
+  #retry: NodeJS.Timeout | undefined;
   #error: string | undefined;
   #channels = new Map<string, string>();
 
@@ -265,6 +304,9 @@ export class DiscordChannel implements BotChannel {
   async #rest<T>(path: string, init: RequestInit = {}): Promise<T> {
     const response = await this.#fetch(`https://discord.com/api/v10${path}`, {
       ...init,
+      signal: init.signal
+        ? AbortSignal.any([init.signal, AbortSignal.timeout(15000)])
+        : AbortSignal.timeout(15000),
       headers: {
         Authorization: `Bot ${this.#options.token}`,
         ...(init.body && !(init.body instanceof FormData)
@@ -292,28 +334,38 @@ export class DiscordChannel implements BotChannel {
 
   start(onMessage: (message: ChannelMessage) => void): void {
     this.stop();
-    this.#stopped = false;
-    void this.#connect(onMessage);
+    const abort = new AbortController();
+    this.#abort = abort;
+    void this.#connect(onMessage, abort);
   }
 
-  async #connect(onMessage: (message: ChannelMessage) => void): Promise<void> {
-    if (this.#stopped) return;
+  async #connect(
+    onMessage: (message: ChannelMessage) => void,
+    abort: AbortController,
+  ): Promise<void> {
+    if (abort.signal.aborted) return;
     let url: string;
     try {
-      url = (await this.#rest<{ url: string }>('/gateway/bot')).url;
+      url = (await this.#rest<{ url: string }>('/gateway/bot', { signal: abort.signal })).url;
     } catch (error) {
+      if (abort.signal.aborted) return;
       this.#error =
         (error as Error & { status?: number }).status === 401
           ? 'Discord rejected the bot token. Connect the bot again with a new token.'
           : 'Discord is unreachable. Sia will keep retrying.';
       if ((error as Error & { status?: number }).status !== 401)
-        setTimeout(() => void this.#connect(onMessage), 10000).unref();
+        this.#retry = setTimeout(() => void this.#connect(onMessage, abort), 10000);
+      this.#retry?.unref();
       return;
     }
+    if (abort.signal.aborted) return;
     const Socket = this.#options.WebSocket ?? WebSocket;
     const socket = new Socket(`${url}?v=10&encoding=json`);
     this.#socket = socket;
+    this.#sequence = null;
+    let inbox: Promise<unknown> = Promise.resolve();
     socket.addEventListener('message', (event) => {
+      if (abort.signal.aborted || this.#socket !== socket) return;
       let payload: { op: number; s?: number | null; t?: string | null; d?: unknown };
       try {
         payload = JSON.parse(String(event.data));
@@ -347,25 +399,35 @@ export class DiscordChannel implements BotChannel {
           author?: { bot?: boolean };
         };
         if (message.guild_id || message.author?.bot) return;
-        void this.#deliver(message, onMessage);
+        inbox = inbox
+          .then(async () => {
+            if (!abort.signal.aborted) await this.#deliver(message, onMessage, abort.signal);
+          })
+          .catch(() => {
+            if (!abort.signal.aborted)
+              this.#error = 'A Discord message could not be read. Please send it again.';
+          });
       } else if (payload.op === 7 || payload.op === 9) {
         socket.close();
       }
     });
     socket.addEventListener('close', (event) => {
+      if (abort.signal.aborted || this.#socket !== socket) return;
       clearInterval(this.#heartbeat);
-      if (this.#stopped || this.#socket !== socket) return;
+      this.#socket = undefined;
       if ((event as CloseEvent).code === 4004) {
         this.#error = 'Discord rejected the bot token. Connect the bot again with a new token.';
         return;
       }
-      setTimeout(() => void this.#connect(onMessage), 5000).unref();
+      this.#retry = setTimeout(() => void this.#connect(onMessage, abort), 5000);
+      this.#retry.unref();
     });
   }
 
   async #deliver(
     message: DiscordMessage,
     onMessage: (message: ChannelMessage) => void,
+    signal: AbortSignal,
   ): Promise<void> {
     this.#channels.set(message.author.id, message.channel_id);
     const attachments: string[] = [];
@@ -375,10 +437,14 @@ export class DiscordChannel implements BotChannel {
       const path = await saveDownload(
         this.#options.downloads,
         file.filename,
-        await this.#fetch(file.url),
+        await this.#fetch(file.url, {
+          signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]),
+        }),
+        signal,
       ).catch(() => undefined);
       if (path) attachments.push(path);
     }
+    if (signal.aborted) return;
     onMessage({
       handle: `discord:${message.author.id}`,
       name: message.author.global_name ?? message.author.username ?? 'Discord',
@@ -388,7 +454,10 @@ export class DiscordChannel implements BotChannel {
   }
 
   stop(): void {
-    this.#stopped = true;
+    this.#abort?.abort();
+    this.#abort = undefined;
+    clearTimeout(this.#retry);
+    this.#retry = undefined;
     clearInterval(this.#heartbeat);
     this.#socket?.close();
     this.#socket = undefined;

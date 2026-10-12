@@ -398,6 +398,36 @@ describe('bridge renderer queued follow-ups', () => {
 });
 
 describe('bridge renderer scoped snapshots', () => {
+  it('does not restore stale private state when bootstrap resolves after sign-out', async () => {
+    const bootstrap = Promise.withResolvers<DesktopSnapshot>();
+    let push!: (event: DesktopPushEvent) => void;
+    const bridge = {
+      bootstrap: () => bootstrap.promise,
+      subscribe: (listener: typeof push) => {
+        push = listener;
+        return () => undefined;
+      },
+    } as unknown as DesktopBridgeApi;
+    const api = createBridgeRendererApi(bridge);
+    const listener = vi.fn();
+    const unsubscribe = api.subscribe(listener);
+    const loading = api.getSnapshot();
+    const signedOut = snapshot([]);
+    signedOut.revision = 2;
+    signedOut.agents = [];
+    signedOut.threads = [];
+    signedOut.cloud.auth = 'signed_out';
+    delete signedOut.activeAgentId;
+    delete signedOut.activeThreadId;
+    push({ type: 'snapshot', snapshot: signedOut });
+    const current = listener.mock.calls.at(-1)![0];
+    bootstrap.resolve(snapshot([]));
+    expect(await loading).toBe(current);
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(current.agents).toEqual([]);
+    unsubscribe();
+  });
+
   it('keeps unchanged transcript events identical while one reply streams', async () => {
     const item = (id: string, sequence: number, text: string) => ({
       id,

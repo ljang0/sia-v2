@@ -1,6 +1,6 @@
 # Sia development handoff
 
-Updated October 6, 2026 UTC. The integrated alpha.25 candidate is on
+Updated October 12, 2026. The integrated alpha.25 candidate is on
 `codex/release-verification`; [public-release.md](./public-release.md) records its input commits,
 verification results, and release gates.
 
@@ -8,10 +8,13 @@ verification results, and release gates.
 
 The release-verification branch combines PRs #17, #18, and #19 with the public-release audit
 branch and six previously unpublished local-main commits. Source merge conflicts are resolved.
-The combined source gate, 1,159 desktop unit tests, 45 deterministic Electron tests, and 17
-renderer tests passed. All 60 phone-browser checks and unsigned universal packaging also passed.
-CI now also requires renderer and Chromium/WebKit phone checks before
-signed packaging. Main has not been changed by this integration pass.
+The latest code and dependency fixes, regression evidence and verification scope are in
+[workflow robustness](./workflow-robustness.md#messaging-lifecycle-and-repository-audit).
+Local development and CI now share `pnpm test:pilot`, including renderer and Chromium/WebKit
+phone checks. CI separately checks high/critical dependency advisories.
+The installed Arena demo remains signed source `32a916c`; the newer audit changes need a new
+signed candidate before live acceptance. [demo.md](./demo.md) records the actual October 9
+rehearsal. Main has not been changed by this integration pass.
 
 **Public distribution remains blocked.** The combined candidate still needs signed/notarized
 packaging and acceptance on that exact artifact: clean signup and permissions, authenticated
